@@ -1330,7 +1330,17 @@ function AgentToolsFields({
         </div>
       ) : null}
       {activeToolTab === 'tools.knowledge' ? (
-        <KnowledgeBaseField form={form} portalContainer={portalContainer} />
+        <FormField
+          control={form.control}
+          name="knowledgeBaseIds"
+          render={({ field }) => (
+            <KnowledgeBaseField
+              value={field.value ?? []}
+              onValueChange={(value) => form.setValue('knowledgeBaseIds', value, { shouldDirty: true })}
+              portalContainer={portalContainer}
+            />
+          )}
+        />
       ) : null}
       {activeToolTab === 'tools.mcp' && legacyRestrictions.length > 0 ? (
         <div className="grid gap-2">

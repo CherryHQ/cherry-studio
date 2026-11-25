@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 
+import { FormField } from '@cherrystudio/ui'
 import { KnowledgeBaseField } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { ipcApi } from '@renderer/ipc'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -30,13 +31,20 @@ export function KnowledgeStep({ form, isSubmitting = false, portalContainer }: K
   }, [isSubmitting])
 
   return (
-    <KnowledgeBaseField
-      form={form}
-      portalContainer={portalContainer}
-      formLabel={false}
-      labelClassName="font-medium"
-      disabled={isSubmitting}
-      onOpenKnowledgePage={openKnowledgePage}
+    <FormField
+      control={form.control}
+      name="knowledgeBaseIds"
+      render={({ field }) => (
+        <KnowledgeBaseField
+          value={field.value ?? []}
+          onValueChange={(value) => form.setValue('knowledgeBaseIds', value, { shouldDirty: true })}
+          portalContainer={portalContainer}
+          formLabel={false}
+          labelClassName="font-medium"
+          disabled={isSubmitting}
+          onOpenKnowledgePage={openKnowledgePage}
+        />
+      )}
     />
   )
 }

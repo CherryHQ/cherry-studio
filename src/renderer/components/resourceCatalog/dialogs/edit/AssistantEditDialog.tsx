@@ -68,7 +68,6 @@ import {
   KnowledgeBaseField,
   type ModelLabels,
   PromptVariablesPopover,
-  setFormValues,
   TextInputField,
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
@@ -112,8 +111,6 @@ type AssistantEditFormValues = {
 }
 
 type CustomParameter = AssistantFormState['customParameters'][number]
-
-type CustomParameterType = CustomParameter['type']
 
 type AssistantToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.knowledge'
 
@@ -485,7 +482,17 @@ function AssistantEditDialogContent({
               <AssistantToolsFields form={form} portalContainer={dialogContentElement} />
             ) : (
               <div className="grid gap-4">
-                <KnowledgeBaseField form={form} portalContainer={dialogContentElement} />
+                <FormField
+                  control={form.control}
+                  name="knowledgeBaseIds"
+                  render={({ field }) => (
+                    <KnowledgeBaseField
+                      value={field.value ?? []}
+                      onValueChange={(value) => form.setValue('knowledgeBaseIds', value, { shouldDirty: true })}
+                      portalContainer={dialogContentElement}
+                    />
+                  )}
+                />
               </div>
             )}
           </TabsContent>
@@ -542,16 +549,12 @@ function AssistantBasicFields({
   const { t } = useTranslation()
 
   const handleAssistantModelChange = (modelId: UniqueModelId | null, model?: Model) => {
-    const patch: Partial<AssistantEditFormValues> = { modelId }
     const nameLower = model?.name.toLowerCase() ?? ''
+    const temperature = nameLower.includes('kimi-k2') ? 0.6 : nameLower.includes('moonshot') ? 0.3 : undefined
 
-    if (nameLower.includes('kimi-k2')) {
-      patch.temperature = 0.6
-    } else if (nameLower.includes('moonshot')) {
-      patch.temperature = 0.3
-    }
+    form.setValue('modelId', modelId, { shouldDirty: true })
 
-    setFormValues(form, patch)
+    if (temperature !== undefined) form.setValue('temperature', temperature, { shouldDirty: true })
   }
 
   return (
@@ -1239,19 +1242,9 @@ function CustomParametersField({
   const add = () => onChange([...value, { name: '', type: 'string', value: '' }])
   const remove = (index: number) => onChange(value.filter((_, i) => i !== index))
 
-  const updateField = (index: number, patch: Partial<CustomParameter>) => {
-    const next = [...value] as CustomParameter[]
-
-    if (patch.type && patch.type !== next[index].type) {
-      next[index] = {
-        name: next[index].name,
-        type: patch.type,
-        value: defaultValueForType(patch.type)
-      } as CustomParameter
-    } else {
-      next[index] = { ...next[index], ...patch } as CustomParameter
-    }
-
+  const update = (index: number, parameter: CustomParameter) => {
+    const next = [...value]
+    next[index] = parameter
     onChange(next)
   }
 
@@ -1277,9 +1270,7 @@ function CustomParametersField({
               key={index}
               param={param}
               portalContainer={portalContainer}
-              onNameChange={(name) => updateField(index, { name })}
-              onTypeChange={(type) => updateField(index, { type })}
-              onValueChange={(nextValue) => updateField(index, { value: nextValue })}
+              onChange={(parameter) => update(index, parameter)}
               onDelete={() => remove(index)}
             />
           ))}
@@ -1290,32 +1281,32 @@ function CustomParametersField({
   )
 }
 
-function defaultValueForType(type: CustomParameterType): CustomParameter['value'] {
+function changeCustomParameterType(param: CustomParameter, type: string): CustomParameter | undefined {
+  if (type === param.type) return { ...param }
+
   switch (type) {
     case 'number':
-      return 0
+      return { name: param.name, type, value: 0 }
     case 'boolean':
-      return false
+      return { name: param.name, type, value: false }
     case 'json':
-      return ''
+      return { name: param.name, type, value: '' }
+    case 'string':
+      return { name: param.name, type, value: '' }
     default:
-      return ''
+      return undefined
   }
 }
 
 function CustomParameterRow({
   param,
   portalContainer,
-  onNameChange,
-  onTypeChange,
-  onValueChange,
+  onChange,
   onDelete
 }: {
   param: CustomParameter
   portalContainer: HTMLElement | null
-  onNameChange: (name: string) => void
-  onTypeChange: (type: CustomParameterType) => void
-  onValueChange: (value: CustomParameter['value']) => void
+  onChange: (parameter: CustomParameter) => void
   onDelete: () => void
 }) {
   const { t } = useTranslation()
@@ -1351,10 +1342,16 @@ function CustomParameterRow({
         <Input
           placeholder={t('library.config.basic.custom_params_name')}
           value={param.name}
-          onChange={(event) => onNameChange(event.target.value)}
+          onChange={(event) => onChange({ ...param, name: event.target.value })}
           className="flex-1"
         />
-        <Select value={param.type} onValueChange={(value) => onTypeChange(value as CustomParameterType)}>
+        <Select
+          value={param.type}
+          onValueChange={(value) => {
+            const next = changeCustomParameterType(param, value)
+
+            if (next) onChange(next)
+          }}>
           <SelectTrigger size="sm" className="w-[100px]">
             <SelectValue />
           </SelectTrigger>
@@ -1373,15 +1370,20 @@ function CustomParameterRow({
               <InputNumber
                 aria-label={parameterValueLabel}
                 value={typeof param.value === 'number' ? param.value : null}
-                onValueChange={(value) => onValueChange(value ?? 0)}
+                onValueChange={(value) => onChange({ ...param, type: 'number', value: value ?? 0 })}
                 // Settles an abandoned `-` / `1e` back to what the edit started
                 // from; the live callback stays silent on those, so without this
                 // the field keeps whatever the clear before them wrote.
-                onBlur={(value) => onValueChange(value ?? 0)}
+                onBlur={(value) => onChange({ ...param, type: 'number', value: value ?? 0 })}
               />
             ) : null}
             {param.type === 'boolean' ? (
-              <Select value={String(param.value)} onValueChange={(value) => onValueChange(value === 'true')}>
+              <Select
+                value={String(param.value)}
+                onValueChange={(value) => {
+                  if (value === 'true' || value === 'false')
+                    onChange({ ...param, type: 'boolean', value: value === 'true' })
+                }}>
                 <SelectTrigger size="sm">
                   <SelectValue />
                 </SelectTrigger>
@@ -1395,7 +1397,7 @@ function CustomParameterRow({
               <Input
                 aria-label={parameterValueLabel}
                 value={String(param.value)}
-                onChange={(event) => onValueChange(event.target.value)}
+                onChange={(event) => onChange({ ...param, type: 'string', value: event.target.value })}
               />
             ) : null}
           </div>
@@ -1414,7 +1416,7 @@ function CustomParameterRow({
         <div className="mt-2">
           <Textarea.Input
             value={jsonString}
-            onValueChange={onValueChange}
+            onValueChange={(value) => onChange({ ...param, type: 'json', value })}
             rows={4}
             spellCheck={false}
             placeholder='{"key": "value"}'
