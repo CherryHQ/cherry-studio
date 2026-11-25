@@ -71,6 +71,7 @@ function workspacesEqual(a: AgentSessionWorkspaceSource, b: AgentSessionWorkspac
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted job templates may predate workspace fields; validate them here before applying scheduling defaults.
 function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplate | null {
   if (typeof value !== 'object' || value === null) return null
+
   const template = {
     agentId: 'agentId' in value ? value.agentId : undefined,
     prompt: 'prompt' in value ? value.prompt : undefined,
