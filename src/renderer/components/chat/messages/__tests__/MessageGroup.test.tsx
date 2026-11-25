@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as CherryUi from '@cherrystudio/ui'
 import { TabIdContext } from '@renderer/hooks/tab'
 import { getCachedMessageUiState, updateCachedMessageUiState } from '@renderer/services/messageUiStateCache'
+import type * as Dom from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -159,7 +160,8 @@ vi.mock('@renderer/services/TokenService', () => ({
   estimateMessageUsage: vi.fn().mockResolvedValue(0)
 }))
 
-vi.mock('@renderer/utils/dom', () => ({
+vi.mock('@renderer/utils/dom', async (importOriginal) => ({
+  ...(await importOriginal<typeof Dom>()),
   scrollIntoView: mocks.scrollIntoView
 }))
 

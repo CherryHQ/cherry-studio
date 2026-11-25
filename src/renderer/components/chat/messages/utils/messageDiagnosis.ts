@@ -17,11 +17,10 @@ export function withMessagePartDiagnosis(
   partIndex: number,
   diagnosis: DiagnosisResult
 ): CherryMessagePart[] | null {
-  if (partIndex < 0 || partIndex >= parts.length) return null
+  const target = parts[partIndex]
 
-  // The switch-narrowing at the call site can't reach here, so narrow to the
-  // data-error part shape `withCherryMeta` type-checks the `diagnosis` field against.
-  const target = parts[partIndex] as Extract<CherryMessagePart, { type: 'data-error' }>
+  if (target?.type !== 'data-error') return null
+
   const updatedPart = withCherryMeta(target, { diagnosis })
 
   return parts.map((part, index) => (index === partIndex ? updatedPart : part))

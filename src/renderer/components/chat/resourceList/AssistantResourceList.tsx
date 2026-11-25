@@ -41,13 +41,13 @@ import {
   getSidebarShortcutResourceIds,
   SIDEBAR_SHORTCUT_PROVIDER_IDS
 } from '@renderer/utils/sidebar'
-import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
 
 import {
   buildResolvedIconTypeMenuAction,
   buildResolvedResourceEntityMenuAction,
   renderAssistantEntityIcon,
+  RESOURCE_ICON_TYPE_OPTIONS,
   ResourceList,
   TopicListOptionsMenu
 } from './base'
@@ -782,7 +782,11 @@ export function AssistantResourceList({
       }
 
       if (action.id.startsWith(`${ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID}.`)) {
-        void setAssistantIconType(action.id.slice(ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID.length + 1) as AssistantIconType)
+        const iconType = RESOURCE_ICON_TYPE_OPTIONS.find(
+          (type) => action.id === `${ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID}.${type}`
+        )
+
+        if (iconType) void setAssistantIconType(iconType)
 
         return
       }

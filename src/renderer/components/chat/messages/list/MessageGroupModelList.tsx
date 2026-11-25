@@ -54,8 +54,9 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({
           className="[&_button]:h-6.5 [&_button]:gap-1 [&_button]:px-2"
           value={selectMessageId}
           onValueChange={(value) => {
-            const message = messages.find((message) => message.id === value) as MessageListItem
-            setSelectedMessage(message)
+            const message = messages.find((message) => message.id === value)
+
+            if (message) setSelectedMessage(message)
           }}
           options={messages.map((message) => ({
             label: renderLabel(message),

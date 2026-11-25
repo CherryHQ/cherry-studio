@@ -190,7 +190,7 @@ export function useMessageActivityState(
   activeExecutionsRef.current = activeExecutions
   awaitingApprovalAnchorsRef.current = awaitingApprovalAnchors
 
-  const storeRef = useRef<KeyedMessageActivityStore>(undefined as never)
+  const storeRef = useRef<KeyedMessageActivityStore | null>(null)
 
   if (!storeRef.current) storeRef.current = new KeyedMessageActivityStore()
   const store = storeRef.current

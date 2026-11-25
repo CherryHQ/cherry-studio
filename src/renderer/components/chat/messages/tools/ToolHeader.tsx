@@ -106,7 +106,7 @@ const getAgentToolLabel = (toolName: string, t: Translate): string => {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Streamed and extension-defined tool arguments need container and string-field checks before display.
 function getStringArg(args: unknown, key: string): string | undefined {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Streamed native and extension arguments share no field schema; this dynamic read checks the selected value before display.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: args is a non-array object; its fields remain unknown and the selected value is checked below.
   const value = (args as Record<string, unknown>)[key]
 
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
@@ -753,7 +753,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   if (tool?.type === 'mcp') {
     return (
       <McpToolHeader
-        tool={tool as McpTool}
+        tool={tool}
         description={description}
         stats={stats}
         showStatus={showStatus}

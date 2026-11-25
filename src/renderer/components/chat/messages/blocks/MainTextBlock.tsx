@@ -481,15 +481,12 @@ const MainTextBlock: React.FC<Props> = ({
   const composerMarkdownComponents = useMemo<Partial<Components>>(
     () => ({
       span: ({ children, ...props }) => {
-        const rawProps = props as {
-          [COMPOSER_TOKEN_MARKDOWN_ATTR]?: unknown
-          [COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR]?: unknown
-          dataComposerTokenIndex?: unknown
-          dataComposerTokenBlock?: unknown
-        }
-
-        const rawIndex = rawProps[COMPOSER_TOKEN_MARKDOWN_ATTR] ?? rawProps.dataComposerTokenIndex
-        const rawBlock = rawProps[COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR] ?? rawProps.dataComposerTokenBlock
+        const rawIndex =
+          (COMPOSER_TOKEN_MARKDOWN_ATTR in props ? props[COMPOSER_TOKEN_MARKDOWN_ATTR] : undefined) ??
+          ('dataComposerTokenIndex' in props ? props.dataComposerTokenIndex : undefined)
+        const rawBlock =
+          (COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR in props ? props[COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR] : undefined) ??
+          ('dataComposerTokenBlock' in props ? props.dataComposerTokenBlock : undefined)
         const tokenIndex = typeof rawIndex === 'string' ? Number.parseInt(rawIndex, 10) : NaN
 
         const token =

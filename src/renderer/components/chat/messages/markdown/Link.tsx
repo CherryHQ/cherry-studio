@@ -71,11 +71,7 @@ const Link: React.FC<LinkProps> = (props) => {
   // CitationSup, so the child's `type` is that component rather than the string 'sup', and an
   // element-type check would read every citation link as an ordinary link — favicon injected
   // next to the badge, and the hyperlink preview shown instead of the citation card.
-  const isCitation = Boolean(
-    (props.node as { children?: Array<{ tagName?: string }> } | undefined)?.children?.some(
-      (child) => child.tagName === 'sup'
-    )
-  )
+  const isCitation = Boolean(props.node?.children?.some((child) => 'tagName' in child && child.tagName === 'sup'))
 
   const linkClassName = cn('text-link', !props.className && !isCitation && 'hover:underline', props.className)
 

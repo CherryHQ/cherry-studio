@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { getEventTargetElement } from '@renderer/utils/dom'
+
 interface SelectionBoxProps {
   isMultiSelectMode: boolean
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
@@ -57,9 +59,11 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
     }
 
     const handleMouseDown = (e: MouseEvent) => {
-      if ((e.target as HTMLElement).closest(INTERACTIVE_CHECKBOX_SELECTOR)) return
+      const target = getEventTargetElement(e.target)
 
-      if ((e.target as HTMLElement).closest('.MessageFooter')) return
+      if (!target || target.closest(INTERACTIVE_CHECKBOX_SELECTOR)) return
+
+      if (target.closest('.MessageFooter')) return
 
       e.preventDefault()
 

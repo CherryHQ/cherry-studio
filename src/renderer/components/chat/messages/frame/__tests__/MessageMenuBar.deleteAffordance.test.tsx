@@ -1,7 +1,6 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
-import type { RefObject } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -86,7 +85,7 @@ function renderToolbar(
           forceVisible
           isAssistantMessage={role === 'assistant'}
           isProcessing={false}
-          messageContainerRef={{ current: null } as unknown as RefObject<HTMLDivElement>}
+          messageContainerRef={{ current: null }}
         />
       </MessageListProvider>
     </I18nextProvider>

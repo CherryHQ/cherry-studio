@@ -27,7 +27,7 @@ export function actionsToCommandMenuExtraItems<TContext>(
       items.push({
         type: 'submenu',
         id: action.id,
-        label: action.label as string,
+        label: action.label,
         icon: action.icon,
         description: action.availability.reason,
         enabled: action.availability.enabled,
@@ -39,7 +39,7 @@ export function actionsToCommandMenuExtraItems<TContext>(
     items.push({
       type: 'item',
       id: action.id,
-      label: action.label as string,
+      label: action.label,
       icon: action.icon,
       description: action.availability.reason,
       enabled: action.availability.enabled,

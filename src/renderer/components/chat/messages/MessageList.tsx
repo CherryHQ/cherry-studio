@@ -703,7 +703,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   }, [activeTopicImageCaptureAction, executeTopicImageAction])
 
   useEffect(() => {
-    scrollContainerRef.current = (messageListRef.current?.getScrollElement() as HTMLDivElement | null) ?? null
+    scrollContainerRef.current = messageListRef.current?.getScrollElement() ?? null
     flushPendingTopicImageAction()
   }, [flushPendingTopicImageAction, groupedMessages])
 

@@ -205,7 +205,7 @@ export function useTopicMenuPreset<TItem>({
 
   const getActions = useCallback(
     (item: TItem, contextOverride?: TopicMenuActionContextOverride) =>
-      getTopicMenuActions(getActionContextWithOverride(item, contextOverride)) as ResolvedAction[],
+      getTopicMenuActions(getActionContextWithOverride(item, contextOverride)),
     [getActionContextWithOverride]
   )
 

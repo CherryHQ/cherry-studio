@@ -104,7 +104,7 @@ export function useStableMessagePartsLayers(
     let hasExecutionOverlay = false
 
     for (const message of messages) {
-      const baseParts = (message.parts ?? []) as CherryMessagePart[]
+      const baseParts = message.parts ?? []
       const previousHistoryParts = previousHistory[message.id]
 
       const historyParts =

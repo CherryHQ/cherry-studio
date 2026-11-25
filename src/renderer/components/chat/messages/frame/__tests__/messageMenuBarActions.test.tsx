@@ -168,7 +168,7 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
       status: 'success',
       parts: []
     } as any,
-    messageContainerRef: { current: null } as any,
+    messageContainerRef: { current: null },
     mainTextContent: 'hello',
     menuConfig: defaultMessageMenuConfig,
     copied: false,

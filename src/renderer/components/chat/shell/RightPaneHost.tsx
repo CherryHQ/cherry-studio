@@ -654,7 +654,11 @@ export function PersistentRightPaneHost({
         <div
           data-shell-maximized-overlay-content={fullWidthLayout ? '' : undefined}
           style={
-            composerInset === null ? undefined : ({ '--chat-composer-inset': `${composerInset}px` } as CSSProperties)
+            composerInset === null
+              ? undefined
+              : ({ '--chat-composer-inset': `${composerInset}px` } satisfies CSSProperties & {
+                  '--chat-composer-inset': string
+                })
           }
           className={cn(
             // One opaque surface in every layout: the theme's background carries alpha in dark mode,

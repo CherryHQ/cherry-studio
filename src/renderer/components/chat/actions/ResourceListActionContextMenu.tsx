@@ -17,7 +17,7 @@ type ResourceListActionContextMenuProps<T extends ResourceListItemBase, TActionC
   onAction: (action: ResolvedAction<TActionContext>) => void | Promise<void>
 }
 
-const EMPTY_ACTIONS: readonly ResolvedAction[] = []
+const EMPTY_ACTIONS: readonly never[] = []
 const EMPTY_EXTRA_ITEMS: readonly CommandContextMenuExtraItem[] = []
 
 /**
@@ -64,11 +64,7 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
   )
 
   const extraItems = useMemo(
-    () =>
-      actionsToCommandMenuExtraItems(
-        actions ?? (EMPTY_ACTIONS as readonly ResolvedAction<TActionContext>[]),
-        runAction
-      ),
+    () => actionsToCommandMenuExtraItems(actions ?? EMPTY_ACTIONS, runAction),
     [actions, runAction]
   )
 

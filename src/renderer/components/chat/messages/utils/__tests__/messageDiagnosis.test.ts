@@ -13,8 +13,9 @@ const diagnosis: DiagnosisResult = {
   steps: [{ text: 'Open provider settings and check the key' }]
 }
 
-const errorParts = (): CherryMessagePart[] =>
-  [{ type: 'data-error', data: { name: 'AuthError', message: 'Unauthorized' } }] as unknown as CherryMessagePart[]
+const errorParts = (): CherryMessagePart[] => [
+  { type: 'data-error', data: { name: 'AuthError', message: 'Unauthorized' } }
+]
 
 describe('withMessagePartDiagnosis', () => {
   it('writes the diagnosis under providerMetadata.cherry.diagnosis without mutating the input', () => {
@@ -22,8 +23,7 @@ describe('withMessagePartDiagnosis', () => {
     const next = withMessagePartDiagnosis(parts, 0, diagnosis)
 
     expect(next).not.toBeNull()
-    const updated = next![0] as { providerMetadata?: { cherry?: { diagnosis?: unknown } } }
-    expect(updated.providerMetadata?.cherry?.diagnosis).toEqual(diagnosis)
+    expect(next?.[0]).toMatchObject({ providerMetadata: { cherry: { diagnosis } } })
     // original untouched
     expect('providerMetadata' in parts[0]).toBe(false)
   })
@@ -31,6 +31,13 @@ describe('withMessagePartDiagnosis', () => {
   it('returns null for an out-of-range index', () => {
     expect(withMessagePartDiagnosis(errorParts(), -1, diagnosis)).toBeNull()
     expect(withMessagePartDiagnosis(errorParts(), 5, diagnosis)).toBeNull()
+  })
+
+  it('refuses to attach error-only diagnosis metadata to a text part', () => {
+    const parts: CherryMessagePart[] = [{ type: 'text', text: 'Original answer' }]
+
+    expect(withMessagePartDiagnosis(parts, 0, diagnosis)).toBeNull()
+    expect(parts).toEqual([{ type: 'text', text: 'Original answer' }])
   })
 
   it('survives the PATCH API boundary and stays readable via readCherryMeta', () => {

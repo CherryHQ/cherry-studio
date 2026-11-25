@@ -45,7 +45,10 @@ export function ContextUsageMeter({
           ...style,
           '--context-usage-color': color,
           '--context-usage-progress': `${normalizedPercentage}%`
-        } as CSSProperties
+        } satisfies CSSProperties & {
+          '--context-usage-color': string
+          '--context-usage-progress': string
+        }
       }>
       <span aria-hidden className="absolute inset-[2px] rounded-full bg-composer-surface" />
     </span>

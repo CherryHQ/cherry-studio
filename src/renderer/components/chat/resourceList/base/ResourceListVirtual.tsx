@@ -452,10 +452,7 @@ function useResourceListRenderContext<T extends ResourceListItemBase>(): Resourc
           return store.getUiSnapshot().draggingId
         },
         get groupVisibleCounts() {
-          return Object.fromEntries(view.groups.map((group) => [group.group.id, group.visibleCount])) as Record<
-            string,
-            number
-          >
+          return Object.fromEntries(view.groups.map((group): [string, number] => [group.group.id, group.visibleCount]))
         },
         get renamingId() {
           return store.getUiSnapshot().renamingId

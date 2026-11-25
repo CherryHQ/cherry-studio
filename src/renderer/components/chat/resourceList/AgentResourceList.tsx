@@ -42,7 +42,6 @@ import {
 } from '@renderer/utils/sidebar'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import {
   isAgentNotFoundError,
   isAgentSessionArchiveBusyError,
@@ -53,6 +52,7 @@ import {
   buildResolvedIconTypeMenuAction,
   buildResolvedResourceEntityMenuAction,
   renderAgentEntityIcon,
+  RESOURCE_ICON_TYPE_OPTIONS,
   ResourceList,
   SessionListOptionsMenu
 } from './base'
@@ -708,7 +708,11 @@ export function AgentResourceList({
       }
 
       if (action.id.startsWith(`${AGENT_ENTITY_ICON_TYPE_ACTION_ID}.`)) {
-        void setAssistantIconType(action.id.slice(AGENT_ENTITY_ICON_TYPE_ACTION_ID.length + 1) as AssistantIconType)
+        const iconType = RESOURCE_ICON_TYPE_OPTIONS.find(
+          (type) => action.id === `${AGENT_ENTITY_ICON_TYPE_ACTION_ID}.${type}`
+        )
+
+        if (iconType) void setAssistantIconType(iconType)
 
         return
       }

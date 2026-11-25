@@ -478,7 +478,7 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      expect(screen.getByRole('button')).toHaveTextContent('Keep the valid subject')
+      expect(screen.getByText('Keep the valid subject')).toBeVisible()
     })
 
     it('should render newly supported structured agent tools', () => {

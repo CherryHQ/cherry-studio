@@ -12,6 +12,7 @@ export function MultiEditTool({ input }: ToolDisplayProps): ToolDisclosureItem {
   const filePath = readToolStringArgument(input, 'file_path')
   const filename = filePath ? getFilePreviewFileName(filePath) : undefined
   const rawEdits = isToolArgumentObject(input) ? input.edits : undefined
+
   const hunks = Array.isArray(rawEdits)
     ? rawEdits.map((edit) => ({
         oldString: readToolStringArgument(edit, 'old_string'),

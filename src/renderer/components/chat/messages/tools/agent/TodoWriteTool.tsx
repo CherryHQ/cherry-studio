@@ -10,9 +10,11 @@ import { TaskListView } from './TaskTool'
 export function TodoWriteTool({ input }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
   const rawTodos = isToolArgumentObject(input) ? input.todos : undefined
+
   const todos = Array.isArray(rawTodos)
     ? rawTodos.map((todo) => {
         const rawStatus = isToolArgumentObject(todo) ? todo.status : undefined
+
         const status =
           rawStatus === 'pending' || rawStatus === 'in_progress' || rawStatus === 'completed' ? rawStatus : undefined
 
@@ -23,6 +25,7 @@ export function TodoWriteTool({ input }: ToolDisplayProps): ToolDisclosureItem {
         }
       })
     : []
+
   const activeTodo = todos.find((todo) => todo?.status === 'in_progress')
 
   return {

@@ -129,7 +129,7 @@ export function buildResolvedIconTypeActions(
 
 export function buildResolvedIconTypeMenuAction(
   parentActionId: string,
-  label: ReactNode,
+  label: string,
   icon: ReactNode,
   order: number,
   currentIconType: AssistantIconType,

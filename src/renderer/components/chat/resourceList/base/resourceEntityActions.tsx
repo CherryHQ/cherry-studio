@@ -2,6 +2,7 @@ import type {
   ActionAvailability,
   ActionDescriptor,
   ActionNode,
+  ActionText,
   ResolvedAction
 } from '@renderer/components/chat/actions/actionTypes'
 
@@ -52,7 +53,7 @@ export function buildResolvedResourceEntityMenuAction<TContext = unknown>({
 type ResourceEntityIconTypeActionDescriptorParams<TContext> = {
   id: string
   commandId?: string
-  label: ActionNode<TContext>
+  label: ActionText<TContext>
   icon: ActionNode<TContext>
   order: number
   children: readonly ActionDescriptor<TContext>[]

@@ -15,7 +15,7 @@ export function getEffectiveMultiModelMessageStyle(
 ): MultiModelMessageStyle {
   if (messages.length < 2) return 'fold'
 
-  return (getMessageUiState(messages[0]?.id).multiModelMessageStyle as MultiModelMessageStyle) || defaultStyle
+  return getMessageUiState(messages[0]?.id).multiModelMessageStyle || defaultStyle
 }
 
 export function shouldUseWideLayoutForMessageGroup(

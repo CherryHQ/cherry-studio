@@ -51,7 +51,7 @@ export interface CommandDescriptor<TContext> {
 export interface ActionDescriptor<TContext> {
   id: string
   commandId?: string
-  label: ActionNode<TContext>
+  label: ActionText<TContext>
   icon?: ActionNode<TContext>
   group?: string
   order?: number
@@ -66,7 +66,7 @@ export interface ActionDescriptor<TContext> {
 export interface ResolvedAction<TContext = unknown> {
   id: string
   commandId?: string
-  label: ReactNode
+  label: string
   icon?: ReactNode
   group?: string
   order?: number

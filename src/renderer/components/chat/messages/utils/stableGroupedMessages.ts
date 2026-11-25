@@ -65,9 +65,7 @@ export function stableGroupedMessages(
   messages: readonly MessageListItem[],
   cache: StableGroupedMessagesCache
 ): GroupedEntry[] {
-  // groupMessageListItems expects a mutable array; the cache helper does not
-  // mutate it, but the underlying signature is typed that way, hence the cast.
-  const grouped = groupMessageListItems(messages as MessageListItem[])
+  const grouped = groupMessageListItems(messages)
   const nextEntries: GroupedEntry[] = []
   const nextEntryByKey = new Map<string, GroupedEntry>()
   const nextByKey = new Map<string, MessageListItem[]>()

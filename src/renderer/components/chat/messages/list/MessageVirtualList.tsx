@@ -18,6 +18,7 @@ import { Virtualizer } from 'virtua'
 
 import { Button, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { getEventTargetElement, getEventTargetNode } from '@renderer/utils/dom'
 
 import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chatVirtualizerRuntime'
 import {
@@ -329,10 +330,10 @@ export function MessageVirtualList<T>({
 
     const onAutoscrollMouseDown = (event: MouseEvent) => {
       const isMiddle = event.button === 1
-      const insideScroller = scrollerElement.contains(event.target as Node)
+      const insideScroller = scrollerElement.contains(getEventTargetNode(event.target))
 
       if (isMiddle && insideScroller) {
-        const target = event.target instanceof Element ? event.target : null
+        const target = getEventTargetElement(event.target)
 
         if (target?.closest('a,button,[role="button"]')) return
         armAutoscrollCandidate()

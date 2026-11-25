@@ -66,7 +66,7 @@ export const ThinkingBlockContent = memo(({ id, content, isStreaming }: Thinking
           '--markdown-foreground': 'var(--muted-foreground)',
           fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
           fontSize
-        } as CSSProperties
+        } satisfies CSSProperties & { '--markdown-foreground': string }
       }>
       <ChatMarkdown block={block} />
     </div>

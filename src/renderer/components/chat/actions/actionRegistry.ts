@@ -2,6 +2,7 @@ import type {
   ActionAvailability,
   ActionAvailabilityInput,
   ActionDescriptor,
+  ActionNode,
   ActionSurface,
   CommandDescriptor,
   ResolvedAction,
@@ -48,7 +49,7 @@ function matchesSurface<TContext>(action: ActionDescriptor<TContext>, surface?: 
   return Array.isArray(action.surface) ? action.surface.includes(surface) : action.surface === surface
 }
 
-function resolveNode<TContext>(node: ActionDescriptor<TContext>['label'], context: TContext) {
+function resolveNode<TContext>(node: ActionNode<TContext>, context: TContext) {
   return typeof node === 'function' ? node(context) : node
 }
 
@@ -216,7 +217,7 @@ export class ActionRegistry<TContext> {
     return {
       id: action.id,
       ...(action.commandId && { commandId: action.commandId }),
-      label: resolveNode(action.label, context),
+      label: resolveText(action.label, context),
       ...(action.icon && { icon: resolveNode(action.icon, context) }),
       ...(action.group && { group: action.group }),
       ...(action.order !== undefined && { order: action.order }),

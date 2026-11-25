@@ -139,7 +139,7 @@ export function computeMessageSearchMatches(
 
   if (!trimmed) return []
 
-  const groupedMessages = groupMessageListItems(messages as MessageListItem[])
+  const groupedMessages = groupMessageListItems(messages)
 
   return Object.entries(groupedMessages).flatMap(([groupKey, groupMessages]): MessageSearchMatch[] => {
     const documents = projectMessageSearchDocuments(groupMessages, partsByMessageId, options)

@@ -10,7 +10,10 @@ export function PlaceholderShimmerText({ className, style, ...props }: Component
           '--animation-shimmer-mid': 'color-mix(in srgb, var(--foreground) 66.6667%, transparent)',
           '--animation-shimmer-end': 'color-mix(in srgb, var(--animation-shimmer-mid) 35%, transparent)',
           ...style
-        } as CSSProperties
+        } satisfies CSSProperties & {
+          '--animation-shimmer-mid': string
+          '--animation-shimmer-end': string
+        }
       }
       {...props}
     />

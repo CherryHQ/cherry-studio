@@ -34,24 +34,30 @@ export function getAgentNavigateResult(
 
   if (!isRecord(input)) return undefined
   const path = input.path
+
   if (typeof path !== 'string' || path.length === 0) return undefined
 
   const target: AgentNavigateResult['input'] = { path }
+
   if ('query' in input) {
     const query = input.query
+
     if (!isRecord(query)) return undefined
 
     const entries: Array<[string, string]> = []
+
     for (const [key, value] of Object.entries(query)) {
       if (typeof value !== 'string') return undefined
       entries.push([key, value])
     }
+
     target.query = Object.fromEntries(entries)
   }
 
   const prefix = 'Navigate link created: '
 
   const output = response.response
+
   if (typeof output !== 'string' || !output.startsWith(prefix) || output.length === prefix.length) {
     return undefined
   }

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import type { AttributeValue } from '@shared/data/types/trace'
 import type { Serializable } from '@shared/types/serializable'
 
@@ -239,7 +239,7 @@ function resolveSpanModel(node: TraceNode): { id: string; name: string; provider
 
   if (typeof uniqueId === 'string') {
     try {
-      const { providerId, modelId } = parseUniqueModelId(uniqueId as UniqueModelId)
+      const { providerId, modelId } = parseUniqueModelId(uniqueId)
 
       if (providerId && modelId) return { id: modelId, name, providerId }
     } catch {

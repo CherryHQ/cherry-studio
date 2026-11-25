@@ -52,7 +52,7 @@ export interface MessageVirtualListHandle {
   /** Center an exact text range immediately, then freeze the viewport on its rendered content. */
   scrollToRange(range: Range): void
   isFollowing(): boolean
-  getScrollElement(): HTMLElement | null
+  getScrollElement(): HTMLDivElement | null
 }
 
 export interface ChatVirtualizerRuntimeOptions<T> {
@@ -1362,7 +1362,7 @@ export function useChatVirtualizerRuntime<T>({
     freezeSpacerRef,
     vlistHandleRef,
     wrappedItems,
-    wrappedRenderItem: wrappedRenderItem as ChatVirtualizerRuntime<T>['wrappedRenderItem'],
+    wrappedRenderItem,
     shift,
     keepMounted,
     scrollerProps,

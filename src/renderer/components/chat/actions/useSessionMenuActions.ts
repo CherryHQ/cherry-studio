@@ -50,7 +50,7 @@ export function useSessionMenuPreset<TItem>({
 
   const getActions = useCallback(
     (item: TItem, contextOverride?: SessionMenuActionContextOverride) =>
-      getSessionMenuActions(getActionContextWithOverride(item, contextOverride)) as ResolvedAction[],
+      getSessionMenuActions(getActionContextWithOverride(item, contextOverride)),
     [getActionContextWithOverride]
   )
 

@@ -252,7 +252,8 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
   // the rail itself. Mirror that offset into state so the card and wave track it.
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const ticks = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-message-anchor-tick]'))
-    const current = ticks.indexOf(document.activeElement as HTMLElement)
+    const activeElement = document.activeElement
+    const current = ticks.findIndex((tick) => tick === activeElement)
 
     if (current < 0) return
 

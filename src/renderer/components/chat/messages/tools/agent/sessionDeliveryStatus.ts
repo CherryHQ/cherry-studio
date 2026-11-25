@@ -1,6 +1,6 @@
 import type { TFunction } from 'i18next'
 
-import type { AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
+import { type AgentSessionDeliveryStatus, AgentSessionDeliveryStatusSchema } from '@shared/ai/agentSessionDelivery'
 
 const DELIVERY_STATUS_LABEL_KEYS = {
   accepted: 'agent.session_delivery.status.accepted',
@@ -17,9 +17,9 @@ const DELIVERY_STATUS_CLASS_NAMES: Record<AgentSessionDeliveryStatus, string> = 
 }
 
 export function getSessionDeliveryStatus(status: string | undefined, t: TFunction) {
-  if (status && Object.hasOwn(DELIVERY_STATUS_LABEL_KEYS, status)) {
-    const deliveryStatus = status as AgentSessionDeliveryStatus
+  const deliveryStatus = AgentSessionDeliveryStatusSchema.options.find((candidate) => candidate === status)
 
+  if (deliveryStatus) {
     return {
       className: DELIVERY_STATUS_CLASS_NAMES[deliveryStatus],
       label: t(DELIVERY_STATUS_LABEL_KEYS[deliveryStatus])

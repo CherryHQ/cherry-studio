@@ -150,6 +150,7 @@ const Body: FC<{ toolResponse: ToolResponseLike; toolName: MetaToolName }> = ({ 
 const searchNamespacesSchema = z.array(
   z.object({ namespace: z.string(), tools: z.array(z.object({ name: z.string() })) })
 )
+
 const stringListSchema = z.array(z.string())
 
 /**
@@ -264,10 +265,12 @@ const ToolExecBody: FC<{ toolResponse: ToolResponseLike }> = ({ toolResponse }) 
       : isRecord(toolResponse.response)
         ? toolResponse.response
         : undefined
+
   const logs = stringListSchema.safeParse(out && 'logs' in out ? out.logs : undefined)
   const error = out && 'error' in out ? out.error : undefined
   const result = out?.result
   const isError = out && 'isError' in out ? out.isError : undefined
+
   const showRawResponse =
     toolResponse.response != null &&
     (!out ||

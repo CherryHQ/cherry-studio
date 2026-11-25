@@ -133,6 +133,7 @@ function resolveRightPanelEntries<TScope>(
     panelIds.add(instance.id)
     entries.push({
       ...instance,
+      // SAFETY: This provider keeps entries paired with their original scope; the private render context erases only that shared generic association.
       component: capability.component as ComponentType<RightPanelComponentProps<unknown>>,
       widthPreset: capability.widthPreset
     })

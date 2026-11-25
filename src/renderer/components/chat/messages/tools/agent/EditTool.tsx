@@ -32,6 +32,7 @@ export function EditTool({ input, output }: ToolDisplayProps): ToolDisclosureIte
     old_string: readToolStringArgument(input, 'old_string'),
     new_string: readToolStringArgument(input, 'new_string')
   }
+
   const filePath = decodedInput.file_path
   const filename = filePath ? getFilePreviewFileName(filePath) : undefined
 

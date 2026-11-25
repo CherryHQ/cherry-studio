@@ -521,7 +521,7 @@ function RenameField<T extends ResourceListItemBase>({
       if (typeof ref === 'function') {
         ref(node)
       } else if (ref) {
-        ;(ref as { current: HTMLInputElement | null }).current = node
+        ref.current = node
       }
     },
     [ref]
