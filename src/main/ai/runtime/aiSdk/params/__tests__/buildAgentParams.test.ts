@@ -6,13 +6,21 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { InvalidToolInputError, type Tool, type ToolSet } from 'ai'
+import { generateText, InvalidToolInputError, type Tool, type ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
-import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { generateText as aiCoreGenerateText, resolveLanguageModel, streamText } from '@cherrystudio/ai-core'
+import { modelService } from '@main/data/services/ModelService'
+import { providerService } from '@main/data/services/ProviderService'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
-import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  ENDPOINT_TYPE,
+  type EndpointType,
+  MODEL_CAPABILITY,
+  SERVER_TOOL
+} from '@shared/data/types/model'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import { createDashScopeProvider } from '../../../../provider/custom/dashscope/dashscopeProvider'
@@ -26,6 +34,8 @@ import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 import type { AgentOptions } from '../../loop/types'
+import { buildFallbackModels } from '../../retry/buildFallbackModels'
+import { createRetryableWrap } from '../../retry/createRetryableWrap'
 
 const { preferenceGetMock, resolveProviderAiSdkConfigMock, listMcpServers, listMcpTools, getMcpInstructions } =
   vi.hoisted(() => ({
@@ -545,8 +555,218 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.options.providerOptions).not.toHaveProperty('google')
   })
 
+  it.each([
+    { value: 'auto', withTools: false, expected: undefined },
+    { value: 'auto', withTools: true, expected: { type: 'auto' } },
+    { value: 'any', withTools: true, expected: { type: 'any' } },
+    { value: 'required', withTools: true, expected: { type: 'any' } },
+    { value: 'none', withTools: true, expected: undefined },
+    { value: 'any', withTools: true, override: 'none' as const, expected: undefined },
+    { value: 'any', withTools: true, override: 'auto' as const, expected: { type: 'auto' } },
+    { value: 'any', withTools: true, streaming: true, expected: { type: 'any' } },
+    { value: 'any', withTools: true, streaming: true, stepChoice: 'auto' as const, expected: { type: 'auto' } },
+    { value: { type: 'tool', name: 'lookup' }, withTools: true, expected: { type: 'tool', name: 'lookup' } }
+  ])(
+    'serializes Anthropic custom tool_choice $value (tools=$withTools, stream=$streaming, override=$override, step=$stepChoice)',
+    async ({ value, withTools, override, streaming, stepChoice, expected }) => {
+      const requests: { url: string; body: Record<string, unknown> }[] = []
+      const captureFetch: typeof globalThis.fetch = async (input, init) => {
+        requests.push({ url: String(input), body: JSON.parse(String(init?.body)) })
+        const message = {
+          id: 'msg_test',
+          type: 'message',
+          role: 'assistant',
+          model: 'glm-5.3-flash',
+          content: [{ type: 'text', text: 'ok' }],
+          stop_reason: 'end_turn',
+          stop_sequence: null,
+          usage: { input_tokens: 1, output_tokens: 1 }
+        }
+        if (streaming) {
+          const events = [
+            { type: 'message_start', message: { ...message, content: [], stop_reason: null } },
+            { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+            { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } },
+            { type: 'content_block_stop', index: 0 },
+            { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 1 } },
+            { type: 'message_stop' }
+          ]
+          return new Response(
+            events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(''),
+            {
+              headers: { 'content-type': 'text/event-stream' }
+            }
+          )
+        }
+        return Response.json(message)
+      }
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: {
+          providerId: 'anthropic',
+          providerSettings: { apiKey: 'test-key', baseURL: 'https://relay.test/v1', fetch: captureFetch }
+        },
+        credentialReceipt: { attribution: 'auth', method: 'api-key' }
+      })
+      const result = await buildAgentParams({
+        request: { conversation: CONVERSATION, ...(override && { callOverrides: { toolChoice: override } }) },
+        signal: undefined,
+        provider: makeProvider({
+          id: 'custom',
+          defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+          endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
+        }),
+        model: makeModel({
+          id: 'custom::glm-5.3-flash',
+          providerId: 'custom',
+          apiModelId: 'glm-5.3-flash',
+          endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+        }),
+        assistant: makeAssistant({
+          settings: { customParameters: [{ name: 'tool_choice', type: 'json', value: JSON.stringify(value) }] }
+        })
+      })
+      const params = {
+        model: result.sdkConfig.modelId,
+        prompt: 'hello',
+        providerOptions: result.options.providerOptions,
+        toolChoice: result.options.toolChoice,
+        ...(withTools && { tools: { lookup: { description: 'Look up a record', inputSchema: z.object({}) } } })
+      }
+      const { providerId, providerSettings } = result.sdkConfig
+      if (streaming) {
+        const response = await streamText<AppProviderSettingsMap>(
+          providerId,
+          providerSettings,
+          { ...params, ...(stepChoice && { prepareStep: () => ({ toolChoice: stepChoice }) }) },
+          result.plugins
+        )
+        expect(await response.text).toBe('ok')
+      } else {
+        await aiCoreGenerateText<AppProviderSettingsMap>(providerId, providerSettings, params, result.plugins)
+      }
+
+      expect(requests).toHaveLength(1)
+      expect(requests[0].url).toBe('https://relay.test/v1/messages')
+      if (expected) expect(requests[0].body.tool_choice).toEqual(expected)
+      else {
+        expect(requests[0].body).not.toHaveProperty('tool_choice')
+        expect(requests[0].body).not.toHaveProperty('tools')
+      }
+    }
+  )
+
+  it.each([
+    { primary: 'openai-chat', fallback: 'anthropic', choices: ['any', { type: 'any' }] },
+    { primary: 'anthropic', fallback: 'openai-chat', choices: [{ type: 'any' }, 'any'] }
+  ] as const)(
+    'applies legacy tool_choice for the endpoint serving each $primary → $fallback attempt',
+    async ({ primary, fallback, choices }) => {
+      const receivedChoices: unknown[] = []
+      const candidates = Object.fromEntries(
+        [primary, fallback].map((providerId) => {
+          const isAnthropic = providerId === 'anthropic'
+          const endpoint = isAnthropic ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+          const apiModelId = isAnthropic ? 'glm-5.3-flash' : 'gpt-test'
+          const provider = makeProvider({
+            id: providerId,
+            isEnabled: true,
+            defaultChatEndpoint: endpoint,
+            endpointConfigs: { [endpoint]: { adapterFamily: isAnthropic ? 'anthropic' : 'openai' } }
+          })
+          const model = makeModel({
+            id: `${providerId}::${apiModelId}`,
+            providerId,
+            apiModelId,
+            endpointTypes: [endpoint],
+            capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+          })
+          const fetch: typeof globalThis.fetch = async (_input, init) => {
+            receivedChoices.push(JSON.parse(String(init?.body)).tool_choice)
+            if (providerId === primary)
+              return Response.json({ error: { message: 'primary unavailable' } }, { status: 400 })
+            return isAnthropic
+              ? Response.json({
+                  id: 'msg_test',
+                  type: 'message',
+                  role: 'assistant',
+                  model: apiModelId,
+                  content: [{ type: 'text', text: 'ok' }],
+                  stop_reason: 'end_turn',
+                  stop_sequence: null,
+                  usage: { input_tokens: 1, output_tokens: 1 }
+                })
+              : Response.json({
+                  id: 'chatcmpl-test',
+                  object: 'chat.completion',
+                  created: 0,
+                  model: apiModelId,
+                  choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+                  usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+                })
+          }
+          resolveProviderAiSdkConfigMock.mockResolvedValueOnce({
+            config: { providerId, providerSettings: { apiKey: 'test-key', baseURL: 'https://relay.test/v1', fetch } },
+            credentialReceipt: { attribution: 'auth', method: 'api-key' }
+          })
+          return [providerId, { provider, model }] as const
+        })
+      )
+      const request = { conversation: CONVERSATION }
+      const assistant = makeAssistant({
+        settings: { customParameters: [{ name: 'tool_choice', type: 'string', value: 'any' }] }
+      })
+      const primaryModel = candidates[primary]
+      const fallbackModel = candidates[fallback]
+      const built = await buildAgentParams({ request, assistant, ...primaryModel, signal: undefined })
+      const { providerId, providerSettings, modelId } = built.sdkConfig
+      const model = await resolveLanguageModel<AppProviderSettingsMap>(
+        providerId,
+        providerSettings,
+        modelId,
+        built.plugins
+      )
+      const retryPolicy = {
+        enabled: true,
+        maxAttempts: 1,
+        backoffEnabled: false,
+        fallbackModelIds: [createUniqueModelId(fallbackModel.provider.id, fallbackModel.model.id)]
+      }
+      const providerLookup = vi.spyOn(providerService, 'getByProviderId').mockReturnValue(fallbackModel.provider)
+      const modelLookup = vi.spyOn(modelService, 'getByKey').mockReturnValue(fallbackModel.model)
+      try {
+        const fallbacks = buildFallbackModels({
+          request,
+          assistant,
+          signal: undefined,
+          retryPolicy,
+          primaryHasTools: true,
+          primaryUniqueModelId: createUniqueModelId(primaryModel.provider.id, primaryModel.model.id),
+          requiredNativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+          extraFeatures: [],
+          createUsagePlugin: () => ({ name: 'test-usage' })
+        })
+        const wrapModel = createRetryableWrap({ fallbacks, retryPolicy })!
+        const response = await generateText<ToolSet>({
+          model: wrapModel(model),
+          prompt: 'hello',
+          toolChoice: built.options.toolChoice,
+          providerOptions: built.options.providerOptions,
+          tools: { lookup: { inputSchema: z.object({}) } },
+          maxRetries: 0
+        })
+        expect(response.text).toBe('ok')
+        expect(receivedChoices).toEqual(choices)
+      } finally {
+        providerLookup.mockRestore()
+        modelLookup.mockRestore()
+      }
+    }
+  )
+
   it('preserves assistant custom parameters unchanged in the final provider request body', async () => {
     const firstCustomParameters = [
+      { name: 'tool_choice', type: 'json' as const, value: '"auto"' },
       { name: 'enable_search', type: 'json' as const, value: 'true' },
       {
         name: 'chat_template_kwargs',

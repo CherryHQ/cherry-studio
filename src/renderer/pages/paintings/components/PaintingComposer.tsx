@@ -32,8 +32,8 @@ import { fileToComposerToken } from '@renderer/components/composer/variants/shar
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
-import { FILE_TYPE } from '@renderer/types/file'
 import type { Model } from '@shared/data/types/model'
+import { FILE_TYPE } from '@shared/types/file'
 import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 

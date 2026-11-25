@@ -149,6 +149,38 @@ describe('classifyErrorCategory model deprecation', () => {
   })
 })
 
+describe('classifyErrorCategory oMLX prefill memory rejection', () => {
+  const rejection =
+    'API Error: 400 oMLX prefill memory guard rejected this prompt: Prefill would require ~31.59 GB peak ' +
+    '(current 26.34 GB + KV+SDPA 5.25 GB) but the prefill limit is 30.56 GB ' +
+    '(dynamic ceiling 33.22 GB - safety margin 2.66 GB)'
+
+  it.each([400, undefined])('recognizes the prefill rejection with status %s', (status) => {
+    expect(classifyErrorCategory({ text: rejection, status })).toBe('prefill_memory')
+  })
+
+  it.each([
+    'The model declined the request\ninvalid_request_error\nprefill_memory_exceeded',
+    '400: {"error":{"message":"The model declined the request","omlx_code":"prefill_memory_exceeded"}}'
+  ])('recognizes the provider code in normalized or serialized errors: %s', (text) => {
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('prefill_memory')
+  })
+
+  it('preserves structured server failure status', () => {
+    expect(classifyErrorCategory({ text: rejection, status: 503 })).toBe('server')
+  })
+
+  it('keeps a validation error that mentions the code in prose', () => {
+    expect(classifyErrorCategory({ text: 'Unknown field prefill_memory_exceeded in the request', status: 400 })).toBe(
+      'bad_request'
+    )
+  })
+
+  it('preserves a structured content-filter signal', () => {
+    expect(classifyErrorCategory({ text: rejection, status: 400, finishReason: 'content-filter' })).toBe('content')
+  })
+})
+
 describe('classifyErrorCategory content-filter rejection wording', () => {
   const report = 'This request was blocked by our content filtering policy. Please revise your message.'
 
@@ -538,12 +570,31 @@ describe('request payload size rejection', () => {
     expect(classifyErrorCategory({ text: 'Request payload is too large', status })).toBe('payload')
   })
 
-  it.each(['Response is too large', 'Response payload is too large', 'Response payload too large'])(
-    'does not treat a large response as an oversized request: %s',
-    (text) => {
-      expect(classifyErrorCategory({ text })).toBe('unknown')
-      expect(classifyErrorCategory({ text, status: 400 })).toBe('bad_request')
-      expect(classifyErrorCategory({ text, status: 413 })).toBe('payload')
-    }
-  )
+  it.each([
+    'Response is too large',
+    'Response payload is too large',
+    'Response payload too large',
+    'Response body payload is too large',
+    'Response body payload too large',
+    'Response  payload is too large'
+  ])('does not treat a large response as an oversized request: %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('unknown')
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('bad_request')
+    expect(classifyErrorCategory({ text, status: 413 })).toBe('payload')
+  })
+})
+
+describe('request body buffer limit', () => {
+  it.each([undefined, 400, 413])('recognizes the proxy rejection with status %s', (status) => {
+    expect(
+      classifyErrorCategory({ text: '413 Failed to buffer the request body: length limit exceeded', status })
+    ).toBe('payload')
+  })
+
+  it.each([
+    'Failed to buffer the response body: length limit exceeded',
+    'Failed to buffer the request body: connection closed'
+  ])('does not infer a request size rejection from %s', (text) => {
+    expect(classifyErrorCategory({ text })).not.toBe('payload')
+  })
 })
