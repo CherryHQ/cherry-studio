@@ -64,6 +64,8 @@ const {
   mockAgentIngressHold,
   mockJobManager,
   mockAgentJobs,
+  mockArtifactBackfill,
+  mockArtifactBackfillHold,
   mockHeartbeatHold,
   mockJobHold,
   mockAiStreamManager,
@@ -87,6 +89,7 @@ const {
   const mockAgentIngressHold = { dispose: vi.fn() }
   const mockJobHold = { dispose: vi.fn() }
   const mockHeartbeatHold = { dispose: vi.fn() }
+  const mockArtifactBackfillHold = { dispose: vi.fn() }
   const mockAiStreamHold = { dispose: vi.fn() }
   const mockAgentExecutionHold = { dispose: vi.fn() }
   const mockZipExtract = vi.fn()
@@ -124,6 +127,11 @@ const {
       pause: vi.fn(() => mockHeartbeatHold),
       drainInFlight: vi.fn(async () => ({ settled: true }))
     },
+    mockArtifactBackfill: {
+      pause: vi.fn(() => mockArtifactBackfillHold),
+      drainInFlight: vi.fn(async () => ({ settled: true }))
+    },
+    mockArtifactBackfillHold,
     mockAiStreamManager: {
       pause: vi.fn(() => mockAiStreamHold),
       drainInFlight: vi.fn(async (): Promise<{ stragglerIds: string[] }> => ({ stragglerIds: [] })),
@@ -289,6 +297,7 @@ vi.mock('@application', async () => {
           return mockAgentLifecycle
         }
         if (name === 'AgentJobsService') return mockAgentJobs
+        if (name === 'ArtifactBackfillService') return mockArtifactBackfill
         if (name === 'MemoryService') return mockMemoryService
         if (name === 'JobManager') {
           return mockJobManager
@@ -870,6 +879,19 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(fs.remove).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
   })
 
+  it('leaves restore unstaged if artifact backfill can still write to the live database', async () => {
+    arrangeDirectRestore()
+    mockArtifactBackfill.drainInFlight.mockResolvedValueOnce({ settled: false })
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
+      'Background data writes did not quiesce'
+    )
+
+    expect(mockDbService.checkpointTruncate).not.toHaveBeenCalled()
+    expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
+    expect(mockArtifactBackfillHold.dispose).toHaveBeenCalledOnce()
+  })
+
   it('refuses backup capture while an admitted heartbeat write has not drained', async () => {
     mockAgentJobs.drainInFlight.mockResolvedValueOnce({ settled: false })
 
@@ -899,6 +921,18 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockWriteRestoreJournal).not.toHaveBeenCalled()
   })
 
+  it('leaves backup uncaptured if artifact backfill can still write to the live database', async () => {
+    mockArtifactBackfill.drainInFlight.mockResolvedValueOnce({ settled: false })
+
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      'Background data writes did not quiesce'
+    )
+
+    expect(mockDbService.checkpointTruncate).not.toHaveBeenCalled()
+    expect(mockCreateAtomicWriteStream).not.toHaveBeenCalled()
+    expect(mockArtifactBackfillHold.dispose).toHaveBeenCalledOnce()
+  })
+
   it('opens staged files with write access before fsync on Windows', () => {
     const originalPlatform = process.platform
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
@@ -920,6 +954,8 @@ describe('BackupManager direct v2 data compatibility', () => {
     arrangeDirectRestore()
 
     await (backupManager as any).restoreDirect('/extract')
+
+    expect(mockArtifactBackfillHold.dispose).not.toHaveBeenCalled()
 
     expect(mockWriteRestoreJournal).toHaveBeenCalledWith(
       expect.objectContaining({

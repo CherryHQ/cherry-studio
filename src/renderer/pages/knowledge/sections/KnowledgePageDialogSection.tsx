@@ -6,7 +6,7 @@ import { useKnowledgePage } from '../KnowledgePageProvider'
 
 // Management dialogs are loaded on first open instead of with the page.
 const AddKnowledgeItemDialog = lazy(() => import('../components/AddKnowledgeItemDialog'))
-const CreateKnowledgeBaseDialog = lazy(() => import('../components/CreateKnowledgeBaseDialog'))
+const CreateKnowledgeBaseDialog = lazy(() => import('@renderer/components/knowledge/CreateKnowledgeBaseDialog'))
 const CreateKnowledgeGroupDialog = lazy(() => import('../components/CreateKnowledgeGroupDialog'))
 const KnowledgeBaseNameDialog = lazy(() => import('../components/KnowledgeBaseNameDialog'))
 const RenameKnowledgeGroupDialog = lazy(() => import('../components/RenameKnowledgeGroupDialog'))
