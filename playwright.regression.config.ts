@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { defineConfig } from '@playwright/test'
+import { defineConfig, type ReporterDescription } from '@playwright/test'
 
 const runDirectory = process.env.CHERRY_TEST_RUN_DIR
 
@@ -20,7 +20,7 @@ export default defineConfig({
   projects: [{ name: process.platform === 'win32' ? 'Windows' : 'macOS' }],
   reporter: [
     ['./scripts/e2e/regression/RedactionReporter.ts'],
-    ...(process.env.CHERRY_TEST_GITHUB_REPORTER === 'true' ? [['github'] as ['github']] : []),
+    ...(process.env.CHERRY_TEST_GITHUB_REPORTER === 'true' ? [['github'] satisfies ReporterDescription] : []),
     ['./scripts/e2e/regression/RegressionReporter.ts'],
     ['list'],
     ['html', { open: 'never', outputFolder: join(runDirectory, 'report', `playwright-${phase}`) }],
