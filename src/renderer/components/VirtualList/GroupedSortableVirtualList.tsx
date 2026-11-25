@@ -209,7 +209,7 @@ const DEFAULT_DRAG_CAPABILITIES: Required<GroupedSortableVirtualListDragCapabili
 }
 
 class ContextMenuSafePointerSensor extends BlurCancelPointerSensor {
-  static activators = [
+  static activators: (typeof BlurCancelPointerSensor)['activators'] = [
     {
       eventName: 'onPointerDown',
       handler: ({ nativeEvent: event }, { onActivation }) => {
@@ -222,7 +222,7 @@ class ContextMenuSafePointerSensor extends BlurCancelPointerSensor {
         return true
       }
     }
-  ] as (typeof BlurCancelPointerSensor)['activators']
+  ]
 }
 
 function toItemSortableId(id: UniqueIdentifier) {
@@ -1424,13 +1424,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
   )
 }
 
-const MemoizedGroupedSortableVirtualList = memo(GroupedSortableVirtualList) as <
-  TGroup,
-  TItem,
-  THeader = TGroup,
-  TFooter = unknown
->(
-  props: GroupedSortableVirtualListProps<TGroup, TItem, THeader, TFooter>
-) => React.ReactElement
+// SAFETY: React.memo erases the generic call signature; this wrapper forwards the same component props unchanged.
+const MemoizedGroupedSortableVirtualList = memo(GroupedSortableVirtualList) as typeof GroupedSortableVirtualList
 
 export default MemoizedGroupedSortableVirtualList

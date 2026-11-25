@@ -50,7 +50,7 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
   /**
    * List data
    */
-  list: T[]
+  list: readonly T[]
 
   /**
    * List item renderer function
@@ -495,6 +495,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   )
 }
 
+// SAFETY: React.memo preserves this component's props; its declaration erases the item generic shared by list and children.
 const MemoizedDynamicVirtualList = memo(DynamicVirtualList) as <T>(
   props: DynamicVirtualListProps<T>
 ) => React.ReactElement

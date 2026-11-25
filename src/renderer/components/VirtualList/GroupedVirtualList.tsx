@@ -166,8 +166,7 @@ function GroupedVirtualList<TGroup, TItem, THeader = TGroup, TFooter = unknown>(
   return <DynamicVirtualList {...virtualListProps} list={rows} estimateSize={estimateRowSize} children={renderRow} />
 }
 
-const MemoizedGroupedVirtualList = memo(GroupedVirtualList) as <TGroup, TItem, THeader = TGroup, TFooter = unknown>(
-  props: GroupedVirtualListProps<TGroup, TItem, THeader, TFooter>
-) => React.ReactElement
+// SAFETY: React.memo retains this component's props; its declaration erases the group/item/header/footer generic relationships.
+const MemoizedGroupedVirtualList = memo(GroupedVirtualList) as typeof GroupedVirtualList
 
 export default MemoizedGroupedVirtualList
