@@ -14,7 +14,7 @@ Issue CherryHQ/cherry-studio#21074 要求在多 key 提供方中为模型指定 
 - 提供方有多个 key 时显示模型 key 选择器。有名称的 key 保留其标签；未命名的 key 使用本地化的未命名标签加上从一开始的位置序号。渲染选择器不需要请求包含密钥的记录。
 - 遵守已启用的绑定，在 HTTP 401/429 时不切换到其他 key。本次审阅跟进不改变禁用或已删除 key 的现有处理方式。
 - 在聊天配置、智能体网关请求、Ollama 探测、重试、OpenClaw、Antigravity、DeepSeek Harness 及 CLI 配置草稿中保留绑定。角色模型的绑定不同时，拒绝直接写入 Claude CLI 配置，包括上下文模型已绑定而角色模型未绑定的情况。OpenClaw schema 无法表达按模型 API key 时，拒绝同步。
-- 迁移 `0044_model_api_key_routing` 添加可空列，不改变已有模型行的其他字段。已添加该列的早期未发布实验版本不属于受支持的升级路径。
+- 迁移 `0048_model_api_key_routing` 添加可空列，不改变已有模型行的其他字段。已添加该列的早期未发布实验版本不属于受支持的升级路径。
 
 ## Alternatives considered
 
