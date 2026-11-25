@@ -291,6 +291,7 @@ function projectEndpointConfigOverrides(
     const override: StoredEndpointConfigOverride = {}
 
     if (config.baseUrl !== undefined && config.baseUrl !== presetConfig?.baseUrl) override.baseUrl = config.baseUrl
+
     // Same delta rule per dialect key: a value equal to the registry's is not an override.
     const baselineDialect: Readonly<Record<string, boolean | undefined>> = resolveEndpointDialect(
       { endpointConfigs: presetConfigs ?? undefined },

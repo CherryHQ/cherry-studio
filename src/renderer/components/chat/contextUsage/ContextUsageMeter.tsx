@@ -23,6 +23,7 @@ export function ContextUsageMeter({
 }: ContextUsageMeterProps) {
   const normalizedPercentage = normalizeContextUsagePercentage(percentage)
   const color = getContextUsageColor(normalizedPercentage)
+
   const meterStyle = {
     ...style,
     '--context-usage-color': color,

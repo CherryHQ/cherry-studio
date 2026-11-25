@@ -426,6 +426,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
     const pinned = filtered.filter((item) => pinnedSet.has(item.id))
     const unpinned = filtered.filter((item) => !pinnedSet.has(item.id))
+
     const pinnedOrdered = pinnedIds
       .map((id) => pinned.find((item) => item.id === id))
       .filter((item) => item !== undefined)

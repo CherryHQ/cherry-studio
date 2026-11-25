@@ -103,6 +103,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
       typeof mirror.revision === 'number'
         ? mirror.revision
         : undefined
+
     const isOwnMirror = revision !== undefined && revision > acknowledgedMirrorRef.current
 
     if (isOwnMirror) acknowledgedMirrorRef.current = revision
