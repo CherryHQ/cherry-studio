@@ -127,7 +127,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
   }, [chosenAssistantId, latestAssistantUIMsg, isPending, requestStartedAt, temporaryTopicId])
 
   const content = useMemo(
-    () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
+    () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts) : ''),
     [latestAssistantUIMsg]
   )
 

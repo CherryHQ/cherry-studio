@@ -318,7 +318,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const latestAssistantUIMsg = useMemo(() => allAssistants[allAssistants.length - 1], [allAssistants])
 
   const content = useMemo(
-    () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
+    () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts) : ''),
     [latestAssistantUIMsg]
   )
 
