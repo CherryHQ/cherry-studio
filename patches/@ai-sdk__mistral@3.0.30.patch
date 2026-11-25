@@ -1,7 +1,34 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 1ca9113bed2728a616db773a8e08d8d6957447d7..df128a080fefcc1e408bfde2183f97d04ac985eb 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -13,6 +13,8 @@ declare const mistralLanguageModelOptions: z.ZodObject<{
+     reasoningEffort: z.ZodOptional<z.ZodEnum<{
+         none: "none";
+         high: "high";
++        low: "low";
++        medium: "medium";
+     }>>;
+ }, z.core.$strip>;
+ type MistralLanguageModelOptions = z.infer<typeof mistralLanguageModelOptions>;
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 1ca9113bed2728a616db773a8e08d8d6957447d7..df128a080fefcc1e408bfde2183f97d04ac985eb 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -13,6 +13,8 @@ declare const mistralLanguageModelOptions: z.ZodObject<{
+     reasoningEffort: z.ZodOptional<z.ZodEnum<{
+         none: "none";
+         high: "high";
++        low: "low";
++        medium: "medium";
+     }>>;
+ }, z.core.$strip>;
+ type MistralLanguageModelOptions = z.infer<typeof mistralLanguageModelOptions>;
 diff --git a/dist/index.js b/dist/index.js
+index 8d3b50c253fd5dbf3be6f2234de88e32ac409366..dc4cffe6ff624492c90e12e171607e11754237a0 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -28,6 +28,7 @@
+@@ -28,6 +28,7 @@ module.exports = __toCommonJS(index_exports);
  
  // src/mistral-provider.ts
  var import_provider4 = require("@ai-sdk/provider");
@@ -9,7 +36,22 @@ diff --git a/dist/index.js b/dist/index.js
  var import_provider_utils5 = require("@ai-sdk/provider-utils");
  
  // src/mistral-chat-language-model.ts
-@@ -533,6 +534,11 @@
+@@ -261,12 +262,9 @@ var mistralLanguageModelOptions = import_v4.z.object({
+    */
+   parallelToolCalls: import_v4.z.boolean().optional(),
+   /**
+-   * Controls the reasoning effort for models that support adjustable reasoning.
+-   *
+-   * - `'high'`: Enable reasoning
+-   * - `'none'`: Disable reasoning
++   * Controls the reasoning effort. Supported values depend on the model.
+    */
+-  reasoningEffort: import_v4.z.enum(["high", "none"]).optional()
++  reasoningEffort: import_v4.z.enum(["high", "none", "low", "medium"]).optional()
+ });
+
+ // src/mistral-error.ts
+@@ -533,6 +531,11 @@ var MistralChatLanguageModel = class {
      let activeText = false;
      let activeReasoningId = null;
      const generateId2 = this.generateId;
@@ -21,7 +63,7 @@ diff --git a/dist/index.js b/dist/index.js
      return {
        stream: response.pipeThrough(
          new TransformStream({
-@@ -606,29 +612,47 @@
+@@ -606,29 +609,47 @@ var MistralChatLanguageModel = class {
              }
              if ((delta == null ? void 0 : delta.tool_calls) != null) {
                for (const toolCall of delta.tool_calls) {
@@ -92,18 +134,17 @@ diff --git a/dist/index.js b/dist/index.js
                }
              }
              if (choice.finish_reason != null) {
-@@ -647,7 +671,18 @@
-             }
+@@ -648,6 +669,17 @@ var MistralChatLanguageModel = class {
              if (activeText) {
                controller.enqueue({ type: "text-end", id: "0" });
-+            }
+             }
 +            const pending = pendingCalls[0];
 +            if (pending != null) {
 +              throw new InvalidResponseDataError({
 +                data: { index: pending.indexes[0], id: pending.ids[0], function: { arguments: pending.arguments } },
 +                message: "Expected 'function.name' to be a string."
 +              });
-             }
++            }
 +            for (const call of toolCalls) {
 +              controller.enqueue({ type: "tool-input-end", id: call.id });
 +              controller.enqueue({ type: "tool-call", toolCallId: call.id, toolName: call.name, input: call.input });
@@ -111,7 +152,7 @@ diff --git a/dist/index.js b/dist/index.js
              controller.enqueue({
                type: "finish",
                finishReason,
-@@ -763,8 +798,9 @@
+@@ -763,8 +795,9 @@ var mistralChatChunkSchema = import_v43.z.object({
          content: mistralContentSchema,
          tool_calls: import_v43.z.array(
            import_v43.z.object({
@@ -124,6 +165,7 @@ diff --git a/dist/index.js b/dist/index.js
          ).nullish()
        }),
 diff --git a/dist/index.mjs b/dist/index.mjs
+index 309d123cbc570309939c6761a7cd8bb45fe3cb93..039885c65864df08e20a23b56fc99979784dfe25 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -2,6 +2,7 @@
@@ -134,7 +176,22 @@ diff --git a/dist/index.mjs b/dist/index.mjs
  import {
    loadApiKey,
    withoutTrailingSlash,
-@@ -523,6 +524,11 @@
+@@ -249,12 +250,9 @@ var mistralLanguageModelOptions = z.object({
+    */
+   parallelToolCalls: z.boolean().optional(),
+   /**
+-   * Controls the reasoning effort for models that support adjustable reasoning.
+-   *
+-   * - `'high'`: Enable reasoning
+-   * - `'none'`: Disable reasoning
++   * Controls the reasoning effort. Supported values depend on the model.
+    */
+-  reasoningEffort: z.enum(["high", "none"]).optional()
++  reasoningEffort: z.enum(["high", "none", "low", "medium"]).optional()
+ });
+
+ // src/mistral-error.ts
+@@ -523,6 +521,11 @@ var MistralChatLanguageModel = class {
      let activeText = false;
      let activeReasoningId = null;
      const generateId2 = this.generateId;
@@ -146,7 +203,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
      return {
        stream: response.pipeThrough(
          new TransformStream({
-@@ -596,29 +602,47 @@
+@@ -596,29 +599,47 @@ var MistralChatLanguageModel = class {
              }
              if ((delta == null ? void 0 : delta.tool_calls) != null) {
                for (const toolCall of delta.tool_calls) {
@@ -217,18 +274,17 @@ diff --git a/dist/index.mjs b/dist/index.mjs
                }
              }
              if (choice.finish_reason != null) {
-@@ -637,7 +661,18 @@
-             }
+@@ -638,6 +659,17 @@ var MistralChatLanguageModel = class {
              if (activeText) {
                controller.enqueue({ type: "text-end", id: "0" });
-+            }
+             }
 +            const pending = pendingCalls[0];
 +            if (pending != null) {
 +              throw new InvalidResponseDataError({
 +                data: { index: pending.indexes[0], id: pending.ids[0], function: { arguments: pending.arguments } },
 +                message: "Expected 'function.name' to be a string."
 +              });
-             }
++            }
 +            for (const call of toolCalls) {
 +              controller.enqueue({ type: "tool-input-end", id: call.id });
 +              controller.enqueue({ type: "tool-call", toolCallId: call.id, toolName: call.name, input: call.input });
@@ -236,7 +292,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
              controller.enqueue({
                type: "finish",
                finishReason,
-@@ -753,8 +788,9 @@
+@@ -753,8 +785,9 @@ var mistralChatChunkSchema = z3.object({
          content: mistralContentSchema,
          tool_calls: z3.array(
            z3.object({
@@ -248,3 +304,22 @@ diff --git a/dist/index.mjs b/dist/index.mjs
            })
          ).nullish()
        }),
+diff --git a/src/mistral-chat-options.ts b/src/mistral-chat-options.ts
+index 80fff45fba2c378fa06962f071946bcd2b882a0b..dbef7c926b8f5c1ef675cc7b4c0b6435905e6f06 100644
+--- a/src/mistral-chat-options.ts
++++ b/src/mistral-chat-options.ts
+@@ -56,12 +56,9 @@ export const mistralLanguageModelOptions = z.object({
+   parallelToolCalls: z.boolean().optional(),
+
+   /**
+-   * Controls the reasoning effort for models that support adjustable reasoning.
+-   *
+-   * - `'high'`: Enable reasoning
+-   * - `'none'`: Disable reasoning
++   * Controls the reasoning effort. Supported values depend on the model.
+    */
+-  reasoningEffort: z.enum(['high', 'none']).optional(),
++  reasoningEffort: z.enum(['high', 'none', 'low', 'medium']).optional(),
+ });
+
+ export type MistralLanguageModelOptions = z.infer<

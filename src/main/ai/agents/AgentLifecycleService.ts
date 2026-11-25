@@ -8,6 +8,7 @@ import { agentTaskService } from '@data/services/AgentTaskService'
 import { followupQueueService } from '@data/services/FollowupQueueService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   ReusableAgentSessionPlaceholdersResponse,
@@ -15,7 +16,6 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 import { KeyedMutex } from '@shared/utils/async'
 
-import { buildAgentSessionTopicId } from '../agentSession/topic'
 import { reclaimPurgedRuntimeSessions, sweepAgentOrphans } from './agentOrphanSweep'
 import { agentWorkspaceStorageService } from './AgentWorkspaceStorageService'
 import { reclaimHeartbeatWorkspacesTx } from './heartbeatSchedule'

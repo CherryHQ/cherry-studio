@@ -33,6 +33,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
@@ -88,6 +89,8 @@ interface HomeMessageListParams {
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
+  messageHead?: MessageListState['messageHead']
+  afterMessages?: MessageListState['afterMessages']
   onComponentUpdate?(): void
   onFirstUpdate?(): void
 }
@@ -108,6 +111,8 @@ export function useHomeMessageListProviderValue({
   imageActionConsumer,
   onBindRuntime,
   onStartBranchDraft,
+  messageHead,
+  afterMessages,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
@@ -258,6 +263,8 @@ export function useHomeMessageListProviderValue({
     getDoctorSubject,
     selectAllPagination
   })
+  // The conversation's current Assistant / Agent, not the snapshot each message header shows.
+  const toggleAuthorProfile = useProfilePaneToggle()?.toggle
 
   useEffect(() => {
     if (!assistant) return
@@ -804,6 +811,8 @@ export function useHomeMessageListProviderValue({
       isMessagesStale,
       hasOlder,
       messageNavigation,
+      messageHead: normalInteractionsEnabled ? messageHead : undefined,
+      afterMessages: normalInteractionsEnabled ? afterMessages : undefined,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: resolvedAssistantId,
       renderConfig,
@@ -834,7 +843,10 @@ export function useHomeMessageListProviderValue({
       messageUiStateCache.getMessageUiState,
       messageItems,
       messageActivityStore,
+      afterMessages,
+      messageHead,
       messageNavigation,
+      normalInteractionsEnabled,
       partsByMessageId,
       renderConfig,
       resolvedAssistantId,
@@ -844,6 +856,11 @@ export function useHomeMessageListProviderValue({
       translationLanguages,
       translationLanguagesStatus
     ]
+  )
+
+  const openMcpApp = useCallback<NonNullable<MessageListActions['openMcpApp']>>(
+    (messageId, toolCallId, requestId) => ipcApi.request('mcp.app.open', { topicId, messageId, toolCallId, requestId }),
+    [topicId]
   )
 
   const actions = useMemo<MessageListActions>(
@@ -860,11 +877,12 @@ export function useHomeMessageListProviderValue({
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
       navigateToRoute,
-      ...pickMessageHeaderActions(headerCapabilities),
+      ...pickMessageHeaderActions({ ...headerCapabilities, toggleAuthorProfile }),
       removeMessageErrorPart,
       openPath,
       openCitationsPanel,
       abortTool,
+      openMcpApp: normalInteractionsEnabled ? openMcpApp : undefined,
       ...selectionController.actions,
       updateMessageUiState: messageUiStateCache.updateMessageUiState,
       updateRenderConfig,
@@ -878,6 +896,7 @@ export function useHomeMessageListProviderValue({
       deleteMessageGroup,
       deleteMessageGroupWithConfirm,
       regenerateMessage,
+      regenerateMessageUsingModel,
       requestTranslationLanguages: normalInteractionsEnabled ? requestTranslationLanguages : undefined,
       retryTranslationLanguages: normalInteractionsEnabled ? retryTranslationLanguages : undefined,
       translateMessage,
@@ -886,6 +905,7 @@ export function useHomeMessageListProviderValue({
       renderRegenerateModelPicker
     }),
     [
+      openMcpApp,
       abortTool,
       abortMessageTranslation,
       bindMessageGroupRuntime,
@@ -902,6 +922,7 @@ export function useHomeMessageListProviderValue({
       exportActions,
       errorActions,
       headerCapabilities,
+      toggleAuthorProfile,
       leafCapabilities,
       navigateToRoute,
       loadOlder,
@@ -911,6 +932,7 @@ export function useHomeMessageListProviderValue({
       openCitationsPanel,
       openPath,
       regenerateMessage,
+      regenerateMessageUsingModel,
       requestTranslationLanguages,
       retryTranslationLanguages,
       renderRegenerateModelPicker,
