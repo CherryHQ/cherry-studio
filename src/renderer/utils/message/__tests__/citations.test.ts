@@ -528,6 +528,15 @@ describe('toExportableCitations', () => {
     expect(content).toBe('`[cite:abc-1]`\n```txt\n[cite:abc-2]\n```\nOutside [1]')
     expect(cited).toHaveLength(1)
   })
+
+  it('preserves code after an incomplete provider citation link', () => {
+    const prefix = 'An incomplete link [<sup>1</sup>](unfinished'
+    const code = '~~~txt\nprefix [cite:literal] suffix )\n~~~'
+    const input = [prefix, code, 'Prose [cite:stale].'].join('\n\n')
+    const { content } = toExportableCitations(input, [sourceUrlPart(0, 'https://example.com/source')])
+
+    expect(content).toBe([prefix, code, 'Prose.'].join('\n\n'))
+  })
 })
 
 describe('stripCitationMarkers', () => {

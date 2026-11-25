@@ -20,11 +20,19 @@ it('renders citation numbers, drops stale markers, and preserves markers inside 
     'Grounded claim [cite:1].',
     'Another claim [cite:retired-9].',
     'Inline example: `[cite:inline-code]`.',
-    '```txt\n[cite:fenced-code]\n```'
+    '```txt\n[cite:fenced-code]\n```',
+    '~~~txt\nTilde prefix [cite:literal] suffix\n~~~',
+    '    Indented prefix [cite:1] and [2] suffix',
+    '> ~~~~txt\n> Quoted prefix [cite:retired-9] suffix\n> ~~~~',
+    'Final claim [cite:retired-10].'
   ].join('\n\n')
   let capturedText: string | null | undefined
+  let capturedCode: Array<string | undefined> = []
   vi.mocked(exportService.captureScrollableAsDataUrl).mockImplementation(async ({ current }) => {
     capturedText = current?.textContent
+    capturedCode = current
+      ? Array.from(current.querySelectorAll('pre code'), (code) => code.textContent?.trimEnd())
+      : []
     return 'data:image/png;base64,AAAA'
   })
 
@@ -35,7 +43,13 @@ it('renders citation numbers, drops stale markers, and preserves markers inside 
   await expect(capture).resolves.toBe('data:image/png;base64,AAAA')
   expect(capturedText).toContain('Grounded claim [1].')
   expect(capturedText).toContain('Another claim.')
-  expect(capturedText).not.toMatch(/\[cite:(?:1|retired-9)\]/)
+  expect(capturedText).toContain('Final claim.')
+  expect(capturedText).not.toContain('[cite:retired-10]')
   expect(capturedText).toContain('[cite:inline-code]')
-  expect(capturedText).toContain('[cite:fenced-code]')
+  expect(capturedCode).toEqual([
+    '[cite:fenced-code]',
+    'Tilde prefix [cite:literal] suffix',
+    'Indented prefix [cite:1] and [2] suffix',
+    'Quoted prefix [cite:retired-9] suffix'
+  ])
 })
