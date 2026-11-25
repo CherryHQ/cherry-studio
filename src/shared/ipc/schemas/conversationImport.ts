@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { HistorySourceSchema } from '@shared/data/types/conversationImport'
+import { HISTORY_IMPORT_BATCH_SIZE, HistorySourceSchema } from '@shared/data/types/conversationImport'
 
 import { defineRoute } from '../define'
 
@@ -72,12 +72,12 @@ export const conversationImportRequestSchemas = {
     input: z.strictObject({
       scanId: z.string(),
       targetAgentId: z.string().min(1),
-      selections: z.array(ImportSelectionSchema).min(1).max(100)
+      selections: z.array(ImportSelectionSchema).min(1).max(HISTORY_IMPORT_BATCH_SIZE)
     }),
     output: z.object({ previewId: z.string(), expiresAt: z.number(), items: z.array(ImportPreviewItemSchema) })
   }),
   'conversation_import.commit': defineRoute({
-    input: z.strictObject({ previewId: z.string(), refs: z.array(z.string()).min(1).max(100) }),
+    input: z.strictObject({ previewId: z.string(), refs: z.array(z.string()).min(1).max(HISTORY_IMPORT_BATCH_SIZE) }),
     output: z.array(ImportOutcomeSchema)
   }),
   'conversation_import.cancel': defineRoute({ input: z.void(), output: z.void() }),

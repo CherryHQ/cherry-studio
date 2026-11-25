@@ -45,6 +45,7 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
+import { supportsHistoryImport } from '@shared/data/types/conversationImport'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
@@ -688,7 +689,7 @@ export class AgentService {
       .from(agentsTable)
       .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
       .get()
-    if (!row || row.type !== 'pi') throw new Error('target_changed')
+    if (!row || !supportsHistoryImport(row.type)) throw new Error('target_changed')
     return row
   }
 
