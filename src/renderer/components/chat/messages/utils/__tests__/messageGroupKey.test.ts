@@ -51,13 +51,14 @@ describe('messageGroupKey', () => {
     expect(messages.every((message) => !message.historicalProcessGroupId)).toBe(true)
     expect(projected[2]).toBe(messages[2])
   })
-  it('groups imported reasoning and terminal tool records but stops at assistant text', () => {
+  it('groups imported tools and replies within the same user turn', () => {
     const messages = [
       { ...historical('reasoning'), isImportedHistory: true, parentId: 'root' },
       { ...historical('call'), isImportedHistory: true, parentId: 'reasoning' },
       { ...historical('error'), isImportedHistory: true, status: 'error' as const },
       { ...historical('paused'), isImportedHistory: true, status: 'paused' as const },
       { ...historical('text'), isImportedHistory: true },
+      createMessage('next-task', 'user'),
       { ...historical('later-reasoning'), isImportedHistory: true },
       { ...historical('later-tool'), isImportedHistory: true }
     ]
@@ -80,8 +81,8 @@ describe('messageGroupKey', () => {
     }
     const projected = withHistoricalProcessGroups(messages, parts, new WeakMap())
     expect(Object.values(groupMessageListItems(projected)).map((group) => group.map((message) => message.id))).toEqual([
-      ['reasoning', 'call', 'error', 'paused'],
-      ['text'],
+      ['reasoning', 'call', 'error', 'paused', 'text'],
+      ['next-task'],
       ['later-reasoning', 'later-tool']
     ])
     expect(projected[2].status).toBe('error')

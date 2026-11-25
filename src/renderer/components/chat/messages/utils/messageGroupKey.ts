@@ -18,25 +18,33 @@ export function withHistoricalProcessGroups(
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index]
     const parts = partsByMessageId?.[message.id] ?? []
-    const isHistoricalTool = (part: CherryMessagePart) =>
-      part.type === 'dynamic-tool' &&
-      part.toolName === 'historical_tool' &&
-      (part.state === 'output-available' || part.state === 'output-error')
-    if (
-      message.role !== 'assistant' ||
-      (message.parentId && !message.isImportedHistory) ||
-      (message.status !== 'success' &&
-        !(message.isImportedHistory && (message.status === 'paused' || message.status === 'error'))) ||
-      !parts.some((part) => isHistoricalTool(part) || (message.isImportedHistory && part.type === 'reasoning'))
-    ) {
+    if (message.role !== 'assistant' || !parts.length) {
       groupId = undefined
       continue
     }
-    const layout = projectCompletedMessageParts(parts.map((part, index) => ({ part, index })))
-    if (layout.resultEntries.length || layout.reportEntries.length) {
-      groupId = undefined
-      continue
+    if (message.isImportedHistory) {
+      if (!['success', 'paused', 'error'].includes(message.status)) {
+        groupId = undefined
+        continue
+      }
+    } else {
+      const hasHistoricalTool = parts.some(
+        (part) =>
+          part.type === 'dynamic-tool' &&
+          part.toolName === 'historical_tool' &&
+          (part.state === 'output-available' || part.state === 'output-error')
+      )
+      if (message.parentId || message.status !== 'success' || !hasHistoricalTool) {
+        groupId = undefined
+        continue
+      }
+      const layout = projectCompletedMessageParts(parts.map((part, index) => ({ part, index })))
+      if (layout.resultEntries.length || layout.reportEntries.length) {
+        groupId = undefined
+        continue
+      }
     }
+    if (Boolean(message.isImportedHistory) !== Boolean(messages[index + 1]?.isImportedHistory)) groupId = undefined
     // Keep the newest member as the anchor when pagination prepends older process records.
     groupId ??= message.id
     let item = cache.get(message)
