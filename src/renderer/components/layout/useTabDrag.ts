@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { loggerService } from '@logger'
 import type { Tab } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
+import { getEventTargetElement } from '@renderer/utils/dom'
 import { IpcChannel } from '@shared/IpcChannel'
 
 import { applyHorizontalRubberBandTranslateX } from './tabDragRubberBand'
@@ -197,7 +198,7 @@ export function useTabDrag({
     (e: React.PointerEvent, tab: Tab, tabType: 'pinned' | 'normal') => {
       if (e.button !== 0) return
 
-      if ((e.target as HTMLElement).closest('[role="button"]')) return
+      if (getEventTargetElement(e.target)?.closest('[role="button"]')) return
 
       const list = tabType === 'pinned' ? pinnedTabs : normalTabs
       const index = list.findIndex((t) => t.id === tab.id)
@@ -206,8 +207,7 @@ export function useTabDrag({
       const boundaryRect = tabList?.getBoundingClientRect() ?? null
       const rightInsetWidth = getRightInsetWidth(boundaryRect, rightInsetRef.current)
 
-      const target = e.currentTarget as HTMLElement
-      target.setPointerCapture(e.pointerId)
+      e.currentTarget.setPointerCapture(e.pointerId)
 
       // Store original positions of all tabs
       const originalRects = new Map<string, HorizontalRect>()

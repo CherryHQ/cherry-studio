@@ -123,22 +123,25 @@ export function repairPinnedTabs(raw: unknown, normalTabs: readonly Tab[]): Pinn
 
   for (const entry of raw) {
     if (!isPlainObject(entry)) continue
+    const id: unknown = entry.id
+    const type: unknown = entry.type
+    const url: unknown = entry.url
 
-    if (typeof entry.id !== 'string' || !entry.id.trim()) continue
+    if (typeof id !== 'string' || !id.trim()) continue
 
-    if (entry.type !== 'route' && entry.type !== 'webview') continue
+    if (type !== 'route' && type !== 'webview') continue
 
-    if (typeof entry.url !== 'string' || !entry.url.trim()) continue
+    if (typeof url !== 'string' || !url.trim()) continue
 
     try {
-      new URL(entry.url, 'https://cherryai.com')
+      new URL(url, 'https://cherryai.com')
     } catch {
       continue
     }
 
-    const tab = { ...entry } as Tab
+    const tab: { [K in keyof Tab]?: unknown } = { ...entry, id, type, url }
 
-    if (typeof tab.title !== 'string') tab.title = getDefaultRouteTitle(tab.url)
+    if (typeof tab.title !== 'string') tab.title = getDefaultRouteTitle(url)
     tab.isPinned = true
 
     if ('isDormant' in tab && typeof tab.isDormant !== 'boolean') tab.isDormant = true
@@ -150,14 +153,23 @@ export function repairPinnedTabs(raw: unknown, normalTabs: readonly Tab[]): Pinn
     if ('metadata' in tab && !isPlainObject(tab.metadata)) delete tab.metadata
 
     if ('savedState' in tab) {
-      if (tab.savedState === undefined || !isPlainObject(tab.savedState)) delete tab.savedState
-      else if ('scrollPosition' in tab.savedState && !Number.isFinite(tab.savedState.scrollPosition)) {
-        tab.savedState = { ...tab.savedState }
-        delete tab.savedState.scrollPosition
+      const savedState = tab.savedState
+
+      if (savedState === undefined || !isPlainObject(savedState)) delete tab.savedState
+      else if (
+        typeof savedState === 'object' &&
+        savedState !== null &&
+        'scrollPosition' in savedState &&
+        !Number.isFinite(savedState.scrollPosition)
+      ) {
+        const repairedState: object = { ...savedState }
+        Reflect.deleteProperty(repairedState, 'scrollPosition')
+        tab.savedState = repairedState
       }
     }
 
-    valid.push(tab)
+    // SAFETY: Required fields and optional scalar/container fields are repaired above; metadata and saved-state extensions remain opaque.
+    valid.push(tab as Tab)
   }
 
   const seen = new Set(normalTabs.map((tab) => tab.id))
@@ -362,7 +374,7 @@ export function TabsProvider({
           survivingNormals
         ).tabs
 
-        return isEqual(raw, candidate) ? (raw as Tab[]) : candidate
+        return candidate
       })
     },
     [includePinnedTabs, persistPinnedTabs]
