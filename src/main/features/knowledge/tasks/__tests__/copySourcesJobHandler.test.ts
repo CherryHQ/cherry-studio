@@ -106,6 +106,30 @@ describe('copy-sources job handler', () => {
     )
   })
 
+  it('moves a queued (idle) file to processing in the same locked section as its commit', async () => {
+    const prepared = createPreparedCopy()
+    prepareFileCopyIntoKnowledgeBaseAtMock.mockResolvedValueOnce(prepared)
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID, 'idle'))
+    let inLock = false
+    knowledgeLockManager.runExclusive.mockImplementation(async (_key: string, task: () => Promise<unknown>) => {
+      inLock = true
+      try {
+        return await task()
+      } finally {
+        inLock = false
+      }
+    })
+    knowledgeItemUpdateStatusMock.mockImplementationOnce(() => {
+      expect(inLock).toBe(true)
+      return createFileItem(FILE_ITEM_ID, 'processing')
+    })
+    const handler = createCopySourcesJobHandler(knowledgeLockManager as never, ingestionService)
+
+    await handler.execute(createCtx(payload, 'copy-job'))
+
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'processing')
+  })
+
   it('keeps the status of an item that was not waiting in preparing', async () => {
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID, 'processing'))
     const handler = createCopySourcesJobHandler(knowledgeLockManager as never, ingestionService)

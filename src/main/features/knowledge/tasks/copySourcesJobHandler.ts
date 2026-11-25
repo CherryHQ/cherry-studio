@@ -59,8 +59,10 @@ export function createCopySourcesJobHandler(
           for (const write of prepared) {
             await write.commit()
           }
-          // The bytes are in raw/ now, so the item leaves `preparing` in the same section.
-          if (live.item.status === 'preparing') {
+          // The bytes are in raw/ now, so the item leaves its queued state in the same section.
+          // Awaiting-copy files start as `idle` (Queued); directories and retried copies may
+          // already be `preparing`.
+          if (live.item.status === 'preparing' || live.item.status === 'idle') {
             knowledgeItemService.updateStatus(itemId, 'processing')
           }
           return true

@@ -230,6 +230,16 @@ describe('KnowledgeItemService', () => {
       expect(result.total).toBe(1)
       expect(result.items.map((item) => item.id)).toEqual([VISIBLE_NOTE_ID])
     })
+
+    it('includes deleting items when the panel opts in so Cancelling can render', async () => {
+      await seedItem({ id: VISIBLE_NOTE_ID, data: { source: 'visible', content: 'visible' } })
+      await seedItem({ id: DELETING_NOTE_ID, data: { source: 'deleting', content: 'deleting' }, status: 'deleting' })
+
+      const result = service.list(KNOWLEDGE_BASE_ID, { limit: 20, includeDeleting: true })
+
+      expect(result.total).toBe(2)
+      expect(result.items.map((item) => item.id).sort()).toEqual([DELETING_NOTE_ID, VISIBLE_NOTE_ID].sort())
+    })
   })
 
   describe('getItemsByBaseId', () => {
@@ -483,8 +493,10 @@ describe('KnowledgeItemService', () => {
     const FAILED_LEAF = itemId('7e07')
     const DELETING_LEAF = itemId('7e08')
 
-    it('marks every in-flight item (leaves and containers) failed, leaving terminal/idle/deleting untouched', async () => {
-      // In-flight: a container mid-expansion, a container with an in-flight child, and standalone leaves.
+    it('marks every in-flight item (leaves and containers, including queued) failed, leaving terminal/deleting untouched', async () => {
+      // In-flight: a container mid-expansion, a container with an in-flight child, standalone leaves,
+      // and a queued file awaiting its copy (idle owes a copy job, so a quit before it starts
+      // would otherwise strand it with nothing driving it).
       await seedItem({ id: PREPARING_DIR, type: 'directory', data: { source: '/p' }, status: 'preparing' })
       await seedItem({ id: PROCESSING_DIR, type: 'directory', data: { source: '/q' }, status: 'processing' })
       await seedItem({
@@ -496,22 +508,22 @@ describe('KnowledgeItemService', () => {
       await seedItem({ id: EMBEDDING_LEAF, data: { source: 'e', content: 'e' }, status: 'embedding' })
       await seedItem({ id: PROCESSING_LEAF, data: { source: 'p2', content: 'p2' }, status: 'processing' })
 
-      // Untouched: not started, already terminal, or being deleted.
+      // Queued (idle) is in-flight: it owes a copy job.
       await seedItem({ id: IDLE_LEAF, data: { source: 'i', content: 'i' }, status: 'idle' })
+      // Untouched: already terminal, or being deleted.
       await seedItem({ id: COMPLETED_LEAF, data: { source: 'c', content: 'c' }, status: 'completed' })
       await seedItem({ id: FAILED_LEAF, data: { source: 'f', content: 'f' }, status: 'failed', error: 'real failure' })
       await seedItem({ id: DELETING_LEAF, data: { source: 'd', content: 'd' }, status: 'deleting' })
 
       const count = service.failInterruptedItems(INTERRUPTED)
-      expect(count).toBe(5)
+      expect(count).toBe(6)
 
-      for (const id of [PREPARING_DIR, PROCESSING_DIR, READING_LEAF, EMBEDDING_LEAF, PROCESSING_LEAF]) {
+      for (const id of [PREPARING_DIR, PROCESSING_DIR, READING_LEAF, EMBEDDING_LEAF, PROCESSING_LEAF, IDLE_LEAF]) {
         const item = service.getById(id)
         expect(item.status).toBe('failed')
         expect(item.error).toBe(INTERRUPTED)
       }
 
-      expect(service.getById(IDLE_LEAF).status).toBe('idle')
       expect(service.getById(COMPLETED_LEAF).status).toBe('completed')
       const realFailure = service.getById(FAILED_LEAF)
       expect(realFailure.status).toBe('failed')
@@ -519,13 +531,13 @@ describe('KnowledgeItemService', () => {
       expect(service.getById(DELETING_LEAF).status).toBe('deleting')
     })
 
-    it('marks a file still waiting for its copy failed, so an interrupted copy is reindexable', async () => {
+    it('marks a file still queued for its copy failed, so an interrupted copy is reindexable', async () => {
       const COPYING_FILE = itemId('7e09')
       await seedItem({
         id: COPYING_FILE,
         type: 'file',
         data: { source: '/docs/report.pdf', relativePath: 'report.pdf' as PosixRelativeFilePath },
-        status: 'preparing'
+        status: 'idle'
       })
 
       expect(service.failInterruptedItems(INTERRUPTED)).toBe(1)
@@ -563,7 +575,7 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('creates a file whose bytes are still owed as preparing, then lets it move on to processing', async () => {
+    it('creates a file whose bytes are still owed as queued, then lets it move on to processing', async () => {
       const item: CreateKnowledgeItemDto = {
         type: 'file',
         data: { source: '/docs/report.pdf', relativePath: 'report.pdf' as PosixRelativeFilePath }
@@ -571,11 +583,11 @@ describe('KnowledgeItemService', () => {
 
       const created = service.createActive(KNOWLEDGE_BASE_ID, item, { awaitingCopy: true })
 
-      expect(created).toMatchObject({ type: 'file', status: 'preparing', error: null })
+      expect(created).toMatchObject({ type: 'file', status: 'idle', error: null })
       expect(service.updateStatus(created.id, 'processing').status).toBe('processing')
     })
 
-    it('still rejects preparing for a note, so only files and directories can wait in it', async () => {
+    it('still rejects awaiting copy for a note, so only files can wait in queue', async () => {
       const item: CreateKnowledgeItemDto = { type: 'note', data: { source: 'note', content: 'note' } }
 
       expect(() => service.createActive(KNOWLEDGE_BASE_ID, item, { awaitingCopy: true })).toThrow(

@@ -111,43 +111,48 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     // JobManager queue (concurrency 5), but the queue itself is finite
     // (`KNOWLEDGE_ACTIVE_JOB_LIMIT`). Reject an over-capacity batch upfront with
     // the remaining capacity so the UI can explain it instead of silently
-    // dropping files or hanging the queue.
-    if (inputs.length > KNOWLEDGE_ACTIVE_JOB_LIMIT) {
-      throw DataApiErrorFactory.validation(
-        {
-          base: [
-            `Knowledge import batch of ${inputs.length} items exceeds the processing capacity of ${KNOWLEDGE_ACTIVE_JOB_LIMIT} active jobs`
-          ]
-        },
-        `This import (${inputs.length} items) exceeds the processing capacity of ${KNOWLEDGE_ACTIVE_JOB_LIMIT} active jobs; split it into smaller batches`
-      )
-    }
-    let activeJobCount: number | undefined
-    try {
-      const activeJobs = await application.get('JobManager').list({
-        queue: knowledgeQueueName(toKnowledgeBaseId(base.id)),
-        status: [...ACTIVE_JOB_STATUSES],
-        limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
-      })
-      activeJobCount = activeJobs.length
-    } catch (error) {
-      // A list failure must not block admission — fall through and let
-      // scheduling surface per-file states instead.
-      logger.warn('Failed to check knowledge queue capacity; proceeding with admission', error as Error, {
-        baseId
-      })
-    }
-    if (activeJobCount !== undefined) {
-      const remainingCapacity = KNOWLEDGE_ACTIVE_JOB_LIMIT - activeJobCount
-      if (inputs.length > remainingCapacity) {
+    // dropping files or hanging the queue. Restore (`copyInline`) bypasses the
+    // guard: its target base is brand new and the whole-base copy must stay
+    // all-or-nothing with rollback — the dialog offers no way to split it and
+    // the merge base admits it.
+    if (!options.copyInline) {
+      if (inputs.length > KNOWLEDGE_ACTIVE_JOB_LIMIT) {
         throw DataApiErrorFactory.validation(
           {
             base: [
-              `Knowledge base has ${activeJobCount} active jobs; ${remainingCapacity} slots remain for ${inputs.length} new items`
+              `Knowledge import batch of ${inputs.length} items exceeds the processing capacity of ${KNOWLEDGE_ACTIVE_JOB_LIMIT} active jobs`
             ]
           },
-          `This base has ${activeJobCount} jobs still processing; ${remainingCapacity} slots remain for ${inputs.length} new items. Wait for processing to finish or split the batch`
+          `This import (${inputs.length} items) exceeds the processing capacity of ${KNOWLEDGE_ACTIVE_JOB_LIMIT} active jobs; split it into smaller batches`
         )
+      }
+      let activeJobCount: number | undefined
+      try {
+        const activeJobs = await application.get('JobManager').list({
+          queue: knowledgeQueueName(toKnowledgeBaseId(base.id)),
+          status: [...ACTIVE_JOB_STATUSES],
+          limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
+        })
+        activeJobCount = activeJobs.length
+      } catch (error) {
+        // A list failure must not block admission — fall through and let
+        // scheduling surface per-file states instead.
+        logger.warn('Failed to check knowledge queue capacity; proceeding with admission', error as Error, {
+          baseId
+        })
+      }
+      if (activeJobCount !== undefined) {
+        const remainingCapacity = KNOWLEDGE_ACTIVE_JOB_LIMIT - activeJobCount
+        if (inputs.length > remainingCapacity) {
+          throw DataApiErrorFactory.validation(
+            {
+              base: [
+                `Knowledge base has ${activeJobCount} active jobs; ${remainingCapacity} slots remain for ${inputs.length} new items`
+              ]
+            },
+            `This base has ${activeJobCount} jobs still processing; ${remainingCapacity} slots remain for ${inputs.length} new items. Wait for processing to finish or split the batch`
+          )
+        }
       }
     }
 
@@ -190,6 +195,27 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           // BEFORE reserving paths, so the freed name is claimed by the incoming
           // source instead of being auto-renamed with a numeric suffix.
           await this.purgeConflictingExistingItems(base, itemsToAdd)
+        }
+
+        // Authoritative capacity check inside the admission lock: the pre-lock
+        // JobManager list is a fast-path that races (two overlapping one-file
+        // imports can both observe the last slot), so reserve atomically here
+        // against the DB rows this lock serializes. Restore bypasses it (see above).
+        if (!options.copyInline) {
+          const existingActiveCount = knowledgeItemService
+            .getItemsByBaseId(base.id, { includeDeleting: true })
+            .filter((item) => item.status !== 'completed' && item.status !== 'failed').length
+          if (existingActiveCount + itemsToAdd.length > KNOWLEDGE_ACTIVE_JOB_LIMIT) {
+            const remainingCapacity = KNOWLEDGE_ACTIVE_JOB_LIMIT - existingActiveCount
+            throw DataApiErrorFactory.validation(
+              {
+                base: [
+                  `Knowledge base has ${existingActiveCount} active jobs; ${remainingCapacity} slots remain for ${itemsToAdd.length} new items`
+                ]
+              },
+              `This base has ${existingActiveCount} jobs still processing; ${remainingCapacity} slots remain for ${itemsToAdd.length} new items. Wait for processing to finish or split the batch`
+            )
+          }
         }
 
         // Reserve every existing on-disk path up front, then let each new file

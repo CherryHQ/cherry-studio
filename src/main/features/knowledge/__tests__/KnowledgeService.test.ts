@@ -1555,7 +1555,7 @@ describe('KnowledgeService', () => {
 
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
     expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(2)
-    // The rows wait in `preparing` until their bytes land.
+    // The rows wait in `idle` (Queued) until their copy jobs land them in `processing`.
     expect(knowledgeItemCreateActiveMock).toHaveBeenNthCalledWith(
       1,
       'kb-1',
@@ -1831,6 +1831,44 @@ describe('KnowledgeService', () => {
     }))
 
     await expect(service.addItems('kb-1', inputs)).rejects.toThrow('slots remain')
+    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('admits a whole-base restore larger than the interactive capacity with rollback preserved', async () => {
+    const service = new KnowledgeService()
+    // Empty destination: no active jobs, no existing rows. An interactive batch
+    // of 5001 would exceed the 5000 cap, but restore (copyInline) must stay
+    // all-or-nothing.
+    listMock.mockResolvedValueOnce([])
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValueOnce([])
+    knowledgeItemCreateActiveMock.mockImplementation((baseId: string, input: { data: { source: string } }) =>
+      createNoteItem(input.data.source, baseId, null, 'processing')
+    )
+
+    const inputs = Array.from({ length: 5001 }, (_, index) => ({
+      type: 'note' as const,
+      data: { source: `note-${index}`, content: `hello ${index}` }
+    }))
+
+    await expect(ingestionOf(service).addItems('kb-1', inputs, undefined, { copyInline: true })).resolves.toEqual({
+      status: 'added'
+    })
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(5001)
+  })
+
+  it('reserves capacity atomically inside the admission lock so overlapping imports cannot over-admit', async () => {
+    const service = new KnowledgeService()
+    // Fast-path sees one slot left; the authoritative DB check inside the lock
+    // sees the same slot already taken by a concurrent admission.
+    listMock.mockResolvedValueOnce([{ id: 'job-0' }])
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValueOnce(
+      Array.from({ length: 5000 }, (_, index) => createNoteItem(`note-${index}`, 'kb-1', null, 'processing'))
+    )
+
+    await expect(
+      service.addItems('kb-1', [{ type: 'note', data: { source: 'late-note', content: 'hello' } }])
+    ).rejects.toThrow('slots remain')
     expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
     expect(enqueueMock).not.toHaveBeenCalled()
   })

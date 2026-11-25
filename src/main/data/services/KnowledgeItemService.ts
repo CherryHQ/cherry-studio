@@ -31,9 +31,13 @@ const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
 /**
  * Item statuses that mean "indexing is in progress" — the item is being driven
  * by a job and is neither finished (completed/failed) nor being deleted. Used to
- * find items stranded by an interrupted job on boot.
+ * find items stranded by an interrupted job on boot. Includes `idle` (queued but
+ * not yet picked up): an `idle` file owes a `knowledge.copy-sources` job, so a
+ * quit before the copy starts would otherwise leave it queued forever with
+ * nothing driving it.
  */
 const KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES = [
+  'idle',
   'preparing',
   'processing',
   'reading',
@@ -148,10 +152,16 @@ export class KnowledgeItemService {
 
   list(baseId: string, query: ListKnowledgeItemsQuery): KnowledgeItemListResponse {
     knowledgeBaseService.getById(baseId)
-    const { limit, type, groupId, sortBy } = query
+    const { limit, type, groupId, sortBy, includeDeleting } = query
     const sortOrder = query.sortOrder ?? (sortBy === 'updatedAt' ? 'desc' : 'asc')
 
-    const filterConditions: SQL[] = [eq(knowledgeItemTable.baseId, baseId), ne(knowledgeItemTable.status, 'deleting')]
+    const filterConditions: SQL[] = [eq(knowledgeItemTable.baseId, baseId)]
+    // The data-source panel opts in via `includeDeleting` to render `deleting`
+    // rows as Cancelling while cleanup pends; every other caller keeps the
+    // historical hide-deletes contract.
+    if (!includeDeleting) {
+      filterConditions.push(ne(knowledgeItemTable.status, 'deleting'))
+    }
 
     if (type !== undefined) {
       filterConditions.push(eq(knowledgeItemTable.type, type))
@@ -379,14 +389,27 @@ export class KnowledgeItemService {
   }
 
   /**
-   * Create an item already in its active status (`preparing` for a directory container or a file
-   * whose bytes are still to be copied in, `processing` for any other leaf) and reconcile its parent
-   * container so an add into an already-completed directory pulls it back into an active status.
+   * Create an item already in its active status (`preparing` for a directory container, `idle`
+   * (queued) for a file whose bytes are still to be copied in, `processing` for any other leaf)
+   * and reconcile its parent container so an add into an already-completed directory pulls it back
+   * into an active status.
+   *
+   * Awaiting-copy files start as `idle` (Queued) rather than `preparing` so the
+   * queued/processing pair the batch import reports per file is reachable on
+   * real rows: `idle` is admitted but not yet picked up by the queue, `preparing`
+   * is the copy actually running. The copy job flips `idle`/`preparing` to
+   * `processing` once the bytes land.
    *
    * @param options.awaitingCopy - The item's `raw/` bytes land later (`knowledge.copy-sources`).
    */
   createActive(baseId: string, item: CreateKnowledgeItemDto, options: { awaitingCopy?: boolean } = {}): KnowledgeItem {
-    const status: KnowledgeItemStatus = item.type === 'directory' || options.awaitingCopy ? 'preparing' : 'processing'
+    if (options.awaitingCopy && item.type !== 'file') {
+      throw DataApiErrorFactory.validation({
+        _root: [`Only file items can await a source copy, got '${item.type}'`]
+      })
+    }
+    const status: KnowledgeItemStatus =
+      item.type === 'directory' ? 'preparing' : options.awaitingCopy ? 'idle' : 'processing'
     const dbService = application.get('DbService')
     const row = dbService.withWriteTx((tx) => {
       this.validateGroupOwnerTx(tx, baseId, item.groupId)

@@ -88,10 +88,12 @@ export const useKnowledgeItems = (
 
   // `null` lists the base's top-level items; a directory item's id lists that directory's
   // direct children (drill-down). Memoized so a stable object re-keys the query only on change.
+  // `includeDeleting` keeps cancelling rows visible: without it the list hides
+  // `deleting` on refresh and the Cancelling label could never render on real rows.
   const sortBy = sort?.sortBy
   const sortOrder = sort?.sortOrder
   const query = useMemo(
-    () => ({ groupId, ...(sortBy && sortOrder ? { sortBy, sortOrder } : {}) }),
+    () => ({ groupId, includeDeleting: true, ...(sortBy && sortOrder ? { sortBy, sortOrder } : {}) }),
     [groupId, sortBy, sortOrder]
   )
 
@@ -189,18 +191,22 @@ export const useAddKnowledgeItems = (baseId: string) => {
       let submitError: Error | undefined
       let result: KnowledgeAddItemsResult | undefined
       try {
-        // One logical import operation, bounded transport: `detect` needs the
-        // whole batch in one call so same-name conflicts are detected across all
-        // of it before anything is written (atomic check-and-add). `rename` /
-        // `replace` (conflict resolution, or a direct non-interactive add) apply
-        // per chunk in order so a 20+ file pick never becomes one oversized IPC
-        // payload; earlier chunks stay queued if a later chunk throws (partial
+        // One logical import operation, bounded transport: `detect` and
+        // `replace` need the whole batch in one call so same-name conflicts
+        // are resolved atomically across all of it before anything is written
+        // (atomic check-and-add for `detect`; atomic purge-then-add for
+        // `replace`). Chunking `replace` would let an early chunk commit an
+        // auto-renamed copy (e.g. `report.md` -> `report_1.md` when a
+        // different-typed snapshot already occupies `report.md`) that a later
+        // chunk then sees as an existing conflict and purges — silently
+        // dropping a selected file. `rename` (the default, and every internal
+        // caller) keeps all with auto-rename and never purges, so it stays
+        // safe to chunk per `KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK` in order;
+        // earlier chunks stay queued if a later chunk throws (partial
         // success), and per-file failed states surface via status polling.
         // Processing concurrency stays bounded downstream via the per-base
         // JobManager queue (5 slots) without dropping accepted files.
-        if (conflictStrategy === 'detect') {
-          result = await ipcApi.request('knowledge.add_items', { baseId, items, conflictStrategy })
-        } else {
+        if (conflictStrategy === 'rename' || conflictStrategy === undefined) {
           const batches = chunkKnowledgeAddItems(items)
           for (const batch of batches) {
             const batchResult = await ipcApi.request('knowledge.add_items', {
@@ -210,6 +216,8 @@ export const useAddKnowledgeItems = (baseId: string) => {
             })
             result = batchResult
           }
+        } else {
+          result = await ipcApi.request('knowledge.add_items', { baseId, items, conflictStrategy })
         }
       } catch (error) {
         submitError = normalizeKnowledgeError(error)

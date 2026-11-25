@@ -57,24 +57,34 @@ const MAX_NAMED_SKIPPED_FILES = 3
 /**
  * Actionable skipped-file description: first few filenames plus the remainder
  * count, so a large batch import tells the user *which* files need attention
- * instead of only how many were skipped.
+ * instead of only how many were skipped. The remainder uses the already
+ * translated `url.more_entries` (`+{{count}} more`) so non-English toasts stay
+ * localized instead of falling back to a literal English `more`.
  */
-const describeSkippedFileNames = (names: Array<string | undefined>): string => {
+const describeSkippedFileNames = (
+  t: (key: string, options?: Record<string, unknown>) => string,
+  names: Array<string | undefined>
+): string => {
   const cleaned = names.filter((name): name is string => Boolean(name?.trim()))
   if (cleaned.length === 0) {
     return ''
   }
   const shown = cleaned.slice(0, MAX_NAMED_SKIPPED_FILES)
   const remainder = cleaned.length - shown.length
-  return remainder > 0 ? `${shown.join(', ')} (+${remainder} more)` : shown.join(', ')
+  if (remainder <= 0) {
+    return shown.join(', ')
+  }
+  const more = t('knowledge.data_source.add_dialog.url.more_entries', { count: remainder })
+  return `${shown.join(', ')} (${more})`
 }
 
 const notifySkippedFiles = (
+  t: (key: string, options?: Record<string, unknown>) => string,
   title: string,
   names: Array<string | undefined>,
   warning: (message: { title: string; description?: string }) => void
 ) => {
-  const description = describeSkippedFileNames(names)
+  const description = describeSkippedFileNames(t, names)
   warning(description ? { title, description } : { title })
 }
 
@@ -275,6 +285,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         // Partial failure: keep the resolvable files queued, report exactly which
         // local paths failed so the user can fix permissions/moves and retry them.
         notifySkippedFiles(
+          t,
           t('chat.save.knowledge.error.file_partial_failed', { count: fileOutcome.skipped.length }),
           fileOutcome.skipped.map((failure) => failure.source),
           toast.warning
@@ -295,6 +306,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         // Unsupported types are filtered before admission: name them so the user
         // knows to convert or drop them rather than retrying the same batch.
         notifySkippedFiles(
+          t,
           t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedFiles.length }),
           skippedFiles.map((file) => file.name),
           toast.warning
@@ -316,6 +328,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     const skippedFiles = selected.filter((file) => !isSupportedKnowledgeFile(file.origin_name || file.name))
     if (skippedFiles.length > 0) {
       notifySkippedFiles(
+        t,
         t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedFiles.length }),
         skippedFiles.map((file) => file.origin_name || file.name),
         toast.warning

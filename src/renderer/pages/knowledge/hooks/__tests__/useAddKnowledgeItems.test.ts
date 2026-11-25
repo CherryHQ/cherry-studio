@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const mockUseInvalidateCache = vi.fn()
 const mockInvalidateCache = vi.fn()
@@ -144,7 +145,10 @@ describe('useAddKnowledgeItems', () => {
   it('submits a detect batch larger than 20 files in one atomic call', async () => {
     const items = Array.from({ length: 25 }, (_, index) => ({
       type: 'file' as const,
-      data: { source: `/docs/doc-${index}.pdf`, path: `/docs/doc-${index}.pdf` }
+      data: {
+        source: `/docs/doc-${index}.pdf`,
+        path: `/docs/doc-${index}.pdf` as AbsoluteFilePath
+      }
     }))
 
     const { result } = renderHook(() => useAddKnowledgeItems('base-1'))
@@ -166,7 +170,10 @@ describe('useAddKnowledgeItems', () => {
   it('chunks a rename resolution larger than the transport limit without dropping files', async () => {
     const items = Array.from({ length: 150 }, (_, index) => ({
       type: 'file' as const,
-      data: { source: `/docs/doc-${index}.pdf`, path: `/docs/doc-${index}.pdf` }
+      data: {
+        source: `/docs/doc-${index}.pdf`,
+        path: `/docs/doc-${index}.pdf` as AbsoluteFilePath
+      }
     }))
 
     const { result } = renderHook(() => useAddKnowledgeItems('base-1'))
@@ -185,6 +192,31 @@ describe('useAddKnowledgeItems', () => {
       baseId: 'base-1',
       items: items.slice(100),
       conflictStrategy: 'rename'
+    })
+  })
+
+  it('submits a replace resolution larger than the transport limit in one atomic call', async () => {
+    const items = Array.from({ length: 150 }, (_, index) => ({
+      type: 'file' as const,
+      data: {
+        source: `/docs/doc-${index}.pdf`,
+        path: `/docs/doc-${index}.pdf` as AbsoluteFilePath
+      }
+    }))
+
+    const { result } = renderHook(() => useAddKnowledgeItems('base-1'))
+
+    await act(async () => {
+      await expect(result.current.submit(items, 'replace')).resolves.toEqual({ status: 'added' })
+    })
+
+    // Replace purges existing conflicts before reserving names: chunking it
+    // would let a later chunk purge an earlier chunk's auto-renamed admission.
+    expect(mockIpcRequest).toHaveBeenCalledTimes(1)
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.add_items', {
+      baseId: 'base-1',
+      items,
+      conflictStrategy: 'replace'
     })
   })
 })
