@@ -2726,6 +2726,19 @@ describe('OpenClawService gateway status state machine', () => {
         expect(fs.readFileSync(path.join(configDir, name), 'utf-8')).toBe(content)
     })
 
+    it('names the malformed legacy candidate without directing recovery at a valid active file', async () => {
+      const legacyPath = path.join(configDir, 'openclaw.cherry.json')
+      const activePath = path.join(configDir, 'openclaw.json')
+      const active = '{"active":true}'
+      fs.writeFileSync(legacyPath, '{ invalid json')
+      fs.writeFileSync(activePath, active)
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+      expect(result.success).toBe(false)
+      expect('message' in result && result.message).toContain(`fix or remove ${legacyPath}`)
+      expect(fs.readFileSync(activePath, 'utf-8')).toBe(active)
+      expect(fs.readFileSync(legacyPath, 'utf-8')).toBe('{ invalid json')
+    })
+
     it('reads legacy config when both legacy and primary config files exist', async () => {
       const legacyPath = path.join(configDir, 'openclaw.cherry.json')
       const primaryPath = path.join(configDir, 'openclaw.json')

@@ -1483,7 +1483,7 @@ export class OpenClawService extends BaseService {
         try {
           config = JSON.parse(content)
         } catch {
-          throw new Error(`Existing OpenClaw config is not valid JSON; fix or remove ${openclawConfigPath()}`)
+          throw new Error(`Existing OpenClaw config is not valid JSON; fix or remove ${sourceConfigPath}`)
         }
       }
 
