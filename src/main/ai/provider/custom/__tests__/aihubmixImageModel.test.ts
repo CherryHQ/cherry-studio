@@ -105,6 +105,34 @@ describe('AihubmixImageModel', () => {
       }
     )
 
+    it.each([`${'9'.repeat(400)}:1`, `1:${'9'.repeat(400)}`])(
+      'uses the SDK default ratio for numeric overflow: %s',
+      async (aspectRatio) => {
+        const fetchMock = vi.fn().mockResolvedValue(okJson({ predictions: [{ bytesBase64Encoded: 'IMG' }] }))
+        vi.stubGlobal('fetch', fetchMock)
+        const result = await make('imagen-4.0-generate-preview-06-06').doGenerate(
+          callOptions({ providerOptions: { aihubmix: { aspectRatio } } })
+        )
+        expect(result.images).toEqual(['IMG'])
+        const [url, init] = fetchMock.mock.calls[0]
+        const request = new Request(url, init)
+        expect((await request.json()).parameters.aspectRatio).toBe('1:1')
+      }
+    )
+
+    it.each([
+      { aspectRatio: 'ASPECT_0_1', normalized: '0:1' },
+      { aspectRatio: 'ASPECT_016_09', normalized: '016:09' },
+      { aspectRatio: '7:5', normalized: '7:5' }
+    ])('leaves finite ratio support validation to the SDK: $aspectRatio', async ({ aspectRatio, normalized }) => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ predictions: [{ bytesBase64Encoded: 'IMG' }] })))
+      await expect(
+        make('imagen-4.0-generate-preview-06-06').doGenerate(
+          callOptions({ providerOptions: { aihubmix: { aspectRatio } } })
+        )
+      ).rejects.toMatchObject({ argument: 'providerOptions', cause: { value: { aspectRatio: normalized } } })
+    })
+
     it('routes Imagen models through @ai-sdk/google predict and normalizes personGeneration', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ predictions: [{ bytesBase64Encoded: 'IMG' }] }))
       vi.stubGlobal('fetch', fetchMock)

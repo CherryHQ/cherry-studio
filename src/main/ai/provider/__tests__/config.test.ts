@@ -132,6 +132,8 @@ describe('resolved native image transport settings', () => {
           n: 1,
           size: undefined,
           seed: undefined,
+          files: undefined,
+          mask: undefined,
           providerParams: {}
         })
       ).toEqual({ imageUrls: ['https://image.example/result.png'] })
@@ -1346,8 +1348,6 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const resolved = await resolveProviderAiSdkConfig(provider, imageModel)
-      const { config } = resolved
-
       await expectNativeSubmit(resolved, 'https://token-plan.maas.qianwenaiapi.com')
     })
 

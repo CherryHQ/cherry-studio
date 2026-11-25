@@ -264,9 +264,11 @@ function widgetInputNames(
       if (widgetType === 'COMFY_DYNAMICCOMBO_V3') {
         const selected = values![acc.positions.length - 1]
         const options = config.options
+
         const option = Array.isArray(options)
           ? options.find((candidate: WorkflowValue) => isJsonObject(candidate) && candidate.key === selected)
           : undefined
+
         const inputs = isJsonObject(option) && isJsonObject(option.inputs) ? option.inputs : {}
         // A dynamic option's own inputs carry no order of their own, and the
         // node's `input_order` describes its top-level sections only.

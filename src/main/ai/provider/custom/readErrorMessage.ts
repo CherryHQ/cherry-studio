@@ -15,9 +15,16 @@ export async function readErrorMessage(response: Response, fallback?: string): P
   }
 
   try {
-    const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string }
+    const parsed: unknown = JSON.parse(text)
 
-    return parsed.error?.message || parsed.message || fallbackMessage
+    if (typeof parsed !== 'object' || parsed === null) return fallbackMessage
+    const error = 'error' in parsed ? parsed.error : undefined
+    const nestedMessage = error !== null && typeof error === 'object' && 'message' in error ? error.message : undefined
+
+    if (typeof nestedMessage === 'string' && nestedMessage) return nestedMessage
+    const message = 'message' in parsed ? parsed.message : undefined
+
+    return typeof message === 'string' && message ? message : fallbackMessage
   } catch {
     return text.slice(0, 300) || fallbackMessage
   }

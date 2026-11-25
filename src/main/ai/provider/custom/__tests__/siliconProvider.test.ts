@@ -3,6 +3,51 @@ import { describe, expect, it, vi } from 'vitest'
 import { createSiliconProvider } from '../silicon/siliconProvider'
 
 describe('createSiliconProvider', () => {
+  it('selects valid string images without letting malformed fallback fields replace them', async () => {
+    const provider = createSiliconProvider({
+      apiKey: 'sk-test',
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            images: [
+              { b64_json: 42, url: 'https://cdn.example.com/image.png' },
+              { b64_json: '', url: 'https://cdn.example.com/unused.png' },
+              { b64_json: false, url: { not: 'text' } }
+            ],
+            data: { unused: 'extension' }
+          })
+        )
+    })
+    const result = await provider.imageModel('Kwai-Kolors/Kolors').doGenerate({
+      prompt: 'a fox',
+      n: 1,
+      size: undefined,
+      aspectRatio: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerOptions: {}
+    })
+    expect(result.images).toEqual(['https://cdn.example.com/image.png', ''])
+  })
+
+  it('rejects a non-array image collection as an API response failure', async () => {
+    const body = { images: { url: 'https://cdn.example.com/image.png' } }
+    const provider = createSiliconProvider({ apiKey: 'sk-test', fetch: async () => new Response(JSON.stringify(body)) })
+    await expect(
+      provider.imageModel('Kwai-Kolors/Kolors').doGenerate({
+        prompt: 'a fox',
+        n: 1,
+        size: undefined,
+        aspectRatio: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined,
+        providerOptions: {}
+      })
+    ).rejects.toMatchObject({ name: 'AI_APICallError', responseBody: JSON.stringify(body), statusCode: 200 })
+  })
+
   it('builds the SiliconFlow body with snake_case + image_size + batch_size and parses images[]', async () => {
     const imageUrl = 'https://siliconflow.cdn.example/out.png'
     const fetch = vi.fn().mockResolvedValue(

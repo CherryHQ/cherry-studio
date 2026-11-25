@@ -135,6 +135,35 @@ describe('TokenhubTransport', () => {
     expect(result).toEqual({ taskId: 'task-1' })
   })
 
+  it('forwards future sequential modes without adding auto-only image limits', async () => {
+    const transport = createTokenhubTransport({ apiKey: 'token' })
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(jsonResponse({ data: [{}] }))
+    await expect(
+      transport.submit({
+        ...baseInput,
+        modelId: SEEDREAM.id,
+        modelDescriptor: SEEDREAM,
+        prompt: 'a cat',
+        providerParams: { sequentialImageGeneration: 'future-mode', maxImages: 0, addWatermark: false }
+      })
+    ).resolves.toEqual({ imageUrls: [] })
+    expect(lastRequest(fetchMock).body).toEqual({
+      model: SEEDREAM.id,
+      prompt: 'a cat',
+      response_format: 'url',
+      watermark: false,
+      sequential_image_generation: 'future-mode'
+    })
+  })
+
+  it('rejects a non-string image URL in a successful HTTP response', async () => {
+    const transport = createTokenhubTransport({ apiKey: 'token' })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(jsonResponse({ data: [{ url: 42 }] }))
+    await expect(
+      transport.submit({ ...baseInput, modelId: HUNYUAN.id, modelDescriptor: HUNYUAN, prompt: 'a fox' })
+    ).rejects.toMatchObject({ name: 'ZodError' })
+  })
+
   it('routes requests through the provider fetch and merges provider headers under the bearer auth', async () => {
     const globalFetch = vi.spyOn(globalThis, 'fetch')
     const providerFetch = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ data: [{ url: 'https://img/x' }] }))
@@ -190,11 +219,11 @@ describe('TokenhubTransport', () => {
       vi.useRealTimers()
     })
 
-    it('GETs the vidu task until success and returns creations[].url', async () => {
+    it.each(['queueing', 'future-queue'])('polls %s until success and filters absent creation URLs', async (state) => {
       const transport = createTokenhubTransport({ apiKey: 'token' })
       const fetchMock = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(jsonResponse({ state: 'queueing' }))
+        .mockResolvedValueOnce(jsonResponse({ state }))
         .mockResolvedValueOnce(jsonResponse({ state: 'processing' }))
         .mockResolvedValueOnce(jsonResponse({ state: 'success', creations: [{ url: 'https://img/v.png' }, {}] }))
 

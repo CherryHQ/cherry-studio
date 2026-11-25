@@ -1,5 +1,6 @@
 import { APICallError, type ImageModelV3, type ImageModelV3CallOptions, type JSONObject } from '@ai-sdk/provider'
 import { type FetchFunction } from '@ai-sdk/provider-utils'
+import * as z from 'zod'
 
 import { mergeHeaders } from '@main/utils/http'
 
@@ -15,16 +16,10 @@ export interface MinimaxImageModelConfig {
   }
 }
 
-interface MinimaxImageResponse {
-  data?: {
-    image_urls?: string[]
-    image_base64?: string[]
-  }
-  base_resp?: {
-    status_code?: number
-    status_msg?: string
-  }
-}
+const minimaxImageResponseSchema = z.object({
+  data: z.object({ image_urls: z.array(z.string()).nullish(), image_base64: z.array(z.string()).nullish() }).nullish(),
+  base_resp: z.object({ status_code: z.number().nullish(), status_msg: z.unknown().optional() }).nullish()
+})
 
 function responseHeaders(response: Response) {
   return Object.fromEntries(response.headers.entries())
@@ -101,10 +96,10 @@ export class MinimaxImageModel implements ImageModelV3 {
       })
     }
 
-    let parsed: MinimaxImageResponse
+    let parsed: z.infer<typeof minimaxImageResponseSchema>
 
     try {
-      parsed = JSON.parse(responseBody) as MinimaxImageResponse
+      parsed = minimaxImageResponseSchema.parse(JSON.parse(responseBody))
     } catch (cause) {
       throw new APICallError({
         message: 'Invalid JSON response from MiniMax',
@@ -119,7 +114,10 @@ export class MinimaxImageModel implements ImageModelV3 {
 
     if (parsed.base_resp?.status_code && parsed.base_resp.status_code !== 0) {
       throw new APICallError({
-        message: parsed.base_resp.status_msg || `MiniMax error ${parsed.base_resp.status_code}`,
+        message:
+          typeof parsed.base_resp.status_msg === 'string' && parsed.base_resp.status_msg
+            ? parsed.base_resp.status_msg
+            : `MiniMax error ${parsed.base_resp.status_code}`,
         url,
         requestBodyValues: body,
         statusCode: response.status,

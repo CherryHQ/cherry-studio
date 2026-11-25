@@ -57,6 +57,61 @@ describe('DashScope submit timeout', () => {
     vi.restoreAllMocks()
   })
 
+  it('accepts sync images without a task status and preserves zero seed and false options', async () => {
+    const transport = createDashScopeTransport({ apiKey: 'token' })
+    vi.spyOn(globalThis, 'fetch').mockImplementationOnce(async (url, options) => {
+      const request = new Request(url, options)
+      expect(await request.json()).toEqual({
+        model: 'qwen-image',
+        input: { prompt: 'a fox' },
+        parameters: { size: '640*480', seed: 0, prompt_extend: false, watermark: false }
+      })
+      return new Response(JSON.stringify({ output: { results: [{ url: 'https://img/a.png' }] } }))
+    })
+    await expect(
+      transport.submit({
+        ...baseInput,
+        modelId: 'qwen-image',
+        modelDescriptor: descriptor,
+        prompt: 'a fox',
+        size: '640x480',
+        seed: 0,
+        providerParams: { promptExtend: false, addWatermark: false }
+      })
+    ).resolves.toEqual({ imageUrls: ['https://img/a.png'] })
+  })
+
+  it('decodes only the submit task identity and keeps polling future statuses', async () => {
+    const transport = createDashScopeTransport({ apiKey: 'token' })
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ output: { task_id: 'task-1', results: 'unused' } })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ output: { task_status: 'FUTURE_QUEUE' } })))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ output: { task_status: 'SUCCEEDED', results: [{ url: 'https://img/a.png' }] } }))
+      )
+    await expect(
+      transport.submit({
+        ...baseInput,
+        modelId: 'qwen-image',
+        modelDescriptor: { ...descriptor, isSync: false },
+        prompt: 'a fox'
+      })
+    ).resolves.toEqual({ taskId: 'task-1' })
+    const result = transport.poll('task-1', {})
+    await vi.advanceTimersByTimeAsync(3500)
+    await expect(result).resolves.toEqual(['https://img/a.png'])
+  })
+
+  it('rejects incorrectly typed image results in a successful HTTP response', async () => {
+    const transport = createDashScopeTransport({ apiKey: 'token' })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ output: { results: [{ url: 42 }] } }))
+    )
+    await expect(
+      transport.submit({ ...baseInput, modelId: 'qwen-image', modelDescriptor: descriptor, prompt: 'a fox' })
+    ).rejects.toMatchObject({ name: 'ZodError' })
+  })
+
   it('bounds submit with the 10-minute default when the request carries no override', async () => {
     const transport = createDashScopeTransport({ apiKey: 'token' })
     vi.spyOn(globalThis, 'fetch').mockImplementation(neverSettles)

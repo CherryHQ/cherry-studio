@@ -32,6 +32,29 @@ describe('PpioTransport', () => {
     vi.restoreAllMocks()
   })
 
+  it('polls future task statuses and accepts results without unused vendor metadata', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify({ task: { status: 'TASK_STATUS_QUEUED_V2' } })))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ task: { status: 'TASK_STATUS_SUCCEED' }, images: [{ image_url: 'https://img/a.png' }] })
+        )
+      )
+    const result = transport.poll('task-1', {})
+    await vi.advanceTimersByTimeAsync(3500)
+    await expect(result).resolves.toEqual(['https://img/a.png'])
+  })
+
+  it.each([
+    { task: { status: 'TASK_STATUS_PROCESSING', progress_percent: '50' } },
+    { task: { status: 'TASK_STATUS_SUCCEED' }, images: [{ image_url: 42 }] }
+  ])('rejects incorrectly typed consumed response fields: %j', async (body) => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify(body)))
+    await expect(transport.getTaskResult('task-1')).rejects.toMatchObject({ name: 'ZodError' })
+  })
+
   it('stops polling immediately when the request is aborted', async () => {
     const transport = createPpioTransport({ apiKey: 'token' })
     const controller = new AbortController()
@@ -99,7 +122,10 @@ describe('PpioTransport', () => {
     expect(getTaskResultSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('builds jimeng params with width/height from size and seed default', async () => {
+  it.each([
+    { ppioSeed: undefined, usePreLlm: undefined, expectedSeed: -1, expectedPreLlm: true },
+    { ppioSeed: 0, usePreLlm: false, expectedSeed: 0, expectedPreLlm: false }
+  ])('builds jimeng dimensions and preserves seed $ppioSeed and pre-LLM $usePreLlm', async (sample) => {
     const transport = createPpioTransport({ apiKey: 'token' })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -117,6 +143,8 @@ describe('PpioTransport', () => {
       providerParams: {
         model: 'jimeng-txt2img-v3.1',
         size: '1328x1328',
+        ppioSeed: sample.ppioSeed,
+        usePreLlm: sample.usePreLlm,
         addWatermark: true
       }
     })
@@ -124,7 +152,8 @@ describe('PpioTransport', () => {
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
     expect(body).toMatchObject({
       prompt: 'a fox',
-      use_pre_llm: true,
+      use_pre_llm: sample.expectedPreLlm,
+      seed: sample.expectedSeed,
       width: 1328,
       height: 1328,
       logo_info: { add_logo: true }

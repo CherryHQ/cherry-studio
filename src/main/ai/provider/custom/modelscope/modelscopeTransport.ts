@@ -1,6 +1,7 @@
 import type { JSONObject } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { Agent } from 'undici'
+import * as z from 'zod'
 
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
@@ -60,14 +61,15 @@ export class ModelscopeTaskFailedError extends Error {
   }
 }
 
-export type ModelscopeTaskStatus = 'PENDING' | 'RUNNING' | 'SUCCEED' | 'FAILED'
+const submitResponseSchema = z.object({ task_id: z.string().min(1) })
+const taskResultSchema = z.object({
+  task_status: z.string().nullish(),
+  output_images: z.array(z.string()).nullish(),
+  message: z.string().nullish()
+})
 
-export interface ModelscopeTaskResult {
-  task_id?: string
-  task_status: ModelscopeTaskStatus
-  output_images?: string[]
-  message?: string
-}
+export type ModelscopeTaskResult = z.infer<typeof taskResultSchema>
+export type ModelscopeTaskStatus = NonNullable<ModelscopeTaskResult['task_status']>
 
 export interface ModelscopeTransportSettings {
   apiKey: string
@@ -125,7 +127,7 @@ class ModelscopeTransport implements ImageGenerationTransport {
 
     if (input.seed !== undefined) body.seed = input.seed
 
-    const response = await this.request<{ task_id: string }>(`/v1/images/generations`, 'POST', body, {
+    const response = await this.request(submitResponseSchema, `/v1/images/generations`, 'POST', body, {
       timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
       signal: input.signal,
       extraHeaders: { 'X-ModelScope-Async-Mode': 'true' }
@@ -164,7 +166,8 @@ class ModelscopeTransport implements ImageGenerationTransport {
       }
 
       try {
-        const result = await this.request<ModelscopeTaskResult>(
+        const result = await this.request(
+          taskResultSchema,
           `/v1/tasks/${encodeURIComponent(taskId)}`,
           'GET',
           undefined,
@@ -218,12 +221,13 @@ class ModelscopeTransport implements ImageGenerationTransport {
     throw new Error('Task polling timeout')
   }
 
-  private async request<T>(
+  private async request<TSchema extends z.ZodType>(
+    schema: TSchema,
     path: string,
     method: 'POST' | 'GET',
     body: JSONObject | undefined,
     options: { timeout?: number; signal?: AbortSignal; extraHeaders?: Record<string, string> }
-  ): Promise<T> {
+  ): Promise<z.infer<TSchema>> {
     const timeout = options.timeout ?? DEFAULT_TIMEOUT
     const externalSignal = options.signal
     const controller = new AbortController()
@@ -267,7 +271,7 @@ class ModelscopeTransport implements ImageGenerationTransport {
         throw new ModelscopeApiError(`ModelScope API error: ${response.status} - ${errorText}`, response.status)
       }
 
-      return (await response.json()) as T
+      return schema.parse(await response.json())
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         if (externallyAborted) throw createAbortError('ModelScope API request aborted')

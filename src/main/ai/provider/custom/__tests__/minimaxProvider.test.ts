@@ -3,6 +3,26 @@ import { describe, expect, it, vi } from 'vitest'
 import { createMinimaxProvider } from '../minimax/minimaxProvider'
 
 describe('createMinimaxProvider', () => {
+  it.each([
+    { data: { image_urls: 'https://cdn.example.com/image.png' } },
+    { data: { image_base64: 'QUJD' } },
+    { data: { image_urls: ['https://cdn.example.com/image.png', 42] } }
+  ])('rejects malformed successful image payloads instead of emitting non-images: %j', async (body) => {
+    const provider = createMinimaxProvider({ apiKey: 'sk-test', fetch: async () => new Response(JSON.stringify(body)) })
+    await expect(
+      provider.imageModel('image-01').doGenerate({
+        prompt: 'a fox',
+        n: 1,
+        size: undefined,
+        aspectRatio: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined,
+        providerOptions: {}
+      })
+    ).rejects.toMatchObject({ name: 'AI_APICallError', responseBody: JSON.stringify(body), statusCode: 200 })
+  })
+
   it('retains reserved response header names as own metadata fields', async () => {
     const provider = createMinimaxProvider({
       apiKey: 'sk-test',

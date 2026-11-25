@@ -25,6 +25,49 @@ describe('DmxapiTransport', () => {
     mask: undefined
   } as const
 
+  it('forwards only supported scalar parameter types while preserving false, zero and future string modes', async () => {
+    const bodies: unknown[] = []
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      bodies.push(JSON.parse(String(init?.body)))
+      return new Response(JSON.stringify({ output: [] }))
+    })
+    const transport = createDmxapiTransport({ apiKey: 'token' })
+    await transport.submit({
+      ...baseInput,
+      modelId: 'doubao-seedream-3-0',
+      prompt: 'a fox',
+      providerParams: {
+        sequentialImageGeneration: [],
+        maxImages: '3',
+        outputFormat: {},
+        webSearch: 'yes',
+        addWatermark: {}
+      }
+    })
+    await transport.submit({
+      ...baseInput,
+      modelId: 'doubao-seedream-3-0',
+      prompt: 'a fox',
+      providerParams: {
+        sequentialImageGeneration: 'future-mode',
+        maxImages: 0,
+        addWatermark: false,
+        webSearch: false
+      }
+    })
+    expect(bodies).toEqual([
+      { model: 'doubao-seedream-3-0', input: 'a fox', stream: false },
+      {
+        model: 'doubao-seedream-3-0',
+        input: 'a fox',
+        stream: false,
+        sequential_image_generation: 'future-mode',
+        sequential_image_generation_options: { max_images: 0 },
+        watermark: false
+      }
+    ])
+  })
+
   it('builds an OpenAI-flat /v1/images/generations request from native input fields', async () => {
     const transport = createDmxapiTransport({ apiKey: 'token', baseURL: 'https://www.dmxapi.com' })
     const fetchMock = vi

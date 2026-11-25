@@ -29,7 +29,7 @@ interface NormalizedInput {
  */
 export interface DmxapiProviderParams {
   /** doubao-seedream multi-image options. */
-  sequentialImageGeneration?: 'auto' | 'disabled'
+  sequentialImageGeneration?: string
   maxImages?: number
   outputFormat?: string
   webSearch?: boolean
@@ -76,7 +76,17 @@ class DmxapiTransport implements ImageGenerationTransport {
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const params = (input.providerParams ?? {}) as DmxapiProviderParams
+    const bag = input.providerParams ?? {}
+    const params: DmxapiProviderParams = {
+      sequentialImageGeneration:
+        typeof bag.sequentialImageGeneration === 'string' ? bag.sequentialImageGeneration : undefined,
+      maxImages: typeof bag.maxImages === 'number' ? bag.maxImages : undefined,
+      outputFormat: typeof bag.outputFormat === 'string' ? bag.outputFormat : undefined,
+      webSearch: typeof bag.webSearch === 'boolean' ? bag.webSearch : undefined,
+      addWatermark: typeof bag.addWatermark === 'boolean' ? bag.addWatermark : undefined,
+      promptExtend: typeof bag.promptExtend === 'boolean' ? bag.promptExtend : undefined,
+      negativePrompt: typeof bag.negativePrompt === 'string' ? bag.negativePrompt : undefined
+    }
 
     const normalized: NormalizedInput = {
       modelId: input.modelId,

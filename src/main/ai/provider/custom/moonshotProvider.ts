@@ -3,6 +3,7 @@ import { type EmbeddingModelV3, type LanguageModelV3, NoSuchModelError, type Pro
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { jsonSchema, tool } from 'ai'
+import * as z from 'zod'
 
 export const MOONSHOT_PROVIDER_NAME = 'moonshot' as const
 
@@ -18,11 +19,16 @@ export const MOONSHOT_PROVIDER_NAME = 'moonshot' as const
 export const KIMI_WEB_SEARCH_FORMULA_URI = 'moonshot/web-search:latest'
 export const KIMI_WEB_SEARCH_TOOL_NAME = 'web_search'
 
-interface FormulaFiber {
-  status?: string
-  error?: unknown
-  context?: { output?: string; encrypted_output?: string; error?: unknown }
-}
+const formulaFiberSchema = z.object({
+  status: z.unknown().optional(),
+  error: z.unknown().optional(),
+  context: z.unknown().optional()
+})
+const formulaContextSchema = z.object({
+  output: z.unknown().optional(),
+  encrypted_output: z.unknown().optional(),
+  error: z.unknown().optional()
+})
 
 /**
  * Execute one formula fiber. Mirrors the vendor sample's result handling: a succeeded fiber carries
@@ -50,18 +56,23 @@ export async function runFormulaFiber(
     body: JSON.stringify({ name, arguments: JSON.stringify(args ?? {}) })
   })
 
-  const fiber = (await response.json().catch(() => ({}))) as FormulaFiber
+  const result = formulaFiberSchema.safeParse(await response.json().catch(() => ({})))
+
+  if (!result.success) throw new Error('unknown error')
+  const fiber = result.data
+  const parsedContext = formulaContextSchema.safeParse(fiber.context)
+  const context = parsedContext.success ? parsedContext.data : undefined
 
   if (fiber.status === 'succeeded') {
-    const output = fiber.context?.output || fiber.context?.encrypted_output
+    const output = typeof context?.output === 'string' && context.output ? context.output : context?.encrypted_output
 
-    if (output) return output
+    if (typeof output === 'string' && output) return output
   }
 
   // Throw rather than returning an "Error: …" string as a normal result: the SDK still hands the
   // message to the model, and the tool part is marked failed instead of masquerading as a search
   // that returned nothing.
-  const failure = fiber.error ?? fiber.context?.error ?? fiber.context?.output
+  const failure = fiber.error ?? context?.error ?? context?.output
   throw new Error(typeof failure === 'string' ? failure : JSON.stringify(failure ?? 'unknown error'))
 }
 

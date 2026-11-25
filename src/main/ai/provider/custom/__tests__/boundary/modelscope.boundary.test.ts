@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
@@ -39,6 +39,47 @@ const editBody = z.strictObject({
 
 describe('ModelScope request boundary', () => {
   const transport = createModelscopeTransport({ apiKey: 'ms-key', baseURL: 'https://api-inference.modelscope.cn' })
+
+  it.each([
+    {
+      name: 'future and nullish states',
+      responses: [
+        { task_status: 'WAITING_FOR_WORKER' },
+        {},
+        { task_status: null },
+        { task_status: 'SUCCEED', output_images: ['https://cdn.example.com/result.png'] }
+      ]
+    },
+    {
+      name: 'a malformed successful response followed by a valid retry',
+      responses: [
+        { task_status: 'SUCCEED', output_images: 'not-an-image-array' },
+        { task_status: 'SUCCEED', output_images: ['https://cdn.example.com/result.png'] }
+      ]
+    }
+  ])('polls through $name without consuming invalid image results', async ({ responses }) => {
+    vi.useFakeTimers()
+    try {
+      const pending = [...responses]
+      const polling = createModelscopeTransport({
+        apiKey: 'ms-key',
+        fetch: async () => new Response(JSON.stringify(pending.shift()))
+      })
+      const result = polling.poll('task/1', {})
+      await vi.runAllTimersAsync()
+      await expect(result).resolves.toEqual(['https://cdn.example.com/result.png'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([{ task_id: 42 }, { task_id: '' }, {}])('rejects unusable submit task identities: %j', async (body) => {
+    const submitting = createModelscopeTransport({
+      apiKey: 'ms-key',
+      fetch: async () => new Response(JSON.stringify(body))
+    })
+    await expect(submitting.submit({ ...base, modelId: 'Qwen/Qwen-Image', prompt: 'a fox' })).rejects.toThrow()
+  })
 
   it('text2image: steps/guidance/negative_prompt/seed', async () => {
     const req = await captureImageRequest(transport, {

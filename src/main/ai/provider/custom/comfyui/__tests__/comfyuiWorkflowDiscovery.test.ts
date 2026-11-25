@@ -8,6 +8,30 @@ import { respond, stallingResponse } from './comfyuiTransport.harness'
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 describe('listWorkflows', () => {
+  it('decodes selected workflows after filtering extensions and preserves nullish path fallback order', async () => {
+    const workflows = await listWorkflows('http://localhost:8188', undefined, {
+      fetch: async () =>
+        respond([
+          { type: 'directory', path: 42 },
+          { type: 'file', name: 'notes.txt', path: 42 },
+          { type: 'extension', name: 42 },
+          { type: 'file', name: 'first.json', path: null },
+          { type: 'file', name: 'second.json' },
+          { type: 'file', name: 'nested.json', path: '/workflows/sub/nested.json' }
+        ])
+    })
+    expect(workflows).toEqual(['first', 'second', 'sub/nested'])
+  })
+
+  it.each([
+    { type: 'file', name: 'a.json', path: 42 },
+    { type: 'file', name: 42 }
+  ])('rejects malformed selected files instead of omitting them: %j', async (entry) => {
+    await expect(
+      listWorkflows('http://localhost:8188', undefined, { fetch: async () => respond([entry]) })
+    ).rejects.toThrow()
+  })
+
   it('passes configured headers to the userdata listing', async () => {
     const doFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect(String(input)).toBe('http://localhost:8188/v2/userdata?path=workflows')

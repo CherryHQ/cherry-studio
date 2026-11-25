@@ -34,6 +34,8 @@ describe('image transport resolution', () => {
         n: 1,
         size: undefined,
         seed: undefined,
+        files: undefined,
+        mask: undefined,
         providerParams: {}
       })
     ).toEqual({ imageUrls: ['https://image.example/result.png'] })

@@ -24,6 +24,7 @@ export function appendDashScopeWebExtractor(body: BodyInit | null | undefined): 
 
     if (typeof json !== 'object' || json === null || !('tools' in json) || !Array.isArray(json.tools)) return body
     const tools: unknown[] = json.tools
+
     const hasTool = (type: string) =>
       tools.some((tool) => typeof tool === 'object' && tool !== null && 'type' in tool && tool.type === type)
 

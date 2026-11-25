@@ -90,18 +90,23 @@ export interface ComfyuiTransportSettings extends ComfyuiRequestOptions {
 const promptResponseSchema = z.object({ prompt_id: z.string().min(1) })
 const uploadResponseSchema = z.object({ name: z.string().min(1), subfolder: z.unknown().optional() })
 const systemStatsSchema = z.object({ system: z.unknown().optional() })
+
 // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Dynamic task and node IDs select fields from remote JSON objects; their values remain unvalidated until consumed.
 type ResponseObject = { readonly [field: string]: unknown }
+
 const responseObjectSchema = z.custom<ResponseObject>(
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Check only the remote object container, preserving own prototype-named IDs that Zod record parsing drops.
   (value: unknown) => typeof value === 'object' && value !== null && !Array.isArray(value)
 )
+
 const queueEntriesSchema = z.array(z.array(z.unknown())).nullish()
+
 const imageLocatorSchema = z.object({
   filename: z.string(),
   subfolder: z.string().nullish(),
   type: z.string().nullish()
 })
+
 const historyEntrySchema = z.object({ status: z.unknown().optional(), outputs: z.unknown().optional() })
 const historyOutputSchema = z.object({ images: z.array(imageLocatorSchema).nullish() })
 
@@ -181,18 +186,18 @@ class ComfyuiTransport implements ImageGenerationTransport {
     const workflowPath = `${WORKFLOW_DIR}/${input.modelId}${WORKFLOW_FILE_EXTENSION}`
     const requestOptions = { headers: this.headers, fetch: this.doFetch }
 
-    const [workflow, objectInfo] = await Promise.all([
+    const [rawWorkflow, rawObjectInfo] = await Promise.all([
       // `/userdata/{file}` matches a single path segment, so the separator has to be
       // percent-encoded — `/userdata/workflows/x.json` is a 404, `%2F` is not. The
       // ComfyUI frontend encodes the same parameter.
-      requestJson<Parameters<typeof convertUiWorkflowToPrompt>[0]>(
+      requestJson(
         `${this.baseURL}/userdata/${encodeURIComponent(workflowPath)}`,
         t('paintings.comfyui.request_failed'),
         input.signal,
         requestOptions,
         SUBMIT_TIMEOUT_MS
       ),
-      requestJson<ObjectInfo>(
+      requestJson(
         `${this.baseURL}/object_info`,
         t('paintings.comfyui.request_failed'),
         input.signal,
@@ -200,6 +205,11 @@ class ComfyuiTransport implements ImageGenerationTransport {
         SUBMIT_TIMEOUT_MS
       )
     ])
+
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- The existing converter accepts vendor workflow extensions without complete runtime validation; retain that compatibility contract instead of treating HTTP success as shape proof.
+    const workflow = rawWorkflow as Parameters<typeof convertUiWorkflowToPrompt>[0]
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Backend widget declarations and their order remain unvalidated converter input; a strict parallel schema would change custom-node compatibility.
+    const objectInfo = rawObjectInfo as ObjectInfo
 
     // A seed the workflow set to `randomize` is redrawn per run, as the frontend
     // does per queue; a seed the user typed still wins below.
@@ -455,6 +465,7 @@ class ComfyuiTransport implements ImageGenerationTransport {
 
             const stats = systemStatsSchema.parse(await response.json())
             const system = stats.system
+
             const verStr =
               typeof system === 'object' && system !== null && 'comfyui_version' in system
                 ? system.comfyui_version

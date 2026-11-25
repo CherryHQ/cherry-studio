@@ -72,13 +72,14 @@ export async function withDeadline<T>(
  * is called — and names its own budget, since a listing and a submit do not
  * wait equally long.
  */
-export async function requestJson<T>(
+// oxlint-disable-next-line anti-slop/no-unknown-returns -- A successful GET only establishes JSON decoding; each caller owns its consumed response contract.
+export async function requestJson(
   url: string,
   fallback: string,
   signal: AbortSignal | undefined,
   options: ComfyuiRequestOptions,
   timeoutMs: number
-): Promise<T> {
+): Promise<unknown> {
   const doFetch = options.fetch ?? fetch
 
   return withDeadline(
@@ -103,7 +104,7 @@ export async function requestJson<T>(
         throw createPaintingGenerateError('REMOTE_ERROR', { message })
       }
 
-      return (await response.json()) as T
+      return response.json()
     }
   )
 }

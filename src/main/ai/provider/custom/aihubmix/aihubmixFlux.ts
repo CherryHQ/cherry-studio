@@ -1,5 +1,6 @@
 import type { JSONObject } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+import * as z from 'zod'
 
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
@@ -38,6 +39,13 @@ export interface AihubmixFluxTransportSettings {
 
 const POLL_INTERVAL_MS = 2_000
 const MAX_WAIT_MS = 5 * 60_000
+
+const FluxSubmitEnvelopeSchema = z.object({ output: z.array(z.unknown()).nullish() }).nullish()
+const FluxSubmitTaskSchema = z.object({ taskId: z.unknown().optional(), id: z.unknown().optional() }).nullish()
+const FluxPollEnvelopeSchema = z
+  .object({ status: z.unknown().optional(), result: z.unknown().optional(), detail: z.unknown().optional() })
+  .nullish()
+const FluxImageResultSchema = z.object({ sample: z.unknown().optional(), samples: z.unknown().optional() }).nullish()
 
 class AihubmixFluxTransport implements ImageGenerationTransport {
   private settings: AihubmixFluxTransportSettings
@@ -96,10 +104,11 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
       throw createPaintingGenerateError('REMOTE_ERROR', { message })
     }
 
-    const json = (await response.json()) as { output?: Array<{ taskId?: string; id?: string }> }
-    const taskId = json?.output?.[0]?.taskId ?? json?.output?.[0]?.id
+    const envelope = FluxSubmitEnvelopeSchema.safeParse(await response.json())
+    const task = FluxSubmitTaskSchema.safeParse(envelope.success ? envelope.data?.output?.[0] : undefined)
+    const taskId = task.success ? (task.data?.taskId ?? task.data?.id) : undefined
 
-    if (!taskId) {
+    if (typeof taskId !== 'string' || !taskId) {
       throw createPaintingGenerateError('REMOTE_ERROR', { message: 'No taskId returned from FLUX submit' })
     }
 
@@ -127,7 +136,7 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
 
       await waitWithSignal(POLL_INTERVAL_MS, options.signal)
 
-      let json: { status?: string; result?: { sample?: string; samples?: string[] }; detail?: string }
+      let json: z.infer<typeof FluxPollEnvelopeSchema>
 
       try {
         const response = await fetchImpl(url, {
@@ -141,7 +150,7 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
           throw new Error(message)
         }
 
-        json = (await response.json()) as typeof json
+        json = FluxPollEnvelopeSchema.parse(await response.json())
       } catch (error) {
         // Re-raise an abort immediately; otherwise treat as transient and
         // retry up to the bounded ceiling before surfacing the failure.
@@ -160,17 +169,20 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
       const status = json?.status
 
       if (status === 'Ready') {
-        const sample = json.result?.sample
+        const result = FluxImageResultSchema.safeParse(json?.result)
+        const sample = result.success ? result.data?.sample : undefined
 
         if (typeof sample === 'string') return [sample]
-        const samples = json.result?.samples
+        const samples = z.array(z.string()).safeParse(result.success ? result.data?.samples : undefined)
 
-        if (Array.isArray(samples) && samples.length > 0) return samples
+        if (samples.success && samples.data.length > 0) return samples.data
         throw createPaintingGenerateError('REMOTE_ERROR', { message: 'FLUX Ready without a sample URL' })
       }
 
       if (status === 'Error' || status === 'Request Moderated' || status === 'Content Moderated') {
-        throw createPaintingGenerateError('REMOTE_ERROR', { message: json?.detail || String(status) })
+        throw createPaintingGenerateError('REMOTE_ERROR', {
+          message: typeof json?.detail === 'string' && json.detail ? json.detail : status
+        })
       }
       // status === 'Pending' / 'Task not found' / unknown → keep polling
     }

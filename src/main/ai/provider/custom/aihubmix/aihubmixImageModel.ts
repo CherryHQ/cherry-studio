@@ -36,7 +36,6 @@ import { IMAGE_PARAM_CATALOG_KEYS, wireName } from '@cherrystudio/provider-regis
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
-import type { CanonicalParamKey } from '@shared/data/types/model'
 
 import { readErrorMessage } from '../readErrorMessage'
 import { fileToDataUrl } from '../transportUtils'
@@ -125,7 +124,11 @@ function normalizeAspectRatio(value: JSONValue | undefined): `${number}:${number
   if (typeof value !== 'string') return undefined
   const normalized = value.replace(/^ASPECT_/i, '').replace('_', ':')
 
-  return /^\d+:\d+$/.test(normalized) ? (normalized as `${number}:${number}`) : undefined
+  if (!/^\d+:\d+$/.test(normalized) || !normalized.split(':').every((part) => Number.isFinite(Number(part))))
+    return undefined
+
+  // SAFETY: The pattern gives two decimal text members and both numeric conversions are finite; provider support remains unchecked.
+  return normalized as `${number}:${number}`
 }
 
 /** Ideogram V_3 FormData branch wants `aspect_ratio=1x1`. Accepts both
@@ -151,7 +154,7 @@ function aspectRatioToIdeogramV1V2(value: string | undefined): string | undefine
   return value
 }
 
-const CANONICAL_KEYS = new Set<string>(IMAGE_PARAM_CATALOG_KEYS)
+const CANONICAL_WIRE_NAMES = new Map<string, string>(IMAGE_PARAM_CATALOG_KEYS.map((key) => [key, wireName(key)]))
 
 /**
  * The aihubmix gateway expects vendor wire field names (`safety_tolerance`,
@@ -168,7 +171,7 @@ function wireNameAihubmixBag(
 
   const renamed = Object.fromEntries(
     Object.entries(providerOptions.aihubmix).map(([key, value]): [string, JSONValue | undefined] => [
-      CANONICAL_KEYS.has(key) ? wireName(key as CanonicalParamKey) : key,
+      CANONICAL_WIRE_NAMES.get(key) ?? key,
       value
     ])
   )

@@ -1,6 +1,7 @@
 import type { JSONObject } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { Agent } from 'undici'
+import * as z from 'zod'
 
 import { t } from '@main/i18n'
 import { createPaintingGenerateError, PaintingGenerateError } from '@shared/ai/paintingGenerateError'
@@ -50,21 +51,19 @@ export class TokenhubTaskFailedError extends Error {
 
 export type TokenhubTaskState = 'created' | 'queueing' | 'processing' | 'success' | 'failed'
 
-interface TokenhubSyncImageResponse {
-  data?: Array<{ url?: string; b64_json?: string }>
-}
+const TokenhubSyncImageResponseSchema = z.looseObject({
+  data: z.array(z.looseObject({ url: z.string().nullish(), b64_json: z.string().nullish() })).nullish()
+})
+const TokenhubViduSubmitResponseSchema = z.object({ task_id: z.string().nullish() })
+const TokenhubViduTaskResponseSchema = z.looseObject({
+  state: z.string().nullish(),
+  creations: z.array(z.looseObject({ url: z.string().nullish() })).nullish(),
+  message: z.string().nullish(),
+  err_msg: z.string().nullish()
+})
 
-interface TokenhubViduSubmitResponse {
-  task_id?: string
-  state?: TokenhubTaskState
-}
-
-interface TokenhubViduTaskResponse {
-  state?: TokenhubTaskState
-  creations?: Array<{ url?: string }>
-  message?: string
-  err_msg?: string
-}
+type TokenhubSyncImageResponse = z.infer<typeof TokenhubSyncImageResponseSchema>
+type TokenhubViduTaskResponse = z.infer<typeof TokenhubViduTaskResponseSchema>
 
 /** Canonical camelCase params (the transport receives the vendorBag directly). */
 export interface TokenhubProviderParams {
@@ -74,7 +73,7 @@ export interface TokenhubProviderParams {
   imageResolution?: string
   outputFormat?: string
   addWatermark?: boolean
-  sequentialImageGeneration?: 'auto' | 'disabled'
+  sequentialImageGeneration?: string
   maxImages?: number
   /** vidu `resolution` (`1080p` / `2K` / `4K`). */
   resolution?: string
@@ -193,14 +192,25 @@ class TokenhubTransport implements ImageGenerationTransport {
       throw new Error(`Missing modelDescriptor for TokenHub image model: ${input.modelId}`)
     }
 
-    const bag = (input.providerParams ?? {}) as TokenhubProviderParams
+    const rawBag = input.providerParams
+    const bag: TokenhubProviderParams = {
+      promptEnhancement: typeof rawBag.promptEnhancement === 'boolean' ? rawBag.promptEnhancement : undefined,
+      imageResolution: typeof rawBag.imageResolution === 'string' ? rawBag.imageResolution : undefined,
+      outputFormat: typeof rawBag.outputFormat === 'string' ? rawBag.outputFormat : undefined,
+      addWatermark: typeof rawBag.addWatermark === 'boolean' ? rawBag.addWatermark : undefined,
+      sequentialImageGeneration:
+        typeof rawBag.sequentialImageGeneration === 'string' ? rawBag.sequentialImageGeneration : undefined,
+      maxImages: typeof rawBag.maxImages === 'number' ? rawBag.maxImages : undefined,
+      resolution: typeof rawBag.resolution === 'string' ? rawBag.resolution : undefined
+    }
 
     switch (bodyFamilyFor(descriptor.endpoint)) {
       case 'hunyuan': {
-        const data = await this.request<TokenhubSyncImageResponse>(
+        const data = await this.request(
           descriptor.endpoint,
           'POST',
           buildHunyuanBody(input, bag),
+          TokenhubSyncImageResponseSchema,
           {
             timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
             signal: input.signal
@@ -211,10 +221,11 @@ class TokenhubTransport implements ImageGenerationTransport {
       }
 
       case 'seedream': {
-        const data = await this.request<TokenhubSyncImageResponse>(
+        const data = await this.request(
           descriptor.endpoint,
           'POST',
           buildSeedreamBody(input, bag),
+          TokenhubSyncImageResponseSchema,
           {
             timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
             signal: input.signal
@@ -225,10 +236,11 @@ class TokenhubTransport implements ImageGenerationTransport {
       }
 
       case 'vidu': {
-        const data = await this.request<TokenhubViduSubmitResponse>(
+        const data = await this.request(
           descriptor.endpoint,
           'POST',
           buildViduBody(input, bag),
+          TokenhubViduSubmitResponseSchema,
           {
             timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
             signal: input.signal
@@ -267,10 +279,11 @@ class TokenhubTransport implements ImageGenerationTransport {
       if (signal?.aborted) throw createAbortError('Task polling aborted')
 
       try {
-        const result = await this.request<TokenhubViduTaskResponse>(
+        const result = await this.request(
           `${VIDU_TASKS_PATH}/${encodeURIComponent(taskId)}`,
           'GET',
           undefined,
+          TokenhubViduTaskResponseSchema,
           { timeout: 10000, signal }
         )
 
@@ -315,6 +328,7 @@ class TokenhubTransport implements ImageGenerationTransport {
     path: string,
     method: 'POST' | 'GET',
     body: JSONObject | undefined,
+    schema: z.ZodType<T>,
     options: { timeout?: number; signal?: AbortSignal }
   ): Promise<T> {
     const timeout = options.timeout ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS
@@ -366,7 +380,7 @@ class TokenhubTransport implements ImageGenerationTransport {
         throw new TokenhubApiError(`TokenHub API error: ${response.status} - ${errorText}`, response.status)
       }
 
-      return (await response.json()) as T
+      return schema.parse(await response.json())
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         if (externallyAborted) throw createAbortError('TokenHub API request aborted')

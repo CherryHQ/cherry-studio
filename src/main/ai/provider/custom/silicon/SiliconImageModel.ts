@@ -6,6 +6,7 @@ import {
   type SharedV3Warning
 } from '@ai-sdk/provider'
 import { type FetchFunction } from '@ai-sdk/provider-utils'
+import * as z from 'zod'
 
 import { mergeHeaders } from '@main/utils/http'
 
@@ -31,12 +32,12 @@ export interface SiliconImageModelConfig {
   }
 }
 
-type ImageItem = { url?: string; b64_json?: string }
-
-type ImageResponseBody = {
-  images?: ImageItem[]
-  data?: ImageItem[]
-}
+const imageItemSchema = z.object({ url: z.unknown().optional(), b64_json: z.unknown().optional() })
+const imageItemsSchema = z.array(imageItemSchema)
+const imageResponseSchema = z.object({
+  images: z.unknown().optional(),
+  data: z.unknown().optional()
+})
 
 export class SiliconImageModel implements ImageModelV3 {
   readonly specificationVersion = 'v3'
@@ -139,10 +140,11 @@ export class SiliconImageModel implements ImageModelV3 {
       })
     }
 
-    let parsed: ImageResponseBody
+    let items: z.infer<typeof imageItemsSchema>
 
     try {
-      parsed = JSON.parse(responseBody) as ImageResponseBody
+      const parsed = imageResponseSchema.parse(JSON.parse(responseBody))
+      items = imageItemsSchema.parse(parsed.images ?? parsed.data ?? [])
     } catch (cause) {
       throw new APICallError({
         message: 'Invalid JSON response from SiliconFlow',
@@ -154,8 +156,6 @@ export class SiliconImageModel implements ImageModelV3 {
         responseBody
       })
     }
-
-    const items = parsed.images ?? parsed.data ?? []
 
     const images: string[] = items.flatMap((item) => {
       if (typeof item.b64_json === 'string') return [item.b64_json]

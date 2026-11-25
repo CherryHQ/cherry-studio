@@ -7,7 +7,7 @@
 import { isEmpty } from 'es-toolkit/compat'
 
 import { application } from '@application'
-import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
+import { formatPrivateKey, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService, type ResolvedProviderApiKey } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
@@ -39,7 +39,7 @@ import {
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import type { ProviderConfig } from '../types'
-import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
+import { type AppProviderId, appProviderIds, type AppProviderSettingsMap, isRegisteredProviderId } from '../types'
 import { customFetch } from '../utils/customFetch'
 import {
   getBaseUrl,
@@ -164,6 +164,7 @@ function deriveImageBaseURL(provider: Provider): string {
 // ── SDK Config Building ──
 
 type ProviderConfigBuilder = (ctx: BuilderContext) => ProviderConfig | Promise<ProviderConfig>
+
 type NativeImageProviderConfig = ProviderConfig & { providerSettings: NativeImageTransportSettings }
 
 interface ResolvedProviderConfigBuild {
@@ -443,7 +444,7 @@ export async function resolveProviderAiSdkConfig(
 
   if (builder) {
     resolved = await builder.build(ctx)
-  } else if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
+  } else if (isRegisteredProviderId(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
     resolved = await withSelectedApiKey(buildGenericProviderConfig, (config) => config.providerSettings)(ctx)
   } else {
     resolved = await withSelectedApiKey(buildOpenAICompatibleConfig)(ctx)
@@ -926,14 +927,19 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
   }
 }
 
-function buildGenericProviderConfig(ctx: BuilderContext): NativeImageProviderConfig {
+function buildGenericProviderConfig(ctx: BuilderContext) {
   const commonOptions = buildCommonOptions(ctx)
+
+  const providerSettings: NativeImageTransportSettings & BaseConfig & ReturnType<typeof buildCommonOptions> = {
+    ...ctx.baseConfig,
+    ...commonOptions
+  }
 
   return {
     providerId: ctx.aiSdkProviderId,
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, ...commonOptions }
-  }
+    providerSettings
+  } satisfies NativeImageProviderConfig
 }
 
 /**

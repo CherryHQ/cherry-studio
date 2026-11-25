@@ -37,7 +37,7 @@ describe('AihubmixFluxTransport', () => {
   it('extracts taskId from { output: [{ taskId }] } and sends prompt/aspect_ratio/seed/safety_tolerance', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(new Response(JSON.stringify({ output: [{ taskId: 'task-1' }] }), { status: 200 }))
+      .mockResolvedValue(new Response(JSON.stringify({ output: [{ taskId: 'task-1' }, null] }), { status: 200 }))
     const transport = createAihubmixFluxTransport({ ...settings, fetch: fetchMock as never })
 
     const result = await transport.submit({
@@ -77,16 +77,19 @@ describe('AihubmixFluxTransport', () => {
     expect(result).toEqual({ taskId: 'task-id-fallback' })
   })
 
-  it('throws REMOTE_ERROR when submit returns no taskId', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ output: [{}] }), { status: 200 }))
-    const transport = createAihubmixFluxTransport({ ...settings, fetch: fetchMock as never })
+  it.each([{}, { taskId: 42 }, { taskId: '' }, { taskId: null, id: 99 }])(
+    'rejects a missing or non-string task identity: %j',
+    async (output) => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ output: [output] }), { status: 200 }))
+      const transport = createAihubmixFluxTransport({ ...settings, fetch: fetchMock as never })
 
-    await expect(transport.submit({ ...baseInput, prompt: 'a fox' })).rejects.toMatchObject({
-      name: 'PaintingGenerateError',
-      code: 'REMOTE_ERROR',
-      message: 'No taskId returned from FLUX submit'
-    })
-  })
+      await expect(transport.submit({ ...baseInput, prompt: 'a fox' })).rejects.toMatchObject({
+        name: 'PaintingGenerateError',
+        code: 'REMOTE_ERROR',
+        message: 'No taskId returned from FLUX submit'
+      })
+    }
+  )
 
   it('throws REMOTE_ERROR with the parsed message on a non-ok submit response', async () => {
     const fetchMock = vi
@@ -103,10 +106,10 @@ describe('AihubmixFluxTransport', () => {
 
   // ── poll ──
 
-  it('polls Pending → Ready and returns [result.sample]', async () => {
+  it.each(['Pending', 'QueuedV2'])('polls %s → Ready and returns [result.sample]', async (status) => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'Pending' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status }), { status: 200 }))
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ status: 'Ready', result: { sample: 'https://img/a.png' } }), { status: 200 })
       )
@@ -120,10 +123,10 @@ describe('AihubmixFluxTransport', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://aihubmix.test/v1/tasks/task-1')
   })
 
-  it('returns the result.samples array when sample is absent', async () => {
+  it.each([undefined, 42])('returns valid samples when singular sample is %s', async (sample) => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
-        JSON.stringify({ status: 'Ready', result: { samples: ['https://img/a.png', 'https://img/b.png'] } }),
+        JSON.stringify({ status: 'Ready', result: { sample, samples: ['https://img/a.png', 'https://img/b.png'] } }),
         {
           status: 200
         }
@@ -167,22 +170,25 @@ describe('AihubmixFluxTransport', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('throws REMOTE_ERROR when Ready arrives without a sample URL', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(new Response(JSON.stringify({ status: 'Ready', result: {} }), { status: 200 }))
-    const transport = createAihubmixFluxTransport({ ...settings, fetch: fetchMock as never })
+  it.each([{}, { samples: ['https://img/a.png', 42] }, { samples: [null] }])(
+    'rejects Ready without usable string image results: %j',
+    async (result) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ status: 'Ready', result }), { status: 200 }))
+      const transport = createAihubmixFluxTransport({ ...settings, fetch: fetchMock as never })
 
-    const promise = transport.poll('task-1', {}).catch((e) => e)
-    await vi.advanceTimersByTimeAsync(3000)
-    const error = await promise
+      const promise = transport.poll('task-1', {}).catch((e) => e)
+      await vi.advanceTimersByTimeAsync(3000)
+      const error = await promise
 
-    expect(error).toMatchObject({
-      name: 'PaintingGenerateError',
-      code: 'REMOTE_ERROR',
-      message: 'FLUX Ready without a sample URL'
-    })
-  })
+      expect(error).toMatchObject({
+        name: 'PaintingGenerateError',
+        code: 'REMOTE_ERROR',
+        message: 'FLUX Ready without a sample URL'
+      })
+    }
+  )
 
   // ── transient retry (my fix) ──
 

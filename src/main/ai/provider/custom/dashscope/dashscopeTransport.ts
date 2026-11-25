@@ -1,6 +1,7 @@
 import type { JSONObject } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { Agent } from 'undici'
+import * as z from 'zod'
 
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
@@ -61,21 +62,25 @@ export class DashScopeTaskFailedError extends Error {
 
 export type DashScopeTaskStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED' | 'UNKNOWN'
 
-interface DashScopeTaskOutput {
-  task_id?: string
-  task_status: DashScopeTaskStatus
-  message?: string
-  code?: string
-  results?: Array<{ url?: string; image_url?: string }>
-  choices?: Array<{ message?: { content?: Array<{ image?: string; text?: string }> } }>
-  image_url?: string
-}
+const DashScopeTaskOutputSchema = z.looseObject({
+  task_id: z.string().nullish(),
+  task_status: z.string().nullish(),
+  message: z.string().nullish(),
+  results: z.array(z.looseObject({ url: z.string().nullish(), image_url: z.string().nullish() })).nullish(),
+  choices: z
+    .array(
+      z.looseObject({
+        message: z.looseObject({ content: z.array(z.looseObject({ image: z.string().nullish() })).nullish() }).nullish()
+      })
+    )
+    .nullish(),
+  image_url: z.string().nullish()
+})
+const DashScopeTaskResultSchema = z.looseObject({ output: DashScopeTaskOutputSchema })
+const DashScopeSubmitResultSchema = z.object({ output: z.object({ task_id: z.string().nullish() }) })
 
-export interface DashScopeTaskResult {
-  output: DashScopeTaskOutput
-  request_id?: string
-  usage?: JSONObject
-}
+type DashScopeTaskOutput = z.infer<typeof DashScopeTaskOutputSchema>
+export type DashScopeTaskResult = z.infer<typeof DashScopeTaskResultSchema>
 
 /**
  * Per-model descriptor injected by `paintingPipeline.ts` from the registry's
@@ -406,7 +411,28 @@ function buildWanxImageEditBody(input: ImageGenerationSubmitInput, bag: DashScop
 }
 
 function buildRequestBody(input: ImageGenerationSubmitInput, descriptor: DashScopeModelDescriptor): JSONObject {
-  const bag = (input.providerParams ?? {}) as DashScopeProviderParams
+  const rawBag = input.providerParams
+  const bag: DashScopeProviderParams = {
+    negativePrompt: typeof rawBag.negativePrompt === 'string' ? rawBag.negativePrompt : undefined,
+    style: typeof rawBag.style === 'string' ? rawBag.style : undefined,
+    promptExtend: typeof rawBag.promptExtend === 'boolean' ? rawBag.promptExtend : undefined,
+    addWatermark: typeof rawBag.addWatermark === 'boolean' ? rawBag.addWatermark : undefined,
+    thinkingMode: typeof rawBag.thinkingMode === 'boolean' ? rawBag.thinkingMode : undefined,
+    enableInterleave: typeof rawBag.enableInterleave === 'boolean' ? rawBag.enableInterleave : undefined,
+    imageResolution: typeof rawBag.imageResolution === 'string' ? rawBag.imageResolution : undefined,
+    refStrength: typeof rawBag.refStrength === 'number' ? rawBag.refStrength : undefined,
+    refMode: typeof rawBag.refMode === 'string' ? rawBag.refMode : undefined,
+    sourceLang: typeof rawBag.sourceLang === 'string' ? rawBag.sourceLang : undefined,
+    targetLang: typeof rawBag.targetLang === 'string' ? rawBag.targetLang : undefined,
+    function: typeof rawBag.function === 'string' ? rawBag.function : undefined,
+    strength: typeof rawBag.strength === 'number' ? rawBag.strength : undefined,
+    upscaleFactor: typeof rawBag.upscaleFactor === 'number' ? rawBag.upscaleFactor : undefined,
+    topScale: typeof rawBag.topScale === 'number' ? rawBag.topScale : undefined,
+    bottomScale: typeof rawBag.bottomScale === 'number' ? rawBag.bottomScale : undefined,
+    leftScale: typeof rawBag.leftScale === 'number' ? rawBag.leftScale : undefined,
+    rightScale: typeof rawBag.rightScale === 'number' ? rawBag.rightScale : undefined,
+    isSketch: typeof rawBag.isSketch === 'boolean' ? rawBag.isSketch : undefined
+  }
 
   // Descriptor ids arrive in both shapes: the catalog's canonical `modelId` (no dots,
   // what built-in listings resolve to) and the vendor `apiModelId` (what manually
@@ -474,11 +500,17 @@ class DashScopeTransport implements ImageGenerationTransport {
     const body = buildRequestBody(input, descriptor)
     const extraHeaders: Record<string, string> = descriptor.isSync ? {} : { 'X-DashScope-Async': 'enable' }
 
-    const response = await this.request<DashScopeTaskResult>(descriptor.endpoint, 'POST', body, {
-      timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
-      signal: input.signal,
-      extraHeaders
-    })
+    const response = await this.request<DashScopeTaskResult>(
+      descriptor.endpoint,
+      'POST',
+      body,
+      descriptor.isSync ? DashScopeTaskResultSchema : DashScopeSubmitResultSchema,
+      {
+        timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
+        signal: input.signal,
+        extraHeaders
+      }
+    )
 
     if (descriptor.isSync) {
       return { imageUrls: extractImageUrls(response.output, responseFamilyFor(descriptor)) }
@@ -549,10 +581,11 @@ class DashScopeTransport implements ImageGenerationTransport {
       if (signal?.aborted) throw createAbortError('Task polling aborted')
 
       try {
-        const result = await this.request<DashScopeTaskResult>(
+        const result = await this.request(
           `/api/v1/tasks/${encodeURIComponent(taskId)}`,
           'GET',
           undefined,
+          DashScopeTaskResultSchema,
           { timeout: 10000, signal }
         )
 
@@ -600,6 +633,7 @@ class DashScopeTransport implements ImageGenerationTransport {
     path: string,
     method: 'POST' | 'GET',
     body: JSONObject | undefined,
+    schema: z.ZodType<T>,
     options: { timeout?: number; signal?: AbortSignal; extraHeaders?: Record<string, string> }
   ): Promise<T> {
     const timeout = options.timeout ?? DEFAULT_TIMEOUT
@@ -646,7 +680,7 @@ class DashScopeTransport implements ImageGenerationTransport {
         throw new DashScopeApiError(`DashScope API error: ${response.status} - ${errorText}`, response.status)
       }
 
-      return (await response.json()) as T
+      return schema.parse(await response.json())
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         if (externallyAborted) throw createAbortError('DashScope API request aborted')

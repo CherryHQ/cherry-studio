@@ -107,9 +107,13 @@ export function createImageGenerationModel(
       // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Preserve opaque in-process extensions for transport-specific interpretation.
       const providerParams = (options.providerOptions?.[provider] as Record<string, unknown> | undefined) ?? {}
 
+      const progressCallback = providerParams.onProgress
+
       const onProgress =
-        typeof providerParams.onProgress === 'function'
-          ? (providerParams.onProgress as (progress: number) => void)
+        typeof progressCallback === 'function'
+          ? (progress: number) => {
+              progressCallback(progress)
+            }
           : undefined
 
       const submitResult = await transport.submit({
@@ -134,12 +138,13 @@ export function createImageGenerationModel(
           throw new Error(`${provider} returned a task id but does not implement polling`)
         }
 
+        const taskId = submitResult.taskId
         let cancelRequested = false
 
         const cancelRemoteTask = () => {
           if (cancelRequested) return
           cancelRequested = true
-          void transport.cancel?.(submitResult.taskId as string).catch(() => {})
+          void transport.cancel?.(taskId).catch(() => {})
         }
 
         if (abortSignal?.aborted) {
@@ -150,7 +155,7 @@ export function createImageGenerationModel(
         abortSignal?.addEventListener('abort', cancelRemoteTask, { once: true })
 
         try {
-          urls = await transport.poll(submitResult.taskId, { signal: abortSignal, onProgress })
+          urls = await transport.poll(taskId, { signal: abortSignal, onProgress })
         } finally {
           abortSignal?.removeEventListener('abort', cancelRemoteTask)
         }

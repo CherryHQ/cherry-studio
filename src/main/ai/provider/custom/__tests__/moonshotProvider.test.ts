@@ -5,6 +5,27 @@ import { createKimiWebSearchTool, runFormulaFiber } from '../moonshotProvider'
 const fiberResponse = (body: unknown) => ({ json: async () => body }) as unknown as Response
 
 describe('runFormulaFiber', () => {
+  it('uses encrypted text when a succeeded fiber has a non-string plain output', async () => {
+    const fetch = async () =>
+      new Response(
+        JSON.stringify({
+          status: 'succeeded',
+          context: { output: { invalid: 'text' }, encrypted_output: 'protected text' }
+        })
+      )
+    await expect(runFormulaFiber({ baseURL: 'https://x/v1', apiKey: 'k', fetch }, 'f', 'n', {})).resolves.toBe(
+      'protected text'
+    )
+  })
+
+  it('does not return a succeeded fiber object as a successful string tool result', async () => {
+    const fetch = async () =>
+      new Response(JSON.stringify({ status: 'succeeded', context: { output: { detail: 'bad payload' } } }))
+    await expect(runFormulaFiber({ baseURL: 'https://x/v1', apiKey: 'k', fetch }, 'f', 'n', {})).rejects.toThrow(
+      '{"detail":"bad payload"}'
+    )
+  })
+
   it('posts the arguments as a JSON string to the formula fiber endpoint', async () => {
     const fetchMock = vi.fn(async () => fiberResponse({ status: 'succeeded', context: { output: 'plain' } }))
 

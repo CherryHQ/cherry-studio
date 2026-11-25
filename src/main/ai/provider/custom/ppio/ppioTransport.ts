@@ -1,6 +1,7 @@
 import type { JSONObject } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { Agent } from 'undici'
+import * as z from 'zod'
 
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
@@ -61,29 +62,23 @@ export type PpioTaskStatus =
   | 'TASK_STATUS_SUCCEED'
   | 'TASK_STATUS_FAILED'
 
-export interface PpioTaskResult {
-  task: {
-    task_id: string
-    status: PpioTaskStatus
-    task_type: string
-    reason?: string
-    eta?: number
-    progress_percent?: number
-  }
-  images?: Array<{
-    image_url: string
-    image_url_ttl: string
-    image_type: string
-  }>
-  extra?: {
-    seed?: string
-    has_nsfw_contents?: boolean[]
-  }
-}
+const PpioTaskResultSchema = z.looseObject({
+  task: z.looseObject({
+    status: z.string().optional(),
+    reason: z.string().nullish(),
+    progress_percent: z.number().optional()
+  }),
+  images: z.array(z.looseObject({ image_url: z.string() })).nullish()
+})
+const PpioSyncResultSchema = z.looseObject({
+  images: z
+    .array(z.union([z.string(), z.looseObject({ image_url: z.string().nullish(), url: z.string().nullish() })]))
+    .nullish()
+})
+const PpioSubmitResultSchema = z.object({ task_id: z.string() })
 
-export interface PpioSyncResult {
-  images?: Array<string | { image_url?: string; url?: string }>
-}
+export type PpioTaskResult = z.infer<typeof PpioTaskResultSchema>
+export type PpioSyncResult = z.infer<typeof PpioSyncResultSchema>
 
 /**
  * PPIO model descriptor needed by the transport: which endpoint to POST to
@@ -133,6 +128,7 @@ class PpioTransport implements ImageGenerationTransport {
   private async request<T>(
     endpoint: string,
     body: JSONObject,
+    schema: z.ZodType<T>,
     method: 'POST' | 'GET' = 'POST',
     requestOptions?: { timeout?: number; signal?: AbortSignal }
   ): Promise<T> {
@@ -181,9 +177,7 @@ class PpioTransport implements ImageGenerationTransport {
         throw new PpioApiError(`PPIO API error: ${response.status} - ${errorText}`, response.status)
       }
 
-      const data = await response.json()
-
-      return data as T
+      return schema.parse(await response.json())
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         if (externallyAborted) {
@@ -201,7 +195,7 @@ class PpioTransport implements ImageGenerationTransport {
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const bagParams = input.providerParams as PpioProviderParams
+    const bagParams = input.providerParams
     const descriptor = input.modelDescriptor
 
     if (!descriptor) {
@@ -215,14 +209,17 @@ class PpioTransport implements ImageGenerationTransport {
     // explicitly we keep it, otherwise fall back to `input.seed`.
     const params: PpioProviderParams = {
       ...bagParams,
-      size: bagParams.size ?? input.size,
-      ppioSeed: bagParams.ppioSeed ?? input.seed
+      size: typeof bagParams.size === 'string' ? bagParams.size : input.size,
+      ppioSeed: typeof bagParams.ppioSeed === 'number' ? bagParams.ppioSeed : input.seed,
+      usePreLlm: typeof bagParams.usePreLlm === 'boolean' ? bagParams.usePreLlm : undefined,
+      addWatermark: typeof bagParams.addWatermark === 'boolean' ? bagParams.addWatermark : undefined,
+      outputFormat: typeof bagParams.outputFormat === 'string' ? bagParams.outputFormat : undefined
     }
 
     const requestParams = this.buildRequestParams(input, params, descriptor)
 
     if (descriptor.isSync) {
-      const result = await this.request<PpioSyncResult>(descriptor.endpoint, requestParams, 'POST', {
+      const result = await this.request(descriptor.endpoint, requestParams, PpioSyncResultSchema, 'POST', {
         timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
         signal: input.signal
       })
@@ -230,7 +227,7 @@ class PpioTransport implements ImageGenerationTransport {
       return { imageUrls: this.extractSyncImageUrls(result) }
     }
 
-    const result = await this.request<{ task_id: string }>(descriptor.endpoint, requestParams, 'POST', {
+    const result = await this.request(descriptor.endpoint, requestParams, PpioSubmitResultSchema, 'POST', {
       timeout: input.requestTimeoutMs ?? DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
       signal: input.signal
     })
@@ -401,7 +398,7 @@ class PpioTransport implements ImageGenerationTransport {
   async getTaskResult(taskId: string, timeout: number = 120000, signal?: AbortSignal): Promise<PpioTaskResult> {
     const endpoint = `/v3/async/task-result?task_id=${encodeURIComponent(taskId)}`
 
-    return this.request<PpioTaskResult>(endpoint, {}, 'GET', { timeout, signal })
+    return this.request(endpoint, {}, PpioTaskResultSchema, 'GET', { timeout, signal })
   }
 
   async poll(
