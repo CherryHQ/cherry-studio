@@ -7,7 +7,7 @@ import type {
 import type { ModelMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { resolveCompressionOutputTokens, summarizeModelMessages } from '../middleware'
+import { estimateSummarizeInputTokens, resolveCompressionOutputTokens, summarizeModelMessages } from '../middleware'
 
 /** Minimal V3 model whose summarization call returns a fixed string. A V3 model
  *  is a valid `LanguageModel`, so it exercises the widened model param too. */
@@ -101,4 +101,19 @@ describe('resolveCompressionOutputTokens', () => {
   it('never exceeds the window itself', () => {
     expect(resolveCompressionOutputTokens(1000)).toBeLessThan(1000)
   })
+})
+
+it('estimates normalized attachment placeholders without inline bytes or adapter metadata', () => {
+  const audio = (data: string): ModelMessage[] => [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'transcribe this' },
+        { type: 'file', data, mediaType: 'audio/wav', filename: 'voice.wav' }
+      ]
+    }
+  ]
+  const small = estimateSummarizeInputTokens(audio('YWJj'))
+  expect(estimateSummarizeInputTokens(audio('YWJj'.repeat(100_000)))).toBe(small)
+  expect(small).toBeLessThan(1000)
 })
