@@ -21,7 +21,6 @@ import HistoryRecordsView from '@renderer/components/history/HistoryRecordsView'
 import { ConversationResourceView } from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
-import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
@@ -40,11 +39,9 @@ import { isEmoji } from '@renderer/utils/naming'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
-import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import type { InstalledSkill } from '@shared/data/types/agent'
 
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
@@ -897,10 +894,9 @@ const AgentPage = () => {
 
     try {
       if (!routeSessionId || !routeSkillId) throw new Error('Skill intent is missing its prepared session or Skill')
-      const skillPath = resolveTemplate('/skills/:skillId', { skillId: routeSkillId }) as ConcreteApiPaths
 
       const [skill] = await Promise.all([
-        dataApiService.get(skillPath) as Promise<InstalledSkill>,
+        dataApiService.get(`/skills/${routeSkillId}`),
         invalidateCache(['/agents', '/skills', '/agent-sessions', `/agent-sessions/${routeSessionId}`]).catch((err) => {
           logger.warn('Failed to refresh Agent cache for prepared Skill session', err, {
             sessionId: routeSessionId,
