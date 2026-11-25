@@ -15,6 +15,7 @@ import { KeyedMessageActivityStore } from '../../hooks/useMessageActivityState'
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
 import { PartsProvider } from '../MessagePartsContext'
+import type * as PlaceholderBlockModule from '../PlaceholderBlock'
 import type * as ToolBlockGroupModule from '../ToolBlockGroup'
 
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
@@ -332,11 +333,8 @@ vi.mock('../TranslationBlock', () => ({
 }))
 
 vi.mock('../BlockErrorFallback', () => ({ __esModule: true, default: () => null }))
-vi.mock('../PlaceholderBlock', () => ({
-  __esModule: true,
-  default: ({ createdAt, status }: any) => (
-    <div data-testid="mock-placeholder" data-created-at={createdAt} data-status={status} />
-  ),
+vi.mock('../PlaceholderBlock', async (importOriginal) => ({
+  ...(await importOriginal<typeof PlaceholderBlockModule>()),
   formatPlaceholderElapsed: () => '1 second',
   usePlaceholderElapsedMs: mockUsePlaceholderElapsedMs
 }))
@@ -570,20 +568,75 @@ describe('MessagePartsRenderer', () => {
       finishTurn('done')
       const idle = render(treeWith(() => <div data-testid="active-turn-status">Retrying 3/10</div>))
       expect(screen.queryByTestId('active-turn-status')).toBeNull()
-      expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+      expect(screen.queryByRole('status')).toBeNull()
       idle.unmount()
 
       // Active + renderer returns its own node → it replaces the placeholder.
       activateTurn()
       const replaced = render(treeWith(() => <div data-testid="active-turn-status">Retrying 3/10</div>))
       expect(screen.getByTestId('active-turn-status')).toBeInTheDocument()
-      expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+      expect(screen.queryByRole('status')).toBeNull()
       replaced.unmount()
 
       // Active + renderer falls back to the placeholder → the placeholder shows.
       render(treeWith((placeholder) => <>{placeholder}</>))
-      expect(screen.getByTestId('mock-placeholder')).toBeInTheDocument()
+      expect(screen.getByRole('status')).toBeInTheDocument()
     })
+
+    it('keeps the loading indicator below streamed content until the reply stops streaming', () => {
+      activateTurn('streaming')
+      renderParts([{ type: 'text', text: 'Partial reply', state: 'streaming' }], msg({ status: 'pending' }))
+
+      expectNodeBefore(screen.getByText('Partial reply'), screen.getByRole('status'))
+
+      activateTurn('awaiting-approval')
+      expect(screen.queryByRole('status')).toBeNull()
+
+      activateTurn('streaming')
+      expect(screen.getByRole('status')).toBeInTheDocument()
+
+      finishTurn('done')
+      expect(screen.queryByRole('status')).toBeNull()
+    })
+
+    it.each([false, true])(
+      'hands off the reply placeholder with intermediate prose set to %s',
+      (keepIntermediateAssistantText) => {
+        activateTurn('streaming')
+        const message = msg({ status: 'pending' })
+        const config = { ...defaultMessageRenderConfig, keepIntermediateAssistantText }
+        const reasoning: CherryMessagePart = { type: 'reasoning', text: 'Checking options', state: 'streaming' }
+        const prose: CherryMessagePart = { type: 'text', text: 'I will check the result.', state: 'done' }
+        const tool: CherryMessagePart = {
+          type: 'dynamic-tool',
+          toolName: 'Read',
+          toolCallId: 'read',
+          state: 'input-streaming',
+          input: undefined
+        }
+        const { rerender } = renderParts([reasoning], message, {}, config)
+        expect(screen.getByText('Checking options')).toBeInTheDocument()
+        expect(screen.queryByRole('status')).toBeNull()
+
+        const settledReasoning = { ...reasoning, state: 'done' } satisfies CherryMessagePart
+        rerender(renderPartsTree([settledReasoning, prose], message, {}, config))
+        expectNodeBefore(screen.getByText(prose.text), screen.getByRole('status'))
+
+        const process = [settledReasoning, prose, tool]
+        rerender(renderPartsTree([...process, { type: 'text', text: '', state: 'streaming' }], message, {}, config))
+        expect(screen.queryByRole('status')).toBeNull()
+
+        rerender(
+          renderPartsTree(
+            [...process, { type: 'text', text: 'Here is the result.', state: 'streaming' }],
+            message,
+            {},
+            config
+          )
+        )
+        expectNodeBefore(screen.getByText('Here is the result.'), screen.getByRole('status'))
+      }
+    )
 
     it('renders text and data-code through markdown', () => {
       renderParts([
@@ -2039,34 +2092,86 @@ describe('MessagePartsRenderer', () => {
     it('uses one top-level disclosure for separated process parts without swallowing answer text', () => {
       activateTurn()
       const pendingMessage = msg({ status: 'pending' })
+      const agentConfig = {
+        ...defaultMessageRenderConfig,
+        expandToolSteps: false,
+        expandLiveToolSteps: true,
+        keepIntermediateAssistantText: true
+      }
       const initialParts = [
         toolPart('read'),
         { type: 'text', text: 'answer in progress' }
       ] as unknown as CherryMessagePart[]
-      const { rerender } = renderParts(initialParts, pendingMessage)
+      const { rerender } = renderParts(initialParts, pendingMessage, {}, agentConfig)
 
       const answer = screen.getByText('answer in progress')
       expect(answer.closest('[data-live-process-run]')).toBeNull()
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
       expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Processing')
-      expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
-      expandCollapsedLiveToolGroups()
+      // Agent live turns stay expanded while running so earlier steps remain visible.
       expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '1')
 
       const laterParts = [...initialParts, toolPart('edit', 'input-available')] as CherryMessagePart[]
-      rerender(renderPartsTree(laterParts, pendingMessage))
+      rerender(renderPartsTree(laterParts, pendingMessage, {}, agentConfig))
 
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
       expect(screen.getAllByTestId('live-tool-group')).toHaveLength(1)
       expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Processing')
-      expandCollapsedLiveToolGroups()
-      expect(screen.getAllByTestId('mock-tool-group-content')).toHaveLength(2)
+      // Agent keeps intermediate text in the response lane, so both tool calls fold into one live group.
+      expect(screen.getAllByTestId('mock-tool-group-content')).toHaveLength(1)
+      expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '2')
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
       expect(screen.getByText('answer in progress')).toBeInTheDocument()
-      expect(screen.getByText('answer in progress')).not.toBe(answer)
       expect(screen.queryByTestId('tool-history-divider')).toBeNull()
     })
 
+    it('keeps regular chat live steps folded behind the group header until clicked', () => {
+      activateTurn()
+      const pendingMessage = msg({ status: 'pending' })
+      const initialParts = [
+        toolPart('read'),
+        { type: 'text', text: 'answer in progress' }
+      ] as unknown as CherryMessagePart[]
+      renderParts(initialParts, pendingMessage)
+
+      expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Processing')
+      expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
+      expect(screen.getByText('answer in progress')).toBeInTheDocument()
+
+      expandCollapsedChildToolGroups()
+      expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '1')
+    })
+
     it('renders DeepSeek provider webSearch parts as tools instead of reasoning-only rows', () => {
+      activateTurn('streaming')
+      renderParts(
+        [
+          { type: 'reasoning', text: 'Finding current sources', state: 'done' },
+          {
+            type: 'tool-webSearch',
+            toolCallId: 'provider-search',
+            state: 'output-available',
+            input: {},
+            output: { action: { type: 'search' } },
+            providerExecuted: true
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        {},
+        {
+          ...defaultMessageRenderConfig,
+          expandToolSteps: false,
+          expandLiveToolSteps: true,
+          keepIntermediateAssistantText: true
+        }
+      )
+
+      expect(screen.getByRole('button', { name: 'webSearch' })).toBeInTheDocument()
+      // Agent live nested groups default to expanded so the running step is visible without a click.
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'webSearch')
+    })
+
+    it('keeps regular chat live webSearch steps folded until clicked', () => {
       activateTurn('streaming')
       renderParts(
         [
@@ -2084,7 +2189,9 @@ describe('MessagePartsRenderer', () => {
       )
 
       expect(screen.getByRole('button', { name: 'webSearch' })).toBeInTheDocument()
-      fireEvent.click(screen.getByRole('button', { name: 'webSearch' }))
+      expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+
+      expandCollapsedChildToolGroups()
       expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'webSearch')
     })
 
@@ -2408,7 +2515,50 @@ describe('MessagePartsRenderer', () => {
           thoughtAutoCollapse: false
         }
       )
+      expect(screen.getByRole('button', { name: /1 tool calls/ })).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('expands a collapsed reasoning group when thinking auto-collapse is disabled while mounted', () => {
+      const parts = [
+        { type: 'reasoning', text: 'Deep thought', state: 'done' },
+        { type: 'text', text: 'final answer' }
+      ] as unknown as CherryMessagePart[]
+      const message = msg()
+      const { rerender } = render(
+        renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, thoughtAutoCollapse: true })
+      )
       expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
+
+      rerender(renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, thoughtAutoCollapse: false }))
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('collapses an expanded reasoning group when thinking auto-collapse is enabled while mounted', () => {
+      const parts = [
+        { type: 'reasoning', text: 'Deep thought', state: 'done' },
+        { type: 'text', text: 'final answer' }
+      ] as unknown as CherryMessagePart[]
+      const message = msg()
+      const { rerender } = render(
+        renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, thoughtAutoCollapse: false })
+      )
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'true')
+
+      rerender(renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, thoughtAutoCollapse: true }))
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('expands oversized reasoning history when thinking auto-collapse is disabled', () => {
+      renderParts(
+        [
+          { type: 'reasoning', text: 'x'.repeat(120_000), state: 'done' },
+          { type: 'text', text: 'final answer' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, thoughtAutoCollapse: false }
+      )
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'true')
     })
 
     it('lists every step of a running turn without a click when tool steps expand', () => {
@@ -2417,10 +2567,59 @@ describe('MessagePartsRenderer', () => {
         [toolPart('read'), toolPart('edit', 'input-available')] as unknown as CherryMessagePart[],
         msg({ status: 'pending' }),
         {},
-        { ...defaultMessageRenderConfig, expandToolSteps: true }
+        { ...defaultMessageRenderConfig, expandToolSteps: true, expandLiveToolSteps: true }
       )
 
       expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+    })
+
+    it('lists every step of a running Agent turn without a click when completed steps stay collapsed', () => {
+      activateTurn()
+      renderParts(
+        [toolPart('read'), toolPart('edit', 'input-available')] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        {},
+        {
+          ...defaultMessageRenderConfig,
+          expandToolSteps: false,
+          expandLiveToolSteps: true,
+          keepIntermediateAssistantText: true
+        }
+      )
+
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+    })
+
+    it('keeps regular chat running steps folded when completed steps stay collapsed', () => {
+      activateTurn()
+      renderParts(
+        [toolPart('read'), toolPart('edit', 'input-available')] as unknown as CherryMessagePart[],
+        msg({ status: 'pending' }),
+        {},
+        { ...defaultMessageRenderConfig, expandToolSteps: false, expandLiveToolSteps: false }
+      )
+
+      expect(screen.getByTestId('mock-tool-group-header')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+
+      expandCollapsedChildToolGroups()
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+    })
+
+    it('keeps mixed reasoning visible before any click when thinking auto-collapse is disabled', () => {
+      renderParts(
+        [
+          { type: 'reasoning', text: 'Deep thought', state: 'done' },
+          toolPart('read'),
+          { type: 'text', text: 'done' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, expandToolSteps: false, thoughtAutoCollapse: false }
+      )
+
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Deep thought')
     })
 
     it('drops thinking between steps whose calls state an intent, and keeps it otherwise', () => {
@@ -2451,6 +2650,36 @@ describe('MessagePartsRenderer', () => {
         config
       )
       expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Weighing the next step')
+    })
+
+    it('leaves intent-hidden reasoning history alone when thinking auto-collapse toggles', () => {
+      const withIntent = (id: string) => ({ ...toolPart(id), input: { path: `${id}.txt`, intent: `check ${id}` } })
+      const reasoning = { type: 'reasoning', text: 'Weighing the next step', state: 'done' }
+      const parts = [
+        reasoning,
+        withIntent('read'),
+        reasoning,
+        withIntent('grep'),
+        { type: 'text', text: 'done' }
+      ] as unknown as CherryMessagePart[]
+      const message = msg()
+      const config = (thoughtAutoCollapse: boolean) => ({
+        ...defaultMessageRenderConfig,
+        expandToolSteps: true,
+        thoughtAutoCollapse
+      })
+
+      const { rerender } = render(renderPartsTree(parts, message, {}, config(true)))
+      // Reasoning is hidden behind intents, so the outer group shows only tool steps.
+      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'true')
+
+      fireEvent.click(historyTrigger)
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+
+      rerender(renderPartsTree(parts, message, {}, config(false)))
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('keeps a finished turn’s steps open when tool steps expand, until the user closes them', () => {
@@ -2559,7 +2788,7 @@ describe('MessagePartsRenderer', () => {
         msg({ updatedAt: '2026-01-01T00:00:01Z' })
       )
 
-      const historyTrigger = screen.getByRole('button', { name: 'Processed 1 second' })
+      const historyTrigger = screen.getByRole('button', { name: '2 tool calls 1 second' })
       fireEvent.click(historyTrigger)
       expandCollapsedChildToolGroups()
 
