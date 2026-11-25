@@ -88,6 +88,25 @@ export async function prepareGatewayMessage(config: MessageConfig) {
   const convertedMessages = converter.toUIMessages(
     responsesInstructions !== undefined ? { ...effectiveParams, instructions: undefined } : effectiveParams
   )
+  const omitSignatures = config.agentContext?.omitGeminiSignaturesFor
+  if (inputFormat === 'gemini' && omitSignatures?.size) {
+    // Native Gemini can omit or normalize call IDs. The converter preserves call order.
+    let ordinal = 0
+    for (const message of convertedMessages) {
+      for (const part of message.parts) {
+        if (
+          part.type === 'dynamic-tool' &&
+          omitSignatures.has(ordinal++) &&
+          !part.callProviderMetadata?.google?.thoughtSignature
+        ) {
+          part.callProviderMetadata = {
+            ...part.callProviderMetadata,
+            cherry: { ...part.callProviderMetadata?.cherry, omitGeminiThoughtSignature: true }
+          }
+        }
+      }
+    }
+  }
   // Leaving inline system messages in place is what keeps the prompt prefix cacheable
   // across turns; targets that reject them get a downgrade 400 or a fold.
   const positionedMessages = positionInlineSystemMessages(

@@ -20,7 +20,12 @@ import { resolveSdkConfig } from '../../provider/sdkConfig'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import type { AgentRuntimeConnectInput } from '../types'
 import { loadPiAi, loadPiApiStreamSimple, loadPiSdk } from './piSdk'
-import { getPendingPiReplayMessage, preparePiReplay, type ReplayAssistantMessage } from './replayHistory'
+import {
+  getForeignPiToolOrdinals,
+  getPendingPiReplayMessage,
+  preparePiReplay,
+  type ReplayAssistantMessage
+} from './replayHistory'
 
 const OBJECT_TRANSPORT_API_KEY = 'cherry-object-transport'
 
@@ -133,6 +138,9 @@ export async function createPiGatewayModelBinding(
             objectTransports: gateway.createAgentObjectTransports({
               ...input,
               replayRouteId: routeId,
+              ...(model.api === 'google-generative-ai' && {
+                omitGeminiSignaturesFor: getForeignPiToolOrdinals(context, routeId)
+              }),
               headers: options?.headers,
               traceContext: getPiTraceContext(options?.telemetry),
               onRetryEvent: (event) => {

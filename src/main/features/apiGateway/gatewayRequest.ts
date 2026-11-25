@@ -20,6 +20,7 @@ type InputParams = InputParamsMap[InputFormat]
 export interface AgentGatewayContext {
   agentSessionId: string
   replayRouteId?: string
+  omitGeminiSignaturesFor?: ReadonlySet<number>
   reasoningEffort: ReasoningEffortOption
   serviceTier?: ServiceTierSelection
   fastMode: boolean

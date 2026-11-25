@@ -32,6 +32,21 @@ export function getPendingPiReplayMessage(context: TranscriptContext): ReplayAss
   return source
 }
 
+export function getForeignPiToolOrdinals(context: TranscriptContext, routeId: string): ReadonlySet<number> {
+  const ordinals = new Set<number>()
+  let ordinal = 0
+  for (const message of context.messages) {
+    if (message.role !== 'assistant' || message.stopReason === 'error' || message.stopReason === 'aborted') continue
+    const source = (message as ReplayAssistantMessage).cherryReplayRouteId
+    for (const part of message.content) {
+      if (part.type !== 'toolCall') continue
+      if (source && source !== routeId) ordinals.add(ordinal)
+      ordinal++
+    }
+  }
+  return ordinals
+}
+
 export function preparePiReplay(context: TranscriptContext, model: Model<Api>, routeId: string): TranscriptContext {
   const messages = context.messages.map((message) => {
     if (message.role !== 'assistant') return message

@@ -1020,12 +1020,21 @@ describe('native Pi through the production gateway', () => {
           .set({ endpointConfigs: { [endpoint]: { baseUrl } }, defaultChatEndpoint: endpoint })
           .where(eq(userProviderTable.providerId, 'port'))
           .run()
+      const gemini = format === 'gemini'
+      const wireModelId = gemini ? 'gemini-3-flash-preview' : 'wire-model'
+      if (gemini) {
+        dbh.db
+          .update(userModelTable)
+          .set({ id: `port::${wireModelId}`, modelId: wireModelId })
+          .where(eq(userModelTable.id, 'port::wire-model'))
+          .run()
+      }
       configure(url)
       const bind = (sharedModels?: Awaited<ReturnType<typeof createPiGatewayModelBinding>>['modelRuntime']) =>
         createPiGatewayModelBinding(
           { sessionId: 'session' },
           providerService.getByProviderId('port'),
-          modelService.getByKey('port', 'wire-model'),
+          modelService.getByKey('port', wireModelId),
           undefined,
           sharedModels
         )
@@ -1037,8 +1046,34 @@ describe('native Pi through the production gateway', () => {
       )
       expect(original.stopReason).toBe('stop')
       const reopened = await bind(binding.modelRuntime)
+      const signature = Buffer.from('tool-signature').toString('base64')
+      if (gemini) {
+        original.content.push({
+          type: 'toolCall',
+          id: 'read-0',
+          name: 'read',
+          arguments: { path: 'fixture' },
+          thoughtSignature: signature
+        })
+      }
       const history = normalizeContext({
-        messages: [question, JSON.parse(JSON.stringify(original)), { role: 'user', content: 'continue', timestamp: 2 }]
+        messages: [
+          question,
+          JSON.parse(JSON.stringify(original)),
+          ...(gemini
+            ? [
+                {
+                  role: 'toolResult' as const,
+                  toolCallId: 'read-0',
+                  toolName: 'read',
+                  content: [{ type: 'text' as const, text: 'fixture' }],
+                  isError: false,
+                  timestamp: 2
+                }
+              ]
+            : []),
+          { role: 'user', content: 'continue', timestamp: 3 }
+        ]
       })
       configure(url.replace(/\/v1/, '/other/v1'))
       expect((await reopened.modelRuntime.completeSimple(reopened.model, history)).stopReason).toBe('stop')
@@ -1055,10 +1090,14 @@ describe('native Pi through the production gateway', () => {
           data: 'opaque-ciphertext'
         })
       } else {
+        expect(JSON.stringify(requests[1])).toContain('functionResponse')
         const contents = requests[2].contents as Array<{ role: string; parts: unknown[] }>
-        expect(contents.filter((content) => content.role === 'model').flatMap((content) => content.parts)).toEqual([
+        expect(
+          contents.filter((content) => content.role === 'model').flatMap((content) => content.parts)
+        ).toMatchObject([
           { text: 'reasoning', thought: true, thoughtSignature: Buffer.from('thought-signature').toString('base64') },
-          { text: 'answer', thoughtSignature: Buffer.from('text-signature').toString('base64') }
+          { text: 'answer', thoughtSignature: Buffer.from('text-signature').toString('base64') },
+          { functionCall: { name: 'read' }, thoughtSignature: signature }
         ])
       }
       expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(3)
