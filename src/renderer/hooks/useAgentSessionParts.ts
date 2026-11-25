@@ -264,22 +264,14 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   )
   const { messages, persistedPartsByMessageId, historyActions } = useHistoryPageProjection(pages, build, replace)
 
-  const refreshMessages = useCallback(async (): Promise<CherryUIMessage[]> => {
-    if (!enabled) return []
-    const refreshedPages = await refreshPages({ throwOnError: true })
-    if (!refreshedPages) return []
-    return refreshedPages.toReversed().flatMap((page) => page.items.toReversed().map(project))
-  }, [enabled, refreshPages, project])
+  const refresh = useCallback(async () => {
+    if (enabled) await refreshPages({ throwOnError: true })
+  }, [enabled, refreshPages])
 
-  // A reservation can arrive after branch selection. Only Main's selected path may enter this cache.
-  const seedReservedMessages = useCallback<(messages: CherryUIMessage[]) => Promise<void>>(async () => {
+  const revalidate = useCallback(async () => {
     await mutate()
   }, [mutate])
-  const replaceMessageTail = useCallback<
-    (messageId: string, replacements: CherryUIMessage[]) => Promise<void>
-  >(async () => {
-    await mutate()
-  }, [mutate])
+  const displayIndex = useCallback((id: string) => membership.byId.get(id)?.index, [membership])
 
   // Errors that predate the load-all are baseline; only a NEW error while paging
   // abandons it. A retained error would otherwise deadlock a retried select-all
@@ -355,9 +347,9 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     hasOlder: hasNext,
     loadOlder: loadNext,
     selectAllPagination,
-    refresh: refreshMessages,
-    seedReservedMessages,
-    replaceMessageTail,
+    refresh,
+    revalidate,
+    displayIndex,
     deleteMessage
   }
 }

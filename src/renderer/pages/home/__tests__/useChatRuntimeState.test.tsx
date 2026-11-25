@@ -11,7 +11,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 const mocks = vi.hoisted(() => ({
   turnControllerConfig: null as any,
   onBranchLiveStateChange: vi.fn(),
-  refresh: vi.fn(async () => [] as CherryUIMessage[]),
+  refresh: vi.fn(async () => {}),
   seedMessagesCache: vi.fn(async () => undefined),
   rollbackBranch: vi.fn(),
   activeExecutions: [] as ActiveExecution[],
@@ -87,7 +87,6 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: () => ({
     regenerate: vi.fn(),
     stop: vi.fn(),
-    setMessages: vi.fn(),
     activeExecutions: mocks.activeExecutions
   })
 }))
@@ -174,7 +173,6 @@ function RuntimeHost({
   latestRuntime = useChatRuntimeState({
     topic,
     isHistoryLoading: false,
-    initialMessages: messages,
     displayIndex: (id) => {
       const index = messages.findIndex((item) => item.id === id)
       return index < 0 ? undefined : index
@@ -207,7 +205,7 @@ describe('useChatRuntimeState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.turnControllerConfig = null
-    mocks.refresh.mockResolvedValue([])
+    mocks.refresh.mockResolvedValue(undefined)
     mocks.seedMessagesCache.mockResolvedValue(undefined)
     mocks.activeExecutions = []
     mocks.overlayExecutions = []
@@ -362,7 +360,7 @@ describe('useChatRuntimeState', () => {
     // Seed a reserved branch message the way a turn does, through the history
     // adapter handed to the turn controller.
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage])
+      await mocks.turnControllerConfig.onAccepted({ mode: 'started', reservedMessages: [reservedMessage] })
     })
     expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ topicId: 'topic-1', messageIds: ['reserved-1'] })
@@ -386,7 +384,9 @@ describe('useChatRuntimeState', () => {
     render(<RuntimeHost topicId="topic-1" activeNodeId="selected-branch" />)
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], {
+      await mocks.turnControllerConfig.onAccepted({
+        mode: 'started',
+        reservedMessages: [reservedMessage],
         preserveActiveNode: true
       })
     })
@@ -400,7 +400,7 @@ describe('useChatRuntimeState', () => {
     render(<RuntimeHost topicId="topic-1" activeNodeId="selected-branch" />)
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage])
+      await mocks.turnControllerConfig.onAccepted({ mode: 'started', reservedMessages: [reservedMessage] })
     })
 
     expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(
@@ -422,10 +422,10 @@ describe('useChatRuntimeState', () => {
     )
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([
-        message('persisted-wins', 'optimistic'),
-        message('live-wins', 'optimistic')
-      ])
+      await mocks.turnControllerConfig.onAccepted({
+        mode: 'started',
+        reservedMessages: [message('persisted-wins', 'optimistic'), message('live-wins', 'optimistic')]
+      })
     })
 
     const projected = mocks.onBranchLiveStateChange.mock.calls.at(-1)?.[0].messages as CherryUIMessage[]
@@ -443,7 +443,9 @@ describe('useChatRuntimeState', () => {
     const view = render(<RuntimeHost topicId="topic-1" />)
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], {
+      await mocks.turnControllerConfig.onAccepted({
+        mode: 'started',
+        reservedMessages: [reservedMessage],
         activeExecutions: [staleAttempt]
       })
     })
@@ -470,7 +472,9 @@ describe('useChatRuntimeState', () => {
     const view = render(<RuntimeHost topicId="topic-1" />)
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], {
+      await mocks.turnControllerConfig.onAccepted({
+        mode: 'started',
+        reservedMessages: [reservedMessage],
         activeExecutions: [staleAttempt]
       })
     })

@@ -35,8 +35,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
-  seedReservedMessages: vi.fn(),
-  replaceMessageTail: vi.fn(),
+  revalidate: vi.fn(),
   deleteSessionMessage: vi.fn(),
   useAgentSessionParts: vi.fn(),
   useChatWithHistory: vi.fn(),
@@ -52,7 +51,6 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
   translate: vi.fn((key: string) => key),
   chatStop: vi.fn(),
-  chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
   invalidateMessages: vi.fn(),
   toastWarning: vi.fn(),
@@ -243,6 +241,24 @@ describe('useAgentChatRuntimeState', () => {
     expect(result.current.editing).toMatchObject(draft)
   })
 
+  it.each([{ reserved: [] }, { reserved: [assistantMessage] }])(
+    'revalidates the selected branch once after an accepted edit',
+    async ({ reserved }) => {
+      const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+        '@renderer/hooks/useConversationTurnController'
+      )
+      mocks.controllerOptions.mockImplementation(useConversationTurnController)
+      mocks.editTarget.mockResolvedValue({ messageId: 'old-user', version: 'v1', parts: [] })
+      mocks.editResend.mockResolvedValue({ mode: 'started', reservedMessages: reserved })
+      const { result } = renderHook(() =>
+        useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+      )
+      await act(() => result.current.startEditing('old-user'))
+      await act(async () => expect(await result.current.resendEditedMessage({ text: 'replacement' })).toBe(true))
+      expect(mocks.revalidate).toHaveBeenCalledTimes(1)
+    }
+  )
+
   it('reads the published branch before showing its streaming reply', async () => {
     MockUseDataApiUtils.resetMocks()
     const { useAgentSessionParts } = await vi.importActual<typeof AgentSessionPartsModule>(
@@ -313,10 +329,10 @@ describe('useAgentChatRuntimeState', () => {
       return { mode: 'started', reservedMessages: reserved }
     })
     mocks.sendTurn.mockImplementation(async (input) => {
-      const { openStream, buildStreamRequest, ensureConversation, historyAdapter } =
+      const { openStream, buildStreamRequest, ensureConversation, onAccepted } =
         mocks.controllerOptions.mock.lastCall![0]
       const ack = await openStream(buildStreamRequest(input, ensureConversation()), input)
-      await historyAdapter.seedReservedMessages(ack.reservedMessages)
+      await onAccepted(ack, input)
       return true
     })
     const { result, rerender } = renderHook(() =>
@@ -635,7 +651,7 @@ describe('useAgentChatRuntimeState', () => {
     MockUseCacheUtils.resetMocks()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
     mocks.refresh.mockResolvedValue([assistantMessage])
-    mocks.seedReservedMessages.mockResolvedValue(undefined)
+    mocks.revalidate.mockResolvedValue(undefined)
     mocks.deleteSessionMessage.mockResolvedValue(undefined)
     mocks.chatStop.mockResolvedValue(undefined)
     mocks.sendTurn.mockReset()
@@ -650,15 +666,14 @@ describe('useAgentChatRuntimeState', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
-      seedReservedMessages: mocks.seedReservedMessages,
-      replaceMessageTail: mocks.replaceMessageTail,
+      displayIndex: (id: string) => (id === assistantMessage.id ? 0 : undefined),
+      revalidate: mocks.revalidate,
       deleteMessage: mocks.deleteSessionMessage
     })
     mocks.useChatWithHistory.mockReturnValue({
       activeExecutions: [{ executionId: 'provider::model', anchorMessageId: 'assistant-1' }],
       sendMessage: vi.fn(),
       stop: mocks.chatStop,
-      setMessages: mocks.chatSetMessages,
       status: 'ready',
       error: undefined,
       chat: {}
@@ -837,7 +852,7 @@ describe('useAgentChatRuntimeState', () => {
       }
       toast.closeToast(notification.key)
       await act(async () => {
-        mocks.controllerOptions.mock.lastCall?.[0]?.onAccepted(ack)
+        mocks.controllerOptions.mock.lastCall?.[0]?.onAccepted(ack, { text: '' })
         emitError()
         mocks.useTopicCompletion.mock.lastCall?.[2](execution.executionId, {
           attemptId: execution.attemptId,
@@ -930,7 +945,7 @@ describe('useAgentChatRuntimeState', () => {
           activeExecutions: [execution],
           reservedMessages: [assistantMessage]
         })
-        mocks.seedReservedMessages.mockImplementationOnce(
+        mocks.revalidate.mockImplementationOnce(
           () =>
             new Promise((_resolve, reject) => {
               finishStartup = () => reject(new Error('compact startup failed'))
@@ -1269,7 +1284,8 @@ describe('useAgentChatRuntimeState', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
-      seedReservedMessages: mocks.seedReservedMessages,
+      displayIndex: (id: string) => (id === assistantMessage.id ? 0 : undefined),
+      revalidate: mocks.revalidate,
       deleteMessage: mocks.deleteSessionMessage
     })
     renderHook(() =>
@@ -1564,7 +1580,8 @@ describe('useAgentChatRuntimeState', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
-      seedReservedMessages: mocks.seedReservedMessages,
+      displayIndex: (id: string) => (id === assistantMessage.id ? 0 : undefined),
+      revalidate: mocks.revalidate,
       deleteMessage: mocks.deleteSessionMessage
     })
     mocks.useHistoryReplies.mockReturnValue([])
@@ -1598,7 +1615,8 @@ describe('useAgentChatRuntimeState', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
-      seedReservedMessages: mocks.seedReservedMessages,
+      displayIndex: (id: string) => (id === assistantMessage.id ? 0 : undefined),
+      revalidate: mocks.revalidate,
       deleteMessage: mocks.deleteSessionMessage
     })
     writeAskUserQuestionDraftCache('approval-ask', {

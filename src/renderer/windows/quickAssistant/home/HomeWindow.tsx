@@ -50,6 +50,8 @@ type MiniRoute = 'home' | 'chat' | 'translate' | 'summary' | 'explanation'
 
 const supportsVoicePlayback = (route: MiniRoute) => route === 'chat' || route === 'summary' || route === 'explanation'
 
+const EMPTY_INPUTS: CherryUIMessage[] = []
+
 export function finalizeReply(msg: CherryUIMessage): CherryUIMessage {
   if (!msg.parts) return msg
   let changed = false
@@ -124,13 +126,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [isPreparing, setIsPreparing] = useState(false)
   const [flowError, setFlowError] = useState<string | null>(null)
 
+  const [inputs, setInputs] = useState<{ topicId: string; messages: CherryUIMessage[] }>()
   const {
-    messages: chatMessages,
     projection,
     sendMessage,
-    stop: stopChat,
-    setMessages
-  } = useStreamCommands(temporaryTopicId ?? '', undefined, (err) => {
+    stop: stopChat
+  } = useStreamCommands(temporaryTopicId ?? '', (err) => {
     setIsPreparing(false)
     setFlowError(err.message)
   })
@@ -146,6 +147,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   useEffect(() => {
     if (voiceScopeTopicRef.current === temporaryTopicId) return
+    setInputs(undefined)
     voiceScopeTopicRef.current = temporaryTopicId
     voiceScopeGenerationRef.current += 1
     voiceExecutionContextsRef.current.clear()
@@ -246,24 +248,20 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     if (isPending) setIsPreparing(false)
   }, [isPending])
 
+  const userMessages = inputs?.topicId === topicId ? inputs.messages : EMPTY_INPUTS
   const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
-    for (const message of [...chatMessages, ...allAssistants]) {
+    for (const message of [...userMessages, ...allAssistants]) {
       next[message.id] = message.parts ?? []
     }
     return next
-  }, [allAssistants, chatMessages])
+  }, [allAssistants, userMessages])
 
-  // Interleave user messages (from state.messages) with assistant turns
-  // (accumulated completed + live). The assumption: users and assistants
-  // alternate strictly — user[i] precedes assistant[i]. Temporary topics
-  // are always a clean linear chat, no branches.
   const displayMessages = useMemo<CherryUIMessage[]>(() => {
-    const users = chatMessages.filter((m) => m.role === 'user')
     const out: CherryUIMessage[] = []
-    const turns = Math.max(users.length, allAssistants.length)
+    const turns = Math.max(userMessages.length, allAssistants.length)
     for (let i = 0; i < turns; i++) {
-      const u = users[i]
+      const u = userMessages[i]
       if (u) {
         out.push(u)
       }
@@ -279,7 +277,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       }
     }
     return out
-  }, [chatMessages, allAssistants, activeMessageId, isPending])
+  }, [userMessages, allAssistants, activeMessageId, isPending])
 
   const messageItems = useMemo(
     () =>
@@ -303,12 +301,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const clear = useCallback(() => {
     void stopChat()
-    setMessages([])
+    setInputs(undefined)
     setTranscript(undefined)
     setClearedThrough(latestAttempt.current)
     setFlowError(null)
     setIsPreparing(false)
-  }, [stopChat, setMessages])
+  }, [stopChat])
 
   const isLoading = isPreparing || isStreaming
   const isOutputted = messageItems.some((message) => message.role === 'assistant')
@@ -395,6 +393,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setUserInputText('')
         setIsPreparing(true)
         const message = { text: [prompt, requestText].filter(Boolean).join('\n\n') }
+        const input: CherryUIMessage = {
+          id: crypto.randomUUID(),
+          role: 'user',
+          parts: [{ type: 'text', text: message.text }]
+        }
+        setInputs((previous) => ({
+          topicId: temporaryTopicId,
+          messages: previous?.topicId === temporaryTopicId ? [...previous.messages, input] : [input]
+        }))
         if (!isAssistantMode && currentModel) {
           void sendMessage(message, { body: { mentionedModels: [currentModel.id] } })
         } else {

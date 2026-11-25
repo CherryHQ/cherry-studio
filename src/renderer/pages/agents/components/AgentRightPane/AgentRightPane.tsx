@@ -120,6 +120,7 @@ import {
   type AgentRightPaneStatus,
   type AgentRunLiveness,
   type AgentToolFlowOpenInput,
+  type AgentToolFlowProjection,
   buildAgentRightPaneStatus,
   buildAgentToolFlowProjection,
   findAgentPreviewUrlCandidates,
@@ -222,6 +223,7 @@ interface AgentRightPaneMeta {
 }
 
 interface AgentRightPaneRuntime {
+  previewParts: MessagePartRows
   messages: CherryUIMessage[]
   partsByMessageId: MessagePartRows
   browserUrl: string | null
@@ -774,8 +776,16 @@ function AgentRightPaneStateProvider({
       ? (browserUrlState.profile ?? WebviewSecurityProfile.AgentBrowser)
       : WebviewSecurityProfile.AgentBrowser
   const runtime = useMemo<AgentRightPaneRuntime>(
-    () => ({ messages, partsByMessageId, browserUrl, browserProfile, openBrowserUrl, acceptDetectedBrowserUrl }),
-    [acceptDetectedBrowserUrl, browserUrl, browserProfile, openBrowserUrl, messages, partsByMessageId]
+    () => ({
+      messages,
+      partsByMessageId,
+      previewParts,
+      browserUrl,
+      browserProfile,
+      openBrowserUrl,
+      acceptDetectedBrowserUrl
+    }),
+    [acceptDetectedBrowserUrl, browserUrl, browserProfile, openBrowserUrl, messages, partsByMessageId, previewParts]
   )
   const editPath =
     editMode === 'edit' && previewFileSelection && !previewFileSelection.readOnly
@@ -1199,8 +1209,7 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
   const runtime = useAgentRightPaneRuntime()
   const { acceptDetectedBrowserUrl } = runtime
   const sessionId = scope.meta.sessionId
-  const previewParts = useAgentToolParts(active ? sessionId : undefined, runtime.partsByMessageId, isAgentPreviewPart)
-  const detectedPreview = useAgentPreviewUrl(active, sessionId, runtime.messages, previewParts)
+  const detectedPreview = useAgentPreviewUrl(active, sessionId, runtime.messages, runtime.previewParts)
 
   useEffect(() => {
     if (active) acceptDetectedBrowserUrl(detectedPreview.url, detectedPreview.source)
@@ -1343,16 +1352,17 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
   )
 
   const streamTopicId = useAgentSessionStreamTopic(meta.sessionId)
-  const partReader = useMemo(
+  const target = useMemo(
     () =>
       meta.sessionId && archiveSessionId
-        ? messageProjectionService.partsFor({ kind: 'child', sessionId: meta.sessionId, toolCallId })
-        : messageProjectionService.partsFor({ kind: 'topic', topicId: streamTopicId }),
-    [archiveSessionId, meta.sessionId, toolCallId, streamTopicId]
+        ? { kind: 'child' as const, sessionId: meta.sessionId, toolCallId }
+        : { kind: 'topic' as const, topicId: streamTopicId },
+    [archiveSessionId, meta.sessionId, streamTopicId, toolCallId]
   )
+  const partReader = useMemo(() => messageProjectionService.partsFor(target), [target])
   return (
     <ProjectionReaderProvider reader={partReader}>
-      <MessageListProvider value={flowProviderValue}>
+      <MessageListProvider value={flowProviderValue} taskRows={partsByMessageId} taskTarget={target}>
         <div className="h-full min-h-0 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden [&_.message-header-info-wrap]:hidden [&_.message-user_.message-content-container]:rounded-lg [&_.message-user_.message-content-container]:bg-background-subtle [&_.message-user_.message-content-container]:text-muted-foreground [&_.message-user>div>div]:max-w-full [&_.narrow-mode]:px-4!">
           <MessageList scrollPositionKey={`${topic.id}:flow:${toolCallId}`} />
         </div>
@@ -1360,6 +1370,10 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     </ProjectionReaderProvider>
   )
 })
+
+type FlowView = Pick<AgentToolFlowProjection, 'messages' | 'toolNodes' | 'selectedTool'> & {
+  partsByMessageId: MessagePartRows
+}
 
 function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const meta = useAgentRightPaneMeta()
@@ -1379,20 +1393,19 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
     [flowParts, tab?.toolCallId]
   )
   const { output: selectedToolOutput } = useToolResult(active ? deferredToolResult : undefined, 'preview')
-  const retainedFlowRef = useRef<ReturnType<typeof buildAgentToolFlowProjection> | null>(null)
-  const flow = useMemo<ReturnType<typeof buildAgentToolFlowProjection>>(
+  const retainedFlowRef = useRef<FlowView | null>(null)
+  const flow = useMemo<FlowView>(
     () =>
       child?.view
         ? {
             messages: [...child.view.messages],
-            partsByMessageId: Object.fromEntries(child.view.messages.map((message) => [message.id, message.parts])),
-            toolNodes: [],
-            selectedToolCallIds: new Set<string>()
+            partsByMessageId: child.partsByMessageId,
+            toolNodes: []
           }
         : !active && retainedFlowRef.current
           ? retainedFlowRef.current
           : buildAgentToolFlowProjection(runtime.messages, flowParts, tab?.toolCallId, selectedToolOutput),
-    [active, runtime.messages, flowParts, selectedToolOutput, tab?.toolCallId, child?.view]
+    [active, runtime.messages, flowParts, selectedToolOutput, tab?.toolCallId, child?.view, child?.partsByMessageId]
   )
   useLayoutEffect(() => {
     if (active) retainedFlowRef.current = flow

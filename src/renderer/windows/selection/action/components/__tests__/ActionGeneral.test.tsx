@@ -42,7 +42,7 @@ vi.mock('../ActionResultContent', () => {
 })
 
 vi.mock('@renderer/hooks/useStreamCommands', () => ({
-  useStreamCommands: (id: string, _initial: unknown, onError?: (error: Error) => void) => {
+  useStreamCommands: (id: string, onError?: (error: Error) => void) => {
     state.useChatIds.push(id)
     state.onError = onError
     return {

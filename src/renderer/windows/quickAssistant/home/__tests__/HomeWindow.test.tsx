@@ -34,12 +34,10 @@ const state = vi.hoisted(() => ({
     providerId: 'anthropic',
     group: 'Anthropic'
   } as TestModel | undefined,
-  messages: [] as never[],
   activeExecutions: [] as ActiveExecution[],
   isPending: false,
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
-  setMessages: vi.fn(),
   resetTemporaryTopic: vi.fn(),
   temporaryTopicId: 'temp-topic',
   bindVoiceTarget: vi.fn(),
@@ -65,10 +63,8 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('@renderer/hooks/useStreamCommands', () => ({
   useStreamCommands: () => ({
-    messages: state.messages,
     sendMessage: state.sendMessage,
-    stop: state.stopChat,
-    setMessages: state.setMessages
+    stop: state.stopChat
   })
 }))
 
@@ -294,11 +290,9 @@ describe('HomeWindow', () => {
     }
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
-    state.setMessages.mockClear()
     state.resetTemporaryTopic.mockClear()
     state.temporaryTopicId = 'temp-topic'
     state.activeExecutions = []
-    state.messages = []
     state.isPending = false
     state.bindVoiceTarget.mockReset()
     state.unbindVoiceTarget.mockReset()
@@ -339,6 +333,18 @@ describe('HomeWindow', () => {
     fireEvent.keyDown(input, { code: 'Enter', key: 'Enter' })
 
     expect(state.sendMessage).toHaveBeenCalledWith({ text: 'hello' }, { body: { mentionedModels: [quickModelId] } })
+  })
+
+  it('shows sent inputs only in their own temporary conversation', async () => {
+    const window = render(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
+    const input = screen.getByTestId('quick-input')
+    fireEvent.change(input, { target: { value: 'first question' } })
+    fireEvent.keyDown(input, { code: 'Enter', key: 'Enter' })
+    expect(await screen.findByText('first question')).toBeVisible()
+    state.temporaryTopicId = 'another-topic'
+    window.rerender(<HomeWindow draggable={false} />)
+    expect(screen.queryByText('first question')).not.toBeInTheDocument()
   })
 
   it('does not fall back to the default model while the quick model is unresolved', () => {

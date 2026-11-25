@@ -97,7 +97,6 @@ const ChatContent: FC<Props> = ({
       composerModelId={composerModelId}
       isHistoryLoading={isHistoryLoading}
       isHistoryStale={isHistoryStale}
-      initialMessages={uiMessages}
       displayIndex={displayIndex}
       uiMessages={uiMessages}
       siblingsMap={siblingsMap}
@@ -120,14 +119,12 @@ interface InnerProps extends Props {
   isHistoryLoading: boolean
   isHistoryStale: boolean
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
-  /** One-time seed for `useChat(messages:)` — consumed on mount only. */
-  initialMessages: CherryUIMessage[]
   /** Live DB-backed message list; reactive to SWR refreshes. */
   uiMessages: CherryUIMessage[]
   displayIndex: ReturnType<typeof useTopicMessages>['displayIndex']
   siblingsMap: ReturnType<typeof useTopicMessages>['siblingsMap']
   replyHistory: ReturnType<typeof useTopicMessages>['replyHistory']
-  refresh: () => Promise<CherryUIMessage[]>
+  refresh: () => Promise<void>
   activeNodeId: string | null
   loadOlder: () => void
   hasOlder: boolean
@@ -150,7 +147,6 @@ const ChatContentInner: FC<InnerProps> = ({
   composerModelId,
   isHistoryLoading,
   isHistoryStale,
-  initialMessages,
   uiMessages,
   displayIndex,
   siblingsMap,
@@ -170,7 +166,6 @@ const ChatContentInner: FC<InnerProps> = ({
   const runtime = useChatRuntimeState({
     topic,
     isHistoryLoading,
-    initialMessages,
     replyHistory,
     uiMessages,
     displayIndex,

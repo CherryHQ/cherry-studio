@@ -508,8 +508,7 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: () => ({
     activeExecutions: [],
     sendMessage: vi.fn(),
-    stop: vi.fn(),
-    setMessages: vi.fn()
+    stop: vi.fn()
   })
 }))
 
@@ -721,7 +720,7 @@ describe('AgentChat artifact pane', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: vi.fn(),
-      seedReservedMessages: vi.fn(),
+      revalidate: vi.fn(),
       deleteMessage: vi.fn()
     })
     activeSessionMocks.result = {

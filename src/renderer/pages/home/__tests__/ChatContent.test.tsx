@@ -326,7 +326,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages: vi.fn(),
       activeExecutions: []
     })
     mockLiveReplies.current = []
@@ -351,7 +350,6 @@ describe('ChatContent', () => {
       regenerate: vi.fn(),
       stop: vi.fn(),
       error: null,
-      setMessages: vi.fn(),
       activeExecutions: []
     })
 
@@ -514,7 +512,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages: vi.fn(),
       activeExecutions: []
     })
 
@@ -586,7 +583,6 @@ describe('ChatContent', () => {
       regenerate: vi.fn(),
       stop: vi.fn(),
       error: null,
-      setMessages: vi.fn(),
       activeExecutions: [{ executionId: 'pending-placeholder', anchorMessageId: 'pending-placeholder' }] as never
     })
 
@@ -632,7 +628,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'streaming',
-      setMessages: vi.fn(),
       activeExecutions
     })
     mockLiveReplies.current = [firstLiveAssistant]
@@ -763,7 +758,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages: vi.fn(),
       activeExecutions: [{ executionId: 'provider::model', anchorMessageId: 'reserved-assistant' }]
     })
     mockLiveReplies.current = [liveAssistant]
@@ -791,7 +785,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages: vi.fn(),
       activeExecutions: []
     })
     mockLiveReplies.current = []
@@ -856,7 +849,6 @@ describe('ChatContent', () => {
         createdAt: '2026-01-01T00:00:04.000Z'
       }
     } as CherryUIMessage
-    const setMessages = vi.fn()
     const regenerate = vi.fn().mockResolvedValue(undefined)
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
@@ -884,7 +876,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages,
       activeExecutions: [
         {
           executionId: 'forked-exec',
@@ -905,7 +896,6 @@ describe('ChatContent', () => {
       body: { parts: editedParts }
     })
     expect(refresh).toHaveBeenCalled()
-    expect(setMessages).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'forked-user' })]))
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
@@ -1044,7 +1034,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages: vi.fn(),
       activeExecutions: []
     })
 
@@ -1119,7 +1108,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages: vi.fn(),
       activeExecutions: []
     })
 
@@ -1157,7 +1145,6 @@ describe('ChatContent', () => {
       createdAt: '2026-01-01T00:00:03.000Z',
       updatedAt: '2026-01-01T00:00:03.000Z'
     })
-    const setMessages = vi.fn()
     const regenerate = vi.fn().mockResolvedValue(undefined)
     const rootUser = {
       ...createUiMessage('root-user', 'user'),
@@ -1226,7 +1213,6 @@ describe('ChatContent', () => {
       stop: vi.fn(),
       error: null,
       status: 'ready',
-      setMessages,
       activeExecutions: []
     })
 
@@ -1241,9 +1227,6 @@ describe('ChatContent', () => {
       body: { parts: editedParts }
     })
     expect(refresh).toHaveBeenCalled()
-    expect(setMessages).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ id: 'forked-root-user', parts: editedParts })])
-    )
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
@@ -1393,7 +1376,6 @@ describe('ChatContent', () => {
       regenerate: vi.fn(),
       stop: vi.fn(),
       error: null,
-      setMessages: vi.fn(),
       activeExecutions: [{ executionId: 'gemini-new-pending', anchorMessageId: 'gemini-new-pending' }] as never
     })
 

@@ -14,11 +14,7 @@ import { useToolApprovalComposerOverrides } from '@renderer/components/composer/
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { useConversationErrorToasts } from '@renderer/hooks/useConversationErrorToasts'
-import {
-  type ConversationHistoryAdapter,
-  type ReservedMessageSeedOptions,
-  useConversationTurnController
-} from '@renderer/hooks/useConversationTurnController'
+import { useConversationTurnController } from '@renderer/hooks/useConversationTurnController'
 import { useHistoryReplies } from '@renderer/hooks/useHistoryReplies'
 import type { ReplyHistory } from '@renderer/hooks/useHistoryRowUpdates'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
@@ -30,16 +26,16 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { ExecutionFinishEvent } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import { createPartsByMessageId } from '@renderer/utils/message/exportView'
-import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import { mergeLiveReplies, mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { activeReplyIds, replyParts } from '@renderer/utils/message/messagePartRows'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
 import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
-import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
+import { hasClearContextPart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import { useChatWriteActions } from './hooks/useChatWriteActions'
+import { type ReservedMessageSeedOptions, useChatWriteActions } from './hooks/useChatWriteActions'
 import { useToolApprovalBridge } from './hooks/useToolApprovalBridge'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
 
@@ -60,11 +56,10 @@ export interface ChatTurnInput {
 interface UseChatRuntimeStateParams {
   topic: Topic
   isHistoryLoading: boolean
-  initialMessages: CherryUIMessage[]
   replyHistory: ReplyHistory
   displayIndex(id: string): number | undefined
   uiMessages: CherryUIMessage[]
-  refresh: () => Promise<CherryUIMessage[]>
+  refresh: () => Promise<void>
   activeNodeId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   assistant?: Assistant
@@ -111,7 +106,6 @@ function executionAttemptKey(execution: ActiveExecution): number {
 export function useChatRuntimeState({
   topic,
   isHistoryLoading,
-  initialMessages,
   replyHistory,
   displayIndex,
   uiMessages,
@@ -124,11 +118,7 @@ export function useChatRuntimeState({
 }: UseChatRuntimeStateParams) {
   const [scrollToBottomOnSend] = usePreference('chat.message.scroll_to_bottom_on_send')
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
-  const { regenerate, stop, setMessages, activeExecutions, projection } = useChatWithHistory(
-    topic.id,
-    initialMessages,
-    refresh
-  )
+  const { regenerate, stop, activeExecutions, projection } = useChatWithHistory(topic.id, refresh)
   const { status: streamStatus, isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
   const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
   const messages = uiMessages
@@ -150,13 +140,6 @@ export function useChatRuntimeState({
     if (messageId === null) messageListRuntimeRef.current?.scrollToBottom()
     else dispatchLocateMessage(messageListRuntimeRef.current, messageId, highlight)
   }, [])
-
-  // PR 3: the effect that pushed `uiMessages` into `useChat.setMessages` after
-  // every terminal render was the user's banned anti-pattern (effect-driven
-  // mutation of SWR-read data into another store). The only consumer that
-  // needs `useChat.state.messages` hydrated is `regenerate({ messageId })` for
-  // anchor resolution — that snapshot now happens synchronously at the call
-  // site inside `chatWriteActions.regenerateWithCapabilities`.
 
   const [branchLiveMessages, setBranchLiveMessages] = useState<CherryUIMessage[]>([])
   const [branchLiveExecutions, setBranchLiveExecutions] = useState<ActiveExecution[]>([])
@@ -224,21 +207,11 @@ export function useChatRuntimeState({
     () => ({ historyPartsByMessageId: persistedPartsByMessageId, liveMessageIds }),
     [persistedPartsByMessageId, liveMessageIds]
   )
-  const activeAwaitingInputMessageId = useMemo(
-    () =>
-      activeNodeId
-        ? (messages.find(
-            (message) =>
-              message.id === activeNodeId &&
-              isBlankUserTurn({
-                role: message.role,
-                status: message.metadata?.status,
-                parts: message.parts
-              })
-          )?.id ?? null)
-        : null,
-    [activeNodeId, messages]
-  )
+  const activeAwaitingInputMessageId = useMemo(() => {
+    const index = activeNodeId ? displayIndex(activeNodeId) : undefined
+    const active = index === undefined ? undefined : messages[index]
+    return active && !isRenderableConversationMessage(active) ? active.id : null
+  }, [activeNodeId, displayIndex, messages])
   const composerChatTarget = useMemo<ComposerChatTarget>(
     () => ({
       parentAnchorId: activeNodeId,
@@ -246,9 +219,15 @@ export function useChatRuntimeState({
     }),
     [activeAwaitingInputMessageId, activeNodeId]
   )
+  const visibleHistory = useMemo(() => {
+    if (messages.every(isRenderableConversationMessage)) return { messages, displayIndex }
+    const visible = messages.filter(isRenderableConversationMessage)
+    const positions = new Map(visible.map((message, index) => [message.id, index]))
+    return { messages: visible, displayIndex: (id: string) => positions.get(id) }
+  }, [messages, displayIndex])
   const displayMessages = useMemo(
-    () => mergeMessagesById(messages.filter(isRenderableConversationMessage), liveAssistants),
-    [messages, liveAssistants]
+    () => mergeLiveReplies(visibleHistory.messages, liveAssistants, visibleHistory.displayIndex, 'append'),
+    [visibleHistory, liveAssistants]
   )
 
   // Tool-approval card surface. Awaiting-approval tools render `null` inline
@@ -296,14 +275,6 @@ export function useChatRuntimeState({
     },
     [activeNodeId, seedMessagesCache]
   )
-  const historyAdapter = useMemo<ConversationHistoryAdapter>(
-    () => ({
-      seedReservedMessages,
-      refresh,
-      rollback: cache.rollbackBranch
-    }),
-    [cache.rollbackBranch, refresh, seedReservedMessages]
-  )
   const ensureConversation = useCallback(
     async ({ options }: ChatTurnInput) => {
       if (isHistoryLoading) return null
@@ -344,11 +315,17 @@ export function useChatRuntimeState({
     { topicId: string; parentAnchorId: string | null }
   >({
     scopeKey: topic.id,
-    historyAdapter,
+    onRollback: cache.rollbackBranch,
     ensureConversation,
     buildStreamRequest,
     refreshMetadata,
-    onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages),
+    onAccepted: (ack) => {
+      if (!ack.reservedMessages?.length) {
+        errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages)
+        return
+      }
+      return seedReservedMessages(ack.reservedMessages, ack)
+    },
     onError: (error, input) =>
       errorToastsRef.current?.report(
         error,
@@ -475,7 +452,6 @@ export function useChatRuntimeState({
     uiMessages: messages,
     activeNodeId,
     regenerate,
-    setMessages,
     stop,
     refresh,
     cache,

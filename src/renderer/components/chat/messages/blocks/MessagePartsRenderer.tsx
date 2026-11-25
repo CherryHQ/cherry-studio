@@ -71,8 +71,7 @@ import {
   isCherrySessionToolResponse,
   isReportArtifactsToolResponse,
   MessageReportArtifacts,
-  SessionResultCards,
-  getSubagentTaskStatus
+  SessionResultCards
 } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { AgentToolsType, isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
@@ -116,6 +115,7 @@ import MessageProcessGroup from './MessageProcessGroup'
 import { type CellRange, PartRange, PartRuns, reconcileResultCells } from './PartRange'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import RetryStatusBlock from './RetryStatusBlock'
+import { SubagentStatusContext } from './SubagentStatusContext'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
 import {
   getToolFoldTitle,
@@ -1902,11 +1902,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         : [],
     [displayProjection.entries, message.id, openAgentToolFlow]
   )
+  const taskStatus = subagentEntries.length ? React.use(SubagentStatusContext) : undefined
   const subagentStatuses = subagentEntries.map(({ part, partId, index }) => {
     const response = getCachedToolProjection(part, partId ?? `${message.id}-part-${index}`).toolResponse
-    return response
-      ? (getSubagentTaskStatus(messageParts, response.toolCallId, response.status) ?? response.status)
-      : undefined
+    return response ? (taskStatus?.(response.toolCallId, response.status) ?? response.status) : undefined
   })
   const completedSubagents = subagentStatuses.filter((status) => status === 'done').length
   const failedSubagents = subagentStatuses.filter((status) => status === 'error').length
@@ -1925,13 +1924,11 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     if (viewingSubagent) setSubagentsExpanded(true)
   }, [viewingSubagent, setSubagentsExpanded])
   const subagentContentId = React.useId()
-  const displayEntries = useMemo(
-    () =>
-      subagentEntries.length
-        ? displayProjection.entries.filter((entry) => !subagentEntries.includes(entry))
-        : displayProjection.entries,
-    [displayProjection.entries, subagentEntries]
-  )
+  const displayEntries = useMemo(() => {
+    if (!subagentEntries.length) return displayProjection.entries
+    const subtasks = new Set(subagentEntries)
+    return displayProjection.entries.filter((entry) => !subtasks.has(entry))
+  }, [displayProjection.entries, subagentEntries])
   const hasVisibleNonArtifactEntry = useMemo(
     () =>
       displayEntries.some(

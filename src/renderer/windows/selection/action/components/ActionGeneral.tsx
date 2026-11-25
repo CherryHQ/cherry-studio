@@ -85,7 +85,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
     sendMessage,
     stop: stopChat,
     projection
-  } = useStreamCommands(temporaryTopicId ?? '', undefined, (err) => {
+  } = useStreamCommands(temporaryTopicId ?? '', (err) => {
     setIsPreparing(false)
     setCompletionError(getSelectionActionErrorMessage(err, t))
   })

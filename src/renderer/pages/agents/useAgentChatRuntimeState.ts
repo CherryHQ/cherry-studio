@@ -25,10 +25,7 @@ import { useAgentToolParts } from '@renderer/hooks/agent/useAgentToolParts'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { useConversationErrorToasts } from '@renderer/hooks/useConversationErrorToasts'
-import {
-  type ConversationHistoryAdapter,
-  useConversationTurnController
-} from '@renderer/hooks/useConversationTurnController'
+import { useConversationTurnController } from '@renderer/hooks/useConversationTurnController'
 import { useHistoryReplies } from '@renderer/hooks/useHistoryReplies'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useTopicCompletion } from '@renderer/hooks/useTopicCompletion'
@@ -44,7 +41,7 @@ import type { ExecutionFinishEvent } from '@renderer/types/message'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { createPartsByMessageId } from '@renderer/utils/message/exportView'
-import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import { mergeLiveReplies } from '@renderer/utils/message/mergeMessagesById'
 import {
   activeReplyIds,
   replyParts,
@@ -288,8 +285,8 @@ export function useAgentChatRuntimeState({
     loadOlder,
     selectAllPagination,
     refresh,
-    seedReservedMessages,
-    replaceMessageTail,
+    revalidate,
+    displayIndex,
     deleteMessage: deleteSessionMessage
   } = useAgentSessionParts(sessionId, {
     enabled: sessionMessagesEnabled,
@@ -300,18 +297,10 @@ export function useAgentChatRuntimeState({
 
   useLayoutEffect(() => {
     if (!sessionMessagesEnabled || reservedMessages.length === 0) return
-    void seedReservedMessages(reservedMessages)
-  }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
+    void revalidate()
+  }, [reservedMessages, revalidate, sessionMessagesEnabled])
 
-  const { activeExecutions, setMessages, stop, projection } = useChatWithHistory(streamTopicId, uiMessages, refresh)
-  const historyAdapter = useMemo<ConversationHistoryAdapter>(
-    () => ({
-      seedReservedMessages,
-      refresh,
-      rollback: refresh
-    }),
-    [refresh, seedReservedMessages]
-  )
+  const { activeExecutions, stop, projection } = useChatWithHistory(streamTopicId, refresh)
   const ensureConversation = useCallback(() => ({ topicId: sessionTopicId }), [sessionTopicId])
   const buildStreamRequest = useCallback(
     (input: AgentTurnInput, conversation: { topicId: string }): AiStreamOpenRequest => ({
@@ -326,17 +315,20 @@ export function useAgentChatRuntimeState({
   )
   const { send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
     scopeKey: sessionTopicId,
-    historyAdapter,
+    onRollback: refresh,
     ensureConversation,
     buildStreamRequest,
-    onAccepted: (ack) => errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages),
+    onAccepted: async (ack, input) => {
+      errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages)
+      if (input.editTarget || ack.reservedMessages?.length) await revalidate()
+    },
     onError: (error, input) =>
       input.editTarget
         ? reportEditError(error, input.editTarget.messageId)
         : errorToastsRef.current?.report(error, modelId),
     openStream: async (request, input) => {
       if (!input.editTarget || request.trigger !== 'submit-message') return ipcApi.request('ai.stream.open', request)
-      const ack = await ipcApi.request('ai.agent.session.edit_resend', {
+      return ipcApi.request('ai.agent.session.edit_resend', {
         sessionId,
         target: { messageId: input.editTarget.messageId, version: input.editTarget.version },
         userMessageParts: request.userMessageParts,
@@ -344,11 +336,6 @@ export function useAgentChatRuntimeState({
         serviceTier: request.serviceTier,
         fastMode: request.fastMode
       })
-      if (ack.mode !== 'blocked' && currentSessionRef.current === sessionId) {
-        setMessages([])
-        await replaceMessageTail(input.editTarget.messageId, ack.reservedMessages ?? [])
-      }
-      return ack
     }
   })
   const sendMessage = useCallback(
@@ -361,9 +348,8 @@ export function useAgentChatRuntimeState({
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
       invalidateCachedMessageUiStates([messageId])
-      setMessages((current) => current.filter((message) => message.id !== messageId))
     },
-    [deleteSessionMessage, setMessages]
+    [deleteSessionMessage]
   )
 
   const handleExecutionFinish = useCallback(
@@ -461,13 +447,8 @@ export function useAgentChatRuntimeState({
   }, [])
 
   const displayMessages = useMemo(
-    () =>
-      optimisticMessages ??
-      mergeMessagesById(
-        uiMessages,
-        liveAssistants.filter((live) => Object.hasOwn(persistedPartsByMessageId, live.id))
-      ),
-    [liveAssistants, optimisticMessages, persistedPartsByMessageId, uiMessages]
+    () => optimisticMessages ?? mergeLiveReplies(uiMessages, liveAssistants, displayIndex, 'omit'),
+    [displayIndex, liveAssistants, optimisticMessages, uiMessages]
   )
 
   const respondToolApproval = useCallback(

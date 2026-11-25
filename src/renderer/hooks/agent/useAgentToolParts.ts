@@ -4,6 +4,7 @@ import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessio
 import { messageProjectionService } from '@renderer/services/aiTransport'
 import { PartOverrides, type MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import { collect, concat, foldLayout, single, type Range } from '@renderer/utils/message/projectionRange'
+import type { ProjectionTarget } from '@shared/ai/messageProjection'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 export function useAgentToolParts(
@@ -12,9 +13,17 @@ export function useAgentToolParts(
   accepts: (part: CherryMessagePart) => boolean
 ): MessagePartRows {
   const topicId = useAgentSessionStreamTopic(sessionId)
+  const target = useMemo(() => (topicId ? { kind: 'topic' as const, topicId } : undefined), [topicId])
+  return useProjectedToolParts(target, baseline, accepts)
+}
+
+export function useProjectedToolParts(
+  target: ProjectionTarget | undefined,
+  baseline: MessagePartRows,
+  accepts: (part: CherryMessagePart) => boolean
+): MessagePartRows {
   const selection = useMemo(() => {
-    const target = { kind: 'topic' as const, topicId }
-    if (!topicId || !(baseline instanceof PartOverrides))
+    if (!target || !(baseline instanceof PartOverrides))
       return { getSnapshot: () => baseline, subscribe: () => () => {} }
     const reader = messageProjectionService.partsFor(target)
     const select = foldLayout<Range<CherryMessagePart> | null>(
@@ -64,6 +73,6 @@ export function useAgentToolParts(
         return off
       }
     }
-  }, [topicId, baseline, accepts])
+  }, [target, baseline, accepts])
   return useSyncExternalStore(selection.subscribe, selection.getSnapshot)
 }

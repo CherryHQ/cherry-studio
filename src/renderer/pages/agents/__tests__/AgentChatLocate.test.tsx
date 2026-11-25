@@ -272,8 +272,7 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: () => ({
     activeExecutions: [],
     sendMessage: vi.fn(),
-    stop: vi.fn(),
-    setMessages: vi.fn()
+    stop: vi.fn()
   })
 }))
 

@@ -6,11 +6,6 @@
  * in oldest→newest order, so reversing page order yields a monotonically
  * chronological `items` array (root → activeNode) across any number of loaded
  * pages. `activeNodeId` is read from the freshest page's top-level metadata.
- *
- * `toUIMessage` projects every persisted field onto `CherryUIMessage.metadata`
- * so downstream consumers read per-message metadata (model, parent, stats,
- * status, …) directly from the message object — no parallel metadataMap
- * lookup that can lag behind `useChat.state.messages` during streaming.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -159,7 +154,7 @@ export interface UseTopicMessagesResult {
   siblingsMap: Record<string, SharedMessage[]>
   isLoading: boolean
   isStale: boolean
-  refresh: () => Promise<CherryUIMessage[]>
+  refresh: () => Promise<void>
   activeNodeId: string | null
   /** Load the next (older) page of branch history. */
   loadOlder: () => void
@@ -349,15 +344,8 @@ export function useTopicMessages(
     { routeParams: { topicId } }
   )
 
-  const refresh = useCallback(async (): Promise<CherryUIMessage[]> => {
-    if (!enabled) return []
-    const refreshed = await refreshPages({ throwOnError: true })
-    if (!refreshed?.length) return []
-    const allItems = refreshed
-      .slice()
-      .reverse()
-      .flatMap((p) => p.items)
-    return projectBranchMessagesToUI(allItems, projectionCacheRef.current)
+  const refresh = useCallback(async () => {
+    if (enabled) await refreshPages({ throwOnError: true })
   }, [refreshPages, enabled])
 
   const isStale = enabled && (readyTopicId !== topicId || !pagesBelongToTopic)

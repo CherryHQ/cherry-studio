@@ -94,10 +94,8 @@ const AgentSessionMessages = ({
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const streamTopicId = useAgentSessionStreamTopic(sessionId)
-  const partReader = useMemo(
-    () => messageProjectionService.partsFor({ kind: 'topic', topicId: streamTopicId }),
-    [streamTopicId]
-  )
+  const target = useMemo(() => ({ kind: 'topic' as const, topicId: streamTopicId }), [streamTopicId])
+  const partReader = useMemo(() => messageProjectionService.partsFor(target), [target])
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
 
   const sessionAssistantId = session?.agentId ?? agentId
@@ -194,7 +192,7 @@ const AgentSessionMessages = ({
   return (
     <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>
       <ProjectionReaderProvider reader={partReader}>
-        <MessageListProvider value={messageList}>
+        <MessageListProvider value={messageList} taskRows={partsByMessageId} taskTarget={target}>
           <MessageList enableSearch />
         </MessageListProvider>
       </ProjectionReaderProvider>
