@@ -13,7 +13,9 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 /** A builtin server as declared in code; the `id` is assigned by the database on install. */
-export type McpServerPreset = Omit<McpServer, 'id' | 'name'> & { name: BuiltinMcpServerName }
+export type McpServerPreset = Omit<McpServer, 'id' | 'name' | 'createdAt' | 'updatedAt'> & {
+  name: BuiltinMcpServerName
+}
 
 /** Frozen because both the renderer catalog and the seeder read these objects live. */
 const freezePresets = (presets: McpServerPreset[]): readonly Readonly<McpServerPreset>[] =>
@@ -163,3 +165,11 @@ export const PRESET_MCP_SERVERS = freezePresets([
     isTrusted: true
   }
 ])
+
+/** Presets that can run without user setup or a separately installed application. */
+export const FEATURED_MCP_PRESETS = PRESET_MCP_SERVERS.filter(
+  ({ name }) =>
+    name === BuiltinMcpServerNames.sequentialThinking ||
+    name === BuiltinMcpServerNames.fetch ||
+    name === BuiltinMcpServerNames.python
+)
