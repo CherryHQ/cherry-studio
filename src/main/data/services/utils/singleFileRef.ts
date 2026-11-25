@@ -42,7 +42,7 @@
  */
 
 import { type AnyColumn, eq } from 'drizzle-orm'
-import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
+import type { AnySQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -64,7 +64,7 @@ type TxLike = any
  * timestamps, no `role` column — so helpers make no other assumption.
  */
 export interface SingleFileRefTable extends SQLiteTable {
-  fileEntryId: AnyColumn<{ data: FileEntryId }>
+  fileEntryId: AnySQLiteColumn<{ data: FileEntryId; notNull: true }>
   sourceId: AnyColumn
 }
 

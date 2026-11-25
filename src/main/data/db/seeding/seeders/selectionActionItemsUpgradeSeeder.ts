@@ -29,8 +29,10 @@ export class SelectionActionItemsUpgradeSeeder implements ISeeder {
     if (!row || !Array.isArray(row.value)) return
 
     const rawItems: unknown[] = row.value
-    const items = rawItems.flatMap((item) => {
+
+    const items = rawItems.flatMap<object>((item) => {
       if (typeof item !== 'object' || item === null) return []
+
       if (('isBuiltIn' in item && item.isBuiltIn) || ('runner' in item && item.runner)) return [item]
 
       return [
