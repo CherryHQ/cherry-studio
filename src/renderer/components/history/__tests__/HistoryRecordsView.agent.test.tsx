@@ -1593,12 +1593,10 @@ describe('HistoryRecordsView agent mode', () => {
     expect(screen.getByText('Beta session')).toBeInTheDocument()
   })
 
-  it('hides permanent delete for a pinned session and rejects a pin that lands before confirm', async () => {
+  it('offers permanent delete for a pinned session and accepts a pin that lands before confirm', async () => {
     const user = userEvent.setup()
     setupAgentHistory({ pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']]) })
-    const menu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
-    const content = menu?.querySelector('[data-testid="context-menu-content"]')
-    expect(within(content as HTMLElement).queryByRole('button', { name: /Delete Permanently/ })).not.toBeInTheDocument()
+    expect(permanentDeleteButton('Alpha session')).toBeEnabled()
     cleanup()
 
     let confirm: (() => Promise<void>) | undefined
@@ -1624,8 +1622,14 @@ describe('HistoryRecordsView agent mode', () => {
       togglePin: hookMocks.togglePin
     })
     view.rerender(null)
-    await expect(confirm?.()).rejects.toThrow('Unpin this conversation before permanently deleting it.')
-    expect(hookMocks.deleteSessionWithOutcome).not.toHaveBeenCalled()
+    expect(confirm).toBeDefined()
+    await act(async () => {
+      await expect(confirm!()).resolves.toBeUndefined()
+    })
+    expect(hookMocks.deleteSessionWithOutcome).toHaveBeenCalledExactlyOnceWith('session-alpha', {
+      permanent: true,
+      showFeedback: false
+    })
   })
 
   it('disables permanent delete while the session is generating and rechecks the latest stream on confirm', async () => {

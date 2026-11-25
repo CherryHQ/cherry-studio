@@ -88,10 +88,9 @@ The latter requires confirmation and uses `ai.agent.session.delete_permanently`
 to remove active Sessions directly, under the same busy check and dispatch lock
 as archive. It does not first archive and then purge. Both actions are disabled
 while generating or awaiting approval; main-process admission remains authoritative.
-The same write transaction reads pin membership before any delete. A pinned member
-rejects the batch and leaves the Session, its messages, and its pin in place.
-Recycle Bin purge still accepts only archived Sessions and does not apply this pin
-rejection, so a stale Recycle Bin page cannot delete a restored Session.
+Permanent deletion also removes the deleted Sessions' own pins in the same write transaction.
+Recycle Bin purge still accepts only archived Sessions, so a stale Recycle Bin
+page cannot delete a restored Session.
 
 Deleting the active Session does not prompt for a dirty Agent file. As with other
 Agent file navigation, the detached file session keeps saving in the background.

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-18-pinned-session-permanent-delete.md
+2026-11-18-pinned-session-permanent-delete.md: c9733a1bfa6efc064f64560f1b7caf699a75574b
+2026-11-18-pinned-session-permanent-delete.zh.md: b1517f9d18dfae3d1184f530d19dcaf5c049837b
