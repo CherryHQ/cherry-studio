@@ -29,6 +29,7 @@ import type { FeatureMenusRef } from './components/FeatureMenus'
 import FeatureMenus from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
+import QuickAssistantPicker from './components/QuickAssistantPicker'
 
 // Lazy boundaries (S6b): the chat/translate branches carry the heavy message
 // rendering chain (ChatMarkdown, CodeMirror, katex, mermaid). The default
@@ -82,7 +83,9 @@ export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessa
 
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
-  const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
+  const [quickAssistantId, setQuickAssistantId] = usePreference('feature.quick_assistant.assistant_id', {
+    optimistic: false
+  })
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
   const [windowStyle] = usePreference('ui.window_style')
   const { theme } = useTheme()
@@ -119,7 +122,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     topicId: temporaryTopicId,
     ready: isTopicReady,
     reset: resetTemporaryTopic
-  } = useTemporaryTopic({ enabled: true, assistantId: chosenAssistant?.id })
+  } = useTemporaryTopic({
+    enabled: !quickAssistantId || chosenAssistant?.id === quickAssistantId,
+    assistantId: quickAssistantId || undefined
+  })
 
   const requestText = useMemo(() => {
     const trimmedUserInput = userInputText.trim()
@@ -140,6 +146,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     setIsPreparing(false)
     setFlowError(err.message)
   })
+
+  // Changing assistant/lease must abort the captured old topic, not the new
+  // topic returned by the next render. Deleting a temp topic alone does not abort.
+  useEffect(
+    () => () => {
+      void stopChat().catch((error) => logger.warn('Failed to stop previous quick-assistant topic', error as Error))
+    },
+    [stopChat]
+  )
 
   // Local inputs and projected assistant messages share the existing message list.
   const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
@@ -423,6 +438,32 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     clear()
   }, [clear, resetTemporaryTopic])
 
+  // Settings and the inline picker share one persisted preference. Reset for either
+  // source, including a rollback/change from another window, before a new send.
+  const previousAssistantIdRef = useRef(quickAssistantId)
+  useEffect(() => {
+    if (previousAssistantIdRef.current === quickAssistantId) return
+    previousAssistantIdRef.current = quickAssistantId
+    // useTemporaryTopic already replaces the assistant-bound lease.
+    voiceScopeGenerationRef.current += 1
+    voiceScopeTopicRef.current = null
+    voiceExecutionContextsRef.current.clear()
+    setLastCompletedVoiceMessage(null)
+    clear()
+    setIsFirstMessage(true)
+    setUserInputText('')
+    setClipboardText('')
+    setRoute('home')
+    featureMenusRef.current?.resetSelectedIndex()
+  }, [quickAssistantId, clear])
+
+  const handleAssistantSelect = useCallback(
+    async (id: string) => {
+      if (id !== quickAssistantId) await setQuickAssistantId(id)
+    },
+    [quickAssistantId, setQuickAssistantId]
+  )
+
   const handleEsc = useCallback(() => {
     if (isLoading) {
       handlePause()
@@ -533,12 +574,21 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     [route, isLoading, handleEsc, setIsPinned, isPinned]
   )
 
+  const assistantPicker = (
+    <QuickAssistantPicker
+      assistant={currentAssistant}
+      modelName={quickApiModel?.name}
+      onSelect={handleAssistantSelect}
+    />
+  )
+
   switch (route) {
     case 'chat':
     case 'summary':
     case 'explanation':
       return (
         <div data-ui="quick-assistant.view" className={containerClassName(draggable)} style={{ backgroundColor }}>
+          {assistantPicker}
           {route === 'chat' && (currentAssistant || currentModel) && (
             <>
               <InputBar
@@ -598,6 +648,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     default:
       return (
         <div data-ui="quick-assistant.view" className={containerClassName(draggable)} style={{ backgroundColor }}>
+          {assistantPicker}
           {(currentAssistant || currentModel) && (
             <InputBar
               text={userInputText}

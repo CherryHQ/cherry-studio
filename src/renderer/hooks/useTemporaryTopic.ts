@@ -61,9 +61,11 @@ export interface UseTemporaryTopicResult {
 
 export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTemporaryTopicResult {
   const { assistantId, enabled = assistantId !== undefined } = options
-  const [topicId, setTopicId] = useState<string | null>(null)
+  const [lease, setLease] = useState<{ id: string; assistantId: string | undefined; epoch: number } | null>(null)
   /** Bumped by `reset()` to force the effect to re-run and allocate a new topic. */
   const [epoch, setEpoch] = useState(0)
+  // Do not expose the old assistant's topic during the render before effect cleanup.
+  const topicId = enabled && lease && lease.assistantId === assistantId && lease.epoch === epoch ? lease.id : null
   /**
    * Mirror of the in-effect `createdId`. Cleared by `persist()` so the
    * cleanup path skips DELETE once the topic has migrated to SQLite.
@@ -72,7 +74,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
   useEffect(() => {
     if (!enabled) {
-      setTopicId(null)
+      setLease(null)
       return
     }
 
@@ -83,14 +85,14 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
     void ipcApi
       .request('ai.temporary_topic.create', body)
       .then((topic) => {
-        activeIdRef.current = topic.id
         if (cancelled) {
           void ipcApi.request('ai.temporary_topic.delete', { id: topic.id }).catch((err) => {
             logger.warn('Failed to cleanup racing temporary topic', err as Error)
           })
           return
         }
-        setTopicId(topic.id)
+        activeIdRef.current = topic.id
+        setLease({ id: topic.id, assistantId, epoch })
         logger.debug('Leased temporary topic', { topicId: topic.id, assistantId, epoch })
       })
       .catch((err) => {
@@ -99,7 +101,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
     return () => {
       cancelled = true
-      setTopicId(null)
+      setLease(null)
       const idToCleanup = activeIdRef.current
       activeIdRef.current = null
       if (idToCleanup) {

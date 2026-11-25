@@ -58,6 +58,12 @@ If the hotkey conflicts with another application, assign a different one.
 
 4. **Close it:** Press <kbd>Esc</kbd> or click anywhere outside the window.
 
+### Switch assistants without opening Settings
+
+Click the assistant name and avatar at the top of the Quick Assistant window. Type a name to filter the list, then click an assistant or select it with the arrow keys and Enter. Choose **Default Model** to return to the configured quick model.
+
+A saved selection is shared with **Settings → Quick Assistant** and restored the next time you open the window. Switching assistants stops the previous response and starts a fresh conversation, clearing its draft and clipboard context. Selecting the current assistant leaves the conversation unchanged. If saving fails, the old choice remains active and you can retry. Translation uses its separate translation settings.
+
 ### Tips and Tricks
 
 * **Work on copied text:** Keep **Read clipboard at startup** on, copy some text, then press the hotkey to translate or summarize it right away.
