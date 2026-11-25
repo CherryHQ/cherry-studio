@@ -170,38 +170,26 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
     }
   }, [verificationUri])
 
-  const getSteps = () => [
+  const getSteps = (): { title: string; description: string; status: Parameters<typeof stepDotClass>[0] }[] => [
     {
       title: t('settings.provider.copilot.step_get_code'),
       description: t('settings.provider.copilot.step_get_code_desc'),
-      status: (currentStep > 0 ? 'finish' : currentStep === 0 ? 'process' : 'wait') as
-        | 'error'
-        | 'finish'
-        | 'process'
-        | 'wait'
+      status: currentStep > 0 ? 'finish' : currentStep === 0 ? 'process' : 'wait'
     },
     {
       title: t('settings.provider.copilot.step_copy_code'),
       description: t('settings.provider.copilot.step_copy_code_desc'),
-      status: (currentStep > 1 ? 'finish' : currentStep === 1 ? 'process' : 'wait') as
-        | 'error'
-        | 'finish'
-        | 'process'
-        | 'wait'
+      status: currentStep > 1 ? 'finish' : currentStep === 1 ? 'process' : 'wait'
     },
     {
       title: t('settings.provider.copilot.step_authorize'),
       description: t('settings.provider.copilot.step_authorize_desc'),
-      status: (currentStep > 2 ? 'finish' : currentStep === 2 ? 'process' : 'wait') as
-        | 'error'
-        | 'finish'
-        | 'process'
-        | 'wait'
+      status: currentStep > 2 ? 'finish' : currentStep === 2 ? 'process' : 'wait'
     },
     {
       title: t('settings.provider.copilot.step_connect'),
       description: t('settings.provider.copilot.step_connect_desc'),
-      status: (currentStep >= 3 ? 'finish' : 'wait') as 'error' | 'finish' | 'process' | 'wait'
+      status: currentStep >= 3 ? 'finish' : 'wait'
     }
   ]
 

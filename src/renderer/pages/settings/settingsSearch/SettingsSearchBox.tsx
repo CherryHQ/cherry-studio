@@ -94,16 +94,18 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
   // Only the first arrival of an own mirror is an acknowledgement; revisiting
   // its history entry must still restore the query like any external navigation.
   useEffect(() => {
-    const isOwnMirror =
+    const revision =
       mirror !== null &&
       typeof mirror === 'object' &&
       'owner' in mirror &&
       mirror.owner === mirrorOwner &&
       'revision' in mirror &&
-      typeof mirror.revision === 'number' &&
-      mirror.revision > acknowledgedMirrorRef.current
+      typeof mirror.revision === 'number'
+        ? mirror.revision
+        : undefined
+    const isOwnMirror = revision !== undefined && revision > acknowledgedMirrorRef.current
 
-    if (isOwnMirror) acknowledgedMirrorRef.current = mirror.revision
+    if (isOwnMirror) acknowledgedMirrorRef.current = revision
 
     if (urlQuery === appliedUrlRef.current) return
     appliedUrlRef.current = urlQuery

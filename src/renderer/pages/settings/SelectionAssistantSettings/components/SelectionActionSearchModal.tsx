@@ -200,7 +200,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
 
       onOk(searchEngine)
     } catch (error) {
-      logger.debug('Submit failed:', error)
+      logger.debug('Submit failed:', { error })
     }
   }
 
