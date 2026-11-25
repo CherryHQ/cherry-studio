@@ -18,7 +18,7 @@ import { Virtualizer } from 'virtua'
 
 import { Button, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { getEventTargetElement, getEventTargetNode } from '@renderer/utils/dom'
+import { getEventTargetNode } from '@renderer/utils/dom'
 
 import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chatVirtualizerRuntime'
 import {
