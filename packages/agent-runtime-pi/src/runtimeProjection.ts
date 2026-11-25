@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
+import { copyJson, isJsonValue } from '@earendil-works/chord/json'
+import type { ToolResultMessage } from '@earendil-works/pi-ai'
 import {
   sessionEntryToContextMessages,
   type AgentSession,
@@ -29,8 +31,7 @@ import {
 import { readContextUsage } from './contextUsage'
 
 function providerResult(value: unknown) {
-  // oxlint-disable-next-line copy/no-json-roundtrip -- Serialize the failed tool result into the JSON provider metadata exposed to observers.
-  return JSON.parse(JSON.stringify(value))
+  return isJsonValue(value) ? value : copyJson(value, { omitUndefinedProperties: true })
 }
 
 type PiMessage = AgentSession['messages'][number]
@@ -414,7 +415,8 @@ export class PiProjection {
       })
   }
 
-  private result(callId: string, output: unknown, isError: boolean, preliminary = false): void {
+  private result(update: ToolResultMessage | { toolCallId: string; partialResult: unknown }): void {
+    const callId = update.toolCallId
     const address = this.calls.get(callId)
     if (!address) return
     const { id, index } = address
@@ -429,19 +431,28 @@ export class PiProjection {
       input: part.input,
       callProviderMetadata: part.callProviderMetadata
     }
-    const content = (output as { content?: { type: string; text?: string }[] })?.content
-    const tool = isError
-      ? {
-          ...base,
-          state: 'output-error' as const,
-          errorText:
-            content
-              ?.filter((part) => part.type === 'text')
-              .map((part) => part.text)
-              .join('\n') ?? String(output),
-          resultProviderMetadata: { pi: { result: providerResult(output) } }
-        }
-      : { ...base, state: 'output-available' as const, output, preliminary }
+    let tool: Extract<RuntimeMessage['parts'][number], { type: 'dynamic-tool' }>
+    if ('partialResult' in update) {
+      tool = { ...base, state: 'output-available', output: update.partialResult, preliminary: true }
+    } else {
+      const output = {
+        content: update.content,
+        ...(update.details !== undefined && { details: update.details }),
+        ...(update.structuredContent !== undefined && { structuredContent: update.structuredContent }),
+        ...(update.nestedCalls !== undefined && { nestedCalls: update.nestedCalls })
+      }
+      tool = update.isError
+        ? {
+            ...base,
+            state: 'output-error',
+            errorText: update.content
+              .filter((block) => block.type === 'text')
+              .map((block) => block.text)
+              .join('\n'),
+            resultProviderMetadata: { pi: { result: providerResult(output) } }
+          }
+        : { ...base, state: 'output-available', output, preliminary: false }
+    }
     if (historical) historical.parts[index] = tool
     else this.feed.publishPart({ type: 'message.tool-output', ref: this.itemRef(id), part: index, tool })
   }
@@ -468,16 +479,7 @@ export class PiProjection {
       for (const record of message.nestedCalls?.calls ?? []) {
         this.nested(message.toolCallId, projectNestedTool(record, providerResult))
       }
-      this.result(
-        message.toolCallId,
-        {
-          content: message.content,
-          details: message.details,
-          structuredContent: message.structuredContent,
-          nestedCalls: message.nestedCalls
-        },
-        message.isError
-      )
+      this.result(message)
       return
     }
     if (
@@ -689,7 +691,7 @@ export class PiProjection {
           providerResult
         )
       )
-    if (event.type === 'tool_execution_update') this.result(event.toolCallId, event.partialResult, false, true)
+    if (event.type === 'tool_execution_update') this.result(event)
     if (event.type === 'agent_start' || event.type === 'agent_settled') {
       this.settled = event.type === 'agent_settled'
       this.feed.publish({

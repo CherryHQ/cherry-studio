@@ -16,6 +16,7 @@ import type {
   SubagentModelCandidate,
   VerifierVerdict
 } from '../core/hostFacts'
+import type { ModelContext } from './harness'
 
 /** `presentation`: show the ask inline in the conversation's stream, or as a message (from `Settings.attendance`). */
 export type ApprovalRequest = {
@@ -84,7 +85,7 @@ export type VerifyRequest = {
   readonly thread: ThreadId
   readonly objective: string
   readonly claim: { readonly evidence?: string }
-  readonly context: readonly JsonValue[]
+  readonly context: ModelContext
 }
 /**
  * P4. Judge whether a goal is met.

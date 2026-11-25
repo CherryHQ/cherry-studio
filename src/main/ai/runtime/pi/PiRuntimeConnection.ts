@@ -778,7 +778,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       if (
         this.context.bindingState === 'pending' &&
         id &&
-        event.entries.some((entry) => entry.type === 'message' && ['user', 'assistant'].includes(entry.message.role))
+        event.entries.some((entry) => entry.type === 'message' && (entry.role === 'user' || entry.role === 'assistant'))
       ) {
         this.context = contexts.bindContext(this.context.id, id)
         this.eventQueue.push({ type: 'resume-token', token: id })

@@ -26,6 +26,7 @@ import type {
   JobHandler,
   LifecycleHandlers,
   MessageResult,
+  ModelContext,
   RequestMeterHandler,
   StartResult,
   ToolDefinition
@@ -222,10 +223,10 @@ export function visibleEntries(state: FakeState, epoch: Epoch, thread: ThreadSta
   const omitted = new Set(epoch.filter?.omit(thread.id, buildFacts(state, thread.id)))
   return modelEntries(thread).filter(({ entry }) => !omitted.has(entry.id))
 }
-export const modelContext = (state: FakeState, epoch: Epoch, thread: ThreadState): JsonValue[] =>
+export const modelContext = (state: FakeState, epoch: Epoch, thread: ThreadState): ModelContext =>
   visibleEntries(state, epoch, thread).map(({ entry, summary }) => ({
-    kind: entry.kind,
-    text: summary ?? ('text' in entry ? entry.text : '')
+    role: entry.kind === 'assistant' ? 'assistant' : entry.kind === 'tool-result' ? 'toolResult' : 'user',
+    content: summary ?? ('text' in entry ? entry.text : '')
   }))
 
 const addUsage = (a: UsageFact, b: UsageFact): UsageFact => ({

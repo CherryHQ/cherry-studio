@@ -150,8 +150,9 @@ Pi's low-level `open` also
 accepts a missing path as a new session; hosts loading an existing association must check its
 existence and verify the native session ID instead of silently replacing it.
 
-`onEvent` observes copied native entries (`session-append`), compaction start/end, and completed
-turns. These events are for observation; storage works without a listener. A slow listener should
+`onEvent` reports the ID and type of each appended entry (`session-append`), plus the role of a message entry.
+Read a full entry from `SessionManager.getEntry(id)` when its contents are needed. The listener also observes
+compaction start/end and completed turns. Storage works without a listener. A slow listener should
 hand off its work because callbacks run inline. `dispose()` flushes the final observations.
 
 ## Context usage
