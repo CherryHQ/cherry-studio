@@ -660,6 +660,32 @@ describe('resolveEffectiveEndpoint', () => {
     })
   })
 
+  it.each(['aihubmix', 'dmxapi'])('keeps mixed %s Gemini metadata aligned with native dispatch', (id) => {
+    const provider = makeProvider({
+      id,
+      presetProviderId: id,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://gateway.example/v1',
+          adapterFamily: id as 'aihubmix'
+        },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+          baseUrl: 'https://gateway.example/gemini',
+          adapterFamily: id as 'aihubmix'
+        }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gemini-3.8-flash',
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      providerOptionsKey: 'google'
+    })
+  })
+
   describe('multi-backend gateway per-model routing (AiHubMix)', () => {
     // AiHubMix models carry no `endpointTypes` (its /models list has no `supported_endpoint_types`),
     // so the endpoint must be resolved from the model id — otherwise every route collapses onto the

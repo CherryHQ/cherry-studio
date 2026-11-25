@@ -87,8 +87,13 @@ export function resolveEffectiveEndpointType(
     provider.endpointConfigs?.[provider.defaultChatEndpoint]
       ? provider.defaultChatEndpoint
       : undefined
+  // A gateway dispatches a native-primary mixed row by model family even when
+  // its saved generic chat default is also declared. Keep metadata on that wire.
+  const nativeGatewayRoute =
+    intent === 'chat' && gatewayRoute?.endpointType === model.endpointTypes?.[0] ? gatewayRoute : undefined
   const endpointType =
     preferred ??
+    nativeGatewayRoute?.endpointType ??
     userPreference ??
     resolveNewApiModelEndpoint(provider, model, intent) ??
     gatewayRoute?.endpointType ??
