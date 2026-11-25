@@ -26,6 +26,7 @@ const electronMock = vi.hoisted(() => {
 
 vi.mock('electron', () => electronMock)
 
+import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 
 import { defineUtilityProcess } from '../defineUtilityProcess'
@@ -100,6 +101,36 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('UtilityProcessManager', () => {
+  it('uses the default Electron adapter and application paths when no dependencies are supplied', async () => {
+    const failure = new Error('Electron could not fork the default utility process')
+    electronMock.utilityProcess.fork.mockImplementationOnce(() => {
+      throw failure
+    })
+    const manager = new UtilityProcessManager()
+    manager.register(echoDefinition)
+    await manager._doInit()
+
+    try {
+      await expect(manager.client(echoDefinition).request('ping', undefined)).rejects.toMatchObject({
+        code: 'PROCESS_START_FAILED',
+        cause: failure
+      })
+      expect(electronMock.utilityProcess.fork).toHaveBeenCalledWith(
+        expect.stringMatching(/[\\/]app\.utility_process[\\/]test-echo\.js$/),
+        [],
+        expect.objectContaining({
+          env: expect.objectContaining({
+            TMPDIR: application.getPath('app.temp'),
+            TEMP: application.getPath('app.temp'),
+            TMP: application.getPath('app.temp')
+          })
+        })
+      )
+    } finally {
+      await manager._doStop()
+    }
+  })
+
   it('returns one cached client per definition without spawning', async () => {
     const { manager, adapter } = createManager()
     await manager._doInit()
