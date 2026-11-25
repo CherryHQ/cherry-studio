@@ -12,7 +12,7 @@ import { doctorCheckDetailKey, doctorCheckTitleKey } from '@shared/utils/doctor'
 type DoctorRow = DoctorController['viewModel']['rows'][number]
 
 export function isConnectivityCheckId(id: DoctorCheckId): boolean {
-  return (DOCTOR_CONNECTIVITY_CHECK_IDS as readonly DoctorCheckId[]).includes(id)
+  return DOCTOR_CONNECTIVITY_CHECK_IDS.some((checkId) => checkId === id)
 }
 
 export function actionRequiredRows(controller: DoctorController): DoctorRow[] {

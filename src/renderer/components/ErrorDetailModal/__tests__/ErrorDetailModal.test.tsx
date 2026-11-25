@@ -112,6 +112,7 @@ const translations: Record<string, string> = {
   'common.none': 'None',
   'common.retry': 'Retry',
   'error.detail': 'Error Details',
+  'error.ocr_detail_failed': 'OCR failed: {{reason}}',
   'error.diagnosis.view_details': 'View Details',
   'error.diagnostic_report.action': 'Report a problem',
   'error.diagnostic_report.location': 'Location',
@@ -346,6 +347,21 @@ describe('ErrorDetailContent diagnostics', () => {
     const trigger = button.closest('[data-slot="tooltip-trigger"]')
     fireEvent.pointerMove(trigger as HTMLElement, { pointerType: 'mouse' })
     expect(await screen.findByRole('tooltip', { name: label })).toHaveTextContent(label)
+  })
+
+  it('interpolates error detail data without treating its fields as translation options', async () => {
+    const user = userEvent.setup()
+    renderErrorDetailContent({
+      error: {
+        ...providerError,
+        detailI18nKey: 'ocr_detail_failed',
+        detailI18nValues: { reason: 'scan unavailable', returnDetails: true }
+      }
+    })
+
+    await user.click(screen.getByRole('button', { name: 'View Details' }))
+
+    expect(await screen.findByText('OCR failed: scan unavailable')).toBeVisible()
   })
 
   it('shows compact basic information and copies the unchanged error text', async () => {

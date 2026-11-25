@@ -153,7 +153,7 @@ const BuiltinError = memo(({ error }: { error: SerializedError }) => {
   // An app-owned detail key carries the localized "why" (e.g. which OCR path failed);
   // the raw `message` alone would only repeat the generic headline.
   const detailKey = error.detailI18nKey
-  const detailValues = error.detailI18nValues as Record<string, string> | undefined
+  const detailValues = error.detailI18nValues
   const detailFullKey = typeof detailKey === 'string' ? `error.${detailKey}` : ''
   const hasDetail = detailFullKey !== '' && i18n.exists(detailFullKey)
 
@@ -174,7 +174,7 @@ const BuiltinError = memo(({ error }: { error: SerializedError }) => {
       {hasDetail && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('common.detail')}:</ErrorDetailLabel>
-          <ErrorDetailValue className="selectable">{t(detailFullKey, detailValues)}</ErrorDetailValue>
+          <ErrorDetailValue className="selectable">{t(detailFullKey, { replace: detailValues })}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
       {error.stack && (
