@@ -61,7 +61,8 @@ function mergeSlotProps<Result>(slotProps: SlotProps<Result>, childProps: SlotPr
           const result = (childPropValue as SlotHandler<Result>)(...args)
 
           // SAFETY: the slot callback follows the same declared event-result contract.
-          ;(slotPropValue as SlotHandler<Result>)(...args)
+          const slotHandler = slotPropValue as SlotHandler<Result>
+          slotHandler(...args)
 
           return result
         }
