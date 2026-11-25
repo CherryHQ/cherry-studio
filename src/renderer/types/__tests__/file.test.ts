@@ -7,10 +7,23 @@ describe('pasted-text file references', () => {
     expect(isPastedTextFileReference({ composerFileKind: 'pasted-text', path: '/tmp/pasted.txt' })).toBe(true)
   })
 
-  it.each([null, {}, { composerFileKind: 'pasted-text' }, { composerFileKind: 'pasted-text', path: 42 }])(
-    'rejects payloads that cannot supply a pasted-text read path: %j',
-    (value) => {
-      expect(isPastedTextFileReference(value)).toBe(false)
-    }
-  )
+  it('accepts the optional token identity used when removing the pasted attachment', () => {
+    expect(
+      isPastedTextFileReference({
+        composerFileKind: 'pasted-text',
+        path: '/tmp/pasted.txt',
+        fileTokenSourceId: 'source-1'
+      })
+    ).toBe(true)
+  })
+
+  it.each([
+    null,
+    {},
+    { composerFileKind: 'pasted-text' },
+    { composerFileKind: 'pasted-text', path: 42 },
+    { composerFileKind: 'pasted-text', path: '/tmp/pasted.txt', fileTokenSourceId: 42 }
+  ])('rejects payloads that cannot supply a pasted-text read path: %j', (value) => {
+    expect(isPastedTextFileReference(value)).toBe(false)
+  })
 })

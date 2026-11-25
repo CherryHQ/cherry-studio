@@ -64,10 +64,11 @@ import {
   useComposerToolState
 } from '../ComposerToolRuntime'
 import type { ComposerSerializedToken } from '../tokens'
+import type { ComposerToolLauncher } from '../toolLauncher'
 import { useComposerToolProviderLaunchers } from '../tools/ComposerToolProvider'
 import attachmentTool from '../tools/definitions/attachmentTool'
 import knowledgeBaseTool from '../tools/definitions/knowledgeBaseTool'
-import { type ComposerToolLauncher, type ComposerToolRegistration, defineTool, TopicType } from '../tools/types'
+import { type ComposerToolRegistration, defineTool, TopicType } from '../tools/types'
 
 const assistant = {
   id: 'assistant-1',
