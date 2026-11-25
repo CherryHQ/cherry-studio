@@ -10,8 +10,8 @@ import { filterSupportedFiles, isSupportedFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
 import { isComposerFileTokenPathLike } from '@renderer/utils/message/composerFileTokenSource'
-import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
-import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { createFilePathHandle, tryFileUrlToPath } from '@shared/utils/file'
 
 const logger = loggerService.withContext('useFileDragDrop')
 
@@ -44,11 +44,7 @@ export function getSingleDroppedPathFromText(text: string): string | null {
   let path = value
 
   if (value.toLowerCase().startsWith('file://')) {
-    try {
-      path = fileUrlToPath(value as FileUrlString)
-    } catch {
-      path = value
-    }
+    path = tryFileUrlToPath(value) ?? value
   }
 
   return isComposerFileTokenPathLike(path) ? path : null

@@ -29,8 +29,10 @@ export function createComposerFileTokenSourceId(): string {
 }
 
 export function withComposerFileTokenSourceId<T extends FileMetadata>(file: T): T & ComposerFileMetadata {
-  // SAFETY: The getter validates the strengthened fileTokenSourceId field; all remaining metadata is already typed by T.
-  if (getComposerFileTokenSourceId(file)) return file as T & ComposerFileMetadata
+  if (getComposerFileTokenSourceId(file)) {
+    // SAFETY: The getter validates the strengthened fileTokenSourceId field; all remaining metadata is already typed by T.
+    return file as T & ComposerFileMetadata
+  }
 
   return { ...file, fileTokenSourceId: createComposerFileTokenSourceId() }
 }

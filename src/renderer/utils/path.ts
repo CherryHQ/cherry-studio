@@ -123,8 +123,10 @@ export const getRelativePath = (from: AbsoluteFilePath, to: AbsoluteFilePath): P
 
   if (fromPath === null || toPath === null) return null
 
-  // SAFETY: A single dot is a valid POSIX relative path representing equal canonical paths.
-  if (fromPath === toPath) return '.' as PosixRelativeFilePath
+  if (fromPath === toPath) {
+    // SAFETY: A single dot is a valid POSIX relative path representing equal canonical paths.
+    return '.' as PosixRelativeFilePath
+  }
   const prefix = asPrefix(fromPath)
 
   // SAFETY: Validated absolute inputs and canonicalization leave a nonempty relative path after the descendant prefix.
