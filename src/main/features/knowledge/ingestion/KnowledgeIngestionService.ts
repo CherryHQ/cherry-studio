@@ -41,6 +41,7 @@ import type { KnowledgeSourceCopy } from '../tasks/jobTypes'
 import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
 import {
   type KnowledgeBaseId,
+  KNOWLEDGE_ACTIVE_JOB_LIMIT,
   knowledgeCopySourcesIdempotencyKey,
   knowledgeDeleteSubtreeIdempotencyKey,
   knowledgeFileProcessingCheckIdempotencyKey,
@@ -104,6 +105,50 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 
     if (inputs.length === 0) {
       return { status: 'added' }
+    }
+
+    // Admission capacity guard: processing stays bounded via the per-base
+    // JobManager queue (concurrency 5), but the queue itself is finite
+    // (`KNOWLEDGE_ACTIVE_JOB_LIMIT`). Reject an over-capacity batch upfront with
+    // the remaining capacity so the UI can explain it instead of silently
+    // dropping files or hanging the queue.
+    if (inputs.length > KNOWLEDGE_ACTIVE_JOB_LIMIT) {
+      throw DataApiErrorFactory.validation(
+        {
+          base: [
+            `Knowledge import batch of ${inputs.length} items exceeds the processing capacity of ${KNOWLEDGE_ACTIVE_JOB_LIMIT} active jobs`
+          ]
+        },
+        `This import (${inputs.length} items) exceeds the processing capacity of ${KNOWLEDGE_ACTIVE_JOB_LIMIT} active jobs; split it into smaller batches`
+      )
+    }
+    let activeJobCount: number | undefined
+    try {
+      const activeJobs = await application.get('JobManager').list({
+        queue: knowledgeQueueName(toKnowledgeBaseId(base.id)),
+        status: [...ACTIVE_JOB_STATUSES],
+        limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
+      })
+      activeJobCount = activeJobs.length
+    } catch (error) {
+      // A list failure must not block admission — fall through and let
+      // scheduling surface per-file states instead.
+      logger.warn('Failed to check knowledge queue capacity; proceeding with admission', error as Error, {
+        baseId
+      })
+    }
+    if (activeJobCount !== undefined) {
+      const remainingCapacity = KNOWLEDGE_ACTIVE_JOB_LIMIT - activeJobCount
+      if (inputs.length > remainingCapacity) {
+        throw DataApiErrorFactory.validation(
+          {
+            base: [
+              `Knowledge base has ${activeJobCount} active jobs; ${remainingCapacity} slots remain for ${inputs.length} new items`
+            ]
+          },
+          `This base has ${activeJobCount} jobs still processing; ${remainingCapacity} slots remain for ${inputs.length} new items. Wait for processing to finish or split the batch`
+        )
+      }
     }
 
     // rename (the default, and every internal caller — restore/migrator): keep all,

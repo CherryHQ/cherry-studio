@@ -1776,6 +1776,65 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalledWith('kb-1', ['note-1'], 'failed', expect.anything())
   })
 
+  it('admits a batch larger than 20 files as one operation and queues each file', async () => {
+    const service = new KnowledgeService()
+    const inputs = Array.from({ length: 25 }, (_, index) => ({
+      type: 'note' as const,
+      data: { source: `note-${index}`, content: `hello ${index}` }
+    }))
+
+    const result = await service.addItems('kb-1', inputs)
+
+    expect(result).toEqual({ status: 'added' })
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(25)
+    // Bounded concurrency: one job per accepted item, no drops.
+    expect(enqueueMock).toHaveBeenCalledTimes(25)
+  })
+
+  it('parks only the unscheduled remainder as failed when a mid-batch enqueue throws (partial failure)', async () => {
+    const service = new KnowledgeService()
+    enqueueMock
+      .mockReturnValueOnce({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
+      .mockReturnValueOnce({ id: 'job-2', snapshot: {}, finished: Promise.resolve({}) })
+      .mockImplementationOnce(() => {
+        throw new Error('enqueue failed')
+      })
+
+    const inputs = Array.from({ length: 25 }, (_, index) => ({
+      type: 'note' as const,
+      data: { source: `note-${index}`, content: `hello ${index}` }
+    }))
+    // Create rows with predictable ids so the failed assertion can target the tail.
+    knowledgeItemCreateActiveMock.mockImplementation((_baseId: string, input: { data: { source: string } }) =>
+      createNoteItem(input.data.source, 'kb-1', null, 'processing')
+    )
+
+    await expect(service.addItems('kb-1', inputs)).rejects.toThrow('enqueue failed')
+
+    // First two scheduled, remainder parked failed — accepted files are not dropped silently.
+    expect(enqueueMock).toHaveBeenCalledTimes(3)
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith(
+      'kb-1',
+      expect.arrayContaining(['note-2']),
+      'failed',
+      expect.objectContaining({ error: expect.stringContaining('Failed to schedule knowledge item job') })
+    )
+  })
+
+  it('rejects an over-capacity batch with remaining capacity instead of silently dropping files', async () => {
+    const service = new KnowledgeService()
+    listMock.mockResolvedValueOnce(Array.from({ length: 4998 }, (_, index) => ({ id: `job-${index}` })))
+
+    const inputs = Array.from({ length: 5 }, (_, index) => ({
+      type: 'note' as const,
+      data: { source: `note-${index}`, content: `hello ${index}` }
+    }))
+
+    await expect(service.addItems('kb-1', inputs)).rejects.toThrow('slots remain')
+    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
   it('rolls back already-created addItems rows when a later create fails mid-batch', async () => {
     const service = new KnowledgeService()
     knowledgeItemCreateActiveMock

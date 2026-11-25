@@ -140,4 +140,51 @@ describe('useAddKnowledgeItems', () => {
       }
     )
   })
+
+  it('submits a detect batch larger than 20 files in one atomic call', async () => {
+    const items = Array.from({ length: 25 }, (_, index) => ({
+      type: 'file' as const,
+      data: { source: `/docs/doc-${index}.pdf`, path: `/docs/doc-${index}.pdf` }
+    }))
+
+    const { result } = renderHook(() => useAddKnowledgeItems('base-1'))
+
+    await act(async () => {
+      await expect(result.current.submit(items, 'detect')).resolves.toEqual({ status: 'added' })
+    })
+
+    // Atomic conflict detection spans the whole batch: one call, no silent cap.
+    expect(mockIpcRequest).toHaveBeenCalledTimes(1)
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.add_items', {
+      baseId: 'base-1',
+      items,
+      conflictStrategy: 'detect'
+    })
+    expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
+  })
+
+  it('chunks a rename resolution larger than the transport limit without dropping files', async () => {
+    const items = Array.from({ length: 150 }, (_, index) => ({
+      type: 'file' as const,
+      data: { source: `/docs/doc-${index}.pdf`, path: `/docs/doc-${index}.pdf` }
+    }))
+
+    const { result } = renderHook(() => useAddKnowledgeItems('base-1'))
+
+    await act(async () => {
+      await expect(result.current.submit(items, 'rename')).resolves.toEqual({ status: 'added' })
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledTimes(2)
+    expect(mockIpcRequest.mock.calls[0][1]).toEqual({
+      baseId: 'base-1',
+      items: items.slice(0, 100),
+      conflictStrategy: 'rename'
+    })
+    expect(mockIpcRequest.mock.calls[1][1]).toEqual({
+      baseId: 'base-1',
+      items: items.slice(100),
+      conflictStrategy: 'rename'
+    })
+  })
 })

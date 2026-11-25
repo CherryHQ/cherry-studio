@@ -120,6 +120,14 @@ describe('knowledgeFileEntry', () => {
     })
   })
 
+  it('skips empty files upfront so a large batch keeps its resolvable files', async () => {
+    mocks.request.mockResolvedValue({ ...presentFileMetadata, size: 0 })
+
+    await expect(resolveKnowledgeFileData('/tmp/empty.pdf', 'empty.pdf')).rejects.toThrow(
+      'File is empty, nothing to index for "empty.pdf"'
+    )
+  })
+
   it('propagates IPC probe failures instead of treating them as a missing file', async () => {
     const probeError = new IpcError(IpcErrorCode.INTERNAL, 'IpcApi returned a malformed result')
     mocks.request.mockRejectedValue(probeError)

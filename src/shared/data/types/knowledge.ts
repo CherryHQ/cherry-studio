@@ -167,6 +167,18 @@ export const DEFAULT_KNOWLEDGE_CHUNK_STRATEGY: KnowledgeChunkStrategy = 'structu
 export const DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR = '\\n\\n'
 export const KNOWLEDGE_RUNTIME_ITEMS_MAX = 100
 export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
+/**
+ * Guidance for a single interactive Knowledge Base import operation.
+ *
+ * `knowledge.add_items` itself is unbounded so one user selection stays one
+ * logical operation (conflict detection spans the whole batch). The renderer
+ * chunks transport at `KNOWLEDGE_RUNTIME_ITEMS_MAX` so a 20+ file pick never
+ * becomes a single oversized IPC payload, and processing stays bounded via
+ * per-base JobManager concurrency (5 per queue) without dropping accepted files.
+ * When a stricter safety limit is ever required, the UI must explain the reason
+ * and remaining capacity instead of silently capping the picker.
+ */
+export const KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK = KNOWLEDGE_RUNTIME_ITEMS_MAX
 
 // ============================================================================
 // Knowledge Base Entity

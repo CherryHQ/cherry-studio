@@ -79,6 +79,29 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     }
   }
 
+  // `deleting` is the cancellation path: a delete issued while work is still
+  // queued/running flips the row here first, then the job settles. Surface it as
+  // cancelling instead of falling through to the generic chunking label.
+  if (status === 'deleting') {
+    return {
+      kind: 'processing',
+      labelKey: 'knowledge.data_source.status.cancelling',
+      textClassName: 'text-zinc-500',
+      icon: 'loader'
+    }
+  }
+
+  // `idle` means admitted but not yet picked up by the queue — the "queued"
+  // half of the queued/processing pair the batch import reports per file.
+  if (status === 'idle') {
+    return {
+      kind: 'processing',
+      labelKey: 'knowledge.data_source.status.queued',
+      textClassName: 'text-zinc-500',
+      icon: 'loader'
+    }
+  }
+
   if (status === 'embedding') {
     return {
       kind: 'processing',
@@ -106,7 +129,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     }
   }
 
-  if (status === 'idle' || status === 'preparing') {
+  if (status === 'preparing') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.pending',

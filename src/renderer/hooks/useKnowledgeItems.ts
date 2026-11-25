@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { KnowledgeItemListResponse, KnowledgeItemSort } from '@shared/data/api/schemas/knowledges'
 import {
+  KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK,
   KNOWLEDGE_RUNTIME_ITEMS_MAX,
   type KnowledgeAddConflictStrategy,
   type KnowledgeAddItemInput,
@@ -22,6 +23,20 @@ const chunkKnowledgeItemIds = (itemIds: string[]) => {
   const batches: string[][] = []
   for (let index = 0; index < itemIds.length; index += KNOWLEDGE_RUNTIME_ITEMS_MAX) {
     batches.push(itemIds.slice(index, index + KNOWLEDGE_RUNTIME_ITEMS_MAX))
+  }
+  return batches
+}
+
+/**
+ * Transport chunking for a single logical import operation: a 20+ file pick
+ * stays one user operation, but IPC payloads stay bounded at
+ * `KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK`. Processing concurrency stays bounded
+ * downstream (per-base JobManager queue, 5 slots) without dropping accepted files.
+ */
+const chunkKnowledgeAddItems = (items: KnowledgeAddItemInput[]) => {
+  const batches: KnowledgeAddItemInput[][] = []
+  for (let index = 0; index < items.length; index += KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK) {
+    batches.push(items.slice(index, index + KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK))
   }
   return batches
 }
@@ -174,7 +189,28 @@ export const useAddKnowledgeItems = (baseId: string) => {
       let submitError: Error | undefined
       let result: KnowledgeAddItemsResult | undefined
       try {
-        result = await ipcApi.request('knowledge.add_items', { baseId, items, conflictStrategy })
+        // One logical import operation, bounded transport: `detect` needs the
+        // whole batch in one call so same-name conflicts are detected across all
+        // of it before anything is written (atomic check-and-add). `rename` /
+        // `replace` (conflict resolution, or a direct non-interactive add) apply
+        // per chunk in order so a 20+ file pick never becomes one oversized IPC
+        // payload; earlier chunks stay queued if a later chunk throws (partial
+        // success), and per-file failed states surface via status polling.
+        // Processing concurrency stays bounded downstream via the per-base
+        // JobManager queue (5 slots) without dropping accepted files.
+        if (conflictStrategy === 'detect') {
+          result = await ipcApi.request('knowledge.add_items', { baseId, items, conflictStrategy })
+        } else {
+          const batches = chunkKnowledgeAddItems(items)
+          for (const batch of batches) {
+            const batchResult = await ipcApi.request('knowledge.add_items', {
+              baseId,
+              items: batch,
+              conflictStrategy
+            })
+            result = batchResult
+          }
+        }
       } catch (error) {
         submitError = normalizeKnowledgeError(error)
 
