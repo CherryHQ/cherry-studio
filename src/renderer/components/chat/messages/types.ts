@@ -28,7 +28,7 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { FileUrlString } from '@shared/types/file'
 
@@ -485,6 +485,8 @@ export interface MessageListActions {
   deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>
   deleteMessageGroupWithConfirm?: (messageIds: readonly string[]) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
+  /** Regenerate a specific reply with an explicit model (per-reply retry identity). */
+  regenerateMessageUsingModel?: (messageId: string, modelId: UniqueModelId) => void | Promise<void>
 }
 
 export interface MessageListMeta {
