@@ -32,6 +32,7 @@ import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
+import { textDirection } from '@renderer/utils/textDirection'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type {
@@ -453,6 +454,7 @@ const TranslatePromptField: FC = () => {
         )
       }>
       <textarea
+        dir={textDirection(local)}
         value={local}
         onChange={(e) => schedulePersist(e.target.value)}
         className="min-h-30 w-full resize-y rounded-md border border-border-subtle bg-muted/40 p-3 text-sm leading-relaxed text-muted-foreground transition-colors outline-none focus:border-ring"

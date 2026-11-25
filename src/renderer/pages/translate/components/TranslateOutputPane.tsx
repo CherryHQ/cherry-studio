@@ -5,9 +5,11 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, ScrollArea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { rehypeTextDirection } from '@renderer/components/chat/messages/markdown/plugins/rehypeTextDirection'
 import { AppMarkdown } from '@renderer/components/markdown'
 import { toast } from '@renderer/services/toast'
 import { readTextAloud } from '@renderer/services/voice'
+import { textDirection } from '@renderer/utils/textDirection'
 
 import IconButton from './IconButton'
 
@@ -100,9 +102,15 @@ const TranslateOutputPane = ({
             </div>
           ) : translatedContent ? (
             enableMarkdown ? (
-              <AppMarkdown isStreaming={translating}>{translatedContent}</AppMarkdown>
+              <AppMarkdown isStreaming={translating} rehypePlugins={[rehypeTextDirection]}>
+                {translatedContent}
+              </AppMarkdown>
             ) : (
-              <div className="wrap-break-word whitespace-pre-wrap text-foreground">{translatedContent}</div>
+              <div
+                className="wrap-break-word whitespace-pre-wrap text-foreground"
+                dir={textDirection(translatedContent)}>
+                {translatedContent}
+              </div>
             )
           ) : null}
         </div>
