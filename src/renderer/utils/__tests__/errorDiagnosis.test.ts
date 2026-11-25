@@ -296,57 +296,53 @@ required service tier.`,
   })
 
   describe('translateErrorByAI', () => {
-    it('returns an empty result instead of falling back when free Qwen fails', async () => {
-      mockFetchGenerate.mockRejectedValue(new Error('network unavailable'))
+    it('returns an empty result when the default model request fails', async () => {
+      mockIpcRequest.mockRejectedValue(new Error('network unavailable'))
 
       await expect(translateErrorByAI('Service temporarily unavailable', 'zh-CN')).resolves.toBe('')
-      expect(mockFetchGenerate).toHaveBeenCalledTimes(1)
-      expect(mockFetchGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }),
-          throwOnError: true
-        })
+      expect(mockIpcRequest).toHaveBeenCalledExactlyOnceWith(
+        'ai.text.generate',
+        expect.objectContaining({ uniqueModelId: defaultModel.id, requestOptions: { maxRetries: 0 } })
       )
-      expect(mockReadDefaultModel).not.toHaveBeenCalled()
     })
 
     it('translates the error text itself into the requested UI language', async () => {
-      mockFetchGenerate.mockResolvedValue('  服务暂时不可用  ')
+      respondWith('  服务暂时不可用  ')
 
       await expect(translateErrorByAI('Service temporarily unavailable', 'zh-CN')).resolves.toBe('服务暂时不可用')
-      const request = mockFetchGenerate.mock.calls[0][0]
-      expect(request.content).toBe('Service temporarily unavailable')
-      expect(request.prompt).toContain('zh-CN')
+      const request = requestInput()
+      expect(request.prompt).toBe('Service temporarily unavailable')
+      expect(request.system).toContain('zh-CN')
     })
 
     it('sends the error text without local home directories or secrets', async () => {
-      mockFetchGenerate.mockResolvedValue('无法打开文件')
+      respondWith('无法打开文件')
 
       await translateErrorByAI(
         'Cannot open /Users/alice/Documents/notes.txt with key sk-proj-abcdefghijklmnopqrstuvwxyz123456',
         'zh-CN'
       )
-      const request = mockFetchGenerate.mock.calls[0][0]
-      expect(request.content).toContain('~/Documents/notes.txt')
-      expect(request.content).not.toContain('alice')
-      expect(request.content).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz123456')
+      const request = requestInput()
+      expect(request.prompt).toContain('~/Documents/notes.txt')
+      expect(request.prompt).not.toContain('alice')
+      expect(request.prompt).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz123456')
     })
 
     it.each([
       'max_tokens: 100000 > 64000, which is the maximum allowed number of output tokens',
       'Invalid authentication: please check your key'
     ])('keeps the provider explanation in %s', async (text) => {
-      mockFetchGenerate.mockResolvedValue('翻译')
+      respondWith('翻译')
 
       await translateErrorByAI(text, 'zh-CN')
-      expect(mockFetchGenerate.mock.calls[0][0].content).toBe(text)
+      expect(requestInput().prompt).toBe(text)
     })
 
     it('still removes bearer tokens from the text sent', async () => {
-      mockFetchGenerate.mockResolvedValue('翻译')
+      respondWith('翻译')
 
       await translateErrorByAI('Rejected header Authorization: Bearer abc.def-ghi', 'zh-CN')
-      expect(mockFetchGenerate.mock.calls[0][0].content).not.toContain('abc.def-ghi')
+      expect(requestInput().prompt).not.toContain('abc.def-ghi')
     })
   })
 })
