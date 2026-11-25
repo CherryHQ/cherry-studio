@@ -5,7 +5,6 @@ import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiService } from '@main/ai/AiService'
-import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
 import type { Disposable } from '@main/core/lifecycle'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { diagnose } from '@main/services/diagnostics/scan/engine'
@@ -198,6 +197,7 @@ vi.mock('@application', async () => {
 // ── Import after mocks ──────────────────────────────────────────────
 
 const { AiStreamManager } = await import('../AiStreamManager')
+const { RuntimeActivityService } = await import('@main/core/application/RuntimeActivityService')
 const pipeStreamLoopModule = await import('../pipeStreamLoop')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
 const { TraceFlushListener } = await import('../listeners/TraceFlushListener')

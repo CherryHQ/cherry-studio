@@ -1,4 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@sentry/electron/main', () => ({
+  addIntegration: vi.fn(),
+  sentryMinidumpIntegration: vi.fn()
+}))
 
 import { serviceList, services } from '../serviceRegistry'
 
