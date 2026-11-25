@@ -3,6 +3,7 @@ import i18next from 'i18next'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import { Base64StringSchema, UrlStringSchema } from '@shared/types/file'
 
 import { fileEntryToMetadata } from './fileEntryAdapter'
 
@@ -30,12 +31,12 @@ export async function downloadImages(urls: string[], options?: DownloadImagesOpt
           allowBase64DataUrls && url.startsWith('data:image')
             ? await window.api.file.createInternalEntry({
                 source: 'base64',
-                data: url as `data:${string};base64,${string}`,
+                data: Base64StringSchema.parse(url),
                 cleanupPolicy: 'delete_when_unreferenced'
               })
             : await window.api.file.createInternalEntry({
                 source: 'url',
-                url: url as `http://${string}` | `https://${string}`,
+                url: UrlStringSchema.parse(url),
                 cleanupPolicy: 'delete_when_unreferenced'
               })
 

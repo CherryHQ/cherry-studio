@@ -71,11 +71,12 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
           params: { providerId: input.provider.id, modelId }
         })) ?? undefined
       const modes = support?.modes
+      // SAFETY: ImageGenerationSupport.modes has ImageGenerationMode keys; Object.keys erases that association and an empty map has no first mode.
       effectiveMode =
         canonicalMode && modes?.[canonicalMode]
           ? canonicalMode
           : modes
-            ? (Object.keys(modes)[0] as ImageGenerationMode)
+            ? (Object.keys(modes)[0] as ImageGenerationMode | undefined)
             : undefined
       requirePrompt = effectiveMode && modes ? modes[effectiveMode]?.requirePrompt : undefined
     } catch (error) {

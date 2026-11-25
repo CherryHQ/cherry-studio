@@ -44,7 +44,7 @@ export function resolveRatio(params: PaintingData['params'], items: BaseConfigIt
   let sawAuto = false
 
   for (const item of items) {
-    if (!item.key || !(SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key)) continue
+    if (!item.key || !SIZE_PREVIEW_KEYS.some((key) => key === item.key)) continue
 
     if (item.condition && !item.condition(params ?? {})) continue
 
@@ -93,7 +93,7 @@ export function resolveSizeLabel(
   translate: (key: string) => string
 ): string | undefined {
   for (const item of items) {
-    if (!item.key || !(SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key)) continue
+    if (!item.key || !SIZE_PREVIEW_KEYS.some((key) => key === item.key)) continue
 
     if (item.condition && !item.condition(params ?? {})) continue
 

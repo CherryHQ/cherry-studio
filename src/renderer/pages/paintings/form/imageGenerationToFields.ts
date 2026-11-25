@@ -286,8 +286,7 @@ export function imageGenerationToFields(
   // does declare — every painting provider has at most one UI tab now, so
   // falling back to the model's first declared mode is what the user expects
   // to see.
-  const fallbackKey = Object.keys(allModes)[0] as ImageGenerationMode | undefined
-  const supports = allModes[requested]?.supports ?? (fallbackKey ? allModes[fallbackKey]?.supports : undefined)
+  const supports = allModes[requested]?.supports ?? Object.values(allModes)[0]?.supports
 
   if (!supports) return []
   const items: BaseConfigItem[] = []

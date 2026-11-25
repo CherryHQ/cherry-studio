@@ -29,13 +29,15 @@ function normalizeTranslations(value: unknown): Record<string, PaintingTemplateT
 
   return Object.fromEntries(
     Object.entries(value).filter((entry): entry is [string, PaintingTemplateTranslation] => {
-      const translation = entry[1]
+      const translation: unknown = entry[1]
 
-      return Boolean(
-        translation &&
+      return (
+        translation !== null &&
         typeof translation === 'object' &&
-        typeof (translation as PaintingTemplateTranslation).label === 'string' &&
-        typeof (translation as PaintingTemplateTranslation).prompt === 'string'
+        'label' in translation &&
+        typeof translation.label === 'string' &&
+        'prompt' in translation &&
+        typeof translation.prompt === 'string'
       )
     })
   )

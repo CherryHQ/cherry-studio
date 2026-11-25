@@ -86,7 +86,7 @@ function formatSummaryValue(
   translate: (key: string) => string
 ): string | undefined {
   // Size-bearing fields render as chip-style dimensions, matching the size chips.
-  if ((SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key ?? '')) {
+  if (SIZE_PREVIEW_KEYS.some((key) => key === item.key)) {
     if (value === 'custom') {
       const width = optionalFiniteNumber(params?.customSize_width)
       const height = optionalFiniteNumber(params?.customSize_height)
@@ -131,7 +131,7 @@ function paramsSummary(
     // formatSummaryValue; every other option still goes through the typed
     // catalog + declared-option boundary below.
     const value = isOptionsConfigItem(item)
-      ? storedValue === 'custom' && (SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key)
+      ? storedValue === 'custom' && SIZE_PREVIEW_KEYS.some((key) => key === item.key)
         ? storedValue
         : resolveOptionValue(item, storedValue, params ?? {}, translate)
       : (params?.[item.key] ?? item.initialValue)

@@ -47,7 +47,7 @@ async function resolveEntries(ids: string[]): Promise<FileEntry[]> {
   const entries = await Promise.all(
     ids.map(async (id) => {
       try {
-        return (await dataApiService.get(`/files/entries/${id}` as never)) as FileEntry
+        return await dataApiService.get(`/files/entries/${id}`)
       } catch (error) {
         logger.warn('Skipping unresolved file_entry for painting', { id, error })
 

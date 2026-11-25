@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { useModelById } from '@renderer/hooks/useModel'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 
 import type { PaintingDraftDefaults } from '../model/paintingPipeline'
 import { isAvailablePaintingModel } from '../model/utils/paintingModelOptions'
@@ -18,7 +18,8 @@ const FALLBACK_PROVIDER = 'zhipu'
 export function usePaintingDraftDefaults(providerOptions: string[]) {
   const [defaultPaintingProvider, setDefaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const [defaultPaintingModelId] = usePreference('feature.paintings.default_model_id')
-  const { model: defaultPaintingModel } = useModelById(defaultPaintingModelId as UniqueModelId | null)
+  const preferredModelId = UniqueModelIdSchema.safeParse(defaultPaintingModelId)
+  const { model: defaultPaintingModel } = useModelById(preferredModelId.success ? preferredModelId.data : null)
 
   const configuredDefault = useMemo(() => {
     if (
