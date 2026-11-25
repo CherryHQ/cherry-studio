@@ -1,3 +1,4 @@
+import type * as FsPromises from 'node:fs/promises'
 import { lstat, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -9,7 +10,7 @@ import { application } from '@application'
 import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '../userDataSqliteGuard'
 
 vi.mock('node:fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  const actual = await importOriginal<typeof FsPromises>()
   return { ...actual, realpath: vi.fn(actual.realpath), lstat: vi.fn(actual.lstat) }
 })
 
@@ -28,7 +29,7 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+  const actual = await vi.importActual<typeof FsPromises>('node:fs/promises')
   vi.mocked(realpath).mockImplementation(actual.realpath)
   vi.mocked(lstat).mockImplementation(actual.lstat)
   vi.mocked(application.getPath).mockImplementation((key) => (key === 'app.database.file' ? database : userData))
@@ -41,7 +42,7 @@ afterAll(async () => {
 
 describe('SQLite guard filesystem failures', () => {
   it.each(['target', 'parent', 'lstat'] as const)('denies writes when %s resolution is uncertain', async (stage) => {
-    const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+    const actual = await vi.importActual<typeof FsPromises>('node:fs/promises')
     const target = path.join(workspace, stage === 'parent' ? 'missing-parent/new.sqlite' : 'uncertain.sqlite')
     const evaluate = () =>
       evaluateUserDataSqliteGuard({
