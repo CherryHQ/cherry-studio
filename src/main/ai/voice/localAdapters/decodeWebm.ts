@@ -119,7 +119,12 @@ export async function decodeWebm(input: VoiceAudioInput, signal?: AbortSignal): 
     if ((await track.getCodec()) !== 'opus') throw audioError(UNSUPPORTED)
     const config = await track.getDecoderConfig()
     const channels = await track.getNumberOfChannels()
-    const header = config?.description && new Uint8Array(config.description as ArrayBuffer)
+    const description = config?.description
+    const header =
+      description &&
+      (ArrayBuffer.isView(description)
+        ? new Uint8Array(description.buffer, description.byteOffset, description.byteLength)
+        : new Uint8Array(description))
 
     if (!header || header.length !== 19 || ![1, 2].includes(channels) || header[9] !== channels)
       throw audioError(UNSUPPORTED)

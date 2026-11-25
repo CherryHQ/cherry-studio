@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-import { BufferSource, EncodedPacketSink, Input, WAVE } from 'mediabunny'
+import { BufferSource, EncodedPacketSink, Input, InputAudioTrack, WAVE } from 'mediabunny'
 import { Decoder, Encoder, type EBMLElementBuffer } from 'ts-ebml'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { decodeWebm } from '../decodeWebm'
 
@@ -32,6 +32,31 @@ function editedRecording(edit: (elements: EBMLElementBuffer[]) => void): Uint8Ar
 }
 
 describe('private Voice WebM decoder', () => {
+  it('reads the exact Opus header bytes from an offset DataView description', async () => {
+    const header = new Decoder().decode(recording.buffer).find((element) => element.name === 'CodecPrivate')
+    if (!header || header.type === 'm') throw new Error('Fixture has no Opus header')
+    const bytes = new Uint8Array(header.data.length + 12)
+    bytes.set(header.data, 5)
+    const description = new DataView(bytes.buffer, 5, header.data.length)
+    const getDecoderConfig = InputAudioTrack.prototype.getDecoderConfig
+    const spy = vi
+      .spyOn(InputAudioTrack.prototype, 'getDecoderConfig')
+      .mockImplementation(async function (this: InputAudioTrack) {
+        const config = await getDecoderConfig.call(this)
+        if (!config) throw new Error('Fixture has no audio decoder configuration')
+        return { ...config, description }
+      })
+    try {
+      await expect(decodeWebm({ audio: recording, mimeType })).resolves.toMatchObject({
+        sampleRate: 16_000,
+        channels: 1,
+        durationSeconds: 0.96
+      })
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('decodes a real stereo MediaRecorder WebM into a complete mono 16 kHz WAV', async () => {
     const result = await decodeWebm({ audio: recording, mimeType })
     expect(result).toMatchObject({ sampleRate: 16_000, channels: 1, durationSeconds: 0.96 })
