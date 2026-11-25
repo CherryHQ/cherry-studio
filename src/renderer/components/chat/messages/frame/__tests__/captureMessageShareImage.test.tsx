@@ -91,3 +91,48 @@ it.each([
     expect(captured?.text).not.toContain('[cite:stale]')
   }
 )
+
+it.each([
+  {
+    name: 'LaTeX verbatim',
+    markdown: '\\(\\verb`prefix [cite:literal] suffix`\\)',
+    tex: '\\verb`prefix [cite:literal] suffix`',
+    singleDollarMath: false
+  },
+  {
+    name: 'display math',
+    markdown: '$$\n\\text{Grade [2] [cite:2]}\n$$',
+    tex: '\\text{Grade [2] [cite:2]}',
+    singleDollarMath: false
+  },
+  {
+    name: 'single-dollar math',
+    markdown: '$x_{[2]}$',
+    tex: 'x_{[2]}',
+    singleDollarMath: true
+  }
+])('preserves literal text in $name while cleaning adjacent prose', async ({ markdown, tex, singleDollarMath }) => {
+  const parts: CherryMessagePart[] = [
+    { type: 'source-url', sourceId: 'citation-0', url: 'https://example.test/first', title: 'First source' },
+    { type: 'source-url', sourceId: 'citation-1', url: 'https://example.test/second', title: 'Second source' }
+  ]
+  let capturedTex: string | undefined
+  let capturedText: string | null | undefined
+  vi.mocked(exportService.captureScrollableAsDataUrl).mockImplementation(async ({ current }) => {
+    if (current) {
+      const math = within(current).queryByRole('math', { hidden: true })
+      capturedTex = math?.querySelector('annotation')?.textContent?.trim()
+      capturedText = current.textContent
+    }
+    return 'data:image/png;base64,AAAA'
+  })
+
+  let capture: ReturnType<typeof captureMessageShareImage> | undefined
+  await act(async () => {
+    capture = captureMessageShareImage(markdown + '\n\nResult [cite:1] [cite:stale].', singleDollarMath, { parts })
+  })
+  await expect(capture).resolves.toBe('data:image/png;base64,AAAA')
+  expect(capturedTex).toBe(tex)
+  expect(capturedText).toContain('Result [1].')
+  expect(capturedText).not.toContain('[cite:stale]')
+})

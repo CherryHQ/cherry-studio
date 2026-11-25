@@ -24,10 +24,10 @@ import { remarkLatexMath } from '@renderer/utils/remarkLatexMath'
 
 const MARKDOWN_CODE_PATTERN = /```[\s\S]*?```|`[^`\n]*`/gm
 
-type CodeRange = { start: number; end: number }
-export type GetMarkdownCodeRanges = (content: string) => readonly CodeRange[]
+type LiteralRange = { start: number; end: number }
+export type GetMarkdownLiteralRanges = (content: string) => readonly LiteralRange[]
 
-function getBacktickCodeRanges(content: string): CodeRange[] {
+function getBacktickCodeRanges(content: string): LiteralRange[] {
   return Array.from(content.matchAll(MARKDOWN_CODE_PATTERN), (match) => ({
     start: match.index,
     end: match.index + match[0].length
@@ -38,13 +38,14 @@ const markdownParser = unified().use(remarkParse).use(remarkGfm, { singleTilde: 
 const inlineDollarParser = markdownParser().use(remarkMath, { singleDollarTextMath: true }).freeze()
 const literalDollarParser = markdownParser().use(remarkMath, { singleDollarTextMath: false }).freeze()
 
-/** Use the renderer's math syntax when finding code boundaries in settled Markdown. */
-export function getParsedMarkdownCodeRanges(content: string, singleDollarMath: boolean): CodeRange[] {
-  if (!/[`~\t]| {4}/.test(content)) return []
+/** Use the renderer's math rules to preserve literal code and formulas. */
+export function getParsedMarkdownLiteralRanges(content: string, singleDollarMath: boolean): LiteralRange[] {
+  if (!/[`~$\\\t]| {4}/.test(content)) return []
 
-  const ranges: CodeRange[] = []
+  const ranges: LiteralRange[] = []
   const parser = singleDollarMath ? inlineDollarParser : literalDollarParser
-  visit(parser.parse(content), ['code', 'inlineCode'], (node) => {
+  const tree = parser.runSync(parser.parse(content), content)
+  visit(tree, ['code', 'inlineCode', 'math', 'inlineMath'], (node) => {
     const start = node.position?.start.offset
     const end = node.position?.end.offset
     if (start !== undefined && end !== undefined) ranges.push({ start, end })
@@ -52,15 +53,15 @@ export function getParsedMarkdownCodeRanges(content: string, singleDollarMath: b
   return ranges
 }
 
-/** Apply a transform outside the detected code ranges, preserving code byte-for-byte. */
-export function mapMarkdownOutsideCode(
+/** Apply a transform outside literal ranges, keeping their source text intact. */
+export function mapMarkdownOutsideLiterals(
   content: string,
   transform: (text: string) => string,
-  getCodeRanges: GetMarkdownCodeRanges = getBacktickCodeRanges
+  getLiteralRanges: GetMarkdownLiteralRanges = getBacktickCodeRanges
 ): string {
   let cursor = 0
   let result = ''
-  for (const { start, end } of getCodeRanges(content)) {
+  for (const { start, end } of getLiteralRanges(content)) {
     result += transform(content.slice(cursor, start))
     result += content.slice(start, end)
     cursor = end
@@ -112,10 +113,10 @@ export function normalizeCitationMarks(
   content: string,
   citationMap: Map<number, Citation>,
   sourceType?: WebSearchSource,
-  getParsedCodeRanges?: GetMarkdownCodeRanges
+  getParsedLiteralRanges?: GetMarkdownLiteralRanges
 ): string {
-  const getCodeRanges = getParsedCodeRanges ?? getBacktickCodeRanges
-  const overlapsCode = (start: number, end = start + 1, skipRanges = getCodeRanges(content)): boolean => {
+  const getLiteralRanges = getParsedLiteralRanges ?? getBacktickCodeRanges
+  const overlapsLiteral = (start: number, end = start + 1, skipRanges = getLiteralRanges(content)): boolean => {
     for (const range of skipRanges) {
       if (range.start >= end) break
       if (range.end > start) return true
@@ -125,15 +126,15 @@ export function normalizeCitationMarks(
 
   const applyReplacements = (regex: RegExp, getReplacementFn: (m: RegExpExecArray) => string | null) => {
     const replacements: Array<{ start: number; end: number; replacement: string }> = []
-    const skipRanges = getCodeRanges(content)
+    const skipRanges = getLiteralRanges(content)
 
     regex.lastIndex = 0 // 重置正则状态
     let m: RegExpExecArray | null
     while ((m = regex.exec(content)) !== null) {
       const end = m.index + m[0].length
       // The chat fallback can mistake backticks in a link destination for inline code.
-      const protectedEnd = getParsedCodeRanges ? end : m.index + 1
-      if (!overlapsCode(m.index, protectedEnd, skipRanges)) {
+      const protectedEnd = getParsedLiteralRanges ? end : m.index + 1
+      if (!overlapsLiteral(m.index, protectedEnd, skipRanges)) {
         const replacement = getReplacementFn(m)
         if (replacement !== null) {
           replacements.push({ start: m.index, end, replacement })
@@ -197,7 +198,7 @@ export function normalizeCitationMarks(
 
         insertions.sort((a, b) => b.position - a.position)
         for (const { position, tag } of insertions) {
-          if (!overlapsCode(position)) {
+          if (!overlapsLiteral(position)) {
             content = content.slice(0, position) + tag + content.slice(position)
           }
         }
@@ -239,7 +240,7 @@ export const CITATION_MARKER_PATTERN = /([ \t]?)\[cite:([\w-]+)\]/g
  * model invented, is how a marker gets here.
  */
 export function mapCitationMarksToTags(content: string, citationMap: Map<string, Citation>): string {
-  return mapMarkdownOutsideCode(content, (text) =>
+  return mapMarkdownOutsideLiterals(content, (text) =>
     text.replace(CITATION_MARKER_PATTERN, (_match, space: string, id: string) => {
       const citation = citationMap.get(id)
       return citation ? `${space}${generateCitationTag(citation)}` : ''

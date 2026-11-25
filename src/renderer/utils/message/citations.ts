@@ -31,10 +31,10 @@ import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import {
   CITATION_MARKER_PATTERN,
-  type GetMarkdownCodeRanges,
-  getParsedMarkdownCodeRanges,
+  type GetMarkdownLiteralRanges,
+  getParsedMarkdownLiteralRanges,
   mapCitationMarksToTags,
-  mapMarkdownOutsideCode,
+  mapMarkdownOutsideLiterals,
   normalizeCitationMarks
 } from '@renderer/utils/citation'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
@@ -472,8 +472,8 @@ function createCitationLookup(citations: MessageCitations): {
  * `cite:` per id — so read the bracket as a bag of ids rather than matching one spelling at a
  * time: every id-shaped token in it is an id, and a bracket holding none is left alone.
  */
-function canonicalizeMarkers(content: string, getCodeRanges?: GetMarkdownCodeRanges): string {
-  return mapMarkdownOutsideCode(
+function canonicalizeMarkers(content: string, getLiteralRanges?: GetMarkdownLiteralRanges): string {
+  return mapMarkdownOutsideLiterals(
     content,
     (text) =>
       text.replace(/\[cite:[^\]\n]*\]/g, (marker) => {
@@ -483,18 +483,18 @@ function canonicalizeMarkers(content: string, getCodeRanges?: GetMarkdownCodeRan
           ?.filter((id) => id !== 'cite')
         return ids?.length ? ids.map((id) => `[cite:${id}]`).join('') : marker
       }),
-    getCodeRanges
+    getLiteralRanges
   )
 }
 
 function normalizeMarkerContent(
   content: string,
   markerNumberMap: Map<number, Citation>,
-  getCodeRanges?: GetMarkdownCodeRanges
+  getLiteralRanges?: GetMarkdownLiteralRanges
 ): string {
-  const canonical = canonicalizeMarkers(content, getCodeRanges)
+  const canonical = canonicalizeMarkers(content, getLiteralRanges)
   return markerNumberMap.size > 0
-    ? normalizeCitationMarks(canonical, markerNumberMap, WEB_SEARCH_SOURCE.AISDK, getCodeRanges)
+    ? normalizeCitationMarks(canonical, markerNumberMap, WEB_SEARCH_SOURCE.AISDK, getLiteralRanges)
     : canonical
 }
 
@@ -516,11 +516,11 @@ function collapseMarkerRuns(text: string, byMarker: ReadonlyMap<string, Citation
 export function resolveCitationMarkerParts(
   contents: readonly string[],
   citations: MessageCitations,
-  getCodeRanges?: GetMarkdownCodeRanges
+  getLiteralRanges?: GetMarkdownLiteralRanges
 ): ResolvedCitationMarkers[] {
   if (citations.byId.size === 0) {
     return contents.map((content) => ({
-      content: canonicalizeMarkers(content, getCodeRanges),
+      content: canonicalizeMarkers(content, getLiteralRanges),
       byMarker: new Map(),
       cited: []
     }))
@@ -534,8 +534,8 @@ export function resolveCitationMarkerParts(
     const byMarker = new Map<string, Citation>()
     const cited: Citation[] = []
     const seenInPart = new Set<Citation>()
-    const normalized = normalizeMarkerContent(content, markerNumberMap, getCodeRanges)
-    const collapsed = mapMarkdownOutsideCode(
+    const normalized = normalizeMarkerContent(content, markerNumberMap, getLiteralRanges)
+    const collapsed = mapMarkdownOutsideLiterals(
       normalized,
       (text) => {
         for (const match of text.matchAll(/\[cite:([\w-]+)\]/g)) {
@@ -554,7 +554,7 @@ export function resolveCitationMarkerParts(
         }
         return collapseMarkerRuns(text, byMarker)
       },
-      getCodeRanges
+      getLiteralRanges
     )
 
     return { content: collapsed, byMarker, cited }
@@ -590,25 +590,26 @@ export function toExportableCitations(
   priorParts: readonly CherryMessagePart[] = EMPTY_PARTS,
   { singleDollarMath = false }: { singleDollarMath?: boolean } = {}
 ): { content: string; cited: Citation[] } {
-  const getCodeRanges: GetMarkdownCodeRanges = (source) => getParsedMarkdownCodeRanges(source, singleDollarMath)
+  const getLiteralRanges: GetMarkdownLiteralRanges = (source) =>
+    getParsedMarkdownLiteralRanges(source, singleDollarMath)
   const resolve = (prior?: readonly CherryMessagePart[]) =>
-    resolveCitationMarkerParts([content], resolveMessageCitations(parts, prior), getCodeRanges)[0]
+    resolveCitationMarkerParts([content], resolveMessageCitations(parts, prior), getLiteralRanges)[0]
   // Earlier turns only answer ids own parts do not mint, so fold them only on an unresolved
   // marker: eager folding made a whole-topic export quadratic in the number of search calls.
   let resolution = resolve()
-  if (priorParts.length > 0 && hasUnresolvedMarker(resolution, getCodeRanges)) {
+  if (priorParts.length > 0 && hasUnresolvedMarker(resolution, getLiteralRanges)) {
     resolution = resolve(priorParts)
   }
   const { content: resolved, byMarker, cited } = resolution
   return {
-    content: mapMarkdownOutsideCode(
+    content: mapMarkdownOutsideLiterals(
       resolved,
       (text) =>
         text.replace(CITATION_MARKER_PATTERN, (_match, space: string, id: string) => {
           const citation = byMarker.get(id)
           return citation ? `${space}[${citation.number}]` : ''
         }),
-      getCodeRanges
+      getLiteralRanges
     ),
     cited
   }
@@ -616,10 +617,10 @@ export function toExportableCitations(
 
 function hasUnresolvedMarker(
   { content, byMarker }: ResolvedCitationMarkers,
-  getCodeRanges: GetMarkdownCodeRanges
+  getLiteralRanges: GetMarkdownLiteralRanges
 ): boolean {
   let unresolved = false
-  mapMarkdownOutsideCode(
+  mapMarkdownOutsideLiterals(
     content,
     (text) => {
       if (!unresolved) {
@@ -632,7 +633,7 @@ function hasUnresolvedMarker(
       }
       return text
     },
-    getCodeRanges
+    getLiteralRanges
   )
   return unresolved
 }
@@ -647,7 +648,7 @@ function hasUnresolvedMarker(
  * without inventing a second, conflicting sequence.
  */
 export function stripCitationMarkers(content: string): string {
-  return mapMarkdownOutsideCode(canonicalizeMarkers(content), (text) => text.replace(CITATION_MARKER_PATTERN, ''))
+  return mapMarkdownOutsideLiterals(canonicalizeMarkers(content), (text) => text.replace(CITATION_MARKER_PATTERN, ''))
 }
 
 /**
@@ -664,7 +665,7 @@ export function withToolCitationTags(
     const { markerNumberMap } = createCitationLookup(citations)
     const cited: Citation[] = []
     const seen = new Set<Citation>()
-    const resolved = mapMarkdownOutsideCode(normalizeMarkerContent(content, markerNumberMap), (text) => {
+    const resolved = mapMarkdownOutsideLiterals(normalizeMarkerContent(content, markerNumberMap), (text) => {
       for (const match of text.matchAll(/\[cite:([\w-]+)\]/g)) {
         const citation = displayByMarker.get(match[1])
         if (citation && !seen.has(citation)) {
