@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import { readErrorMessage } from '@renderer/utils/errorDetails'
 import { getFileDirectory } from '@renderer/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { TreeDirRoot, TreeNode } from '@shared/utils/file'
@@ -174,7 +175,7 @@ export async function resolveNotesPath(parentPath: string): Promise<ResolvedNote
   } catch (error) {
     logger.warn('Failed to validate notes directory, fallback to default', {
       basePath,
-      error: (error as Error).message
+      error: readErrorMessage(error)
     })
 
     return {

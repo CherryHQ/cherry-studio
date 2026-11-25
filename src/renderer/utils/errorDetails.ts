@@ -70,7 +70,16 @@ export function formatErrorDetails(error: unknown, fallback: string = '[Unserial
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Browser, worker and IPC failures can contain arbitrary values or unreadable Error fields; preserve readable text and bound formatting failure.
 export function readErrorMessage(error: unknown): string {
   try {
-    return String(error instanceof Error ? error.message : error)
+    if (error instanceof Error) return String(error.message)
+
+    if (error !== null && (typeof error === 'object' || typeof error === 'function')) {
+      // oxlint-disable-next-line anti-slop/no-reflect-get -- IPC failures may expose a virtual message property; the surrounding catch contains unreadable getters and Proxy traps.
+      const message = Reflect.get(error, 'message')
+
+      if (typeof message === 'string') return message
+    }
+
+    return String(error)
   } catch {
     return '[Unserializable]'
   }

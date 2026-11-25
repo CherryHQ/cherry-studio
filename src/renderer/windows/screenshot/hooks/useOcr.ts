@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { readErrorMessage } from '@renderer/utils/errorDetails'
 import type { OcrTextLine } from '@shared/ipc/schemas/screenshot'
 
 import type { SelectionRect } from '../types'
@@ -94,7 +95,7 @@ export function useOcr(
         logger.error('Text recognition failed', error)
         // Spread rather than replace: only the failure fields change, so a text layer
         // already on screen is never blanked by the error.
-        setState((prev) => ({ ...prev, status: 'error', errorMessage: (error as Error).message }))
+        setState((prev) => ({ ...prev, status: 'error', errorMessage: readErrorMessage(error) }))
       }
     },
     [mediaId, scaleFactor]

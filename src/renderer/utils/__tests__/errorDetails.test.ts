@@ -109,6 +109,19 @@ describe('rejection normalization', () => {
     }
   })
 
+  it('retains IPC rejection messages and contains unreadable message properties', () => {
+    expect(readErrorMessage({ message: 'File access denied', code: 'EACCES' })).toBe('File access denied')
+    expect(readErrorMessage({ message: '' })).toBe('')
+    const virtualMessage = new Proxy({}, { get: (_target, key) => (key === 'message' ? 'IPC failed' : undefined) })
+    expect(readErrorMessage(virtualMessage)).toBe('IPC failed')
+    const unreadable = Object.defineProperty({}, 'message', {
+      get() {
+        throw new Error('Unreadable remote diagnostic')
+      }
+    })
+    expect(readErrorMessage(unreadable)).toBe('[Unserializable]')
+  })
+
   it('keeps failure handling usable when a rejection or native message is unreadable', () => {
     const native = new Error('original')
     Object.defineProperty(native, 'message', {
