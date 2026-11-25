@@ -1369,6 +1369,7 @@
   "code.latest": "Último",
   "code.launch.error": "Falha ao iniciar, tente novamente",
   "code.launch.label": "iniciar",
+  "code.launch.reapply_provider": "A ligação Codex guardada difere do fornecedor selecionado. Volte a aplicar a configuração do fornecedor antes de iniciar.",
   "code.launch.title": "Iniciar {{tool}}",
   "code.launch.validation_error": "Preencha todos os campos obrigatórios: ferramenta CLI, modelo e pasta de trabalho",
   "code.launching": "A iniciar...",

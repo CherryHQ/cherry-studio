@@ -1369,6 +1369,7 @@
   "code.latest": "최신",
   "code.launch.error": "실행하지 못했습니다. 다시 시도하세요",
   "code.launch.label": "실행",
+  "code.launch.reapply_provider": "저장된 Codex 연결이 선택한 공급자와 다릅니다. 실행하기 전에 공급자 설정을 다시 적용하세요.",
   "code.launch.title": "{{tool}} 실행",
   "code.launch.validation_error": "필수 항목을 모두 입력하세요: CLI 도구, 모델, 작업 디렉터리",
   "code.launching": "실행 중...",

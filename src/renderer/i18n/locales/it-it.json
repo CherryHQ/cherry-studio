@@ -1369,6 +1369,7 @@
   "code.latest": "Più recente",
   "code.launch.error": "Avvio non riuscito, riprova",
   "code.launch.label": "Avvia",
+  "code.launch.reapply_provider": "La connessione Codex salvata è diversa dal provider selezionato. Riapplica la configurazione del provider prima di avviare.",
   "code.launch.title": "Avvia {{tool}}",
   "code.launch.validation_error": "Completa tutti i campi obbligatori: strumento CLI, modello e cartella di lavoro",
   "code.launching": "Avvio...",

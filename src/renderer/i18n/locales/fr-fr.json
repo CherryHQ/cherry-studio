@@ -1369,6 +1369,7 @@
   "code.latest": "Dernier",
   "code.launch.error": "Échec du démarrage, veuillez réessayer",
   "code.launch.label": "Démarrer",
+  "code.launch.reapply_provider": "La connexion Codex enregistrée diffère du fournisseur sélectionné. Réappliquez la configuration du fournisseur avant de lancer.",
   "code.launch.title": "Lancer {{tool}}",
   "code.launch.validation_error": "Veuillez remplir tous les champs obligatoires : outil CLI, modèle et répertoire de travail",
   "code.launching": "En cours de démarrage...",

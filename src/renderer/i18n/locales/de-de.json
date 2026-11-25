@@ -1369,6 +1369,7 @@
   "code.latest": "Neueste",
   "code.launch.error": "Start fehlgeschlagen, bitte versuchen Sie es erneut",
   "code.launch.label": "Starten",
+  "code.launch.reapply_provider": "Die gespeicherte Codex-Verbindung weicht vom ausgewählten Anbieter ab. Wenden Sie die Anbieterkonfiguration vor dem Start erneut an.",
   "code.launch.title": "{{tool}} starten",
   "code.launch.validation_error": "Bitte füllen Sie alle Pflichtfelder aus: CLI-Tool, Modell und Arbeitsverzeichnis",
   "code.launching": "Wird gestartet...",

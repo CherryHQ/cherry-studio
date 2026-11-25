@@ -1371,6 +1371,7 @@
   "code.latest": "Cel mai recent",
   "code.launch.error": "Lansarea a eșuat, te rugăm să încerci din nou",
   "code.launch.label": "Lansează",
+  "code.launch.reapply_provider": "Conexiunea Codex salvată diferă de furnizorul selectat. Reaplică configurația furnizorului înainte de lansare.",
   "code.launch.title": "Lansați {{tool}}",
   "code.launch.validation_error": "Te rugăm să completezi toate câmpurile obligatorii: instrument CLI, model și director de lucru",
   "code.launching": "Se lansează...",

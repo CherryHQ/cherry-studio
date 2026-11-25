@@ -1371,6 +1371,7 @@
   "code.latest": "Nejnovější",
   "code.launch.error": "Spuštění se nezdařilo, zkuste to prosím znovu",
   "code.launch.label": "Spustit",
+  "code.launch.reapply_provider": "Uložené připojení Codex se liší od vybraného poskytovatele. Před spuštěním znovu použijte konfiguraci poskytovatele.",
   "code.launch.title": "Spustit {{tool}}",
   "code.launch.validation_error": "Vyplňte prosím všechna povinná pole: nástroj CLI, model a pracovní adresář",
   "code.launching": "Spouštění...",
