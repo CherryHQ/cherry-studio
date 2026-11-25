@@ -86,6 +86,11 @@ not limited to assistant settings.
 
 The sync is idempotent; a stale entry is overwritten on the next sync.
 
+Assistant and Agent tool catalogs apply MCP Apps visibility to model-facing
+discovery. The MCP runtime checks that same visibility on the originating
+connection before execution, including calls through deferred tools. The
+source catalog retains App-only entries for settings and App access.
+
 ### Tool catalog reads never block on MCP
 
 `McpCatalogService` splits the MCP tool catalog into a **read** facade and a

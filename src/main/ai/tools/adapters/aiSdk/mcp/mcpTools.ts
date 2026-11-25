@@ -68,6 +68,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
         serverId: server.id,
         name: mcpTool.name,
         args,
+        audience: 'model',
         callId: toolCallId,
         // Isolation scope for abort-by-id: provider call ids (e.g. "call_0") can collide
         // across topics, and the renderer's abort presents the same topicId.
@@ -157,7 +158,7 @@ export async function syncMcpToolsToRegistry(
     if (selectedToolIds && freshNames.size === selectedToolIds.size) break
     const namespace = namespaceForServer(server.id)
     try {
-      const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
+      const enabledTools = application.get('McpCatalogService').listTools(server.id, { audience: 'model' })
       const scopedTools = selectedToolIds ? enabledTools.filter((tool) => selectedToolIds.has(tool.id)) : enabledTools
       if (!selectedToolIds || scopedTools.length > 0) targetNamespaces.add(namespace)
       const freshEntries: ToolEntry[] = []

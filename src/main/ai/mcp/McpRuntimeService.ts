@@ -52,6 +52,7 @@ import type { McpForwardMethod, McpForwardOptions, McpForwardResult } from './co
 import type { McpResourceObservationState } from './connections/McpConnection'
 import { classifyMcpFailure, McpConfigurationError } from './failureFacts'
 import { isMcpCancellation } from './mcpAbort'
+import { isMcpToolVisibleTo, type McpToolAudience } from './mcpAppTool'
 import type { McpPackageService } from './McpPackageService'
 import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { mcpTransportKind } from './mcpTransportKind'
@@ -64,6 +65,7 @@ type CallToolArgs = {
   serverId: string
   name: string
   args: unknown
+  audience?: McpToolAudience
   callId?: string
   /** Caller-isolation key (for example, topicId). */
   scope?: string
@@ -767,6 +769,7 @@ export class McpRuntimeService extends BaseService {
     server,
     name,
     args,
+    audience,
     callId,
     scope,
     signal,
@@ -807,6 +810,13 @@ export class McpRuntimeService extends BaseService {
         })
         const host = this.resolveInteractionContext(server.id, { ...interactionContext, requestId: toolCallId })
         const connection = await this.getOrCreateConnection(server, host ?? null, effectiveSignal)
+        if (audience) {
+          const definition = (await connection.listTools('use', effectiveSignal)).find((tool) => tool.name === name)
+          if (!definition || !isMcpToolVisibleTo(definition, audience)) {
+            throw new McpConfigurationError(`MCP tool is unavailable to the ${audience}: ${name}`)
+          }
+          effectiveSignal.throwIfAborted()
+        }
         const policy = resolveMcpRequestOptions(server)
         const response = await connection.callTool(name, normalizedArgs, {
           signal: effectiveSignal,

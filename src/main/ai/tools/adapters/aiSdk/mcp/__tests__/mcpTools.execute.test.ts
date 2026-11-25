@@ -119,6 +119,7 @@ describe('mcpTools execute wrapper', () => {
     expect(callTool).toHaveBeenCalledWith({
       serverId: 's1',
       name: 't',
+      audience: 'model',
       args: { q: 'x' },
       callId: 'call-3',
       scope: undefined,
@@ -198,6 +199,7 @@ describe('mcpTools execute wrapper', () => {
     expect(callTool).toHaveBeenCalledExactlyOnceWith({
       serverId: 'server-a',
       name: 'executeSql',
+      audience: 'model',
       args: { sql: 'select 1' },
       callId: 'call-reimbursement'
     })
