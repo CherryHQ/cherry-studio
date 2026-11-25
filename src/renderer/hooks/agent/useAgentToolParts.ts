@@ -2,20 +2,19 @@ import { useMemo, useSyncExternalStore } from 'react'
 
 import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { messageProjectionService } from '@renderer/services/aiTransport'
+import { PartOverrides, type MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import { collect, concat, foldLayout, single, type Range } from '@renderer/utils/message/projectionRange'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-type PartRows = Record<string, CherryMessagePart[]>
-
 export function useAgentToolParts(
   sessionId: string | undefined,
-  baseline: PartRows,
+  baseline: MessagePartRows,
   accepts: (part: CherryMessagePart) => boolean
-): PartRows {
+): MessagePartRows {
   const topicId = useAgentSessionStreamTopic(sessionId)
   const selection = useMemo(() => {
     const target = { kind: 'topic' as const, topicId }
-    if (!topicId || !messageProjectionService.getSnapshot(target).view)
+    if (!topicId || !(baseline instanceof PartOverrides))
       return { getSnapshot: () => baseline, subscribe: () => () => {} }
     const reader = messageProjectionService.partsFor(target)
     const select = foldLayout<Range<CherryMessagePart> | null>(
@@ -26,13 +25,17 @@ export function useAgentToolParts(
       (left, right) => concat(left ?? undefined, right ?? undefined) ?? null,
       null
     )
-    let value: PartRows | undefined
-    const read = (id: string) => {
+    let value: PartOverrides | undefined
+    const read = (id: string, parts: CherryMessagePart[]) => {
       const row = reader.row(id)
-      return row ? collect(select(row.getSnapshot()) ?? undefined) : baseline[id].filter(accepts)
+      return row ? collect(select(row.getSnapshot()) ?? undefined) : parts.filter(accepts)
     }
     const getSnapshot = () => {
-      return (value ??= Object.fromEntries(Object.keys(baseline).map((id) => [id, read(id)])))
+      if (value) return value
+      const live = new Map<string, CherryMessagePart[]>()
+      for (const [id, parts] of baseline.replacements) live.set(id, read(id, parts))
+      value = new PartOverrides(baseline.base, live)
+      return value
     }
     return {
       getSnapshot,
@@ -44,14 +47,15 @@ export function useAgentToolParts(
         const off = messageProjectionService.observeLayout(
           target,
           (changes) => {
-            const rows = new Set<string>()
+            const changed = new Map<string, CherryMessagePart[]>()
             for (const { row, before, after } of changes.values()) {
-              if (row in baseline && (accepts(after) || (before && accepts(before)))) rows.add(row)
+              const parts = baseline.replacements.get(row)
+              if (parts && (accepts(after) || (before && accepts(before)))) changed.set(row, parts)
             }
-            if (!rows.size) return
-            const next = { ...getSnapshot() }
-            for (const id of rows) next[id] = read(id)
-            value = next
+            if (!changed.size) return
+            const live = new Map(getSnapshot().replacements)
+            for (const [id, parts] of changed) live.set(id, read(id, parts))
+            value = new PartOverrides(baseline.base, live)
             listener()
           },
           reset

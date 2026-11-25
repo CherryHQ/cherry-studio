@@ -97,12 +97,13 @@ import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { expandHomeRelativePath } from '@renderer/utils/filePath'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
+import { type MessagePartRows, messagePartEntries } from '@renderer/utils/message/messagePartRows'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
@@ -169,10 +170,10 @@ function getFlowTabTitle(input: AgentToolFlowOpenInput): string {
   return input.title?.trim() || input.toolName?.trim() || input.toolCallId
 }
 
-function findDeferredToolResult(partsByMessageId: Record<string, CherryMessagePart[]>, toolCallId: string | undefined) {
+function findDeferredToolResult(partsByMessageId: MessagePartRows, toolCallId: string | undefined) {
   if (!toolCallId) return undefined
 
-  for (const parts of Object.values(partsByMessageId)) {
+  for (const [, parts] of messagePartEntries(partsByMessageId)) {
     for (const part of parts) {
       const source = part as unknown as { toolCallId?: unknown; output?: unknown }
       if (source.toolCallId !== toolCallId) continue
@@ -222,7 +223,7 @@ interface AgentRightPaneMeta {
 
 interface AgentRightPaneRuntime {
   messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   browserUrl: string | null
   browserProfile:
     | typeof WebviewSecurityProfile.AgentBrowser
@@ -316,7 +317,7 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
   streamingLayers?: MessageStreamingLayers
   isMessageHistoryLoading?: boolean
   messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
 }
 
 const AgentRightPaneMetaContext = createContext<AgentRightPaneMeta | null>(null)
@@ -1269,7 +1270,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
   toolCallId: string
   title: string
   messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
 }) {
   const actions = useAgentRightPaneActions()
   const { t } = useTranslation()

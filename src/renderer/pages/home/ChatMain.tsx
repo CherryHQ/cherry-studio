@@ -9,7 +9,8 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { useHomeMessageListProviderValue } from './messages/homeMessageListAdapter'
 
@@ -17,7 +18,7 @@ interface ChatMainProps {
   topic: Topic
   assistant?: Assistant
   messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers: MessageStreamingLayers
   onBindRuntime: NonNullable<MessageListActions['bindRuntime']>
   isInitialLoading?: boolean

@@ -7,7 +7,6 @@ import {
   buildTopicMessageFlowLiveState,
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
-import { useMessageStreamingLayers } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
 import type { MessageListRuntime } from '@renderer/components/chat/messages/types'
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
@@ -22,6 +21,7 @@ import {
 } from '@renderer/hooks/useConversationTurnController'
 import { useHistoryReplies } from '@renderer/hooks/useHistoryReplies'
 import type { ReplyHistory } from '@renderer/hooks/useHistoryRowUpdates'
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useTopicCompletion } from '@renderer/hooks/useTopicCompletion'
 import { useTopicSpeech } from '@renderer/hooks/useTopicSpeech'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -29,7 +29,9 @@ import { autoReadService } from '@renderer/services/voice'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ExecutionFinishEvent } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
+import { createPartsByMessageId } from '@renderer/utils/message/exportView'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import { activeReplyIds, replyParts } from '@renderer/utils/message/messagePartRows'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
 import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -60,6 +62,7 @@ interface UseChatRuntimeStateParams {
   isHistoryLoading: boolean
   initialMessages: CherryUIMessage[]
   replyHistory: ReplyHistory
+  displayIndex(id: string): number | undefined
   uiMessages: CherryUIMessage[]
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
@@ -110,6 +113,7 @@ export function useChatRuntimeState({
   isHistoryLoading,
   initialMessages,
   replyHistory,
+  displayIndex,
   uiMessages,
   refresh,
   activeNodeId,
@@ -210,11 +214,16 @@ export function useChatRuntimeState({
     finishRef.current?.(executionId, event)
   })
 
-  const { partsByMessageId, liveMessageIds, streamingLayers } = useMessageStreamingLayers({
-    messages,
-    executions: branchActiveExecutions,
-    liveAssistants
-  })
+  const persistedPartsByMessageId = useMemo(() => createPartsByMessageId(messages), [messages])
+  const partsByMessageId = useMemo(
+    () => replyParts(persistedPartsByMessageId, liveAssistants),
+    [persistedPartsByMessageId, liveAssistants]
+  )
+  const liveMessageIds = useStableStringArray(activeReplyIds(branchActiveExecutions, liveAssistants))
+  const streamingLayers = useMemo(
+    () => ({ historyPartsByMessageId: persistedPartsByMessageId, liveMessageIds }),
+    [persistedPartsByMessageId, liveMessageIds]
+  )
   const activeAwaitingInputMessageId = useMemo(
     () =>
       activeNodeId
@@ -249,10 +258,6 @@ export function useChatRuntimeState({
   // comes from refreshed DB state, then Main starts the continuation after
   // every approval settles.
   const respondToolApproval = useToolApprovalBridge(topic.id)
-  const persistedPartsByMessageId = useMemo(
-    () => Object.fromEntries(uiMessages.map((message) => [message.id, message.parts])),
-    [uiMessages]
-  )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     topicId: topic.id,
     partsByMessageId,
@@ -355,8 +360,12 @@ export function useChatRuntimeState({
 
   const activeStreamingMessageIds = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
   const activeAnchorMessages = useMemo(
-    () => messages.filter((message) => activeStreamingMessageIds.has(message.id)),
-    [activeStreamingMessageIds, messages]
+    () =>
+      liveMessageIds
+        .flatMap((id) => displayIndex(id) ?? [])
+        .sort((a, b) => a - b)
+        .map((index) => messages[index]),
+    [displayIndex, liveMessageIds, messages]
   )
   const branchFlowLiveMessages = useMemo(
     () => projectBranchFlowMessages(branchLiveMessages, activeAnchorMessages, liveAssistants),

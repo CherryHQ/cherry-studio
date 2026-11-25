@@ -7,6 +7,7 @@ import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -41,7 +42,7 @@ function normalizeWheelDelta(delta: number, deltaMode: number, pageSize: number)
 
 interface Props {
   messages: MessageListItem[]
-  partsByMessageId?: Record<string, CherryMessagePart[]> | null
+  partsByMessageId?: MessagePartRows | null
   captureMode?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
   isLatestAssistantGroup?: boolean
@@ -342,7 +343,9 @@ const MessageGroup = ({
         lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
         messageTail: messageTail?.messageId === message.id ? messageTail.content : undefined,
         message,
-        messageParts: partsByMessageId ? (partsByMessageId[message.id] ?? EMPTY_MESSAGE_PARTS) : undefined,
+        messageParts: partsByMessageId
+          ? (messagePartsAt(partsByMessageId, message.id) ?? EMPTY_MESSAGE_PARTS)
+          : undefined,
         index
       } satisfies ComponentProps<typeof MessageItem>
 
@@ -578,12 +581,12 @@ function messageArrayShallowEqual(a: MessageListItem[], b: MessageListItem[]): b
 }
 
 function messagePartsShallowEqual(
-  previous: Record<string, CherryMessagePart[]> | null | undefined,
-  next: Record<string, CherryMessagePart[]> | null | undefined,
+  previous: MessagePartRows | null | undefined,
+  next: MessagePartRows | null | undefined,
   messages: MessageListItem[]
 ): boolean {
   if (previous === next) return true
-  return messages.every((message) => previous?.[message.id] === next?.[message.id])
+  return messages.every((message) => messagePartsAt(previous, message.id) === messagePartsAt(next, message.id))
 }
 
 // Custom comparator: bail out only when latest flag / derived model map /

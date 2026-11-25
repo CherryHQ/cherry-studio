@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { useTopicCompletion } from '@renderer/hooks/useTopicCompletion'
 import type * as RendererIpc from '@renderer/ipc'
+import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
@@ -65,7 +66,16 @@ vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicMessages', () => ({
-  useTopicMessages: (...args: unknown[]) => mockUseTopicMessages(...args)
+  useTopicMessages: (...args: unknown[]) => {
+    const result = mockUseTopicMessages(...args)
+    return {
+      ...result,
+      displayIndex: (id: string) => {
+        const index = result.uiMessages.findIndex((message: CherryUIMessage) => message.id === id)
+        return index < 0 ? undefined : index
+      }
+    }
+  }
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -630,7 +640,9 @@ describe('ChatContent', () => {
     const view = render(<ChatContent topic={topic} />)
 
     await waitFor(() => {
-      expect(mockMessageListValue.current?.state.partsByMessageId[pendingMessage.id][0]).toMatchObject({
+      expect(
+        messagePartsAt(mockMessageListValue.current?.state.partsByMessageId, pendingMessage.id)?.[0]
+      ).toMatchObject({
         text: 'stream frame 1'
       })
     })
@@ -648,7 +660,9 @@ describe('ChatContent', () => {
     view.rerender(<ChatContent topic={topic} />)
 
     await waitFor(() => {
-      expect(mockMessageListValue.current?.state.partsByMessageId[pendingMessage.id][0]).toMatchObject({
+      expect(
+        messagePartsAt(mockMessageListValue.current?.state.partsByMessageId, pendingMessage.id)?.[0]
+      ).toMatchObject({
         text: 'stream frame 2'
       })
     })

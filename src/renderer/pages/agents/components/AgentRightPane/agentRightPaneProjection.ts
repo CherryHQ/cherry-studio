@@ -19,6 +19,7 @@ import {
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
+import { type MessagePartRows, messagePartsAt, messagePartEntries } from '@renderer/utils/message/messagePartRows'
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import { type DeferredToolResultRef, isDeferredToolOutput } from '@shared/ai/transport'
@@ -223,15 +224,15 @@ function getMessageCreatedAt(message: CherryUIMessage | undefined): string {
 
 function getOrderedMessageParts(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
 ): Array<{ message: CherryUIMessage; parts: CherryMessagePart[] }> {
   const entries = messages.map((message) => ({
     message,
-    parts: partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    parts: messagePartsAt(partsByMessageId, message.id) ?? ((message.parts ?? []) as CherryMessagePart[])
   }))
   const seenMessageIds = new Set(messages.map((message) => message.id))
 
-  for (const [messageId, parts] of Object.entries(partsByMessageId)) {
+  for (const [messageId, parts] of messagePartEntries(partsByMessageId)) {
     if (seenMessageIds.has(messageId)) continue
     entries.push({
       message: {
@@ -322,7 +323,7 @@ export function isAgentStatusPart(part: CherryMessagePart): boolean {
 /** Builds newest-first candidates, stopping once an inline or excerpt URL makes older output irrelevant. */
 export function findAgentPreviewUrlCandidates(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
 ): AgentPreviewUrlCandidate[] {
   const candidates: AgentPreviewUrlCandidate[] = []
   const entries = getOrderedMessageParts(messages, partsByMessageId)
@@ -381,7 +382,7 @@ export function findAgentPreviewUrlCandidates(
 /** Captures the current time frontier without materializing deferred outputs. */
 export function getAgentPreviewUrlFrontier(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
 ): AgentPreviewUrlFrontier | null {
   const entry = getOrderedMessageParts(messages, partsByMessageId).at(-1)
   return entry
@@ -398,7 +399,7 @@ export function isAgentPreviewUrlSourceAfterFrontier(
   source: AgentPreviewUrlSource,
   frontier: AgentPreviewUrlFrontier | null,
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
 ): boolean {
   if (!frontier) return true
   const entries = getOrderedMessageParts(messages, partsByMessageId)
@@ -423,7 +424,7 @@ function isTerminalToolState(state: string | undefined): boolean {
 
 export function buildAgentToolFlowProjection(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>,
+  partsByMessageId: MessagePartRows,
   selectedToolCallId?: string,
   selectedToolOutput?: unknown
 ): AgentToolFlowProjection {
@@ -793,7 +794,7 @@ function getPathBasename(path: string): string {
 
 export function buildAgentRightPaneStatus(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>,
+  partsByMessageId: MessagePartRows,
   /**
    * Latest per-task lifecycle edge for the current CLI process. Applied last by task id so a
    * background task's completion settles the row the transcript parts built.
@@ -811,7 +812,7 @@ export function buildAgentRightPaneStatus(
   const artifactByPath = new Map<string, AgentArtifactFile>()
 
   for (const message of messages) {
-    const parts = partsByMessageId[message.id] ?? message.parts ?? []
+    const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts ?? []
     parts.forEach((part, partIndex) => {
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
         applyAgentTaskEvent(runTaskMap, part.data, message.id, runTaskOriginMessageIds)

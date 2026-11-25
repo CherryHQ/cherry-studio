@@ -147,6 +147,7 @@ const branchRows: PageRows<BranchMessage, SharedMessage> = {
 // ── Hook ──
 
 export interface UseTopicMessagesResult {
+  displayIndex(id: string): number | undefined
   uiMessages: CherryUIMessage[]
   replyHistory: ReplyHistory
   /**
@@ -371,7 +372,10 @@ export function useTopicMessages(
     [enabled, hasNext, loadAllRequested, startLoadAll, stopLoadAll]
   )
 
+  const displayIndex = useCallback((id: string) => positions.get(id)?.displayIndex, [positions])
+
   return {
+    displayIndex,
     uiMessages,
     replyHistory,
     siblingsMap,

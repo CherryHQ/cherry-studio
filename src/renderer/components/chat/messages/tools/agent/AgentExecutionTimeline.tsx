@@ -3,6 +3,7 @@ import { use, useDeferredValue, useMemo } from 'react'
 
 import { PartsContext, useScopedPartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import { messagePartEntries } from '@renderer/utils/message/messagePartRows'
 
 import { AgentToolsType, isAskUserQuestionToolName } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext } from '../shared/GenericTools'
@@ -39,7 +40,11 @@ export function AgentExecutionTimeline({ toolResponse: originalResponse }: { too
   const taskStatus = useMemo(
     () =>
       taskPartsMap
-        ? getSubagentTaskStatus(Object.values(taskPartsMap).flat(), toolResponse.toolCallId, status)
+        ? getSubagentTaskStatus(
+            Array.from(messagePartEntries(taskPartsMap), ([, parts]) => parts).flat(),
+            toolResponse.toolCallId,
+            status
+          )
         : undefined,
     [taskPartsMap, status, toolResponse.toolCallId]
   )

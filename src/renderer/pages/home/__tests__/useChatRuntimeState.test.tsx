@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => ({
   rollbackBranch: vi.fn(),
   activeExecutions: [] as ActiveExecution[],
   overlayExecutions: [] as ActiveExecution[],
-  liveMessageIds: [] as string[],
   liveAssistants: [] as CherryUIMessage[],
   overlayOnUpdate: null as ((executionId: string, event: ExecutionContentUpdate) => void) | null,
   autoReadUpdate: vi.fn(),
@@ -73,14 +72,6 @@ vi.mock('@renderer/components/chat/flow/topicMessageFlowLiveTree', () => ({
     activeNodeId,
     messageIds: messages.map((message) => message.id),
     messages
-  })
-}))
-
-vi.mock('@renderer/components/chat/messages/stream/useMessageStreamingLayers', () => ({
-  useMessageStreamingLayers: () => ({
-    partsByMessageId: {},
-    liveMessageIds: mocks.liveMessageIds,
-    streamingLayers: { liveMessageIds: mocks.liveMessageIds }
   })
 }))
 
@@ -184,6 +175,10 @@ function RuntimeHost({
     topic,
     isHistoryLoading: false,
     initialMessages: messages,
+    displayIndex: (id) => {
+      const index = messages.findIndex((item) => item.id === id)
+      return index < 0 ? undefined : index
+    },
     uiMessages: messages,
     refresh: mocks.refresh,
     replyHistory: {
@@ -216,7 +211,6 @@ describe('useChatRuntimeState', () => {
     mocks.seedMessagesCache.mockResolvedValue(undefined)
     mocks.activeExecutions = []
     mocks.overlayExecutions = []
-    mocks.liveMessageIds = []
     mocks.liveAssistants = []
     mocks.overlayOnFinish = null
     mocks.sendTurn.mockReset()
@@ -417,7 +411,7 @@ describe('useChatRuntimeState', () => {
   it('projects branch flow with optimistic < persisted < live message authority', async () => {
     const message = (id: string, text: string) =>
       ({ id, role: 'assistant', parts: [{ type: 'text', text }] }) as CherryUIMessage
-    mocks.liveMessageIds = ['persisted-wins', 'live-wins']
+    mocks.activeExecutions = [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'persisted-wins' }]
     mocks.liveAssistants = [message('live-wins', 'live')]
 
     render(

@@ -23,6 +23,7 @@ import { BeatLoader } from 'react-spinners'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useProjectionPart, useProjectionPartValue } from '@renderer/hooks/agent/useProjectionPart'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -58,17 +59,14 @@ function isToolGroupItemCompleted(status: ToolResponseLike['status'] | undefined
 
 // Calculate actual waiting state for a tool item (not depending on hooks).
 // AI-SDK-v6 ToolUIPart state (`approval-requested`) is the sole source of truth.
-function getItemIsWaiting(item: ToolRenderItem, partsMap: Record<string, CherryMessagePart[]> | null): boolean {
+function getItemIsWaiting(item: ToolRenderItem, partsMap: MessagePartRows | null): boolean {
   if (item.toolResponse.status !== 'pending') return false
   if (item.part && 'state' in item.part) return item.part.state === 'approval-requested'
   return isToolPartAwaitingApproval(partsMap, item.toolResponse.toolCallId)
 }
 
 // Get effective UI status for an item
-function getItemEffectiveStatus(
-  item: ToolRenderItem,
-  partsMap: Record<string, CherryMessagePart[]> | null
-): ToolStatus {
+function getItemEffectiveStatus(item: ToolRenderItem, partsMap: MessagePartRows | null): ToolStatus {
   const isWaiting = getItemIsWaiting(item, partsMap)
   return getEffectiveStatus(item.toolResponse?.status, isWaiting)
 }

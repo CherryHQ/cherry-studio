@@ -68,6 +68,7 @@ const ChatContent: FC<Props> = ({
 }) => {
   const {
     uiMessages,
+    displayIndex,
     siblingsMap,
     replyHistory,
     isLoading: isHistoryLoading,
@@ -97,6 +98,7 @@ const ChatContent: FC<Props> = ({
       isHistoryLoading={isHistoryLoading}
       isHistoryStale={isHistoryStale}
       initialMessages={uiMessages}
+      displayIndex={displayIndex}
       uiMessages={uiMessages}
       siblingsMap={siblingsMap}
       replyHistory={replyHistory}
@@ -122,6 +124,7 @@ interface InnerProps extends Props {
   initialMessages: CherryUIMessage[]
   /** Live DB-backed message list; reactive to SWR refreshes. */
   uiMessages: CherryUIMessage[]
+  displayIndex: ReturnType<typeof useTopicMessages>['displayIndex']
   siblingsMap: ReturnType<typeof useTopicMessages>['siblingsMap']
   replyHistory: ReturnType<typeof useTopicMessages>['replyHistory']
   refresh: () => Promise<CherryUIMessage[]>
@@ -149,6 +152,7 @@ const ChatContentInner: FC<InnerProps> = ({
   isHistoryStale,
   initialMessages,
   uiMessages,
+  displayIndex,
   siblingsMap,
   replyHistory,
   refresh,
@@ -169,6 +173,7 @@ const ChatContentInner: FC<InnerProps> = ({
     initialMessages,
     replyHistory,
     uiMessages,
+    displayIndex,
     refresh,
     activeNodeId,
     messagesCacheMutate,

@@ -23,6 +23,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type * as ToastServiceModule from '@renderer/services/toast'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
+import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { AGENT_SESSION_CLOSING_CACHE_KEY } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
@@ -361,7 +362,7 @@ describe('useAgentChatRuntimeState', () => {
       'replacement-user',
       'replacement-answer'
     ])
-    expect(result.current.partsByMessageId['replacement-answer']).toEqual([
+    expect(messagePartsAt(result.current.partsByMessageId, 'replacement-answer')).toEqual([
       { type: 'text', text: 'New response in progress' }
     ])
   })
@@ -601,7 +602,9 @@ describe('useAgentChatRuntimeState', () => {
       'earlier-assistant',
       draft.messageId
     ])
-    expect(result.current.partsByMessageId[draft.messageId]).toEqual([{ type: 'text', text: 'Replacement' }])
+    expect(messagePartsAt(result.current.partsByMessageId, draft.messageId)).toEqual([
+      { type: 'text', text: 'Replacement' }
+    ])
     await act(async () => {
       sending.reject(new Error('Rejected'))
       await resend
@@ -642,7 +645,7 @@ describe('useAgentChatRuntimeState', () => {
     mocks.autoReadEnabled = true
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [assistantMessage],
-      persistedPartsByMessageId: {},
+      persistedPartsByMessageId: { [assistantMessage.id]: assistantMessage.parts },
       isLoading: false,
       hasOlder: false,
       loadOlder: vi.fn(),
@@ -1261,7 +1264,7 @@ describe('useAgentChatRuntimeState', () => {
     } as CherryUIMessage
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [autonomous],
-      persistedPartsByMessageId: {},
+      persistedPartsByMessageId: { [autonomous.id]: autonomous.parts },
       isLoading: false,
       hasOlder: false,
       loadOlder: vi.fn(),

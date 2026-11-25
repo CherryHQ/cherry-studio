@@ -8,6 +8,7 @@
 import type { ReactNode } from 'react'
 import { createContext, use, useMemo } from 'react'
 
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 // Parts Context — primary message rendering data source
@@ -17,14 +18,14 @@ import type { CherryMessagePart } from '@shared/data/types/message'
  * Parts context — provides raw CherryMessagePart[] keyed by message ID.
  * Null when no parts provider is present.
  */
-export const PartsContext = createContext<Record<string, CherryMessagePart[]> | null>(null)
+export const PartsContext = createContext<MessagePartRows | null>(null)
 
-type PartsMap = Record<string, CherryMessagePart[]> | null
+type PartsMap = MessagePartRows | null
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
 interface MessagePartsScopeValue {
   messageId: string
   parts: CherryMessagePart[]
-  partsMap: Record<string, CherryMessagePart[]>
+  partsMap: MessagePartRows
 }
 
 const MessagePartsScopeContext = createContext<MessagePartsScopeValue | null>(null)
@@ -126,7 +127,7 @@ export function useMessageParts(messageId: string): CherryMessagePart[] {
   // React's `use` API may be called conditionally. Scoped message consumers
   // therefore avoid subscribing to the complete map.
   const partsMap = use(PartsContext)
-  return partsMap?.[messageId] ?? EMPTY_MESSAGE_PARTS
+  return messagePartsAt(partsMap, messageId) ?? EMPTY_MESSAGE_PARTS
 }
 
 /**
@@ -135,7 +136,7 @@ export function useMessageParts(messageId: string): CherryMessagePart[] {
  * Returns null if not found.
  */
 export function resolvePartFromParts(
-  partsMap: Record<string, CherryMessagePart[]>,
+  partsMap: MessagePartRows,
   partId: string
 ): { part: CherryMessagePart; messageId: string; index: number } | null {
   // Try block format first (existing parseBlockId handles ${msgId}-block-${i})
@@ -152,7 +153,7 @@ export function resolvePartFromParts(
     }
   }
   if (!parsed) return null
-  const parts = partsMap[parsed.messageId]
+  const parts = messagePartsAt(partsMap, parsed.messageId)
   if (!parts || parsed.index >= parts.length) return null
   return { part: parts[parsed.index], messageId: parsed.messageId, index: parsed.index }
 }

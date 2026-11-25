@@ -4,6 +4,7 @@ import { getToolName, isToolUIPart } from 'ai'
 
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
+import { type MessagePartRows, messagePartEntries } from '@renderer/utils/message/messagePartRows'
 import { extractOutputMetadata, isToolType, type ToolMetadata, type ToolType } from '@renderer/utils/message/toolOutput'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
@@ -322,11 +323,11 @@ export type ToolApprovalMatch = {
  * source of truth for approval state after the message-parts migration.
  */
 export function findToolPartByCallId(
-  partsMap: Record<string, CherryMessagePart[]> | null | undefined,
+  partsMap: MessagePartRows | null | undefined,
   toolCallId: string | undefined
 ): ToolApprovalMatch | null {
   if (!partsMap || !toolCallId) return null
-  for (const [messageId, parts] of Object.entries(partsMap)) {
+  for (const [messageId, parts] of messagePartEntries(partsMap)) {
     for (const part of parts) {
       if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) continue
       const p = part as unknown as ToolResponsePart
@@ -347,7 +348,7 @@ export function findToolPartByCallId(
 }
 
 export function isToolPartAwaitingApproval(
-  partsMap: Record<string, CherryMessagePart[]> | null | undefined,
+  partsMap: MessagePartRows | null | undefined,
   toolCallId: string | undefined
 ): boolean {
   return findToolPartByCallId(partsMap, toolCallId)?.state === APPROVAL_REQUESTED

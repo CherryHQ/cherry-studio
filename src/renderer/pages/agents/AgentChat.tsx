@@ -41,6 +41,7 @@ import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/t
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import { cn } from '@renderer/utils/style'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
@@ -163,7 +164,7 @@ interface AgentChatLayoutProps {
   paneManualToggle?: PaneManualToggleSignal
   paneOpen?: boolean
   panePosition?: ChatPanePosition
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   resourcePane?: ResourcePaneConfig | null
   resourcePaneRevealRequest?: ResourceListRevealRequest
   rightPanelDefaultOpen?: boolean

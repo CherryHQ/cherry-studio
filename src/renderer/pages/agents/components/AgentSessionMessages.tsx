@@ -19,8 +19,9 @@ import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { type NavigateToForkSource, useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
 import { AgentPendingAttachments } from '../messages/AgentPendingAttachments'
@@ -33,7 +34,7 @@ type Props = {
   messages: CherryUIMessage[]
   historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   activeAgent?: GetAgentResponse
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers?: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId?: Record<string, unknown>
   isLoading: boolean
@@ -119,7 +120,7 @@ const AgentSessionMessages = ({
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index]
       if (message?.role !== 'assistant') continue
-      const parts = partsByMessageId[message.id] ?? message.parts ?? []
+      const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts ?? []
       if (parts.length > 0 || message.metadata?.status === 'pending') return message.id
     }
     return undefined

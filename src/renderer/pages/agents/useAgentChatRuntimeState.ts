@@ -3,7 +3,6 @@ import { type ComponentType, useCallback, useEffect, useLayoutEffect, useMemo, u
 import { useTranslation } from 'react-i18next'
 
 import type { ToastConfig } from '@cherrystudio/ui'
-import { useMessageStreamingLayers } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
 import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
@@ -31,6 +30,7 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { useHistoryReplies } from '@renderer/hooks/useHistoryReplies'
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useTopicCompletion } from '@renderer/hooks/useTopicCompletion'
 import { useTopicSpeech } from '@renderer/hooks/useTopicSpeech'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -43,7 +43,14 @@ import { autoReadService } from '@renderer/services/voice'
 import type { ExecutionFinishEvent } from '@renderer/types/message'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { createPartsByMessageId } from '@renderer/utils/message/exportView'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import {
+  activeReplyIds,
+  replyParts,
+  type MessagePartRows,
+  messagePartEntries
+} from '@renderer/utils/message/messagePartRows'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_CLOSING_CACHE_KEY, agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
@@ -136,10 +143,10 @@ function isAskUserQuestionPart(part: CherryMessagePart): boolean {
 }
 
 function findAskUserQuestionPartByCallId(
-  partsByMessageId: Record<string, CherryMessagePart[]>,
+  partsByMessageId: MessagePartRows,
   toolCallId: string
 ): AskUserQuestionApprovalPart | undefined {
-  for (const parts of Object.values(partsByMessageId)) {
+  for (const [, parts] of messagePartEntries(partsByMessageId)) {
     for (const part of parts) {
       if (!isToolUIPart(part)) continue
       const toolPart = part as AskUserQuestionApprovalPart
@@ -157,7 +164,7 @@ export interface AgentChatRuntimeState {
   setActiveBranch: ReturnType<typeof useAgentSessionParts>['setActiveBranch']
   uiMessages: CherryUIMessage[]
   historyActions: ReturnType<typeof useAgentSessionParts>['historyActions']
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   isLoading: boolean
@@ -395,11 +402,19 @@ export function useAgentChatRuntimeState({
     errorToastsRef.current?.onFinish(executionId, event)
     handleExecutionFinish(executionId, event)
   })
-  const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
-    messages: optimisticMessages ?? uiMessages,
-    executions: activeExecutions,
-    liveAssistants
-  })
+  const historyPartsByMessageId = useMemo(
+    () => (optimisticMessages ? createPartsByMessageId(optimisticMessages) : persistedPartsByMessageId),
+    [optimisticMessages, persistedPartsByMessageId]
+  )
+  const partsByMessageId = useMemo(
+    () => replyParts(historyPartsByMessageId, liveAssistants),
+    [historyPartsByMessageId, liveAssistants]
+  )
+  const liveMessageIds = useStableStringArray(activeReplyIds(activeExecutions, liveAssistants))
+  const streamingLayers = useMemo(
+    () => ({ historyPartsByMessageId: historyPartsByMessageId, liveMessageIds }),
+    [historyPartsByMessageId, liveMessageIds]
+  )
   const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
     Record<string, unknown>
   >({})
@@ -450,9 +465,9 @@ export function useAgentChatRuntimeState({
       optimisticMessages ??
       mergeMessagesById(
         uiMessages,
-        liveAssistants.filter((live) => uiMessages.some((message) => message.id === live.id))
+        liveAssistants.filter((live) => Object.hasOwn(persistedPartsByMessageId, live.id))
       ),
-    [liveAssistants, optimisticMessages, uiMessages]
+    [liveAssistants, optimisticMessages, persistedPartsByMessageId, uiMessages]
   )
 
   const respondToolApproval = useCallback(
