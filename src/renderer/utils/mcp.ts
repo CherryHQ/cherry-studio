@@ -27,22 +27,24 @@ export function getMcpConfigSampleFromReadme(readme: string): NpxConfigSample | 
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue
 
       for (const server of Object.values(parsed)) {
-        if (server && typeof server === 'object') {
+        if (server && typeof server === 'object' && !Array.isArray(server)) {
           const sample = npxConfigSampleSchema.safeParse(server)
 
           if (sample.success && sample.data.command === 'npx') {
-            const env = (server as JSONObject).env
+            const env = server.env
 
             // Zod records skip __proto__; validate its raw value before retaining the original object.
             if (
               env &&
               typeof env === 'object' &&
+              !Array.isArray(env) &&
               Object.hasOwn(env, '__proto__') &&
-              !McpConfigSampleSchema.shape.env.unwrap().valueType.safeParse((env as JSONObject)['__proto__']).success
+              !McpConfigSampleSchema.shape.env.unwrap().valueType.safeParse(env['__proto__']).success
             ) {
               continue
             }
 
+            // SAFETY: JSON.parse supplies JSON values; the schema checks supported sample fields, with the raw env prototype key checked above.
             return server as NpxConfigSample
           }
         }
