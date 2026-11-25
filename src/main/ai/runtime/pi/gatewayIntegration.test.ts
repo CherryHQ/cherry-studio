@@ -1010,34 +1010,44 @@ describe('native Pi through the production gateway', () => {
     { format: 'anthropic', endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },
     { format: 'gemini', endpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT }
   ] as const)(
-    'replays $format opaque reasoning through the production gateway and native Pi',
+    'replays $format opaque reasoning on its original route across native registrations',
     async ({ format, endpoint }) => {
       protocol = format
       const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/${format === 'gemini' ? 'v1beta' : 'v1'}`
-      dbh.db
-        .update(userProviderTable)
-        .set({ endpointConfigs: { [endpoint]: { baseUrl: url } }, defaultChatEndpoint: endpoint })
-        .where(eq(userProviderTable.providerId, 'port'))
-        .run()
-      const binding = await createPiGatewayModelBinding(
-        { sessionId: 'session' },
-        providerService.getByProviderId('port'),
-        modelService.getByKey('port', 'wire-model')
+      const configure = (baseUrl: string) =>
+        dbh.db
+          .update(userProviderTable)
+          .set({ endpointConfigs: { [endpoint]: { baseUrl } }, defaultChatEndpoint: endpoint })
+          .where(eq(userProviderTable.providerId, 'port'))
+          .run()
+      configure(url)
+      const bind = (sharedModels?: Awaited<ReturnType<typeof createPiGatewayModelBinding>>['modelRuntime']) =>
+        createPiGatewayModelBinding(
+          { sessionId: 'session' },
+          providerService.getByProviderId('port'),
+          modelService.getByKey('port', 'wire-model'),
+          undefined,
+          sharedModels
+        )
+      const binding = await bind()
+      const question = { role: 'user', content: 'first question', timestamp: 1 } as const
+      const original = await binding.modelRuntime.completeSimple(
+        binding.model,
+        normalizeContext({ messages: [question] })
       )
-      const directory = tempDir(`gateway-${format}-replay`)
-      session = await openSession({
-        ...binding,
-        cwd: directory,
-        agentDir: directory,
-        settings: { retry: { enabled: false } }
+      expect(original.stopReason).toBe('stop')
+      const reopened = await bind(binding.modelRuntime)
+      const history = normalizeContext({
+        messages: [question, JSON.parse(JSON.stringify(original)), { role: 'user', content: 'continue', timestamp: 2 }]
       })
-      await sendUser('first question')
-      expect(outcome()).toBe('completed')
-      await sendUser('continue')
-      expect(outcome()).toBe('completed')
-      expect(requests).toHaveLength(2)
+      configure(url.replace(/\/v1/, '/other/v1'))
+      expect((await reopened.modelRuntime.completeSimple(reopened.model, history)).stopReason).toBe('stop')
+      expect(JSON.stringify(requests[1])).not.toMatch(/opaque-ciphertext|thoughtSignature/)
+      configure(url)
+      expect((await reopened.modelRuntime.completeSimple(reopened.model, history)).stopReason).toBe('stop')
+      expect(requests).toHaveLength(3)
       if (format === 'anthropic') {
-        const messages = requests[1].messages as Array<{ role: string; content: unknown[] }>
+        const messages = requests[2].messages as Array<{ role: string; content: unknown[] }>
         expect(
           messages.filter((message) => message.role === 'assistant').flatMap((message) => message.content)
         ).toContainEqual({
@@ -1045,13 +1055,13 @@ describe('native Pi through the production gateway', () => {
           data: 'opaque-ciphertext'
         })
       } else {
-        const contents = requests[1].contents as Array<{ role: string; parts: unknown[] }>
+        const contents = requests[2].contents as Array<{ role: string; parts: unknown[] }>
         expect(contents.filter((content) => content.role === 'model').flatMap((content) => content.parts)).toEqual([
           { text: 'reasoning', thought: true, thoughtSignature: Buffer.from('thought-signature').toString('base64') },
           { text: 'answer', thoughtSignature: Buffer.from('text-signature').toString('base64') }
         ])
       }
-      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(2)
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(3)
     }
   )
 

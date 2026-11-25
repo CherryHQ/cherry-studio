@@ -49,6 +49,11 @@ These keys are generated from `scripts/data-classify/data/target-key-definitions
 ### Chat models — two pieces
 
 **Fallbacks are rebuilt per-model** (`src/main/ai/runtime/aiSdk/retry/buildFallbackModels.ts`).
+A tool continuation that carries route-bound state uses the route that produced
+the active tool call. This includes a fallback that already served the turn.
+If that route is unavailable, the continuation fails with its tool results
+retained. Cross-model fallback resumes at the next user turn.
+
 A fallback must carry **its own** feature middleware and params, not the
 primary's — ai-retry swaps the model but replays one set of call options, and
 the feature plugins are model-specific (built per `(assistant, model, provider)`

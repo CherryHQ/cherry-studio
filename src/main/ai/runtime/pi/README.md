@@ -12,6 +12,14 @@ dependencies outside the bundled CommonJS Main entry; a static import fails duri
 
 ## Model requests
 
+The gateway binding records the serving route on successful native replies.
+Before Pi converts a later request, the binding remaps matching history to the
+current runtime registration so signed blocks can survive reopening. Foreign
+history uses Pi's native conversion to remove replay state while preserving
+ordinary text and client tool pairs. An active tool result that needs its source
+route continues on the original route when available. The trusted object
+transport checks that the resolved SDK route still matches before sending.
+
 ```text
 Pi session → native Pi provider → protocol objects → Cherry gateway → AI SDK execution
 ```

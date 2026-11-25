@@ -6,6 +6,7 @@ sources:
   - src/main/ai/runtime/aiSdk/params/feature.ts
   - src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts
   - src/main/ai/runtime/aiSdk/params/features/providerStateReplay.ts
+  - src/main/ai/runtime/aiSdk/params/features/conversationStateReplay.ts
   - src/main/ai/runtime/aiSdk/params/features/geminiHistorySignatureReplay.ts
   - src/main/ai/runtime/aiSdk/params/features/anthropicThinkingBinding.ts
   - src/main/ai/runtime/aiSdk/params/features/openrouterReasoning.ts
@@ -73,15 +74,18 @@ unrecognized. Normalization can relax the constraints sent to the provider. MCP
 tools still validate against the original schema, and gateway callers validate
 their own tools.
 
-Chat records the serving route with replayable state from Gemini Generate
-Content, Anthropic Messages, and the OpenRouter chat adapter. The route includes
-the provider connection, protocol, SDK adapter, wire model, and Base URL. When
-one of these adapters receives completed history from a different route, it
-omits tagged thinking blocks and keeps ordinary text and client tool history.
-The original state remains available on the serving route. Gemini 3 and 4 use
-the stored provider and model identity for older text and tool calls when
-available. The Google adapter
-suppresses signature backfill for marked tool calls.
+Chat records the provider connection, protocol, SDK adapter, wire model, and
+Base URL with replayable state. Generate Content, Messages, Chat Completions,
+Responses, and Ollama Chat use the same route comparison. The endpoint adapter
+owns the wire representation, including signed blocks, plaintext thinking,
+encrypted reasoning, and Responses item references.
+
+Completed turns retain ordinary text and tool pairs when their tagged state is
+omitted on a new route. The saved history can replay again on the original
+route. Older Gemini 3 and 4 text and tool calls can use the recorded provider and
+model identity. The Google adapter suppresses signature backfill for marked tool
+calls. A tool result in the active turn stays on the route that produced its
+required state, including when that route was a Chat fallback.
 
 ## RequestFeature
 

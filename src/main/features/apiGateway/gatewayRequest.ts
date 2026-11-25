@@ -19,6 +19,7 @@ type InputParams = InputParamsMap[InputFormat]
 /** Trusted object-call state; HTTP routes never populate this field. */
 export interface AgentGatewayContext {
   agentSessionId: string
+  replayRouteId?: string
   reasoningEffort: ReasoningEffortOption
   serviceTier?: ServiceTierSelection
   fastMode: boolean
@@ -140,7 +141,7 @@ export async function resolveGatewayRequest(config: MessageConfig) {
     endpoint.endpointType && endpoint.endpointType !== resolvedAddress.model.endpointTypes?.[0]
       ? { ...resolvedAddress.model, endpointTypes: [endpoint.endpointType] }
       : resolvedAddress.model
-  const resolvedModel = { provider, model }
+  const resolvedModel = { provider, model, replayRouteId: config.agentContext?.replayRouteId }
   return {
     inputFormat,
     outputFormat,

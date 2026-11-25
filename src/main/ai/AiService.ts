@@ -82,6 +82,7 @@ import { buildVendorProviderOptions } from './provider/custom/wire/buildImageReq
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
+import { getReplayRouteId, ToolContinuationRouteError } from './provider/replayRoute'
 import { resolveSdkConfig } from './provider/sdkConfig'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import {
@@ -305,7 +306,7 @@ export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
   /** Trusted in-process classification for remote token analytics. */
   tokenUsageSource?: TokenUsageSource
-  resolvedModel?: { readonly provider: Provider; readonly model: Model }
+  resolvedModel?: { readonly provider: Provider; readonly model: Model; readonly replayRouteId?: string }
 }
 
 /** Chat requests additionally carry the turn's correlation and the stream manager's sinks. */
@@ -722,6 +723,10 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
     const retryDisabledForRequest = request.contextOwner === 'caller' || request.requestOptions?.maxRetries === 0
+    const primaryReplayRouteId = getReplayRouteId(provider.id, endpointType, sdkConfig)
+    if (request.resolvedModel?.replayRouteId && request.resolvedModel.replayRouteId !== primaryReplayRouteId) {
+      throw new ToolContinuationRouteError()
+    }
     const agentRef: { current?: Agent } = {}
     let activeRepairToolCall = options.repairToolCall
     const repairToolCall = options.repairToolCall
@@ -755,6 +760,7 @@ export class AiService extends BaseService {
         apiKeyFallbacks.length > 0
       )
       wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
         diagnosticContext: {
@@ -794,6 +800,12 @@ export class AiService extends BaseService {
         // Not transient: it rides message.parts so the renderer can show it; the
         // PersistenceListener strips it before the message is saved.
         onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
+      })
+    } else if (request.contextOwner !== 'caller') {
+      wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
+        retryPolicy: { ...readRetryPolicy(), enabled: false },
+        fallbacks: []
       })
     }
 
@@ -913,6 +925,7 @@ export class AiService extends BaseService {
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
+      endpointType,
       credentialReceipt,
       tools,
       plugins,
@@ -941,6 +954,7 @@ export class AiService extends BaseService {
       : undefined
 
     // An explicit per-request `maxRetries: 0` disables retry for this request.
+    const primaryReplayRouteId = getReplayRouteId(provider.id, endpointType, sdkConfig)
     let wrapModel =
       request.contextOwner === 'caller' ? createCallerRetryWrap(request.requestOptions?.maxRetries) : undefined
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
@@ -963,6 +977,7 @@ export class AiService extends BaseService {
         apiKeyFallbacks.length > 0
       )
       wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
         apiKeyFallbacks,
         retryPolicy,
         diagnosticContext: { assistantId: request.assistantId },
@@ -993,6 +1008,14 @@ export class AiService extends BaseService {
         onPrimaryActivated: () => {
           activeRepairToolCall = options.repairToolCall
         }
+      })
+    }
+
+    if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries === 0) {
+      wrapModel = createRetryableWrap({
+        primaryReplayRouteId,
+        retryPolicy: { ...readRetryPolicy(), enabled: false },
+        fallbacks: []
       })
     }
 

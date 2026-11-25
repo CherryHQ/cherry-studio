@@ -5,7 +5,7 @@ import { definePlugin } from '@cherrystudio/ai-core'
 import { ENDPOINT_TYPE, UniqueModelIdSchema } from '@shared/data/types/model'
 import { isGemini3Model, isGemini4Model } from '@shared/utils/model'
 
-import { getReplayRouteId } from '../../../../provider/replayRoute'
+import { getReplayEndpoint, getReplayRouteId } from '../../../../provider/replayRoute'
 import type { RequestFeature } from '../feature'
 import { createProviderStateReplayMiddleware } from './providerStateReplay'
 
@@ -45,8 +45,9 @@ function indexForeignHistory(messages: UIMessage[], targetModelId: string): Map<
 
 export const geminiHistorySignatureReplayFeature: RequestFeature = {
   name: 'gemini-history-signature-replay',
-  applies: ({ request, endpointType }) =>
-    request.contextOwner !== 'caller' && endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  applies: ({ request, endpointType, sdkConfig }) =>
+    request.contextOwner !== 'caller' &&
+    getReplayEndpoint(endpointType, sdkConfig) === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   contributeModelAdapters: ({ request, model, endpointType, sdkConfig }) => {
     const foreign =
       isGemini3Model(model) || isGemini4Model(model) ? indexForeignHistory(request.messages ?? [], model.id) : undefined

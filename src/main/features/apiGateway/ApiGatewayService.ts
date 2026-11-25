@@ -516,6 +516,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   createAgentObjectTransports(input: {
     sessionId: string
+    replayRouteId?: string
     headers?: ProviderHeaders
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
@@ -534,6 +535,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       requestHeaders: headers,
       agentContext: {
         agentSessionId: sessionId,
+        replayRouteId: input.replayRouteId,
         onRetryEvent: input.onRetryEvent,
         reasoningEffort: input.reasoningEffort ?? 'default',
         serviceTier: input.serviceTier,

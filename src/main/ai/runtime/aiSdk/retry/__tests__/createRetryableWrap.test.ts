@@ -1,4 +1,4 @@
-import type { LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { APICallError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -76,6 +76,58 @@ function policy(overrides: Partial<RetryPolicy> = {}): RetryPolicy {
 }
 
 describe('createRetryableWrap', () => {
+  it.each(['original', 'missing'])('continues a signed tool result on its %s fallback route', async (origin) => {
+    const calls: Array<{ route: string; params: LanguageModelV3CallOptions }> = []
+    const record = (route: string) =>
+      vi.fn(async (params: LanguageModelV3CallOptions) => {
+        calls.push({ route, params })
+        return okResult
+      })
+    const wrap = createRetryableWrap({
+      primaryReplayRouteId: 'primary',
+      retryPolicy: policy(),
+      fallbacks: [
+        async () => ({ model: makeFakeLanguageModel('original', record('original')), replayRouteId: 'original' })
+      ]
+    })!
+    const wrapped = wrap(makeFakeLanguageModel('primary', record('primary')))
+    const params: LanguageModelV3CallOptions = {
+      prompt: [
+        { role: 'user', content: [{ type: 'text', text: 'Look up cedar' }] },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool-call',
+              toolCallId: 'lookup-1',
+              toolName: 'lookup',
+              input: {},
+              providerOptions: { cherry: { replayRouteId: origin }, google: { thoughtSignature: 'tool-signature' } }
+            }
+          ]
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'lookup-1',
+              toolName: 'lookup',
+              output: { type: 'text', value: 'Cedar' }
+            }
+          ]
+        }
+      ]
+    }
+    if (origin === 'missing') {
+      await expect(wrapped.doGenerate(params)).rejects.toThrow('tool results were retained')
+      expect(calls).toEqual([])
+    } else {
+      await wrapped.doGenerate(params)
+      expect(calls).toEqual([{ route: 'original', params }])
+    }
+  })
+
   it('returns undefined when retry is disabled', () => {
     expect(createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }) })).toBeUndefined()
   })

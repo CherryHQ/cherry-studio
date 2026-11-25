@@ -17,6 +17,7 @@ import { anthropicHeadersFeature } from './anthropicHeaders'
 import { anthropicThinkingBindingFeature, anthropicThinkingReplayFeature } from './anthropicThinkingBinding'
 import { bedrockAnthropicCacheFeature } from './bedrockAnthropicCache'
 import { contextBuildFeature } from './contextBuild'
+import { conversationStateReplayFeature } from './conversationStateReplay'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
@@ -47,6 +48,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   // DeepSeek-only: tag replayed reasoning so the Responses serializer passes it back (#18150).
   deepseekResponsesReasoningReplayFeature,
   grokReasoningReplayFeature,
+  conversationStateReplayFeature,
   reasoningExtractionFeature,
   simulateStreamingFeature,
   // Must precede anthropic-cache: middleware array order = transformParams

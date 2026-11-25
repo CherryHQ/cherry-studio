@@ -8,34 +8,55 @@ interface ProviderStateReplay {
   hasState: (metadata: SharedV3ProviderMetadata | undefined) => boolean
   omitState?: (part: Exclude<AssistantPart, { type: 'reasoning' }>) => AssistantPart
   isLegacyForeign?: (part: AssistantPart) => boolean
+  capturePlainReasoning?: boolean
+  requirePlainReasoning?: boolean
+  responsesOptionsKey?: string
 }
 
 export function createProviderStateReplayMiddleware({
   routeId,
   hasState,
   omitState,
-  isLegacyForeign
+  isLegacyForeign,
+  capturePlainReasoning,
+  requirePlainReasoning,
+  responsesOptionsKey
 }: ProviderStateReplay): LanguageModelMiddleware {
-  const stamp = <T extends { providerMetadata?: SharedV3ProviderMetadata }>(part: T): T => {
-    const metadata = part.providerMetadata
-    if (!hasState(metadata)) return part
-    return { ...part, providerMetadata: { ...metadata, cherry: { ...metadata?.cherry, replayRouteId: routeId } } }
+  const stamp = <T extends { type: string }>(part: T, store?: boolean): T => {
+    const metadata = 'providerMetadata' in part ? (part.providerMetadata as SharedV3ProviderMetadata) : undefined
+    const bound = hasState(metadata)
+    if (!bound && !(capturePlainReasoning && (part.type === 'reasoning' || part.type === 'reasoning-start')))
+      return part
+    return {
+      ...part,
+      providerMetadata: {
+        ...metadata,
+        cherry: {
+          ...metadata?.cherry,
+          replayRouteId: routeId,
+          replayRequiresRoute: bound || requirePlainReasoning === true,
+          ...(store !== undefined && { responsesStore: store })
+        }
+      }
+    }
   }
 
   return {
     specificationVersion: 'v3',
-    wrapGenerate: async ({ doGenerate }) => {
+    wrapGenerate: async ({ doGenerate, params }) => {
       const result = await doGenerate()
-      return { ...result, content: result.content.map((part) => ('providerMetadata' in part ? stamp(part) : part)) }
+      const store = responsesOptionsKey ? params.providerOptions?.[responsesOptionsKey]?.store !== false : undefined
+      return { ...result, content: result.content.map((part) => stamp(part, store)) }
     },
-    wrapStream: async ({ doStream }) => {
+    wrapStream: async ({ doStream, params }) => {
       const result = await doStream()
+      const store = responsesOptionsKey ? params.providerOptions?.[responsesOptionsKey]?.store !== false : undefined
       return {
         ...result,
         stream: result.stream.pipeThrough(
           new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
             transform(part, controller) {
-              controller.enqueue(part.type !== 'finish' && 'providerMetadata' in part ? stamp(part) : part)
+              controller.enqueue(part.type === 'finish' ? part : stamp(part, store))
             }
           })
         )
@@ -51,7 +72,11 @@ export function createProviderStateReplayMiddleware({
         const content = message.content.flatMap((part) => {
           const source = part.providerOptions?.cherry?.replayRouteId
           const foreign = typeof source === 'string' ? source !== routeId : isLegacyForeign?.(part)
-          if (!foreign) return [part]
+          const unaddressable =
+            responsesOptionsKey &&
+            part.providerOptions?.cherry?.responsesStore === false &&
+            params.providerOptions?.[responsesOptionsKey]?.store !== false
+          if (!foreign && !unaddressable) return [part]
           if (part.type === 'reasoning') return []
           return [omitState && hasState(part.providerOptions) ? omitState(part) : part]
         })
