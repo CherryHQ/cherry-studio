@@ -1733,6 +1733,9 @@ importers:
 
   packages/agent-runtime-claude-code:
     dependencies:
+      '@ai-sdk/provider':
+        specifier: 3.0.19
+        version: 3.0.19
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.311
         version: 0.3.311(patch_hash=b89b3f4bbaf29e79be6f1de79f027ab65862b7656ce3d1c3ae7481f016093abe)(@anthropic-ai/sdk@0.93.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3))(zod@4.4.3)

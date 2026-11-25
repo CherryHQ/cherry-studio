@@ -22,8 +22,8 @@ import {
 
 import type { NativeArchiveEntry } from './archive'
 import {
+  citationMetadata,
   decodeArchiveContent,
-  json,
   projectBlock,
   type NativeBlock,
   type ProjectedBlock,
@@ -77,7 +77,6 @@ export class ClaudeProjection {
         callId?: string
         bound?: string
         stopped: boolean
-        citations?: NonNullable<Extract<NativeBlock, { type: 'text' }>['citations']>
       }
     >
   }
@@ -298,29 +297,20 @@ export class ClaudeProjection {
   }
 
   private applyResult(uuid: string, result: ToolResult): ObservationPayload[] {
-    const call = this.calls.get(result.toolUseId)
+    const call = this.calls.get(result.toolCallId)
     const owner = call && this.messages.get(call.id)
     if (!call || !owner) return []
-    const base = {
-      type: 'dynamic-tool' as const,
+    const part: ToolPart = {
+      ...result,
+      type: 'dynamic-tool',
       toolName: call.part.toolName,
-      toolCallId: call.part.toolCallId,
       input: call.part.input,
       callProviderMetadata: call.part.callProviderMetadata
     }
-    const part: ToolPart =
-      result.errorText !== undefined
-        ? {
-            ...base,
-            state: 'output-error',
-            errorText: result.errorText,
-            resultProviderMetadata: { anthropic: { result: json(result.output) } }
-          }
-        : { ...base, state: 'output-available', output: result.output }
     const calls = this.results.get(uuid) ?? new Set<string>()
-    calls.add(result.toolUseId)
+    calls.add(result.toolCallId)
     this.results.set(uuid, calls)
-    if (this.denied.has(result.toolUseId)) return []
+    if (this.denied.has(result.toolCallId)) return []
     owner.parts[call.index] = part
     return [{ type: 'message.tool-output', ref: this.ref(owner.id), part: call.index, tool: part }]
   }
@@ -378,8 +368,7 @@ export class ClaudeProjection {
         part,
         value,
         stopped: false,
-        callId: value.type === 'dynamic-tool' ? value.toolCallId : undefined,
-        citations: block.type === 'text' ? (block.citations ?? []) : undefined
+        callId: value.type === 'dynamic-tool' ? value.toolCallId : undefined
       })
       if (value.type === 'text' || value.type === 'reasoning') {
         events.push({
@@ -436,9 +425,11 @@ export class ClaudeProjection {
       return [{ type: 'message.text-append', ref, part, text }]
     }
     if (delta.type !== 'citations_delta' && delta.type !== 'signature_delta') return []
-    if (delta.type === 'citations_delta') block.citations = [...(block.citations ?? []), delta.citation]
+    const citations = value.providerMetadata?.anthropic?.citations
     const anthropic =
-      delta.type === 'signature_delta' ? { signature: delta.signature } : { citations: json(block.citations) }
+      delta.type === 'signature_delta'
+        ? { signature: delta.signature }
+        : { citations: [...(Array.isArray(citations) ? citations : []), citationMetadata(delta.citation)] }
     const providerMetadata = {
       ...value.providerMetadata,
       anthropic: { ...value.providerMetadata?.anthropic, ...anthropic }

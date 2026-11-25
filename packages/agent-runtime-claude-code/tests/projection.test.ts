@@ -139,14 +139,15 @@ it('retains streaming metadata for a late observer before a complete message', a
     )
   }
   const initialCitation = {
-    type: 'char_location',
+    type: 'char_location' as const,
     cited_text: 'quote',
     document_index: 0,
     document_title: 'doc',
     start_char_index: 0,
     end_char_index: 5,
     file_id: null
-  } as const
+  }
+  const sdkCitation = { ...initialCitation }
   const citation = { ...initialCitation, cited_text: 'second quote', start_char_index: 6, end_char_index: 18 }
   await partial({ type: 'message_start', message: assistantMessage(sessionId, []).message })
   await partial({
@@ -164,8 +165,9 @@ it('retains streaming metadata for a late observer before a complete message', a
   await partial({
     type: 'content_block_start',
     index: 2,
-    content_block: { type: 'text', text: 'Answer', citations: [initialCitation] }
+    content_block: { type: 'text', text: 'Answer', citations: [sdkCitation] }
   })
+  sdkCitation.cited_text = 'Changed after the block was published'
   await partial({ type: 'content_block_delta', index: 2, delta: { type: 'citations_delta', citation } })
   await partial({ type: 'content_block_stop', index: 2 })
   await partial({
