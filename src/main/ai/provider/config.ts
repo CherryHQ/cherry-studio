@@ -96,7 +96,7 @@ export interface ResolvedProviderAiSdkConfig {
 }
 
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
-function formatBaseURL(baseURL: string, provider: Provider, endpointType?: EndpointType): string {
+function formatBaseURL(baseURL: string, provider: Provider, endpointType?: string): string {
   if (!baseURL) return ''
 
   const appendApiVersion = !isWithTrailingSharp(baseURL)
@@ -726,7 +726,7 @@ function buildBedrockConfig(ctx: BuilderContext): ResolvedProviderConfigBuild {
 
 function buildVertexConfig(
   ctx: BuilderContext
-): ProviderConfig<'google-vertex'> | ProviderConfig<'google-vertex-maas'> {
+): ProviderConfig<'google-vertex'> | ProviderConfig<'google-vertex-anthropic'> | ProviderConfig<'google-vertex-maas'> {
   const authConfig = providerService.getAuthConfig(ctx.actualProvider.id)
 
   if (authConfig?.type !== 'iam-gcp') {
@@ -741,6 +741,9 @@ function buildVertexConfig(
   const creds = googleCredentials
     ? { ...googleCredentials, clientEmail, privateKey: formatPrivateKey(privateKey ?? '') }
     : undefined
+
+  // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy partial credentials may omit clientEmail; preserve the SDK authentication path and its errors instead of inventing a required value.
+  const sdkCredentials = creds as NonNullable<ProviderConfig<'google-vertex'>['providerSettings']>['googleCredentials']
 
   const modelId = ctx.model.apiModelId ?? ctx.model.id
   const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || modelId.startsWith('claude')
@@ -762,10 +765,10 @@ function buildVertexConfig(
         // Standard providers leave baseURL empty so the adapter derives the aiplatform host
         // from project+location; a custom host (proxy) passes through untouched.
         ...(ctx.baseConfig.baseURL && { baseURL: ctx.baseConfig.baseURL }),
-        ...(creds && { googleCredentials: creds }),
+        ...(sdkCredentials && { googleCredentials: sdkCredentials }),
         headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
       }
-    } as ProviderConfig<'google-vertex-maas'>
+    }
   }
 
   // Standard Vertex providers leave baseURL empty. Appending the publisher suffix to `''`
@@ -783,9 +786,9 @@ function buildVertexConfig(
       baseURL,
       project,
       location,
-      ...(creds && { googleCredentials: creds })
+      ...(sdkCredentials && { googleCredentials: sdkCredentials })
     }
-  } as ProviderConfig<'google-vertex'>
+  }
 }
 
 function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSettings['endpointType'] {
@@ -969,7 +972,7 @@ function buildOpenResponsesConfig(ctx: BuilderContext): ProviderConfig<'open-res
 function buildEndpointBaseURLs(provider: Provider): Partial<Record<EndpointType, string>> {
   const entries = Object.entries(provider.endpointConfigs ?? {}).flatMap(([endpointType, config]) => {
     if (!config?.baseUrl) return []
-    const formatted = formatBaseURL(config.baseUrl, provider, endpointType as EndpointType)
+    const formatted = formatBaseURL(config.baseUrl, provider, endpointType)
 
     return [[endpointType, routeToEndpoint(formatted).baseURL] as const]
   })
