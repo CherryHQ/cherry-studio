@@ -4,7 +4,7 @@ import type { AgentType } from '@shared/data/types/agent'
 
 /** Renderer fallback catalog used before a live runtime publishes its slash commands. */
 export function getBuiltinSlashCommands(agentType: AgentType | string | undefined): SlashCommand[] {
-  if (!agentType || !(agentType in AGENT_RUNTIME_CAPABILITIES)) return []
+  const runtime = Object.entries(AGENT_RUNTIME_CAPABILITIES).find(([type]) => type === agentType)?.[1]
 
-  return [...AGENT_RUNTIME_CAPABILITIES[agentType as AgentType].slashCommands]
+  return runtime ? [...runtime.slashCommands] : []
 }

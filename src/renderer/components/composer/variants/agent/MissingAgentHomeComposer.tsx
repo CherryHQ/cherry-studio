@@ -17,7 +17,6 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
 import { TopicType } from '@renderer/types/topic'
 import { resolveSendShortcut } from '@renderer/utils/input'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import { AGENT_MANAGED_TOKEN_KINDS } from '../agentComposerTokens'
 import { emptyActions, type ProviderActionHandlers } from '../shared/composerProviderActions'
@@ -142,10 +141,10 @@ export const MissingAgentHomeComposer = (props: MissingAgentHomeComposerProps) =
     () => ({
       mentionedModels: [],
       selectedKnowledgeBases: [],
-      files: [] as ComposerAttachment[],
+      files: [],
       isExpanded: false,
       couldAddImageFile: false,
-      extensions: [] as string[]
+      extensions: []
     }),
     []
   )

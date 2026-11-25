@@ -395,6 +395,7 @@ function setComposerEditorContent(
 
 function hasComposerTokenBeforeSelection(editor: Editor) {
   const selection = editor.state.selection
+
   if (isNodeSelection(selection) && selection.node.type.name === COMPOSER_TOKEN_NODE_NAME) return true
 
   if (!selection.empty) return false

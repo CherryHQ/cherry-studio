@@ -29,7 +29,9 @@ interface QueuedFollowupsDockProps {
 
 /** Read-only chips for a queued draft's composer tokens (file / skill / knowledge / quote …). */
 function DraftTokenChips({ item, hasText }: { item: FollowupQueueItem; hasText: boolean }) {
-  const tokens = (item.draft?.tokens ?? []).filter((token) => isComposerInputTokenKind(token.kind))
+  const tokens = (item.draft?.tokens ?? []).filter(
+    (token): token is Extract<typeof token, { kind: ChatInputTokenKind }> => isComposerInputTokenKind(token.kind)
+  )
 
   if (tokens.length === 0) return null
 
@@ -41,7 +43,7 @@ function DraftTokenChips({ item, hasText }: { item: FollowupQueueItem; hasText: 
           token={
             {
               id: token.id,
-              kind: token.kind as ChatInputTokenKind,
+              kind: token.kind,
               label: token.label,
               description: token.description,
               promptText: token.promptText,

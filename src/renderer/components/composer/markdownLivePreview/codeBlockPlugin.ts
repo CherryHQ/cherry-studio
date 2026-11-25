@@ -40,6 +40,7 @@ export function createCodeHighlightPlugin(getBlocks: (state: EditorState) => Mar
     key: highlightKey,
     state: {
       init: () => DecorationSet.empty,
+      // SAFETY: This private key is written only with DecorationSet.create below; ProseMirror getMeta erases that key/value association.
       apply: (transaction, decorations) =>
         (transaction.getMeta(highlightKey) as DecorationSet | undefined) ??
         decorations.map(transaction.mapping, transaction.doc)

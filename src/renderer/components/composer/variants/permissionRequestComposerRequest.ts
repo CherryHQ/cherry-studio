@@ -27,6 +27,7 @@ export type PermissionRequestComposerRequest = {
 type PermissionToolPart = ToolUIPart<UITools> | DynamicToolUIPart
 
 const commandPolicyRuleSchema = z.object({ ruleId: z.string(), reasonCode: z.string(), evidence: z.string() })
+
 const commandPolicySchema = z.object({
   cwd: z.string().optional(),
   reason: z.string(),
@@ -34,6 +35,7 @@ const commandPolicySchema = z.object({
   rules: z.array(z.unknown()).transform((rules) =>
     rules.flatMap((rule) => {
       const parsed = commandPolicyRuleSchema.safeParse(rule)
+
       return parsed.success ? [parsed.data] : []
     })
   )
@@ -101,6 +103,7 @@ function getCommandPolicy(part: PermissionToolPart): CommandApprovalDetails | un
 
     if (parsed.success) {
       const { cwd, ...details } = parsed.data
+
       return cwd === undefined ? details : { cwd, ...details }
     }
   }

@@ -6,7 +6,7 @@ export type PermissionRiskEffect = 'destructive' | 'network' | 'irreversible'
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Tool inputs are runtime-defined; only a verified command string participates in command-risk heuristics.
 function getCommandText(args: unknown): string {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return ''
-  const command = (args as { command?: unknown }).command
+  const command = 'command' in args ? args.command : undefined
 
   return typeof command === 'string' ? command : ''
 }

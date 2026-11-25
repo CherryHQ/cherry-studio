@@ -1,6 +1,6 @@
 import { type Editor, getChangedRanges, type JSONContent } from '@tiptap/core'
 import { isHistoryTransaction } from '@tiptap/pm/history'
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
+import { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { NodeSelection, type Selection, type Transaction } from '@tiptap/pm/state'
 
 import {
@@ -190,7 +190,9 @@ function getSelectionNode(selection: Selection): ProseMirrorNode | null {
 
   if (!('node' in selection)) return null
 
-  return selection.node as ProseMirrorNode
+  const node = selection.node
+
+  return node instanceof ProseMirrorNode ? node : null
 }
 
 export function getSelectedPromptVariableToken(editor: Editor) {

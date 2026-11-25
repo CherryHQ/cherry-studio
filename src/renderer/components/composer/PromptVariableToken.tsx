@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEventHandler } from 'react'
+import type { MouseEventHandler } from 'react'
 import { useLayoutEffect, useRef } from 'react'
 
 import type { PromptVariableComposerInputToken } from './tokens'
@@ -9,7 +9,7 @@ export type PromptVariableCommitReason = 'blur' | 'enter' | 'tab'
 const promptVariableInputStyle = {
   minWidth: '2ch',
   maxWidth: '100%'
-} as CSSProperties
+}
 
 function resizePromptVariableInput(input: HTMLTextAreaElement | null) {
   if (!input) return
@@ -72,10 +72,10 @@ export function PromptVariableToken({
       isComposingRef.current = true
     }
 
-    const handleCompositionEnd = (event: Event) => {
+    const handleCompositionEnd = (event: CompositionEvent) => {
       event.stopPropagation()
       isComposingRef.current = false
-      const compositionText = (event as CompositionEvent).data
+      const compositionText = event.data
       const nextValue = compositionText && input.value === token.label ? compositionText : input.value
 
       if (input.value !== nextValue) input.value = nextValue

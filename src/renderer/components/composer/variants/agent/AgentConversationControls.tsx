@@ -10,6 +10,7 @@ import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
+import { getEventTargetElement } from '@renderer/utils/dom'
 import { getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
@@ -288,7 +289,7 @@ function WorkspaceControl({
       disabled={!onWorkspaceChange || workspaceChanging}
       aria-label={workspaceWarning}
       onClick={(event) => {
-        const target = event.target as Element | null
+        const target = getEventTargetElement(event.target)
 
         if (!canQuickClearWorkspace || !target?.closest('[data-clear-workspace-button]')) {
           return

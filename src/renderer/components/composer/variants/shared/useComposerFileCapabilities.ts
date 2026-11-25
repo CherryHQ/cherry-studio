@@ -33,7 +33,7 @@ const MEDIA_INPUT_PREDICATES = {
 function isMultiModelArgs(
   input: Model | undefined | ComposerFileCapabilitiesArgs
 ): input is ComposerFileCapabilitiesArgs {
-  return !!input && Array.isArray((input as ComposerFileCapabilitiesArgs).models)
+  return !!input && 'models' in input && Array.isArray(input.models)
 }
 
 /**

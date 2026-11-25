@@ -27,7 +27,7 @@ type PersistedComposerSerializedToken = ComposerSerializedToken & {
 }
 
 function isEditorSource(source: ComposerSerializableSource): source is Pick<Editor, 'getJSON'> {
-  return typeof (source as Pick<Editor, 'getJSON'>).getJSON === 'function'
+  return 'getJSON' in source && typeof source.getJSON === 'function'
 }
 
 function appendTextContent(nodes: JSONContent[], text: string) {
@@ -52,19 +52,11 @@ function getRestoredTextSuffix(payload: unknown): string {
 const composerTokenText = (token: ComposerDraftToken): string =>
   (token.promptText ?? '') + getRestoredTextSuffix(token.payload)
 
-/* oxlint-disable anti-slop/no-unsafe-dictionary-type -- Live and restored payload fields are unvalidated; retain opaque values until display-field checks or restored-suffix merging. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Live and restored token payloads vary by token kind; require an object before validating individual display-file fields or merging restored suffixes.
-function readPayloadObject(payload: unknown): Record<string, unknown> | undefined {
+function readPayloadObject(payload: unknown): object | undefined {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined
 
-  return payload as Record<string, unknown>
-}
-/* oxlint-enable anti-slop/no-unsafe-dictionary-type */
-
-function readPayloadString(payload: NonNullable<ReturnType<typeof readPayloadObject>>, key: string) {
-  const value = payload[key]
-
-  return typeof value === 'string' ? value : undefined
+  return payload
 }
 
 function createDisplayFileTokenPayload(token: ComposerSerializedToken): ComposerMessageTokenPayload | undefined {
@@ -75,23 +67,23 @@ function createDisplayFileTokenPayload(token: ComposerSerializedToken): Composer
   if (!payload) return undefined
 
   const displayPayload: ComposerMessageTokenPayload = {}
-  const type = FileTypeSchema.safeParse(payload.type)
+  const type = FileTypeSchema.safeParse('type' in payload ? payload.type : undefined)
 
   if (type.success) displayPayload.type = type.data
 
-  const ext = readPayloadString(payload, 'ext')
+  const ext = 'ext' in payload ? payload.ext : undefined
 
-  if (ext) displayPayload.ext = ext
+  if (typeof ext === 'string' && ext) displayPayload.ext = ext
 
-  const name = readPayloadString(payload, 'name')
+  const name = 'name' in payload ? payload.name : undefined
 
-  if (name) displayPayload.name = name
+  if (typeof name === 'string' && name) displayPayload.name = name
 
-  const originName = readPayloadString(payload, 'origin_name')
+  const originName = 'origin_name' in payload ? payload.origin_name : undefined
 
-  if (originName) displayPayload.origin_name = originName
+  if (typeof originName === 'string' && originName) displayPayload.origin_name = originName
 
-  if (typeof payload.size === 'number') displayPayload.size = payload.size
+  if ('size' in payload && typeof payload.size === 'number') displayPayload.size = payload.size
 
   return Object.keys(displayPayload).length > 0 ? displayPayload : undefined
 }

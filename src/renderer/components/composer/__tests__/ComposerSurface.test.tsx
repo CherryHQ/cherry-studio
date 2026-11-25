@@ -1777,17 +1777,16 @@ describe('ComposerSurface', () => {
   })
 
   it('commits IME composition to a selected prompt variable once composition ends', async () => {
+    const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+    const schema = getSchema(createComposerEditorPreset())
     mocks.selection = {
       from: 5,
-      node: {
-        type: { name: 'composerToken' },
-        attrs: {
-          id: 'prompt-variable:0:city',
-          kind: 'promptVariable',
-          label: 'city',
-          promptText: '${city}'
-        }
-      }
+      node: schema.nodes.composerToken.create({
+        id: 'prompt-variable:0:city',
+        kind: 'promptVariable',
+        label: 'city',
+        promptText: '${city}'
+      })
     }
     render(<Harness />)
 
@@ -4163,14 +4162,18 @@ describe('ComposerSurface', () => {
       vi.mocked(window.api.file.getPathForFile).mockReturnValue(file.path)
       window.api.file.get = vi.fn().mockResolvedValue(file)
       if (selected) {
+        const { createComposerEditorPreset } = await vi.importActual<typeof ComposerPreset>('../composerPreset')
+        const schema = getSchema(createComposerEditorPreset())
         mocks.selection = {
           empty: false,
           from: 1,
           to: 2,
-          node: {
-            type: { name: 'composerToken' },
-            attrs: { id: 'prompt-variable:0:city', kind: 'promptVariable', label: '${city}', promptText: '${city}' }
-          },
+          node: schema.nodes.composerToken.create({
+            id: 'prompt-variable:0:city',
+            kind: 'promptVariable',
+            label: '${city}',
+            promptText: '${city}'
+          }),
           $from: { nodeBefore: null }
         }
       }
