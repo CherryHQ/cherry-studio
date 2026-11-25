@@ -52,8 +52,8 @@ export interface ImageGenerationSubmitInput {
   modelId: string
   prompt: string | undefined
   n: number
-  size: `${number}x${number}` | undefined
-  aspectRatio?: `${number}:${number}`
+  size: string | undefined
+  aspectRatio?: string
   seed: number | undefined
   files: ImageModelV3CallOptions['files']
   mask: ImageModelV3CallOptions['mask']

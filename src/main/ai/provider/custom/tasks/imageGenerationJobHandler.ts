@@ -162,8 +162,8 @@ async function buildSubmitInput(
     modelId,
     prompt: input.prompt,
     n: input.n,
-    size: input.size as `${number}x${number}` | undefined,
-    aspectRatio: input.aspectRatio as `${number}:${number}` | undefined,
+    size: input.size,
+    aspectRatio: input.aspectRatio,
     seed: input.seed,
     files,
     mask,
@@ -220,6 +220,7 @@ async function pollUntilDone(
 /** Resolve a transport result to a base64 data URL: inline `data:` results (from
  *  `b64_json`-style responses) are used as-is; anything else is downloaded. */
 async function resolveImageDataUrl(url: string): Promise<Base64String | null> {
+  // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- This only routes inline URIs; FileManager's parseDataUrl validates the actual MIME, base64 marker and payload before persistence.
   if (url.startsWith('data:')) return url as Base64String
   const downloaded = await downloadImageAsBase64(url)
 
