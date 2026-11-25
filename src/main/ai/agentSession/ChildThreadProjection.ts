@@ -68,6 +68,7 @@ export class ChildThreadProjection {
   private readonly delivery: MessageProjection<ChildProjectionState>
   private timer?: ReturnType<typeof setTimeout>
   private pending: Promise<void> = Promise.resolve()
+  private drainingParts?: Promise<void>
   private stopped = false
   private needsHistory = true
   private reloadSaved = false
@@ -143,6 +144,7 @@ export class ChildThreadProjection {
     const source = {}
     this.source = source
     const result = await this.handle.observe(async (event) => {
+      if (this.drainingParts) await this.drainingParts
       if (this.stopped || this.source !== source) return
       if (isLivePartInput(event)) {
         const nativeId = this.canonical(event.ref.id)
@@ -408,12 +410,10 @@ export class ChildThreadProjection {
   }
 
   private async reduce(): Promise<void> {
-    await this.projection.drain()
     if (this.reloadSaved) {
       for (const message of savedMessages(this.context.sessionId)) this.saved.set(message.id, message)
       this.reloadSaved = false
     }
-    const current = this.projection.snapshot()
     const history = this.needsHistory
     this.needsHistory = false
     const archive = history ? await this.readCommitted() : undefined
@@ -436,7 +436,12 @@ export class ChildThreadProjection {
       )
         this.nativeIds[item.id] = item.metadata.inputId
     for (const [nativeId, liveId] of Object.entries(archive?.aliases ?? {})) {
-      const id = this.nativeIds[nativeId] ?? this.nativeIds[liveId] ?? this.productIds.get(liveId) ?? uuid()
+      const id =
+        this.nativeIds[nativeId] ??
+        this.nativeIds[liveId] ??
+        this.productIds.get(liveId) ??
+        this.productIds.get(nativeId) ??
+        uuid()
       this.nativeIds[nativeId] = id
       this.productIds.set(liveId, id)
       this.committedLiveIds.add(liveId)
@@ -456,7 +461,7 @@ export class ChildThreadProjection {
             type: 'snapshot',
             messages: archive.messages.filter((item) => !this.removed.has(item.id)),
             inputs: [],
-            activity: current.activity
+            activity: this.projection.snapshot().activity
           },
           refresh === true ? true : [...refresh].flatMap((id) => [id, this.canonical(id)])
         )
@@ -466,7 +471,7 @@ export class ChildThreadProjection {
         throw error
       }
       for (const message of recovered.snapshot().messages) {
-        const id = (this.nativeIds[message.id] ??= uuid())
+        const id = (this.nativeIds[message.id] ??= this.productIds.get(message.id) ?? uuid())
         const rows = this.materialize(message, id)
         for (const row of rows) {
           committed.add(row.id)
@@ -488,6 +493,14 @@ export class ChildThreadProjection {
         }
       }
     }
+    // Keep arrivals during the archive read live, then serialize the final drain with snapshot publication.
+    this.drainingParts = this.projection.drain()
+    try {
+      await this.drainingParts
+    } finally {
+      this.drainingParts = undefined
+    }
+    const current = this.projection.snapshot()
     for (const message of current.messages) {
       if (this.removed.has(message.id)) continue
       const id = this.nativeIds[message.id] ?? this.productIds.get(message.id) ?? uuid()

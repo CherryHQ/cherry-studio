@@ -297,6 +297,24 @@ it('persists explicit removals and does not resurrect them after reopening', asy
   expect(contexts.context(f.context.id).checkpointMapping?.fork).toEqual(fork)
 })
 
+it.each([false, true])(
+  'keeps the product row and part when an archived native ID already appeared live (alias=%s)',
+  async (withAlias) => {
+    const f = fixture()
+    await f.projection.attach()
+    await f.send({ type: 'message.reconcile', message: f.item('same', 'partial', 'partial') })
+    await f.projection.flush()
+    const [live] = f.projection.snapshot().messages
+    f.archive.messages = [f.item('same', 'complete')]
+    if (withAlias) f.archive.aliases = { same: 'unobserved-preview' }
+    await f.send({ type: 'message.reconcile', message: f.archive.messages[0] })
+    await f.projection.flush()
+    expect(savedChildView(f.context).messages).toMatchObject([
+      { id: live.id, partIds: live.partIds, parts: [{ text: 'complete' }] }
+    ])
+  }
+)
+
 // A committed UUID replaces its streaming identity without creating a second product row.
 it('keeps the product identity when a native committed block replaces a preview', async () => {
   const f = fixture()
@@ -358,6 +376,44 @@ it('serializes asynchronous archives with live completion and retains the previe
   projections.splice(projections.indexOf(f.projection), 1)
   expect(savedChildView(f.context).messages).toMatchObject([
     { id, parts: [{ type: 'text', text: 'complete', state: 'done' }] }
+  ])
+})
+
+it('keeps live appends visible across a child archive read', async () => {
+  const reading = Promise.withResolvers<void>()
+  const release = Promise.withResolvers<void>()
+  let block = false
+  const f = fixture(async () => {
+    if (block) {
+      reading.resolve()
+      await release.promise
+    }
+  })
+  await f.projection.attach()
+  await f.send({ type: 'message.reconcile', message: f.item('preview', 'A', 'partial') })
+  await f.projection.flush()
+  const [row] = f.projection.snapshot().messages
+  const updates: AgentChildUpdate[] = []
+  f.projection.subscribe((update) => updates.push(update))
+  const append = (text: string) =>
+    f.send({ type: 'message.text-append', ref: { id: runtimeId('preview'), session: f.handle.thread }, part: 0, text })
+  block = true
+  const pending = f.projection.refresh()
+  await reading.promise
+  try {
+    await append('B')
+    expect(f.projection.snapshot().messages[0].parts[0]).toMatchObject({ text: 'AB' })
+  } finally {
+    block = false
+    release.resolve()
+  }
+  await pending
+  expect(f.projection.snapshot().messages[0].parts[0]).toMatchObject({ text: 'AB' })
+  await append('C')
+  expect(f.projection.snapshot().messages[0].parts[0]).toMatchObject({ text: 'ABC' })
+  expect(updates.flatMap((update) => [...update.patches])).toEqual([
+    { type: 'part-append', partId: row.partIds![0], text: 'B' },
+    { type: 'part-append', partId: row.partIds![0], text: 'C' }
   ])
 })
 

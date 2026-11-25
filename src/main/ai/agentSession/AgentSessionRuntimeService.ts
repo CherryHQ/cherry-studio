@@ -2550,7 +2550,10 @@ export class AgentSessionRuntimeService extends BaseService {
                 turn.activeToolIds.delete(patch.part.toolCallId)
               this.saveCompletedParts(entry, turn, completed)
             }
-          } else if (completed) {
+          } else if (
+            completed ||
+            (patch.type === 'part-put' && isToolUIPart(patch.part) && patch.part.state === 'input-available')
+          ) {
             const entries = projection.replyEntries(messageId)
             if (entries) this.publishRootMessage(entry, projection, messageId, entries)
           }

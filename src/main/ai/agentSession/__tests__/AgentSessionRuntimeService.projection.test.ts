@@ -478,6 +478,28 @@ it('saves Durable input and part positions in admission order, including on Stop
   expect(dbh.db.select({ pos: agentSessionTable.lastPos }).from(agentSessionTable).get()?.pos).toBe(34)
 })
 
+it('persists a Claude tool-result retraction on its settled reply', async () => {
+  const f = await fixture(undefined, false, 'claude-code')
+  const call = { type: 'dynamic-tool' as const, toolCallId: 'call', toolName: 'Read', input: { path: '/a' } }
+  const output = 'withdrawn'.repeat(8192)
+  await f.project([reply([{ ...call, state: 'output-available', output }])])
+  await f.emit({ type: 'turn-complete' })
+  const result: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  for (const listener of f.handle.listeners) await listener.onDone(result)
+  const [saved] = storedParts(f.reply.id)
+  expect(messages.getSessionToolOutput('root', f.reply.id, call.toolCallId)).toEqual({ found: true, output })
+
+  await f.emit({
+    type: 'message.parts',
+    contextId: f.context.id,
+    ref: { id: runtimeId('native'), session: { backendId: runtimeId('backend'), id: runtimeId('thread') } },
+    changes: [{ type: 'put', part: 0, value: { ...call, state: 'input-available' } }]
+  })
+  expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual([{ ...call, state: 'input-available' }])
+  expect(storedParts(f.reply.id).map((part) => part.id)).toEqual([saved.id])
+  expect(messages.getSessionToolOutput('root', f.reply.id, call.toolCallId)).toEqual({ found: false })
+})
+
 it('does not recreate a deleted reply from a late completed part', async () => {
   const f = await fixture()
   await f.project([reply([{ type: 'text', text: 'Draft', state: 'streaming' }])])
