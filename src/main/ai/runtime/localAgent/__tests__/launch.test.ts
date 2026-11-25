@@ -27,7 +27,10 @@ vi.mock('@main/core/platform', async (importOriginal) => ({
     return inventory.isWin
   }
 }))
-vi.mock('@main/utils/bundledGit', () => ({ getBundledGitDir: () => inventory.bundledGitDir }))
+vi.mock('@main/utils/bundledGit', () => ({
+  getBundledGitDir: () => inventory.bundledGitDir,
+  getBundledGitPath: () => (inventory.bundledGitDir ? path.join(inventory.bundledGitDir, 'git.exe') : null)
+}))
 vi.mock('../runtimeDependency', () => ({
   resolveRequiredRuntime: async ({ executable }: { executable: string }) => {
     const runtime = inventory.snapshots[executable]?.availability
@@ -482,6 +485,42 @@ agent_servers:
     expect((await resolveLocalAgentLaunch({ ...config, env: { PATH: '/explicit/bin' } })).env.PATH).toBe(
       '/explicit/bin'
     )
+  })
+
+  it('injects MinGit usr/bin/sh.exe into KIMI_SHELL_PATH on Windows when bash.exe is unavailable', async () => {
+    inventory.isWin = true
+    installSystemCommands('kimi')
+    const commandResolver = await import('@main/utils/commandResolver')
+    const discoverSpy = vi.spyOn(commandResolver, 'autoDiscoverGitBash').mockReturnValue(null)
+    const findGitSpy = vi.spyOn(commandResolver, 'findExecutableInEnv').mockResolvedValue(null)
+    try {
+      const minGitRoot = path.join(directory, 'MinGit')
+      const minGitCmd = path.join(minGitRoot, 'cmd')
+      const minGitSh = path.join(minGitRoot, 'usr', 'bin', 'sh.exe')
+      await mkdir(minGitCmd, { recursive: true })
+      await mkdir(path.dirname(minGitSh), { recursive: true })
+      await writeFile(minGitSh, '')
+      inventory.bundledGitDir = minGitCmd
+
+      const kimiConfig: LocalAgentConfiguration = {
+        presetId: 'kimi',
+        protocol: 'acp',
+        enabled: true,
+        args: [],
+        env: {}
+      }
+      const launch = await resolveLocalAgentLaunch(kimiConfig)
+      expect(launch.env.KIMI_SHELL_PATH).toBe(minGitSh)
+
+      const explicit = await resolveLocalAgentLaunch({
+        ...kimiConfig,
+        env: { KIMI_SHELL_PATH: 'C:\\Custom\\bash.exe' }
+      })
+      expect(explicit.env.KIMI_SHELL_PATH).toBe('C:\\Custom\\bash.exe')
+    } finally {
+      discoverSpy.mockRestore()
+      findGitSpy.mockRestore()
+    }
   })
 
   it('honors a path containing spaces and never falls back when an explicit path disappears', async () => {

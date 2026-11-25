@@ -12,7 +12,8 @@ import { t } from '@main/i18n'
 import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { appendBundledGitPathTail, mergeBinaryExecutionEnv, mergePathPrefixes } from '@main/utils/binaryEnv'
 import { isManagedBinaryPath } from '@main/utils/binaryResolver'
-import { findExecutableInEnv } from '@main/utils/commandResolver'
+import { getBundledGitDir } from '@main/utils/bundledGit'
+import { autoDiscoverGitBash, findExecutableInEnv } from '@main/utils/commandResolver'
 import { getEnvironmentValue, mergeEnvironment } from '@main/utils/env'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import {
@@ -348,6 +349,30 @@ async function resolveZcodeHostBinary(
   return undefined
 }
 
+async function isExistingFile(filePath: string): Promise<boolean> {
+  return (await fs.stat(filePath).catch(() => undefined))?.isFile() ?? false
+}
+
+async function resolveWindowsShellPath(
+  childEnv: Record<string, string>,
+  allowMinGitSh: boolean
+): Promise<string | undefined> {
+  const discovered = autoDiscoverGitBash()
+  if (discovered) return discovered
+  if (!allowMinGitSh) return undefined
+  // MinGit ships GNU bash as usr/bin/sh.exe without bin/bash.exe; Kimi accepts it via KIMI_SHELL_PATH.
+  const bundledGitDir = getBundledGitDir()
+  const gitCandidates = [
+    await findExecutableInEnv('git', childEnv),
+    bundledGitDir ? path.join(bundledGitDir, 'git.exe') : null
+  ].filter((candidate): candidate is string => Boolean(candidate))
+  for (const gitExe of gitCandidates) {
+    const shPath = path.resolve(gitExe, '..', '..', 'usr', 'bin', 'sh.exe')
+    if (await isExistingFile(shPath)) return shPath
+  }
+  return undefined
+}
+
 export async function resolveLocalAgentLaunch(
   config: LocalAgentConfiguration,
   signal?: AbortSignal,
@@ -452,6 +477,16 @@ export async function resolveLocalAgentLaunch(
     }
   }
   let childEnv = mergeEnvironment(env, preset?.env, config.env)
+  if (isWin) {
+    if (config.presetId === 'kimi' && !getEnvironmentValue(childEnv, 'KIMI_SHELL_PATH')) {
+      const shellPath = await resolveWindowsShellPath(childEnv, true)
+      if (shellPath) childEnv.KIMI_SHELL_PATH = shellPath
+    }
+    if (config.protocol === 'claude' && !getEnvironmentValue(childEnv, 'CLAUDE_CODE_GIT_BASH_PATH')) {
+      const gitBashPath = await resolveWindowsShellPath(childEnv, false)
+      if (gitBashPath) childEnv.CLAUDE_CODE_GIT_BASH_PATH = gitBashPath
+    }
+  }
   if (headless && config.protocol === 'claude') {
     const [settings] = await application.get('CodeCliService').readConfigFiles(['claude-settings'], childEnv)
     const savedEnv = parseJsonRecord(settings?.content)?.env as Record<string, unknown> | undefined
