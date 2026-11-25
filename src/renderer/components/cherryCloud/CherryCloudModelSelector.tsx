@@ -25,12 +25,12 @@ import {
   CHERRYAI_PROVIDER_ID,
   isManagedCherryAiProviderId
 } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { SubscriptionEntrySource } from '@shared/ipc/schemas/cherryCloud'
 
 import { getAmdActionLabelKey, openAmdRegistration } from './amdFreeModels'
-import { signInForModel } from './signInForModel'
+import { signInForModel, signInFromPicker } from './signInForModel'
 import {
   CHERRY_CLOUD_SELECTOR_PROVIDER_IDS,
   type CherryCloudOfferKind,
@@ -146,6 +146,25 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
   }
   const selectAfterSignInRef = useRef(selectAfterSignIn)
   selectAfterSignInRef.current = selectAfterSignIn
+  // Choosing a built-in CherryAI model signed out signs in first, then selects it, as the sign-in rows do.
+  const signInFirst =
+    <T extends Model | UniqueModelId | undefined>(
+      select: (value: T) => void,
+      providerOf: (value: NonNullable<T>) => string
+    ) =>
+    (value: T) => {
+      if (!value || !isManagedCherryAiProviderId(providerOf(value))) return select(value)
+      void signInFromPicker().then((signedIn) => signedIn && select(value))
+    }
+  const pickerProps =
+    selectorProps.multiple || !signedOut
+      ? selectorProps
+      : selectorProps.selectionType === 'id'
+        ? {
+            ...selectorProps,
+            onSelect: signInFirst(selectorProps.onSelect, (id) => parseUniqueModelId(id).providerId)
+          }
+        : { ...selectorProps, onSelect: signInFirst(selectorProps.onSelect, (model) => model.providerId) }
   const actions = useMemo<ModelSelectorActionItem[]>(() => {
     const lockedRows = {
       sign_in: {
@@ -264,7 +283,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
   }
   return (
     <ModelSelector
-      {...selectorProps}
+      {...pickerProps}
       open={open}
       onOpenChange={onOpenChange}
       filter={modelFilter}
