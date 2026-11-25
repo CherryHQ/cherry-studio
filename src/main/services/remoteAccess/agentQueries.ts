@@ -30,7 +30,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
+import { type UniqueModelId, UniqueModelIdSchema, parseUniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { SerializedError } from '@shared/types/error'
 import { createCherryCloudModelAccess } from '@shared/utils/cherryCloudModelAvailability'
@@ -363,7 +363,25 @@ export function listAgents(cursor?: string, limit?: number) {
   )
 }
 
-function selectableModels(agentId: string, selected?: { providerId: string; modelId: string }) {
+function wireLabel(raw: string, fallback: string, maxLength: number): string {
+  const sanitize = (value: string) =>
+    value
+      .slice(0, maxLength)
+      .replace(/[\uD800-\uDBFF]$/, '')
+      .toWellFormed()
+      .trim()
+  return sanitize(raw.trim()) || sanitize(fallback)
+}
+
+function selectableModels(
+  agentId: string,
+  selected?: { providerId: string; modelId: string }
+): Array<{
+  id: UniqueModelId
+  identity: ReturnType<typeof parseUniqueModelId>
+  name: string
+  providerName: string
+}> {
   const agent = agentService.getAgent(agentId)
   if (!agent) throw new RemoteRpcError('NOT_FOUND', 'Agent not found')
   const providers = new Map(providerService.list({ enabled: true }).map((provider) => [provider.id, provider]))
@@ -373,19 +391,21 @@ function selectableModels(agentId: string, selected?: { providerId: string; mode
     if (!provider || !isAgentModelSelectable(agent.type, model, provider) || !cloud.isSelectable(model, true)) return []
     const identity = parseUniqueModelId(model.id)
     if (selected && identity.modelId !== selected.modelId) return []
-    const summary = modelOptionSchema.safeParse({
-      ...identity,
-      name: model.name.trim() || identity.modelId,
-      providerName: provider.name.trim() || provider.id
-    })
-    return summary.success ? [{ id: model.id, summary: summary.data }] : []
+    return [{ id: model.id, identity, name: model.name, providerName: provider.name }]
   })
 }
 
 export function listModels({ agentId, cursor, limit, search }: AgentParams<'agent.models.list'>) {
   const keywords = search?.toLowerCase().trim().split(/\s+/) ?? []
   const items = selectableModels(agentId)
-    .map(({ summary }) => summary)
+    .flatMap(({ identity, name, providerName }) => {
+      const summary = modelOptionSchema.safeParse({
+        ...identity,
+        name: wireLabel(name, identity.modelId, 2048),
+        providerName: wireLabel(providerName, identity.providerId, 4096)
+      })
+      return summary.success ? [summary.data] : []
+    })
     .filter((item) => {
       const text = [item.providerId, item.providerName, item.modelId, item.name].join(' ').toLowerCase()
       return keywords.every((keyword) => text.includes(keyword))
@@ -426,10 +446,21 @@ export function listSessions(query: AgentParams<'agent.sessions.list'>): {
   }
 }
 
-export function createSessionTx(tx: DbOrTx, sessionId: string, input: AgentParams<'agent.sessions.create'>): void {
-  const model = input.model ? selectableModels(input.agentId, input.model)[0]?.id : undefined
-  if (input.model && !model)
-    throw new RemoteRpcError('MODEL_UNAVAILABLE', 'Selected session model is no longer available')
+export function createSessionTx(
+  tx: DbOrTx,
+  sessionId: string,
+  input: AgentParams<'agent.sessions.create'>,
+  options?: { cloudRefreshFailed?: boolean }
+): void {
+  let model: UniqueModelId | undefined
+  if (input.model) {
+    if (options?.cloudRefreshFailed) {
+      notFound(() => agentService.assertActiveTx(tx, input.agentId))
+      throw new RemoteRpcError('MODEL_UNAVAILABLE', 'Cherry Cloud model availability could not be refreshed')
+    }
+    model = selectableModels(input.agentId, input.model)[0]?.id
+    if (!model) throw new RemoteRpcError('MODEL_UNAVAILABLE', 'Selected session model is no longer available')
+  }
   notFound(() =>
     agentSessionService.createTx(tx, sessionId, {
       agentId: input.agentId,
