@@ -48,17 +48,28 @@ function setup(
     previousBody?: string
     httpStatus?: number
     httpFailureAt?: number
+    issueReadError?: Error
   } = {}
 ) {
   const requests: { url: string; options: RequestInit; input: Input; body: Record<string, any> }[] = []
   const writes: { route: string; data: Record<string, any> }[] = []
+  const reads: Record<string, any>[] = []
+  const currentIssue = { title: options.title ?? title, body: body as string | null }
   const event = options.event ?? 'issues'
   const write = (route: string) => async (data: Record<string, any>) => {
     writes.push({ route, data })
   }
   const github = {
     rest: {
-      issues: { update: write('issues.update'), updateComment: write('issues.updateComment') },
+      issues: {
+        get: async (data: Record<string, any>) => {
+          reads.push(data)
+          if (options.issueReadError) throw options.issueReadError
+          return { data: { ...currentIssue } }
+        },
+        update: write('issues.update'),
+        updateComment: write('issues.updateComment')
+      },
       pulls: { updateReviewComment: write('pulls.updateReviewComment') }
     },
     request: async (route: string, data: Record<string, any>) => write(route)(data)
@@ -104,7 +115,7 @@ function setup(
       },
       fetch
     )
-  return { run, requests, writes }
+  return { run, requests, writes, reads, currentIssue }
 }
 
 function sections(body: string) {
@@ -274,6 +285,29 @@ describe('GitHub content translator workflow', () => {
     expect(run.writes).toEqual([])
   })
 
+  it.each([{ title: '更正后的标题' }, { body: '新增复现步骤' }, { title: '更正后的标题', body: '新增复现步骤' }])(
+    'preserves an issue edited during translation: %j',
+    async (changes) => {
+      const run = setup('甲'.repeat(2001), (input, index) => {
+        if (index === 1) Object.assign(run.currentIssue, changes)
+        return response(translated('Translated fragment.', input.target.body, 'Translated title'))
+      })
+      await run.run()
+      expect(run.requests).toHaveLength(2)
+      expect(run.writes).toEqual([])
+      expect(run.reads).toEqual([{ owner: 'CherryHQ', repo: 'cherry-studio', issue_number: 24203 }])
+      expect(run.currentIssue).toMatchObject(changes)
+    }
+  )
+
+  it('does not write an issue when re-reading its current content fails', async () => {
+    const run = setup('中文', () => response(translated('Chinese', '中文')), {
+      issueReadError: new Error('Issue is unavailable')
+    })
+    await expect(run.run()).rejects.toThrow('Issue is unavailable')
+    expect(run.writes).toEqual([])
+  })
+
   it('passes the entire long matching translation as context and leaves it unchanged with controlled no-update responses', async () => {
     const body =
       '> This issue was translated automatically.\n\n' +
@@ -373,6 +407,15 @@ describe('GitHub content translator workflow', () => {
     expect(sections(run.writes[0].data.body)).toEqual({ translation: '', original: '' })
   })
 
+  it('treats a current null issue body as the unchanged empty source body', async () => {
+    const run = setup('', () => response(translated('', '', 'Cannot send messages')))
+    run.currentIssue.body = null
+    await run.run()
+    expect(run.writes).toHaveLength(1)
+    expect(run.writes[0].data.title).toBe('Cannot send messages')
+    expect(sections(run.writes[0].data.body)).toEqual({ translation: '', original: '' })
+  })
+
   it('accepts empty cleanup output and does not restore removed email history', async () => {
     const body = '> On Monday, someone wrote:\n> 旧邮件'
     const run = setup(body, () => response(translated('', '')))
@@ -464,6 +507,18 @@ describe('GitHub content translator workflow', () => {
     expect(run.requests).toHaveLength(2)
     expect(run.writes).toEqual([])
   })
+
+  it.each([{}, null, { should_update: null }, { should_update: 'false' }, { should_update: 0 }])(
+    'rejects a later result without a boolean should_update: %j',
+    async (result) => {
+      const run = setup('甲'.repeat(2001), (input, index) =>
+        response(index === 0 ? translated('First', input.target.body) : result)
+      )
+      await expect(run.run()).rejects.toThrow(/boolean should_update.*chunk 2\/2/i)
+      expect(run.requests).toHaveLength(2)
+      expect(run.writes).toEqual([])
+    }
+  )
 
   it.each([0, 1])('reports HTTP failures on request %i without writing to GitHub', async (httpFailureAt) => {
     const run = setup('甲'.repeat(2001), (input) => response(translated('Translated', input.target.body)), {

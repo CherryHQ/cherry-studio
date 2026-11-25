@@ -325,6 +325,9 @@ jobs:
                   { title: target.title, body: target.body }
                 )
                 start = chunk.end
+                if (typeof result?.should_update !== 'boolean') {
+                  throw new Error(`Translator result must include a boolean should_update for chunk ${chunk.index}/${chunk.total}`)
+                }
                 if (!result.should_update) {
                   translatedBodies.push(body)
                   originalBodies.push(body)
@@ -360,6 +363,17 @@ jobs:
             if (!result.should_update) {
               core.info('Translator reported that no translation update is needed.')
               return
+            }
+
+            if (target.kind === 'issue') {
+              const { data: currentIssue } = await github.rest.issues.get({
+                ...context.repo,
+                issue_number: target.issueNumber
+              })
+              if (currentIssue.title !== target.title || (currentIssue.body ?? '') !== target.body) {
+                core.info('Skipping translation because the issue title or body changed while translating.')
+                return
+              }
             }
 
             await updateTarget(target, result.translated_title, result.translated_body, result.original_body)
