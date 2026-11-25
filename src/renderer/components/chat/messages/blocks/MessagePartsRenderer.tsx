@@ -71,6 +71,7 @@ import {
   SessionResultCards,
   getSubagentTaskStatus
 } from '../tools/agent'
+import { McpAppResultCards } from '../tools/mcp/McpAppResultCards'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { AgentToolsType, isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
@@ -1985,6 +1986,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         <AnimatedBlockWrapper key={`session-results-${message.id}`} enableAnimation={false} animation="fade">
           <SessionResultCards toolResponses={sessionToolResponses} />
         </AnimatedBlockWrapper>
+      )}
+      {message.role === 'assistant' && message.status !== 'pending' && (
+        <McpAppResultCards key={`mcp-apps-${message.id}`} messageId={message.id} parts={messageParts} />
       )}
       {canRenderReportArtifacts && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={false} animation="fade">
