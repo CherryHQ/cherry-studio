@@ -1,14 +1,7 @@
 import { Search, X } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 
-import {
-  type FlatTreeItem,
-  Input,
-  type RenderRowFn,
-  type TreeListSlotArgs,
-  type TreeNodeAdapter,
-  TreeView
-} from '@cherrystudio/ui'
+import { Input, type RenderRowFn, type TreeListSlotArgs, type TreeNodeAdapter, TreeView } from '@cherrystudio/ui'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
 
@@ -90,7 +83,7 @@ export function FileTree(props: FileTreeProps) {
   const defaultRenderList = useCallback(
     ({ flat, isSticky, getItemDepth, renderItem }: TreeListSlotArgs<FileTreeNode>) => (
       <DynamicVirtualList
-        list={flat as FlatTreeItem<FileTreeNode>[]}
+        list={flat}
         estimateSize={() => DEFAULT_ITEM_SIZE}
         overscan={VIRTUAL_OVERSCAN}
         contentProps={contentProps}
