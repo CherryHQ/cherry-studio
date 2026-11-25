@@ -53,5 +53,6 @@ export default function MessageTools({ toolResponse }: Props) {
     return <MessageTool toolResponse={resolvedToolResponse} />
   }
 
-  return <MessageMcpTool toolResponse={resolvedToolResponse} />
+  // SAFETY: rendersThroughChooseTool returns false only for an MCP response routed to this generic card.
+  return <MessageMcpTool toolResponse={resolvedToolResponse as McpToolResponse} />
 }
