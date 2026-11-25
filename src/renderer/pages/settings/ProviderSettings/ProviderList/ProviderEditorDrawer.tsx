@@ -337,8 +337,8 @@ export default function ProviderEditorDrawer({
     const nextEndpointUrls = { ...endpointUrls, [endpointType]: value }
     setEndpointUrls(nextEndpointUrls)
 
-    if (CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)) {
-      const textEndpoint = endpointType as CustomProviderTextEndpoint
+    if (isCustomProviderTextEndpoint(endpointType)) {
+      const textEndpoint = endpointType
       const configuredTextEndpoints = CUSTOM_PROVIDER_TEXT_ENDPOINTS.filter((type) => nextEndpointUrls[type]?.trim())
 
       if (configuredTextEndpoints.length === 1 && configuredTextEndpoints[0] === textEndpoint) {
@@ -469,6 +469,7 @@ export default function ProviderEditorDrawer({
     // Exhaustiveness guard: a new ProviderEditorMode kind must be handled
     // explicitly above rather than silently falling through to duplicate.
     const _exhaustive: never = mode
+    // SAFETY: The typed mode union is exhausted above; this fallback reads only the discriminant for an invalid runtime variant.
     throw new Error(`Unhandled provider editor mode kind: ${(_exhaustive as { kind: string }).kind}`)
   }
 
@@ -830,7 +831,7 @@ function CustomProviderEndpointFields({
   }
 
   const renderEndpointControl = (endpointType: CustomProviderEndpoint) => {
-    const isTextEndpoint = CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
+    const isTextEndpoint = isCustomProviderTextEndpoint(endpointType)
     const isConfiguredTextEndpoint = Boolean(isTextEndpoint && endpointUrls[endpointType]?.trim())
     const isPreferredEndpoint = preferredChatEndpoint === endpointType
 
@@ -839,13 +840,13 @@ function CustomProviderEndpointFields({
         <Badge variant="secondary" className="h-5 border-0 px-1.5 py-0 text-xs font-normal text-foreground-tertiary">
           {t('settings.provider.create_custom.endpoint_fields.default_chat')}
         </Badge>
-      ) : isConfiguredTextEndpoint && onPreferredChatEndpointChange ? (
+      ) : isTextEndpoint && isConfiguredTextEndpoint && onPreferredChatEndpointChange ? (
         <Button
           type="button"
           variant="outline"
           size="sm"
           className="relative h-5 min-h-0 rounded-full px-2 text-xs transition-transform before:absolute before:inset-x-0 before:-top-5 before:bottom-0 before:content-[''] active:scale-[0.96]"
-          onClick={() => onPreferredChatEndpointChange(endpointType as CustomProviderTextEndpoint)}>
+          onClick={() => onPreferredChatEndpointChange(endpointType)}>
           {t('settings.provider.create_custom.endpoint_fields.set_default_chat')}
         </Button>
       ) : null
