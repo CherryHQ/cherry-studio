@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
 import type { Observation, OperationResult, Subagent, Thread } from '@cherrystudio/agent-runtime'
+import { runtimeId } from '@cherrystudio/agent-runtime'
 
 import { isUuid, nativeIdentity, rejected, runtimeError } from './identity'
 import { ClaudeOwner } from './owner'
@@ -229,7 +230,7 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
 
         if (!pending) {
           pending = (async () => {
-            const config = await options.load?.({ backendId: thread.backendId, id: nativeIdentityRoot(thread) })
+            const config = await options.load?.({ backendId: thread.backendId, id: runtimeId<'thread'>(sessionId) })
 
             if (!config || closed) return undefined
             const owner = build(config, sessionId, false)
@@ -303,8 +304,4 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
   }
 
   return runtime
-}
-
-function nativeIdentityRoot(thread: Thread): Thread['id'] {
-  return thread.id.split('/')[0] as Thread['id']
 }

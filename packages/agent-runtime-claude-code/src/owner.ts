@@ -257,19 +257,21 @@ export class ClaudeOwner {
             includePartialMessages: true,
             forwardSubagentText: true,
             spawnClaudeCodeProcess: (options) => {
-              const child = nativeSpawn
-                ? nativeSpawn(options)
-                : spawn(options.command, options.args, {
-                    cwd: options.cwd,
-                    env: options.env,
-                    signal: options.signal,
-                    stdio: ['pipe', 'pipe', 'pipe'],
-                    windowsHide: true
-                  })
+              let child: ReturnType<NonNullable<typeof nativeSpawn>>
 
-              if (!nativeSpawn && 'stderr' in child) {
-                const stderr = child.stderr as NodeJS.ReadableStream
-                stderr.on('data', (data: Buffer) => this.config.stderr?.(data.toString()))
+              if (nativeSpawn) {
+                child = nativeSpawn(options)
+              } else {
+                const nodeChild = spawn(options.command, options.args, {
+                  cwd: options.cwd,
+                  env: options.env,
+                  signal: options.signal,
+                  stdio: ['pipe', 'pipe', 'pipe'],
+                  windowsHide: true
+                })
+
+                nodeChild.stderr.on('data', (data: Buffer) => this.config.stderr?.(data.toString()))
+                child = nodeChild
               }
 
               this.exit = new Promise<void>((resolve) => {
@@ -861,7 +863,11 @@ export class ClaudeOwner {
             .find((part) => part.type === 'dynamic-tool' && part.toolCallId === toolCallId)
 
           if (call?.type === 'dynamic-tool' && ['Agent', 'Task'].includes(call.toolName)) {
-            const description = (call.input as { description?: unknown })?.description
+            const input = call.input
+
+            const description =
+              typeof input === 'object' && input !== null && 'description' in input ? input.description : undefined
+
             task.origin = { toolCallId, ...(typeof description === 'string' && { description }) }
           }
         }

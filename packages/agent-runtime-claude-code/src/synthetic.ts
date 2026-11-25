@@ -6,7 +6,7 @@ export function isSyntheticClaudeModel(model: unknown): model is '<synthetic>' {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native history can contain arbitrary records; verify the synthetic model and every text block before discarding an interrupt placeholder.
 export function isSyntheticTurnCloser(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false
-  const message = value as { model?: unknown; content?: unknown }
+  const message: { model?: unknown; content?: unknown } = value
 
   if (!isSyntheticClaudeModel(message.model) || !Array.isArray(message.content) || !message.content.length) return false
   const text: string[] = []

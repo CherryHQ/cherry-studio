@@ -31,7 +31,7 @@ export function cloneHistoryData<T>(value: T): T {
       Object.defineProperty(result, key, { value: copy(value), enumerable: true, writable: true, configurable: true })
     }
 
-    // SAFETY: Recursive copies preserve the source's enumerable data shape and shared references.
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Internal native/history data uses enumerable fields; this generic bridge does not promise prototypes, symbols or cross-special-object aliasing.
     return result as Value
   }
 
