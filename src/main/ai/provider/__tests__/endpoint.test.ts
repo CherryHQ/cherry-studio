@@ -668,11 +668,11 @@ describe('resolveEffectiveEndpoint', () => {
       endpointConfigs: {
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
           baseUrl: 'https://gateway.example/v1',
-          adapterFamily: id as 'aihubmix'
+          adapterFamily: id
         },
         [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
           baseUrl: 'https://gateway.example/gemini',
-          adapterFamily: id as 'aihubmix'
+          adapterFamily: id
         }
       }
     })
