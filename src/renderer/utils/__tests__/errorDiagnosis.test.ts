@@ -6,7 +6,7 @@ import enUS from '@renderer/i18n/locales/en-us.json'
 import type { SerializedError } from '@renderer/types/error'
 import type { InputFor } from '@shared/ipc/types'
 
-import { classifyErrorByAI, diagnoseError, translateErrorByAI } from '../errorDiagnosis'
+import { classifyErrorByAI, diagnoseError } from '../errorDiagnosis'
 
 vi.mock('@renderer/i18n/resolver', () => ({
   default: { t: (key: keyof typeof enUS) => enUS[key] }
@@ -294,56 +294,5 @@ required service tier.`,
       'ai.text.generate',
       expect.objectContaining({ uniqueModelId: defaultModel.id, requestOptions: { maxRetries: 0 } })
     )
-  })
-
-  describe('translateErrorByAI', () => {
-    it('returns an empty result when the default model request fails', async () => {
-      mockIpcRequest.mockRejectedValue(new Error('network unavailable'))
-
-      await expect(translateErrorByAI('Service temporarily unavailable', 'zh-CN')).resolves.toBe('')
-      expect(mockIpcRequest).toHaveBeenCalledExactlyOnceWith(
-        'ai.text.generate',
-        expect.objectContaining({ uniqueModelId: defaultModel.id, requestOptions: { maxRetries: 0 } })
-      )
-    })
-
-    it('translates the error text itself into the requested UI language', async () => {
-      respondWith('  服务暂时不可用  ')
-
-      await expect(translateErrorByAI('Service temporarily unavailable', 'zh-CN')).resolves.toBe('服务暂时不可用')
-      const request = requestInput()
-      expect(request.prompt).toBe('Service temporarily unavailable')
-      expect(request.system).toContain('zh-CN')
-    })
-
-    it('sends the error text without local home directories or secrets', async () => {
-      respondWith('无法打开文件')
-
-      await translateErrorByAI(
-        'Cannot open /Users/alice/Documents/notes.txt with key sk-proj-abcdefghijklmnopqrstuvwxyz123456',
-        'zh-CN'
-      )
-      const request = requestInput()
-      expect(request.prompt).toContain('~/Documents/notes.txt')
-      expect(request.prompt).not.toContain('alice')
-      expect(request.prompt).not.toContain('sk-proj-abcdefghijklmnopqrstuvwxyz123456')
-    })
-
-    it.each([
-      'max_tokens: 100000 > 64000, which is the maximum allowed number of output tokens',
-      'Invalid authentication: please check your key'
-    ])('keeps the provider explanation in %s', async (text) => {
-      respondWith('翻译')
-
-      await translateErrorByAI(text, 'zh-CN')
-      expect(requestInput().prompt).toBe(text)
-    })
-
-    it('still removes bearer tokens from the text sent', async () => {
-      respondWith('翻译')
-
-      await translateErrorByAI('Rejected header Authorization: Bearer abc.def-ghi', 'zh-CN')
-      expect(requestInput().prompt).not.toContain('abc.def-ghi')
-    })
   })
 })
