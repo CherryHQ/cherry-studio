@@ -44,12 +44,12 @@ function HandoffModelPicker({
     const provider = providers.find((item) => item.id === model.providerId)
     return `${model.name} | ${getProviderDisplayName(provider) || getProviderDisplayNameById(model.providerId)}`
   }
-  const label = (model: Model) => {
-    const name = modelLabel(model)
-    return models.some((other) => other.id !== model.id && modelLabel(other) === name)
-      ? `${name} (${model.providerId})`
-      : name
-  }
+  const label = (model: Model) => (
+    <span className="flex min-w-0 flex-col">
+      <span>{modelLabel(model)}</span>
+      <code className="text-xs text-muted-foreground">{model.providerId}</code>
+    </span>
+  )
   return (
     <SelectDropdown
       items={models}

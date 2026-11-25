@@ -13,7 +13,8 @@ vi.mock('@renderer/hooks/useProvider', () => ({
     providers: [
       { id: 'provider', name: 'Provider' },
       { id: 'other', name: 'Other Provider' },
-      { id: 'alias', name: 'Provider' }
+      { id: 'alias', name: 'Provider' },
+      { id: 'suffix', name: 'Provider (provider)' }
     ]
   }),
   getProviderDisplayName: (provider: { name?: string } | undefined) => provider?.name
@@ -99,9 +100,29 @@ describe('ConversationHandoff', () => {
     render(<ConversationHandoff sessionId="duplicate-provider-labels" hasMessages modelCandidates={models} />)
     fireEvent.click(screen.getByText('handoff.create'))
     fireEvent.click(screen.getByText('handoff.model'))
-    expect(await screen.findByText('Same | Provider (provider)')).toBeVisible()
-    fireEvent.click(screen.getByText('Same | Provider (alias)'))
-    expect(screen.getByText('Same | Provider (alias)')).toBeVisible()
+    expect(await screen.findByText('provider')).toBeVisible()
+    fireEvent.click(screen.getByText('alias'))
+    expect(screen.getByText('alias')).toBeVisible()
+  })
+  it('keeps provider identity separate when a third display name imitates an ID suffix', async () => {
+    const models = ['provider', 'alias', 'suffix'].map((providerId) => ({
+      id: `${providerId}::a`,
+      name: 'Same',
+      providerId
+    })) as unknown as Model[]
+    render(<ConversationHandoff sessionId="suffix-collision" hasMessages modelCandidates={models} />)
+    fireEvent.click(screen.getByText('handoff.create'))
+    fireEvent.click(screen.getByText('handoff.model'))
+    for (const id of ['provider', 'alias', 'suffix']) expect(await screen.findByText(id)).toBeVisible()
+    fireEvent.click(screen.getByText('suffix'))
+    expect(screen.getByText('suffix')).toBeVisible()
+    fireEvent.click(screen.getByText('handoff.generate'))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith(
+        'ai.handoff.generate',
+        expect.objectContaining({ modelId: 'suffix::a' })
+      )
+    )
   })
   it('offers at 80% without generating, saving or attaching', () => {
     const onNewTopic = vi.fn()
