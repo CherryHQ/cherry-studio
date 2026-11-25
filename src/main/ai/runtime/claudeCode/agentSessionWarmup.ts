@@ -18,11 +18,13 @@ import {
   CHERRY_SERVICE_TIER_HEADER,
   DEFAULT_TIMEOUT
 } from '@main/ai/constants'
+import { assertAgentGatewayModelAvailable } from '@main/ai/runtime/agentGatewayModelAvailability'
 import {
   type AgentNotificationContext,
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
+import { isAgentModelUnavailableError } from '@main/ai/runtime/agentModelUnavailableError'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
@@ -285,7 +287,11 @@ export interface ConnectionConfig {
   }
 }
 
-export type DeriveConnectionConfigResult = { ok: true; config: ConnectionConfig } | { ok: false; reason: 'unroutable' }
+export type DeriveConnectionConfigResult =
+  | { ok: true; config: ConnectionConfig }
+  | { ok: false; reason: 'unroutable' }
+  /** The model rows exist but are disabled/unroutable: rebuild so the cold path reports why. */
+  | { ok: false; reason: 'model-unavailable'; error: Error }
 
 function withPermissionMode(agent: AgentEntity, permissionModeOverride?: AgentPermissionMode): AgentEntity {
   return permissionModeOverride
@@ -349,6 +355,7 @@ export async function deriveConnectionConfig(
       )
     }
   } catch (error) {
+    if (isAgentModelUnavailableError(error)) return { ok: false, reason: 'model-unavailable', error }
     // Deleted provider/model rows — the connection cannot be rebuilt to a valid target, so it is
     // invalid rather than merely stale. A knowledge-scope change also routes here on every rebuild
     // check, so an unexpected throw (missing workspace, skill-whitelist I/O) would otherwise end the
@@ -765,6 +772,17 @@ function deriveRouteFacts(
         { sdkModelId: modelIds.haiku, ref: externalRefs.haiku }
       ])
     }
+  }
+
+  const modelRefs = [primaryRef, opusRef, sonnetRef, haikuRef]
+  // Fail fast on stale/disabled/unroutable Agent models: every non-external-CLI slot routes
+  // through the gateway. Agent traffic carries internal usage headers, so agent-only providers
+  // are allowed.
+  for (const ref of modelRefs) {
+    // A sub-model slot whose provider/model no longer resolves keeps the upstream fallback
+    // (raw model id, slots independent); only resolved refs get the availability pre-flight.
+    if (!ref.provider || !ref.model) continue
+    assertAgentGatewayModelAvailable(ref.provider, ref.model, `${ref.providerId}:${ref.apiModelId}`)
   }
 
   const slotModelId = (ref: RuntimeModelRef) =>

@@ -627,3 +627,47 @@ it.each([false, true])('replays CherryIN thinking only when present (empty signa
     { type: 'tool_use', id: 'call_read', name: 'read', input: { path: 'facts.txt' } }
   ])
 })
+
+// #20285: stale gateway models fail fast with a configuration error, not a late gateway 400.
+it('rejects disabled or unroutable gateway models before materialization', async () => {
+  const provider = ProviderSchema.parse({
+    isEnabled: true,
+    apiKeys: [],
+    authType: 'api-key',
+    settings: {},
+    id: 'route-fixture',
+    name: 'Route fixture',
+    reportsActualCost: false,
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        adapterFamily: 'openai-compatible',
+        baseUrl: 'https://upstream.invalid'
+      }
+    }
+  })
+  const model = ModelSchema.parse({
+    isEnabled: true,
+    isHidden: false,
+    supportsStreaming: true,
+    id: 'route-fixture::logical-model',
+    providerId: provider.id,
+    name: 'Route fixture',
+    apiModelId: 'wire-model',
+    capabilities: []
+  })
+
+  await expect(
+    createPiGatewayModelBinding({ sessionId: 'session-1' }, { ...provider, isEnabled: false }, model)
+  ).rejects.toThrow('is disabled')
+  await expect(
+    createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, { ...model, isEnabled: false })
+  ).rejects.toThrow('the model is disabled')
+  // Unroutable providers keep the pre-existing specific rejection (#20285 covers stale config).
+  await expect(
+    createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, { ...model, capabilities: ['embedding'] })
+  ).rejects.toThrow('cannot be routed through the internal gateway')
+  await expect(
+    createPiGatewayModelBinding({ sessionId: 'session-1' }, { ...provider, authMethods: ['external-cli'] }, model)
+  ).rejects.toThrow('cannot be routed through the internal gateway')
+})

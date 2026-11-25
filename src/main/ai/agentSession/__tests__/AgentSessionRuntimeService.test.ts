@@ -2808,6 +2808,51 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
     })
 
+    it('reports a model disabled on a warm connection to the next turn instead of closing silently', async () => {
+      const firstConnection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        // The Claude driver maps a disabled provider/model on reconcile to a rebuild.
+        reconcile: vi.fn().mockResolvedValue('rebuild')
+      }
+      const failure = new Error('Agent model "p:m" is not available: the model is disabled.')
+      // The cold build runs the availability check and throws the configuration message.
+      const connect = vi.fn().mockRejectedValue(failure)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        connect,
+        validateSession: vi.fn()
+      })
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = firstConnection
+      service.markTurnTerminal('session-1', 'success')
+
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-2') })
+      const source = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = source.stream.getReader()
+      // openTurnStream wraps inner chunks as control events; the turn start is the first one.
+      await expect(reader.read()).resolves.toMatchObject({
+        value: { type: 'control', chunk: { type: 'start' } },
+        done: false
+      })
+
+      await expect(reader.read()).resolves.toMatchObject({
+        value: {
+          type: 'error',
+          error: expect.objectContaining({ message: expect.stringContaining('the model is disabled') })
+        }
+      })
+      expect(firstConnection.close).toHaveBeenCalledOnce()
+      expect(connect).toHaveBeenCalledTimes(1)
+    })
+
     it('waits for background work to release before rebuilding for a fresh turn', async () => {
       const firstConnection = {
         ...createAsyncQueue<any>(),
