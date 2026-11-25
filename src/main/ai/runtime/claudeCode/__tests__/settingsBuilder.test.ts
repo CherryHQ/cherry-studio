@@ -1037,7 +1037,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
   })
 
-  it('derates a gateway slot when forwarding picks a relay ahead of Anthropic Messages', async () => {
+  it('derates a gateway slot when internal Anthropic forwarding selects the relay', async () => {
     mocks.getByProviderId.mockImplementation((id: string) =>
       id === 'mixed'
         ? {
@@ -1045,8 +1045,8 @@ describe('buildClaudeCodeSessionSettings', () => {
             presetProviderId: 'mixed',
             defaultChatEndpoint: 'openai-chat-completions',
             endpointConfigs: {
-              'anthropic-messages': { baseUrl: 'https://api.anthropic.com' },
-              'openai-chat-completions': { baseUrl: 'https://mix.example.com' }
+              'anthropic-messages': { baseUrl: 'https://mix.example.com' },
+              'openai-chat-completions': { baseUrl: 'https://api.anthropic.com' }
             }
           }
         : undefined
