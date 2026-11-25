@@ -54,6 +54,7 @@ const EChartsPreview = ({
       let option: EChartsCoreOption
 
       try {
+        // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Existing previews pass parsed JSON to ECharts without validating the full option; preserve the SDK's accepted inputs and error path.
         option = JSON.parse(content) as EChartsCoreOption
       } catch {
         optionRef.current = null
