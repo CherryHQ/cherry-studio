@@ -89,6 +89,8 @@ export class ClaudeOwner {
   private exit?: Promise<void>
   private closing = false
   private lost = false
+  private observationError?: Error
+  private shutdownPromise?: Promise<OperationResult<void>>
   private resetFrom?: string
   private activeSession: string
   private readonly archives = new Map<string, ClaudeArchive>()
@@ -111,7 +113,18 @@ export class ClaudeOwner {
     const thread = claudeThread(this.runtime.backendId, sessionId, agentId)
     let projection = this.projections.get(thread.id)
     if (!projection) {
-      projection = new ClaudeProjection(thread, this.report)
+      projection = new ClaudeProjection(thread, this.report, (error) => {
+        if (this.observationError || this.closing) return
+        this.observationError = error
+        void this.shutdown().then((result) => {
+          if (result.status !== 'confirmed') this.report(new Error(result.error.message))
+        }, this.report)
+        try {
+          this.runtime.onObservationError?.(claudeThread(this.runtime.backendId, this.activeSession), error)
+        } catch (error) {
+          this.report(error)
+        }
+      })
       this.projections.set(thread.id, projection)
     }
     return projection
@@ -800,7 +813,20 @@ export class ClaudeOwner {
     }
   }
 
-  async shutdown(): Promise<OperationResult<void>> {
+  shutdown(): Promise<OperationResult<void>> {
+    return (this.shutdownPromise ??= this.close().then(
+      (result) => {
+        if (result.status !== 'confirmed') this.shutdownPromise = undefined
+        return result
+      },
+      (error) => {
+        this.shutdownPromise = undefined
+        throw error
+      }
+    ))
+  }
+
+  private async close(): Promise<OperationResult<void>> {
     this.closing = true
     this.wake?.()
     this.failPending()
@@ -827,7 +853,7 @@ export class ClaudeOwner {
     }
     for (const projection of this.projections.values()) {
       await projection.close()
-      projection.feed.close('shutdown')
+      projection.feed.close(this.observationError ? 'source-lost' : 'shutdown')
     }
     return { status: 'confirmed', value: undefined }
   }

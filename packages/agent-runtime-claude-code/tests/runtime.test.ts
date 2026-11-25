@@ -6,9 +6,58 @@ import { expect, it } from 'vitest'
 
 import { runtimeId } from '@cherrystudio/agent-runtime'
 
-import { claudeThread } from '../src'
+import { claudeThread, createClaudeCodeRuntime } from '../src'
 import { readArchive } from '../src/archive'
 import { confirmed, fixture, inputId, observe, spawnChild, textOf } from './nativeFixture'
+import { wireProcess } from './wireFixture'
+
+it('closes only the native owner with a fatal observation backlog before its consumer resumes', async () => {
+  const test = await fixture()
+  const failed = wireProcess(),
+    healthy = wireProcess()
+  const failures: string[] = []
+  const runtime = createClaudeCodeRuntime({
+    backendId: runtimeId('backlog'),
+    configDir: test.configDir,
+    onObservationError: (thread) => failures.push(thread.id)
+  })
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  try {
+    const a = confirmed(await runtime.create({ ...test.options, spawnClaudeCodeProcess: () => failed.process }))
+    const b = confirmed(await runtime.create({ ...test.options, spawnClaudeCodeProcess: () => healthy.process }))
+    const slow = confirmed(await a.claude.observe(() => gate))
+    await a.input!.submit({ inputId: inputId(), text: 'A', whenBusy: 'steer' })
+    await b.input!.submit({ inputId: inputId(), text: 'B', whenBusy: 'steer' })
+    for (let index = 0; index < 12; index++)
+      failed.send({
+        type: 'system',
+        subtype: 'commands_changed',
+        uuid: randomUUID(),
+        session_id: a.claude.sessionId,
+        commands: [{ name: `command-${index}`, description: 'x'.repeat(1024 * 1024), argumentHint: '' }]
+      })
+    await expect.poll(() => failures).toEqual([a.thread.id])
+    await expect.poll(() => failed.process.exitCode).toBe(0)
+    expect(healthy.process.exitCode).toBeNull()
+    expect((await a.input!.submit({ inputId: inputId(), text: 'Must reject', whenBusy: 'steer' })).status).toBe(
+      'rejected'
+    )
+    await b.input!.submit({ inputId: inputId(), text: 'Still accepts', whenBusy: 'steer' })
+    await expect.poll(() => healthy.inputs.length).toBe(2)
+    release()
+    await slow.drain()
+    confirmed(await runtime.shutdown())
+  } finally {
+    release()
+    failed.exit()
+    healthy.exit()
+    await runtime.shutdown()
+    await test.close()
+  }
+}, 30000)
 
 it('claims one prewarmed native process for commands, input and confirmed shutdown', async () => {
   const test = await fixture()

@@ -69,9 +69,10 @@ export class ClaudeProjection {
 
   constructor(
     readonly thread: Thread,
-    report: (error: unknown) => void
+    report: (error: unknown) => void,
+    onBacklog?: (error: Error) => void
   ) {
-    this.feed = new ClaudeFeed(report)
+    this.feed = new ClaudeFeed(report, onBacklog)
   }
 
   ref(uuid: string): ItemRef {

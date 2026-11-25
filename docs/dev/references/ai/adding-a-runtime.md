@@ -106,7 +106,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      never emits it strands the turn; set `status: 'paused'` instead of
      emitting `error` when native evidence shows the turn was aborted),
      `resume-token` whenever the runtime learns a recovery handle, `error` on
-     failure.
+     failure. Set `fatal: true` only when the
+     connection cannot continue safely: the host clears queued input and closes
+     that session through its existing verified-close barrier.
    - `send(input)` — deliver a user message; `input.systemReminder` marks a
      steer, wrap it with `wrapSteerReminder(...)`. Apply optional model-only
      `input.context` through ordinary input/attachment conversion with
