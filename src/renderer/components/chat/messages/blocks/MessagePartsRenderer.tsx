@@ -844,6 +844,7 @@ function renderPart(
           content={reasoningPart.text || ''}
           livePart={isReasoningStreaming ? reasoningPart : undefined}
           isStreaming={isReasoningStreaming}
+          showTitlePreview
         />
       )
     }
