@@ -910,10 +910,18 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '32' })
   })
 
-  // A 20K declaration cannot fit any SDK-valid trigger-point request (1K
-  // history at the 1% trigger floor plus the 32K default cap = 33K), so the
-  // floor stands as the earliest SDK-valid trigger with the overflow logged.
-  it('holds the SDK floor for a gateway slot that cannot fit even at best effort', async () => {
+  // A tiny declaration fits by reducing both the shared cap and trigger.
+  it('does not raise an explicit digit-separated output cap', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+      { id: 'anthropic', presetProviderId: 'anthropic', defaultChatEndpoint: 'anthropic-messages' } as never,
+      { contextWindow: 1_000_000, maxOutputTokens: 65_536 },
+      { id: 'agent-1', configuration: { env_vars: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: '8_192' } } } as never
+    )
+    expect(settings.env?.CLAUDE_CODE_MAX_OUTPUT_TOKENS).toBe('8192')
+  })
+
+  it('fits a tiny gateway slot below the SDK window floor', async () => {
     const trustedProvider = {
       id: 'anthropic',
       presetProviderId: 'anthropic',
@@ -934,8 +942,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' })
-    expect(settings.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '1' })
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '10000' })
+    expect(100_000 * 0.1 + Number(settings.env?.CLAUDE_CODE_MAX_OUTPUT_TOKENS)).toBeLessThanOrEqual(20_000)
+    expect(settings.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '10' })
     expect(mocks.loggerWarn).toHaveBeenCalled()
   })
 

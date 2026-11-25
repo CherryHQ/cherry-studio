@@ -292,12 +292,18 @@ export function resolveClaudeOutputCap(
 // The CLI has no table for third-party models — it would request a generic 32,000 and cap them at
 // 128,000 — so their real limit has to come from the catalog. Derived from the primary only: the
 // pin is process-wide, but plan and small fall back to the primary unless explicitly changed.
+/** Preserve explicit digit-separated caps before serializing a canonical CLI value. */
+export function parseClaudeOutputOverride(value: string | undefined): number {
+  const normalized = value?.trim()
+  return normalized && /^\d+(?:_\d+)*$/.test(normalized) ? Number(normalized.replaceAll('_', '')) : Number(normalized)
+}
+
 export function resolveRequestedOutputTokens(
   contextWindow: number | undefined,
   maxOutputTokens: number | undefined,
   override: string | undefined
 ): number {
-  const parsedOverride = Number(override)
+  const parsedOverride = parseClaudeOutputOverride(override)
   if (Number.isInteger(parsedOverride) && parsedOverride > 0) {
     return Math.min(parsedOverride, MAX_REQUESTED_OUTPUT_TOKENS)
   }

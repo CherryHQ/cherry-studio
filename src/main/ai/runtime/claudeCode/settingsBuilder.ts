@@ -79,6 +79,7 @@ import {
   isTrustedClaudeSlot,
   resolveAutoCompactWindow,
   resolveClaudeExecutablePath,
+  parseClaudeOutputOverride,
   resolveClaudeOutputCap,
   resolveRequestedOutputTokens
 } from './environment'
@@ -455,7 +456,15 @@ export async function buildClaudeCodeSessionSettings(
     })
     return {
       window: MIN_AUTO_COMPACT_WINDOW,
-      cap: Math.min(slot.output, DEFAULT_REQUESTED_OUTPUT_TOKENS),
+      // A sub-floor declaration still needs a feasible explicit output cap.
+      // Leave half its window for input instead of retaining a larger default.
+      cap: Math.min(
+        slot.output,
+        DEFAULT_REQUESTED_OUTPUT_TOKENS,
+        typeof slot.contextWindow === 'number' && Number.isFinite(slot.contextWindow) && slot.contextWindow > 0
+          ? Math.max(1, Math.floor(slot.contextWindow / 2))
+          : DEFAULT_REQUESTED_OUTPUT_TOKENS
+      ),
       declared: slot.contextWindow
     }
   })
@@ -476,7 +485,7 @@ export async function buildClaudeCodeSessionSettings(
   // declared window, so pin whenever any usable budget exists.
   if (usableResults.length > 0) {
     const safeguardCap = Math.min(...usableResults.map((result) => result.cap))
-    const explicit = Number(env.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
+    const explicit = parseClaudeOutputOverride(env.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
     // An explicit value (agent env_vars or an inherited shell) bypasses the
     // per-slot safeguard — clamp it down to the computed cap instead.
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(
