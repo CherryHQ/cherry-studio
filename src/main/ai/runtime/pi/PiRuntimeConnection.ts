@@ -36,7 +36,7 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { CHERRY_MCP_SERVER, listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
+import { getPathFromEnvironment, getRawShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import { normalizePiDisabledToolId } from '@shared/ai/piBuiltinTools'
@@ -75,7 +75,7 @@ import { buildPiMcpToolName, createPiMcpExtension, isPiToolDisabled } from './pi
 import { PiMessageMetadata, resolvePiMcpToolMetadata } from './PiMessageMetadata'
 import { buildPiAgentPrompt } from './piPrompt'
 import { loadPiSdk } from './piSdk'
-import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from './piShell'
+import { buildPiLoginPathPrefix, mergePiToolSpawnEnv, resolvePiLoginEnv, resolvePiShellPath } from './piShell'
 import { withPiShellTimeout } from './piShellTimeout'
 import { PiTurnUsage } from './PiTurnUsage'
 
@@ -160,7 +160,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const agentDir = application.getPath('feature.agents.pi.root')
     const sessionDir = application.getPath('feature.agents.pi.sessions')
     const shellPath = resolvePiShellPath()
-    const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
+    // One snapshot for the shell prefix and the spawn hooks below so both agree
+    // on whether the user owns mise.
+    const connectionRawShellEnv = await getRawShellEnv()
+    // A user-owned mise installation must not see Cherry's shims in the shell
+    // prefix: a Cherry shim would run under the user's MISE contract (#19738).
+    const loginPathSource = resolvePiLoginEnv(connectionRawShellEnv)
+    const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(loginPathSource))
+    // The managed shell tools below spawn directly instead of through the prefixed
+    // shell, so they need the same login PATH layered into their spawn env.
+    const loginPathForTools = process.platform === 'win32' ? undefined : getPathFromEnvironment(loginPathSource)
     const additionalSkillPaths = [...initialSnapshot.additionalSkillPaths]
     const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
     const linkedChannel = initialSnapshot.linkedChannel
@@ -280,14 +289,23 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const managedBashTool = pi.createBashToolDefinition(workspacePath, {
       commandPrefix: loginPathPrefix,
       shellPath,
-      spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
+      spawnHook: (context) => ({
+        ...context,
+        env: mergePiToolSpawnEnv(context.env, { loginPath: loginPathForTools, rawShellEnv: connectionRawShellEnv })
+      })
     })
     const managedShellTools = [
       managedBashTool,
       ...(process.platform === 'win32'
         ? [
             pi.createPowerShellToolDefinition(workspacePath, {
-              spawnHook: (context) => ({ ...context, env: mergePiShellExecutionEnv(context.env) })
+              spawnHook: (context) => ({
+                ...context,
+                env: mergePiToolSpawnEnv(context.env, {
+                  loginPath: loginPathForTools,
+                  rawShellEnv: connectionRawShellEnv
+                })
+              })
             })
           ]
         : [])
