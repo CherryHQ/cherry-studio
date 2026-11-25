@@ -281,7 +281,8 @@ function clampCacheMarkers(params: LanguageModelV3CallOptions, selected: Set<str
       const index = path[depth]
 
       // SAFETY: copy has the same container kind; the recorded path selects the existing child slot.
-      ;(copy as typeof source)[index] = remove(source[index], depth + 1)
+      const copiedContainer = copy as typeof source
+      copiedContainer[index] = remove(source[index], depth + 1)
 
       return copy
     }
