@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import type { McpToolResponse } from '@renderer/types/mcpTool'
 
 vi.mock('../AgentExecutionTimeline', () => ({
-  AgentExecutionTimeline: ({ toolResponse }: { toolResponse: NormalToolResponse }) => (
+  AgentExecutionTimeline: ({ toolResponse }: { toolResponse: McpToolResponse }) => (
     <div data-testid="tool-details">{JSON.stringify(toolResponse.response)}</div>
   )
 }))
@@ -15,14 +15,17 @@ vi.mock('@renderer/components/chat/messages/blocks/ImageBlock', () => ({
 
 const { MessageChannelConfigTool } = await import('../MessageChannelConfigTool')
 
-function response(output: unknown): NormalToolResponse {
+function response(output: unknown): McpToolResponse {
   return {
     id: 'config-call',
     toolCallId: 'config-call',
     tool: {
       id: 'mcp__cherry-tools__config',
       name: 'mcp__cherry-tools__config',
-      type: 'mcp'
+      type: 'mcp',
+      serverId: 'cherry-tools',
+      serverName: 'Cherry Tools',
+      inputSchema: { type: 'object' }
     },
     arguments: { action: 'add_channel', type: 'wechat', name: 'WeChat', auth_mode: 'qr' },
     response: output,

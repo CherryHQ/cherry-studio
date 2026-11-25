@@ -200,7 +200,7 @@ describe('MessageMetaTool', () => {
     )
     await expandCard(/tool_exec/)
 
-    expect(screen.getByText(/execution failed/)).toBeVisible()
+    expect(await screen.findByText(/execution failed/)).toBeVisible()
   })
 
   it('shows an execution error without presenting its result as successful output', async () => {
@@ -215,7 +215,7 @@ describe('MessageMetaTool', () => {
     )
     await expandCard(/tool_exec/)
 
-    expect(screen.getByText('execution failed', { exact: true })).toBeVisible()
+    expect(await screen.findByText('execution failed', { exact: true })).toBeVisible()
     expect(screen.queryByText('partial result', { exact: true })).not.toBeInTheDocument()
   })
 })

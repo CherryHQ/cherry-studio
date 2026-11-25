@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-import { buildToolResponseFromPart } from '../../toolResponse'
+import { buildToolResponseFromPart, type ToolResponseLike } from '../../toolResponse'
 import { getAgentNavigateResult, isAgentNavigateResultPart } from '../navigateResult'
 
 const input = { path: '/settings/provider', query: { id: 'provider-1' } }
@@ -13,19 +12,25 @@ const tool = {
   type: 'mcp' as const,
   serverId: 'assistant',
   serverName: 'assistant',
-  name: 'navigate'
+  name: 'navigate',
+  inputSchema: { type: 'object' as const }
 }
-function response(overrides: Partial<NormalToolResponse> = {}): NormalToolResponse {
-  return {
+function response(overrides: Partial<Omit<ToolResponseLike, 'toolCallId'>> = {}): ToolResponseLike {
+  const { tool: selectedTool = tool, ...fields } = overrides
+  const common = {
     id: 'navigate-1',
     toolCallId: 'navigate-1',
-    tool,
     status: 'done',
     arguments: input,
     response: output,
-    ...overrides
-  }
+    ...fields
+  } satisfies Omit<ToolResponseLike, 'tool'>
+
+  if (selectedTool.type === 'mcp') return { ...common, tool: selectedTool }
+
+  return { ...common, tool: selectedTool }
 }
+
 function part(overrides: Record<string, unknown> = {}): CherryMessagePart {
   return {
     type: 'dynamic-tool',

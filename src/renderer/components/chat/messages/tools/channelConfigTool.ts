@@ -53,9 +53,7 @@ export function getChannelAuthQrResult(toolResponse: ChannelConfigToolResponse) 
   }
 }
 
-export function isChannelAuthQrToolResponse(
-  toolResponse: ChannelConfigToolResponse
-): toolResponse is NormalToolResponse {
+export function isChannelAuthQrToolResponse(toolResponse: ChannelConfigToolResponse): boolean {
   return getChannelAuthQrResult(toolResponse) !== null
 }
 

@@ -11,16 +11,20 @@ import {
 } from '../sessionToolResult'
 
 function toolResponse(name: string, serverId?: string) {
-  const tool = { id: name, name, type: serverId ? 'mcp' : 'provider' } satisfies ToolResponseLike['tool']
-  if (serverId) Object.assign(tool, { serverId })
-  return {
+  const common = {
     id: `response-${name}`,
     toolCallId: `call-${name}`,
-    tool,
     arguments: { title: 'Research session' },
     status: 'done',
     response: JSON.stringify({ ok: true, sessionId: 'session-research' })
-  } satisfies ToolResponseLike
+  } satisfies Omit<ToolResponseLike, 'tool'>
+
+  return serverId
+    ? ({
+        ...common,
+        tool: { id: name, name, type: 'mcp', serverId, serverName: serverId, inputSchema: { type: 'object' } }
+      } satisfies ToolResponseLike)
+    : ({ ...common, tool: { id: name, name, type: 'provider' } } satisfies ToolResponseLike)
 }
 
 describe('getSessionToolTargets', () => {

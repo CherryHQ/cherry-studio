@@ -5,7 +5,7 @@ import { SkeletonValue, ToolHeader } from '../shared/GenericTools'
 import { isToolArgumentObject, readToolStringArgument } from '../shared/toolArgumentObject'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import type { ToolDisplayProps } from '../shared/toolDisplay'
-import { TaskListView } from './TaskTool'
+import { type TaskListItem, TaskListView } from './TaskTool'
 
 export function TodoWriteTool({ input }: ToolDisplayProps): ToolDisclosureItem {
   const { t } = useTranslation()
@@ -15,7 +15,7 @@ export function TodoWriteTool({ input }: ToolDisplayProps): ToolDisclosureItem {
     ? rawTodos.map((todo) => {
         const rawStatus = isToolArgumentObject(todo) ? todo.status : undefined
 
-        const status =
+        const status: TaskListItem['status'] =
           rawStatus === 'pending' || rawStatus === 'in_progress' || rawStatus === 'completed' ? rawStatus : undefined
 
         return {

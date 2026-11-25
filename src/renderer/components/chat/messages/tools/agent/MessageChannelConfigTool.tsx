@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
 
 import ImageBlock from '@renderer/components/chat/messages/blocks/ImageBlock'
-import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { getChannelAuthQrResult } from '../channelConfigTool'
+import type { ToolResponseLike } from '../toolResponse'
 import { AgentExecutionTimeline } from './AgentExecutionTimeline'
 
-export function MessageChannelConfigTool({ toolResponse }: { toolResponse: NormalToolResponse }) {
+export function MessageChannelConfigTool({ toolResponse }: { toolResponse: ToolResponseLike }) {
   const qrResult = useMemo(() => getChannelAuthQrResult(toolResponse), [toolResponse])
 
   if (!qrResult) {
