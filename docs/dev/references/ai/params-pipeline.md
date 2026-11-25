@@ -144,6 +144,21 @@ for a single request, so any added field becomes part of the contract — keep i
 minimal. After feature collection, the pipeline may still refine the
 request-local `sdkConfig.providerSettings.fetch` before returning it.
 
+## Anthropic thinking replay
+
+For Cherry-managed requests to the first-party Claude Messages API, the
+Anthropic adapter opts into `drop_block` when a supported model in adaptive
+thinking mode receives historical signed or redacted thinking. The SDK adds
+the beta header. Claude evaluates each signature and discards failing blocks.
+An explicit binding policy takes precedence. Compatible endpoints keep their
+existing request options.
+
+Completed signed and redacted thinking remains available for replay even
+when the display text is empty. When in-flight compaction or its sliding
+window cuts the prompt, Anthropic Messages adapters, including that route in
+CherryIN and AiHubMix, omit the affected thinking from the rewritten prompt and
+keep the surrounding content.
+
 ## Pipeline order
 
 ```
