@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-13-bash-card-observed-elapsed.md
+2026-11-13-bash-card-observed-elapsed.md: 4cda2e6e66848d724c933b8a43e797f2969b43bc
+2026-11-13-bash-card-observed-elapsed.zh.md: 2a15491a543be40f4a018ec89242ad880a4f387d

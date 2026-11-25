@@ -86,7 +86,7 @@ export function AgentToolDisclosure({
           aria-expanded={canExpand ? isExpanded : undefined}
           aria-controls={canExpand ? contentId : undefined}
           className={cn(
-            'flex w-fit items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm leading-4 font-semibold text-foreground outline-none hover:no-underline focus-visible:bg-accent/50 disabled:pointer-events-none disabled:opacity-50',
+            'flex w-fit max-w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm leading-4 font-semibold text-foreground outline-none hover:no-underline focus-visible:bg-accent/50 disabled:pointer-events-none disabled:opacity-50',
             item.classNames?.header
           )}
           onClick={isInteractive ? openOrToggle : undefined}
