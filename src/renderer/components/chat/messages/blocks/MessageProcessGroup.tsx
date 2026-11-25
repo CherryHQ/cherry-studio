@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
@@ -24,6 +24,12 @@ type Props = BaseProps &
         phase: 'completed'
         outcome: 'success' | 'error'
         defaultExpanded?: boolean
+        /**
+         * Preference-driven sync target for histories that contain reasoning.
+         * `true` = auto-collapse OFF so the group must open; `false` = auto-collapse
+         * ON so it must close; `undefined` = no reasoning present, leave manual state alone.
+         */
+        syncExpanded?: boolean
       }
   )
 
@@ -106,6 +112,17 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
     'completed-process',
     props.phase === 'completed' && (props.defaultExpanded ?? false)
   )
+  const syncTarget = props.phase === 'completed' ? props.syncExpanded : undefined
+  const [previousSyncTarget, setPreviousSyncTarget] = useMessageDisclosureState(
+    syncTarget === undefined ? undefined : 'completed-process-preference',
+    syncTarget ?? false
+  )
+
+  useEffect(() => {
+    if (syncTarget === undefined) return
+    if (previousSyncTarget !== syncTarget) setIsExpanded(syncTarget)
+    setPreviousSyncTarget(syncTarget)
+  }, [previousSyncTarget, setIsExpanded, setPreviousSyncTarget, syncTarget])
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
   const runtimeTiming = message.stats?.runtimeTiming
   const completedElapsedMs = useMemo(() => {
@@ -145,7 +162,12 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
   }
 
   const elapsedText = completedElapsedMs === undefined ? undefined : formatPlaceholderElapsed(completedElapsedMs, t)
-  const summary = props.outcome === 'error' ? t('message.tools.error') : t('message.tools.processed')
+  const summary =
+    props.outcome === 'error'
+      ? t('message.tools.error')
+      : toolItems.length > 0
+        ? t('message.tools.groupHeader', { count: toolItems.length })
+        : t('message.tools.processed')
   const header = (
     <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
   )

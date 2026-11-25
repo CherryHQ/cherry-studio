@@ -45,6 +45,7 @@ interface AgentComposerSlotProps {
   cancelEditing: () => void
   resendEditedMessage: AgentChatRuntimeState['sendMessage']
   steerWhileBusy?: boolean
+  providerQuotaExhausted?: boolean
 }
 
 function AgentComposerSlot({
@@ -69,7 +70,8 @@ function AgentComposerSlot({
   editBusy,
   cancelEditing,
   resendEditedMessage,
-  steerWhileBusy
+  steerWhileBusy,
+  providerQuotaExhausted
 }: AgentComposerSlotProps) {
   const binary = useClaudeCodeBinary(activeAgent?.type === 'claude-code')
   const isReadyToPrewarm =
@@ -122,6 +124,7 @@ function AgentComposerSlot({
         }
         launchOptions={isEditing ? editLaunchOptions : composerLaunchOptions}
         steerWhileBusy={steerWhileBusy}
+        providerQuotaExhausted={!isEditing && providerQuotaExhausted}
       />
     ) : (
       <MissingAgentHomeComposer onAgentChange={onAgentChange} agentChanging={agentChanging} />

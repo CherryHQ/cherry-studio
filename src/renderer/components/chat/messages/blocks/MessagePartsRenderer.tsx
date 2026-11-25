@@ -122,11 +122,10 @@ const referenceCitationsCache = new WeakMap<
 const MessageVideo = React.lazy(() => import('../frame/MessageVideo'))
 
 // A completed process group mounts its whole tool history when it defaults to
-// expanded. Agent sessions set `expandToolSteps`, so an hour-long turn that
-// accumulated hundreds of tool calls used to paint tens of thousands of DOM
-// nodes before the user touched anything. Keep the default for ordinary turns
-// and start oversized histories collapsed; an explicit user toggle still wins
-// through the disclosure cache.
+// expanded. Ordinary turns stay collapsed (Agent sessions included): the outer
+// completed group starts collapsed and an explicit user toggle still wins
+// through the disclosure cache. Oversized histories always start collapsed as
+// a render-budget guard, independent of the default.
 const COMPLETED_HISTORY_AUTO_EXPAND_MAX_ENTRIES = 80
 const COMPLETED_HISTORY_AUTO_EXPAND_MAX_TEXT_CHARS = 100 * 1024
 const EMPTY_PART_ENTRIES: readonly PartEntry[] = []
@@ -370,6 +369,8 @@ interface RenderGroupedEntryOptions {
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   enableAnimation?: boolean
   expandToolGroups?: boolean
+  expandLiveToolGroups?: boolean
+  thoughtAutoCollapse?: boolean
   expandedTextPartIds?: ReadonlySet<string>
   messageCitations?: MessageCitations
   citationProjectionByPart?: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers>
@@ -1231,6 +1232,24 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
   return result
 }
 
+function hasVisibleReasoningInCompletedHistory(entries: readonly PartEntry[], messageId: string): boolean {
+  // Mirror renderNestedHistory's disclosure filtering: a process segment hides
+  // all of its reasoning when any of its renderable tools carries an intent.
+  // The outer sync must use the same visible-reasoning rule, otherwise a
+  // history that displays only tool steps would still sync and override manual state.
+  if (!entries.some((entry) => isReasoningMessagePart(entry.part))) return false
+
+  for (const item of groupNestedHistoryEntries(entries)) {
+    if (item.kind !== 'process') continue
+    if (!item.entries.some((entry) => isReasoningMessagePart(entry.part))) continue
+    const toolItems = buildToolRenderItems(item.entries, messageId, true)
+    if (toolItems.length === 0) return true
+    if (!toolItems.some(hasToolIntent)) return true
+  }
+
+  return false
+}
+
 function renderNestedHistory(
   entries: readonly PartEntry[],
   message: MessageListItem,
@@ -1291,12 +1310,25 @@ function renderNestedHistory(
     const visibleEntries = groupPartEntries(item.entries).filter(
       (entry) => showsReasoning || Array.isArray(entry) || !isReasoningMessagePart(entry.part)
     )
+    // Live and completed histories have separate defaults: Agent keeps running
+    // steps visible while the turn runs, while ordinary chat keeps them folded
+    // behind the group header until clicked. The completed `expandToolSteps`
+    // default only gates finished histories. Both live and completed histories
+    // also stay open when the thought preference asks for visible reasoning,
+    // so a mixed reasoning + tool turn does not hide the thought behind a
+    // closed child group.
+    const isLiveNested = liveProcessMode !== undefined
+    const containsReasoning = item.entries.some((entry) => isReasoningMessagePart(entry.part))
+    const keepReasoningVisible = options.thoughtAutoCollapse === false && containsReasoning && showsReasoning
+    const nestedDefaultExpanded = isLiveNested
+      ? (options.expandLiveToolGroups ?? false) || keepReasoningVisible
+      : (options.expandToolGroups ?? false) || keepReasoningVisible
 
     return (
       <AnimatedBlockWrapper key={`nested-process-${message.id}-${item.key}`} enableAnimation={false} animation="fade">
         <ToolBlockGroup
           items={toolItems}
-          defaultExpanded={options.expandToolGroups}
+          defaultExpanded={nestedDefaultExpanded}
           isLiveProgress={isLiveProgress}
           isThinking={isThinking}>
           <div className="flex w-full flex-col gap-1 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
@@ -1548,6 +1580,11 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   if (!completedLayout) return null
 
   const completedHistoryEntries = completedLayout.historyEntries
+  const completedHasVisibleReasoning = hasVisibleReasoningInCompletedHistory(completedHistoryEntries, message.id)
+  // Preference-driven sync target for the outer group. Undefined for tool-only
+  // histories (including reasoning hidden behind tool intents) so toggling the
+  // thinking setting leaves manual tool state alone.
+  const reasoningSyncTarget = completedHasVisibleReasoning ? !thoughtAutoCollapse : undefined
 
   const renderCompletedHistory = (isExpanded: boolean) =>
     isExpanded
@@ -1628,11 +1665,8 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         key={`completed-process-${message.id}`}
         phase="completed"
         outcome={completedHasError ? 'error' : 'success'}
-        defaultExpanded={
-          !completedHistoryIsOversized &&
-          (expandToolSteps ||
-            (!thoughtAutoCollapse && completedHistoryEntries.some((entry) => isReasoningMessagePart(entry.part))))
-        }
+        defaultExpanded={reasoningSyncTarget === true || (!completedHistoryIsOversized && expandToolSteps)}
+        syncExpanded={reasoningSyncTarget}
         message={message}
         toolItems={completedToolItems}>
         {renderCompletedHistory}
@@ -1670,7 +1704,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   messageParts,
   priorCitationParts
 }: MessagePartsRendererContentProps) {
-  const { expandToolSteps, subagentListTitle, userMessageDefaultExpanded } = useMessageRenderConfig()
+  const { expandLiveToolSteps, expandToolSteps, subagentListTitle, thoughtAutoCollapse, userMessageDefaultExpanded } =
+    useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
   const hoistNonImageFiles = !!hoistAttachments && !!(previewInputFile || previewFile || openFile)
   const { t } = useTranslation()
@@ -1875,6 +1910,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => ({
       citationProjectionByPart,
       expandToolGroups: expandToolSteps,
+      expandLiveToolGroups: expandLiveToolSteps,
+      thoughtAutoCollapse,
       expandedTextPartIds,
       messageCitations,
       readOnlyFilePreviews,
@@ -1884,7 +1921,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       onTextPartExpandedChange: handleTextPartExpandedChange
     }),
     [
+      expandLiveToolSteps,
       expandToolSteps,
+      thoughtAutoCollapse,
       expandedTextPartIds,
       citationProjectionByPart,
       handleTextPartExpandedChange,

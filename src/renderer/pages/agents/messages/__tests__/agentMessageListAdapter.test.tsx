@@ -230,7 +230,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(errorActionsMock.navigateErrorTarget).toHaveBeenCalledWith(expected)
   })
 
-  it('keys Agent lists by session topic while preserving expanded tool steps', () => {
+  it('keys Agent lists by session topic while keeping tool steps collapsed', () => {
     const topic = { id: 'agent-session:first', assistantId: 'agent-1', name: 'First', messages: [] } as unknown as Topic
     const { result, rerender } = renderHook(
       ({ activeTopic }) =>
@@ -244,10 +244,12 @@ describe('useAgentMessageListProviderValue', () => {
       { initialProps: { activeTopic: topic } }
     )
     expect(result.current.state.listKey).toBe('agent-session:first')
-    expect(result.current.state.renderConfig.expandToolSteps).toBe(true)
+    expect(result.current.state.renderConfig.expandToolSteps).toBe(false)
+    expect(result.current.state.renderConfig.expandLiveToolSteps).toBe(true)
     rerender({ activeTopic: { ...topic, id: 'agent-session:second' } })
     expect(result.current.state.listKey).toBe('agent-session:second')
-    expect(result.current.state.renderConfig.expandToolSteps).toBe(true)
+    expect(result.current.state.renderConfig.expandToolSteps).toBe(false)
+    expect(result.current.state.renderConfig.expandLiveToolSteps).toBe(true)
   })
 
   it('keeps historical avatars current until their agent is deleted', () => {
@@ -704,7 +706,8 @@ describe('useAgentMessageListProviderValue', () => {
     render(<Probe />)
 
     expect(value?.state.renderConfig.keepIntermediateAssistantText).toBe(true)
-    expect(value?.state.renderConfig.expandToolSteps).toBe(true)
+    expect(value?.state.renderConfig.expandToolSteps).toBe(false)
+    expect(value?.state.renderConfig.expandLiveToolSteps).toBe(true)
   })
 
   it('keeps the Agent render configuration stable across streamed deltas and refreshes changed preferences', () => {
@@ -741,7 +744,8 @@ describe('useAgentMessageListProviderValue', () => {
       expect(result.current.state.renderConfig).not.toBe(initial)
       expect(result.current.state.renderConfig.fontSize).toBe(18)
       expect(result.current.state.renderConfig.keepIntermediateAssistantText).toBe(true)
-      expect(result.current.state.renderConfig.expandToolSteps).toBe(true)
+      expect(result.current.state.renderConfig.expandToolSteps).toBe(false)
+      expect(result.current.state.renderConfig.expandLiveToolSteps).toBe(true)
     } finally {
       renderConfiguration.renderConfig = previous
     }
