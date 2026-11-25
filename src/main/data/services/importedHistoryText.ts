@@ -66,6 +66,10 @@ export function presentClaudeHistory(data: MessageData): MessageData {
   }
 }
 
+export function matchImportedToolText(text: string) {
+  return /^\[Historical tool (call|result|activity)(?:: ([^\]\n]+))?\]\n+([\s\S]*)$/.exec(text)
+}
+
 /** Display-only completed tools; persisted text and native continuation history stay inert. */
 export function presentImportedTools(
   source: HistorySource,
@@ -77,7 +81,7 @@ export function presentImportedTools(
   if (role === 'user') return { role, data }
   const parts = data.parts?.map((part, index) => {
     if (part.type !== 'text') return part
-    const marker = /^\[Historical tool (call|result|activity)(?:: ([^\]\n]+))?\]\n+([\s\S]*)$/.exec(part.text)
+    const marker = matchImportedToolText(part.text)
     if (!marker) return part
     let name = marker[2] ?? marker[1]
     let input: unknown = marker[1] === 'call' ? { input: marker[3] } : {}
