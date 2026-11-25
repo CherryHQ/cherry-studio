@@ -545,8 +545,81 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.options.providerOptions).not.toHaveProperty('google')
   })
 
+  it.each([
+    { value: 'auto', withTools: false, expected: undefined },
+    { value: 'auto', withTools: true, expected: { type: 'auto' } },
+    { value: 'any', withTools: true, expected: { type: 'any' } },
+    { value: 'required', withTools: true, expected: { type: 'any' } },
+    { value: 'none', withTools: true, expected: undefined },
+    { value: 'any', withTools: true, override: 'none' as const, expected: undefined },
+    { value: { type: 'tool', name: 'lookup' }, withTools: true, expected: { type: 'tool', name: 'lookup' } }
+  ])(
+    'serializes Anthropic custom tool_choice $value with tools=$withTools and override=$override',
+    async ({ value, withTools, override, expected }) => {
+      const requests: { url: string; body: Record<string, unknown> }[] = []
+      const captureFetch: typeof globalThis.fetch = async (input, init) => {
+        requests.push({ url: String(input), body: JSON.parse(String(init?.body)) })
+        return new Response(
+          JSON.stringify({
+            id: 'msg_test',
+            type: 'message',
+            role: 'assistant',
+            model: 'glm-5.3-flash',
+            content: [{ type: 'text', text: 'ok' }],
+            stop_reason: 'end_turn',
+            stop_sequence: null,
+            usage: { input_tokens: 1, output_tokens: 1 }
+          }),
+          { headers: { 'content-type': 'application/json' } }
+        )
+      }
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: {
+          providerId: 'anthropic',
+          providerSettings: { apiKey: 'test-key', baseURL: 'https://relay.test/v1', fetch: captureFetch }
+        },
+        credentialReceipt: { attribution: 'auth', method: 'api-key' }
+      })
+      const result = await buildAgentParams({
+        request: { conversation: CONVERSATION, ...(override && { callOverrides: { toolChoice: override } }) },
+        signal: undefined,
+        provider: makeProvider({
+          id: 'custom',
+          defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+          endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
+        }),
+        model: makeModel({
+          id: 'custom::glm-5.3-flash',
+          providerId: 'custom',
+          apiModelId: 'glm-5.3-flash',
+          endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+        }),
+        assistant: makeAssistant({
+          settings: { customParameters: [{ name: 'tool_choice', type: 'json', value: JSON.stringify(value) }] }
+        })
+      })
+      await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+        model: result.sdkConfig.modelId,
+        prompt: 'hello',
+        providerOptions: result.options.providerOptions,
+        toolChoice: result.options.toolChoice,
+        ...(withTools && { tools: { lookup: { description: 'Look up a record', inputSchema: z.object({}) } } })
+      })
+
+      expect(requests).toHaveLength(1)
+      expect(requests[0].url).toBe('https://relay.test/v1/messages')
+      if (expected) expect(requests[0].body.tool_choice).toEqual(expected)
+      else {
+        expect(requests[0].body).not.toHaveProperty('tool_choice')
+        expect(requests[0].body).not.toHaveProperty('tools')
+      }
+    }
+  )
+
   it('preserves assistant custom parameters unchanged in the final provider request body', async () => {
     const firstCustomParameters = [
+      { name: 'tool_choice', type: 'json' as const, value: '"auto"' },
       { name: 'enable_search', type: 'json' as const, value: 'true' },
       {
         name: 'chat_template_kwargs',

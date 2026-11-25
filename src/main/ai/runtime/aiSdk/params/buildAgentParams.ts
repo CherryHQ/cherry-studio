@@ -763,6 +763,15 @@ function buildAgentOptions(
     delete standardParams.maxOutputTokens
   }
 
+  let toolChoice = callOverrides?.toolChoice
+  if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+    const customChoice = bodyParams.tool_choice
+    if (customChoice === 'auto' || customChoice === 'none' || customChoice === 'any' || customChoice === 'required') {
+      toolChoice ??= customChoice === 'any' ? 'required' : customChoice
+      delete bodyParams.tool_choice
+    }
+  }
+
   const sanitized = stripUnsupportedModelParams(
     { standardParams, providerOptions: effectiveProviderOptions, bodyParams },
     model
@@ -790,7 +799,7 @@ function buildAgentOptions(
     maxRetries: maxRetries ?? 0,
     ...(stopWhen && { stopWhen }),
     ...(headers && { headers }),
-    ...(callOverrides?.toolChoice && { toolChoice: callOverrides.toolChoice }),
+    ...(toolChoice && { toolChoice }),
     ...(callOverrides?.activeTools && { activeTools: callOverrides.activeTools }),
     ...(callOverrides?.output && { output: callOverrides.output }),
     ...(hasProviderOptions && { providerOptions: sanitized.providerOptions }),
