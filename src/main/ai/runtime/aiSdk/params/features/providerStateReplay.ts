@@ -1,6 +1,8 @@
 import type { LanguageModelV3Message, LanguageModelV3StreamPart, SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 
+import { isReplayUserMessage } from '../../../../provider/replayRoute'
+
 export type AssistantPart = Extract<LanguageModelV3Message, { role: 'assistant' }>['content'][number]
 
 interface ProviderStateReplay {
@@ -66,7 +68,8 @@ export function createProviderStateReplayMiddleware({
     },
     transformParams: async ({ params }) => {
       const currentTurn = params.prompt.findLastIndex(
-        (message) => message.role === 'user' && message.content.some((part) => part.type !== 'text' || part.text.trim())
+        (message) =>
+          isReplayUserMessage(message) && message.content.some((part) => part.type !== 'text' || part.text.trim())
       )
       if (currentTurn < 0 && !filterCurrentTurn) return params
       const prompt = params.prompt.map((message, index) => {

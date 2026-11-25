@@ -1,7 +1,8 @@
 import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
-import { APICallError } from 'ai'
+import { APICallError, generateText, type ModelMessage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
+import { routeToolResultMedia } from '../../../../messages/messageCapabilities'
 import type { FallbackResolver, RetryFallback } from '../createRetryableWrap'
 import type { RetryPolicy } from '../retryPolicy'
 
@@ -130,6 +131,62 @@ describe('createRetryableWrap', () => {
 
   it('returns undefined when retry is disabled', () => {
     expect(createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }) })).toBeUndefined()
+  })
+
+  it('keeps a signed tool continuation on its fallback after relocating the tool image', async () => {
+    const primary = vi.fn().mockResolvedValue(okResult)
+    const fallback = vi.fn().mockResolvedValue(okResult)
+    const wrap = createRetryableWrap({
+      primaryReplayRouteId: 'primary',
+      retryPolicy: policy(),
+      fallbacks: [async () => ({ model: makeFakeLanguageModel('serving', fallback), replayRouteId: 'serving' })]
+    })!
+    const messages: ModelMessage[] = [
+      { role: 'user', content: 'Read the image' },
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool-call',
+            toolCallId: 'read-1',
+            toolName: 'read',
+            input: {},
+            providerOptions: { cherry: { replayRouteId: 'serving' }, google: { thoughtSignature: 'original' } }
+          }
+        ]
+      },
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'read-1',
+            toolName: 'read',
+            output: { type: 'content', value: [{ type: 'image-data', data: 'AQID', mediaType: 'image/png' }] }
+          }
+        ]
+      }
+    ]
+    const result = await generateText({
+      model: wrap(makeFakeLanguageModel('primary', primary)),
+      messages: routeToolResultMedia(
+        messages,
+        { image: true, audio: false, video: false },
+        { image: false, audio: false, video: false }
+      ),
+      maxRetries: 0
+    })
+    expect(result.text).toBe('ok')
+    expect(primary).not.toHaveBeenCalled()
+    expect(fallback.mock.calls[0][0].prompt).toMatchObject([
+      { role: 'user' },
+      {
+        role: 'assistant',
+        content: [{ toolCallId: 'read-1', providerOptions: { google: { thoughtSignature: 'original' } } }]
+      },
+      { role: 'tool', content: [{ toolCallId: 'read-1' }] },
+      { role: 'user', content: [{ type: 'text' }, { type: 'file', mediaType: 'image/png' }] }
+    ])
   })
 
   it('falls back to the first fallback when the primary fails non-retryably', async () => {

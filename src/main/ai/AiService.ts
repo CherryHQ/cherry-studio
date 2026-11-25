@@ -739,6 +739,7 @@ export class AiService extends BaseService {
             agentRef.current?.write({ type: 'data-retry', id: 'retry', data: event })
           )
         : undefined
+    let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
     if (!retryDisabledForRequest) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
@@ -759,6 +760,7 @@ export class AiService extends BaseService {
         request.requestOptions?.maxRetries,
         apiKeyFallbacks.length > 0
       )
+      if (retryPolicy.enabled || apiKeyFallbacks.length > 0) sdkMaxRetries = 0
       wrapModel = createRetryableWrap({
         primaryReplayRouteId,
         apiKeyFallbacks,
@@ -821,7 +823,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system,
-      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
+      options: wrapModel ? { ...options, maxRetries: sdkMaxRetries, repairToolCall } : options,
       hookParts: [
         this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'),
         ...(request.runtimeTimingSink
@@ -956,6 +958,7 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` disables retry for this request.
     let wrapModel =
       request.contextOwner === 'caller' ? createCallerRetryWrap(request.requestOptions?.maxRetries) : undefined
+    let sdkMaxRetries = wrapModel ? 0 : options.maxRetries
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
         request,
@@ -975,6 +978,7 @@ export class AiService extends BaseService {
         request.requestOptions?.maxRetries,
         apiKeyFallbacks.length > 0
       )
+      if (retryPolicy.enabled || apiKeyFallbacks.length > 0) sdkMaxRetries = 0
       wrapModel = createRetryableWrap({
         primaryReplayRouteId,
         apiKeyFallbacks,
@@ -1031,7 +1035,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system,
-      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
+      options: wrapModel ? { ...options, maxRetries: sdkMaxRetries, repairToolCall } : options,
       hookParts: [this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'), ...hookParts],
       mediaCapabilities,
       toolResultMediaCapabilities: resolveToolResultMediaCapabilities(

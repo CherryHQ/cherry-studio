@@ -114,9 +114,11 @@ export function finalizeInterruptedParts(
 export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessagePart[] {
   const filtered = parts.filter((part) => {
     if (part.type !== 'text' && part.type !== 'reasoning') return true
+    const reasoningDetails = part.providerMetadata?.openrouter?.reasoning_details
     if (
       part.type === 'reasoning' &&
       (hasAnthropicThinkingCredential(part.providerMetadata) ||
+        (Array.isArray(reasoningDetails) && reasoningDetails.length > 0) ||
         Object.values(part.providerMetadata ?? {}).some(
           ({ reasoningEncryptedContent }) =>
             typeof reasoningEncryptedContent === 'string' && reasoningEncryptedContent.length > 0

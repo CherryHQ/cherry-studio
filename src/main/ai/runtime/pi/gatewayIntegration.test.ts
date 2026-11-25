@@ -17,6 +17,7 @@ import {
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
 import { Type } from 'typebox'
@@ -153,6 +154,7 @@ describe('native Pi through the production gateway', () => {
   let plaintextResponse = false
   let geminiEvents: unknown[] | undefined
   const requests: Array<Record<string, unknown>> = []
+  const dispatchKeys: Array<string | undefined> = []
   let call: (body: Record<string, unknown>) => { content?: string; tool_calls?: unknown[] }
   let rejectUpstream:
     | (() =>
@@ -204,6 +206,7 @@ describe('native Pi through the production gateway', () => {
     await new Promise<void>((done) => gateway.listen(0, '127.0.0.1', done))
     mocks.gatewayUrl = `http://127.0.0.1:${(gateway.address() as AddressInfo).port}`
     requests.length = 0
+    dispatchKeys.length = 0
     mocks.gatewayRequests = 0
     holdResponse = false
     failStream = false
@@ -220,6 +223,7 @@ describe('native Pi through the production gateway', () => {
       for await (const chunk of req) raw += chunk
       const body = JSON.parse(raw)
       requests.push(body)
+      dispatchKeys.push(req.headers.authorization)
       const rejection = rejectUpstream?.()
       if (rejection) {
         const { status = 400, retryAfter, ...error } = rejection
@@ -501,6 +505,101 @@ describe('native Pi through the production gateway', () => {
       }
     }
   )
+
+  it('rotates Pi gateway dispatch credentials once per request', async () => {
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        apiKeys: [
+          { id: 'key-a', key: 'fixture-a', isEnabled: true },
+          { id: 'key-b', key: 'fixture-b', isEnabled: true }
+        ]
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    const binding = await createPiGatewayModelBinding(
+      { sessionId: 'session' },
+      providerService.getByProviderId('port'),
+      modelService.getByKey('port', 'wire-model')
+    )
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const reply = await binding.modelRuntime.completeSimple(
+        binding.model,
+        normalizeContext({ messages: [{ role: 'user', content: 'Hello', timestamp: 1 }] })
+      )
+      expect(reply.stopReason).toBe('stop')
+    }
+    expect(dispatchKeys).toEqual(['Bearer fixture-a', 'Bearer fixture-b', 'Bearer fixture-a', 'Bearer fixture-b'])
+  })
+
+  it('keeps plaintext and summary distinct in a generic Responses tool continuation', async () => {
+    protocol = 'openai-responses'
+    const baseUrl =
+      providerService.getByProviderId('port').endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl
+    dbh.db
+      .update(userProviderTable)
+      .set({
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: baseUrl!, adapterFamily: 'open-responses' } }
+      })
+      .where(eq(userProviderTable.providerId, 'port'))
+      .run()
+    dbh.db
+      .update(userModelTable)
+      .set({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+      .where(eq(userModelTable.id, 'port::wire-model'))
+      .run()
+    const response = await processMessage({
+      inputFormat: 'openai-responses',
+      outputFormat: 'openai-responses',
+      params: {
+        model: 'port:wire-model',
+        stream: true,
+        input: [
+          { role: 'user', content: 'Look up cedar' },
+          {
+            type: 'reasoning',
+            id: 'rs_chain',
+            content: [{ type: 'reasoning_text', text: 'Complete reasoning chain' }],
+            summary: [{ type: 'summary_text', text: 'Abbreviated chain' }]
+          },
+          { type: 'function_call', call_id: 'lookup-1', name: 'lookup', arguments: '{}' },
+          { type: 'function_call_output', call_id: 'lookup-1', output: 'cedar' }
+        ]
+      }
+    })
+    await response.text()
+    expect(requests).toHaveLength(1)
+    expect(requests[0].input).toEqual(
+      expect.arrayContaining([
+        {
+          type: 'reasoning',
+          content: [{ type: 'reasoning_text', text: 'Complete reasoning chain' }],
+          summary: [{ type: 'summary_text', text: 'Abbreviated chain' }]
+        },
+        expect.objectContaining({ type: 'function_call', call_id: 'lookup-1' }),
+        expect.objectContaining({ type: 'function_call_output', call_id: 'lookup-1' })
+      ])
+    )
+    expect((requests[0].input as Array<{ type: string }>).filter(({ type }) => type === 'reasoning')).toHaveLength(1)
+  })
+
+  it('retains the explicit SDK retry budget with only a replay route guard', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.retry.enabled', false)
+    rejectUpstream = () =>
+      requests.length === 1 ? { message: 'Try again', code: 'busy', status: 503, retryAfter: '0.01' } : undefined
+    const result = await mocks.ai!.streamText({
+      conversation: { id: 'chat', topicId: 'chat' },
+      trigger: 'submit-message',
+      uniqueModelId: 'port::wire-model',
+      messages: [{ id: 'user', role: 'user', parts: [{ type: 'text', text: 'Hello' }] }],
+      requestOptions: { maxRetries: 1, signal: new AbortController().signal }
+    })
+    if (result.kind !== 'chunks') throw new Error('Expected text stream')
+    const chunks: UIMessageChunk[] = []
+    for await (const chunk of result.stream) chunks.push(chunk)
+    expect(chunks).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'Model answer' }))
+    expect(requests).toHaveLength(2)
+  })
 
   it('joins the SDK call to the native phase with one upstream request and billing record', async () => {
     const captured: SpanEntity[] = []

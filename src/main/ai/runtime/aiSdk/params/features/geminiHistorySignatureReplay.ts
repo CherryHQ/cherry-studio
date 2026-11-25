@@ -91,13 +91,21 @@ export const geminiCompatibleToolSignatures: LanguageModelMiddleware = {
     prompt: params.prompt.map((message) => {
       if (message.role !== 'assistant') return message
       let hasSignedCall = false
+      let batchEnd = 0
+      let omitBatch = false
       return {
         ...message,
-        content: message.content.map((part) => {
+        content: message.content.map((part, index) => {
           if (part.type !== 'tool-call' || part.providerExecuted) return part
-          if (part.providerOptions?.cherry?.omitGeminiThoughtSignature === true) {
-            return omitGeminiSignature(part)
+          if (index >= batchEnd) {
+            omitBatch = false
+            for (batchEnd = index; batchEnd < message.content.length; batchEnd++) {
+              const call = message.content[batchEnd]
+              if (call.type !== 'tool-call' || call.providerExecuted) break
+              omitBatch ||= call.providerOptions?.cherry?.omitGeminiThoughtSignature === true
+            }
           }
+          if (omitBatch) return omitGeminiSignature(part)
           const options = part.providerOptions
           const recorded = geminiSignatures(options)[0]?.[1]
           const { extraContent, google } = compatibleContent(options)

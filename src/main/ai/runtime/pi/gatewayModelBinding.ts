@@ -15,8 +15,8 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
-import { getReplayRouteId, needsPlainToolReasoning, ToolContinuationRouteError } from '../../provider/replayRoute'
-import { resolveSdkConfig } from '../../provider/sdkConfig'
+import { needsPlainToolReasoning, ToolContinuationRouteError } from '../../provider/replayRoute'
+import { resolveReplayRouteId } from '../../provider/sdkConfig'
 import { resolveAgentContextWindow } from '../agentContextWindow'
 import type { AgentRuntimeConnectInput } from '../types'
 import { loadPiAi, loadPiApiStreamSimple, loadPiSdk } from './piSdk'
@@ -104,18 +104,6 @@ export async function createPiGatewayModelBinding(
             const origin = await resolveGatewayModelAddress(pending.model, true).catch(() => {
               throw new ToolContinuationRouteError()
             })
-            const originEndpoint = resolveEffectiveEndpoint(
-              origin.provider,
-              origin.model,
-              pending.api === 'anthropic-messages' ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
-            )
-            const { sdkConfig: originConfig } = await resolveSdkConfig(origin.provider, origin.model, originEndpoint)
-            if (
-              getReplayRouteId(origin.provider.id, originEndpoint.endpointType, originConfig) !==
-              pending.cherryReplayRouteId
-            ) {
-              throw new ToolContinuationRouteError()
-            }
             const binding = await createPiGatewayModelBinding(
               input,
               origin.provider,
@@ -131,8 +119,7 @@ export async function createPiGatewayModelBinding(
           }
           const current = await resolveGatewayModelAddress(model.id, true)
           const endpoint = resolveEffectiveEndpoint(current.provider, current.model, preferredEndpoint)
-          const { sdkConfig } = await resolveSdkConfig(current.provider, current.model, endpoint)
-          const routeId = getReplayRouteId(current.provider.id, endpoint.endpointType, sdkConfig)
+          const routeId = await resolveReplayRouteId(current.provider, current.model, endpoint)
           if (pending && pending.cherryReplayRouteId !== routeId) throw new ToolContinuationRouteError()
           options?.signal?.throwIfAborted()
           const stream = streamSimple(model, preparePiReplay(context, model, routeId), {

@@ -1,13 +1,27 @@
+import { readFileSync } from 'node:fs'
+
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { generateText, readUIMessageStream, streamText, type ModelMessage, type UIMessage, wrapLanguageModel } from 'ai'
+import { setupTestDatabase } from '@test-helpers/db'
+import { generateText, readUIMessageStream, streamText, type ModelMessage, wrapLanguageModel } from 'ai'
 import { expect, it } from 'vitest'
 
 import type { AiRequestContext } from '@cherrystudio/ai-core'
+import { messageService } from '@data/services/MessageService'
+import { topicService } from '@data/services/TopicService'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { toModelMessages } from '../../../../../messages/messageRules'
+import { PersistenceListener } from '../../../../../streamManager/listeners/PersistenceListener'
+import { MessageServiceBackend } from '../../../../../streamManager/persistence/backends/MessageServiceBackend'
 import type { RequestScope } from '../../scope'
 import { openrouterReasoningFeature } from '../openrouterReasoning'
+
+setupTestDatabase()
+const encryptedReasoningSse = readFileSync(
+  new URL('./fixtures/openrouterEncryptedReasoning.sse', import.meta.url),
+  'utf8'
+)
 
 it.each(['generate', 'stream'])(
   'replays OpenRouter ciphertext from a tool-free %s reply on its original route',
@@ -20,12 +34,7 @@ it.each(['generate', 'stream'])(
       requests.push(JSON.parse(String(init?.body)))
       const response = { role: 'assistant', content: 'Visible reply', reasoning_details: [detail] }
       if (mode === 'stream' && requests.length === 1) {
-        const chunks = [
-          { delta: { reasoning_details: [detail] }, finish_reason: null },
-          { delta: { content: response.content }, finish_reason: null },
-          { delta: {}, finish_reason: 'stop' }
-        ].map((choice) => 'data: ' + JSON.stringify({ ...base, choices: [{ index: 0, ...choice }] }) + '\n\n')
-        return new Response(chunks.join('') + 'data: [DONE]\n\n', {
+        return new Response(encryptedReasoningSse, {
           headers: { 'content-type': 'text/event-stream' }
         })
       }
@@ -55,12 +64,40 @@ it.each(['generate', 'stream'])(
     const first = { model: await routeModel(originalUrl), prompt: 'Question', maxRetries: 0 }
     let messages: ModelMessage[]
     if (mode === 'stream') {
-      let reply: UIMessage | undefined
-      for await (const message of readUIMessageStream({ stream: streamText(first).toUIMessageStream() })) {
+      let reply: CherryUIMessage | undefined
+      for await (const message of readUIMessageStream<CherryUIMessage>({
+        stream: streamText(first).toUIMessageStream()
+      })) {
         reply = message
       }
       if (!reply) throw new Error('Expected an assistant reply')
-      messages = await toModelMessages([JSON.parse(JSON.stringify(reply))])
+      const { id: topicId } = topicService.create({})
+      const {
+        placeholders: [assistant]
+      } = messageService.createUserMessageWithPlaceholders({
+        topicId,
+        userMessage: {
+          mode: 'create',
+          dto: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question' }] } }
+        },
+        placeholders: [{ role: 'assistant', status: 'pending', data: { parts: [] } }]
+      })
+      const persistence = new PersistenceListener({
+        topicId,
+        backend: new MessageServiceBackend({ assistantMessageId: assistant.id }),
+        onPersistFailed: () => {}
+      })
+      await persistence.onDone({ status: 'success', finalMessage: reply })
+      const reopened = messageService.getById(assistant.id)
+      expect(reopened.status).toBe('success')
+      expect(reopened.data.parts).toContainEqual(
+        expect.objectContaining({
+          type: 'reasoning',
+          text: '',
+          providerMetadata: expect.objectContaining({ openrouter: { reasoning_details: [detail] } })
+        })
+      )
+      messages = await toModelMessages([{ id: reopened.id, role: 'assistant', parts: reopened.data.parts ?? [] }])
     } else {
       const result = await generateText(first)
       messages = result.response.messages

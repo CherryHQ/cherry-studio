@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { LanguageModelV3Message, LanguageModelV3Prompt } from '@ai-sdk/provider'
 
 import { resolveAihubmixChatRoute, resolveDmxapiChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
@@ -8,7 +8,10 @@ import { isDeepSeekModel } from '@shared/utils/model'
 
 import type { SdkConfig } from './sdkConfig'
 
-export function getReplayEndpoint(endpoint: EndpointType | undefined, config: SdkConfig) {
+export function getReplayEndpoint(
+  endpoint: EndpointType | undefined,
+  config: Pick<SdkConfig, 'providerId' | 'modelId'>
+) {
   if (config.providerId === 'aihubmix') return resolveAihubmixChatRoute(config.modelId).endpointType
   if (config.providerId === 'dmxapi') return resolveDmxapiChatRoute(config.modelId).endpointType
   return endpoint
@@ -21,7 +24,11 @@ export function needsPlainToolReasoning(endpoint: EndpointType | undefined, mode
   )
 }
 
-export function getReplayRouteId(connectionId: string, endpoint: EndpointType | undefined, config: SdkConfig): string {
+export function getReplayRouteId(
+  connectionId: string,
+  endpoint: EndpointType | undefined,
+  config: Pick<SdkConfig, 'providerId' | 'modelId' | 'providerSettings'>
+): string {
   const endpointType = getReplayEndpoint(endpoint, config)
   const settings = config.providerSettings
   const geminiUrl =
@@ -77,8 +84,14 @@ export function selectToolContinuation<Source>(
   return pending
 }
 
+export function isReplayUserMessage(
+  message: LanguageModelV3Message
+): message is Extract<LanguageModelV3Message, { role: 'user' }> {
+  return message.role === 'user' && message.providerOptions?.cherry?.toolResultMedia !== true
+}
+
 export function getPendingReplayRoute(prompt: LanguageModelV3Prompt): string | undefined {
-  const active = prompt.slice(prompt.findLastIndex((message) => message.role === 'user') + 1)
+  const active = prompt.slice(prompt.findLastIndex(isReplayUserMessage) + 1)
   const completedCalls = new Set(
     active.flatMap((message) =>
       message.role === 'tool'

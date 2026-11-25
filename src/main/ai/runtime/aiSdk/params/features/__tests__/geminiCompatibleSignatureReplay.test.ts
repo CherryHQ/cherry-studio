@@ -106,7 +106,7 @@ it.each(models)(
       }
     ]) {
       const prompt: LanguageModelV3CallOptions['prompt'] = [
-        ...toolHistory(['call-1'], providerOptions),
+        ...toolHistory(['call-1', 'unsigned-sibling'], providerOptions),
         { role: 'user', content: [{ type: 'text', text: 'Continue' }] }
       ]
       for (const [baseURL, wireModel] of [
@@ -119,8 +119,15 @@ it.each(models)(
         )
         expect(body).toMatchObject({
           messages: expect.arrayContaining([
-            expect.objectContaining({ role: 'assistant', tool_calls: [expect.objectContaining({ id: 'call-1' })] }),
-            expect.objectContaining({ role: 'tool', tool_call_id: 'call-1', content: '42' })
+            expect.objectContaining({
+              role: 'assistant',
+              tool_calls: [
+                expect.objectContaining({ id: 'call-1' }),
+                expect.objectContaining({ id: 'unsigned-sibling' })
+              ]
+            }),
+            expect.objectContaining({ role: 'tool', tool_call_id: 'call-1', content: '42' }),
+            expect.objectContaining({ role: 'tool', tool_call_id: 'unsigned-sibling', content: '42' })
           ])
         })
         expect(JSON.stringify(body)).not.toContain('skip_thought_signature_validator')
