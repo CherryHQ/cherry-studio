@@ -165,16 +165,17 @@ async function fetchFollowingRedirects(
  * request signing) take an inner `FetchFunction` and delegate the actual network
  * call to this one.
  */
-export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: RequestInit) => {
+export const customFetch: FetchFunction = (
+  input: RequestInfo | URL,
+  init?: RequestInit & { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot }
+) => {
   // `net.fetch` accepts only `string | Request`; FetchFunction may hand us a URL.
   const target = input instanceof URL ? input.href : input
 
   // Record the final on-wire body for the HTTP-trace layer (see
   // HTTP_TRACE_FINAL_BODY_SLOT). Innermost means the body here is the one really
   // sent — after every provider transform — so the trace can correct its span.
-  const finalBodySlot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
-    HTTP_TRACE_FINAL_BODY_SLOT
-  ]
+  const finalBodySlot = init?.[HTTP_TRACE_FINAL_BODY_SLOT]
 
   const sendRequest = async (requestTarget: string | Request, requestInit?: RequestInit) => {
     if (finalBodySlot) finalBodySlot.body = requestInit?.body ?? null
