@@ -1,10 +1,13 @@
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
+import {
+  agentSessionMessagePartTable as messageParts,
+  agentSessionMessageTable as messages
+} from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentSessionMessageTreeSeeder } from '@data/db/seeding/seeders/AgentSessionMessageTreeSeeder'
 import { agentSessionMessageService as service } from '@data/services/AgentSessionMessageService'
@@ -67,8 +70,8 @@ describe('Agent message tree', () => {
         .where(eq(messages.id, ids[i]))
         .run()
     }
-    const decode = messages.data.mapFromDriverValue.bind(messages.data)
-    const guard = vi.spyOn(messages.data, 'mapFromDriverValue').mockImplementation((raw) => {
+    const decode = messageParts.payload.mapFromDriverValue.bind(messages.data)
+    const guard = vi.spyOn(messageParts.payload, 'mapFromDriverValue').mockImplementation((raw) => {
       if (typeof raw === 'string' && raw.includes('"call-1"')) throw new Error('Lookahead payload must not be hydrated')
       return decode(raw)
     })
@@ -274,56 +277,53 @@ describe('Agent message tree', () => {
 
   it('selects the newest immediate child at each fork, rather than the newest leaf in the subtree', () => {
     const rootId = service.captureHead(sessionId)
-    dbh.db
-      .insert(messages)
-      .values([
-        {
-          id: 'older',
-          sessionId,
-          parentId: rootId,
-          role: 'user',
-          status: 'success',
-          data: { parts: [] },
-          createdAt: 1
-        },
-        {
-          id: 'newer-a',
-          sessionId,
-          parentId: rootId,
-          role: 'user',
-          status: 'success',
-          data: { parts: [] },
-          createdAt: 2
-        },
-        {
-          id: 'newer-b',
-          sessionId,
-          parentId: rootId,
-          role: 'user',
-          status: 'success',
-          data: { parts: [] },
-          createdAt: 2
-        },
-        {
-          id: 'old-branch-late-reply',
-          sessionId,
-          parentId: 'older',
-          role: 'assistant',
-          status: 'success',
-          data: { parts: [] },
-          createdAt: 100
-        },
-        {
-          id: 'chosen-reply',
-          sessionId,
-          parentId: 'newer-b',
-          role: 'assistant',
-          status: 'success',
-          data: { parts: [] },
-          createdAt: 3
-        }
-      ])
-      .run()
+    insertAgentSessionMessages(dbh.db, [
+      {
+        id: 'older',
+        sessionId,
+        parentId: rootId,
+        role: 'user',
+        status: 'success',
+        data: { parts: [] },
+        createdAt: 1
+      },
+      {
+        id: 'newer-a',
+        sessionId,
+        parentId: rootId,
+        role: 'user',
+        status: 'success',
+        data: { parts: [] },
+        createdAt: 2
+      },
+      {
+        id: 'newer-b',
+        sessionId,
+        parentId: rootId,
+        role: 'user',
+        status: 'success',
+        data: { parts: [] },
+        createdAt: 2
+      },
+      {
+        id: 'old-branch-late-reply',
+        sessionId,
+        parentId: 'older',
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [] },
+        createdAt: 100
+      },
+      {
+        id: 'chosen-reply',
+        sessionId,
+        parentId: 'newer-b',
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [] },
+        createdAt: 3
+      }
+    ])
     expect(service.branchTip(sessionId, rootId)).toBe('chosen-reply')
     expect(service.branchTip(sessionId, 'older')).toBe('old-branch-late-reply')
     expect(service.branchTip(sessionId, 'newer-a')).toBe('newer-a')
@@ -342,49 +342,47 @@ describe('Agent message tree', () => {
     { head: 'right-reply', replies: true }
   ])('preserves existing branches during startup seeding (head: $head, replies: $replies)', ({ head, replies }) => {
     const rootId = service.captureHead(sessionId)
-    dbh.db
-      .insert(messages)
-      .values(
-        [
-          {
-            id: 'left',
-            parentId: rootId,
-            sessionId,
-            role: 'user',
-            status: 'success',
-            data: { parts: [] },
-            createdAt: 1
-          },
-          {
-            id: 'right',
-            parentId: rootId,
-            sessionId,
-            role: 'user',
-            status: 'success',
-            data: { parts: [] },
-            createdAt: 2
-          },
-          {
-            id: 'left-reply',
-            parentId: 'left',
-            sessionId,
-            role: 'assistant',
-            status: 'success',
-            data: { parts: [] },
-            createdAt: 3
-          },
-          {
-            id: 'right-reply',
-            parentId: 'right',
-            sessionId,
-            role: 'assistant',
-            status: 'success',
-            data: { parts: [] },
-            createdAt: 4
-          }
-        ].filter((row) => replies || row.role === 'user')
-      )
-      .run()
+    insertAgentSessionMessages(
+      dbh.db,
+      [
+        {
+          id: 'left',
+          parentId: rootId,
+          sessionId,
+          role: 'user',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 1
+        },
+        {
+          id: 'right',
+          parentId: rootId,
+          sessionId,
+          role: 'user',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 2
+        },
+        {
+          id: 'left-reply',
+          parentId: 'left',
+          sessionId,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 3
+        },
+        {
+          id: 'right-reply',
+          parentId: 'right',
+          sessionId,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          createdAt: 4
+        }
+      ].filter((row) => replies || row.role === 'user')
+    )
     dbh.db.update(sessions).set({ activeNodeId: head, updatedAt: 123 }).where(eq(sessions.id, sessionId)).run()
     const rows = dbh.db.select().from(messages).all()
     const session = dbh.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()
