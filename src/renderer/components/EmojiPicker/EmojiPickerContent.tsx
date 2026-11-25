@@ -12,7 +12,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { loggerService } from '@logger'
-import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 
 import { type EmojiData, loadEmojiData } from './emojiData'
 import type { EmojiPickerProps } from './EmojiPicker'
@@ -21,7 +20,7 @@ import { useRecentEmojis } from './useRecentEmojis'
 
 const logger = loggerService.withContext('EmojiPicker')
 
-const CHERRY_PICKER_STYLE = {
+const CHERRY_PICKER_STYLE: CSSProperties & Record<`--epr-${string}`, string> = {
   '--epr-bg-color': 'var(--popover)',
   '--epr-picker-border-color': 'transparent',
   '--epr-picker-border-radius': 'var(--radius-lg)',
@@ -45,7 +44,7 @@ const CHERRY_PICKER_STYLE = {
   '--epr-emoji-hover-color': 'var(--accent)',
   '--epr-emoji-variation-indicator-color': 'var(--border)',
   '--epr-emoji-variation-indicator-color-hover': 'var(--foreground)'
-} as CSSProperties
+}
 
 const CATEGORY_ORDER = [
   Categories.SUGGESTED,
@@ -87,7 +86,7 @@ const CATEGORY_ICONS: Record<(typeof CATEGORY_ORDER)[number], ReactNode> = {
 
 const EmojiPickerContent: FC<EmojiPickerProps> = ({ onEmojiClick }) => {
   const { t, i18n } = useTranslation()
-  const locale = i18n.language as LanguageVarious
+  const locale = i18n.language
   const [emojiData, setEmojiData] = useState<EmojiData | undefined>()
   const [emojiVersion, setEmojiVersion] = useState<string | undefined>()
   const [hiddenEmojis, setHiddenEmojis] = useState<string[]>([])

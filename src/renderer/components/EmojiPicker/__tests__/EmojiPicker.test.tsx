@@ -3,6 +3,7 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import dataEN from 'emoji-picker-element-data/en/cldr/data.json?url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { EmojiPicker } from '..'
@@ -238,6 +239,18 @@ describe('EmojiPicker', () => {
         ])
       )
     })
+  })
+
+  it.each(['en-AU', 'constructor'])('uses bundled English data directly for an unmapped locale %s', async (locale) => {
+    i18nLanguageMock.value = locale
+    await renderResolvedPicker()
+
+    await waitFor(() => {
+      expect(emojiPickerPropsMock.value.emojiData.emojis.smileys_people).toEqual(
+        expect.arrayContaining([expect.objectContaining({ n: expect.arrayContaining(['grinning face']), u: '1f600' })])
+      )
+    })
+    expect(vi.mocked(fetch).mock.calls.every(([url]) => url === dataEN)).toBe(true)
   })
 
   it('uses Cherry recent emojis as the third-party picker suggested category', async () => {

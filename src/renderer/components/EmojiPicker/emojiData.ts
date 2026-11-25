@@ -132,6 +132,7 @@ const loadEmojiDataUrl = (url: string): Promise<EmojiData> => {
         throw new Error(`Failed to load emoji data from ${url}: ${response.status} ${response.statusText}`)
       }
 
+      // SAFETY: This private loader fetches only the bundled emoji-picker-element-data assets consumed by the record converter.
       return response.json() as Promise<EmojiRecord[]>
     })
     .then(convertEmojiRecords)
@@ -145,8 +146,8 @@ const loadEmojiDataUrl = (url: string): Promise<EmojiData> => {
   return promise
 }
 
-export const loadEmojiData = async (locale: LanguageVarious): Promise<EmojiData> => {
-  const url = DATA_URL_MAP[locale]
+export const loadEmojiData = async (locale: string): Promise<EmojiData> => {
+  const url = Object.entries(DATA_URL_MAP).find(([key]) => key === locale)?.[1] ?? dataEN
 
   try {
     return await loadEmojiDataUrl(url)
