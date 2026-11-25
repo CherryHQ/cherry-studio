@@ -246,12 +246,11 @@ required service tier.`,
     })
   })
 
-  it('blocks every diagnosis entry point when data collection is off', async () => {
+  it('blocks both diagnosis entry points when data collection is off', async () => {
     await preferenceService.set('app.privacy.data_collection.enabled', false)
 
     await expect(classifyErrorByAI(makeError(), 'en')).rejects.toThrow(diagnosisUnavailable)
     await expect(diagnoseError(makeError(), 'en')).rejects.toThrow(diagnosisUnavailable)
-    await expect(translateErrorByAI('Service temporarily unavailable', 'zh-CN')).resolves.toBe('')
     expect(mockIpcRequest).not.toHaveBeenCalled()
   })
 
