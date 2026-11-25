@@ -68,6 +68,12 @@ unrecognized. Normalization can relax the constraints sent to the provider. MCP
 tools still validate against the original schema, and gateway callers validate
 their own tools.
 
+On `google-generate-content`, Gemini 3 and 4 requests omit Google signatures
+from historical assistant text and client tool calls when the stored source
+model identity differs from the target. The identity includes the provider
+connection. The request retains the text, tool call, and tool result. The
+Google adapter suppresses signature backfill for marked tool calls.
+
 ## RequestFeature
 
 The composition unit is `RequestFeature`
@@ -241,6 +247,10 @@ installed with the filtered body parameters; capturing them earlier would let
 body passthrough bypass the final capability check. Service tier values override
 custom body values, and SDK-produced fields override both.
 
+On Responses requests, a flat assistant custom parameter named
+`reasoning_effort` uses the SDK reasoning option. The SDK serializes it as
+`reasoning.effort`. Chat Completions retains its top-level request field.
+
 For an eligible HTTP Fast request, the final builder removes conflicting tier
 options from the selected SDK namespace and sends the provider-declared
 `service_tier` through the same body-passthrough path. This avoids adapter
@@ -254,6 +264,13 @@ such as `snake_case` keys that an adapter schema does not recognize. Provider
 namespace bags remain exclusive to `providerOptions`, non-JSON requests are
 left unchanged, and SDK-produced body fields take precedence over custom
 parameters.
+
+For Anthropic Messages, each model attempt applies flat assistant custom
+`tool_choice` strings (`auto`, `none`, `any`, and `required`) through AI SDK
+middleware before serialization. The middleware supplies a default only when
+the current step has tools and supplies no explicit choice. This also applies
+when a retry switches to an Anthropic Messages model. Object values continue
+through request-body passthrough.
 
 ## Where to read more
 

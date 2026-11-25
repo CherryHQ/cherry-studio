@@ -1459,10 +1459,21 @@ export class MessageService {
       }
     })
     if (activityTopicId) getDataService('TopicService').notifyReadModelChange([activityTopicId], 'projection')
-    aiUsageRecordService.refreshMessageProjection({ kind: 'chat', id })
+    aiUsageRecordService.refreshMessageProjection({ kind: 'chat', id }, { publishDataChange: false })
     const finalized = this.getById(id)
-    if (!finalized) throw DataApiErrorFactory.notFound('Message', id)
+    this.notifyAssistantRow(finalized)
     return finalized
+  }
+
+  markAssistantMessageTerminalError(id: string): void {
+    this.notifyAssistantRow(this.update(id, { status: 'error' }))
+  }
+
+  private notifyAssistantRow({ topicId, id }: Pick<Message, 'topicId' | 'id'>): void {
+    notifyDataApiDataChange([
+      { endpoint: '/topics/:topicId/messages', kind: 'projection', routeParams: { topicId }, entityIds: [id] },
+      { endpoint: '/messages/:id', entityIds: [id] }
+    ])
   }
 
   /**

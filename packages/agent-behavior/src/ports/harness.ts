@@ -4,6 +4,11 @@ import type { Effect, JobKind, JobSpec, Step, StopCause, TurnInput } from '../co
 import type { CallKey, ConversationFacts, GateCall, GateFacts, RunEndFacts, ToolResultFact } from '../core/facts'
 import type { Key } from '../core/keys'
 
+export type ModelContext = readonly {
+  readonly role: 'system' | 'user' | 'assistant' | 'toolResult'
+  readonly content: string | readonly { readonly type: string }[]
+}[]
+
 export type TransactResult<R extends JsonValue> = {
   readonly result: R
   /** The step's effects, for the caller to run in order after the commit. */
@@ -39,7 +44,7 @@ export interface Ledger {
     decide: (facts: ConversationFacts) => Step<R>
   ): Promise<TransactResult<R>>
   /** What the model would see next on `thread`, including a compaction summary, for the verifier. */
-  modelContext(thread: ThreadId): Promise<readonly JsonValue[]>
+  modelContext(thread: ThreadId): Promise<ModelContext>
 }
 
 export type StartResult = 'started' | 'queued' | 'busy'

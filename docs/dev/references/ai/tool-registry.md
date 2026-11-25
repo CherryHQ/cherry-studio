@@ -86,6 +86,19 @@ not limited to assistant settings.
 
 The sync is idempotent; a stale entry is overwritten on the next sync.
 
+Assistant and Agent tool catalogs apply MCP Apps visibility to model-facing
+discovery. The MCP runtime checks that same visibility on the originating
+connection before execution, including calls through deferred tools. The
+source catalog retains App-only entries for settings and App access.
+
+Successful Assistant MCP tool results can carry a host-issued App reference.
+When the saved result enters view, the desktop host rechecks the topic's MCP
+selection and the server's tool declaration. The App renders inline after any
+declared external origins have been confirmed.
+Oversized results keep an App marker in the renderer projection. The host
+restores offloaded results before launching the App. If the topic or Assistant
+loses access to the source, the host releases both pending and mounted Apps.
+
 ### Tool catalog reads never block on MCP
 
 `McpCatalogService` splits the MCP tool catalog into a **read** facade and a

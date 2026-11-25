@@ -30,6 +30,7 @@ export interface ComposerClipboardSourceToken {
   kind: string
   label: string
   description?: string
+  sourceMessageId?: string
   promptText?: string
   payload?: unknown
 }
@@ -39,6 +40,7 @@ export interface ComposerClipboardToken {
   kind: ComposerClipboardTokenKind
   label: string
   description?: string
+  sourceMessageId?: string
   promptText?: string
   payload?: {
     type?: string
@@ -303,7 +305,11 @@ function createComposerClipboardTextHtml(text: string): string {
   return `<p>${inlineHtml || '<br>'}</p>`
 }
 
-function sanitizeComposerClipboardToken(token: unknown, mode: 'read' | 'write'): ComposerClipboardToken | null {
+function sanitizeComposerClipboardToken(
+  token: unknown,
+  mode: 'read' | 'write',
+  trustedPromptText = false
+): ComposerClipboardToken | null {
   if (!isRecord(token)) return null
 
   const id = readString(token.id)
@@ -313,6 +319,8 @@ function sanitizeComposerClipboardToken(token: unknown, mode: 'read' | 'write'):
   if (hasUnsafeComposerClipboardFileTokenId({ id, kind })) return null
 
   const description = readString(token.description)
+  const sourceMessageId =
+    kind === 'quote' && (mode === 'write' || trustedPromptText) ? readString(token.sourceMessageId) : undefined
   const promptText = readString(token.promptText)
   const payload =
     kind === 'file'
@@ -326,6 +334,7 @@ function sanitizeComposerClipboardToken(token: unknown, mode: 'read' | 'write'):
     kind,
     label,
     ...(description && { description }),
+    ...(sourceMessageId && { sourceMessageId }),
     ...(promptText && { promptText }),
     ...(payload && { payload })
   }
@@ -347,7 +356,7 @@ function sanitizeComposerClipboardSegment(
   const fallbackText = readString(segment.fallbackText)
   if (!fallbackText) return null
 
-  const token = sanitizeComposerClipboardToken(segment.token, 'read')
+  const token = sanitizeComposerClipboardToken(segment.token, 'read', trustedPromptText)
   if (!token) {
     return isUnsafeComposerClipboardFileToken(segment.token) ? { type: 'text', text: fallbackText } : null
   }
@@ -373,7 +382,9 @@ export function createComposerClipboardFragment(segments: readonly ComposerClipb
 
   const requiresPromptNonce = safeSegments.some(
     (segment) =>
-      segment.type === 'token' && isComposerClipboardPromptTokenKind(segment.token.kind) && segment.token.promptText
+      segment.type === 'token' &&
+      (segment.token.sourceMessageId ||
+        (isComposerClipboardPromptTokenKind(segment.token.kind) && segment.token.promptText))
   )
 
   return JSON.stringify({
