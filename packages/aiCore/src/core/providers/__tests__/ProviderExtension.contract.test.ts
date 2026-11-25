@@ -82,7 +82,7 @@ describe('ProviderExtension creation contracts', () => {
     expect(provider.baseOnly()).toBe('base')
   })
 
-  it('retains the declared heterogeneous variant configuration on lookup', async () => {
+  it('retains the declared heterogeneous variant configuration on lookup', () => {
     const variantProvider = Object.assign(new MockProviderV3({}), { variantOnly: () => 'variant' })
     const config = {
       name: 'variant-config',
@@ -93,7 +93,7 @@ describe('ProviderExtension creation contracts', () => {
     const variant = extension.getVariant('other')
 
     expectTypeOf(variant).toEqualTypeOf<(typeof config.variants)[number] | undefined>()
-    const resolved = await variant?.transform()
+    const resolved = variant?.transform()
     expect(resolved?.variantOnly()).toBe('variant')
   })
 

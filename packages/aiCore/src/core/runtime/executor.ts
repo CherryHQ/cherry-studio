@@ -59,7 +59,7 @@ export class RuntimeExecutor<
 > {
   public pluginEngine: PluginEngine<T>
   private config: RuntimeConfig<TSettingsMap, T>
-  private registry: ReturnType<typeof createProviderRegistry>
+  private registry: ReturnType<typeof createProviderRegistry<Record<string, ProviderV3>, ':'>>
   private readonly resolveModelPlugin: AiPlugin
   private readonly resolveImageModelPlugin: AiPlugin
 
@@ -214,7 +214,9 @@ export class RuntimeExecutor<
 
     // 解析 embedding 模型
     const embeddingModel =
-      typeof modelOrId === 'string' ? this.registry.embeddingModel(`${this.config.providerId}:${modelOrId}`) : modelOrId
+      typeof modelOrId === 'string'
+        ? this.registry.embeddingModel<string>(`${this.config.providerId}:${modelOrId}`)
+        : modelOrId
 
     const observedModel =
       onProviderCall || onProviderCallStart
@@ -260,7 +262,9 @@ export class RuntimeExecutor<
     const { model: modelOrId, onProviderCall, onProviderCallStart, ...options } = params
 
     const rerankingModel =
-      typeof modelOrId === 'string' ? this.registry.rerankingModel(`${this.config.providerId}:${modelOrId}`) : modelOrId
+      typeof modelOrId === 'string'
+        ? this.registry.rerankingModel<string>(`${this.config.providerId}:${modelOrId}`)
+        : modelOrId
 
     const observedModel: RerankingModelV3 =
       onProviderCall || onProviderCallStart
@@ -308,7 +312,7 @@ export class RuntimeExecutor<
       return this.config.modelResolver(modelId)
     }
 
-    return this.registry.languageModel(`${this.config.providerId}:${modelId}`)
+    return this.registry.languageModel<string>(`${this.config.providerId}:${modelId}`)
   }
 
   /**
@@ -348,7 +352,7 @@ export class RuntimeExecutor<
   private async resolveImageModel(modelOrId: ImageModel): Promise<Exclude<ImageModel, string>> {
     try {
       if (typeof modelOrId === 'string') {
-        return this.registry.imageModel(`${this.config.providerId}:${modelOrId}`)
+        return this.registry.imageModel<string>(`${this.config.providerId}:${modelOrId}`)
       } else {
         return modelOrId
       }
