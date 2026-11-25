@@ -128,12 +128,9 @@ function getContentSearchNextCursors(groups: readonly ContentSearchGroup[]): Con
 
 function areContentSearchCursorsEqual(a: ContentSearchCursorMap, b: ContentSearchCursorMap) {
   const aEntries = Object.entries(a)
-  const bEntries = Object.entries(b)
+  const bEntries = new Map(Object.entries(b))
 
-  return (
-    aEntries.length === bEntries.length &&
-    aEntries.every(([source, cursor]) => b[source as ContentSearchSourceType] === cursor)
-  )
+  return aEntries.length === bEntries.size && aEntries.every(([source, cursor]) => bEntries.get(source) === cursor)
 }
 
 function areMessageSearchItemsEqual(a: readonly GlobalMessageSearchResult[], b: readonly GlobalMessageSearchResult[]) {

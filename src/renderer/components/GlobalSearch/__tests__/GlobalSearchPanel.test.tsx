@@ -208,9 +208,11 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     DropdownMenuRadioItem: ({
       children,
       value,
+      onSelect,
       ...props
-    }: React.ComponentProps<'button'> & {
+    }: Omit<React.ComponentProps<'button'>, 'onSelect'> & {
       value: string
+      onSelect?: (event: Event) => void
     }) => {
       const menuContext = React.use(DropdownMenuContext)
       const radioContext = React.use(DropdownMenuRadioContext)
@@ -223,8 +225,10 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
           aria-checked={checked}
           data-state={checked ? 'checked' : 'unchecked'}
           onClick={() => {
+            const selection = new Event('select', { cancelable: true })
+            onSelect?.(selection)
             radioContext?.onValueChange?.(value)
-            menuContext?.setOpen(false)
+            if (!selection.defaultPrevented) menuContext?.setOpen(false)
           }}
           {...props}>
           {children}

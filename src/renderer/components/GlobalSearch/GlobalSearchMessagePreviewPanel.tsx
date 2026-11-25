@@ -169,6 +169,7 @@ function highlightPreviewMatches(root: HTMLElement, regex: RegExp) {
   let node = walker.nextNode()
 
   while (node) {
+    // SAFETY: This native TreeWalker uses SHOW_TEXT, so yielded nodes are Text even though nextNode is declared to return Node.
     textNodes.push(node as Text)
     node = walker.nextNode()
   }

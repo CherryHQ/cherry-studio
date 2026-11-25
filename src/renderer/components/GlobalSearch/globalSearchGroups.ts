@@ -155,18 +155,18 @@ function isLegacyRouteRecentEntry(entry: GlobalSearchRecentEntry) {
   return entry.kind === 'route' && LEGACY_ROUTE_PATHS.has(getRoutePathname(entry.url))
 }
 
-export function sanitizeGlobalSearchRecentEntries(
-  entries: readonly GlobalSearchRecentEntry[]
-): GlobalSearchRecentEntry[] {
+export function sanitizeGlobalSearchRecentEntries<T extends readonly GlobalSearchRecentEntry[]>(
+  entries: T
+): T | GlobalSearchRecentEntry[] {
   const next = entries.filter((entry) => !isLegacyRouteRecentEntry(entry))
 
-  return next.length === entries.length ? (entries as GlobalSearchRecentEntry[]) : next
+  return next.length === entries.length ? entries : next
 }
 
-export function upsertGlobalSearchRecentEntry(
-  entries: readonly GlobalSearchRecentEntry[],
+export function upsertGlobalSearchRecentEntry<T extends readonly GlobalSearchRecentEntry[]>(
+  entries: T,
   entry: GlobalSearchRecentEntry
-): GlobalSearchRecentEntry[] {
+): T | GlobalSearchRecentEntry[] {
   const current = sanitizeGlobalSearchRecentEntries(entries)
 
   if (isLegacyRouteRecentEntry(entry)) return current
