@@ -129,6 +129,25 @@ describe('knowledge routes (v2)', () => {
     expect(body.error.code).toBe('SERVICE_UNAVAILABLE')
   })
 
+  it.each(['unreadable-message', 'unprintable-value'])(
+    'POST /search → 503 when all search rejections have %s diagnostics',
+    async (kind) => {
+      const rejection =
+        kind === 'unreadable-message'
+          ? Object.defineProperty(new Error(), 'message', {
+              get() {
+                throw new Error('Cannot read remote message')
+              }
+            })
+          : Object.create(null)
+      mockList.mockReturnValue({ items: [kb('kb-1', 'KB 1')], total: 1, page: 1 })
+      mockSearch.mockRejectedValue(rejection)
+      const { status, body } = await call('POST', '/knowledge-bases/search', { query: 'hi' })
+      expect(status).toBe(503)
+      expect(body.error.code).toBe('SERVICE_UNAVAILABLE')
+    }
+  )
+
   it('POST /search → 404 when none of the specified bases exist', async () => {
     mockGetById.mockImplementation(() => {
       throw DataApiErrorFactory.notFound('KnowledgeBase', 'nope')

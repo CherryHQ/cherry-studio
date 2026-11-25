@@ -3,6 +3,7 @@ import { Elysia } from 'elysia'
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
+import { getErrorMessage } from '@main/utils/error'
 import { DataApiError, DataApiErrorFactory, ERROR_STATUS_MAP, ErrorCode } from '@shared/data/api/errors'
 
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
@@ -111,12 +112,12 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
                 knowledge_base_id: base.id,
                 knowledge_base_name: base.name
               })),
-              error: undefined as string | undefined
+              error: undefined
             }
           } catch (error) {
             logger.error(`Error searching knowledge base ${base.id}`, error)
 
-            return { base, results: [], error: (error as Error).message }
+            return { base, results: [], error: getErrorMessage(error, 'Unknown knowledge search error') }
           }
         })
       )
