@@ -37,9 +37,15 @@ import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandle, JobHandler, JobSettledEvent } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { JobSnapshotSchema, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 import { drainTrailingDispatch } from './_helpers'
+
+declare module '@main/core/job/jobRegistry' {
+  interface JobRegistry {
+    'settled.late-finalize': { message: string }
+  }
+}
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
@@ -1138,7 +1144,9 @@ describe('JobManager integration', () => {
 
         try {
           const handle = jobManager.enqueue('retry.fallback.task.2' as never, { message: 'doubled-doom' } as never, {
-            maxAttempts: 3
+            maxAttempts: 3,
+            priority: 7,
+            metadata: { origin: 'completion-regression' }
           })
 
           // Failed retry and terminal writes leave the row running for recovery.
@@ -1147,14 +1155,26 @@ describe('JobManager integration', () => {
           const completion = await handle.finished
 
           expect(unhandled).toHaveLength(0)
-          expect(jobService.getById(handle.id)?.status).toBe('running')
+          const persisted = jobService.getById(handle.id)
+          expect(persisted?.status).toBe('running')
           expect(settledEvents).toEqual([])
           expectTypeOf<Awaited<JobHandle['finished']>['status']>().toEqualTypeOf<'completed' | 'failed' | 'cancelled'>()
           expect(completion).toMatchObject({
             id: handle.id,
+            type: 'retry.fallback.task.2',
+            queue: handle.snapshot.queue,
+            priority: 7,
+            input: { message: 'doubled-doom' },
+            metadata: { origin: 'completion-regression' },
+            attempt: persisted?.attempt,
+            maxAttempts: 3,
+            parentId: persisted?.parentId,
+            scheduleId: persisted?.scheduleId,
+            cancelRequested: persisted?.cancelRequested,
             status: 'failed',
             error: { code: 'JOB_FINALIZE_TX_FAILED', retryable: true }
           })
+          expect(JobSnapshotSchema.safeParse(completion).success).toBe(true)
         } finally {
           process.off('unhandledRejection', listener)
           retrySpy.mockRestore()
@@ -1166,6 +1186,59 @@ describe('JobManager integration', () => {
   })
 
   describe('settled event payload', () => {
+    it('delivers cancellation once when the late handler terminal write throws undefined', async () => {
+      const entered = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const events: JobSettledEvent[] = []
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [
+          [
+            'settled.late-finalize',
+            {
+              recovery: 'abandon',
+              cancelTimeoutMs: 1,
+              async execute() {
+                entered.resolve()
+                await release.promise
+                return { ok: true }
+              },
+              onSettled(event) {
+                events.push(event)
+              }
+            }
+          ]
+        ]
+      })
+      const terminalWrite = vi.spyOn(jobService, 'setTerminalTx')
+      let hold: ReturnType<JobManager['pause']> | undefined
+
+      try {
+        const handle = jobManager.enqueue('settled.late-finalize', { message: 'cancel before releasing handler' })
+        await entered.promise
+        hold = jobManager.pause('late-finalize regression')
+        expect(await jobManager.cancel(handle.id)).toEqual({ outcome: 'timed-out' })
+        await expect(handle.finished).resolves.toMatchObject({ status: 'cancelled' })
+        expect(events.map((event) => event.status)).toEqual(['cancelled'])
+
+        terminalWrite.mockImplementation(() => {
+          throw undefined
+        })
+        release.resolve()
+        expect(await jobManager.drainInFlight({ timeoutMs: 1000 })).toMatchObject({
+          stragglerIds: [],
+          startupRecoveryPending: false
+        })
+        expect(events.map((event) => event.status)).toEqual(['cancelled'])
+        expect(jobService.getById(handle.id)?.status).toBe('cancelled')
+      } finally {
+        release.resolve()
+        if (hold) await jobManager.drainInFlight({ timeoutMs: 1000 })
+        terminalWrite.mockRestore()
+        await teardownManager(scheduler, jobManager)
+        hold?.dispose()
+      }
+    })
+
     it('delivers input / parentId / final metadata to onSettled and exposes ctx.parentId', async () => {
       const settledEvents: JobSettledEvent<{ label: string }>[] = []
       const ctxParentIds: Array<string | null> = []

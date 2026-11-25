@@ -2068,10 +2068,9 @@ export class JobManager extends BaseService {
 
     const persisted = jobService.getById(jobId)
 
-    // The write is skipped when the row is already terminal, so `written === false`
-    // means an earlier finalize won — it published and resolved the waiters. Repeating
-    // that emits a duplicate settle, even when the late status happens to match.
-    if (!txFailed && !written && persisted && isTerminalStatus(persisted.status)) {
+    // A persisted terminal row belongs to an earlier finalize, even if the late write throws.
+    // Keep its completion and settlement event authoritative.
+    if (!written && persisted && isTerminalSnapshot(persisted)) {
       logger.warn('finalizeJob: already finalized — dropping the late terminal state', {
         jobId,
         attempted: status,
@@ -2099,7 +2098,7 @@ export class JobManager extends BaseService {
 
     const handler = this.handlers.get(snapshot.type)
 
-    if (handler?.onSettled && isTerminalStatus(snapshot.status)) {
+    if (written && handler?.onSettled && isTerminalStatus(snapshot.status)) {
       try {
         await handler.onSettled({
           jobId,
@@ -2128,7 +2127,12 @@ export class JobManager extends BaseService {
     if (resolver) {
       const completion = isTerminalSnapshot(snapshot)
         ? snapshot
-        : this.synthesizeFailedSnapshot(jobId, persistenceError ?? new Error('Job terminal state was not persisted'))
+        : this.synthesizeFailedSnapshot(
+            jobId,
+            persistenceError ?? new Error('Job terminal state was not persisted'),
+            snapshot
+          )
+
       resolver.resolve(completion)
       this.finishedResolvers.delete(jobId)
     }
@@ -2147,8 +2151,18 @@ export class JobManager extends BaseService {
   }
 
   /** Keep terminal completion separate from an uncommitted or missing database row. */
-  private synthesizeFailedSnapshot(jobId: string, cause: Error): TerminalJobSnapshot {
+  private synthesizeFailedSnapshot(jobId: string, cause: Error, persisted?: JobSnapshot): TerminalJobSnapshot {
     const nowIso = new Date().toISOString()
+
+    const error: JobError = {
+      code: 'JOB_FINALIZE_TX_FAILED',
+      message: cause.message,
+      retryable: true
+    }
+
+    if (persisted) {
+      return { ...persisted, status: 'failed', finishedAt: nowIso, updatedAt: nowIso, output: null, error }
+    }
 
     return {
       id: jobId,
@@ -2162,14 +2176,10 @@ export class JobManager extends BaseService {
       startedAt: null,
       finishedAt: nowIso,
       attempt: 0,
-      maxAttempts: 0,
+      maxAttempts: 1,
       input: undefined,
       output: null,
-      error: {
-        code: 'JOB_FINALIZE_TX_FAILED',
-        message: cause.message,
-        retryable: true
-      },
+      error,
       parentId: null,
       cancelRequested: true,
       cancelRequestedAt: null,
