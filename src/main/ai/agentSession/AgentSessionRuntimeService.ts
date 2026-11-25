@@ -1,5 +1,5 @@
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
-import { isToolUIPart, type UIMessageChunk } from 'ai'
+import { isToolUIPart } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
@@ -63,7 +63,12 @@ import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
+import type {
+  CherryMessagePart,
+  CherryUIMessage,
+  CherryUIMessageChunk,
+  MessageSnapshot
+} from '@shared/data/types/message'
 import {
   createUniqueModelId,
   isUniqueModelId,
@@ -248,7 +253,7 @@ type AgentSessionTurn = {
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
   abortController: AbortController
-  controller?: Pick<ReadableStreamDefaultController<UIMessageChunk>, 'enqueue' | 'error' | 'close'> & {
+  controller?: Pick<ReadableStreamDefaultController<CherryUIMessageChunk>, 'enqueue' | 'error' | 'close'> & {
     message: (parts: CherryUIMessage['parts']) => void
   }
   activeToolIds: Set<string>
@@ -3332,7 +3337,7 @@ export class AgentSessionRuntimeService extends BaseService {
             !turn.activeToolIds.has(request.toolCallId) &&
             !turn.projection?.toolCallMessageId(request.toolCallId)))
       ) {
-        const chunk: Extract<UIMessageChunk, { type: 'tool-input-available' }> = {
+        const chunk: Extract<CherryUIMessageChunk, { type: 'tool-input-available' }> = {
           type: 'tool-input-available',
           toolCallId: request.toolCallId,
           toolName: request.toolName,
@@ -3352,7 +3357,7 @@ export class AgentSessionRuntimeService extends BaseService {
         if (projection) {
           turn.projection = projection
 
-          const chunk: Extract<UIMessageChunk, { type: 'tool-input-available' }> = {
+          const chunk: Extract<CherryUIMessageChunk, { type: 'tool-input-available' }> = {
             type: 'tool-input-available',
             toolCallId: request.toolCallId,
             toolName: request.toolName,
@@ -3366,7 +3371,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       }
 
-      const chunk: UIMessageChunk = {
+      const chunk: CherryUIMessageChunk = {
         type: 'tool-approval-request',
         approvalId: request.approvalId,
         toolCallId: request.toolCallId
@@ -3575,7 +3580,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return projection
   }
 
-  private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {
+  private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: CherryUIMessageChunk): boolean {
     const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
 
     if (!turn) return false
@@ -3598,7 +3603,11 @@ export class AgentSessionRuntimeService extends BaseService {
     return true
   }
 
-  private enqueueTurnChunk(_entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn, chunk: UIMessageChunk): void {
+  private enqueueTurnChunk(
+    _entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionTurn,
+    chunk: CherryUIMessageChunk
+  ): void {
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId)
       turn.activeToolIds.add(chunk.toolCallId)
     else if (

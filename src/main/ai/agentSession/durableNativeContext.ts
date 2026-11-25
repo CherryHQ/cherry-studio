@@ -17,6 +17,7 @@ const DURABLE_STORAGE_ERROR_I18N_KEY = 'durable_storage_failed'
 const logger = loggerService.withContext('durableNativeContext')
 
 const contextIdentitySchema = z.object({ contextId: z.string() })
+
 type NativeConversation = Awaited<ReturnType<Storage['scanConversations']>>['items'][number]
 
 interface DurableErrorDetails {
@@ -267,6 +268,7 @@ export async function reconcileDurableBackend(backendId: string): Promise<Storag
 /** Recover the native identity from the same commit that created the root conversation. */
 export async function prepareDurableRoot(contextId: string) {
   const context = contexts.context(contextId)
+
   if (context.parentContextId !== null) throw new Error('Durable context is not a product root')
 
   if (contexts.backend(context.backendId).state === 'creating') {
@@ -293,6 +295,7 @@ export async function prepareDurableRoot(contextId: string) {
 
       for (const conversation of page.items) {
         conversations.set(conversation.id, conversation)
+
         const address = await storage.findDocument(
           { kind: identity.definition.kind, scope: { kind: 'conversation', conversationId: conversation.id } },
           'current',
@@ -315,18 +318,23 @@ export async function prepareDurableRoot(contextId: string) {
       if (binding.backendId !== context.backendId || binding.parentContextId !== null)
         throw new Error('Durable context is not a root of this backend')
       const matches = identities.get(binding.id) ?? []
+
       if (matches.length > 1) throw new Error('Durable context identity does not match')
       const match = matches[0]
+
       if (match && (match.version !== 1 || match.conversation.owner !== undefined))
         throw new Error('Durable context identity does not match')
       const nativeId = match?.conversation.id
+
       if (binding.nativeThreadId !== null && (nativeId === undefined || String(nativeId) !== binding.nativeThreadId))
         throw new Error('Durable context identity does not match')
+
       return nativeId
     }
 
     const recoveredId = resolveNativeId(context)
     const nativeId = recoveredId === undefined ? undefined : String(recoveredId)
+
     if (nativeId !== undefined && context.bindingState === 'pending') contexts.bindContext(contextId, nativeId)
 
     return {

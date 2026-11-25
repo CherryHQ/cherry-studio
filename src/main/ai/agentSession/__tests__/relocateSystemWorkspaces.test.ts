@@ -71,6 +71,19 @@ vi.mock('../../runtime/claudeCode/relocationWorker?nodeWorker', async () => {
   }
 })
 
+async function loadRelocationWorkerSource(): Promise<string> {
+  const source = await readFile(path.resolve('src/main/ai/runtime/claudeCode/relocationWorker.ts'), 'utf8')
+  const errorSource = await readFile(path.resolve('src/main/utils/error.ts'), 'utf8')
+  const errorModule = `data:text/javascript;base64,${Buffer.from(stripTypeScriptTypes(errorSource)).toString('base64')}`
+
+  return stripTypeScriptTypes(source)
+    .replaceAll('@main/utils/error', errorModule)
+    .replaceAll(
+      '@anthropic-ai/claude-agent-sdk',
+      pathToFileURL(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk')).href
+    )
+}
+
 describe('system workspace relocation', () => {
   const dbh = setupTestDatabase()
   let temporaryRoot: string
@@ -298,11 +311,7 @@ describe('system workspace relocation', () => {
         nativeId = manager.getSessionId()
         nativeFile = manager.getSessionFile()!
       } else {
-        const source = await readFile(path.resolve('src/main/ai/runtime/claudeCode/relocationWorker.ts'), 'utf8')
-        workerMocks.source = stripTypeScriptTypes(source).replaceAll(
-          '@anthropic-ai/claude-agent-sdk',
-          pathToFileURL(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk')).href
-        )
+        workerMocks.source = await loadRelocationWorkerSource()
         const { default: createWorker } = await import('../../runtime/claudeCode/relocationWorker?nodeWorker')
         const keys = await runForkWorker(
           createWorker({ workerData: { oldCwd: workspace.oldPath, newCwd: workspace.newPath } }),
@@ -597,11 +606,7 @@ describe('system workspace relocation', () => {
       await mkdir(path.join(canonicalRoot, path.relative(path.join(temporaryRoot, 'old'), workspace.oldPath)), {
         recursive: true
       })
-      const source = await readFile(path.resolve('src/main/ai/runtime/claudeCode/relocationWorker.ts'), 'utf8')
-      workerMocks.source = stripTypeScriptTypes(source).replaceAll(
-        '@anthropic-ai/claude-agent-sdk',
-        pathToFileURL(createRequire(import.meta.url).resolve('@anthropic-ai/claude-agent-sdk')).href
-      )
+      workerMocks.source = await loadRelocationWorkerSource()
       const { default: createWorker } = await import('../../runtime/claudeCode/relocationWorker?nodeWorker')
       const keys = () =>
         runForkWorker(

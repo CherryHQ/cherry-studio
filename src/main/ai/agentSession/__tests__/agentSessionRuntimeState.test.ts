@@ -170,7 +170,7 @@ describe('reply ownership and delivery', () => {
     m.send({ type: 'reserve-steer', reservation: second })
     expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(first)
     m.send({ type: 'steer-boundary', turn: second })
-    const chunk = { type: 'data-status', data: 'waiting' } as const
+    const chunk = { type: 'text-delta', id: 'reply-second', delta: 'waiting' } as const
     m.send({ type: 'buffer-chunk', turn: second, chunk })
     m.finish(second)
     expect(m.state.launch.kind).toBe('idle')
@@ -214,7 +214,7 @@ describe('reply ownership and delivery', () => {
     m.finish(second)
     expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(second)
     expect(m.state.launch.kind).toBe('idle')
-    const chunk = { type: 'data-status', data: 'last A fact' } as const
+    const chunk = { type: 'text-delta', id: 'reply-second', delta: 'last A fact' } as const
     m.send({ type: 'buffer-chunk', turn: second, chunk })
     m.send({ type: 'autonomous-turn-finished' })
     expect(m.state.launch).toEqual({ kind: 'scheduled', target: { kind: 'reply', turn: second } })
@@ -247,7 +247,7 @@ describe('reply ownership and delivery', () => {
     m.finish(second)
     m.send({ type: 'autonomous-turn-finished' })
     expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(first)
-    const chunk = { type: 'data-status', data: 'B' } as const
+    const chunk = { type: 'text-delta', id: 'reply-first', delta: 'B' } as const
     m.send({ type: 'buffer-chunk', turn: first, chunk })
     m.finish(first)
     m.persist(second)

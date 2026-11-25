@@ -286,10 +286,7 @@ export class AgentSessionForkOperations {
           .filter(
             (row) =>
               row.id !== messageId &&
-              (row.status === 'pending' ||
-                row.status === 'streaming' ||
-                row.deliveryStatus === 'accepted' ||
-                row.deliveryStatus === 'delivering')
+              (row.status === 'pending' || row.deliveryStatus === 'accepted' || row.deliveryStatus === 'delivering')
           )
           .map((row) => row.id)
       ])
