@@ -38,13 +38,11 @@ import { getBinaryAgentInstallation, ownsNpmExecutable, ownsUvExecutable, uninst
 const logger = loggerService.withContext('LocalAgentInstallService')
 type InstallTarget = Pick<
   LocalAgentPreset,
-  'id' | 'executable' | 'aliases' | 'npmPackage' | 'requiredRuntime' | 'terminalExecutable'
+  'id' | 'executable' | 'aliases' | 'npmPackage' | 'requiredRuntime' | 'terminalCli'
 > & {
   protocol?: LocalAgentPreset['protocol']
   cli?: CodeCliToolPreset
 }
-
-const NATIVE_NPM_PACKAGES: Record<string, string> = { amp: '@ampcode/cli' }
 
 const REGISTRY_URL = 'https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json'
 
@@ -98,7 +96,9 @@ export class LocalAgentInstallService extends BaseService {
 
   isUninstalling(presetId: string): boolean {
     const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
-    return !!preset && [preset.executable, preset.terminalExecutable].some((name) => name && this.removals.has(name))
+    return (
+      !!preset && [preset.executable, preset.terminalCli?.executable].some((name) => name && this.removals.has(name))
+    )
   }
 
   async getUninstallComponents(presetId: string, expectedPath: string): Promise<LocalAgentUninstallComponent[]> {
@@ -131,25 +131,25 @@ export class LocalAgentInstallService extends BaseService {
 
   private async resolveUninstallComponents(target: InstallTarget, expectedPath: string) {
     let primary = await this.detect(target)
-    if (primary.source === 'none' && target.id === 'antigravity-acp' && target.terminalExecutable) {
-      primary = await this.detect({ id: target.id, executable: target.terminalExecutable })
+    if (primary.source === 'none' && target.id === 'antigravity-acp' && target.terminalCli) {
+      primary = await this.detect({ id: target.id, executable: target.terminalCli.executable })
     }
     if (primary.source === 'none' || primary.path !== expectedPath) return []
     const presets = target.cli
       ? LOCAL_AGENT_PRESETS.filter(
-          (preset) => preset.executable === target.executable || preset.terminalExecutable === target.executable
+          (preset) => preset.executable === target.executable || preset.terminalCli?.executable === target.executable
         )
       : [target]
     const targets = new Map<string, InstallTarget>([[target.executable, target]])
     for (const preset of presets) {
       targets.set(preset.executable, preset)
-      if (preset.terminalExecutable) {
-        const executable = preset.terminalExecutable
+      if (preset.terminalCli) {
+        const executable = preset.terminalCli.executable
         targets.set(executable, {
           id: preset.id,
           executable,
           cli: CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[executable],
-          npmPackage: NATIVE_NPM_PACKAGES[executable]
+          npmPackage: preset.terminalCli.npmPackage
         })
       }
     }
@@ -466,7 +466,9 @@ export class LocalAgentInstallService extends BaseService {
         actions.push({ component, action })
       }
       const agents = LOCAL_AGENT_PRESETS.filter((agent) =>
-        components.some(({ executable }) => executable === agent.executable || executable === agent.terminalExecutable)
+        components.some(
+          ({ executable }) => executable === agent.executable || executable === agent.terminalCli?.executable
+        )
       )
       if (!(await this.closeIdleAgentSessions(agents.map((agent) => agent.id)))) return { ok: false, reason: 'busy' }
       for (const agent of agents) {
@@ -538,7 +540,7 @@ export class LocalAgentInstallService extends BaseService {
       await refreshShellEnv()
       const existing = await this.detect(preset, systemOnly)
       let env = await getRawShellEnv(this.abort.signal)
-      const nativeCli = preset.terminalExecutable && CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[preset.terminalExecutable]
+      const nativeCli = preset.terminalCli && CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[preset.terminalCli.executable]
       if (nativeCli) {
         const result = await this.installTarget(
           { id: nativeCli.id, executable: nativeCli.executable, cli: nativeCli },
@@ -550,8 +552,8 @@ export class LocalAgentInstallService extends BaseService {
       }
       const executableDependencies = [
         ...(preset.requiredRuntime ? [{ executable: preset.requiredRuntime.executable, package: 'bun' }] : []),
-        ...(preset.terminalExecutable && NATIVE_NPM_PACKAGES[preset.terminalExecutable]
-          ? [{ executable: preset.terminalExecutable, package: NATIVE_NPM_PACKAGES[preset.terminalExecutable] }]
+        ...(preset.terminalCli?.npmPackage
+          ? [{ executable: preset.terminalCli.executable, package: preset.terminalCli.npmPackage }]
           : [])
       ]
       for (const dependency of executableDependencies) {

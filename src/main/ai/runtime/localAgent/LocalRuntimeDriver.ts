@@ -2,9 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { executeCommand } from '@main/utils/processRunner'
 import type { LocalAgentCheckResult, LocalAgentModelCatalog } from '@shared/ai/localAgent'
 import { LocalAgentConfigurationSchema, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -50,10 +48,7 @@ export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
   async connect(input: AgentRuntimeConnectInput) {
     const session = agentSessionService.getById(input.sessionId)
     this.validateSession(session)
-    if (
-      !input.resumeToken &&
-      agentSessionMessageService.listSessionMessages(input.sessionId, { limit: 3 }).items.length > 2
-    ) {
+    if (!input.resumeToken && input.nativeSessionId) {
       throw new LocalAgentSessionRestoreError(
         'The native conversation cannot be restored; create a new session to continue'
       )
@@ -138,17 +133,9 @@ export async function checkLocalAgent(config: LocalAgentConfiguration): Promise<
   const live = await connection(`local-agent-check:${randomUUID()}`, '', config)
   try {
     await startWithTimeout(live, application.getPath('cherry.bin'), undefined, true)
-    const launch = await resolveLocalAgentLaunch(config)
-    const version = config.presetId
-      ? await executeCommand(launch.executable, ['--version'], { env: launch.env, timeout: 3000, maxOutputBytes: 4096 })
-          .then((value) => value.trim().split('\n')[0].slice(0, 128))
-          .catch(() => undefined)
-      : undefined
     return {
       ok: true,
       status: 'ready',
-      path: launch.executable,
-      version,
       protocolInfo: live.localSessionInfo.protocolInfo
     }
   } catch (error) {

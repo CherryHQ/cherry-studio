@@ -3917,7 +3917,7 @@ export class AgentSessionRuntimeService extends BaseService {
           role: 'assistant',
           status: 'pending',
           data: { parts: turn.projection?.parts(turn.assistantMessageId) ?? [] },
-          modelId: turn.modelId,
+          modelId: getProviderModelId(turn.modelId),
           messageSnapshot: turn.messageSnapshot
         }
       },

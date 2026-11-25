@@ -837,6 +837,10 @@ agent_servers:
 
   it('requires amp CLI when launching amp-acp bridge without an executable override', async () => {
     installSystemCommands('amp-acp')
+    expect((await detectLocalAgents()).find((detection) => detection.presetId === 'amp-acp')).toMatchObject({
+      path: '/user/bin/amp-acp',
+      missingChatExecutable: 'amp'
+    })
     await expect(resolveLocalAgentLaunch({ ...config, presetId: 'amp-acp', protocol: 'acp' })).rejects.toMatchObject({
       code: 'LOCAL_AGENT_HOST_REQUIRED'
     })

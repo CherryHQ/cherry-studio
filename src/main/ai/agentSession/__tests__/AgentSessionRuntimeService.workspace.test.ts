@@ -165,6 +165,23 @@ it('rechecks the directory if it changes while reconciliation is awaiting', asyn
   await assertFirstInputUsesB('acp')
 })
 
+it('opens the first native session after failed dispatches have already written transcript rows', async () => {
+  setup('acp')
+  for (const role of ['user', 'assistant', 'user'] as const) {
+    agentSessionMessageService.saveMessage({
+      sessionId: 'session',
+      message: { role, status: role === 'assistant' ? 'error' : 'success', data: { parts: [] } }
+    })
+  }
+  await service.listSessionCommands('session')
+  const wire = (await readFile(path.join(directory, 'wire.jsonl'), 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+  expect(wire.filter((message) => message.method === 'session/new')).toHaveLength(1)
+  expect(wire.some((message) => message.method === 'session/load')).toBe(false)
+})
+
 it('keeps a started conversation bound to its existing workspace', async () => {
   setup('acp')
   agentSessionMessageService.saveMessage({

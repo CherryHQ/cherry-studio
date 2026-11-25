@@ -193,16 +193,22 @@ describe('local agents on migrated SQLite', () => {
       agentId: agent.id,
       workspace: { type: 'system' }
     })
-    for (const text of ['previous turn', 'interrupted turn', 'next turn']) {
-      agentSessionMessageService.saveMessage({
-        sessionId: session.id,
-        message: { role: 'user', data: { parts: [{ type: 'text', text }] } }
-      })
-    }
+    const original = agentSessionMessageService.saveMessage({
+      sessionId: session.id,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'previous turn' }] } }
+    })
+    agentSessionMessageService.setEditRuntimeTx(database.db, session.id, original.id, 'original-thread')
     await expect(
-      new LocalRuntimeDriver().connect({ sessionId: session.id, agentId: agent.id, modelId: `runtime:${agent.id}` })
+      new LocalRuntimeDriver().connect({
+        sessionId: session.id,
+        agentId: agent.id,
+        modelId: `runtime:${agent.id}`,
+        nativeSessionId: agentSessionMessageService.getNativeSessionId(session.id, original.id)
+      })
     ).rejects.toThrow('cannot be restored')
-    expect(agentSessionMessageService.listSessionMessages(session.id).items).toHaveLength(3)
+    expect(agentSessionMessageService.getSessionMessage(session.id, original.id).data.parts).toEqual(
+      original.data.parts
+    )
   })
 
   it('keeps protocol, preset, and session directory immutable and rejects Cherry model/resources', async () => {

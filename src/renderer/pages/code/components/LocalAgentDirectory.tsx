@@ -140,6 +140,12 @@ const LOCAL_AGENTS_FEEDBACK_ISSUE_URL = 'https://github.com/CherryHQ/cherry-stud
 
 const logger = loggerService.withContext('LocalAgentDirectory')
 
+function missingChatExecutable(detection?: LocalAgentDetection, config?: LocalAgentConfiguration) {
+  if (config?.executableOverride || Object.keys(config?.env ?? {}).some((key) => key.toUpperCase() === 'PATH'))
+    return undefined
+  return detection?.missingChatExecutable
+}
+
 export function LocalAgentDirectory({
   renderCliConfig,
   renderDetails = (props) => <LocalAgentDetails key={props.preset?.id ?? props.agent?.id ?? 'custom-new'} {...props} />,
@@ -350,7 +356,10 @@ export function LocalAgentDirectory({
                   const enabled = !e.agent?.deletedAt && e.agent?.configuration?.localRuntime?.enabled
                   const detection = detections.find((d) => d.presetId === e.id)
                   const executableOverride = e.agent?.configuration?.localRuntime?.executableOverride
-                  const notInstalled = !!detection && !detection.path && !executableOverride
+                  const notInstalled =
+                    !!detection &&
+                    (!detection.path || !!missingChatExecutable(detection, e.agent?.configuration?.localRuntime)) &&
+                    !executableOverride
                   const status = notInstalled
                     ? t('local_agents.not_installed')
                     : enabled
@@ -544,21 +553,18 @@ export function LocalAgentDetails({
   const [busyAction, setBusyAction] = useState<
     'save' | 'check' | 'toggle' | 'uninstall' | 'confirm-uninstall' | 'model' | 'terminal'
   >()
+  const missing = missingChatExecutable(detection, initial)
+  const available = !!(detection?.path || initial.executableOverride) && !missing
   const {
     catalog,
     freshCatalog,
     loading: modelsLoading,
     refreshError: modelsRefreshError,
     refresh: refreshModels
-  } = useLocalAgentModelCatalog(
-    preset?.id ?? agent?.id ?? 'custom-new',
-    initial,
-    !modelList && !!(detection?.path || initial.executableOverride)
-  )
+  } = useLocalAgentModelCatalog(preset?.id ?? agent?.id ?? 'custom-new', initial, !modelList && available)
   const modelSelection = useLocalAgentModelSelection(initial, catalog?.models ?? [])
   const version = useLocalAgentVersion(initial.executableOverride ? undefined : preset?.id, detection?.path)
   const [openingChat, setOpeningChat] = useState(false)
-  const available = !!(detection?.path || initial.executableOverride)
   const installationUnknown = !!preset && !detection && !initial.executableOverride
   const busy = installing || busyAction !== undefined || openingChat
   const chatDisabledReason = busy
@@ -571,7 +577,7 @@ export function LocalAgentDetails({
   const [result, setResult] = useState<{ message?: string; ok: boolean; modelRefreshFailed?: boolean }>({ ok: false })
   const clearResult = () => setResult(({ ok }) => ({ ok }))
   const showError = (error: unknown) => setResult({ ok: false, message: String(error) })
-  const [connection, setConnection] = useState<Pick<LocalAgentCheckResult, 'status' | 'version'>>()
+  const [connection, setConnection] = useState<{ status: LocalAgentCheckResult['status']; peerVersion?: string }>()
   const [programHovered, setProgramHovered] = useState(false)
   const feedbackTimer = useRef({ connection, remaining: 4000 })
   useEffect(() => {
@@ -593,13 +599,13 @@ export function LocalAgentDetails({
     if (busy) return false
     setBusyAction('terminal')
     try {
-      if (preset?.terminalExecutable) {
+      if (preset?.terminalCli) {
         const detected = await ipcApi.request('ai.local_agents.detect', {})
         if (!detected.find((entry) => entry.presetId === preset.id)?.terminalPath) {
           if (
             !(await popup.confirm({
               title: `${preset.name} · ${t('code.terminal')}`,
-              content: `${preset.terminalExecutable}: ${t('code.not_installed')}`,
+              content: `${preset.terminalCli.executable}: ${t('code.not_installed')}`,
               okText: t('code.install')
             }))
           )
@@ -636,7 +642,7 @@ export function LocalAgentDetails({
         size="sm"
         className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
         aria-label={t('local_agents.open_terminal')}
-        disabled={busy || !available}
+        disabled={busy || (!available && !detection?.terminalPath)}
         onClick={() => setTerminalOpen(true)}>
         {busyAction === 'terminal' ? (
           <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
@@ -820,7 +826,7 @@ export function LocalAgentDetails({
     clearResult()
     try {
       const response = await ipcApi.request('ai.local_agents.check', initial)
-      setConnection({ status: response.status, version: response.version ?? response.protocolInfo?.agent?.version })
+      setConnection({ status: response.status, peerVersion: response.protocolInfo?.agent?.version })
       setResult({ ok: response.ok, message: response.ok ? undefined : checkError(response) })
     } catch (error) {
       setConnection({ status: 'failed' })
@@ -1005,7 +1011,7 @@ export function LocalAgentDetails({
                   <LocalAgentIcon size={36} variant="card" />
                 )
               }
-              version={initial.executableOverride ? connection?.version : (version?.current ?? detection?.version)}
+              version={initial.executableOverride ? connection?.peerVersion : (version?.current ?? detection?.version)}
               versionAction={
                 (version?.canUpgrade || upgradeTargetVersion !== undefined) && (
                   <AgentUpgradeControl
@@ -1049,6 +1055,7 @@ export function LocalAgentDetails({
               }
               actions={
                 <>
+                  {!available && detection?.terminalPath && terminalButton}
                   {available ? (
                     <>
                       {(initial.protocol === 'acp' || preset?.loginArgs) && (
@@ -1174,18 +1181,20 @@ export function LocalAgentDetails({
                                 ? t('local_agents.login_required')
                                 : t('local_agents.check_failed')}
                             {connection.status === 'ready' &&
-                              connection.version &&
-                              ` · ${/^\d/.test(connection.version) ? `v${connection.version}` : connection.version}`}
+                              connection.peerVersion &&
+                              ` · ${/^\d/.test(connection.peerVersion) ? `v${connection.peerVersion}` : connection.peerVersion}`}
                           </span>
                         ) : (
                           <Badge variant="secondary" className="px-1.5 py-0 text-xs text-muted-foreground">
                             {initial.executableOverride
                               ? t('settings.provider.not_checked')
-                              : detection?.path
-                                ? t('local_agents.detected')
-                                : installationUnknown
-                                  ? t('settings.provider.not_checked')
-                                  : t('local_agents.not_installed')}
+                              : missing
+                                ? `${missing} · ${t('local_agents.not_installed')}`
+                                : detection?.path
+                                  ? t('local_agents.detected')
+                                  : installationUnknown
+                                    ? t('settings.provider.not_checked')
+                                    : t('local_agents.not_installed')}
                           </Badge>
                         )}
                       </span>
@@ -1226,7 +1235,7 @@ export function LocalAgentDetails({
                   disabled={busy || archived}
                   loading={modelsLoading}
                   loaded={!!catalog}
-                  loadDisabled={!detection?.path && !initial.executableOverride}
+                  loadDisabled={!available}
                   onLoad={loadModels}
                   onSelect={selectModel}
                 />

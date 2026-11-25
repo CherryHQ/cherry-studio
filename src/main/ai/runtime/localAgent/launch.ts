@@ -112,19 +112,21 @@ export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
       LOCAL_AGENT_PRESETS.flatMap((preset) => [
         preset.executable,
         ...(preset.aliases ?? []),
-        ...(preset.terminalExecutable ? [preset.terminalExecutable] : [])
+        ...(preset.terminalCli ? [preset.terminalCli.executable] : [])
       ])
     )
   return Promise.all(
     LOCAL_AGENT_PRESETS.map(async (preset) => {
       const adapter = await selectAvailableInstallation(preset, snapshots)
-      const terminal = preset.terminalExecutable
-        ? await selectAvailableInstallation({ executable: preset.terminalExecutable }, snapshots)
-        : adapter
+      const terminal = preset.terminalCli ? await selectAvailableInstallation(preset.terminalCli, snapshots) : adapter
       const installed = preset.id === 'antigravity-acp' && adapter.source === 'none' ? terminal : adapter
       return {
         presetId: preset.id,
         ...installed,
+        missingChatExecutable:
+          preset.terminalCli?.requiredForChat && terminal.source === 'none' && adapter.source !== 'none'
+            ? preset.terminalCli.executable
+            : undefined,
         terminalPath: preset.terminalArgs && terminal.source !== 'none' ? terminal.path : undefined,
         version:
           'version' in installed
@@ -382,8 +384,8 @@ export async function resolveLocalAgentLaunch(
   const terminal = mode === true
   const definition = LOCAL_AGENT_PRESETS.find((p) => p.id === config.presetId)
   const preset =
-    terminal && definition?.terminalExecutable
-      ? { ...definition, executable: definition.terminalExecutable, aliases: undefined }
+    terminal && definition?.terminalCli
+      ? { ...definition, executable: definition.terminalCli.executable, aliases: undefined }
       : definition
   if (config.presetId && (!preset || preset.protocol !== config.protocol)) throw new Error('Invalid local agent preset')
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
@@ -393,7 +395,7 @@ export async function resolveLocalAgentLaunch(
   let executable: string | undefined
   let source = 'system'
   let nativeAntigravity = false
-  if (config.executableOverride && !(terminal && (definition?.terminalExecutable || config.presetId === 'pi-acp'))) {
+  if (config.executableOverride && !(terminal && (definition?.terminalCli || config.presetId === 'pi-acp'))) {
     executable = path.isAbsolute(config.executableOverride)
       ? config.executableOverride
       : ((await findExecutableInEnv(config.executableOverride, { env: lookupEnv })) ?? undefined)
@@ -421,7 +423,7 @@ export async function resolveLocalAgentLaunch(
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
   const dependencies = [
-    ...(!terminal && definition?.terminalExecutable ? [definition.terminalExecutable] : []),
+    ...(!terminal && definition?.terminalCli ? [definition.terminalCli.executable] : []),
     ...(config.presetId === 'zcode' && !config.executableOverride ? ['zcode'] : [])
   ]
   const dependencySnapshots = dependencies.length
@@ -434,6 +436,19 @@ export async function resolveLocalAgentLaunch(
     source === 'system' ? { ...shellEnv } : mergeBinaryExecutionEnv(shellEnv, [application.getPath('cherry.bin')])
   for (const name of dependencies) {
     const dependency = await selectAvailableInstallation({ executable: name }, dependencySnapshots)
+    const required =
+      !config.executableOverride &&
+      definition?.terminalCli?.requiredForChat &&
+      definition.terminalCli.executable === name
+    if (
+      required &&
+      (dependency.source === 'none' || getEnvironmentValue(config.env, 'PATH') !== undefined) &&
+      !(await findExecutableInEnv(name, { env: lookupEnv }))
+    ) {
+      throw Object.assign(new Error(t('local_agent.host_required', { agent: definition.name, host: name })), {
+        code: 'LOCAL_AGENT_HOST_REQUIRED'
+      })
+    }
     if (dependency.source !== 'none') {
       const directories = [path.dirname(dependency.path)]
       env =
@@ -530,21 +545,6 @@ export async function resolveLocalAgentLaunch(
             agent: definition?.name ?? 'ZCode',
             host: 'ZCode Desktop / zcode CLI',
             envVar: 'ZCODE_BIN'
-          })
-        ),
-        { code: 'LOCAL_AGENT_HOST_REQUIRED' }
-      )
-    }
-  }
-  if (config.presetId === 'amp-acp' && !terminal && !config.executableOverride) {
-    const ampDep = await selectAvailableInstallation({ executable: 'amp' }, dependencySnapshots)
-    const ampAvailable = ampDep.source !== 'none' || Boolean(await findExecutableInEnv('amp', { env: childEnv }))
-    if (!ampAvailable) {
-      throw Object.assign(
-        new Error(
-          t('local_agent.host_required', {
-            agent: definition?.name ?? 'Amp',
-            host: 'amp CLI'
           })
         ),
         { code: 'LOCAL_AGENT_HOST_REQUIRED' }

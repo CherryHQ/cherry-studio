@@ -984,7 +984,7 @@ describe('BinaryManager', () => {
         LOCAL_AGENT_PRESETS.flatMap((preset) => [
           preset.executable,
           ...(preset.aliases ?? []),
-          ...(preset.terminalExecutable ? [preset.terminalExecutable] : [])
+          ...(preset.terminalCli?.executable ? [preset.terminalCli?.executable] : [])
         ])
       )
     ])('requires the actual %s command and discovers a matching system install', async (name) => {

@@ -1,6 +1,8 @@
 import * as z from 'zod'
 
+import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
+import { CodeCli } from '@shared/types/codeCli'
 
 export const LocalAgentBrowserControlModeSchema = z.enum(['inherit', 'readonly', 'disabled'])
 export type LocalAgentBrowserControlMode = z.infer<typeof LocalAgentBrowserControlModeSchema>
@@ -45,7 +47,7 @@ export interface LocalAgentPreset {
   authStatusArgs?: readonly string[]
   /** ACP methods that rely on credentials configured outside the login flow. */
   externalCredentialMethods?: readonly string[]
-  terminalExecutable?: string
+  terminalCli?: { executable: string; npmPackage?: string; requiredForChat?: true }
   args: readonly string[]
   platformArgs?: Partial<Record<'linux' | 'darwin' | 'win32', readonly string[]>>
   env?: Readonly<Record<string, string>>
@@ -278,7 +280,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   {
     id: 'antigravity-acp',
     terminalArgs: [],
-    terminalExecutable: 'agy',
+    terminalCli: { executable: 'agy' },
     name: 'Google Antigravity',
     protocol: 'acp',
     executable: 'agy_acp_server.par',
@@ -299,7 +301,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   },
   {
     id: 'amp-acp',
-    terminalExecutable: 'amp',
+    terminalCli: { executable: 'amp', npmPackage: '@ampcode/cli', requiredForChat: true },
     terminalArgs: [],
     loginArgs: ['login'],
     name: 'Amp',
@@ -314,8 +316,8 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     terminalArgs: [],
     name: 'Pi',
     protocol: 'acp',
-    executable: 'pi',
-    npmPackage: '@earendil-works/pi-coding-agent',
+    executable: CODE_CLI_TOOL_PRESET_MAP[CodeCli.PI].executable,
+    npmPackage: CODE_CLI_TOOL_PRESET_MAP[CodeCli.PI].packageName,
     args: [],
     helpUrl: 'https://github.com/svkozak/pi-acp'
   },
@@ -403,6 +405,7 @@ export interface LocalAgentDetection {
   path?: string
   version?: string
   terminalPath?: string
+  missingChatExecutable?: string
 }
 
 export const LocalAgentAuthMethodSchema = z.object({
@@ -598,8 +601,6 @@ export const LocalAgentCheckResultSchema = z.object({
   ok: z.boolean(),
   status: z.enum(['ready', 'not-installed', 'authentication-required', 'incompatible', 'failed']),
   error: z.string().optional(),
-  path: z.string().optional(),
-  version: z.string().optional(),
   protocolInfo: LocalAgentProtocolInfoSchema.optional()
 })
 export type LocalAgentCheckResult = z.infer<typeof LocalAgentCheckResultSchema>

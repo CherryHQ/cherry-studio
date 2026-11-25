@@ -293,7 +293,7 @@ const agentCommands = new Set([
   ...LOCAL_AGENT_PRESETS.flatMap((preset) => [
     preset.executable,
     ...(preset.aliases ?? []),
-    ...(preset.terminalExecutable ? [preset.terminalExecutable] : [])
+    ...(preset.terminalCli ? [preset.terminalCli.executable] : [])
   ])
 ])
 

@@ -143,7 +143,9 @@ own executable names, arguments and package sources.
   running sessions and WebUIs open and require the original installer or manual cleanup.
 
 Passive discovery never starts the CLI. Check/enable performs a bounded handshake
-without prompting the model or starting login. `protocolInfo` records handshake,
+without prompting the model or starting login. Discovery reports the installed
+CLI version. The handshake reports the version supplied by the protocol peer.
+`protocolInfo` records handshake,
 session and prompt stages as each succeeds. Available tools, controls and resume
 behavior depend on the connected CLI. Authentication and known timeouts have
 separate recovery flows. An incompatible managed CLI can be kept alongside a
@@ -205,9 +207,11 @@ reconnecting, with edits and attachment capability gated on live session data.
 
 - Codex approval requests can inherit command, directory and file-change details
   from the matching item. Request fields take precedence. Item completion or the
-  next turn clears those details.
+  next turn clears those details. Codex retains the specific permissions granted
+  for a session. Further permission requests require another decision.
 - ACP tools merge updates by native call ID. Standalone approval cards settle
-  independently. Client file writes and terminal creation require approval.
+  independently. Client file writes require approval. A delegated terminal creation
+  needs its own approval or an explicit session grant under the default policy.
   Terminals are connection-owned and working directories provide no OS isolation.
   A command path with spaces runs directly when it resolves to an executable.
   A legacy command string without an argument array can run as approved shell input.
