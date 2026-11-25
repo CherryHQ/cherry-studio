@@ -30,6 +30,12 @@ type Props = BaseProps &
          * ON so it must close; `undefined` = no reasoning present, leave manual state alone.
          */
         syncExpanded?: boolean
+        /**
+         * Normalized single-line reasoning preview for the initially visible
+         * collapsed row. The accordion content does not mount while collapsed,
+         * so the inner `ThinkingBlock` preview is not visible until opened.
+         */
+        reasoningPreview?: string
       }
   )
 
@@ -171,6 +177,7 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
   const header = (
     <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
   )
+  const reasoningPreview = props.phase === 'completed' ? props.reasoningPreview : undefined
 
   return (
     <div ref={anchorRef} className={`group/completed-tool-history mb-2 w-full max-w-full ${isExpanded ? 'pb-2' : ''}`}>
@@ -187,8 +194,18 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
         <AccordionItem value="history" className="border-0 first:border-t-0">
           <AccordionTrigger
             data-testid="completed-process-trigger"
-            className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none select-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:-rotate-90 [&>svg]:opacity-60 [&>svg]:transition-transform [&[data-state=open]>svg]:rotate-0">
-            <div className="min-w-0 overflow-hidden">{header}</div>
+            className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none select-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:-rotate-90 [&>svg]:opacity-60 motion-safe:[&>svg]:transition-transform motion-reduce:[&>svg]:transition-none [&[data-state=open]>svg]:rotate-0">
+            <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden">
+              <div className="shrink-0 overflow-hidden">{header}</div>
+              {reasoningPreview ? (
+                <span
+                  aria-hidden="true"
+                  data-testid="completed-process-reasoning-preview"
+                  className="min-w-0 flex-1 truncate text-[13px] leading-5 whitespace-nowrap text-muted-foreground">
+                  {reasoningPreview}
+                </span>
+              ) : null}
+            </div>
           </AccordionTrigger>
           <AccordionContent
             data-testid="tool-history-content"

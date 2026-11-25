@@ -3103,6 +3103,21 @@ describe('MessagePartsRenderer', () => {
       expect(reads).toBe(0)
     })
 
+    it('previews only reasoning visible in the completed process history', () => {
+      renderParts([
+        { type: 'reasoning', text: 'Hidden behind a tool intent', state: 'done' },
+        { ...toolPart('read'), input: { path: 'notes.txt', intent: 'Read the notes' } },
+        { type: 'text', text: 'I checked the notes.' },
+        { type: 'reasoning', text: 'Visible thought\nwith a second line', state: 'done' },
+        { type: 'text', text: 'Final answer' }
+      ] as unknown as CherryMessagePart[])
+
+      expect(screen.getByTestId('completed-process-reasoning-preview')).toHaveTextContent(
+        /^Visible thought with a second line$/
+      )
+      expect(screen.getByText('Final answer')).toBeVisible()
+    })
+
     it('reveals completed thinking behind the process summary for a reasoning-and-answer message', () => {
       renderParts([
         { type: 'reasoning', text: 'Deep thought', state: 'done' },

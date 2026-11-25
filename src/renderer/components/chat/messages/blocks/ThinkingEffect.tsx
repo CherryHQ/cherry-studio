@@ -24,7 +24,7 @@ const ThinkingEffect: React.FC<Props> = ({ thinkingTimeText, trailing, isExpande
       <ChevronDown
         aria-hidden="true"
         className={cn(
-          'ml-auto size-3.5 shrink-0 opacity-60 transition-[transform,opacity] group-hover/thought:opacity-100',
+          'ml-auto size-3.5 shrink-0 opacity-60 transition-[transform,opacity] motion-reduce:transition-none group-hover/thought:opacity-100',
           isExpanded && 'rotate-180'
         )}
       />
