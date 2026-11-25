@@ -5,6 +5,7 @@ import { expect, type Page, type TestInfo } from '@playwright/test'
 import type { WebviewTag } from 'electron'
 
 import { MiniAppSchema } from '@shared/data/types/miniApp'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
 
 import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
@@ -140,17 +141,21 @@ export async function miniAppPinning(app: RegressionApp, initialPage: Page, test
     await assertOpened()
     await screenshot('MP-103 unpinned app remains available after restart')
   } finally {
-    await page.evaluate(
-      async ({ appId, original }) => {
-        await window.api.preference.setMultiple({
-          'menu.presentation_mode': original.menu,
-          'ui.sidebar_shortcut': original.shortcuts
-        })
-        await window.api.dataApi.request({ id: 'mp103-delete', method: 'DELETE', path: `/mini-apps/${appId}` })
-      },
-      { appId, original }
-    )
-    await selectSidebarApp(page, 'Chat')
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    try {
+      const deleted = await page.evaluate(
+        async ({ appId, original }) => {
+          await window.api.preference.setMultiple({
+            'menu.presentation_mode': original.menu,
+            'ui.sidebar_shortcut': original.shortcuts
+          })
+          return (await window.api.ipcApi.request('mini_app.delete_site', { appId })) as IpcResult<void>
+        },
+        { appId, original }
+      )
+      await selectSidebarApp(page, 'Chat')
+      if (!deleted.ok && deleted.error.code !== 'NOT_FOUND') throw new Error(deleted.error.message)
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    }
   }
 }

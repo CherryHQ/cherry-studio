@@ -27,3 +27,12 @@ export function getWebviewSecurityProfile(partition: string): WebviewSecurityPro
     Object.entries(WEBVIEW_SECURITY_PARTITIONS) as Array<[WebviewSecurityProfile, WebviewSecurityPartition]>
   ).find(([, candidate]) => candidate === partition)?.[0]
 }
+
+export function hasMatchingWebviewSession(
+  preferences: { partition?: string; session?: unknown },
+  declaredPartition: string | undefined
+): boolean {
+  // Electron merges renderer preferences before will-attach-webview and
+  // gives an explicit Session precedence over the merged partition.
+  return preferences.session === undefined && preferences.partition === declaredPartition
+}

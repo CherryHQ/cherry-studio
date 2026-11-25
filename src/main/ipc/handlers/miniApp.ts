@@ -1,6 +1,7 @@
 import { dialog } from 'electron'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { miniAppActivityLog } from '@main/features/miniApp/activityLog'
 import { uninstallMiniApp } from '@main/features/miniApp/install/installer'
 import {
@@ -21,6 +22,8 @@ import {
   snoozePendingAdditions
 } from '@main/features/miniApp/management'
 import { setMiniAppLogo } from '@main/services/entityLogo'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { miniAppRequestSchemas } from '@shared/ipc/schemas/miniApp'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
 
@@ -53,6 +56,17 @@ export const miniAppHandlers: IpcHandlersFor<typeof miniAppRequestSchemas> = {
     confirmPendingInstall(installToken, ctx.senderId, grantedOptional, reinstall),
   'mini_app.install.cancel_preview': async ({ installToken }, ctx) => cancelPending(installToken, ctx.senderId),
   'mini_app.uninstall': ({ appId }) => uninstallMiniApp(appId),
+  'mini_app.delete_site': async ({ appId }, ctx) => {
+    try {
+      await application.get('WebviewService').removeSiteMiniApp(appId, ctx.senderId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        throw new IpcError(error.code, error.message)
+      }
+      throw error
+    }
+    notifyDataApiDataChange([{ endpoint: '/mini-apps', kind: 'membership' }])
+  },
   'mini_app.runtime.prepare': async ({ appId }) => {
     // Readiness and nothing else: returning the preload path would be a needless
     // disclosure, and main imposes it in `will-attach-webview` anyway.

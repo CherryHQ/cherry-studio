@@ -25,6 +25,7 @@ import { miniAppHandlers } from '../miniApps'
 describe('miniAppHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getByAppIdMock.mockReturnValue({ kind: 'app' })
   })
 
   describe('GET /mini-apps', () => {
@@ -343,12 +344,21 @@ describe('miniAppHandlers', () => {
   })
 
   describe('DELETE /mini-apps/:appId', () => {
-    it('should delegate to service with path appId', async () => {
-      deleteMock.mockResolvedValueOnce(undefined)
+    it.each([
+      [{ kind: 'site', presetMiniAppId: null }, 'mini_app.delete_site'],
+      [{ kind: 'site', presetMiniAppId: 'preset' }, 'status="disabled"'],
+      [{ kind: 'app', presetMiniAppId: null }, 'mini_app.uninstall']
+    ])('refuses to delete %j through DataApi', async (app, reason) => {
+      getByAppIdMock.mockReturnValueOnce(app)
 
-      await miniAppHandlers['/mini-apps/:appId'].DELETE({ params: { appId: 'custom-app' } })
+      await expect(
+        miniAppHandlers['/mini-apps/:appId'].DELETE({ params: { appId: 'mini-app' } })
+      ).rejects.toMatchObject({
+        code: 'INVALID_OPERATION',
+        message: expect.stringContaining(reason)
+      })
 
-      expect(deleteMock).toHaveBeenCalledWith('custom-app')
+      expect(deleteMock).not.toHaveBeenCalled()
     })
   })
 })

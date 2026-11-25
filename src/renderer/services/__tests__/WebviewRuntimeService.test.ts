@@ -5,7 +5,7 @@ import { WebviewRuntimeService, type WebviewRequest } from '../WebviewRuntimeSer
 
 const demand = (key: string, patch: Partial<WebviewRequest> = {}): WebviewRequest => ({
   key,
-  source: { src: `https://${key}.example`, partition: 'persist:webview' },
+  source: { src: `https://${key}.example`, environment: 'default' },
   visible: true,
   protected: false,
   lastAccessTime: 0,
@@ -110,13 +110,13 @@ describe('WebView resource lifetime', () => {
       source: { src: 'https://updated.example' }
     })
   })
-  it('replaces the guest when its security partition changes', () => {
+  it('replaces the guest when its environment changes', () => {
     const service = new WebviewRuntimeService()
     service.sync([demand('a')], 10)
     const old = service.get('a')!
     service.bind('a', old.instance, {} as WebviewTag)
     service.reportLoaded('a', old.instance, true)
-    service.sync([demand('a', { source: { ...old.source, partition: 'isolated' } })], 10)
+    service.sync([demand('a', { source: { ...old.source, environment: 'JP' } })], 10)
     const current = service.get('a')!
     expect(current.instance).not.toBe(old.instance)
     expect(current.element).toBeNull()

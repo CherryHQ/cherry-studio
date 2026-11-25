@@ -18,9 +18,10 @@ import { webviewRuntimeService } from '@renderer/services/WebviewRuntimeService'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { miniAppIdFromTabUrl, miniAppResourceKey } from '@renderer/utils/miniAppKeepAlive'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
-import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
+import { DataApiErrorFactory, ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { AppEdition } from '@shared/types/appEdition'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
 import { AsyncInitializer } from '@shared/utils/async'
@@ -268,10 +269,6 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const { trigger: patchMiniAppOrderBatchTrigger } = useMutation('PATCH', '/mini-apps/order:batch', {
     refresh: ['/mini-apps']
   })
-  const { trigger: deleteAppTrigger } = useMutation('DELETE', '/mini-apps/:appId', {
-    refresh: ['/mini-apps']
-  })
-
   /**
    * Single-item status flip. Use this for hide / show / pin / unpin actions.
    *
@@ -399,21 +396,23 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const removeCustomMiniApp = useCallback(
     async (appId: string) => {
       try {
-        const result = await deleteAppTrigger({ params: { appId } })
-        // The row is already gone; a cleanup failure must not report the
-        // delete itself as failed.
-        try {
-          cleanupOpenedCustomMiniApp(appId)
-        } catch (syncError) {
-          logger.error('Failed to cleanup opened custom mini app after delete', { appId, error: syncError })
-        }
-        return result
+        await ipcApi.request('mini_app.delete_site', { appId })
       } catch (error) {
-        logger.error('Failed to remove custom mini app', { appId, error: toDataApiError(error) })
-        throw toDataApiError(error)
+        const failure =
+          error instanceof IpcError && error.code === ErrorCode.NOT_FOUND
+            ? DataApiErrorFactory.notFound('MiniApp', appId)
+            : toDataApiError(error)
+        logger.error('Failed to remove custom mini app', { appId, error: failure })
+        throw failure
+      }
+      // Local tab and shortcut cleanup can fail after deletion has committed.
+      try {
+        cleanupOpenedCustomMiniApp(appId)
+      } catch (syncError) {
+        logger.error('Failed to cleanup opened custom mini app after delete', { appId, error: syncError })
       }
     },
-    [cleanupOpenedCustomMiniApp, deleteAppTrigger]
+    [cleanupOpenedCustomMiniApp]
   )
 
   /**
@@ -492,10 +491,9 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
 export type UseMiniAppsReturn = ReturnType<typeof useMiniApps>
 
 /**
- * Converges `/mini-apps` after the writes DataApi cannot see: install, uninstall,
- * update apply and rollback commit through IpcApi, so no mutation invalidates the
- * query cache. Main publishes `notifyDataApiDataChange` after each commit; this is
- * the renderer half. Mounted ONCE per window by `useWindowRuntime`.
+ * Refreshes `/mini-apps` after IPC commands commit changes to the catalog.
+ * Main publishes `notifyDataApiDataChange` after each commit.
+ * Mounted once per window by `useWindowRuntime`.
  */
 export function useMiniAppListSync(): void {
   const invalidate = useInvalidateCache()

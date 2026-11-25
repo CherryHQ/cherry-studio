@@ -24,6 +24,16 @@ describe('isValidProxyUrl', () => {
     expect(isValidProxyUrl('file:///tmp/socket')).toBe(false)
   })
 
+  it.each([
+    'https://proxy.example.com/path',
+    'https://proxy.example.com/?option=value',
+    'https://proxy.example.com/#fragment',
+    'https://proxy.example.com:0',
+    'socks5://proxy.example.com'
+  ])('rejects a URL that cannot be used as a proxy endpoint: %s', (url) => {
+    expect(isValidProxyUrl(url)).toBe(false)
+  })
+
   it('handles an empty string', () => {
     expect(isValidProxyUrl('')).toBe(false)
   })

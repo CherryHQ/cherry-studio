@@ -141,6 +141,10 @@ export const miniAppRequestSchemas = {
     input: z.object({ appId: MiniAppIdSchema }),
     output: z.void()
   }),
+  'mini_app.delete_site': defineRoute({
+    input: z.strictObject({ appId: z.string().min(1) }),
+    output: z.void()
+  }),
   'mini_app.clear_data': defineRoute({ input: AppIdInputSchema, output: z.void() }),
 
   // Install flow: preview (file / url / builtin) → confirm or cancel by token.

@@ -7,6 +7,7 @@ import type { DownloadItem } from 'electron'
 import { loggerService } from '@logger'
 import { snapshotOptionsSchema } from '@main/ai/mcp/browserToolDefinitions'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
+import type { MiniAppRegionProfile } from '@shared/types/miniAppRegion'
 import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
 
 import {
@@ -27,6 +28,7 @@ import { sanitizeSnapshotUrl, serializeSnapshot, type SnapshotRevision } from '.
 import { BrowserInspection, type ConsoleLevel } from './BrowserInspection'
 import { BrowserSessionError } from './BrowserSessionError'
 import { cdpAllowList, type CdpCommandArgs, type CdpEvent, cdpEventMethods, type CdpMethod } from './cdpAllowList'
+import { RegionEmulation } from './RegionEmulation'
 import { WebMcpTools } from './WebMcpTools'
 
 const logger = loggerService.withContext('GuestSession')
@@ -71,6 +73,7 @@ export class GuestSession implements Disposable {
   private dismissedDialog?: BrowserDialog
   private readonly electronSession: Electron.Session
   private readonly electronDebugger: Electron.Debugger
+  private regionEmulation?: RegionEmulation
 
   constructor(
     readonly guest: Electron.WebContents,
@@ -258,6 +261,11 @@ export class GuestSession implements Disposable {
     }
   }
 
+  async emulateRegion(profile: MiniAppRegionProfile, onFailure: () => void): Promise<void> {
+    if (!this.regionEmulation) this.regionEmulation = new RegionEmulation(this.guest, profile, onFailure)
+    await this.ensureAttached()
+  }
+
   private async attach(): Promise<void> {
     if (this.disposed || this.guest.isDestroyed() || this.guest.isDevToolsOpened())
       throw new BrowserSessionError('debugger_unavailable')
@@ -274,6 +282,7 @@ export class GuestSession implements Disposable {
     this.attachingAbort = new AbortController()
     const options = { signal: this.attachingAbort.signal, deadline: Date.now() + 5_000 }
     const init = async () => {
+      if (this.regionEmulation) await this.wait(this.regionEmulation.start(), options)
       for (const method of [
         'Page.enable',
         'DOM.enable',
@@ -717,6 +726,7 @@ export class GuestSession implements Disposable {
 
   dispose(): void {
     if (this.disposed) return
+    this.regionEmulation?.dispose()
     this.webTools.reset()
     this.disposed = true
     this.actionMutex.cancel()

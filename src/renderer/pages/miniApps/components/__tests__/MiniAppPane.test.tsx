@@ -21,7 +21,7 @@ const app = createMiniApp('a')
 const key = 'miniapp:a'
 const request = {
   key,
-  source: { src: app.url, partition: 'persist:webview' },
+  source: { src: app.url, environment: 'default' },
   visible: true,
   protected: false,
   lastAccessTime: 0

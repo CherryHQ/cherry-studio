@@ -73,6 +73,24 @@ After opening a mini app, its window includes a toolbar: **Back**, **Forward**, 
 
 <figure><img src="../../../../../assets/ecae29a8ae999f7eb89cb915.webp" alt=""><figcaption><p>Mini app window toolbar: Back / Forward / Refresh on the left, Open in Browser, Add to Launchpad, and in-page link opening method on the right</p></figcaption></figure>
 
+### Website MiniApp Regions
+
+This optional feature applies to HTTP(S) website mini apps. It is off by default.
+
+1. Enable **Developer Mode** in Settings, then enable **Website MiniApp regions**.
+2. Right-click a mini app and open **Environment**. Select the United States, Japan, Singapore, United Kingdom, France, or Germany.
+3. The mini app reloads with that region's language, time zone, and city location. Each mini app can select its own region.
+
+Each mini app keeps separate sign-in data for each country. Windows with the same mini app and country share that data. You may need to sign in the first time you use a profile. Select the same country again to reuse its saved sign-in data. Closing the app, selecting the default environment, or disabling regional profiles preserves that data.
+
+An upgrade from an early experimental build preserves your country selection. You may need to sign in again.
+
+To remove that data, right-click the mini app and select **Environment** → **Clear regional sign-in data…**, then confirm. This closes its regional pages and clears sign-in data, storage, and caches for all six countries. The default environment and other apps keep their data. Deleting a custom website mini app also clears its regional data. If cleanup fails or stops before it finishes, access stays blocked even after a restart. Resolve any error, then repeat the clear action.
+
+The global proxy and its direct, bypass, and PAC rules determine your network route and public IP. Changing the proxy can interrupt streams. Existing WebSockets and some new background connections may still use the previous route.
+
+If two windows share a website's background worker, closing the first can change how the other displays dates and times.
+
 ### Tips and Tricks
 
 * Website-type mini apps use the service's web version; login state, Cookies, and settings are saved locally and isolated from the system browser

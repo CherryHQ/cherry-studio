@@ -9,6 +9,11 @@ import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 
 // Default preference values used in tests
 export const mockPreferenceDefaults: Record<string, any> = {
+  'feature.mini_app.region_profiles': {},
+  'feature.mini_app.us_environment_app_ids': [],
+  'feature.mini_app.fake_environment.enabled': false,
+  'feature.mini_app.fake_environment.country': 'US',
+  'app.developer_mode.enabled': false,
   // Export preferences
   'data.export.markdown.force_dollar_math': false,
   'data.export.markdown.exclude_citations': false,

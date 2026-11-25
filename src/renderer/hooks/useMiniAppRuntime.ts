@@ -13,6 +13,7 @@ import {
   miniAppIdFromTabUrl,
   miniAppResourceKey
 } from '@renderer/utils/miniAppKeepAlive'
+import { isMiniAppRegionEligible, selectedMiniAppCountry } from '@shared/utils/miniAppRegion'
 
 function useMiniAppDescriptors(appIds: string[]) {
   const { data: apps } = useQuery('/mini-apps')
@@ -98,6 +99,11 @@ export function useMiniAppRuntimeBinding(): void {
   const { tabs, activeTabId, closeTabs } = useTabs()
   const { split, setSplit, splitMiniAppId, appIds, resources } = useMiniAppLayout()
   const [capacity] = usePreference('feature.mini_app.max_keep_alive')
+  const [developerMode] = usePreference('app.developer_mode.enabled')
+  const [regionEnabled] = usePreference('feature.mini_app.fake_environment.enabled')
+  const [regionCountry] = usePreference('feature.mini_app.fake_environment.country')
+  const [regionAppIds] = usePreference('feature.mini_app.us_environment_app_ids')
+  const [regionProfiles] = usePreference('feature.mini_app.region_profiles')
   const { apps, byId } = useMiniAppDescriptors(appIds)
   const previousCatalog = useRef(apps)
   const previousTabs = useRef(tabs)
@@ -129,13 +135,18 @@ export function useMiniAppRuntimeBinding(): void {
         const owners = tabs.filter((tab) => miniAppIdFromTabUrl(tab.url) === appId)
         if (closed.has(appId) && owners.length === 0 && appId !== splitMiniAppId) return []
         const app = byId.get(appId)
+        const country = selectedMiniAppCountry(appId, regionProfiles, regionAppIds, regionCountry)
+        const regional = app && isMiniAppRegionEligible(app) && developerMode && regionEnabled && country
         const existing = resources.find((resource) => resource.key === miniAppResourceKey(appId))
         const visible = appId === splitMiniAppId || owners.some((tab) => tab.id === activeTabId)
         return [
           {
             key: miniAppResourceKey(appId),
             source: app
-              ? { src: app.url, partition: app.kind === 'app' ? `persist:miniapp:${appId}` : 'persist:webview' }
+              ? {
+                  src: app.url,
+                  environment: app.kind === 'app' ? 'installed' : regional || 'default'
+                }
               : undefined,
             visible,
             protected: owners.some((tab) => !!tab.isPinned),
@@ -148,7 +159,32 @@ export function useMiniAppRuntimeBinding(): void {
         ]
       })
     webviewRuntimeService.sync(requests, capacity ?? DEFAULT_MAX_KEEP_ALIVE_MINI_APPS)
-  }, [tabs, activeTabId, split, setSplit, splitMiniAppId, appIds, apps, byId, capacity, closeTabs, resources])
+  }, [
+    tabs,
+    activeTabId,
+    split,
+    setSplit,
+    splitMiniAppId,
+    appIds,
+    apps,
+    byId,
+    capacity,
+    closeTabs,
+    resources,
+    developerMode,
+    regionEnabled,
+    regionCountry,
+    regionAppIds,
+    regionProfiles
+  ])
+
+  useIpcOn('webview.region.invalidated', ({ appId }) => {
+    const key = miniAppResourceKey(appId)
+    const resource = webviewRuntimeService.get(key)
+    if (!resource || resource.source.environment === 'installed') return
+    if (resource.element?.getAttribute('partition') === 'persist:webview') return
+    webviewRuntimeService.restart(key)
+  })
 
   useIpcOn('mini_app.runtime.evicted', ({ appId }) => {
     if (split?.appId === appId) setSplit(null)

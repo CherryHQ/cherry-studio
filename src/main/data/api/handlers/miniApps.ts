@@ -2,14 +2,14 @@
  * MiniApp API Handlers
  *
  * Mirrors {@link providers}.ts: thin handler that dispatches to {@link MiniAppService}.
- * Service enforces all row-shape policy (preset-row delete guard, preset-id
- * collision rejection on create). Preset re-sync is handled by calling
- * {@link MiniAppSeeder} at boot, not here.
+ * Website deletion runs through `mini_app.delete_site` to clear regional data.
+ * {@link MiniAppSeeder} re-syncs presets at boot.
  *
  * All input validation (Zod) happens here at the system boundary.
  */
 
 import { miniAppService } from '@data/services/MiniAppService'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { MiniAppSchemas } from '@shared/data/api/schemas/miniApps'
 import { CreateMiniAppSchema, ListMiniAppsQuerySchema, UpdateMiniAppSchema } from '@shared/data/api/schemas/miniApps'
@@ -35,9 +35,25 @@ export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
       const parsed = UpdateMiniAppSchema.parse(body)
       return miniAppService.update(params.appId, parsed)
     },
-    DELETE: async ({ params }) => {
-      miniAppService.delete(params.appId)
-      return undefined
+    DELETE: async ({ params: { appId } }) => {
+      const app = miniAppService.getByAppId(appId)
+      const operation = `delete miniapp ${appId}`
+      if (app.kind === 'app') {
+        throw DataApiErrorFactory.invalidOperation(
+          operation,
+          'installed mini apps must be uninstalled through mini_app.uninstall'
+        )
+      }
+      if (app.presetMiniAppId !== null) {
+        throw DataApiErrorFactory.invalidOperation(
+          operation,
+          'preset-derived miniapp cannot be deleted. Use PATCH with status="disabled" to hide it'
+        )
+      }
+      throw DataApiErrorFactory.invalidOperation(
+        operation,
+        'website mini apps must be deleted through mini_app.delete_site'
+      )
     }
   },
 
