@@ -1,11 +1,13 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { createQuoteToken } from '@renderer/components/composer/variants/shared/composerQuote'
+import { useCurrentTabId } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
+import { composerReplyDraftService } from '@renderer/services/ComposerReplyDraftService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
@@ -125,6 +127,12 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
   replyDisabled
 }) => {
   const { t } = useTranslation()
+  const tabId = useCurrentTabId()
+  const getReplyDestination = useCallback(
+    () => composerReplyDraftService.getDestination(tabId, quoteTopicId),
+    [quoteTopicId, tabId]
+  )
+  const replyDestination = useSyncExternalStore(composerReplyDraftService.subscribe, getReplyDestination)
   const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [notesPath] = usePreference('feature.notes.path')
   const savingNote = useRef(false)
@@ -307,15 +315,13 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
         return quote.trim() ? createQuoteToken(quote, t('selection.action.builtin.quote'), sourceMessageId) : null
       }}
       onSaveReply={
-        quoteTopicId && !replyDisabled
-          ? (replyText, token) => {
-              void EventEmitter.emit(EVENT_NAMES.INSERT_COMPOSER_QUOTE, {
-                topicId: quoteTopicId,
-                text: token.description,
+        replyDestination && !replyDisabled
+          ? (text, token) =>
+              getReplyDestination()?.({
+                selectedText: token.description,
                 sourceMessageId: token.sourceMessageId,
-                replyText
-              })
-            }
+                text
+              }) ?? false
           : undefined
       }
       isSavingNote={isSavingNote}>

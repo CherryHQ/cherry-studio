@@ -137,7 +137,7 @@ interface ComposerFocusRestoreSnapshot {
 export interface ComposerSurfaceActions {
   focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
-  replaceDraft: (draft: ComposerSerializedDraft, options?: { emitUpdate?: boolean }) => void
+  replaceDraft: (draft: ComposerSerializedDraft, options?: { emitUpdate?: boolean }) => boolean
   appendText: (text: string) => boolean
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
@@ -1016,7 +1016,7 @@ export default function ComposerSurfaceRuntime({
   const replaceDraft = useCallback(
     (draft: ComposerSerializedDraft, options?: { emitUpdate?: boolean }) => {
       const editor = editorRef.current
-      if (!editor || editor.isDestroyed) return
+      if (!editor || editor.isDestroyed) return false
 
       textRef.current = draft.text
       pendingLocalTextEchoRef.current = null
@@ -1027,6 +1027,7 @@ export default function ComposerSurfaceRuntime({
         options?.emitUpdate
       )
       trackedTokenSignatureRef.current = getTrackedTokenSignature(draft.tokens)
+      return true
     },
     [markdownLivePreview]
   )

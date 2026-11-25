@@ -1,9 +1,11 @@
 import type { RefObject } from 'react'
-import { useEffect, useEffectEvent } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import { formatQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
+import { useCurrentTabId } from '@renderer/hooks/tab'
+import { type ComposerReplyDraft, composerReplyDraftService } from '@renderer/services/ComposerReplyDraftService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -30,31 +32,42 @@ type QuoteInsertionActions = Pick<ComposerSurfaceActions, 'focus' | 'getDraft' |
  */
 export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
   actionsRef: RefObject<T>,
-  topicId?: string
+  topicId: string | undefined,
+  canSaveReply: boolean
 ): void {
   const { t } = useTranslation()
   const layerActive = useComposerLayerActive()
 
-  const insertQuote = useEffectEvent((selectedText: string, sourceMessageId?: string, replyText?: string) => {
-    if (!selectedText) return
+  const tabId = useCurrentTabId()
+  const insertQuote = useEffectEvent((selectedText: string, sourceMessageId?: string) => {
+    if (selectedText) {
+      actionsRef.current.insertToken(
+        createQuoteToken(selectedText, t('selection.action.builtin.quote'), sourceMessageId)
+      )
+    }
+  })
+
+  const saveReply = useEffectEvent(({ selectedText, text, sourceMessageId }: ComposerReplyDraft) => {
+    if (!layerActive || !canSaveReply) return false
     const token = createQuoteToken(selectedText, t('selection.action.builtin.quote'), sourceMessageId)
     const actions = actionsRef.current
-    if (!replyText) {
-      actions.insertToken(token)
-      return
-    }
-
     const draft = actions.getDraft()
     const prefix = draft.text ? draft.text + '\n\n' : ''
-    actions.replaceDraft(
+    const saved = actions.replaceDraft(
       {
-        text: `${prefix}${token.promptText}\n${replyText}`,
+        text: `${prefix}${token.promptText}\n${text}`,
         tokens: [...draft.tokens, { ...token, index: draft.tokens.length, textOffset: prefix.length }]
       },
       { emitUpdate: true }
     )
-    actions.focus('end')
+    if (saved) actions.focus('end')
+    return saved
   })
+
+  useLayoutEffect(() => {
+    if (!layerActive || !canSaveReply || !topicId) return
+    return composerReplyDraftService.register(tabId, topicId, (reply) => saveReply(reply))
+  }, [canSaveReply, layerActive, tabId, topicId])
 
   useEffect(() => {
     if (!layerActive) return
@@ -69,8 +82,7 @@ export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
         'sourceMessageId' in payload && typeof payload.sourceMessageId === 'string'
           ? payload.sourceMessageId
           : undefined
-      const replyText = 'replyText' in payload && typeof payload.replyText === 'string' ? payload.replyText : undefined
-      insertQuote(payload.text, sourceMessageId, replyText)
+      insertQuote(payload.text, sourceMessageId)
     })
     return () => {
       offIpc?.()

@@ -14,7 +14,7 @@ interface TextSelectionToolbarProps {
   onQuote: (selection: Selection) => void
   onSaveToNotes: (selection: Selection) => void
   onStartReply: (selection: Selection) => ReturnType<typeof createQuoteToken> | null
-  onSaveReply?: (text: string, quote: ReturnType<typeof createQuoteToken>) => void
+  onSaveReply?: (text: string, quote: ReturnType<typeof createQuoteToken>) => boolean
   isSavingNote: boolean
 }
 
@@ -184,10 +184,7 @@ export function TextSelectionToolbar({
   }
 
   const saveReply = () => {
-    const text = reply?.text.trim()
-    if (!reply || !text || !onSaveReply) return
-    onSaveReply(text, reply.quote)
-    close()
+    if (reply?.text.trim() && onSaveReply?.(reply.text, reply.quote)) close()
   }
 
   return (
