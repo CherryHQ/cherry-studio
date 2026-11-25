@@ -35,8 +35,8 @@ import { createFileManagerStorageAdapter } from '@main/ai/contextBuild/persisted
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
-import { resolveRequestContextWindow } from '@main/ai/utils/ollamaRequestNumCtx'
 import { omitCompactedAnthropicThinking, usesAnthropicMessagesSdk } from '@main/ai/messages/anthropicThinking'
+import { resolveRequestContextWindow } from '@main/ai/utils/ollamaRequestNumCtx'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 
 import type { RequestFeature } from '../feature'
