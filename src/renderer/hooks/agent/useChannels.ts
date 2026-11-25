@@ -26,7 +26,7 @@ export const useChannels = (type?: AgentChannelType) => {
   })
 
   useDataChange('/agent-channels', () => void refetch())
-  const channels = data ?? (EMPTY_CHANNELS as AgentChannelEntity[])
+  const channels = data ?? EMPTY_CHANNELS
 
   const createChannel = useCallback(
     async (channelData: CreateAgentChannelDto) => {
