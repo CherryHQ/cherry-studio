@@ -13,6 +13,7 @@ import { MiddlewareEngine } from './MiddlewareEngine'
 
 // Dynamic dispatch pairs each handler with the params extracted from its own route.
 type HandlerFunction = {
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- Dynamic dispatch erases endpoint results; executeHandler forwards payloads and recognizes only the shared status wrapper.
   handle(input: { params?: Record<string, string>; query?: unknown; body?: unknown }): Promise<unknown>
 }['handle']
 
