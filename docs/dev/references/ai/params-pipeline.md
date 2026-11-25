@@ -92,6 +92,11 @@ backfill for marked tool calls. A tool result in the active turn stays on the
 route that produced its required state, including when that route was a Chat
 fallback.
 
+Gateway-backed Claude Code keeps native history ownership and opts into route
+checking for state matched from its Agent session checkpoint. The Gateway selects
+a required continuation route before conversion and passes its identity to the
+SDK for validation.
+
 ## RequestFeature
 
 The composition unit is `RequestFeature`

@@ -2,10 +2,12 @@ import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 
 import { loggerService } from '@logger'
 import { resolveAiSdkProviderId, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
+import { ToolContinuationRouteError } from '@main/ai/provider/replayRoute'
 import type { CallOverrides, InProcessUsageContext } from '@main/ai/types'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
-import { MessageConverterFactory } from './adapters'
+import { MessageConverterFactory, type StreamAdapterOptions } from './adapters'
+import { readClaudeCodeReplay, saveClaudeCodeReplay } from './claudeCodeReplay'
 import { resolveGatewayRequest, type MessageConfig } from './gatewayRequest'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { GATEWAY_STREAM_IDLE_TIMEOUT_MS } from './streamLifecycle'
@@ -17,29 +19,8 @@ import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 const logger = loggerService.withContext('GatewayMessage')
 
 export async function prepareGatewayMessage(config: MessageConfig) {
-  const request = await resolveGatewayRequest(config)
-  const {
-    inputFormat,
-    outputFormat,
-    params,
-    provider,
-    model,
-    endpoint,
-    isInternalAnthropicAgentRequest,
-    agentSessionId,
-    reasoning,
-    modelId,
-    logContext,
-    asClientError
-  } = request
-  logger.info('Converting gateway protocol request', {
-    ...logContext,
-    mode: 'sdk',
-    inputFormat,
-    target: endpoint.endpointType,
-    outputFormat
-  })
-  const internal = request.isInternalRequest
+  let request = await resolveGatewayRequest(config)
+  const { params, inputFormat, outputFormat, isInternalAnthropicAgentRequest, agentSessionId, asClientError } = request
   let effectiveParams = params
 
   if (isInternalAnthropicAgentRequest) {
@@ -48,7 +29,7 @@ export async function prepareGatewayMessage(config: MessageConfig) {
 
     if (normalization.status === 'conflict') {
       logger.warn('Rejected conflicting tool history in internal Agent request', {
-        ...logContext,
+        ...request.logContext,
         toolUseId: normalization.toolUseId,
         reason: normalization.reason,
         firstLocation: normalization.firstLocation,
@@ -60,18 +41,42 @@ export async function prepareGatewayMessage(config: MessageConfig) {
     if (normalization.status === 'repaired') {
       effectiveParams = { ...anthropicParams, messages: normalization.messages }
       logger.warn('Repaired duplicate tool history in internal Agent request', {
-        ...logContext,
+        ...request.logContext,
         duplicateToolUseCount: normalization.duplicateToolUseCount,
         duplicateToolResultCount: normalization.duplicateToolResultCount
       })
     }
   }
 
-  // 2. Build converter and extract messages / tools / sampling / provider options.
-  const converter = MessageConverterFactory.create(inputFormat, {
-    googleReasoningCache,
-    openRouterReasoningCache
+  const claudeCodeSession =
+    isInternalAnthropicAgentRequest && outputFormat === 'anthropic' && !config.agentContext ? agentSessionId : undefined
+  const replay = claudeCodeSession
+    ? readClaudeCodeReplay(claudeCodeSession, (effectiveParams as MessageCreateParams).messages)
+    : undefined
+  if (replay?.continuation) {
+    const { source, routeId } = replay.continuation
+    try {
+      request = await resolveGatewayRequest({ ...config, modelString: source.modelAddress }, source.endpointType)
+      request.resolvedModel.replayRouteId = routeId
+    } catch {
+      throw asClientError(new ToolContinuationRouteError())
+    }
+  }
+  const { provider, model, endpoint, reasoning, modelId, modelAddress, logContext } = request
+  const internal = request.isInternalRequest
+  logger.info('Converting gateway protocol request', {
+    ...logContext,
+    mode: 'sdk',
+    inputFormat,
+    target: endpoint.endpointType,
+    outputFormat
   })
+
+  // 2. Build converter and extract messages / tools / sampling / provider options.
+  const converter = MessageConverterFactory.create(
+    inputFormat,
+    replay ? { getReplayMetadata: replay.getMetadata } : { googleReasoningCache, openRouterReasoningCache }
+  )
 
   // These adapters derive instructions from messages and ignore the provider option.
   const instructionsInMessages = ['open-responses', 'xai-responses'].includes(
@@ -144,8 +149,11 @@ export async function prepareGatewayMessage(config: MessageConfig) {
     ...(Object.keys(providerOptions).length > 0 ? { providerOptions } : {})
   }
 
-  const adapterOptions = {
+  const adapterOptions: StreamAdapterOptions = {
     model: `${provider.id}:${modelId}`,
+    ...(claudeCodeSession && {
+      captureReplay: (blocks) => saveClaudeCodeReplay(claudeCodeSession, modelAddress, endpoint.endpointType, blocks)
+    }),
     ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   }
   return { ...request, messages, convertedMessages, callOverrides, adapterOptions, internal }
@@ -163,6 +171,7 @@ export function gatewayPromptOptions(
     messages: request.messages,
     callOverrides: request.callOverrides,
     contextOwner: 'caller' as const,
+    ...(request.adapterOptions.captureReplay && { replayProviderState: true }),
     ...(usageContext ? { usageContext } : {}),
     ...(request.agentSessionId ? { tokenUsageSource: 'agent' as const } : {}),
     idleTimeoutMs,

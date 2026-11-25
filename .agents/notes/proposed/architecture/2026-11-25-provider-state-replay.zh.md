@@ -33,17 +33,20 @@ Chat 和智能体在模型续聊或继续工具调用时会重放之前的响应
 
 适配器支持协议自身的绑定检查时，沿用该检查。对于本地历史改写，沿用已有的改写边界，按协议的依赖规则省略受影响的历史状态。例如 Anthropic 前缀变化时，即使未切换路由，也可能使之后的已签名块失效。协议要求思考块连续时，重放保持连续。服务端续接引用只在拥有它的路由和存储模式下使用。 [Anthropic 前缀规则](https://platform.claude.com/docs/en/build-with-claude/preserved-thinking/prefix-checks) · [Vertex 思考签名](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/thinking/thought-signatures#constraints-and-limits)
 
-### Chat 和 Pi 调用同一判定
+### Chat 和 Agent 运行时使用同一判定
 
 在主进程 AI 域内加入共用的重放判定。通过 AI SDK 的 `RequestFeature` 安装中间件。中间件的 `wrapStream` 和 `wrapGenerate` 把解码后的状态与实际调用关联，`transformParams` 在历史编辑和压缩之后、提供商序列化之前检查请求。适配器负责解码、状态在块中的位置和最终协议字段。SDK 未暴露提供商返回的状态时，在相应响应解码器或 Gateway 转换边界修复。响应采集同时覆盖仅含元数据的流式事件和非流式响应。 [AI SDK 请求组合](../../../../docs/dev/references/ai/params-pipeline.md)
 
-Pi 和 Pi Durable 保留自己的原生历史和工具循环。在 Pi 转换请求前，由绑定入口调用同一判定，并使用可信对象传输在该次调用采用的实际路由。通过受信任的进程内调用传递来源及最终适配器需要的显式省略标记。运行时注册名继续用于查找，与重放范围分开。外部 Gateway 客户端和 Claude Code 保留自己的原生历史规则，Gateway 转换保留端点支持的字段。 [Pi 绑定](../../../../src/main/ai/runtime/pi/gatewayModelBinding.ts) · [智能体原生对象传输](../../implemented/architecture/2026-11-18-agent-object-transport.md)
+Pi 和 Pi Durable 保留自己的原生历史和工具循环。在 Pi 转换请求前，由绑定入口调用同一判定，并使用可信对象传输在该次调用采用的实际路由。通过受信任的进程内调用传递来源及最终适配器需要的显式省略标记。运行时注册名继续用于查找，与重放范围分开。 [Pi 绑定](../../../../src/main/ai/runtime/pi/gatewayModelBinding.ts) · [智能体原生对象传输](../../implemented/architecture/2026-11-18-agent-object-transport.md)
+
+Claude Code 保留自己的原生历史和工具循环。对于经过认证的 Agent 会话，Gateway 将提供商状态和来源保存在现有会话 checkpoint 中，与 Claude Code 传回的助手块匹配，并交给同一套 AI SDK 重放判定。工具循环依赖原路由时，Gateway 先选定路由，再转换请求。Anthropic 块自带的签名继续作为协议字段传递。无法匹配或有歧义的记录不向请求补充状态。订阅直连会话和外部 Gateway 客户端沿用原生历史规则。
 
 ### 实现顺序
 
 1. 为现有缺口添加请求捕获夹具，修复在规范化前或序列化时丢掉状态的适配器。先覆盖 Gemini 兼容工具签名、无工具时的 OpenRouter 密文、Chat 顶层密文，以及 xAI Responses 的命名空间。用锁定版本的 SDK 和生产 Gateway 转换器验证从响应到下一次请求的往返。
 2. 接入实际路由来源和 AI SDK 共用判定。现有应用自管重放规则对应的目标适配器通过等价验证后再迁移。验证已知路由切换、A → B → A、备用路由归属、旧历史和本地前缀改写。
 3. 通过现有对象传输绑定接入 Pi 和 Pi Durable。验证原生历史重新打开、待续跑工具和同路由重新注册。完成 Spec 前，用 Electron 测试有代表性的真实提供商 Chat 和 Pi Durable 路径。
+4. 将 Gateway 路径上的 Claude Code 接入，把返回的 Anthropic 块与同一会话中的状态关联。验证 Anthropic 请求与响应往返，以及后续使用原路由重放或切换到另一家提供商。
 
 ## 备选方案
 
@@ -60,6 +63,7 @@ Pi 和 Pi Durable 保留自己的原生历史和工具循环。在 Pi 转换请�
 - AC5 — 对绑定前缀的路由，确认前缀变化后，最终请求省略受影响的历史状态。相关前缀未变时，保留的兼容状态仍可重放。 (verification: unit, owner: 上下文与适配器维护者)
 - AC6 — 捕获覆盖 Generate Content、Messages、Chat Completions 的不同实现、Responses 的不同实现和 Ollama Chat，包括必需的明文、加密状态及服务端引用。旧历史、调用方自管历史和非会话请求保留现有历史归属和有效的请求行为。 (verification: unit, owner: 适配器与 Gateway 维护者)
 - AC7 — 一次真实 Chat 运行和一次真实 Pi Durable 运行均完成同路由工具续跑和结束轮次之间的路由切换。检查最终上游请求，验证应当保留的状态、应当省略的跨路由状态以及工具调用和结果的配对情况。 (verification: Electron, owner: 实现集成负责人)
+- AC8 — 通过 Gateway 调用的 Claude Code 重开会话后能恢复匹配的状态，并对下一条上游请求应用同一套路由规则。提供商状态不会跨 Agent 会话或关联到无关的助手块。 (verification: unit, owner: Gateway 与 Claude Code 运行时维护者)
 
 ## 风险
 

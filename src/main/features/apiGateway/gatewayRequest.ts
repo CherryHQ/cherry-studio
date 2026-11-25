@@ -3,7 +3,12 @@ import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import type { InProcessUsageContext } from '@main/ai/types'
-import { ENDPOINT_TYPE, type ServiceTierSelection, ServiceTierSelectionSchema } from '@shared/data/types/model'
+import {
+  ENDPOINT_TYPE,
+  type EndpointType,
+  type ServiceTierSelection,
+  ServiceTierSelectionSchema
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
@@ -68,7 +73,7 @@ export interface MessageConfig {
 }
 
 /** Resolve the trusted routing envelope without converting the caller payload. */
-export async function resolveGatewayRequest(config: MessageConfig) {
+export async function resolveGatewayRequest(config: MessageConfig, replayEndpoint?: EndpointType) {
   const { inputFormat = 'anthropic', outputFormat = 'anthropic' } = config
   // Trust boundary: narrow the loosely-validated body to the format's SDK type once.
   const params = config.params as InputParams
@@ -136,7 +141,7 @@ export async function resolveGatewayRequest(config: MessageConfig) {
   const endpoint = resolveEffectiveEndpoint(
     provider,
     resolvedAddress.model,
-    isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
+    replayEndpoint ?? (isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined)
   )
   const model =
     endpoint.endpointType && endpoint.endpointType !== resolvedAddress.model.endpointTypes?.[0]
@@ -159,6 +164,7 @@ export async function resolveGatewayRequest(config: MessageConfig) {
     reasoning,
     uniqueModelId,
     modelId,
+    modelAddress: modelString,
     logContext,
     asClientError
   }

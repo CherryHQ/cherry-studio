@@ -33,17 +33,20 @@ First delivery uses the same-route rule. A later cross-route rule must identify 
 
 Use the protocol's own binding check where the adapter supports it. For local history rewrites, use the existing rewrite boundaries and the protocol's dependency rules to omit affected historical state. For example, an Anthropic prefix change can invalidate later signed blocks even on the same route. Keep contiguous sequences where required. Scope any server-side continuation reference to the route and storage mode that own it. [Anthropic prefix rules](https://platform.claude.com/docs/en/build-with-claude/preserved-thinking/prefix-checks) · [Vertex thought signatures](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/thinking/thought-signatures#constraints-and-limits)
 
-### Apply the same decision in Chat and Pi
+### Apply the same decision in Chat and Agent runtimes
 
 Add a shared decision in Main's AI domain. An AI SDK `RequestFeature` contributes middleware. Its `wrapStream` and `wrapGenerate` associate decoded state with the serving attempt, and `transformParams` evaluates the prompt after history edits and compaction and before provider serialization. Adapters own decoding, block placement and final wire fields. When the SDK does not expose state that the provider returned, repair the decoder or Gateway conversion at that boundary. Response capture must handle metadata-only events and non-streaming responses alike. [AI SDK request composition](../../../../docs/dev/references/ai/params-pipeline.md)
 
-Pi and Pi Durable keep their native transcript and tool loop. Apply the same decision in the binding before Pi converts the request, using the same effective route that the trusted object transport uses for that attempt. Carry provenance and any explicit omission needed by the final adapter through the trusted in-process call. A runtime registration name remains usable for lookup without determining replay scope. External Gateway clients and Claude Code retain their own native history rules and get protocol conversion that preserves the fields their endpoint supports. [Pi binding](../../../../src/main/ai/runtime/pi/gatewayModelBinding.ts) · [Native Agent object transport](../../implemented/architecture/2026-11-18-agent-object-transport.md)
+Pi and Pi Durable keep their native transcript and tool loop. Apply the same decision in the binding before Pi converts the request, using the same effective route that the trusted object transport uses for that attempt. Carry provenance and any explicit omission needed by the final adapter through the trusted in-process call. A runtime registration name remains usable for lookup without determining replay scope. [Pi binding](../../../../src/main/ai/runtime/pi/gatewayModelBinding.ts) · [Native Agent object transport](../../implemented/architecture/2026-11-18-agent-object-transport.md)
+
+Claude Code keeps its native transcript and tool loop. For authenticated Agent sessions, the Gateway stores provider state and provenance in the existing session checkpoint, matches it to the assistant blocks Claude Code returns, and passes it to the same AI SDK replay decision. It selects the original route before conversion when the tool loop needs it. Signatures already carried by Anthropic blocks remain part of the wire contract. Unmatched or ambiguous records do not add state to the request. Direct subscription sessions and external Gateway clients retain their native history rules.
 
 ### Implementation sequence
 
 1. Add captured-request fixtures for the existing gaps and repair the adapters where state is lost before normalization or at serialization. Start with Gemini's compatible tool signatures, OpenRouter's no-tool ciphertext, flat Chat ciphertext and xAI Responses namespaces. Verify the response-to-request round trip with the pinned SDKs and production Gateway converters.
 2. Add serving-route provenance and the shared AI SDK decision. Migrate existing app-owned replay rules as their target adapters pass equivalent checks. Verify known route changes, A → B → A, fallback attribution, legacy history and local prefix rewrites.
 3. Connect Pi and Pi Durable through the existing object binding. Verify native reopen, the pending tool path, and a same-route registration change. Exercise representative real-provider Chat and Pi Durable flows in Electron before closing the Spec.
+4. Connect Gateway-backed Claude Code using session-scoped state associated with the returned Anthropic blocks. Verify an Anthropic request and response round trip followed by replay on the original route or a switch to another provider.
 
 ## Alternatives considered
 
@@ -60,6 +63,7 @@ Pi and Pi Durable keep their native transcript and tool loop. Apply the same dec
 - AC5 — A verified prefix change excludes the affected historical state from the final payload on a prefix-bound route. Retained, compatible state still replays when the relevant prefix is unchanged. (verification: unit, owner: context and adapter maintainers)
 - AC6 — Captures cover Generate Content, Messages, Chat Completions variants, Responses variants and Ollama Chat, including required plaintext, encrypted state and provider-side references. Legacy, caller-owned and non-conversational requests retain their existing history ownership and valid request behavior. (verification: unit, owner: adapter and Gateway maintainers)
 - AC7 — A real Chat run and a real Pi Durable run show same-route tool continuation and a switch between completed turns. Inspect the final upstream requests to verify retained state, omitted foreign state, and tool call and result pairing. (verification: Electron, owner: implementation integrator)
+- AC8 — Gateway-backed Claude Code restores matched state after reopening a session and applies the same route rules to the next upstream request. The provider state does not cross Agent sessions or appear on an unrelated assistant block. (verification: unit, owner: Gateway and Claude Code runtime maintainers)
 
 ## Risks
 

@@ -11,6 +11,7 @@ interface ProviderStateReplay {
   capturePlainReasoning?: boolean
   requirePlainReasoning?: boolean
   responsesOptionsKey?: string
+  filterCurrentTurn?: boolean
 }
 
 export function createProviderStateReplayMiddleware({
@@ -20,7 +21,8 @@ export function createProviderStateReplayMiddleware({
   isLegacyForeign,
   capturePlainReasoning,
   requirePlainReasoning,
-  responsesOptionsKey
+  responsesOptionsKey,
+  filterCurrentTurn
 }: ProviderStateReplay): LanguageModelMiddleware {
   const stamp = <T extends { type: string }>(part: T, store?: boolean): T => {
     const metadata = 'providerMetadata' in part ? (part.providerMetadata as SharedV3ProviderMetadata) : undefined
@@ -66,9 +68,9 @@ export function createProviderStateReplayMiddleware({
       const currentTurn = params.prompt.findLastIndex(
         (message) => message.role === 'user' && message.content.some((part) => part.type !== 'text' || part.text.trim())
       )
-      if (currentTurn < 0) return params
+      if (currentTurn < 0 && !filterCurrentTurn) return params
       const prompt = params.prompt.map((message, index) => {
-        if (index >= currentTurn || message.role !== 'assistant') return message
+        if (message.role !== 'assistant' || (!filterCurrentTurn && index >= currentTurn)) return message
         const content = message.content.flatMap((part) => {
           const source = part.providerOptions?.cherry?.replayRouteId
           const foreign = typeof source === 'string' ? source !== routeId : isLegacyForeign?.(part)

@@ -1,4 +1,5 @@
 import { definePlugin } from '@cherrystudio/ai-core'
+import { hasAnthropicThinkingCredential } from '@main/ai/messages/anthropicThinking'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { isGemini3Model, isGemini4Model } from '@shared/utils/model'
 
@@ -23,6 +24,7 @@ function isGeminiCompatibleChat({ model }: RequestScope, endpoint: EndpointType 
 export const conversationStateReplayFeature: RequestFeature = {
   name: 'conversation-state-replay',
   applies: (scope) => {
+    if (scope.request.replayProviderState) return true
     if (scope.sdkConfig.providerId === 'openrouter') return false
     const endpoint = getReplayEndpoint(scope.endpointType, scope.sdkConfig)
     if (scope.request.contextOwner === 'caller') return isGeminiCompatibleChat(scope, endpoint)
@@ -36,6 +38,7 @@ export const conversationStateReplayFeature: RequestFeature = {
   },
   contributeModelAdapters: (scope) => {
     const { model, request, sdkConfig, replayRouteId } = scope
+    const bridge = request.replayProviderState === true
     const endpoint = getReplayEndpoint(scope.endpointType, sdkConfig)
     const responses = endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES
     const nativeGemini = endpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
@@ -49,18 +52,23 @@ export const conversationStateReplayFeature: RequestFeature = {
         enforce: 'pre',
         configureContext: (context) => {
           context.middlewares ??= []
-          if (request.contextOwner !== 'caller') {
+          if (request.contextOwner !== 'caller' || bridge) {
             context.middlewares.push(
               createProviderStateReplayMiddleware({
                 routeId: replayRouteId,
                 capturePlainReasoning: !nativeGemini,
                 requirePlainReasoning: needsPlainToolReasoning(endpoint, model),
-                ...(needsLegacyGeminiReplay && {
-                  isLegacyForeign: legacyGeminiHistory(request.messages ?? [], model.id)
-                }),
+                ...(needsLegacyGeminiReplay &&
+                  !bridge && {
+                    isLegacyForeign: legacyGeminiHistory(request.messages ?? [], model.id)
+                  }),
+                filterCurrentTurn: bridge,
                 ...(responses && { responsesOptionsKey: sdkConfig.providerOptionsKey }),
                 hasState: (metadata) =>
                   hasGeminiSignature(metadata) ||
+                  (bridge &&
+                    (hasAnthropicThinkingCredential(metadata) ||
+                      Array.isArray(metadata?.openrouter?.reasoning_details))) ||
                   typeof metadata?.openaiCompatible?.reasoningEncryptedContent === 'string' ||
                   (responses &&
                     namespaces.some(
@@ -70,6 +78,14 @@ export const conversationStateReplayFeature: RequestFeature = {
                         metadata?.[key]?.rawReasoningContent === true
                     )),
                 omitState: (part) => {
+                  if (bridge) {
+                    const cacheControl = part.providerOptions?.anthropic?.cacheControl
+                    const retained = {
+                      ...part,
+                      providerOptions: cacheControl ? { anthropic: { cacheControl } } : undefined
+                    }
+                    return nativeGemini || compatibleGemini ? omitGeminiSignature(retained) : retained
+                  }
                   const retained =
                     nativeGemini || compatibleGemini || hasGeminiSignature(part.providerOptions)
                       ? omitGeminiSignature(part)

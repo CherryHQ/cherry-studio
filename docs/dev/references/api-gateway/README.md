@@ -663,6 +663,11 @@ Public gateway clients continue to receive the sanitized errors above.
   window messages, or run summary compaction. Protocol conversion and provider
   serialization still run normally. Prompt assembly, deferred-tool discovery,
   and Responses system-message removal apply only to Cherry-owned context.
+- **Claude Code provider state.** For authenticated Claude Code Agent sessions,
+  the gateway records upstream replay state in the Agent session checkpoint and
+  matches it to the assistant blocks returned by the client. The AI SDK applies
+  route compatibility to matched state. A pending tool continuation uses its
+  original route when required.
 - **Caller-owned loop.** Gateway requests use single-step SDK `streamText` /
   `generateText`, without `ToolLoopAgent`, local tool execution, AI tool repair,
   or model fallback. HTTP gateway requests disable SDK request retries. Internal Pi object
