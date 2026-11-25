@@ -94,6 +94,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const [document, setDocument] = useState(() => {
     const stateRef: NonNullable<CodeEditorProps['stateRef']> = { current: null }
+
     return { accepted: children, language, stateRef, epoch: 0 }
   })
 

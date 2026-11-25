@@ -153,11 +153,12 @@ export function injectHtmlPreviewScrollbarGutter(html: string): string {
 }
 
 export function applyHtmlPreviewScrollbarGutter(frameDocument: Document | null): void {
-  const scrollRoot = frameDocument?.scrollingElement ?? frameDocument?.documentElement
+  const scrollRoot: (Element & Partial<ElementCSSInlineStyle>) | null | undefined =
+    frameDocument?.scrollingElement ?? frameDocument?.documentElement
 
-  if (!scrollRoot || !('style' in scrollRoot)) return
+  const style = scrollRoot?.style
 
-  const style = (scrollRoot as HTMLElement).style
+  if (!style) return
   style.overflowY = 'auto'
   style.scrollbarGutter = 'stable'
 }

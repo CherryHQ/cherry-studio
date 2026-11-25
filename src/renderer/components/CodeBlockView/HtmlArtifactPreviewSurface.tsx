@@ -1,5 +1,6 @@
 import type { ConsoleMessageEvent, WebviewTag } from 'electron'
 import { memo, type RefObject, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import * as z from 'zod'
 
 import {
   clampForwardedWheelDelta,
@@ -19,12 +20,7 @@ import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION 
 export const SCROLL_ACTIVATION_DELAY_MS = 300
 const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72
 
-type HtmlArtifactBridgeMessage =
-  | { type: 'height'; value: number }
-  | {
-      type: 'wheel'
-      value: number
-    }
+const HtmlArtifactBridgeMessageSchema = z.object({ type: z.enum(['height', 'wheel']), value: z.number() })
 
 /** True when the content needs the hardened webview tier: scripts/embeds (`script`/
  *  `iframe`/`object`/`embed`, `on*` handlers, `javascript:` URLs), meta-refresh, external
@@ -135,15 +131,14 @@ function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDela
   })()`
 }
 
-function parseHtmlArtifactBridgeMessage(message: string, messagePrefix: string): HtmlArtifactBridgeMessage | null {
+function parseHtmlArtifactBridgeMessage(
+  message: string,
+  messagePrefix: string
+): z.infer<typeof HtmlArtifactBridgeMessageSchema> | null {
   if (!message.startsWith(messagePrefix)) return null
 
   try {
-    const payload = JSON.parse(message.slice(messagePrefix.length)) as Partial<HtmlArtifactBridgeMessage>
-
-    if ((payload.type !== 'height' && payload.type !== 'wheel') || !Number.isFinite(payload.value)) return null
-
-    return payload as HtmlArtifactBridgeMessage
+    return HtmlArtifactBridgeMessageSchema.parse(JSON.parse(message.slice(messagePrefix.length)))
   } catch {
     return null
   }
