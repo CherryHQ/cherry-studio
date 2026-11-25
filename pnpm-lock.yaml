@@ -215,7 +215,7 @@ overrides:
   tar-fs: ^2.1.4
   tar: 7.5.21
   '@xmldom/xmldom@>=0.8.0 <0.8.15': 0.8.15
-  '@xmldom/xmldom@>=0.9.0 <0.9.10': 0.9.10
+  '@xmldom/xmldom@>=0.9.0 <0.9.12': 0.9.12
   axios@<1.16.0: 1.16.0
   fast-uri@>=3.0.0 <3.1.5: 3.1.5
   ip-address@<10.3.1: 10.3.1
@@ -9169,10 +9169,9 @@ packages:
     resolution: {integrity: sha512-/5NV/vDALVFDXgLmfsy9TRCBlKwO2LNBFzpzvb9iIj+jR+eSc6DLYYvVOdivT/jm7MtU6TebYuRmzEOI7w40UA==}
     engines: {node: '>=10.0.0'}
 
-  '@xmldom/xmldom@0.9.10':
-    resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
+  '@xmldom/xmldom@0.9.12':
+    resolution: {integrity: sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A==}
     engines: {node: '>=14.6'}
-    deprecated: this version has critical issues, please update to the latest version
 
   '@xyflow/react@12.10.0':
     resolution: {integrity: sha512-eOtz3whDMWrB4KWVatIBrKuxECHqip6PfA8fTpaS2RUGVpiEAe+nqDKsLqkViVWxDGreq0lWX71Xth/SPAzXiw==}
@@ -23593,7 +23592,7 @@ snapshots:
       '@discoveryjs/json-ext': 0.6.3
       '@vectorstores/core': 0.1.8
       '@vectorstores/env': 0.1.0
-      '@xmldom/xmldom': 0.9.10
+      '@xmldom/xmldom': 0.9.12
       csv-parse: 5.6.0
       mammoth: 1.12.0
       unpdf: 0.12.2(encoding@0.1.13)(supports-color@8.1.1)
@@ -23812,7 +23811,7 @@ snapshots:
 
   '@xmldom/xmldom@0.8.15': {}
 
-  '@xmldom/xmldom@0.9.10': {}
+  '@xmldom/xmldom@0.9.12': {}
 
   '@xyflow/react@12.10.0(@types/react@19.2.7)(immer@11.1.3)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
