@@ -348,11 +348,11 @@ function withCompactionAnchors(message: CherryUIMessage, exec: StreamExecution):
 function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
   if (exec.finalMessage) return withCompactionAnchors(exec.finalMessage, exec)
 
-  const finalMessage = {
+  const finalMessage: CherryUIMessage = {
     id: exec.anchorMessageId ?? randomUUID(),
     role: 'assistant',
     parts: []
-  } as CherryUIMessage
+  }
 
   exec.finalMessage = finalMessage
 
@@ -360,9 +360,10 @@ function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
 }
 
 function toolNameFromApprovalChunk(chunk: UIMessageChunk): string | undefined {
-  const metadata = (chunk as { providerMetadata?: { cherry?: { toolName?: unknown } } }).providerMetadata
+  const metadata = 'providerMetadata' in chunk ? chunk.providerMetadata : undefined
+  const toolName = metadata?.cherry?.toolName
 
-  return typeof metadata?.cherry?.toolName === 'string' ? metadata.cherry.toolName : undefined
+  return typeof toolName === 'string' ? toolName : undefined
 }
 
 /**
@@ -2578,6 +2579,7 @@ export class AiStreamManager extends BaseService {
 
           if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
         },
+        // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Historical request messages are UIMessage values without a Cherry-parts decoder; retain the existing accumulator compatibility boundary.
         accumulatorSeed: lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined,
         onAccumulatedSnapshot: publishMessage
       })
