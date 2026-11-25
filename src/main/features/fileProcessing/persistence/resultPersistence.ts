@@ -92,7 +92,8 @@ export async function readMarkdownFromResponseZip(options: {
       throw new Error('Result download response body is empty')
     }
 
-    const responseStream = Readable.fromWeb(options.response.body as any)
+    // SAFETY: Main fetch supplies a WHATWG byte stream; Node and DOM declarations describe it with separate stream types.
+    const responseStream = Readable.fromWeb(options.response.body as Parameters<typeof Readable.fromWeb>[0])
     await pipeline(responseStream, createWriteStream(zipFilePath), { signal: options.signal })
 
     return await readMarkdownFromZipFile(zipFilePath)

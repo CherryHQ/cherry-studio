@@ -84,9 +84,7 @@ export function ProcessorPanel({
   const processor = entry.processor
 
   const doc2xCapability: DocumentToMarkdownCapability | undefined =
-    processor.id === 'doc2x' && entry.feature === 'document_to_markdown'
-      ? (entry.capability as DocumentToMarkdownCapability)
-      : undefined
+    processor.id === 'doc2x' && entry.capability.feature === 'document_to_markdown' ? entry.capability : undefined
 
   const processorName = t(getProcessorNameKey(processor.id))
   const apiKeyWebsite = getProcessorApiKeyWebsite(processor.id)
