@@ -58,10 +58,7 @@ export async function withElement<T>(
 
       check()
 
-      if (
-        objectId &&
-        (await callOnElement<boolean>(session, objectId, 'function(){ return this.isConnected }', [], options))
-      )
+      if (objectId && (await callOnElement(session, objectId, 'function(){ return this.isConnected }', [], options)))
         break
       await release()
 
@@ -77,13 +74,14 @@ export async function withElement<T>(
   }
 }
 
-export async function callOnElement<T>(
+export async function callOnElement(
   session: GuestSession,
   objectId: string,
   functionDeclaration: string,
   args: unknown[],
   options: CommandOptions
-) {
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- Arbitrary page JavaScript has no shared result schema; each action consumes only its own fields or comparisons.
+): Promise<unknown> {
   const response = await session.send(
     'Runtime.callFunctionOn',
     {
@@ -98,7 +96,7 @@ export async function callOnElement<T>(
 
   if (response.exceptionDetails) throw new BrowserSessionError('not_found')
 
-  return response.result.value as T
+  return response.result.value
 }
 
 export async function resolveTarget(session: GuestSession, ref: BrowserRef, options: CommandOptions = {}) {
@@ -106,7 +104,7 @@ export async function resolveTarget(session: GuestSession, ref: BrowserRef, opti
     session,
     ref,
     async (objectId, backendNodeId, check) => {
-      const usable = await callOnElement<boolean>(
+      const usable = await callOnElement(
         session,
         objectId,
         'function(){ return this.isConnected && !this.matches(":disabled") && this.getAttribute("aria-disabled") !== "true" }',

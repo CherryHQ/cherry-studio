@@ -293,6 +293,7 @@ export async function importBrowserData(
                   ? undefined
                   : new ChromiumCookieDecryptor(profile.browser, databaseVersion, signal)
 
+              // SAFETY: SQLite's table_info pragma supplies column-name strings; the driver's pragma declaration erases its metadata row type.
               const hasPartitionKey =
                 !firefox &&
                 (db.pragma('table_info(cookies)') as { name: string }[]).some(

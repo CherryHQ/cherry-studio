@@ -1,4 +1,5 @@
 import { createReadStream } from 'node:fs'
+import { Readable } from 'node:stream'
 
 import { net } from 'electron'
 
@@ -70,14 +71,15 @@ export async function uploadFile(
   const fileStream = createReadStream(file.path)
 
   try {
-    const response = await net.fetch(safeUploadUrl, {
+    const options = {
       method: 'PUT',
       headers: uploadHeaders,
-      body: fileStream as any,
+      body: Readable.toWeb(fileStream),
       duplex: 'half',
       redirect: 'error',
       signal
-    } as any)
+    } satisfies NonNullable<Parameters<typeof net.fetch>[1]> & { duplex: 'half' }
+    const response = await net.fetch(safeUploadUrl, options)
 
     if (!response.ok) {
       const message = await response.text()

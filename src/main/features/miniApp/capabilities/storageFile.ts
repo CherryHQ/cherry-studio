@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import * as z from 'zod'
 
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 
 import { MiniAppUnavailableError } from '../errors'
 import { miniAppDataPath, miniAppStorageFile } from '../paths'
@@ -29,7 +30,7 @@ export function readStorage(appId: string): Record<string, string> {
     // Wrapped, not rethrown bare: a raw fs error falls through `publicErrorOf` to
     // `Internal`, whose documented meaning is a host bug and whose message is frozen. This
     // is transient and the app can act on it, which is what `Unavailable` is for.
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+    if (getErrorCode(error) !== 'ENOENT') {
       throw new MiniAppUnavailableError(`Save file for ${appId} could not be read`)
     }
 

@@ -23,7 +23,11 @@ export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to
 
         const text = result.pages
           .flatMap((p) => {
-            const recTexts = (p.prunedResult as { rec_texts?: unknown })?.rec_texts
+            const prunedResult = p.prunedResult
+            const recTexts =
+              prunedResult && typeof prunedResult === 'object' && 'rec_texts' in prunedResult
+                ? prunedResult.rec_texts
+                : undefined
 
             return Array.isArray(recTexts) ? recTexts.filter((value): value is string => typeof value === 'string') : []
           })

@@ -27,6 +27,7 @@ import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { getErrorCode } from '@main/utils/error'
 import { shouldSilenceFsyncDirError } from '@main/utils/file'
 import { MiniAppIdSchema } from '@shared/types/miniAppManifest'
 
@@ -181,7 +182,7 @@ function fsyncJournalDir(target: string): void {
       fs.closeSync(dirFd)
     }
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
+    const code = getErrorCode(error)
 
     // ENOENT as well: no directory means no entry left to make durable.
     if (code === 'ENOENT' || shouldSilenceFsyncDirError(code)) return

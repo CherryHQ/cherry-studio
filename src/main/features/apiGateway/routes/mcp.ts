@@ -340,7 +340,7 @@ function lookupSession(sessions: McpSessionStore, request: Request, serverId: st
 function needsWarmTools(body: unknown): boolean {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Elysia parses JSON but does not validate MCP; the SDK transport owns JSON-RPC validation and malformed-request responses.
   const wants = (message: unknown): boolean =>
-    typeof message === 'object' && message !== null && (message as { method?: unknown }).method === 'tools/list'
+    typeof message === 'object' && message !== null && 'method' in message && message.method === 'tools/list'
 
   return Array.isArray(body) ? body.some(wants) : wants(body)
 }

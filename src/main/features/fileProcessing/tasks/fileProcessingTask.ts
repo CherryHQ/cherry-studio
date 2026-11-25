@@ -1,11 +1,16 @@
+import * as z from 'zod'
+
 import type { JobHandler, JobSettledEvent } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessingTask, FileProcessingTaskId } from '@shared/data/types/fileProcessing'
 
 import type { SettledFileProcessingTask } from '../types'
 import { type FileProcessingJobPayload, FileProcessingJobOutputSchema } from './shared'
 
 type TaskJob = Pick<FileProcessingJobPayload, 'feature' | 'processorId'>
+
+const taskJobSchema = z.object({ feature: z.enum(FILE_PROCESSOR_FEATURES), processorId: z.enum(FILE_PROCESSOR_IDS) })
 
 type SettledJob = Pick<JobSettledEvent, 'status' | 'output' | 'error'>
 
@@ -21,6 +26,7 @@ export function isFileProcessingJobType(type: string): boolean {
 
 /** A task is the job that runs its conversion, under the same id. */
 export function toFileProcessingTaskId(jobId: string): FileProcessingTaskId {
+  // SAFETY: File-processing tasks reuse their internally generated job row ID; the brand only marks its task role.
   return jobId as FileProcessingTaskId
 }
 
@@ -49,7 +55,7 @@ export function toSettledTask(id: FileProcessingTaskId, job: TaskJob, settled: S
 /** The task a job row describes now. A row records no progress, so `progress` is the latest one reported. */
 export function toFileProcessingTask(snapshot: JobSnapshot, progress: number): FileProcessingTask {
   const id = toFileProcessingTaskId(snapshot.id)
-  const job = snapshot.input as FileProcessingJobPayload
+  const job = taskJobSchema.parse(snapshot.input)
 
   switch (snapshot.status) {
     case 'pending':

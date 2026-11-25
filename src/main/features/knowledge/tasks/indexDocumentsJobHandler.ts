@@ -145,6 +145,7 @@ export function createIndexDocumentsJobHandler(
     async onSettled(event) {
       await markKnowledgeItemFailedOnSettled(event, logger, 'Failed to flip knowledge item to failed in onSettled')
 
+      // SAFETY: This handler's execute returns only { embedded: boolean } or undefined; JobSettledEvent erases per-handler output types.
       if (event.status !== 'completed' || !(event.output as { embedded?: boolean } | undefined)?.embedded) return
 
       try {

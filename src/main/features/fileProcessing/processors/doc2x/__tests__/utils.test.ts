@@ -1,16 +1,17 @@
 import type * as NodeFs from 'node:fs'
+import { Readable } from 'node:stream'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as Doc2xUtils from '../utils'
 
-const { createReadStreamMock, destroyMock, fetchMock } = vi.hoisted(() => ({
-  createReadStreamMock: vi.fn(() => ({
-    destroy: vi.fn()
-  })),
-  destroyMock: vi.fn(),
+const { createReadStreamMock, fetchMock } = vi.hoisted(() => ({
+  createReadStreamMock: vi.fn(),
   fetchMock: vi.fn()
 }))
+
+const uploadBytes = Uint8Array.from([0x25, 0x50, 0x44, 0x46, 0x00, 0xff])
+let fileStream: Readable
 
 vi.mock('electron', () => ({
   net: {
@@ -52,18 +53,18 @@ describe('doc2x utils', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.clearAllMocks()
-    createReadStreamMock.mockReturnValue({
-      destroy: destroyMock
-    })
+    fileStream = Readable.from([uploadBytes], { autoDestroy: false })
+    createReadStreamMock.mockReturnValue(fileStream)
   })
 
   it('uploads files to public object-storage urls returned by the provider', async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response(null, {
-        status: 200,
-        statusText: 'OK'
-      })
-    )
+    fetchMock.mockImplementationOnce(async (url: string, options: RequestInit) => {
+      const request = new Request(url, options)
+      expect(new Uint8Array(await request.arrayBuffer())).toEqual(uploadBytes)
+      expect(request.method).toBe('PUT')
+      expect(request.redirect).toBe('error')
+      return new Response(null, { status: 200 })
+    })
 
     await expect(
       uploadFile(
@@ -73,18 +74,25 @@ describe('doc2x utils', () => {
       )
     ).resolves.toBeUndefined()
 
-    expect(createReadStreamMock).toHaveBeenCalledWith('/tmp/file.pdf')
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://doc2x-pdf.oss-cn-beijing.aliyuncs.com/tmp/task-1.pdf?X-Amz-Signature=abc',
-      expect.objectContaining({
-        method: 'PUT',
-        body: expect.any(Object),
-        duplex: 'half',
-        redirect: 'error',
-        signal: undefined
-      })
-    )
-    expect(destroyMock).toHaveBeenCalled()
+    expect(fileStream.destroyed).toBe(true)
+  })
+
+  it.each(['request failure', 'cancellation'])('releases the file stream after %s', async (failure) => {
+    const controller = new AbortController()
+    const error = new Error(failure)
+    const signal = controller.signal
+    fetchMock.mockImplementationOnce(async (_url: string, options: RequestInit) => {
+      expect(options.signal).toBe(signal)
+      if (failure === 'cancellation') {
+        controller.abort(error)
+        signal.throwIfAborted()
+      }
+      throw error
+    })
+    await expect(
+      uploadFile('/tmp/file.pdf', 'https://upload.example.com/file.pdf', 'https://v2.doc2x.noedgeai.com', signal)
+    ).rejects.toBe(error)
+    expect(fileStream.destroyed).toBe(true)
   })
 
   it('rejects unsafe upload urls before dispatching the request', async () => {

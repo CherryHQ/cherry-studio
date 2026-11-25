@@ -33,7 +33,6 @@ export function prepareContext(
         .map((lang) => lang.trim())
         .filter(Boolean)
         .sort()
-        .map((lang) => lang as LanguageCode)
     : []
 
   return {

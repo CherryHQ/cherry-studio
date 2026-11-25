@@ -1,182 +1,48 @@
-import type { FileProcessingTaskId } from '@main/features/fileProcessing'
+import * as z from 'zod'
+
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 
-import type {
-  KnowledgeCheckFileProcessingResultPayload,
-  KnowledgeCopySourcesPayload,
-  KnowledgeDeleteSubtreePayload,
-  KnowledgeIndexDocumentsPayload,
-  KnowledgePrepareRootPayload,
-  KnowledgeReindexSubtreePayload
-} from '../jobTypes'
+import type { KnowledgeDeleteSubtreePayload, KnowledgeIndexDocumentsPayload } from '../jobTypes'
 
 export type NarrowedKnowledgeJobInput =
   | {
-      type: 'knowledge.copy-sources'
-      input: KnowledgeCopySourcesPayload
+      type:
+        | 'knowledge.copy-sources'
+        | 'knowledge.prepare-root'
+        | 'knowledge.index-documents'
+        | 'knowledge.check-file-processing-result'
+      input: Pick<KnowledgeIndexDocumentsPayload, 'baseId' | 'itemId'>
     }
   | {
-      type: 'knowledge.prepare-root'
-      input: KnowledgePrepareRootPayload
-    }
-  | {
-      type: 'knowledge.index-documents'
-      input: KnowledgeIndexDocumentsPayload
-    }
-  | {
-      type: 'knowledge.check-file-processing-result'
-      input: KnowledgeCheckFileProcessingResultPayload
-    }
-  | {
-      type: 'knowledge.delete-subtree'
+      type: 'knowledge.delete-subtree' | 'knowledge.reindex-subtree'
       input: KnowledgeDeleteSubtreePayload
-    }
-  | {
-      type: 'knowledge.reindex-subtree'
-      input: KnowledgeReindexSubtreePayload
     }
 
 type JobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'>
 
-type JobInputObject = {
-  baseId?: unknown
-  itemId?: unknown
-  copies?: unknown
-  fileProcessingTaskId?: unknown
-  processedRelativePath?: unknown
-  rootItemIds?: unknown
-  from?: unknown
-  relativePath?: unknown
-}
+const itemOwnershipSchema = z.object({ baseId: z.string(), itemId: z.string() })
+const subtreeOwnershipSchema = z.object({ baseId: z.string(), rootItemIds: z.array(z.string()) })
 
+/** Execution payload damage must not hide a job's ownership from cancellation or follow-up tracking. */
 export function narrowKnowledgeJobInput(snapshot: JobSnapshotInput): NarrowedKnowledgeJobInput | null {
   switch (snapshot.type) {
-    case 'knowledge.copy-sources': {
-      const payload = narrowCopySourcesJobPayload(snapshot.input)
-
-      return payload ? { type: snapshot.type, input: payload } : null
-    }
-
-    case 'knowledge.prepare-root': {
-      const payload = narrowItemJobPayload(snapshot.input)
-
-      return payload ? { type: snapshot.type, input: payload } : null
-    }
-
-    case 'knowledge.index-documents': {
-      const payload = narrowIndexDocumentsJobPayload(snapshot.input)
-
-      return payload ? { type: snapshot.type, input: payload } : null
-    }
-
+    case 'knowledge.copy-sources':
+    case 'knowledge.prepare-root':
+    case 'knowledge.index-documents':
     case 'knowledge.check-file-processing-result': {
-      const payload = narrowFileProcessingCheckJobPayload(snapshot.input)
+      const payload = itemOwnershipSchema.safeParse(snapshot.input)
 
-      return payload ? { type: snapshot.type, input: payload } : null
+      return payload.success ? { type: snapshot.type, input: payload.data } : null
     }
 
     case 'knowledge.delete-subtree':
     case 'knowledge.reindex-subtree': {
-      const payload = narrowSubtreeJobPayload(snapshot.input)
+      const payload = subtreeOwnershipSchema.safeParse(snapshot.input)
 
-      return payload ? { type: snapshot.type, input: payload } : null
+      return payload.success ? { type: snapshot.type, input: payload.data } : null
     }
 
     default:
       return null
   }
-}
-
-function narrowFileProcessingCheckJobPayload(
-  rawInput: JobSnapshot['input']
-): KnowledgeCheckFileProcessingResultPayload | null {
-  const input = narrowJobInputObject(rawInput)
-
-  if (!input) return null
-  const basePayload = narrowItemJobPayload(rawInput)
-
-  if (!basePayload) return null
-
-  if (typeof input.fileProcessingTaskId !== 'string') return null
-
-  if (typeof input.processedRelativePath !== 'string') return null
-
-  return {
-    baseId: basePayload.baseId,
-    itemId: basePayload.itemId,
-    fileProcessingTaskId: input.fileProcessingTaskId as FileProcessingTaskId,
-    processedRelativePath: input.processedRelativePath
-  }
-}
-
-function narrowItemJobPayload(
-  rawInput: JobSnapshot['input']
-): KnowledgePrepareRootPayload | Pick<KnowledgeIndexDocumentsPayload, 'baseId' | 'itemId'> | null {
-  const input = narrowJobInputObject(rawInput)
-
-  if (!input) return null
-
-  if (typeof input.baseId !== 'string') return null
-
-  if (typeof input.itemId !== 'string') return null
-
-  return {
-    baseId: input.baseId,
-    itemId: input.itemId
-  }
-}
-
-function narrowIndexDocumentsJobPayload(rawInput: JobSnapshot['input']): KnowledgeIndexDocumentsPayload | null {
-  return narrowItemJobPayload(rawInput)
-}
-
-function narrowCopySourcesJobPayload(rawInput: JobSnapshot['input']): KnowledgeCopySourcesPayload | null {
-  const input = narrowJobInputObject(rawInput)
-
-  if (!input) return null
-  const basePayload = narrowItemJobPayload(rawInput)
-
-  if (!basePayload) return null
-
-  if (!Array.isArray(input.copies)) return null
-
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted copy entries may be historical or malformed; verify each entry's source and relative path before accepting the job input.
-  const copiesAreValid = input.copies.every((copy: unknown) => {
-    const entry = narrowJobInputObject(copy)
-
-    return entry !== null && typeof entry.from === 'string' && typeof entry.relativePath === 'string'
-  })
-
-  if (!copiesAreValid) return null
-
-  return {
-    baseId: basePayload.baseId,
-    itemId: basePayload.itemId,
-    copies: input.copies as KnowledgeCopySourcesPayload['copies']
-  }
-}
-
-function narrowSubtreeJobPayload(
-  rawInput: JobSnapshot['input']
-): KnowledgeDeleteSubtreePayload | KnowledgeReindexSubtreePayload | null {
-  const input = narrowJobInputObject(rawInput)
-
-  if (!input) return null
-
-  if (typeof input.baseId !== 'string') return null
-
-  if (!Array.isArray(input.rootItemIds)) return null
-
-  if (!input.rootItemIds.every((itemId) => typeof itemId === 'string')) return null
-
-  return {
-    baseId: input.baseId,
-    rootItemIds: input.rootItemIds
-  }
-}
-
-function narrowJobInputObject(rawInput: JobSnapshot['input']): JobInputObject | null {
-  if (!rawInput || typeof rawInput !== 'object') return null
-
-  return rawInput
 }

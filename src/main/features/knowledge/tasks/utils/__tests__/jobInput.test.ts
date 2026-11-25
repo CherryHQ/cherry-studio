@@ -3,100 +3,36 @@ import { describe, expect, it } from 'vitest'
 import { narrowKnowledgeJobInput } from '../jobInput'
 
 describe('narrowKnowledgeJobInput', () => {
-  it('accepts item job snapshots', () => {
-    expect(
-      narrowKnowledgeJobInput({
-        type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1' }
-      })
-    ).toEqual({
-      type: 'knowledge.index-documents',
-      input: {
-        baseId: 'kb-1',
-        itemId: 'note-1'
-      }
-    })
-  })
-
-  it('accepts file-processing check job snapshots', () => {
-    expect(
-      narrowKnowledgeJobInput({
-        type: 'knowledge.check-file-processing-result',
-        input: {
-          baseId: 'kb-1',
-          itemId: 'file-1',
-          fileProcessingTaskId: 'fp-task-1',
-          processedRelativePath: 'source.md'
-        }
-      })
-    ).toEqual({
+  it.each([
+    { type: 'knowledge.copy-sources', execution: { copies: [{ from: 42 }] } },
+    { type: 'knowledge.prepare-root', execution: {} },
+    { type: 'knowledge.index-documents', execution: {} },
+    {
       type: 'knowledge.check-file-processing-result',
-      input: {
-        baseId: 'kb-1',
-        itemId: 'file-1',
-        fileProcessingTaskId: 'fp-task-1',
-        processedRelativePath: 'source.md'
-      }
+      execution: { fileProcessingTaskId: null, processedRelativePath: 42 }
+    }
+  ])('reads $type ownership independently of execution fields', ({ type, execution }) => {
+    expect(narrowKnowledgeJobInput({ type, input: { baseId: 'kb-1', itemId: 'file-1', ...execution } })).toEqual({
+      type,
+      input: { baseId: 'kb-1', itemId: 'file-1' }
     })
   })
 
-  it('accepts subtree job snapshots', () => {
-    expect(
-      narrowKnowledgeJobInput({ type: 'knowledge.reindex-subtree', input: { baseId: 'kb-1', rootItemIds: ['dir-1'] } })
-    ).toEqual({
-      type: 'knowledge.reindex-subtree',
-      input: {
-        baseId: 'kb-1',
-        rootItemIds: ['dir-1']
-      }
+  it.each(['knowledge.delete-subtree', 'knowledge.reindex-subtree'])('reads all roots for %s', (type) => {
+    expect(narrowKnowledgeJobInput({ type, input: { baseId: 'kb-1', rootItemIds: ['dir-1', 'file-1'] } })).toEqual({
+      type,
+      input: { baseId: 'kb-1', rootItemIds: ['dir-1', 'file-1'] }
     })
   })
 
-  it('rejects snapshots whose type and input shape disagree', () => {
-    expect(
-      narrowKnowledgeJobInput({ type: 'knowledge.index-documents', input: { baseId: 'kb-1', rootItemIds: ['dir-1'] } })
-    ).toBeNull()
-    expect(
-      narrowKnowledgeJobInput({ type: 'knowledge.delete-subtree', input: { baseId: 'kb-1', itemId: 'note-1' } })
-    ).toBeNull()
-    expect(
-      narrowKnowledgeJobInput({
-        type: 'knowledge.check-file-processing-result',
-        input: {
-          baseId: 'kb-1',
-          itemId: 'file-1',
-          fileProcessingTaskId: 'fp-task-1'
-        }
-      })
-    ).toBeNull()
-  })
-
-  it('rejects copy-sources snapshots whose copies are malformed', () => {
-    expect(
-      narrowKnowledgeJobInput({ type: 'knowledge.copy-sources', input: { baseId: 'kb-1', itemId: 'file-1' } })
-    ).toBeNull()
-    expect(
-      narrowKnowledgeJobInput({
-        type: 'knowledge.copy-sources',
-        input: { baseId: 'kb-1', itemId: 'file-1', copies: [{ from: '/docs/a.pdf' }] }
-      })
-    ).toBeNull()
-  })
-
-  it('rejects index-documents snapshots with invalid payload fields', () => {
-    expect(
-      narrowKnowledgeJobInput({
-        type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1' }
-      })
-    ).toBeNull()
-  })
-
-  it('rejects non-knowledge job snapshots', () => {
-    expect(narrowKnowledgeJobInput({ type: 'other.job', input: { baseId: 'kb-1', itemId: 'note-1' } })).toBeNull()
-    expect(
-      narrowKnowledgeJobInput({ type: 'knowledge.reindex-subtree', input: { baseId: 'kb-1', rootItemIds: [1] } })
-    ).toBeNull()
-    expect(narrowKnowledgeJobInput({ type: 'knowledge.prepare-root', input: null })).toBeNull()
+  it.each([
+    { type: 'knowledge.index-documents', input: { baseId: 'kb-1', rootItemIds: ['dir-1'] } },
+    { type: 'knowledge.delete-subtree', input: { baseId: 'kb-1', itemId: 'note-1' } },
+    { type: 'knowledge.reindex-subtree', input: { baseId: 'kb-1', rootItemIds: [1] } },
+    { type: 'knowledge.prepare-root', input: null },
+    { type: 'knowledge.copy-sources', input: { baseId: 'kb-1', itemId: 42 } },
+    { type: 'other.job', input: { baseId: 'kb-1', itemId: 'note-1' } }
+  ])('rejects missing, invalid or unrecognized ownership: %j', (snapshot) => {
+    expect(narrowKnowledgeJobInput(snapshot)).toBeNull()
   })
 })

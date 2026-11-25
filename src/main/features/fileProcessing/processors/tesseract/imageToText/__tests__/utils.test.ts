@@ -16,7 +16,7 @@ const imageFile = FileInfoSchema.parse({
 })
 
 describe('Tesseract prepareContext', () => {
-  it('parses migrated langs arrays from processor options', () => {
+  it('preserves custom traineddata names in migrated language options', () => {
     const context = prepareContext(
       imageFile,
       {
@@ -30,12 +30,12 @@ describe('Tesseract prepareContext', () => {
           }
         ],
         options: {
-          langs: ['eng', 'chi_sim', 'eng', '']
+          langs: ['eng', 'chi_sim', 'eng', '', ' my_custom ']
         }
       },
       undefined
     )
 
-    expect(context.langs).toEqual(['chi_sim', 'eng', 'eng'])
+    expect(context.langs).toEqual(['chi_sim', 'eng', 'eng', 'my_custom'])
   })
 })

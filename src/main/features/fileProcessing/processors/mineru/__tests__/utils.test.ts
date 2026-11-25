@@ -1,14 +1,15 @@
 import type * as NodeFs from 'node:fs'
+import { Readable } from 'node:stream'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchMock, createReadStreamMock, destroyMock } = vi.hoisted(() => ({
-  fetchMock: vi.fn(),
-  destroyMock: vi.fn(),
-  createReadStreamMock: vi.fn(() => ({
-    destroy: vi.fn()
-  }))
+const { createReadStreamMock, fetchMock } = vi.hoisted(() => ({
+  createReadStreamMock: vi.fn(),
+  fetchMock: vi.fn()
 }))
+
+const uploadBytes = Uint8Array.from([0x25, 0x50, 0x44, 0x46, 0x00, 0xff])
+let fileStream: Readable
 
 vi.mock('electron', () => ({
   net: {
@@ -31,18 +32,19 @@ import { createUploadTask, uploadFile } from '../utils'
 describe('mineru utils', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    createReadStreamMock.mockReturnValue({
-      destroy: destroyMock
-    })
+    fileStream = Readable.from([uploadBytes], { autoDestroy: false })
+    createReadStreamMock.mockReturnValue(fileStream)
   })
 
   it('uploads file content through a read stream', async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response(null, {
-        status: 200,
-        statusText: 'OK'
-      })
-    )
+    fetchMock.mockImplementationOnce(async (url: string, options: RequestInit) => {
+      const request = new Request(url, options)
+      expect(new Uint8Array(await request.arrayBuffer())).toEqual(uploadBytes)
+      expect(request.method).toBe('PUT')
+      expect(request.redirect).toBe('error')
+      expect(request.headers.get('Authorization')).toBe('Bearer secret')
+      return new Response(null, { status: 200 })
+    })
 
     await expect(
       uploadFile(
@@ -55,19 +57,7 @@ describe('mineru utils', () => {
       )
     ).resolves.toBeUndefined()
 
-    expect(createReadStreamMock).toHaveBeenCalledWith('/tmp/file.pdf')
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://mineru.oss-cn-shanghai.aliyuncs.com/api-upload/task-1.pdf?Expires=1&Signature=abc',
-      expect.objectContaining({
-        method: 'PUT',
-        headers: { Authorization: 'Bearer secret' },
-        body: expect.any(Object),
-        duplex: 'half',
-        redirect: 'error',
-        signal: undefined
-      })
-    )
-    expect(destroyMock).toHaveBeenCalled()
+    expect(fileStream.destroyed).toBe(true)
   })
 
   it('creates upload tasks with the full filename and data id', async () => {
@@ -121,6 +111,30 @@ describe('mineru utils', () => {
         })
       })
     )
+  })
+
+  it.each(['request failure', 'cancellation'])('releases the file stream after %s', async (failure) => {
+    const controller = new AbortController()
+    const error = new Error(failure)
+    const signal = controller.signal
+    fetchMock.mockImplementationOnce(async (_url: string, options: RequestInit) => {
+      expect(options.signal).toBe(signal)
+      if (failure === 'cancellation') {
+        controller.abort(error)
+        signal.throwIfAborted()
+      }
+      throw error
+    })
+    await expect(
+      uploadFile(
+        { path: '/tmp/file.pdf' } as never,
+        'https://upload.example.com/file.pdf',
+        'https://mineru.net',
+        undefined,
+        signal
+      )
+    ).rejects.toBe(error)
+    expect(fileStream.destroyed).toBe(true)
   })
 
   it('rejects unsafe upload urls before dispatching the request', async () => {

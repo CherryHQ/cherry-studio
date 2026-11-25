@@ -120,12 +120,14 @@ function facetOf(method: MiniAppMethod, params: Params, result: MiniAppReply | u
     case 'file.export':
       return out ? { saved: 'saved' in out && out.saved === true } : undefined
     case 'ai.chat': {
-      const messages = Array.isArray(params?.messages) ? params.messages : []
+      const messages: readonly unknown[] = Array.isArray(params?.messages) ? params.messages : []
 
-      const bytes = messages.reduce(
-        (sum: number, m) => sum + Buffer.byteLength(str((m as { content?: unknown })?.content)),
-        0
-      )
+      const bytes = messages.reduce((sum: number, message) => {
+        const content =
+          message !== null && typeof message === 'object' && 'content' in message ? message.content : undefined
+
+        return sum + Buffer.byteLength(str(content))
+      }, 0)
 
       return { model: str(params?.model) || 'default', messages: messages.length, bytes }
     }
@@ -217,6 +219,8 @@ export class MiniAppActivityLog {
     // Gated HERE as well as in `append`: the count tier returns before ever reaching it,
     // and a stale call would leave a counter for the next `flush` to write out.
     if (this.forgotten.has(appId)) return
+
+    // SAFETY: Only the non-null object container is known; every optional metadata field remains unknown until its consumer checks it.
     const p = params && typeof params === 'object' ? (params as NonNullable<Params>) : undefined
 
     if (TIER[method] === 'count' && outcome === 'ok') {

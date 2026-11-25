@@ -67,10 +67,12 @@ export type KnowledgeProgressDetail =
 export const KNOWLEDGE_ACTIVE_JOB_LIMIT = 5000
 
 export function toKnowledgeBaseId(baseId: string): KnowledgeBaseId {
+  // SAFETY: This phantom brand records the base-ID role only; it does not prove UUID syntax, existence, or ownership.
   return baseId as KnowledgeBaseId
 }
 
 export function toKnowledgeItemId(itemId: string): KnowledgeItemId {
+  // SAFETY: This phantom brand records the item-ID role only; it does not prove UUID syntax, existence, or ownership.
   return itemId as KnowledgeItemId
 }
 

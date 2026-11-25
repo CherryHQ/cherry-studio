@@ -43,10 +43,6 @@ export interface PreparedRemotePollFileProcessingJob extends PreparedFileProcess
   prepared: PreparedRemoteJob<FileProcessorFeature, FileProcessingRemoteContext>
 }
 
-type PreparedFileProcessingJobByMode<Mode extends FileProcessingJobMode> = Mode extends 'background'
-  ? PreparedBackgroundFileProcessingJob
-  : PreparedRemotePollFileProcessingJob
-
 export async function prepareFileProcessingJob(
   ctx: JobContext<FileProcessingJobPayload>,
   expectedMode: 'background'
@@ -85,13 +81,13 @@ export async function prepareFileProcessingJob(
     assertModeMatches(prepared, expectedMode)
   }
 
-  return createPreparedFileProcessingJobResult(expectedMode, {
+  return {
     feature,
     file,
     processorId: config.id,
     config,
     prepared
-  })
+  }
 }
 
 async function assertDocumentInputLimits(
@@ -155,15 +151,6 @@ function hasPersistedProviderTask(remoteState: unknown): boolean {
   )
 }
 
-function createPreparedFileProcessingJobResult<Mode extends FileProcessingJobMode>(
-  _mode: Mode,
-  result: PreparedFileProcessingJobBase & {
-    prepared: PreparedFileProcessingJobByMode<Mode>['prepared']
-  }
-): PreparedFileProcessingJobByMode<Mode> {
-  return result as PreparedFileProcessingJobByMode<Mode>
-}
-
 /** Look up the capability handler for (processorId, feature). Throws on missing. */
 export function getCapabilityHandler<Feature extends FileProcessorFeature>(
   processorId: FileProcessorId,
@@ -208,7 +195,7 @@ export function assertFileTypeSupported(
 
   const inputs: readonly FileProcessorInput[] = presetCapability.inputs
 
-  if (!inputs.includes(file.type as FileProcessorInput)) {
+  if (!inputs.some((input) => input === file.type)) {
     throw new Error(`File processor ${config.id} ${feature} does not support ${file.type} files`)
   }
 }

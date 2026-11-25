@@ -8,7 +8,7 @@ export async function selectOption(session: GuestSession, ref: BrowserRef, value
     session,
     ref,
     async (objectId) => {
-      const ok = await callOnElement<boolean>(
+      const ok = await callOnElement(
         session,
         objectId,
         `function(values){

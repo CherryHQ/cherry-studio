@@ -11,17 +11,13 @@ export const PADDLE_CLIENT_PLATFORM = 'cherrystudio'
 
 type PaddleOcrClientLike = typeof PaddleOCRClientType
 
-type PaddleOcrModuleLike = {
-  PaddleOCRClient: PaddleOcrClientLike
-}
-
 let paddleOcrClientCtorPromise: Promise<PaddleOcrClientLike> | undefined
 
 async function getPaddleOcrClientCtor(): Promise<PaddleOcrClientLike> {
   const ctorPromise =
     paddleOcrClientCtorPromise ??
     import('@paddleocr/api-sdk')
-      .then((module) => (module as PaddleOcrModuleLike).PaddleOCRClient)
+      .then((module) => module.PaddleOCRClient)
       .catch((error) => {
         throw new Error(
           `PaddleOCR SDK is unavailable at runtime: ${error instanceof Error ? error.message : String(error)}`

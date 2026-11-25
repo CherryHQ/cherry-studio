@@ -137,6 +137,7 @@ export function buildOpenApiDocument(app: AnyElysia, lang: LanguageVarious, serv
   for (const pathItem of Object.values(paths)) {
     for (const operation of Object.values(pathItem ?? {})) {
       if (!operation || typeof operation !== 'object' || Array.isArray(operation)) continue
+
       if (!('description' in operation) || typeof operation.description !== 'string') continue
       const translated = byKey.get(operation.description)
 

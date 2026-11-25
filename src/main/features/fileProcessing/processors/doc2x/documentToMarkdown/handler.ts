@@ -107,6 +107,7 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
           remoteContext: {
             apiHost: persisted.apiHost,
             apiKey: getRequiredApiKey(restoredConfig, 'doc2x'),
+            // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy persisted strings are not validated here; retain the existing export-poll fallback for non-parsing stages.
             stage: (persisted.stage ?? 'parsing') as Doc2xTaskStage,
             modelVersion: persisted.modelVersion ?? capability.modelId,
             formulaLevel: persisted.formulaLevel ?? capability.formulaLevel,
@@ -138,7 +139,7 @@ function prepareStartContext(
 }
 
 function getDoc2xCapability(config: FileProcessorMerged): Doc2xCapability {
-  return getRequiredCapability(config, 'document_to_markdown', 'doc2x') as Doc2xCapability
+  return getRequiredCapability(config, 'document_to_markdown', 'doc2x')
 }
 
 export async function handleParseStage(

@@ -93,7 +93,7 @@ export class TesseractRuntimeService extends BaseService {
     }
   }
 
-  private async getWorker(langs: LanguageCode[]): Promise<Tesseract.Worker> {
+  private async getWorker(langs: string[]): Promise<Tesseract.Worker> {
     this.throwIfStopped()
 
     const langsKey = langs.join(',')
@@ -109,7 +109,8 @@ export class TesseractRuntimeService extends BaseService {
       // Delayed loading: tesseract.js only loads when an OCR task actually needs a worker.
       const { createWorker } = await import('tesseract.js')
 
-      const nextWorker = await createWorker(langs, undefined, {
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Tesseract's runtime loads custom traineddata names; its LanguageCode declaration lists only bundled names, so this bridge does not claim enum validation.
+      const nextWorker = await createWorker(langs as LanguageCode[], undefined, {
         langPath: await this.getLangPath(),
         cachePath: await this.getCacheDir(),
         logger: (message) => logger.debug('Tesseract worker event', message)

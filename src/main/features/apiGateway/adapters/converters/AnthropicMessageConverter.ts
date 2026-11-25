@@ -380,12 +380,12 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     const aiSdkTools: ToolSet = {}
 
     for (const anthropicTool of tools) {
-      const toolDef = anthropicTool as AnthropicTool
-      const rawSchema = toolDef.input_schema
-
       // Client tools always carry `input_schema`; without it this is a server tool
       // (bash/web_search/text_editor/tool_search/…) only Anthropic's own backend executes.
-      if (!rawSchema) continue
+      if (!('input_schema' in anthropicTool) || !anthropicTool.input_schema) continue
+      const toolDef = anthropicTool
+      const rawSchema = toolDef.input_schema
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Preserve client schema extensions for the downstream provider; the SDKs declare different JSON Schema dialects and no validation occurs here.
       const schema = rawSchema as JsonSchemaLike
 
       const definition = {

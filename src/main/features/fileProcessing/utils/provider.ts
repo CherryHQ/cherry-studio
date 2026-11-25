@@ -3,12 +3,14 @@ import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@share
 
 const lastUsedKeyByProcessor = new Map<FileProcessorId, string>()
 
-export function getRequiredCapability(
+export function getRequiredCapability<F extends FileProcessorFeature>(
   config: FileProcessorMerged,
-  feature: FileProcessorFeature,
+  feature: F,
   processorId: FileProcessorId
-): FileProcessorFeatureCapability {
-  const capability = config.capabilities.find((item) => item.feature === feature)
+): Extract<FileProcessorFeatureCapability, { feature: F }> {
+  const capability = config.capabilities.find(
+    (item): item is Extract<FileProcessorFeatureCapability, { feature: F }> => item.feature === feature
+  )
 
   if (!capability) {
     throw new Error(`Processor ${processorId} is missing ${feature} capability`)

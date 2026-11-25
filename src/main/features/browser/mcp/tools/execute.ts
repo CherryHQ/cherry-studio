@@ -28,6 +28,6 @@ export async function handleExecute(controller: BrowserController, args: unknown
 
     logger.error('Execute failed', { error, code: code.slice(0, 100), privateMode, tabId })
 
-    return errorResponse(error as Error)
+    return errorResponse(error instanceof Error ? error : String(error))
   }
 }

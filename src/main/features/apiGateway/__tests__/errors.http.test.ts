@@ -721,6 +721,26 @@ describe('gateway generation errors over real Elysia/node sockets', () => {
   }
 })
 
+it.each([
+  { status: 504, expectedStatus: 504, code: 'SERVICE_UNAVAILABLE', message: 'Upstream idle timeout exceeded' },
+  { status: '503', expectedStatus: 500, code: 'INTERNAL_SERVER_ERROR', message: genericMessage }
+])('REST accepts numeric HTTP status and rejects coercible status $status', async (sample) => {
+  active = {
+    test: {
+      id: 'rest-explicit-status',
+      origin: 'constructed boundary',
+      input: () => Object.assign(new Error('PRIVATE_TIMEOUT_DETAIL'), { status: sample.status }),
+      status: sample.expectedStatus,
+      message: sample.message
+    },
+    format: 'anthropic',
+    mode: 'non-streaming'
+  }
+  const response = await fetch(`${baseUrl}/v1/models`, { signal: AbortSignal.timeout(5000) })
+  expect(response.status).toBe(sample.expectedStatus)
+  expect(await response.json()).toEqual({ error: { code: sample.code, message: sample.message } })
+})
+
 it('preserves development-only messages separately from production non-disclosure', async () => {
   const previous = process.env.NODE_ENV
   vi.resetModules()

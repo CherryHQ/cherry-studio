@@ -121,10 +121,7 @@ function contentToText(content: GeminiContent | string | undefined): string {
 
   if (!Array.isArray(content.parts)) return ''
 
-  return content.parts
-    .filter((part) => typeof part.text === 'string')
-    .map((part) => part.text as string)
-    .join('\n')
+  return content.parts.flatMap((part) => (typeof part.text === 'string' ? [part.text] : [])).join('\n')
 }
 
 /** The multimodal `functionResponse.parts` (Gemini 3+) as `file` UI parts. */
@@ -414,7 +411,8 @@ export class GeminiMessageConverter implements IMessageConverter<GeminiGenerateC
 
         const rawSchema =
           declaration.parametersJsonSchema !== undefined
-            ? (declaration.parametersJsonSchema as JsonSchemaLike)
+            ? // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Forward the opaque client schema unchanged to the downstream provider; this SDK declaration bridge does not validate JSON Schema.
+              (declaration.parametersJsonSchema as JsonSchemaLike)
             : geminiSchemaToJsonSchema(declaration.parameters)
 
         aiSdkTools[declaration.name] = tool({

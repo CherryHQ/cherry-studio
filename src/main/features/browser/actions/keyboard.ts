@@ -22,6 +22,7 @@ export async function pressKey(session: GuestSession, chord: string, options: Br
 
   for (const part of parts) {
     if (!Object.hasOwn(KeyModifier, part)) throw new BrowserSessionError('not_allowed')
+    // SAFETY: The own-key check above restricts part to this closed modifier map, including protection against inherited names.
     modifiers |= KeyModifier[part as keyof typeof KeyModifier]
   }
 
@@ -64,7 +65,7 @@ export async function typeText(
     session,
     ref,
     async (objectId, backendNodeId, check) => {
-      const initial = await callOnElement<{ editable: boolean; value: string }>(
+      const initial = await callOnElement(
         session,
         objectId,
         `function(){
@@ -75,7 +76,9 @@ export async function typeText(
         options
       )
 
-      if (!initial.editable) throw new BrowserSessionError('not_found')
+      if (!initial || typeof initial !== 'object' || !('editable' in initial) || !initial.editable) {
+        throw new BrowserSessionError('not_found')
+      }
       check()
       await options.focusInput?.(options)
       options = { ...options, focusInput: undefined }
@@ -90,7 +93,7 @@ export async function typeText(
 
       if (clear) await clearField()
       else {
-        const positioned = await callOnElement<boolean>(
+        const positioned = await callOnElement(
           session,
           objectId,
           `function(){
@@ -107,16 +110,10 @@ export async function typeText(
 
       check()
       await session.send('Input.insertText', { text }, options)
-      const expected = (clear ? '' : initial.value) + text
+      const expected = (clear ? '' : 'value' in initial ? initial.value : undefined) + text
 
       const read = () =>
-        callOnElement<string>(
-          session,
-          objectId,
-          'function(){ return this.value ?? this.textContent ?? "" }',
-          [],
-          options
-        )
+        callOnElement(session, objectId, 'function(){ return this.value ?? this.textContent ?? "" }', [], options)
 
       if ((await read()) !== expected) {
         if (/[\r\n]/.test(expected)) throw new BrowserSessionError('not_found')

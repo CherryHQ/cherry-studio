@@ -49,4 +49,33 @@ describe('DraftsExportReader', () => {
 
     await expect(reader.loadDataAsContent(fileContent)).rejects.toThrow('Failed to parse Drafts export JSON')
   })
+
+  it('imports usable content from mixed entries while preserving optional metadata', async () => {
+    const reader = new DraftsExportReader()
+    const fileContent = new TextEncoder().encode(
+      JSON.stringify([
+        null,
+        7,
+        {},
+        { content: 42 },
+        { content: '  ' },
+        { content: ' valid draft ', tags: { future: true }, modified_at: 0, created_at: 'older' }
+      ])
+    )
+
+    const documents = await reader.loadDataAsContent(fileContent)
+
+    expect(documents).toHaveLength(1)
+    expect(documents[0]).toMatchObject({
+      text: 'valid draft',
+      metadata: { draftIndex: 0, tags: { future: true }, modifiedAt: 0 }
+    })
+  })
+
+  it('rejects a non-array export with the import error', async () => {
+    const reader = new DraftsExportReader()
+    const fileContent = new TextEncoder().encode(JSON.stringify({ content: 'not an export list' }))
+
+    await expect(reader.loadDataAsContent(fileContent)).rejects.toThrow('Failed to parse Drafts export JSON')
+  })
 })

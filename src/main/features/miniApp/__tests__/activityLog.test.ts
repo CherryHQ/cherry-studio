@@ -109,6 +109,29 @@ describe('miniAppActivityLog', () => {
     })
   })
 
+  it('counts raw refused chat entries without retaining their contents', async () => {
+    svc.recordCall(
+      A,
+      'ai.chat',
+      'PermissionDenied',
+      0,
+      { messages: [{ content: '密🙂' }, null, 17, 'raw-secret', { content: 42 }, { content: 'ok' }] },
+      undefined,
+      'PermissionDenied'
+    )
+    await settle()
+
+    const [line] = linesOf(A)
+    expect(line).toMatchObject({
+      kind: 'call',
+      name: 'ai.chat',
+      outcome: 'PermissionDenied',
+      facet: { model: 'default', messages: 6, bytes: 9, reason: 'PermissionDenied' }
+    })
+    expect(JSON.stringify(line)).not.toContain('密🙂')
+    expect(JSON.stringify(line)).not.toContain('raw-secret')
+  })
+
   it('records a permission decision', async () => {
     svc.recordGrant(A, { name: 'revoke', permissions: ['clipboard.read'] })
     await settle()

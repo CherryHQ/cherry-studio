@@ -54,6 +54,7 @@ function installedVersionOf(appId: string): string {
 }
 
 type Emit = (chunk: string) => void
+
 type EmitStreamChunk = (requestId: string, chunk: string) => void
 
 type Handler = (
@@ -155,9 +156,9 @@ export function publicErrorOf(error: unknown): CherryPublicError {
  * the guest would branch on `catch (e) { if (e.name === 'QuotaExceeded') }` and always
  * see `'Error'`. The envelope is the only shape that survives the boundary.
  */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest IPC sends an untrusted request; route authenticates its Electron sender and parses the envelope inside this non-throwing reply boundary.
 export async function handleBridgeRequest(
   senderId: number,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest IPC is raw until route authenticates its sender and parses the request envelope.
   payload: unknown,
   emitStreamChunk: EmitStreamChunk
 ): Promise<BridgeResult> {
@@ -182,6 +183,7 @@ async function route(senderId: number, payload: unknown, emitStreamChunk: EmitSt
   }
 
   const { method, params, requestId, callId } = RequestSchema.parse(payload)
+
   const emit: Emit = (chunk) => {
     if (requestId) emitStreamChunk(requestId, chunk)
   }

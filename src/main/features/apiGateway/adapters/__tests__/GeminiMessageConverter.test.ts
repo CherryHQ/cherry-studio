@@ -41,14 +41,16 @@ describe('GeminiMessageConverter.toUIMessages', () => {
     expect(msgs[1]).toMatchObject({ role: 'user', parts: [{ type: 'text', text: 'hi' }] })
   })
 
-  it('joins a structured (parts) systemInstruction', () => {
+  it('preserves empty text and skips non-text parts in a structured systemInstruction', () => {
     const msgs = converter.toUIMessages(
       request({
-        systemInstruction: { parts: [{ text: 'A' }, { text: 'B' }] },
+        systemInstruction: {
+          parts: [{ text: 'A' }, { inlineData: { mimeType: 'image/png', data: 'AAAA' } }, { text: '' }, { text: 'B' }]
+        },
         contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
       })
     )
-    expect(msgs[0]).toMatchObject({ role: 'system', parts: [{ type: 'text', text: 'A\nB' }] })
+    expect(msgs[0]).toMatchObject({ role: 'system', parts: [{ type: 'text', text: 'A\n\nB' }] })
   })
 
   it('maps text, inlineData and fileData parts', () => {

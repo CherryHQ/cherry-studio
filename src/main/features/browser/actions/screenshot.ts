@@ -97,7 +97,10 @@ export async function captureScreenshot(
 
     if (
       cursor.documentId !== documentId ||
-      Object.keys(region).some((key) => region[key as keyof Rect] !== cursor.region[key as keyof Rect])
+      cursor.region.x !== region.x ||
+      cursor.region.y !== region.y ||
+      cursor.region.width !== region.width ||
+      cursor.region.height !== region.height
     )
       throw new Error('The page changed. Start a new screenshot without cursor.')
     start = cursor.index

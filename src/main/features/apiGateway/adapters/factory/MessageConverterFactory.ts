@@ -65,10 +65,7 @@ export class MessageConverterFactory {
    */
   static create(format: 'anthropic', options?: ConverterOptions): AnthropicConverter
   static create<T extends InputFormat>(format: T, options?: ConverterOptions): IMessageConverter<InputParamsMap[T]>
-  static create(
-    format: InputFormat,
-    options: ConverterOptions = {}
-  ): OpenAiMessageConverter | OpenAiResponsesMessageConverter | GeminiMessageConverter | AnthropicMessageConverter {
+  static create(format: InputFormat, options: ConverterOptions = {}): IMessageConverter<InputParamsMap[InputFormat]> {
     if (format === 'openai') {
       return new OpenAiMessageConverter()
     }

@@ -1,10 +1,10 @@
 import type { Document } from '@vectorstores/core'
 
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
-
 import type { IndexableKnowledgeItem } from '../../items'
 
 export async function loadKnowledgeItemDocuments(item: IndexableKnowledgeItem): Promise<Document[]> {
+  const type = item.type
+
   switch (item.type) {
     case 'file': {
       const { loadFileDocuments } = await import('./KnowledgeFileReader')
@@ -25,6 +25,6 @@ export async function loadKnowledgeItemDocuments(item: IndexableKnowledgeItem): 
     }
 
     default:
-      throw new Error(`Unsupported knowledge item type: ${(item as KnowledgeItem).type}`)
+      throw new Error(`Unsupported knowledge item type: ${type}`)
   }
 }

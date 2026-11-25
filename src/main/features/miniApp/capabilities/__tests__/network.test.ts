@@ -268,6 +268,18 @@ describe('networkCapability.fetch', () => {
     await expect(fetchAs({ url: 'https://api.mygame.com/v1' })).rejects.toThrow(MiniAppUnavailableError)
   })
 
+  it.each([
+    { label: 'null', failure: null, detail: 'null' },
+    { label: 'text', failure: 'connection lost', detail: 'connection lost' }
+  ])('reports a $label rejection without replacing it with a property-access failure', async ({ failure, detail }) => {
+    vi.spyOn(net, 'fetch').mockRejectedValue(failure)
+
+    await expect(fetchAs({ url: 'https://api.mygame.com/v1' })).rejects.toMatchObject({
+      name: 'MiniAppUnavailableError',
+      message: `Request to https://api.mygame.com/v1 failed: ${detail}`
+    })
+  })
+
   it('aborts an exchange that outlives the timeout and frees the slot', async () => {
     // Covers the WHOLE exchange: a server that answers and then dangles its body would
     // otherwise hold a concurrency slot for as long as it likes.

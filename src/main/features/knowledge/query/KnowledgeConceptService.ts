@@ -203,6 +203,7 @@ async function grepConceptText(
     if (matches.length >= limit) break
 
     if (!rawRecord) continue
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- The existing grep decoder expects text fields; byte-mode patterns may emit bytes, which needs a separate offset-compatibility fix rather than a false validation claim.
     const record = JSON.parse(rawRecord) as RipgrepJsonRecord
 
     if (record.type !== 'match') continue

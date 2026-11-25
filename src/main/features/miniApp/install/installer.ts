@@ -166,7 +166,7 @@ export function assertOfficialNamespace(
     source === 'url' &&
     sourceOrigin !== undefined &&
     [sourceOrigin, sourceOriginCn].every(
-      (origin) => origin === undefined || MINI_APP_OFFICIAL_ORIGINS.includes(origin as never)
+      (origin) => origin === undefined || MINI_APP_OFFICIAL_ORIGINS.some((officialOrigin) => officialOrigin === origin)
     )
 
   if (!official) {

@@ -22,6 +22,7 @@ export function isLoopbackAddress(address: string | undefined): boolean {
 
 /** The srvx Node request exposes the peer address as `.ip` (its raw socket underneath). */
 function readRemoteAddress(request: Request): string | undefined {
+  // SAFETY: The Node adapter supplies srvx ServerRequest's optional ip/runtime fields; Elysia exposes only the base Request type.
   const carrier = request as {
     ip?: string
     runtime?: { node?: { req?: { socket?: { remoteAddress?: string } } } }

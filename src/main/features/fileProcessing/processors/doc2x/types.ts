@@ -136,6 +136,7 @@ function decodeEscapedUnicode(value: string): string {
   }
 
   try {
+    // SAFETY: Stringifying a string and replacing only escaped Unicode sequences preserves a JSON string; parse failures retain the original value.
     return JSON.parse(JSON.stringify(value).replace(/\\\\u([0-9a-fA-F]{4})/g, '\\u$1')) as string
   } catch {
     return value

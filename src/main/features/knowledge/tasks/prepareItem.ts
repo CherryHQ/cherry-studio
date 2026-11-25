@@ -125,5 +125,6 @@ async function createRuntimeItem<T extends KnowledgeItemType>(
   const createdItem = knowledgeItemService.createActive(baseId, item)
   signal.throwIfAborted()
 
+  // SAFETY: createActive inserts item.type/data unchanged and parses the returned row; its union return erases this input-type association.
   return createdItem as KnowledgeItemOf<T>
 }

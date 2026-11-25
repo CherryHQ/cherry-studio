@@ -99,14 +99,13 @@ function negotiatedMidConversationSystem(requestHeaders: Headers | undefined): b
  * `anthropic-beta` must both survive into the error envelope verbatim.
  */
 function midConversationSystemUnsupported(): Error & { status: number } {
-  const error = new Error(
-    `Unexpected role "system" in input message role list: ` +
-      `anthropic-beta ${MID_CONVERSATION_SYSTEM_BETA} is not supported for this target model.`
-  ) as Error & { status: number }
-
-  error.status = 400
-
-  return error
+  return Object.assign(
+    new Error(
+      `Unexpected role "system" in input message role list: ` +
+        `anthropic-beta ${MID_CONVERSATION_SYSTEM_BETA} is not supported for this target model.`
+    ),
+    { status: 400 }
+  )
 }
 
 /**

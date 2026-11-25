@@ -137,7 +137,7 @@ function acquireReadSlot(appId: string): Promise<() => void> {
   )
 }
 
-function reservedAsset(assetsDir: string, rest: string): { body: Buffer; type: string } | undefined {
+function reservedAsset(assetsDir: string, rest: string) {
   if (rest !== 'theme.css') return undefined
 
   return {
@@ -187,7 +187,7 @@ export function createMiniAppProtocolHandler(
 
       if (!asset) return notFound()
 
-      return new Response(asset.body as Uint8Array<ArrayBuffer>, {
+      return new Response(asset.body, {
         headers: {
           ...BASE_HEADERS,
           'content-type': asset.type,

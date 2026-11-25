@@ -1,37 +1,41 @@
 import { Document, FileReader, type Metadata } from '@vectorstores/core'
-
-type DraftsExportItem = {
-  content?: string
-  tags?: string[]
-  created_at?: string
-  modified_at?: string
-}
+import { z } from 'zod'
 
 export class DraftsExportReader extends FileReader<Document<Metadata>> {
   async loadDataAsContent(fileContent: Uint8Array): Promise<Document<Metadata>[]> {
     const text = new TextDecoder('utf-8').decode(fileContent)
-    let rawJson: DraftsExportItem[]
+    let rawJson: unknown[]
 
     try {
-      rawJson = JSON.parse(text) as DraftsExportItem[]
+      rawJson = z.array(z.unknown()).parse(JSON.parse(text))
     } catch (error) {
       throw new Error('Failed to parse Drafts export JSON', {
         cause: error instanceof Error ? error : new Error(String(error))
       })
     }
 
-    return rawJson
-      .filter((entry) => typeof entry.content === 'string' && entry.content.trim().length > 0)
-      .map(
-        (entry, index) =>
-          new Document({
-            text: entry.content!.trim(),
-            metadata: {
-              draftIndex: index,
-              tags: entry.tags ?? [],
-              modifiedAt: entry.modified_at ?? entry.created_at
-            }
-          })
+    const documents: Document<Metadata>[] = []
+
+    for (const entry of rawJson) {
+      if (!entry || typeof entry !== 'object' || !('content' in entry) || typeof entry.content !== 'string') {
+        continue
+      }
+
+      const content = entry.content.trim()
+
+      if (!content) continue
+
+      const tags = 'tags' in entry ? entry.tags : undefined
+      const modifiedAt = 'modified_at' in entry ? entry.modified_at : undefined
+      const createdAt = 'created_at' in entry ? entry.created_at : undefined
+      documents.push(
+        new Document({
+          text: content,
+          metadata: { draftIndex: documents.length, tags: tags ?? [], modifiedAt: modifiedAt ?? createdAt }
+        })
       )
+    }
+
+    return documents
   }
 }

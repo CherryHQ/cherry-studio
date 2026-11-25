@@ -79,7 +79,7 @@ function resolveNativeAnthropicEffort(
   context: ProviderReasoningContext,
   effort: GatewayReasoningEffort | null | undefined,
   maxTokens?: number
-): GatewayReasoningEffort | undefined {
+): string | undefined {
   if (effort == null || effort === 'default') return undefined
 
   const invocation = resolveReasoningInvocation({
@@ -91,7 +91,7 @@ function resolveNativeAnthropicEffort(
 
   const emission = invocation.emissions.find((candidate) => candidate.target === 'effort')
 
-  return typeof emission?.value === 'string' ? (emission.value as GatewayReasoningEffort) : undefined
+  return typeof emission?.value === 'string' ? emission.value : undefined
 }
 
 function canPassThroughAnthropicReasoning(
@@ -123,7 +123,7 @@ function canPassThroughAnthropicReasoning(
 /** Keep Anthropic-native thinking envelopes byte-for-byte equivalent; effort arrives pre-projected. */
 function passThroughAnthropicReasoning(
   config: AnthropicThinkingConfig | undefined,
-  effort: GatewayReasoningEffort | null | undefined
+  effort: string | null | undefined
 ): ProviderOptions | undefined {
   if (!config && effort == null) return undefined
   const anthropic: ProviderOptions['anthropic'] = {}

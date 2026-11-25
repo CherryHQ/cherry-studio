@@ -5,6 +5,7 @@ import { net } from 'electron'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { getErrorMessage } from '@main/utils/error'
 import { MiniAppManifestSchema } from '@shared/types/miniAppManifest'
 
 import { MiniAppUnavailableError } from '../errors'
@@ -243,7 +244,7 @@ export const networkCapability = {
       if (abort.signal.aborted) throw new MiniAppUnavailableError(`Request to ${url} timed out`)
       // Everything else is the REMOTE end failing — DNS, refused connection, TLS, a stream
       // that dies mid-body. Raw, the bridge answers `Internal` and blames the author's code.
-      throw new MiniAppUnavailableError(`Request to ${url} failed: ${(error as Error).message}`)
+      throw new MiniAppUnavailableError(`Request to ${url} failed: ${getErrorMessage(error, 'Unknown error')}`)
     } finally {
       clearTimeout(timer)
       owned.delete(abort)

@@ -91,6 +91,7 @@ export class ModernMcpProxy {
 
       if (context.mcpReq.requestState() !== undefined) request.requestState = context.mcpReq.requestState()
 
+      // SAFETY: The connection selects the SDK result schema by this same method; forwarding erases that association and preserves InputRequiredResult.
       return application.get('McpRuntimeService').forwardRequest(config.id, method, request, {
         signal: context.mcpReq.signal,
         capabilities: context.mcpReq.envelope?.[CLIENT_CAPABILITIES_META_KEY] ?? {},

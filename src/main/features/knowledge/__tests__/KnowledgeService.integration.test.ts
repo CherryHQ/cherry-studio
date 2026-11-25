@@ -3,7 +3,7 @@ import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { groupTable } from '@data/db/schemas/group'
-import { jobTable } from '@data/db/schemas/job'
+import { type InsertJobRow, jobTable } from '@data/db/schemas/job'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -678,7 +678,7 @@ describe('KnowledgeService integration', () => {
     it('rejects while a reindex of the base is pending, and enables once it settles', async () => {
       await seedBm25Base()
       listMock.mockImplementation(async (filter) => jobService.list(filter))
-      const reindexJob = (baseId: string) => ({
+      const reindexJob = (baseId: string): InsertJobRow => ({
         type: 'knowledge.reindex-subtree',
         status: 'pending',
         queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),

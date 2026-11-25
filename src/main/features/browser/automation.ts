@@ -77,6 +77,7 @@ export async function executeBrowserOperation(
   signal: AbortSignal
 ): Promise<BrowserAutomationResult> {
   if (!Object.hasOwn(schemas, name)) throw new BrowserSessionError('not_allowed')
+  // SAFETY: The own-key check restricts name to the private literal schema registry before indexing it.
   schemas[name as keyof typeof schemas].parse(args)
 
   if (name === 'listTabs') return { value: { tabs: await controller.listTabs() } }

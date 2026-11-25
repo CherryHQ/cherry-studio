@@ -22,6 +22,7 @@ export async function executeRemotePolling(
   let providerTaskId: string
   let remoteContext: FileProcessingRemoteContext
 
+  // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy metadata is not fully validated here; processor-owned rehydrate keeps its existing checks and fallback fields without resubmitting tasks.
   const persisted = ctx.metadata.remoteState as PersistableRemoteState | undefined
 
   if (persisted?.providerTaskId) {

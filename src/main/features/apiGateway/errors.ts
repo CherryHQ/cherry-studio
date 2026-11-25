@@ -163,6 +163,7 @@ function googleStatusName(status: number): string {
 function extractError(error: unknown) {
   if (error === null || typeof error !== 'object') return {}
 
+  // SAFETY: The non-null object container is checked; this view only exposes optional opaque fields.
   const e = error as {
     name?: unknown
     code?: unknown
@@ -170,17 +171,22 @@ function extractError(error: unknown) {
     statusCode?: unknown
     message?: unknown
     providerErrorCategory?: unknown
-    error?: { type?: unknown; message?: unknown }
+    error?: unknown
   }
+  const providerError = record(e.error)
 
   // Prefer `status` (HTTP libs / OpenAI APIError), then `statusCode` (AI-SDK APICallError / SerializedError).
   const status = typeof e.status === 'number' ? e.status : typeof e.statusCode === 'number' ? e.statusCode : undefined
 
   // Prefer a structured provider message, then the error's own `message`.
   const message =
-    typeof e.error?.message === 'string' ? e.error.message : typeof e.message === 'string' ? e.message : undefined
+    typeof providerError?.message === 'string'
+      ? providerError.message
+      : typeof e.message === 'string'
+        ? e.message
+        : undefined
 
-  const type = typeof e.error?.type === 'string' ? e.error.type : undefined
+  const type = typeof providerError?.type === 'string' ? providerError.type : undefined
   const name = typeof e.name === 'string' ? e.name : undefined
   const code = typeof e.code === 'string' ? e.code : undefined
   const category = typeof e.providerErrorCategory === 'string' ? e.providerErrorCategory : undefined
@@ -502,9 +508,10 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   }
 
   // Preserve classified HTTP status from errors that carry it (e.g. idle timeout → 504).
-  const explicitStatus = (error as { status?: number })?.status
+  const statusError: typeof error & { status?: unknown } = error
+  const explicitStatus = statusError.status
 
-  if (explicitStatus && explicitStatus >= 500 && explicitStatus !== 500) {
+  if (typeof explicitStatus === 'number' && explicitStatus >= 500 && explicitStatus !== 500) {
     const statusCode = explicitStatus
 
     return status(

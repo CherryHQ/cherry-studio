@@ -182,6 +182,7 @@ export class GuestSession implements Disposable {
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Electron debugger events erase the method/params correlation; only allow-listed main-session methods enter the official CDP event union.
   private readonly onMessage = (_event: Electron.Event, method: string, params: unknown, sessionId?: string) => {
     if (sessionId || !cdpEventMethods.has(method)) return
+    // SAFETY: Electron supplies native CDP events; this main-session allow-list restores the method/params association erased by its callback type.
     this.handleEvent({ method, params } as CdpEvent)
   }
 
