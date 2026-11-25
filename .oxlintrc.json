@@ -7,6 +7,7 @@
   "globals": {},
   "jsPlugins": [
     "@shadcn/lint",
+    "./scripts/lint/copy.mjs",
     "./scripts/lint/scroll-area.mjs",
     "./scripts/lint/import-layout.mjs",
     "./scripts/lint/incremental-projection.mjs"
@@ -311,6 +312,16 @@
     },
     {
       "files": [
+        "**/*.test.*",
+        "**/*.spec.*",
+        "**/__tests__/**",
+        "**/tests/**",
+        "packages/provider-registry/compat/*-validator.mjs"
+      ],
+      "rules": { "copy/no-json-roundtrip": "off" }
+    },
+    {
+      "files": [
         "src/renderer/**/*.{ts,tsx}",
         "packages/ui/src/**/*.{ts,tsx}",
         "packages/file-preview/src/**/*.{ts,tsx}"
@@ -393,6 +404,7 @@
   ],
   "plugins": ["unicorn", "typescript", "oxc", "import"],
   "rules": {
+    "copy/no-json-roundtrip": "error",
     "import/first": "error",
     "import-layout/no-block-comments-between-imports": "error",
     "no-array-constructor": "off",

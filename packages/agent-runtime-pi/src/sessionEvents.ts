@@ -81,6 +81,7 @@ export class SessionEvents {
     }
     const appended = this.manager.getEntries().slice(start)
     this.cursor = this.manager.getEntryCount()
+    // oxlint-disable-next-line copy/no-json-roundtrip -- The public append event owns a detached snapshot of the newly committed native entries.
     const copied: SessionEntry[] = JSON.parse(JSON.stringify(appended))
     this.listener({ type: 'session-append', entries: copied })
     return copied

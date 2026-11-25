@@ -468,6 +468,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
           ),
         modelContext: (thread) =>
           enter(scope, async () =>
+            // oxlint-disable-next-line copy/no-json-roundtrip -- The goal verifier receives the native model context in its JSON wire representation.
             JSON.parse(JSON.stringify((await (await native(thread)).context(scope.context)).messages))
           )
       },

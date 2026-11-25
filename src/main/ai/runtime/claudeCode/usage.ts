@@ -18,6 +18,7 @@ export function convertClaudeCodeUsage(usage: BetaUsage): LanguageModelV3Usage {
       cacheWrite
     },
     outputTokens: { total: outputTokens, text: undefined, reasoning: undefined },
+    // oxlint-disable-next-line copy/no-json-roundtrip -- Retain the SDK wire usage, including extension fields, in the archived raw JSON object.
     raw: JSON.parse(JSON.stringify(usage)) as JSONObject
   }
 }

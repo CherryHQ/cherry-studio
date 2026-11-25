@@ -174,6 +174,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
         }
         const reasoningDetails = meta?.openrouter?.reasoning_details
         if (openRouterReasoningCache && Array.isArray(reasoningDetails)) {
+          // oxlint-disable-next-line copy/no-json-roundtrip -- Detach the provider-owned reasoning payload when caching it for replay by a later request.
           openRouterReasoningCache.set(`openrouter-${chunk.toolCallId}`, JSON.parse(JSON.stringify(reasoningDetails)))
         }
         this.handleToolCall({

@@ -29,6 +29,7 @@ import {
 import { readContextUsage } from './contextUsage'
 
 function providerResult(value: unknown) {
+  // oxlint-disable-next-line copy/no-json-roundtrip -- Serialize the failed tool result into the JSON provider metadata exposed to observers.
   return JSON.parse(JSON.stringify(value))
 }
 

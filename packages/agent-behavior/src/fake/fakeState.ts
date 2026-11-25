@@ -388,5 +388,6 @@ export function persistentSnapshot(state: FakeState): JsonValue {
   const jobs = [...state.jobs.values()]
     .sort((a, b) => byCodeUnit(a.key, b.key))
     .map((job) => ({ key: job.key, kind: job.spec.kind, scope: job.spec.scope, state: job.state }))
+  // oxlint-disable-next-line copy/no-json-roundtrip -- Crash replay needs a detached snapshot with the same JSON semantics as persistent storage.
   return JSON.parse(JSON.stringify({ threads, memo, jobs }))
 }

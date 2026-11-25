@@ -227,6 +227,7 @@ export function modelContext(adapter: Adapter, thread: ThreadId): JsonValue[] {
   const { messages } = buildSessionContext(conv.manager.getEntries(), conv.manager.getLeafId())
   const omit = adapter.installation.filter?.omit(thread, readFacts(adapter, thread)) ?? []
   const visible = withoutMarkers(messages, omittedMarkers(conv.manager.getBranch(), omit))
+  // oxlint-disable-next-line copy/no-json-roundtrip -- The goal verifier consumes the replayed context as wire JSON, including omission of undefined SDK fields.
   return JSON.parse(JSON.stringify(transformMessages(convertToLlm(visible), model))) as JsonValue[]
 }
 

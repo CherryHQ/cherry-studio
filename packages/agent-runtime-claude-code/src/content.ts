@@ -11,6 +11,7 @@ export type ToolResult = { toolUseId: string; output: unknown; errorText?: strin
 export type ProjectedBlock = { type: NativeBlock['type']; part: Part } | { result: ToolResult }
 
 export function json(value: unknown): Metadata[string][string] {
+  // oxlint-disable-next-line copy/no-json-roundtrip -- Preserve wire JSON for native citations and failed tool results published as provider metadata.
   return JSON.parse(JSON.stringify(value)) as Metadata[string][string]
 }
 

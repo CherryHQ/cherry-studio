@@ -71,6 +71,7 @@ function nextUIMessageId(): string {
  * Sanitize value for JSON serialization
  */
 function sanitizeJson(value: unknown): JSONValue {
+  // oxlint-disable-next-line copy/no-json-roundtrip -- Materialize request-owned JSON provider options from the opaque cached reasoning payload.
   return JSON.parse(JSON.stringify(value))
 }
 
