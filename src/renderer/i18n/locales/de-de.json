@@ -971,6 +971,7 @@
   "chat.list.sort.title": "Sortieren nach",
   "chat.mcp.warning.gemini_web_search": "Gemini unterstützt nicht die gleichzeitige Verwendung von nativer Websuche und Funktionsaufrufen",
   "chat.message.branches": "Zweig wechseln",
+  "chat.message.context_window_excluded": "Die Nachrichten oberhalb werden nicht an das Modell gesendet (Beibehaltene letzte Nachrichten: {{limit}})",
   "chat.message.copy_latex": "LaTeX kopieren",
   "chat.message.flow.branches": "Zweige",
   "chat.message.flow.copy_topic.created": "In eine neue Unterhaltung kopiert",

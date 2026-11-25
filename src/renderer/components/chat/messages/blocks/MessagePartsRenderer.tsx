@@ -1230,6 +1230,24 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
   return result
 }
 
+function hasVisibleReasoningInCompletedHistory(entries: readonly PartEntry[], messageId: string): boolean {
+  // Mirror renderNestedHistory's disclosure filtering: a process segment hides
+  // all of its reasoning when any of its renderable tools carries an intent.
+  // The outer sync must use the same visible-reasoning rule, otherwise a
+  // history that displays only tool steps would still sync and override manual state.
+  if (!entries.some((entry) => isReasoningMessagePart(entry.part))) return false
+
+  for (const item of groupNestedHistoryEntries(entries)) {
+    if (item.kind !== 'process') continue
+    if (!item.entries.some((entry) => isReasoningMessagePart(entry.part))) continue
+    const toolItems = buildToolRenderItems(item.entries, messageId, true)
+    if (toolItems.length === 0) return true
+    if (!toolItems.some(hasToolIntent)) return true
+  }
+
+  return false
+}
+
 function renderNestedHistory(
   entries: readonly PartEntry[],
   message: MessageListItem,
@@ -1547,6 +1565,11 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   if (!completedLayout) return null
 
   const completedHistoryEntries = completedLayout.historyEntries
+  const completedHasVisibleReasoning = hasVisibleReasoningInCompletedHistory(completedHistoryEntries, message.id)
+  // Preference-driven sync target for the outer group. Undefined for tool-only
+  // histories (including reasoning hidden behind tool intents) so toggling the
+  // thinking setting leaves manual tool state alone.
+  const reasoningSyncTarget = completedHasVisibleReasoning ? !thoughtAutoCollapse : undefined
 
   const renderCompletedHistory = (isExpanded: boolean) =>
     isExpanded
@@ -1627,11 +1650,8 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         key={`completed-process-${message.id}`}
         phase="completed"
         outcome={completedHasError ? 'error' : 'success'}
-        defaultExpanded={
-          !completedHistoryIsOversized &&
-          (expandToolSteps ||
-            (!thoughtAutoCollapse && completedHistoryEntries.some((entry) => isReasoningMessagePart(entry.part))))
-        }
+        defaultExpanded={reasoningSyncTarget === true || (!completedHistoryIsOversized && expandToolSteps)}
+        syncExpanded={reasoningSyncTarget}
         message={message}
         toolItems={completedToolItems}>
         {renderCompletedHistory}

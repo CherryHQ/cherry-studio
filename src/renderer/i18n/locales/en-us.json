@@ -971,6 +971,7 @@
   "chat.list.sort.title": "Sort by",
   "chat.mcp.warning.gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
   "chat.message.branches": "Switch branch",
+  "chat.message.context_window_excluded": "Messages above are not sent to the model (Recent messages kept: {{limit}})",
   "chat.message.copy_latex": "Copy LaTeX",
   "chat.message.flow.branches": "branches",
   "chat.message.flow.copy_topic.created": "Copied to a new conversation",

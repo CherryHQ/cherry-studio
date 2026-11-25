@@ -2464,6 +2464,49 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
     })
 
+    it('expands a collapsed reasoning group when thinking auto-collapse is disabled while mounted', () => {
+      const parts = [
+        { type: 'reasoning', text: 'Deep thought', state: 'done' },
+        { type: 'text', text: 'final answer' }
+      ] as unknown as CherryMessagePart[]
+      const message = msg()
+      const { rerender } = render(
+        renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, thoughtAutoCollapse: true })
+      )
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
+
+      rerender(renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, thoughtAutoCollapse: false }))
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('collapses an expanded reasoning group when thinking auto-collapse is enabled while mounted', () => {
+      const parts = [
+        { type: 'reasoning', text: 'Deep thought', state: 'done' },
+        { type: 'text', text: 'final answer' }
+      ] as unknown as CherryMessagePart[]
+      const message = msg()
+      const { rerender } = render(
+        renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, thoughtAutoCollapse: false })
+      )
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'true')
+
+      rerender(renderPartsTree(parts, message, {}, { ...defaultMessageRenderConfig, thoughtAutoCollapse: true }))
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('expands oversized reasoning history when thinking auto-collapse is disabled', () => {
+      renderParts(
+        [
+          { type: 'reasoning', text: 'x'.repeat(120_000), state: 'done' },
+          { type: 'text', text: 'final answer' }
+        ] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, thoughtAutoCollapse: false }
+      )
+      expect(screen.getByRole('button', { name: /Processed/ })).toHaveAttribute('aria-expanded', 'true')
+    })
+
     it('lists every step of a running turn without a click when tool steps expand', () => {
       activateTurn()
       renderParts(
@@ -2504,6 +2547,36 @@ describe('MessagePartsRenderer', () => {
         config
       )
       expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Weighing the next step')
+    })
+
+    it('leaves intent-hidden reasoning history alone when thinking auto-collapse toggles', () => {
+      const withIntent = (id: string) => ({ ...toolPart(id), input: { path: `${id}.txt`, intent: `check ${id}` } })
+      const reasoning = { type: 'reasoning', text: 'Weighing the next step', state: 'done' }
+      const parts = [
+        reasoning,
+        withIntent('read'),
+        reasoning,
+        withIntent('grep'),
+        { type: 'text', text: 'done' }
+      ] as unknown as CherryMessagePart[]
+      const message = msg()
+      const config = (thoughtAutoCollapse: boolean) => ({
+        ...defaultMessageRenderConfig,
+        expandToolSteps: true,
+        thoughtAutoCollapse
+      })
+
+      const { rerender } = render(renderPartsTree(parts, message, {}, config(true)))
+      // Reasoning is hidden behind intents, so the outer group shows only tool steps.
+      expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'true')
+
+      fireEvent.click(historyTrigger)
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+
+      rerender(renderPartsTree(parts, message, {}, config(false)))
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('keeps a finished turn’s steps open when tool steps expand, until the user closes them', () => {
