@@ -272,7 +272,18 @@ const DataSourcePanelContent = ({
   }, [items, onReindexItems, selectedIds, t])
 
   const handleBulkDelete = useCallback(async () => {
-    const itemIds = items.filter((item) => selectedIds.has(item.id)).map((item) => item.id)
+    // Rows already `deleting` (Cancelling) have a cleanup job pending — the
+    // delete handler cancels overlapping jobs, so re-requesting them together
+    // with an unrelated row would cancel the combined job and strand the
+    // unrelated row as `deleting`. Exclude them; their own cleanup removes them.
+    const itemIds = items
+      .filter((item) => selectedIds.has(item.id) && item.status !== 'deleting')
+      .map((item) => item.id)
+    if (itemIds.length === 0) {
+      setSelectedIds(new Set())
+      setIsBulkDeleteOpen(false)
+      return
+    }
     try {
       await onDeleteItems(itemIds)
     } catch (error) {

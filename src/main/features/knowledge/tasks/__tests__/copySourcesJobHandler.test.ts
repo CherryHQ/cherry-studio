@@ -119,6 +119,12 @@ describe('copy-sources job handler', () => {
         inLock = false
       }
     })
+    // A slow copy reports `copying` while streaming, but the row must leave
+    // Queued as soon as the worker starts so it reads Waiting, not Queued.
+    knowledgeItemUpdateStatusMock.mockImplementationOnce(() => {
+      expect(inLock).toBe(false)
+      return createFileItem(FILE_ITEM_ID, 'preparing')
+    })
     knowledgeItemUpdateStatusMock.mockImplementationOnce(() => {
       expect(inLock).toBe(true)
       return createFileItem(FILE_ITEM_ID, 'processing')
@@ -127,7 +133,8 @@ describe('copy-sources job handler', () => {
 
     await handler.execute(createCtx(payload, 'copy-job'))
 
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'processing')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenNthCalledWith(1, FILE_ITEM_ID, 'preparing')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenNthCalledWith(2, FILE_ITEM_ID, 'processing')
   })
 
   it('keeps the status of an item that was not waiting in preparing', async () => {

@@ -1392,6 +1392,39 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('excludes already-deleting rows from bulk delete so their pending cleanup is not cancelled', async () => {
+    const onDeleteItems = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[
+          createFileItem({ id: 'file-1', originName: '取消中.pdf', status: 'deleting' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onDeleteItems={onDeleteItems}
+        onReindex={vi.fn()}
+      />
+    )
+
+    const rowCheckboxes = screen.getAllByRole('checkbox', { name: '选择行' })
+    fireEvent.click(rowCheckboxes[0])
+    fireEvent.click(rowCheckboxes[1])
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
+
+    await waitFor(() => {
+      expect(onDeleteItems).toHaveBeenCalledOnce()
+    })
+    // The Cancelling row already has cleanup pending — re-requesting it together
+    // with an unrelated row would cancel the combined job and strand the
+    // unrelated row as `deleting`.
+    expect(onDeleteItems).toHaveBeenCalledWith(['file-2'])
+  })
+
   it('selects all rows from the header checkbox and clears selection when toggled again from all selected', async () => {
     render(
       <DataSourcePanel

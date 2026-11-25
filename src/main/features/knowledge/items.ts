@@ -70,8 +70,12 @@ export async function classifyKnowledgeItemRestoreSource(
     return toSourceState(await probeKnowledgeSourcePath(item.data.source))
   }
   if (item.type === 'file') {
-    // A `preparing` file's bytes are not in this base yet; restore copies its original instead.
-    if (item.status === 'preparing') {
+    // An `idle` (queued) or `preparing` (copy running) file's bytes are not in
+    // this base yet; restore copies its original instead. `idle` is the
+    // awaiting-copy state introduced for batch imports — it bypasses the old
+    // `preparing`-only fallback, so without this it would probe the empty
+    // `raw/` path and be wrongly omitted as missing.
+    if (item.status === 'idle' || item.status === 'preparing') {
       return toSourceState(await probeKnowledgeSourcePath(item.data.source))
     }
     return toSourceState(await probeKnowledgeFile(baseId, toMaterialRelativePath(item)))

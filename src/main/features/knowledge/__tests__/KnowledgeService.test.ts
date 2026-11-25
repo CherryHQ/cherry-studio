@@ -978,6 +978,34 @@ describe('KnowledgeService', () => {
     expect(copyFileIntoKnowledgeBaseAtMock.mock.calls).toEqual([['restored-kb', original, 'report.pdf']])
   })
 
+  it('restores a queued (idle) file from its original, not the empty base copy', async () => {
+    const service = new KnowledgeService()
+    const sourceBase = createBase({ id: 'source-kb' })
+    const restoredBase = createBase({ id: 'restored-kb' })
+    knowledgeBaseGetByIdMock.mockReturnValueOnce(sourceBase).mockReturnValue(restoredBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+    const original = path.resolve('/docs/queued.pdf')
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([
+      createFileItem('src-queued', 'source-kb', original, 'idle')
+    ])
+    const restoredFile = createFileItem('restored-queued', 'restored-kb', original, 'processing')
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(restoredFile)
+    knowledgeItemGetByIdMock.mockReturnValue(restoredFile)
+
+    await service.restoreBase({
+      sourceBaseId: 'source-kb',
+      name: 'Restored KB',
+      embeddingModelId: 'provider::embed',
+      dimensions: 3
+    })
+
+    // An `idle` file owes its `knowledge.copy-sources` job, so `raw/` is empty —
+    // probing it would wrongly omit a file whose original is still readable.
+    expect(probeKnowledgeSourcePathMock).toHaveBeenCalledWith(original)
+    expect(probeKnowledgeFileMock).not.toHaveBeenCalled()
+    expect(copyFileIntoKnowledgeBaseAtMock.mock.calls).toEqual([['restored-kb', original, 'queued.pdf']])
+  })
+
   it('restores a processed file by copying its source and artifact, then indexes without reprocessing', async () => {
     const service = new KnowledgeService()
     const sourceBase = createBase({ id: 'source-kb', fileProcessorId: 'doc2x' })
@@ -1835,6 +1863,39 @@ describe('KnowledgeService', () => {
     expect(enqueueMock).not.toHaveBeenCalled()
   })
 
+  it('rejects an over-capacity replace before purging so the old item survives', async () => {
+    const service = new KnowledgeService()
+    // 5,000 active rows and an empty queue fast-path: the locked check must
+    // still reject the 5,001st item — but without deleting the conflicting
+    // completed item first (the merge base admitted it; the guard must not
+    // turn a rejection into data loss).
+    listMock.mockResolvedValue([])
+    const existingFile = createFileItem('existing-1', 'kb-1', resolvePath('/docs/report.pdf'), 'completed')
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([existingFile])
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValue(
+      Array.from({ length: 5000 }, (_, index) => createNoteItem(`note-${index}`, 'kb-1', null, 'processing'))
+    )
+
+    await expect(
+      service.addItems(
+        'kb-1',
+        [
+          {
+            type: 'file' as const,
+            data: { source: resolvePath('/docs/report.pdf'), path: resolvePath('/docs/report.pdf') }
+          }
+        ],
+        'replace'
+      )
+    ).rejects.toThrow('slots remain')
+
+    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+    // Only the empty rollback cleanup runs — the purge never deleted the old item.
+    expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledTimes(1)
+    expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledWith('kb-1', [], expect.anything())
+  })
+
   it('admits a whole-base restore larger than the interactive capacity with rollback preserved', async () => {
     const service = new KnowledgeService()
     // Empty destination: no active jobs, no existing rows. An interactive batch
@@ -2120,6 +2181,14 @@ describe('KnowledgeService', () => {
     const service = new KnowledgeService()
     const original = path.resolve('/external/report.pdf')
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem('file-1', 'kb-1', original, 'preparing'))
+
+    expect(service.getFilePath('file-1')).toBe(original)
+  })
+
+  it('previews a queued (idle) file from its original, not the empty base copy', () => {
+    const service = new KnowledgeService()
+    const original = path.resolve('/external/queued.pdf')
+    knowledgeItemGetByIdMock.mockReturnValue(createFileItem('file-1', 'kb-1', original, 'idle'))
 
     expect(service.getFilePath('file-1')).toBe(original)
   })

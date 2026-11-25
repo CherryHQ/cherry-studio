@@ -190,23 +190,70 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 
     await this.knowledgeLockManager.runExclusive(base.id, async () => {
       try {
+        // Re-resolve replace conflicts inside the lock: a concurrent admission
+        // in the cancel->lock gap may have added a colliding root. The same
+        // IDs drive both the capacity projection and the purge below, so a
+        // rejection preserves the old items (no purge yet) and an admission
+        // purges exactly what was reserved.
+        let replaceConflictingRootIds: string[] = []
         if (conflictStrategy === 'replace') {
-          // Purge the conflicting existing items synchronously inside the lock and
-          // BEFORE reserving paths, so the freed name is claimed by the incoming
-          // source instead of being auto-renamed with a numeric suffix.
-          await this.purgeConflictingExistingItems(base, itemsToAdd)
+          const currentRoots = knowledgeItemService.getRootItemsByBaseId(base.id)
+          replaceConflictingRootIds = resolveKnowledgeAddConflicts(itemsToAdd, currentRoots).conflictingExistingRootIds
         }
 
         // Authoritative capacity check inside the admission lock: the pre-lock
         // JobManager list is a fast-path that races (two overlapping one-file
         // imports can both observe the last slot), so reserve atomically here
         // against the DB rows this lock serializes. Restore bypasses it (see above).
+        //
+        // Replace validates against the projected post-replacement state
+        // BEFORE purging: purging first would delete the existing item and
+        // then reject the replacement, losing data the merge base kept. The
+        // reclaimable count is the active rows inside the conflicting
+        // subtrees (a completed conflict frees no slot; an active one does).
+        //
+        // Queued reindex jobs are invisible to the DB check (their roots are
+        // still terminal until activation), so also take the live JobManager
+        // count and admit against the larger of the two. Taking the max (not
+        // the sum) avoids double-counting jobs whose rows are already active.
         if (!options.copyInline) {
-          const existingActiveCount = knowledgeItemService
+          const activeItems = knowledgeItemService
             .getItemsByBaseId(base.id, { includeDeleting: true })
-            .filter((item) => item.status !== 'completed' && item.status !== 'failed').length
-          if (existingActiveCount + itemsToAdd.length > KNOWLEDGE_ACTIVE_JOB_LIMIT) {
-            const remainingCapacity = KNOWLEDGE_ACTIVE_JOB_LIMIT - existingActiveCount
+            .filter((item) => item.status !== 'completed' && item.status !== 'failed')
+          const existingActiveCount = activeItems.length
+          let reclaimableActiveCount = 0
+          if (replaceConflictingRootIds.length > 0) {
+            const conflictingSubtree = knowledgeItemService.getSubtreeItems(base.id, replaceConflictingRootIds, {
+              includeRoots: true
+            })
+            reclaimableActiveCount = conflictingSubtree.filter(
+              (item) => item.status !== 'completed' && item.status !== 'failed'
+            ).length
+          }
+          const dbEffectiveActive = existingActiveCount - reclaimableActiveCount
+          // The conflicting jobs were cancelled before the lock, so the live
+          // queue already excludes them — no second subtraction. A cancel
+          // settlement race can only over-count here, which fails safe (reject
+          // without purging) rather than over-admitting.
+          let effectiveActive = dbEffectiveActive
+          try {
+            const activeJobs = await application.get('JobManager').list({
+              queue: knowledgeQueueName(toKnowledgeBaseId(base.id)),
+              status: [...ACTIVE_JOB_STATUSES],
+              limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
+            })
+            effectiveActive = Math.max(dbEffectiveActive, activeJobs.length)
+          } catch (error) {
+            logger.warn(
+              'Failed to check knowledge queue capacity inside admission lock; using DB rows only',
+              error as Error,
+              {
+                baseId: base.id
+              }
+            )
+          }
+          if (effectiveActive + itemsToAdd.length > KNOWLEDGE_ACTIVE_JOB_LIMIT) {
+            const remainingCapacity = KNOWLEDGE_ACTIVE_JOB_LIMIT - effectiveActive
             throw DataApiErrorFactory.validation(
               {
                 base: [
@@ -216,6 +263,13 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
               `This base has ${existingActiveCount} jobs still processing; ${remainingCapacity} slots remain for ${itemsToAdd.length} new items. Wait for processing to finish or split the batch`
             )
           }
+        }
+
+        if (conflictStrategy === 'replace') {
+          // Purge the conflicting existing items synchronously inside the lock and
+          // BEFORE reserving paths, so the freed name is claimed by the incoming
+          // source instead of being auto-renamed with a numeric suffix.
+          await this.purgeConflictingExistingItems(base, itemsToAdd, replaceConflictingRootIds)
         }
 
         // Reserve every existing on-disk path up front, then let each new file
@@ -299,17 +353,27 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   /**
    * Remove the existing root items (and their subtrees) whose name an incoming
    * source collides with, for the `replace` strategy. MUST run inside the base
-   * mutation lock. Re-resolves conflicts against the current roots so a change in
-   * the cancel->lock gap is honored; the in-flight jobs were already cancelled by
-   * the caller outside the lock.
+   * mutation lock. When the caller already resolved the conflicts inside this
+   * same lock (for the capacity projection), it passes those IDs so the purge
+   * removes exactly what was reserved; otherwise re-resolve against the
+   * current roots so a change in the cancel->lock gap is honored. The
+   * in-flight jobs were already cancelled by the caller outside the lock.
    */
-  private async purgeConflictingExistingItems(base: KnowledgeBase, itemsToAdd: KnowledgeAddItemInput[]): Promise<void> {
-    const currentRoots = knowledgeItemService.getRootItemsByBaseId(base.id)
-    const { conflictingExistingRootIds } = resolveKnowledgeAddConflicts(itemsToAdd, currentRoots)
-    if (conflictingExistingRootIds.length === 0) {
+  private async purgeConflictingExistingItems(
+    base: KnowledgeBase,
+    itemsToAdd: KnowledgeAddItemInput[],
+    conflictingExistingRootIds?: string[]
+  ): Promise<void> {
+    const conflictingIds =
+      conflictingExistingRootIds ??
+      (() => {
+        const currentRoots = knowledgeItemService.getRootItemsByBaseId(base.id)
+        return resolveKnowledgeAddConflicts(itemsToAdd, currentRoots).conflictingExistingRootIds
+      })()
+    if (conflictingIds.length === 0) {
       return
     }
-    const subtreeItems = knowledgeItemService.getSubtreeItems(base.id, conflictingExistingRootIds, {
+    const subtreeItems = knowledgeItemService.getSubtreeItems(base.id, conflictingIds, {
       includeRoots: true
     })
     await purgeKnowledgeSubtreeWithinLock(base, subtreeItems, { baseId: base.id, reason: 'knowledge-add-replace' })
