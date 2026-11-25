@@ -10,6 +10,7 @@ import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
+import { isMcpToolVisibleTo, type McpToolAudience } from './mcpAppTool'
 import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
@@ -18,7 +19,12 @@ const failedToolsBackoffKey = (serverId: string) => `mcp:tools-failed-backoff:${
 const PREWARM_CONCURRENCY = 3
 const FAILED_TOOLS_RETRY_MS = 30 * 1000
 
-type ListToolsOptions = { includeDisabled?: boolean; cacheMode?: CacheMode; windowId?: string | null }
+type ListToolsOptions = {
+  includeDisabled?: boolean
+  cacheMode?: CacheMode
+  windowId?: string | null
+  audience?: McpToolAudience
+}
 
 @Injectable('McpCatalogService')
 @ServicePhase(Phase.WhenReady)
@@ -197,7 +203,8 @@ export class McpCatalogService extends BaseService {
     // their `[]` and are not re-probed here. Routed through the single-flighted warm so a kick
     // racing an in-flight session warm doesn't open a second connection to the same server.
     if (cached === undefined) void this.warmToolsCache(serverId)
-    const tools = cached ?? []
+    const audience = options.audience
+    const tools = audience ? (cached ?? []).filter((tool) => isMcpToolVisibleTo(tool, audience)) : (cached ?? [])
     if (options.includeDisabled || tools.length === 0) return tools
     let server: McpServer | undefined
     try {
