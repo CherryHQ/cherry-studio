@@ -7,7 +7,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
-import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
+import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/utils/knowledgeGroup'
 
 import type { KnowledgeBaseRowProps } from './types'
 

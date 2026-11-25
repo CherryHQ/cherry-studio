@@ -46,6 +46,29 @@ required service tier.`,
     expect(JSON.stringify(failure)).not.toMatch(/secret|private|stack/)
   })
 
+  it('keeps a timeout duration out of the provider HTTP status', () => {
+    const failure = toExecutionFailure({
+      name: 'Error',
+      message: 'Connection timed out after 500 ms',
+      stack: null
+    })
+
+    expect(failure.failure).toEqual({
+      version: 1,
+      reasonCode: 'network',
+      source: { layer: 'runtime' },
+      context: {}
+    })
+  })
+
+  // Catches a stored provider error like `cherryin API error (401): …` losing its auth diagnosis.
+  it.each([
+    ['cherryin API error (401): {"error":{"message":"invalid token"}}', 'auth'],
+    ['Task timed out after 401 minute(s)', 'network']
+  ])('reads the status of a parenthesized API error, not of a duration: %s', (message, reasonCode) => {
+    expect(toExecutionFailure({ name: 'Error', message, stack: null }).failure.reasonCode).toBe(reasonCode)
+  })
+
   it('preserves an existing classification when provider payloads were already redacted', () => {
     expect(
       toExecutionFailure({

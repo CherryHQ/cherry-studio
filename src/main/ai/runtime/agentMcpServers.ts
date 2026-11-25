@@ -8,7 +8,7 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { resolveAgentCapabilities, resolveAgentMcpToolExposure } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import { createAgentMemoryServer } from '@main/ai/mcp/servers/agentMemory'
 import { createAssistantServer } from '@main/ai/mcp/servers/assistant'
@@ -20,6 +20,7 @@ import { createMcpManagerServer } from '@main/ai/mcp/servers/mcpManager'
 import { createSkillsServer } from '@main/ai/mcp/servers/skills'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -72,14 +73,14 @@ export function buildAgentMcpServers(
   const modelId = effectiveModelId ?? session.model ?? agent.model ?? undefined
   const interactionContext = {
     sessionId: session.id,
-    topicId: `agent-session:${session.id}`,
+    topicId: buildAgentSessionTopicId(session.id),
     model: modelId,
     roots: [{ uri: pathToFileURL(session.workspace.path).toString(), name: session.workspace.name }]
   }
   const servers: Record<string, AgentMcpServer> = {}
   const channelLinked =
     linkedChannelSnapshot === undefined ? notificationContext.sourceChannel !== null : linkedChannelSnapshot !== null
-  const hostTools = resolveHostTools(agent, { channelLinked })
+  const { hostTools, resourceCreateEnabled, selfConfigEnabled } = resolveAgentMcpToolExposure(agent, { channelLinked })
 
   for (const mcpId of agent.mcps ?? []) {
     try {
@@ -98,7 +99,9 @@ export function buildAgentMcpServers(
       servers[mcpId] = {
         id: legacyServer.id,
         name: mcpId,
-        connect: serveAgentMcpServer(() => createMcpBridgeServer(mcpId, legacyServer, { interactionContext }))
+        connect: serveAgentMcpServer(() =>
+          createMcpBridgeServer(mcpId, legacyServer, { interactionContext, audience: 'model' })
+        )
       }
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
@@ -124,6 +127,8 @@ export function buildAgentMcpServers(
         workspacePath: session.workspace.path,
         trustedNotifyChannels: notificationContext.channels,
         allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
+        resourceCreateEnabled,
+        selfConfigEnabled,
         getKnowledgeAccess: () => {
           const liveAgent = agentService.getAgent(agent.id)
           return {
@@ -156,7 +161,7 @@ export function buildAgentMcpServers(
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
     servers.assistant = {
       name: CHERRY_MCP_SERVER.ASSISTANT,
-      connect: serveAgentMcpServer(() => createAssistantServer(modelId, hostTools?.tools))
+      connect: serveAgentMcpServer(() => createAssistantServer(modelId, hostTools))
     }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {

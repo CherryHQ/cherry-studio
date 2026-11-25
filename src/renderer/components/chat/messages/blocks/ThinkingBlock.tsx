@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
 import { type MarkdownSource, ScrollArea } from '@cherrystudio/ui'
+import { useProjectionPart } from '@renderer/hooks/agent/useProjectionPart'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import { getDistanceToBottom, getRealBottom } from '../list/scrollGeometry'
@@ -15,8 +17,8 @@ import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
 
 const THINKING_PREVIEW_MIN_DURATION_MS = 1000
-const THINKING_CONTENT_PANEL_CLASSNAME =
-  'mt-1.5 max-h-[min(32rem,60dvh)] overflow-auto rounded-xl bg-muted text-[13px] leading-5 text-muted-foreground'
+const THINKING_CONTENT_PANEL_BASE_CLASSNAME = 'mt-1.5 rounded-xl bg-muted text-[13px] leading-5 text-muted-foreground'
+const THINKING_CONTENT_PANEL_CAPPED_CLASSNAME = `${THINKING_CONTENT_PANEL_BASE_CLASSNAME} max-h-[min(32rem,60dvh)] overflow-auto`
 
 function getThinkingPreviewKey(preview: string): string {
   return preview
@@ -31,6 +33,7 @@ interface Props {
   id: string
   /** Markdown content to render */
   content: string
+  livePart?: CherryMessagePart
   /** Whether this block is currently streaming */
   isStreaming: boolean
   /** Whether to expose a one-line content preview in the title row */
@@ -40,39 +43,54 @@ interface Props {
 interface ThinkingBlockContentProps {
   id: string
   content: string
+  livePart?: CherryMessagePart
   isStreaming: boolean
 }
 
-export const ThinkingBlockContent = memo(({ id, content, isStreaming }: ThinkingBlockContentProps) => {
-  const block = useMemo<MarkdownSource>(
-    () => ({
-      id,
-      content,
-      status: isStreaming ? 'streaming' : 'success'
-    }),
-    [id, content, isStreaming]
-  )
-  const { messageFont, fontSize } = useMessageRenderConfig()
+export const ThinkingBlockContent = memo(
+  ({ id, content: initialContent, livePart, isStreaming: initiallyStreaming }: ThinkingBlockContentProps) => {
+    const part = useProjectionPart(id, livePart)
+    const isStreaming = initiallyStreaming && (part?.type !== 'reasoning' || part.state === 'streaming')
+    const content = part?.type === 'reasoning' ? part.text : initialContent
+    const block = useMemo<MarkdownSource>(
+      () => ({
+        id,
+        content,
+        status: isStreaming ? 'streaming' : 'success'
+      }),
+      [id, content, isStreaming]
+    )
+    const { messageFont, fontSize } = useMessageRenderConfig()
 
-  if (!content) return null
+    if (!content) return null
 
-  return (
-    <div
-      className="relative text-muted-foreground [&_.markdown>p:only-child]:mb-0!"
-      style={
-        {
-          '--markdown-foreground': 'var(--muted-foreground)',
-          fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-          fontSize
-        } as CSSProperties
-      }>
-      <ChatMarkdown block={block} />
-    </div>
-  )
-})
+    return (
+      <div
+        className="relative text-muted-foreground [&_.markdown>p:only-child]:mb-0!"
+        style={
+          {
+            '--markdown-foreground': 'var(--muted-foreground)',
+            fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+            fontSize
+          } as CSSProperties
+        }>
+        <ChatMarkdown block={block} />
+      </div>
+    )
+  }
+)
 ThinkingBlockContent.displayName = 'ThinkingBlockContent'
 
-const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePreview = false }) => {
+const ThinkingBlock: React.FC<Props> = ({
+  id,
+  content: initialContent,
+  livePart,
+  isStreaming: initiallyStreaming,
+  showTitlePreview = false
+}) => {
+  const part = useProjectionPart(id, livePart)
+  const isStreaming = initiallyStreaming && (part?.type !== 'reasoning' || part.state === 'streaming')
+  const content = part?.type === 'reasoning' ? part.text : initialContent
   const { thoughtAutoCollapse } = useMessageRenderConfig()
   const [isExpanded, setIsExpanded] = useMessageDisclosureState(`reasoning:${id}`, !thoughtAutoCollapse)
   const contentId = useId()
@@ -191,7 +209,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
         hidden={!isExpanded}
         type="auto"
         contentProps={{ className: 'px-4 py-3' }}
-        className={THINKING_CONTENT_PANEL_CLASSNAME}>
+        className={isStreaming ? THINKING_CONTENT_PANEL_CAPPED_CLASSNAME : THINKING_CONTENT_PANEL_BASE_CLASSNAME}>
         <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
       </ScrollArea>
     </div>

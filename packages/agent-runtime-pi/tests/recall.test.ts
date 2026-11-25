@@ -131,8 +131,8 @@ describe('vcc_recall', () => {
     const committed: SessionEntry[] = []
     const pending: SessionEntry[] = []
     // This host writes a turn's entries only when the turn completes.
-    const onEvent = (event: AgentRuntimeEvent) => {
-      if (event.type === 'session-append') pending.push(...plain(event.entries))
+    const onEvent = (event: AgentRuntimeEvent, manager: SessionManager) => {
+      if (event.type === 'session-append') pending.push(...plain(event.entries.map(({ id }) => manager.getEntry(id)!)))
       if (event.type === 'turn-complete') committed.push(...pending.splice(0))
     }
     const lookup = defineTool({

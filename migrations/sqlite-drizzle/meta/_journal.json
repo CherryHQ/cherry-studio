@@ -301,6 +301,41 @@
       "when": 1795244965364,
       "tag": "0042_wise_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1795485564466,
+      "tag": "0043_artifact",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1795637435057,
+      "tag": "0044_agent_session_tool_output",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1795638183812,
+      "tag": "0045_agent_session_message_part",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "6",
+      "when": 1795638654838,
+      "tag": "0046_agent_session_timeline_positions",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1795638657659,
+      "tag": "0047_agent_session_reply_and_recovery",
+      "breakpoints": true
     }
   ],
   "version": "7"
