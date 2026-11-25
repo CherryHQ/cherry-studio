@@ -27,4 +27,12 @@ describe('generate-system-provider-ids', () => {
     const bogus = JSON.stringify({ providers: [{ id: 'openai' }] })
     expect(() => extractSystemProviderIds(bogus)).toThrow(/CLI_ONLY_PROVIDER_IDS/)
   })
+
+  it.each([{ name: 'missing-id' }, 'not-a-provider'])(
+    'rejects invalid rows instead of generating missing IDs: %j',
+    (invalid) => {
+      const providers = [...CLI_ONLY_PROVIDER_IDS.map((id) => ({ id })), invalid]
+      expect(() => extractSystemProviderIds(JSON.stringify({ providers }))).toThrow()
+    }
+  )
 })

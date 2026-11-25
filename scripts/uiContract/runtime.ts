@@ -35,6 +35,7 @@ export function mergeUiProps<T>(props: T, contract: string): T {
 
   return {
     ...props,
+    // SAFETY: The own-property check establishes this key; its value remains unknown until string-token normalization.
     'data-ui': mergeDataUi(contract, (props as { 'data-ui'?: unknown })['data-ui'])
   }
 }

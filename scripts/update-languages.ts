@@ -19,20 +19,23 @@ const TEMPORARY_LANGUAGES_FILE_PATH = path.join(__dirname, '../src/shared/utils/
 function extractAllLanguageData(): Record<string, LanguageData> {
   console.log('🔍 Extracting language data from linguist-languages...')
 
-  const languages = Object.entries(linguistLanguages).reduce<Record<string, LanguageData>>((acc, [name, langData]) => {
-    const { type, extensions, aliases } = langData
+  const languages = Object.entries<linguistLanguages.Language>(linguistLanguages).reduce<Record<string, LanguageData>>(
+    (acc, [name, langData]) => {
+      const { type, extensions, aliases } = langData
 
-    // Only include languages with extensions or aliases
-    if ((extensions && extensions.length > 0) || (aliases && aliases.length > 0)) {
-      acc[name] = {
-        type: type || 'programming',
-        ...(extensions && { extensions }),
-        ...(aliases && { aliases })
+      // Only include languages with extensions or aliases
+      if ((extensions && extensions.length > 0) || (aliases && aliases.length > 0)) {
+        acc[name] = {
+          type: type || 'programming',
+          ...(extensions && { extensions }),
+          ...(aliases && { aliases })
+        }
       }
-    }
 
-    return acc
-  }, {})
+      return acc
+    },
+    {}
+  )
 
   console.log(`✅ Extracted ${Object.keys(languages).length} languages.`)
 

@@ -19,7 +19,7 @@ it('starts the built website annotation bridge with only sandbox-permitted modul
   })
   try {
     const preload = await new PreloadConfigFactory(
-      { ...config.preload!, build: { ...config.preload!.build, outDir: directory } },
+      { ...config.preload, build: { ...config.preload.build, outDir: directory } },
       { configFile: false, logLevel: 'silent' },
       {}
     ).build()

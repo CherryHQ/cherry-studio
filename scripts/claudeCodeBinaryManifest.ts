@@ -12,7 +12,9 @@ export function claudeCodeBinaryManifest(root: string) {
     readFileSync(path.join(path.dirname(require.resolve('@anthropic-ai/claude-agent-sdk')), 'package.json'), 'utf8')
   )
 
-  if (sdk.version !== project.dependencies['@anthropic-ai/claude-agent-sdk']) {
+  const version: unknown = sdk.version
+
+  if (typeof version !== 'string' || version !== project.dependencies['@anthropic-ai/claude-agent-sdk']) {
     throw new Error('Claude SDK installation does not match package.json')
   }
 
@@ -22,17 +24,17 @@ export function claudeCodeBinaryManifest(root: string) {
 
       return doc.toJS()
     })
-    .find((doc) => doc.packages?.[`@anthropic-ai/claude-agent-sdk@${sdk.version}`])
+    .find((doc) => doc.packages?.[`@anthropic-ai/claude-agent-sdk@${version}`])
 
   if (!lock) throw new Error('Claude SDK is missing from pnpm-lock.yaml')
   const packages: Record<string, { name: string; integrity: string }> = {}
 
-  for (const [name, version] of Object.entries(sdk.optionalDependencies)) {
+  for (const [name, binaryVersion] of Object.entries(sdk.optionalDependencies)) {
     const target = name.replace('@anthropic-ai/claude-agent-sdk-', '')
-    const integrity = lock.packages[`${name}@${version}`]?.resolution?.integrity
+    const integrity = lock.packages[`${name}@${binaryVersion}`]?.resolution?.integrity
 
-    if (version !== sdk.version || !integrity?.startsWith('sha512-')) {
-      throw new Error(`Missing pinned Claude binary integrity: ${name}@${version}`)
+    if (binaryVersion !== version || !integrity?.startsWith('sha512-')) {
+      throw new Error(`Missing pinned Claude binary integrity: ${name}@${binaryVersion}`)
     }
 
     packages[target] = { name, integrity }
@@ -40,5 +42,5 @@ export function claudeCodeBinaryManifest(root: string) {
 
   if (Object.keys(packages).length === 0) throw new Error('Claude SDK has no native packages')
 
-  return { version: sdk.version as string, packages }
+  return { version, packages }
 }

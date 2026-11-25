@@ -14,6 +14,8 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import * as z from 'zod'
+
 const ROOT_DIR = path.join(__dirname, '..')
 const PROVIDERS_JSON = path.join(ROOT_DIR, 'packages', 'provider-registry', 'data', 'providers.json')
 const OUTPUT_FILE = path.join(ROOT_DIR, 'src', 'shared', 'utils', 'systemProviderId.ts')
@@ -26,9 +28,11 @@ const OUTPUT_FILE = path.join(ROOT_DIR, 'src', 'shared', 'utils', 'systemProvide
  */
 export const CLI_ONLY_PROVIDER_IDS = ['claude-code', 'openai-codex', 'grok-cli']
 
+const providerIdsSchema = z.object({ providers: z.array(z.object({ id: z.string() })) })
+
 /** Derive the SystemProviderId set from a raw `providers.json` string, sorted. */
 export function extractSystemProviderIds(providersJson: string): string[] {
-  const parsed = JSON.parse(providersJson) as { providers: Array<{ id: string }> }
+  const parsed = providerIdsSchema.parse(JSON.parse(providersJson))
   const registryIds = parsed.providers.map((p) => p.id)
   const registrySet = new Set(registryIds)
 

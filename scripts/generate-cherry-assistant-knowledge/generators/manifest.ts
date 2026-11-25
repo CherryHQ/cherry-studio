@@ -30,6 +30,7 @@ const packageMetadataSchema = z.object({
   description: z.string(),
   homepage: z.string()
 })
+
 const providerRegistrySchema = z.object({
   version: z.string(),
   providers: z.array(z.object({ id: z.string(), name: z.string() }))
@@ -259,6 +260,7 @@ export function generateProductManifest(): ProductManifest {
       primary: primaryRoutes,
       all: readAllRoutes()
     },
+    // oxlint-disable-next-line no-restricted-globals -- Manifest consumers may mutate nested platform bindings; keep the shared command registry isolated.
     commands: structuredClone(COMMAND_DEFINITIONS),
     providers: readProviders(),
     locales: [...appLanguageOptions],

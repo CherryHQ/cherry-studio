@@ -14,6 +14,7 @@ const glossarySchema = z.object({
   }),
   terms: z.unknown()
 })
+
 const termSchema = z.object({
   'zh-cn': z.string({ error: 'missing zh-cn term' }).refine((value) => value.trim().length > 0, {
     error: 'missing zh-cn term'

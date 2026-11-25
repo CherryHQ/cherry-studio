@@ -29,9 +29,7 @@ function ensureClaudeSkillSymlink(skillName: string): boolean {
   try {
     existing = fs.lstatSync(claudeSkillDir)
   } catch (error) {
-    const nodeError = error as NodeJS.ErrnoException
-
-    if (nodeError.code !== 'ENOENT') {
+    if (typeof error !== 'object' || error === null || !('code' in error) || error.code !== 'ENOENT') {
       throw error
     }
   }

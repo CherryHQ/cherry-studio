@@ -69,7 +69,7 @@ function mergeSlotProps<Result>(slotProps: SlotProps<Result>, childProps: SlotPr
         overrideProps[propName] = slotPropValue
       }
     } else if (propName === 'style') {
-      overrideProps[propName] = { ...(slotPropValue ?? {}), ...(childPropValue ?? {}) }
+      overrideProps[propName] = { ...slotPropValue, ...childPropValue }
     } else if (propName === 'className') {
       overrideProps[propName] = [slotPropValue, childPropValue].filter(Boolean).join(' ')
     }

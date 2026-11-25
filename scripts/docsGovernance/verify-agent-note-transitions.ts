@@ -38,6 +38,7 @@ const noteLocation = (file: string): NoteLocation | undefined => {
 
   if (!match?.[1] || !match[2] || !match[3]) return undefined
 
+  // SAFETY: The anchored NOTE_PATH first capture is exactly proposed, implemented or rejected; document content is validated separately.
   return { lifecycle: match[1] as Lifecycle, noteClass: match[2], filename: match[3], path: file }
 }
 

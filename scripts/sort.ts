@@ -28,6 +28,8 @@ function lexicalSort(a: string, b: string): number {
  * @param obj 需要排序的对象
  * @returns 返回排序后的新对象
  */
+export function sortedObjectByKeys(obj: Record<string, string>): Record<string, string>
+export function sortedObjectByKeys(obj: Catalog): Catalog
 export function sortedObjectByKeys(obj: Catalog): Catalog {
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- Recursion preserves catalog values and arrays while rebuilding sorted own keys, including __proto__.
   return Object.fromEntries(

@@ -39,3 +39,26 @@ it('pins all binary integrity values from the application lockfile document and 
   )
   expect(() => claudeCodeBinaryManifest(root)).toThrow('does not match')
 })
+
+it('rejects matching non-string versions before publishing a binary manifest', () => {
+  const sdkDir = path.join(root, 'node_modules/@anthropic-ai/claude-agent-sdk')
+  mkdirSync(sdkDir, { recursive: true })
+  writeFileSync(
+    path.join(root, 'package.json'),
+    JSON.stringify({ dependencies: { '@anthropic-ai/claude-agent-sdk': 7 } })
+  )
+  writeFileSync(path.join(sdkDir, 'sdk.mjs'), '')
+  writeFileSync(
+    path.join(sdkDir, 'package.json'),
+    JSON.stringify({
+      version: 7,
+      main: 'sdk.mjs',
+      optionalDependencies: { '@anthropic-ai/claude-agent-sdk-darwin-arm64': 7 }
+    })
+  )
+  writeFileSync(
+    path.join(root, 'pnpm-lock.yaml'),
+    "packages:\n  '@anthropic-ai/claude-agent-sdk@7': {}\n  '@anthropic-ai/claude-agent-sdk-darwin-arm64@7':\n    resolution:\n      integrity: sha512-pinned\n"
+  )
+  expect(() => claudeCodeBinaryManifest(root)).toThrow('does not match')
+})

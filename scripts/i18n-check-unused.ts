@@ -81,6 +81,7 @@ export interface CliOptions {
 }
 
 function readJsonFile(filePath: string): I18N {
+  // SAFETY: This private reader loads only repository-owned flat locale catalogs; JSON.parse erases their string-value contract.
   return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as I18N
 }
 
@@ -448,7 +449,7 @@ export function removeI18nKeys(locale: I18N, keys: string[]): I18N {
     for (const sibling of localeOnlyPluralSiblings(key)) delete next[sibling]
   }
 
-  return sortedObjectByKeys(next) as I18N
+  return sortedObjectByKeys(next)
 }
 
 function findTranslationFiles(localesDir: string): string[] {

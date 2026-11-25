@@ -50,7 +50,7 @@ export async function scanUiSources(root: string): Promise<UiNodeDescriptor[]> {
         try {
           return await collectFiles(resolve(root, sourceRoot))
         } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          if (typeof error !== 'object' || error === null || !('code' in error) || error.code !== 'ENOENT') throw error
           // A missing hardcoded root means a wrong cwd or a renamed directory;
           // an empty result here would be indistinguishable from "no matches".
           throw new Error(`UI contract source root not found: ${sourceRoot} (scanning from ${root})`, { cause: error })

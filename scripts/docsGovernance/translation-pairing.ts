@@ -260,9 +260,9 @@ const firstDifference = (label: string, left: readonly unknown[], right: readonl
 const deepEqual = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right)
 
 const checkFrontmatter = (source: string, zh: string): string[] => {
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- YAML fields may include dates and other heterogeneous values; pairing compares every original field before validating the owned description field.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: Parsed frontmatter values remain unknown; parity compares every raw field before separately validating description.
   const sourceData = matter(source).data as Record<string, unknown>
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The translated YAML must retain the same raw field contract for the full key/value comparison.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The translated field view keeps every value unknown for the same full key/value comparison.
   const zhData = matter(zh).data as Record<string, unknown>
   const errors: string[] = []
   const keys = [...new Set([...Object.keys(sourceData), ...Object.keys(zhData)])].sort()

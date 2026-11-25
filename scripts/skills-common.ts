@@ -92,9 +92,7 @@ export function writeFileIfChanged(filePath: string, content: string): boolean {
   try {
     current = fs.readFileSync(filePath, 'utf-8')
   } catch (error) {
-    const nodeError = error as NodeJS.ErrnoException
-
-    if (nodeError.code !== 'ENOENT') {
+    if (typeof error !== 'object' || error === null || !('code' in error) || error.code !== 'ENOENT') {
       throw error
     }
   }

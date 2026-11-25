@@ -2,12 +2,14 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
+import * as z from 'zod'
+
 import { localeKeySpec } from './i18n-plurals'
 
 /** Catalogs are flat: every key is a dotted path mapping straight to its translated string. */
 type I18N = { [key: string]: string }
 
-type Glossary = { doNotTranslate: string[] }
+const glossarySchema = z.object({ doNotTranslate: z.array(z.string()).optional() })
 
 const ROOT = path.resolve(__dirname, '..')
 const BASE_LOCALE = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
@@ -80,7 +82,9 @@ export const validate = (english: string, translation: string, doNotTranslate: s
 const readJson = (filePath: string): I18N => JSON.parse(fs.readFileSync(filePath, 'utf-8'))
 
 export const checkTranslationValues = () => {
-  const glossary = JSON.parse(fs.readFileSync(path.join(__dirname, 'i18n-glossary.json'), 'utf-8')) as Glossary
+  const glossary = glossarySchema.parse(
+    JSON.parse(fs.readFileSync(path.join(__dirname, 'i18n-glossary.json'), 'utf-8'))
+  )
   const failures: string[] = []
   let checked = 0
 
