@@ -193,8 +193,11 @@ test('agent wizard preserves its draft and Knowledge step across Activity re-sho
     await knowledgeStep.click()
     await expect(knowledgeStep).toHaveAttribute('aria-current', 'step')
 
-    await page.keyboard.press('Control+Tab')
-    await expect(uiLocator(page, 'chat.view').filter({ visible: true })).toBeVisible()
+    const opened = await page.evaluate(() =>
+      window.api.ipcApi.request('navigation.open_route_in_main', { path: '/app/knowledge' })
+    )
+    expect(opened).toMatchObject({ ok: true })
+    await expect(uiLocator(page, 'knowledge.view').filter({ visible: true })).toBeVisible()
     await expect(originalTab, 'Work must be hidden before testing Activity re-show').not.toHaveAttribute('data-active')
     await expect(view, 'Switching tabs must hide the original Work content').toBeHidden()
     await originalTab.click()
