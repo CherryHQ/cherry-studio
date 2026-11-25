@@ -6,6 +6,12 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import {
+  decryptSecret,
+  encryptSecret,
+  isEncryptedSecret,
+  tryDecryptSecret
+} from '@main/services/security/secretStorage'
 
 const logger = loggerService.withContext('CherryAccountCredentialStore')
 
@@ -41,58 +47,88 @@ function isMissingFileError(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
 }
 
+function readCredentialFile(): string | null {
+  try {
+    return readFileSync(credentialsPath(), 'utf8')
+  } catch (error) {
+    if (isMissingFileError(error)) return null
+    throw error
+  }
+}
+
+function removeCredentialFile(filePath: string): void {
+  try {
+    unlinkSync(filePath)
+  } catch (error) {
+    if (!isMissingFileError(error))
+      logger.warn(`Failed to remove Cherry account credentials file ${path.basename(filePath)}`, error as Error)
+  }
+}
+
+function writeCredentialFile(contents: string): void {
+  const filePath = credentialsPath()
+  const temporaryPath = `${filePath}.${randomUUID()}.tmp`
+  try {
+    writeFileSync(temporaryPath, contents, { encoding: 'utf8', mode: 0o600, flag: 'wx', flush: true })
+    chmodSync(temporaryPath, 0o600)
+    renameSync(temporaryPath, filePath)
+  } finally {
+    removeCredentialFile(temporaryPath)
+  }
+}
+
 export class CherryAccountCredentialStore {
   get(): CherryAccountCredentials | null {
-    const filePath = credentialsPath()
-    let raw: string
+    let raw: string | null
     try {
-      raw = readFileSync(filePath, 'utf8')
+      raw = readCredentialFile()
     } catch (error) {
-      if (isMissingFileError(error)) return null
       logger.warn('Failed to read Cherry account credentials', error as Error)
+      return null
+    }
+    if (raw === null) return null
+
+    const payload = tryDecryptSecret(raw)
+    if (payload === undefined) {
+      // Keep ciphertext for a future run where the OS keyring is available.
+      logger.warn('Cherry account credentials could not be decrypted; keeping the file')
       return null
     }
 
     try {
-      const parsed = credentialsSchema.safeParse(JSON.parse(raw))
-      if (parsed.success) return parsed.data
+      const parsed = credentialsSchema.safeParse(JSON.parse(payload))
+      if (parsed.success) {
+        // Seal a legacy plaintext file on first read.
+        const sealed = encryptSecret(raw)
+        if (sealed !== raw) {
+          try {
+            writeCredentialFile(sealed)
+          } catch (error) {
+            logger.warn('Could not encrypt the existing Cherry account file', error as Error)
+          }
+        }
+        return parsed.data
+      }
     } catch {
       // Malformed JSON is handled like any other invalid credential payload.
     }
 
-    logger.warn('Cherry account credentials are invalid; removing the file')
-    this.removeFile(filePath)
+    logger.warn('Cherry account credentials are invalid')
+    if (!isEncryptedSecret(raw)) removeCredentialFile(credentialsPath())
     return null
   }
 
   replace(credentials: CherryAccountCredentials): void {
-    const filePath = credentialsPath()
-    const temporaryPath = `${filePath}.${randomUUID()}.tmp`
-    const contents = `${JSON.stringify(credentials, null, 2)}\n`
-
-    try {
-      writeFileSync(temporaryPath, contents, { encoding: 'utf8', mode: 0o600 })
-      chmodSync(temporaryPath, 0o600)
-      renameSync(temporaryPath, filePath)
-      chmodSync(filePath, 0o600)
-    } finally {
-      this.removeFile(temporaryPath)
-    }
+    const existing = readCredentialFile()
+    if (isEncryptedSecret(existing)) decryptSecret(existing)
+    const contents = encryptSecret(`${JSON.stringify(credentials, null, 2)}\n`)
+    writeCredentialFile(contents)
   }
 
   clearSession(): void {
     const credentials = this.get()
     if (!credentials?.session) return
     this.replace({ ...credentials, session: null })
-  }
-
-  private removeFile(filePath: string): void {
-    try {
-      unlinkSync(filePath)
-    } catch (error) {
-      if (!isMissingFileError(error))
-        logger.warn(`Failed to remove Cherry account credentials file ${path.basename(filePath)}`, error as Error)
-    }
   }
 }
 

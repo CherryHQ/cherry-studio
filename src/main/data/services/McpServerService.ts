@@ -14,6 +14,7 @@ import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
+import { encryptSecretRecord, SecretDecryptionError, tryDecryptSecret } from '@main/services/security/secretStorage'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -29,6 +30,31 @@ import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:McpServerService')
 
+function readSecretRecord(record: Record<string, string> | undefined): Record<string, string> | undefined {
+  if (!record) return record
+  const entries = Object.entries(record)
+  const readable = entries.flatMap(([key, value]) => {
+    const plaintext = tryDecryptSecret(value)
+    return plaintext === undefined ? [] : [[key, plaintext] as const]
+  })
+  // Never hand a server a partial environment or drop its authorization header:
+  // a locked keyring must fail the read instead of looking like an empty config.
+  if (readable.length !== entries.length) throw new SecretDecryptionError()
+  return Object.fromEntries(readable)
+}
+
+function encryptUpdatedRecord(
+  current: Record<string, string> | null,
+  updated: Record<string, string> | null
+): Record<string, string> | null {
+  // An editor cannot send back a credential that is hidden while the keyring is locked.
+  const unreadable = Object.entries(current ?? {}).filter(
+    ([key, value]) => !Object.hasOwn(updated ?? {}, key) && tryDecryptSecret(value) === undefined
+  )
+  if (!unreadable.length) return encryptSecretRecord(updated) ?? null
+  return { ...Object.fromEntries(unreadable), ...encryptSecretRecord(updated) }
+}
+
 /**
  * Convert database row to McpServer entity
  */
@@ -36,6 +62,8 @@ function rowToMcpServer(row: typeof mcpServerTable.$inferSelect): McpServer {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
+    env: readSecretRecord(clean.env),
+    headers: readSecretRecord(clean.headers),
     type: clean.type as McpServer['type'],
     installSource: clean.installSource as McpServer['installSource'],
     createdAt: timestampToISO(row.createdAt),
@@ -148,6 +176,8 @@ export class McpServerService {
       .insert(mcpServerTable)
       .values({
         ...rest,
+        env: encryptSecretRecord(rest.env) ?? null,
+        headers: encryptSecretRecord(rest.headers) ?? null,
         sortOrder: sortOrder ?? 0,
         isActive: isActive ?? false
       })
@@ -185,7 +215,12 @@ export class McpServerService {
 
       return tx
         .insert(mcpServerTable)
-        .values({ ...preset, isActive: activate || preset.isActive })
+        .values({
+          ...preset,
+          env: encryptSecretRecord(preset.env) ?? null,
+          headers: encryptSecretRecord(preset.headers) ?? null,
+          isActive: activate || preset.isActive
+        })
         .returning()
         .all()[0]
     })
@@ -217,6 +252,8 @@ export class McpServerService {
           .insert(mcpServerTable)
           .values({
             ...rest,
+            env: encryptSecretRecord(rest.env) ?? null,
+            headers: encryptSecretRecord(rest.headers) ?? null,
             sortOrder: sortOrder ?? 0,
             isActive: isActive ?? false
           })
@@ -246,6 +283,8 @@ export class McpServerService {
       const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
         typeof mcpServerTable.$inferInsert
       >
+      if (updates.env !== undefined) updates.env = encryptUpdatedRecord(existingRow.env, updates.env)
+      if (updates.headers !== undefined) updates.headers = encryptUpdatedRecord(existingRow.headers, updates.headers)
       const [row] = tx.update(mcpServerTable).set(updates).where(eq(mcpServerTable.id, id)).returning().all()
       return rowToMcpServer(row)
     })

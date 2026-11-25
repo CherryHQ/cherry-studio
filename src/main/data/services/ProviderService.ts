@@ -29,6 +29,13 @@ import {
   reconcileLogoSlotTx
 } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
+import {
+  decryptAuthConfig,
+  encryptApiKeyEntries,
+  encryptAuthConfig,
+  SecretDecryptionError,
+  tryDecryptSecret
+} from '@main/services/security/secretStorage'
 import { getAppEdition } from '@main/utils/appEdition'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -209,6 +216,18 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
     seenIds.add(normalized.id)
     return normalized
   })
+}
+
+function readUsableApiKeys(entries: ApiKeyEntry[]): ApiKeyEntry[] {
+  const usable = entries.flatMap((entry) => {
+    const key = tryDecryptSecret(entry.key)
+    return key === undefined ? [] : [{ ...entry, key }]
+  })
+  // A locked keyring must not look like "this provider has no key": the caller
+  // would otherwise send an unauthenticated request or fall back to another
+  // auth method. Fail before any request is built.
+  if (entries.length > 0 && usable.length === 0) throw new SecretDecryptionError()
+  return usable
 }
 
 function toResolvedProviderApiKey(
@@ -530,8 +549,8 @@ class ProviderService {
             logoKey: logoCols.logoKey,
             endpointConfigs,
             defaultChatEndpoint,
-            apiKeys: dto.apiKeys ?? [],
-            authConfig: dto.authConfig ?? null,
+            apiKeys: encryptApiKeyEntries(dto.apiKeys ?? []),
+            authConfig: encryptAuthConfig(dto.authConfig ?? null),
             providerSettings: dto.providerSettings ?? null,
             isEnabled: false
           }
@@ -599,7 +618,7 @@ class ProviderService {
           current.endpointConfigs
         )
       }
-      if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
+      if (dto.authConfig !== undefined) updates.authConfig = encryptAuthConfig(dto.authConfig) ?? null
       const presetMetadata =
         dto.defaultChatEndpoint !== undefined
           ? getDataService('ProviderRegistryService').getProviderDisplayMetadata(providerId, current.presetProviderId)
@@ -656,7 +675,13 @@ class ProviderService {
   batchUpsertTx(tx: Pick<DbType, 'select' | 'insert'>, providers: NewUserProviderInput[]): number {
     const existing = tx.select({ providerId: userProviderTable.providerId }).from(userProviderTable).all()
     const existingIds = new Set(existing.map((row) => row.providerId))
-    const newProviders = providers.filter((provider) => !existingIds.has(provider.providerId))
+    const newProviders = providers
+      .filter((provider) => !existingIds.has(provider.providerId))
+      .map((provider) => ({
+        ...provider,
+        apiKeys: encryptApiKeyEntries(provider.apiKeys ?? []),
+        authConfig: encryptAuthConfig(provider.authConfig) ?? null
+      }))
 
     if (newProviders.length === 0) return 0
 
@@ -678,7 +703,7 @@ class ProviderService {
 
     assertProviderAvailable(row, providerId)
 
-    const allKeys = row.apiKeys ?? []
+    const allKeys = readUsableApiKeys(row.apiKeys ?? [])
     if (override !== undefined) {
       const matched = allKeys.find((entry) => entry.key === override)
       return matched ? toResolvedProviderApiKey(override, 'matched', matched) : unknownCredential(override)
@@ -734,7 +759,7 @@ class ProviderService {
     assertProviderAvailable(row, providerId)
 
     const apiKeys = row.apiKeys ?? []
-    return options.enabled ? apiKeys.filter((k) => k.isEnabled) : apiKeys
+    return readUsableApiKeys(options.enabled ? apiKeys.filter((key) => key.isEnabled) : apiKeys)
   }
 
   /**
@@ -746,7 +771,7 @@ class ProviderService {
 
     assertProviderAvailable(row, providerId)
 
-    return row.authConfig ?? null
+    return decryptAuthConfig(row.authConfig ?? null) ?? null
   }
 
   /**
@@ -770,7 +795,7 @@ class ProviderService {
       const existingKeys = row.apiKeys ?? []
 
       // Skip if key value already exists
-      if (existingKeys.some((k) => k.key === key)) {
+      if (existingKeys.some((entry) => tryDecryptSecret(entry.key) === key)) {
         return { provider: rowToRuntimeProvider(row), added: false }
       }
 
@@ -781,7 +806,7 @@ class ProviderService {
         isEnabled: true
       }
 
-      const updatedKeys = [...existingKeys, newEntry]
+      const updatedKeys = encryptApiKeyEntries([...existingKeys, newEntry])
 
       const [updated] = tx
         .update(userProviderTable)
@@ -813,7 +838,8 @@ class ProviderService {
       const [current] = tx
         .select({
           providerId: userProviderTable.providerId,
-          presetProviderId: userProviderTable.presetProviderId
+          presetProviderId: userProviderTable.presetProviderId,
+          apiKeys: userProviderTable.apiKeys
         })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
@@ -823,9 +849,15 @@ class ProviderService {
       assertProviderAvailable(current, providerId)
 
       const normalizedApiKeys = normalizeApiKeyEntries(apiKeys)
+      // Renderers only see decrypted, readable entries. Keep any locked entry the
+      // caller could not read instead of silently deleting it with the replace.
+      const replacementIds = new Set(normalizedApiKeys.map((entry) => entry.id))
+      const lockedApiKeys = (current.apiKeys ?? []).filter(
+        (entry) => !replacementIds.has(entry.id) && tryDecryptSecret(entry.key) === undefined
+      )
       const [row] = tx
         .update(userProviderTable)
-        .set({ apiKeys: normalizedApiKeys })
+        .set({ apiKeys: [...encryptApiKeyEntries(normalizedApiKeys), ...lockedApiKeys] })
         .where(eq(userProviderTable.providerId, providerId))
         .returning()
         .all()
@@ -879,7 +911,10 @@ class ProviderService {
         throw DataApiErrorFactory.validation({ key: ['API key cannot be empty'] })
       }
 
-      if (nextKeyValue && existingKeys.some((entry, index) => index !== keyIndex && entry.key === nextKeyValue)) {
+      if (
+        nextKeyValue &&
+        existingKeys.some((entry, index) => index !== keyIndex && tryDecryptSecret(entry.key) === nextKeyValue)
+      ) {
         throw DataApiErrorFactory.conflict('API key already exists', 'API key')
       }
 
@@ -907,7 +942,7 @@ class ProviderService {
 
       const [updated] = tx
         .update(userProviderTable)
-        .set({ apiKeys: updatedKeys })
+        .set({ apiKeys: encryptApiKeyEntries(updatedKeys) })
         .where(eq(userProviderTable.providerId, providerId))
         .returning()
         .all()
@@ -946,7 +981,7 @@ class ProviderService {
 
       const [updated] = tx
         .update(userProviderTable)
-        .set({ apiKeys: updatedKeys })
+        .set({ apiKeys: encryptApiKeyEntries(updatedKeys) })
         .where(eq(userProviderTable.providerId, providerId))
         .returning()
         .all()

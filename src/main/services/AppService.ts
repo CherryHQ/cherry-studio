@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
+import { encryptLegacyCredentialsAtRest } from '@main/services/security/credentialAtRest'
 import { atomicWriteFile, ensureDir, remove } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -33,6 +34,11 @@ export class AppService extends BaseService {
   })
 
   protected onInit(): void {
+    // AppService runs in the app-ready phase, where safeStorage can reach the OS
+    // keyring. Migrate credentials written by older builds before any settings
+    // surface reads them.
+    encryptLegacyCredentialsAtRest()
+
     // Force a fresh OS sync after a stop→restart in case the setting changed while stopped.
     this.acceptingPreferenceChanges = true
     this.appliedLaunchOnBoot = undefined
