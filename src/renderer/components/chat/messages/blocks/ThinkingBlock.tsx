@@ -58,16 +58,14 @@ export const ThinkingBlockContent = memo(({ id, content, isStreaming }: Thinking
 
   if (!content) return null
 
+  const contentStyle = {
+    '--markdown-foreground': 'var(--muted-foreground)',
+    fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+    fontSize
+  } satisfies CSSProperties & { '--markdown-foreground': string }
+
   return (
-    <div
-      className="relative text-muted-foreground [&_.markdown>p:only-child]:mb-0!"
-      style={
-        {
-          '--markdown-foreground': 'var(--muted-foreground)',
-          fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-          fontSize
-        } satisfies CSSProperties & { '--markdown-foreground': string }
-      }>
+    <div className="relative text-muted-foreground [&_.markdown>p:only-child]:mb-0!" style={contentStyle}>
       <ChatMarkdown block={block} />
     </div>
   )

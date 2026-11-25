@@ -78,6 +78,10 @@ export const SubWindowAppShell = () => {
     })
   }
 
+  const windowStyle = {
+    '--window-controls-width': !isFullscreen && (isWin || isLinux) ? WINDOW_CONTROLS_OVERLAY_WIDTH : '0px'
+  } satisfies CSSProperties & { '--window-controls-width': string }
+
   return (
     // The window frame keeps detached-page behavior scoped to this window. The standalone
     // title bar stays outside every route so hosted pages can keep their normal page chrome.
@@ -85,11 +89,7 @@ export const SubWindowAppShell = () => {
       <div
         data-ui="app.detached-window"
         className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
-        style={
-          {
-            '--window-controls-width': !isFullscreen && (isWin || isLinux) ? WINDOW_CONTROLS_OVERLAY_WIDTH : '0px'
-          } satisfies CSSProperties & { '--window-controls-width': string }
-        }>
+        style={windowStyle}>
         <SubWindowTitleBar isFullscreen={isFullscreen} />
         {/* Content Area - Multi MemoryRouter Architecture */}
         <main className="relative flex-1 overflow-hidden bg-background">

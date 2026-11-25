@@ -23,6 +23,14 @@ export function ContextUsageMeter({
 }: ContextUsageMeterProps) {
   const normalizedPercentage = normalizeContextUsagePercentage(percentage)
   const color = getContextUsageColor(normalizedPercentage)
+  const meterStyle = {
+    ...style,
+    '--context-usage-color': color,
+    '--context-usage-progress': `${normalizedPercentage}%`
+  } satisfies CSSProperties & {
+    '--context-usage-color': string
+    '--context-usage-progress': string
+  }
 
   return (
     <span
@@ -40,16 +48,7 @@ export function ContextUsageMeter({
         isBusy && 'animate-pulse',
         className
       )}
-      style={
-        {
-          ...style,
-          '--context-usage-color': color,
-          '--context-usage-progress': `${normalizedPercentage}%`
-        } satisfies CSSProperties & {
-          '--context-usage-color': string
-          '--context-usage-progress': string
-        }
-      }>
+      style={meterStyle}>
       <span aria-hidden className="absolute inset-[2px] rounded-full bg-composer-surface" />
     </span>
   )

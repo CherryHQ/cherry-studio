@@ -624,6 +624,13 @@ export function PersistentRightPaneHost({
     onResizingChangeRef.current?.(isResizing)
   }, [isResizing])
 
+  const composerStyle =
+    composerInset === null
+      ? undefined
+      : ({ '--chat-composer-inset': `${composerInset}px` } satisfies CSSProperties & {
+          '--chat-composer-inset': string
+        })
+
   return (
     <>
       <motion.div
@@ -653,13 +660,7 @@ export function PersistentRightPaneHost({
         style={{ ...style, visibility: closed ? 'hidden' : undefined }}>
         <div
           data-shell-maximized-overlay-content={fullWidthLayout ? '' : undefined}
-          style={
-            composerInset === null
-              ? undefined
-              : ({ '--chat-composer-inset': `${composerInset}px` } satisfies CSSProperties & {
-                  '--chat-composer-inset': string
-                })
-          }
+          style={composerStyle}
           className={cn(
             // One opaque surface in every layout: the theme's background carries alpha in dark mode,
             // so a translucent pane both shows the chat it covers and flips colour when a phase settles.

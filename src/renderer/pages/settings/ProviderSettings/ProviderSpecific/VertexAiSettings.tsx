@@ -255,6 +255,11 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
     }
   }
 
+  const privateKeyStyle = {
+    WebkitTextSecurity: showPrivateKey ? 'none' : 'disc',
+    maxHeight: localPrivateKey ? '52px' : '32px'
+  } satisfies React.CSSProperties & { WebkitTextSecurity: 'none' | 'disc' }
+
   return (
     <div className="flex flex-col">
       <ProviderSettingsSubtitle className="mt-1.5">
@@ -323,12 +328,7 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
       <div className="relative mt-1.5 w-full">
         <Textarea.Input
           className="min-h-10 w-full resize-none overflow-y-auto px-3 py-1.5 pr-10 text-sm"
-          style={
-            {
-              WebkitTextSecurity: showPrivateKey ? 'none' : 'disc',
-              maxHeight: localPrivateKey ? '52px' : '32px'
-            } satisfies React.CSSProperties & { WebkitTextSecurity: 'none' | 'disc' }
-          }
+          style={privateKeyStyle}
           value={localPrivateKey}
           placeholder={t('settings.provider.vertex_ai.service_account.private_key_placeholder')}
           onChange={(e) => {
