@@ -26,6 +26,7 @@ const ARGON = 'cherryin::google/gemini-4-argon'
 async function geminiMiddleware(target: UniqueModelId, baseURL: string, history: CherryUIMessage[] = []) {
   const modelId = target.slice('cherryin::'.length)
   const scope = {
+    replayRouteId: `${target}:${baseURL}`,
     request: { conversation: { id: 'test', topicId: 'test' }, messages: history },
     model: makeModel({ id: target, apiModelId: modelId, providerId: 'cherryin' }),
     endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,

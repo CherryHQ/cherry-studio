@@ -82,7 +82,7 @@ import { buildVendorProviderOptions } from './provider/custom/wire/buildImageReq
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
-import { getReplayRouteId, ToolContinuationRouteError } from './provider/replayRoute'
+import { ToolContinuationRouteError } from './provider/replayRoute'
 import { resolveSdkConfig } from './provider/sdkConfig'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import {
@@ -661,6 +661,7 @@ export class AiService extends BaseService {
     const {
       sdkConfig,
       endpointType,
+      replayRouteId: primaryReplayRouteId,
       credentialReceipt,
       tools,
       plugins,
@@ -723,7 +724,6 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
     const retryDisabledForRequest = request.contextOwner === 'caller' || request.requestOptions?.maxRetries === 0
-    const primaryReplayRouteId = getReplayRouteId(provider.id, endpointType, sdkConfig)
     if (request.resolvedModel?.replayRouteId && request.resolvedModel.replayRouteId !== primaryReplayRouteId) {
       throw new ToolContinuationRouteError()
     }
@@ -925,7 +925,7 @@ export class AiService extends BaseService {
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
-      endpointType,
+      replayRouteId: primaryReplayRouteId,
       credentialReceipt,
       tools,
       plugins,
@@ -954,7 +954,6 @@ export class AiService extends BaseService {
       : undefined
 
     // An explicit per-request `maxRetries: 0` disables retry for this request.
-    const primaryReplayRouteId = getReplayRouteId(provider.id, endpointType, sdkConfig)
     let wrapModel =
       request.contextOwner === 'caller' ? createCallerRetryWrap(request.requestOptions?.maxRetries) : undefined
     if (request.contextOwner !== 'caller' && request.requestOptions?.maxRetries !== 0) {

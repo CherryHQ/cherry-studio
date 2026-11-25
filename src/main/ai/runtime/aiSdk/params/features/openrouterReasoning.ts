@@ -4,7 +4,6 @@ import { generateId, type LanguageModelMiddleware, type ProviderMetadata } from 
 import { definePlugin } from '@cherrystudio/ai-core'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-import { getReplayRouteId } from '../../../../provider/replayRoute'
 import type { RequestFeature } from '../feature'
 import { createProviderStateReplayMiddleware } from './providerStateReplay'
 
@@ -84,7 +83,7 @@ function createOpenrouterReasoningMiddleware(): LanguageModelMiddleware {
 export const openrouterReasoningFeature: RequestFeature = {
   name: 'openrouter-reasoning',
   applies: (scope) => scope.sdkConfig.providerId === SystemProviderIds.openrouter,
-  contributeModelAdapters: ({ request, provider, endpointType, sdkConfig }) => [
+  contributeModelAdapters: ({ request, replayRouteId }) => [
     definePlugin({
       name: 'openrouter-reasoning',
       enforce: 'pre',
@@ -93,7 +92,7 @@ export const openrouterReasoningFeature: RequestFeature = {
         if (request.contextOwner !== 'caller') {
           context.middlewares.push(
             createProviderStateReplayMiddleware({
-              routeId: getReplayRouteId(provider.id, endpointType, sdkConfig),
+              routeId: replayRouteId,
               hasState: (metadata) => getReasoningDetails(metadata) !== undefined,
               omitState: (part) => {
                 const openrouter = { ...part.providerOptions?.openrouter }

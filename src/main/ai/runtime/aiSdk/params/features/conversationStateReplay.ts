@@ -1,7 +1,7 @@
 import { definePlugin } from '@cherrystudio/ai-core'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
-import { getReplayEndpoint, getReplayRouteId, needsPlainToolReasoning } from '../../../../provider/replayRoute'
+import { getReplayEndpoint, needsPlainToolReasoning } from '../../../../provider/replayRoute'
 import type { RequestFeature } from '../feature'
 import { geminiSignatures } from './geminiHistorySignatureReplay'
 import { createProviderStateReplayMiddleware } from './providerStateReplay'
@@ -19,7 +19,7 @@ export const conversationStateReplayFeature: RequestFeature = {
     )
   },
   contributeModelAdapters: (scope) => {
-    const { provider, model, sdkConfig } = scope
+    const { model, sdkConfig, replayRouteId } = scope
     const endpoint = getReplayEndpoint(scope.endpointType, sdkConfig)
     const responses = endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES
     const namespaces = [...new Set(['openai', 'xai', sdkConfig.providerOptionsKey])]
@@ -31,7 +31,7 @@ export const conversationStateReplayFeature: RequestFeature = {
           context.middlewares ??= []
           context.middlewares.push(
             createProviderStateReplayMiddleware({
-              routeId: getReplayRouteId(provider.id, endpoint, sdkConfig),
+              routeId: replayRouteId,
               capturePlainReasoning: true,
               requirePlainReasoning: needsPlainToolReasoning(endpoint, model),
               ...(responses && { responsesOptionsKey: sdkConfig.providerOptionsKey }),

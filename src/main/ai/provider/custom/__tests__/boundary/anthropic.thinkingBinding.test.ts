@@ -120,6 +120,7 @@ describe('Anthropic Messages thinking binding', () => {
         }
       } satisfies Parameters<typeof createAihubmix>[0]
       const scope = {
+        replayRouteId: `${wireModel}:${baseURL}`,
         request: {},
         provider: { id: 'aihubmix' },
         model: makeModel({ id: `aihubmix::${wireModel}`, apiModelId: wireModel, providerId: 'aihubmix' }),

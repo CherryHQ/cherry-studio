@@ -16,7 +16,6 @@
 import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
-import { getReplayRouteId } from '@main/ai/provider/replayRoute'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isAbortError } from '@main/utils/error'
@@ -153,7 +152,7 @@ async function resolveFallback(
   }
 
   const repairUsagePlugins: { current?: AiPlugin[] } = {}
-  const { sdkConfig, endpointType, credentialReceipt, plugins, options, nativeFileSupport } = await buildAgentParams({
+  const { sdkConfig, replayRouteId, credentialReceipt, plugins, options, nativeFileSupport } = await buildAgentParams({
     request: args.request,
     signal: args.signal,
     provider,
@@ -183,7 +182,7 @@ async function resolveFallback(
   )
   return {
     model: resolved,
-    replayRouteId: getReplayRouteId(provider.id, endpointType, sdkConfig),
+    replayRouteId,
     options: pickFallbackCallOptions(options),
     repairToolCall: options.repairToolCall
   }

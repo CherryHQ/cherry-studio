@@ -38,6 +38,7 @@ it.each(['generate', 'stream'])(
     const routeModel = async (baseURL: string, contextOwner?: 'caller') => {
       const context = { middlewares: [] } as unknown as AiRequestContext
       const scope = {
+        replayRouteId: baseURL,
         provider: { id: 'openrouter' },
         request: { contextOwner },
         endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,

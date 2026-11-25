@@ -26,6 +26,7 @@ into everything `Agent.stream()` needs:
 interface BuiltAgentParams {
   sdkConfig: SdkConfig              // providerId + providerSettings + modelId
   endpointType: EndpointType | undefined
+  replayRouteId: string
   tools: ToolSet | undefined        // active + meta-tools after defer
   plugins: AiPlugin<any, any>[]     // model-adapter plugins (ordered)
   system: string | undefined        // assembled system prompt
@@ -75,7 +76,10 @@ tools still validate against the original schema, and gateway callers validate
 their own tools.
 
 Chat records the provider connection, protocol, SDK adapter, wire model, and
-Base URL with replayable state. Generate Content, Messages, Chat Completions,
+Base URL with replayable state. `buildAgentParams` derives the route ID once
+from the resolved SDK configuration for use by replay middleware and retries.
+Credential rotation and request-local fetch wrappers do not change the route
+ID. Generate Content, Messages, Chat Completions,
 Responses, and Ollama Chat use the same route comparison. The endpoint adapter
 owns the wire representation, including signed blocks, plaintext thinking,
 encrypted reasoning, and Responses item references.

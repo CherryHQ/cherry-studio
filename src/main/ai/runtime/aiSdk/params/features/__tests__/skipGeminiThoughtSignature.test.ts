@@ -77,6 +77,7 @@ describe('Gemini thought signatures', () => {
     const requests: unknown[] = []
     const modelAt = async (baseURL: string, wireModel = modelId) => {
       const scope = {
+        replayRouteId: `${wireModel}:${baseURL}`,
         request: {},
         provider: { id: 'fixture' },
         model: makeModel({ apiModelId: wireModel }),

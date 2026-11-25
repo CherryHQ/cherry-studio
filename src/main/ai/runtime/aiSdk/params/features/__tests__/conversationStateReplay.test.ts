@@ -15,6 +15,7 @@ const other = 'https://other.invalid/v1'
 
 async function middleware(endpointType: EndpointType, providerId: string, modelId: string, baseURL: string) {
   const scope = {
+    replayRouteId: baseURL,
     request: {},
     provider: { id: providerId },
     endpointType,

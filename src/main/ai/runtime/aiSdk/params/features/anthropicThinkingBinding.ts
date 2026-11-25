@@ -4,7 +4,7 @@ import { definePlugin } from '@cherrystudio/ai-core'
 import { hasAnthropicThinkingCredential, usesAnthropicMessagesSdk } from '@main/ai/messages/anthropicThinking'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
-import { getReplayEndpoint, getReplayRouteId } from '../../../../provider/replayRoute'
+import { getReplayEndpoint } from '../../../../provider/replayRoute'
 import type { RequestFeature } from '../feature'
 import { createProviderStateReplayMiddleware } from './providerStateReplay'
 
@@ -14,7 +14,7 @@ export const anthropicThinkingReplayFeature: RequestFeature = {
     scope.request.contextOwner !== 'caller' &&
     (getReplayEndpoint(scope.endpointType, scope.sdkConfig) === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ||
       usesAnthropicMessagesSdk(scope.sdkConfig.providerId, scope)),
-  contributeModelAdapters: ({ provider, sdkConfig }) => [
+  contributeModelAdapters: ({ replayRouteId }) => [
     definePlugin({
       name: 'anthropic-thinking-replay',
       enforce: 'pre',
@@ -22,7 +22,7 @@ export const anthropicThinkingReplayFeature: RequestFeature = {
         context.middlewares ??= []
         context.middlewares.push(
           createProviderStateReplayMiddleware({
-            routeId: getReplayRouteId(provider.id, ENDPOINT_TYPE.ANTHROPIC_MESSAGES, sdkConfig),
+            routeId: replayRouteId,
             hasState: hasAnthropicThinkingCredential
           })
         )
