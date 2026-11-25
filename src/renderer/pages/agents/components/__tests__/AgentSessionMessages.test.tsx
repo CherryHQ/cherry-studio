@@ -35,8 +35,6 @@ vi.mock('../../messages/agentMessageListAdapter', () => ({
   useAgentMessageListProviderValue: useAgentMessageListProviderValueMock
 }))
 
-// The mount effect fires ipcApi.request('ai.agent.session.prewarm' / 'ai.agent.session.close_warm');
-// the lease test below asserts on those calls.
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: ipcRequestMock, on: vi.fn(() => () => {}) }
 }))
@@ -64,7 +62,7 @@ describe('AgentSessionMessages', () => {
     )
   })
 
-  it('acquires the session warm lease on mount and releases it only on unmount', () => {
+  it('can mount and unmount a history view without issuing an execution command', () => {
     const view = render(
       <AgentSessionMessages
         agentId="agent-1"
@@ -75,10 +73,7 @@ describe('AgentSessionMessages', () => {
       />
     )
 
-    expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.session.prewarm', { sessionId: 'session-1' })
-    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.agent.session.close_warm', { sessionId: 'session-1' })
-
     view.unmount()
-    expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.session.close_warm', { sessionId: 'session-1' })
+    expect(ipcRequestMock).not.toHaveBeenCalled()
   })
 })

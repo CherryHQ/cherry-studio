@@ -51,6 +51,7 @@ import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
+import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
@@ -649,6 +650,16 @@ const AgentComposerInner = ({
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
+  const requestCommands = useCallback(() => {
+    if (agent?.type === 'claude-code' && sessionId)
+      void ipcApi
+        .request('ai.agent.session.commands', { sessionId })
+        .catch((error) => logger.warn('Could not load session commands', { error }))
+  }, [agent?.type, sessionId])
+  const usingSlash = text.startsWith('/')
+  useEffect(() => {
+    if (usingSlash) requestCommands()
+  }, [usingSlash, requestCommands])
   const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
   const nativeFollowUp = !!agent && AGENT_RUNTIME_CAPABILITIES[agent.type].nativeFollowUp
   const [isDirectSending, setIsDirectSending] = useState(false)
@@ -1083,7 +1094,7 @@ const AgentComposerInner = ({
     })
   }, [refreshAvailableSkills])
 
-  useComposerQuoteInsertion(actionsRef)
+  useComposerQuoteInsertion(actionsRef, sessionTopicId, !launchOptions?.editing)
   useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
   useComposerPrefill(actionsRef, {
     topicId: sessionTopicId,
@@ -1447,7 +1458,7 @@ const AgentComposerInner = ({
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
-  const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(sessionTopicId)
+  const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(useAgentSessionStreamTopic(sessionId))
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
@@ -1652,7 +1663,10 @@ const AgentComposerInner = ({
         id: 'slash-commands',
         label: slashCommandsLabel,
         icon: <Terminal size={18} aria-hidden />,
-        onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+        onSelect: ({ unifiedPanelControl }) => {
+          requestCommands()
+          unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+        }
       },
       {
         id: ComposerPanelSymbol.McpStatus,
@@ -1663,7 +1677,15 @@ const AgentComposerInner = ({
           unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }
     ]
-  }, [handleCreateEmptySession, hasNewSessionAction, mcpToolbarActive, screenshotEnabled, startScreenshot, t])
+  }, [
+    handleCreateEmptySession,
+    hasNewSessionAction,
+    mcpToolbarActive,
+    requestCommands,
+    screenshotEnabled,
+    startScreenshot,
+    t
+  ])
 
   const renderQuickPanelShortcuts = useCallback(
     ({

@@ -2,9 +2,10 @@ import { isToolUIPart } from 'ai'
 import { useEffect, useState } from 'react'
 
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { messagePartsAt, type MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import type { TopicStreamStatus } from '@shared/ai/transport'
 import { classifyTurn } from '@shared/ai/transport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { SelectionAgentStatus, SelectionAgentSummary } from '@shared/types/selection'
 
 /** Publishes what this window's capsule shows; `null` publishes nothing until the agent is known. */
@@ -50,14 +51,11 @@ export function getSelectionAgentTurnStatus({
 }
 
 /** Tool calls since the last user message, counting the parts still streaming in. */
-export function countTurnSteps(
-  messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>
-): number {
+export function countTurnSteps(messages: CherryUIMessage[], partsByMessageId: MessagePartRows): number {
   let steps = 0
   for (let index = messages.length - 1; index >= 0 && messages[index].role !== 'user'; index--) {
     const message = messages[index]
-    steps += (partsByMessageId[message.id] ?? message.parts).filter((part) => isToolUIPart(part)).length
+    steps += (messagePartsAt(partsByMessageId, message.id) ?? message.parts).filter((part) => isToolUIPart(part)).length
   }
   return steps
 }

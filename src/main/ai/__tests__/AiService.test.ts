@@ -632,12 +632,10 @@ describe('AiService', () => {
     const service = createService()
     const source = {
       kind: 'messages' as const,
-      stream: new ReadableStream({
-        start(controller) {
-          controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
-          controller.close()
-        }
-      })
+      onPart: () => ({ dispose() {} }),
+      onMessageReconciled: () => ({ dispose() {} }),
+      readParts: () => [{ partId: 'answer', payload: { type: 'text', text: 'Native answer' } }],
+      stream: new ReadableStream({ start: (controller) => controller.close() })
     }
     mockApplicationGet.mockReturnValue({ openTurnStream: () => source })
     const result = await service.streamText({
@@ -646,9 +644,9 @@ describe('AiService', () => {
       runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
       requestOptions: { signal: new AbortController().signal }
     })
-    expect(result.kind).toBe('messages')
+    if (result.kind !== 'messages') throw new Error('Expected Agent content')
+    expect(result.readParts()).toEqual(source.readParts())
     const reader = result.stream.getReader()
-    expect((await reader.read()).value).toEqual({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
     expect((await reader.read()).done).toBe(true)
   })
 
