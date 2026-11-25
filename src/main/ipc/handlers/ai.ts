@@ -37,7 +37,7 @@ import { exposeAiError } from './exposeAiError'
 
 const logger = loggerService.withContext('ipc/ai')
 
-async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
+async function exposeAiStreamAdmission<T>(op: () => Promise<T>, route?: string): Promise<T> {
   try {
     return await op()
   } catch (error) {
@@ -46,6 +46,16 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
     }
     if (error instanceof AiStreamAdmissionError) {
       throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
+    }
+    if (error instanceof IpcError) throw error
+    // Localized preflight failures (e.g. retired-history validation) own their
+    // recovery copy via i18nKey/detailI18nKey. IpcError.from would keep only the
+    // English message and drop those fields, so expose them as AI_REQUEST_FAILED
+    // with the full serialized error (like exposeAiError) for the toast/composer.
+    if (route && error instanceof Error && typeof (error as Record<string, unknown>).i18nKey === 'string') {
+      return await exposeAiError(route, () => {
+        throw error
+      })
     }
     throw error
   }
@@ -194,7 +204,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('ai.stream.open requires a managed window')
     const dispatchRequest: MainDispatchRequest = { ...request, interactionWindowId: senderId }
-    return exposeAiStreamAdmission(() => application.get('AiStreamManager').dispatchCommand(dispatchRequest))
+    return exposeAiStreamAdmission(
+      () => application.get('AiStreamManager').dispatchCommand(dispatchRequest),
+      'ai.stream.open'
+    )
   },
   'ai.stream.attach': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
@@ -306,7 +319,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
 
   'ai.agent.session.edit_target': ({ sessionId, messageId }) =>
-    exposeAiStreamAdmission(() => application.get('AgentSessionRuntimeService').getEditTarget(sessionId, messageId)),
+    exposeAiStreamAdmission(
+      () => application.get('AgentSessionRuntimeService').getEditTarget(sessionId, messageId),
+      'ai.agent.session.edit_target'
+    ),
   'ai.agent.session.set_pending_input_count': async ({ sessionId, count }, { senderId }) => {
     const wc = senderWebContents(senderId)
     if (!wc) return
@@ -334,7 +350,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
         }
         throw error
       }
-    }),
+    }, 'ai.agent.session.edit_resend'),
 
   // ── Agent session runtime queries & commands. ──
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {

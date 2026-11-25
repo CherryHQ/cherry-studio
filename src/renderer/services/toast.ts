@@ -54,7 +54,28 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const cloudPresentation = getCherryCloudErrorPresentation(serialized, provider?.id, category)
   const planQuota = cloudPresentation.quota
   const presentation: ErrorToastPresentation = planQuota ? { type: 'warning' } : errorToastPresentations[category]
-  const details = planQuota ? cloudPresentation.text : providerErrorText(serialized)
+  // App-owned errors (e.g. retired-history validation) carry their own localized
+  // headline/detail via i18nKey/detailI18nKey. Prefer those over the generic
+  // diagnosis/unknown wrappers so non-English UIs get a translated toast with
+  // the session identity preserved.
+  const record = serialized as Record<string, unknown>
+  const appOwnedKey = typeof record.i18nKey === 'string' ? `error.${record.i18nKey}` : ''
+  const hasAppOwnedKey =
+    appOwnedKey !== '' &&
+    (typeof (i18n as unknown as { exists?: (key: string) => boolean }).exists === 'function'
+      ? (i18n as unknown as { exists: (key: string) => boolean }).exists(appOwnedKey)
+      : i18n.t(appOwnedKey) !== appOwnedKey)
+  const detailKey = typeof record.detailI18nKey === 'string' ? `error.${record.detailI18nKey}` : ''
+  const hasAppOwnedDetail =
+    detailKey !== '' &&
+    (typeof (i18n as unknown as { exists?: (key: string) => boolean }).exists === 'function'
+      ? (i18n as unknown as { exists: (key: string) => boolean }).exists(detailKey)
+      : i18n.t(detailKey) !== detailKey)
+  const appOwnedTitle = hasAppOwnedKey ? i18n.t(appOwnedKey) : undefined
+  const appOwnedDetails = hasAppOwnedDetail
+    ? i18n.t(detailKey, (record.detailI18nValues as Record<string, string> | undefined) ?? undefined)
+    : undefined
+  const details = planQuota ? cloudPresentation.text : (appOwnedDetails ?? providerErrorText(serialized))
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
     : undefined
@@ -74,11 +95,13 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   let running = false
   const key = notifications[presentation.type]({
     key: context.key,
-    title: planQuota
-      ? i18n.t('models.detail.quota_insufficient_for_request')
-      : category === 'unknown'
-        ? details || i18n.t('error.unknown')
-        : i18n.t(diagnosisKey),
+    title:
+      appOwnedTitle ??
+      (planQuota
+        ? i18n.t('models.detail.quota_insufficient_for_request')
+        : category === 'unknown'
+          ? details || i18n.t('error.unknown')
+          : i18n.t(diagnosisKey)),
     description:
       [
         context.mcpServer?.name ?? provider?.name,
@@ -89,7 +112,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
       ]
         .filter(Boolean)
         .join(' · ') || undefined,
-    details: category === 'unknown' ? undefined : details,
+    details: appOwnedDetails ?? (category === 'unknown' ? undefined : details),
     action:
       run && actionKind
         ? {

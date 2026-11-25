@@ -32,10 +32,14 @@ function isObservationLoss(kind: PiObservationFailureKind): boolean {
  * Bounded redaction for log context: provider text can carry credentials
  * (`api_key = "secret"`, bare tokens) that must not reach disk verbatim.
  * Keeps runtime/session identity while stripping secrets and bounding length.
+ * Credential shapes (e.g. PEM blocks) are redacted on the full text before
+ * bounding: truncating first can split a block so its END delimiter is lost
+ * and recoverable key material remains in the log context.
  */
 function safeLogText(text: string): string {
-  const safe = getSafeProviderErrorMessage({ message: text })
-  const bounded = safe || redactSecretText(text).slice(0, 500)
+  const preRedacted = redactSecretTokens(redactSecretText(text))
+  const safe = getSafeProviderErrorMessage({ message: preRedacted })
+  const bounded = safe || preRedacted.slice(0, 500)
   return redactSecretTokens(bounded).slice(0, 500)
 }
 

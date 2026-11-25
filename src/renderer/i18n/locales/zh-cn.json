@@ -1725,7 +1725,7 @@
   "error.originalMessage": "原消息",
   "error.output_token_limit_reached": "响应达到输出 token 上限，未能完成。推理内容也计入该上限。请提高模型的输出上限或降低推理强度后重试。",
   "error.parameter": "参数",
-  "error.pi_durable_observation_interrupted": "Pi 持久运行时观察已中断。轮次在完成前已停止；请重新发送消息——会话将自动重连。",
+  "error.pi_durable_observation_interrupted": "Pi 持久运行时观察已中断。轮次以未知结果停止；如果原始消息未自动恢复，请重新发送——会话将自动重连。",
   "error.pi_observation_interrupted": "Pi 运行时观察已中断。轮次在完成前已停止；请重新发送消息——会话将自动重连。",
   "error.pi_observation_interrupted_detail": "原因：{{reason}}",
   "error.pi_retired_history_validation_failed": "Pi 运行时退役会话迁移验证失败。迁移的历史记录未保存。",

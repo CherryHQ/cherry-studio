@@ -162,4 +162,27 @@ describe('PiObservationError', () => {
     expect(error.message).toContain('unknown outcome')
     expect(error.message).toContain('does not resume automatically')
   })
+
+  it('redacts a PEM block even when its END delimiter crosses the log cap', () => {
+    const keyBody = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC'.repeat(8)
+    const pem = `-----BEGIN PRIVATE KEY-----\n${keyBody}\n-----END PRIVATE KEY-----`
+    // Pad so the 500-char cap would split the block and hide the END delimiter
+    // from a post-truncation matcher; pre-truncation redaction must still strip it.
+    const prefix = `${'x'.repeat(450)}\n`
+    const reason = `${prefix}${pem}`
+    const error = new PiObservationError({
+      runtime: 'pi',
+      kind: 'gap',
+      reason,
+      sessionId: 'session-pem-boundary',
+      causeMessage: `${prefix}${pem}`
+    })
+
+    const context = error.toLogContext()
+    const logged = JSON.stringify(context)
+    expect(logged).not.toContain('MIIEvQIBADANBgkqhkiG9w0BAQEFAASC')
+    expect(logged).not.toContain('BEGIN PRIVATE KEY')
+    expect(String(context.reason)).toContain('<redacted>')
+    expect(String(context.causeMessage)).toContain('<redacted>')
+  })
 })

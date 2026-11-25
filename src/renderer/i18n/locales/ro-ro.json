@@ -1727,7 +1727,7 @@
   "error.originalMessage": "Mesaj original",
   "error.output_token_limit_reached": "Răspunsul a atins limita de tokenuri de ieșire înainte de a se încheia. Raționamentul este inclus în această limită. Măriți limita de ieșire a modelului sau reduceți efortul de raționament, apoi reîncercați.",
   "error.parameter": "Parametru",
-  "error.pi_durable_observation_interrupted": "Observarea runtime-ului durabil Pi a fost întreruptă. Tura a fost oprită înainte de finalizare; trimiteți din nou mesajul. Sesiunea se reconectează automat.",
+  "error.pi_durable_observation_interrupted": "Observarea runtime-ului durabil Pi a fost întreruptă. Tura s-a oprit cu un rezultat necunoscut; dacă mesajul original nu se reia automat, trimiteți-l din nou. Sesiunea se reconectează automat.",
   "error.pi_observation_interrupted": "Observarea runtime-ului Pi a fost întreruptă. Tura a fost oprită înainte de finalizare; trimiteți din nou mesajul. Sesiunea se reconectează automat.",
   "error.pi_observation_interrupted_detail": "Motiv: {{reason}}",
   "error.pi_retired_history_validation_failed": "Validarea migrării sesiunii retrase a runtime-ului Pi a eșuat. Istoricul migrat nu a fost salvat.",

@@ -515,6 +515,29 @@ describe('aiHandlers — streaming', () => {
     })
   })
 
+  it('stream_open exposes retired-history validation as AI_REQUEST_FAILED with i18n keys', async () => {
+    const failure = Object.assign(new Error('Pi runtime retired-session migration failed validation'), {
+      i18nKey: 'pi_retired_history_validation_failed',
+      detailI18nKey: 'pi_retired_history_validation_failed_detail',
+      detailI18nValues: { sessionId: 'session-abc' },
+      sessionId: 'session-abc'
+    })
+    aiStreamManager.dispatchCommand.mockRejectedValueOnce(failure)
+
+    const error = await aiHandlers['ai.stream.open']({ trigger: 'submit-message', topicId: 't' } as never, {
+      senderId: 'w1'
+    }).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.code).toBe(aiErrorCodes.AI_REQUEST_FAILED)
+    expect(error.data).toMatchObject({
+      i18nKey: 'pi_retired_history_validation_failed',
+      detailI18nKey: 'pi_retired_history_validation_failed_detail',
+      detailI18nValues: { sessionId: 'session-abc' },
+      sessionId: 'session-abc'
+    })
+  })
+
   it('stream_attach delegates to AiStreamManager.attach and returns its response', async () => {
     aiStreamManager.attach.mockReturnValue({ status: 'not-found' })
 
