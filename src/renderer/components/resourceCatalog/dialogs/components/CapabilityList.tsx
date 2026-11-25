@@ -112,14 +112,28 @@ export function CapabilityRow({
           </Tooltip>
         </div>
       ) : null}
-      <Switch
-        size="sm"
-        aria-label={autoApprove ? `${t('library.action.enable')} ${item.name}` : item.name}
-        aria-busy={item.pending || undefined}
-        checked={checked || Boolean(item.pending)}
-        disabled={toggleDisabled}
-        onCheckedChange={onToggle}
-      />
+      {autoApprove ? (
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">{t('library.action.enable')}</span>
+          <Switch
+            size="sm"
+            aria-label={`${t('library.action.enable')} ${item.name}`}
+            aria-busy={item.pending || undefined}
+            checked={checked || Boolean(item.pending)}
+            disabled={toggleDisabled}
+            onCheckedChange={onToggle}
+          />
+        </div>
+      ) : (
+        <Switch
+          size="sm"
+          aria-label={item.name}
+          aria-busy={item.pending || undefined}
+          checked={checked || Boolean(item.pending)}
+          disabled={toggleDisabled}
+          onCheckedChange={onToggle}
+        />
+      )}
     </div>
   )
 }
