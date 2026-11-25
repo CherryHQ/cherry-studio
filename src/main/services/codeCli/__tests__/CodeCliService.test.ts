@@ -924,6 +924,19 @@ describe('CodeCliService', () => {
         ).toMatchObject({ success: true })
         const script = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
         expect(script).toContain('set "NO_COLOR=1" && set "NO_COLOR=" && "C:\\Tools\\agent.exe"')
+
+        // Inside double-quoted set statements, &, |, ^, <, > stay literal while % is doubled; quotes use unquoted lines.
+        expect(
+          await codeCliService.openTerminal({
+            executable: 'C:\\Tools\\agent.exe',
+            args: [],
+            env: { API_URL: 'https://example.invalid/?a=1&b=2^3|4%5', QUOTED: 'a" & whoami' },
+            usesCherryExecutionEnv: false
+          })
+        ).toMatchObject({ success: true })
+        const specialScript = String(vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1])
+        expect(specialScript).toContain('set "API_URL=https://example.invalid/?a=1&b=2^3|4%%5"')
+        expect(specialScript).toContain('set QUOTED=a^" ^& whoami\r\n')
       } finally {
         vi.useRealTimers()
       }

@@ -20,6 +20,7 @@ import type * as DeepSeekHarnessConfigModule from '../config'
 
 const mocks = vi.hoisted(() => ({
   execFile: vi.fn(),
+  executeCommand: vi.fn(),
   isWin: false,
   appGet: vi.fn(),
   appGetPath: vi.fn(),
@@ -54,7 +55,8 @@ vi.mock('@main/core/platform', () => ({
 }))
 vi.mock('@main/utils/processRunner', async (importOriginal) => ({
   ...(await importOriginal<typeof ProcessRunner>()),
-  crossPlatformSpawn: mocks.spawn
+  crossPlatformSpawn: mocks.spawn,
+  executeCommand: mocks.executeCommand
 }))
 vi.mock('@main/utils/shellEnv', () => ({
   getRawShellEnv: vi.fn(async () => ({
@@ -144,6 +146,7 @@ describe('DeepSeekHarnessService', () => {
       if (key === 'feature.deepseek_harness.workspace') return '/mock/userData/Data/DeepSeekHarness/Workspace'
       throw new Error(`Unexpected application.getPath(${key})`)
     })
+    mocks.executeCommand.mockResolvedValue('')
     mocks.execFile.mockImplementation(
       (
         _file: string,
@@ -622,14 +625,7 @@ describe('DeepSeekHarnessService', () => {
   it('records the dsh version with scrubbed env when launch fails', async () => {
     process.env.CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY = 'probe-secret'
     try {
-      mocks.execFile.mockImplementationOnce(
-        (
-          _file: string,
-          _args: string[],
-          _options: object,
-          callback: (error: Error | null, stdout: string, stderr: string) => void
-        ) => callback(null, '0.1.5-rc.1\n', '')
-      )
+      mocks.executeCommand.mockResolvedValueOnce('0.1.5-rc.1\n')
       spawnChild((child) => {
         child.stderr.write('boom\n')
         child.close(1, null)
@@ -637,13 +633,12 @@ describe('DeepSeekHarnessService', () => {
       const result = await new DeepSeekHarnessService().start(startInput)
 
       expect(result.success).toBe(false)
-      expect(mocks.execFile).toHaveBeenCalledWith(
+      expect(mocks.executeCommand).toHaveBeenCalledWith(
         '/usr/local/bin/dsh',
         ['--version'],
-        expect.objectContaining({ timeout: 3000, windowsHide: true }),
-        expect.any(Function)
+        expect.objectContaining({ timeout: 3000 })
       )
-      const probeEnv = mocks.execFile.mock.calls[0][2] as { env: NodeJS.ProcessEnv }
+      const probeEnv = mocks.executeCommand.mock.calls[0][2] as { env: NodeJS.ProcessEnv }
       expect(probeEnv.env).not.toHaveProperty('CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY')
       expect(mocks.loggerWarn).toHaveBeenCalledWith('DeepSeek Harness failed to start', {
         dshVersion: '0.1.5-rc.1'
@@ -654,14 +649,7 @@ describe('DeepSeekHarnessService', () => {
   })
 
   it('still reports the launch failure when the version probe fails', async () => {
-    mocks.execFile.mockImplementationOnce(
-      (
-        _file: string,
-        _args: string[],
-        _options: object,
-        callback: (error: Error | null, stdout: string, stderr: string) => void
-      ) => callback(new Error('spawn ENOENT'), '', '')
-    )
+    mocks.executeCommand.mockRejectedValueOnce(new Error('spawn ENOENT'))
     vi.mocked(fetch).mockResolvedValueOnce({
       status: 401,
       body: { cancel: vi.fn(async () => undefined) }

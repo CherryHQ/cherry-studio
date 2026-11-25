@@ -158,6 +158,30 @@ describe('system agent install recipes', () => {
       archive: 'https://example.com/arm.zip',
       sha256: 'a'.repeat(64)
     })
+    expect(resolveInstallRecipe('cursor', manifest, 'win32', 'arm64')).toMatchObject({
+      manager: 'binary',
+      archive: 'https://example.com/windows.zip',
+      cmd: './agent.exe'
+    })
+    const withWinArm64 = {
+      agents: [
+        {
+          id: 'cursor',
+          version: '1.2.3',
+          distribution: {
+            binary: {
+              'windows-aarch64': { archive: 'https://example.com/windows-arm64.zip', cmd: './agent-arm64.exe' },
+              'windows-x86_64': { archive: 'https://example.com/windows.zip', cmd: './agent.exe' }
+            }
+          }
+        }
+      ]
+    }
+    expect(resolveInstallRecipe('cursor', withWinArm64, 'win32', 'arm64')).toMatchObject({
+      manager: 'binary',
+      archive: 'https://example.com/windows-arm64.zip',
+      cmd: './agent-arm64.exe'
+    })
     expect(resolveInstallRecipe('cursor', manifest, 'win32', 'x64')).toMatchObject({ cmd: './agent.exe' })
     expect(resolveInstallRecipe('cursor', manifest, 'linux', 'x64')).toBeUndefined()
   })

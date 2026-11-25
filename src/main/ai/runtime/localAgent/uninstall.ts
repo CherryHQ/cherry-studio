@@ -7,10 +7,40 @@ import { parse as parseToml } from 'smol-toml'
 
 import { application } from '@application'
 import { isOutsidePath } from '@main/utils/file'
+import { executeCommand } from '@main/utils/processRunner'
 
 import { systemAgentEntry, systemAgentWrapper } from './launch'
 
 const BINARY_MANIFEST = '.cherry-install.json'
+
+function samePath(left: string, right: string): boolean {
+  const a = path.resolve(left)
+  const b = path.resolve(right)
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b
+}
+
+async function stopWindowsBundleProcesses(bundle: string): Promise<void> {
+  if (process.platform !== 'win32') return
+  const prefix = `${(await fs.realpath(bundle).catch(() => path.resolve(bundle))).replace(/[\\/]+$/, '')}\\`
+  // Detached CLI daemons (e.g. opencode serve) hold an open image lock that causes Windows unlink EPERM.
+  await executeCommand(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      '$p = $env:CHERRY_UNINSTALL_BUNDLE_ROOT; if ($p) { Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($p, [System.StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } }'
+    ],
+    { env: { ...process.env, CHERRY_UNINSTALL_BUNDLE_ROOT: prefix }, timeout: 10_000, maxOutputBytes: 4096 }
+  ).catch(() => undefined)
+}
+
+async function removeBundleDirectory(bundle: string): Promise<void> {
+  await stopWindowsBundleProcesses(bundle)
+  // Remove payload before the manifest so a locked executable never orphans bundle ownership metadata.
+  await fs.rm(path.join(bundle, 'files'), { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+  await fs.rm(bundle, { recursive: true, maxRetries: 5, retryDelay: 200 })
+}
 
 async function readBinaryManifest(bundle: string) {
   try {
@@ -41,7 +71,7 @@ export async function writeBinaryManifest(executable: string, bundle: string, re
 
 export async function getBinaryAgentInstallation(executable: string, detectedPath: string) {
   const entry = systemAgentEntry(executable)
-  if (path.resolve(detectedPath) !== entry || !(await fs.lstat(entry)).isFile()) return undefined
+  if (!samePath(detectedPath, entry) || !(await fs.lstat(entry)).isFile()) return undefined
   const wrapper = await fs.readFile(entry, 'utf8')
   const match =
     process.platform === 'win32'
@@ -76,9 +106,9 @@ export async function uninstallBinaryAgent(executable: string, detectedPath: str
     if (!stat?.isDirectory() || (await fs.realpath(bundle)) !== bundle) continue
     const metadata = await readBinaryManifest(bundle)
     if (metadata?.executable !== executable) continue
-    await fs.rm(bundle, { recursive: true })
+    await removeBundleDirectory(bundle)
   }
-  await fs.rm(installed.bundle, { recursive: true })
+  await removeBundleDirectory(installed.bundle)
   await fs.unlink(installed.entry)
   return true
 }
@@ -96,7 +126,7 @@ export async function ownsNpmExecutable(root: string, packageName: string, execu
     for (const bin of bins) {
       if (typeof bin !== 'string') continue
       const target = path.resolve(directory, bin)
-      if (!isOutsidePath(path.relative(directory, target)) && (await fs.realpath(target)) === resolved) return true
+      if (!isOutsidePath(path.relative(directory, target)) && samePath(await fs.realpath(target), resolved)) return true
     }
     return false
   } catch {
@@ -109,7 +139,12 @@ export async function ownsUvExecutable(root: string, packageName: string, execut
     const toolRoot = path.join(root, packageName)
     const receipt = parseToml(await fs.readFile(path.join(toolRoot, 'uv-receipt.toml'), 'utf8'))
     const tool = receipt.tool as { entrypoints?: Array<{ 'install-path'?: string }> } | undefined
-    if (!tool?.entrypoints?.some((entry) => entry['install-path'] === executable)) return false
+    if (
+      !tool?.entrypoints?.some(
+        (entry) => typeof entry['install-path'] === 'string' && samePath(entry['install-path'], executable)
+      )
+    )
+      return false
     if (!isOutsidePath(path.relative(await fs.realpath(toolRoot), await fs.realpath(executable)))) return true
     // uv copies Windows entrypoints instead of linking them into the environment.
     if (process.platform !== 'win32') return false

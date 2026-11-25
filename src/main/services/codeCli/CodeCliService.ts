@@ -787,11 +787,22 @@ export class CodeCliService extends BaseService {
       logger.info('Setting environment variables:', Object.keys(env))
 
       if (isWindows) {
-        // Windows uses set command
-        // Escape all cmd.exe metacharacters in env values to prevent command injection
-        return Object.entries(env)
-          .map(([key, value]) => `set "${key}=${escapeBatchText(value)}"`)
-          .join(' && ')
+        // Inside `set "KEY=VAL"`, cmd treats ^/&/|/< /> literally and only expands %; unquoted set handles values with ".
+        const entries = Object.entries(env)
+        const unquoted = entries.filter(([, value]) => value.includes('"'))
+        const quoted = entries.filter(([, value]) => !value.includes('"'))
+        const parts: string[] = []
+        if (unquoted.length) {
+          parts.push(unquoted.map(([key, value]) => `set ${key}=${escapeBatchUnquotedSetValue(value)}`).join('\r\n'))
+        }
+        if (quoted.length) {
+          parts.push(
+            quoted
+              .map(([key, value]) => `set "${key}=${value.replace(/\r?\n/g, ' ').replace(/%/g, '%%')}"`)
+              .join(' && ')
+          )
+        }
+        return parts.join('\r\n')
       } else {
         // Unix-like systems use export command
         const validEntries = Object.entries(env).filter(([key, value]) => {
@@ -818,13 +829,14 @@ export class CodeCliService extends BaseService {
       }
     }
 
-    const command = [
-      buildEnvPrefix(platform === 'win32'),
-      platform === 'win32' ? 'set "NO_COLOR="' : 'unset NO_COLOR',
-      baseCommand
-    ]
+    const envPrefix = buildEnvPrefix(platform === 'win32')
+    const runLine = [platform === 'win32' ? 'set "NO_COLOR="' : 'unset NO_COLOR', baseCommand]
       .filter(Boolean)
       .join(' && ')
+    const separateWindowsEnvLine = platform === 'win32' && Object.values(env).some((value) => value.includes('"'))
+    const command = separateWindowsEnvLine
+      ? `${envPrefix}\r\n${runLine}`
+      : [envPrefix, runLine].filter(Boolean).join(' && ')
 
     switch (platform) {
       case 'darwin': {
@@ -1099,6 +1111,18 @@ export class CodeCliService extends BaseService {
       }
     }
   }
+}
+
+function escapeBatchUnquotedSetValue(text: string): string {
+  return text
+    .replace(/\r?\n/g, ' ')
+    .replace(/\^/g, '^^')
+    .replace(/%/g, '%%')
+    .replace(/&/g, '^&')
+    .replace(/\|/g, '^|')
+    .replace(/>/g, '^>')
+    .replace(/</g, '^<')
+    .replace(/"/g, '^"')
 }
 
 /**

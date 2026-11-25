@@ -1,10 +1,10 @@
-import { spawn } from 'node:child_process'
 import { stripVTControlCharacters } from 'node:util'
 
 import { shell } from 'electron'
 
 import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { isSensitiveKey, redactLiteral } from '@shared/utils/redaction'
 
@@ -94,10 +94,10 @@ export class LocalAgentAuthService extends BaseService {
         let lastCode: string | undefined
         let openedUrl: string | undefined
 
-        const child = spawn(launch.executable, spec.args, {
+        const child = crossPlatformSpawn(launch.executable, spec.args, {
           env: launch.env,
-          stdio: ['pipe', 'pipe', 'pipe'],
-          windowsHide: true
+          detached: process.platform !== 'win32',
+          stdio: ['pipe', 'pipe', 'pipe']
         })
 
         const finish = (error?: Error) => {
@@ -108,21 +108,27 @@ export class LocalAgentAuthService extends BaseService {
           else resolve()
         }
 
+        const stopChild = async () => {
+          if (child.exitCode !== null || child.signalCode !== null) return
+          if (process.platform === 'win32') {
+            await terminateProcessTree(child, true, 'local agent authentication').catch(() => undefined)
+            return
+          }
+          await terminateProcessTree(child, false, 'local agent authentication').catch(() => undefined)
+          if (!(await waitForProcessExit(child, 1000))) {
+            await terminateProcessTree(child, true, 'local agent authentication').catch(() => undefined)
+          }
+        }
+
         const terminateChild = async () => {
           aborted = true
-          if (child.exitCode === null && child.signalCode === null) {
-            child.kill('SIGTERM')
-            const forceTimer = setTimeout(() => {
-              if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
-            }, 1000)
-            forceTimer.unref()
-          }
+          await stopChild()
           finish(new Error('Authentication cancelled'))
         }
         killChild = terminateChild
 
         timer = setTimeout(() => {
-          if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM')
+          void stopChild()
           finish(new Error('Authentication timed out'))
         }, AUTH_TIMEOUT_MS)
 

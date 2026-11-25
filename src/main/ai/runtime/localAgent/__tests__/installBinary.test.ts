@@ -97,6 +97,43 @@ describe('system binary installation', () => {
     expect(await fs.readFile(entry, 'utf8')).toContain('cursor-agent.cmd')
   })
 
+  it('extracts safe relative Windows backslash zip entries while still rejecting zip-slip', async () => {
+    const validZip = new JSZip()
+    validZip.file('junie\\junie.exe', Buffer.from('MZ-junie'))
+    serve(await validZip.generateAsync({ type: 'nodebuffer' }))
+    const entry = await installBinaryAgent(
+      'junie',
+      {
+        manager: 'binary',
+        version: '4171.4.0',
+        archive: 'https://example.com/junie.zip',
+        cmd: './junie/junie.exe'
+      },
+      new AbortController().signal
+    )
+    const [bundle] = await fs.readdir(path.join(root, 'agents'))
+    expect(await fs.readFile(path.join(root, 'agents', bundle, 'files', 'junie', 'junie.exe'), 'utf8')).toBe('MZ-junie')
+    expect(await fs.readFile(entry, 'utf8')).toContain('junie.exe')
+
+    for (const badEntry of ['..\\outside.exe', 'C:\\outside.exe', '\\\\server\\share\\outside.exe']) {
+      const badZip = new JSZip()
+      badZip.file(badEntry, Buffer.from('evil'))
+      serve(await badZip.generateAsync({ type: 'nodebuffer' }))
+      await expect(
+        installBinaryAgent(
+          'bad-agent',
+          {
+            manager: 'binary',
+            version: '1.0.0',
+            archive: 'https://example.com/bad.zip',
+            cmd: './agent.exe'
+          },
+          new AbortController().signal
+        )
+      ).rejects.toThrow(/escapes|Invalid archive path|Unsafe zip entry/)
+    }
+  })
+
   it('never publishes an executable for a checksum mismatch', async () => {
     serve(Buffer.from('wrong archive'))
     await expect(

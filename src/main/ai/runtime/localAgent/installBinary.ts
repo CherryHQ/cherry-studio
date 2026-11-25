@@ -20,10 +20,19 @@ import { getBinaryAgentInstallation, writeBinaryManifest } from './uninstall'
 
 const MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024
 
-function inside(root: string, name: string): string {
-  if (name.includes('\\') || path.posix.isAbsolute(name) || /^[a-z]:/i.test(name))
+function normalizeArchivePath(name: string, allowWindowsSeparators = false): string {
+  if (!allowWindowsSeparators && name.includes('\\')) throw new Error('Invalid archive path')
+  if (allowWindowsSeparators && (name.startsWith('\\\\') || name.startsWith('//') || /^[a-z]:/i.test(name)))
     throw new Error('Invalid archive path')
-  const target = path.resolve(root, name)
+  const normalized = allowWindowsSeparators ? name.replace(/\\/g, '/') : name
+  if (normalized.includes('\0') || path.posix.isAbsolute(normalized) || /^[a-z]:/i.test(normalized))
+    throw new Error('Invalid archive path')
+  return normalized
+}
+
+function inside(root: string, name: string, allowWindowsSeparators = false): string {
+  const normalized = normalizeArchivePath(name, allowWindowsSeparators)
+  const target = path.resolve(root, normalized)
   if (isOutsidePath(path.relative(root, target))) throw new Error('Archive path escapes installation directory')
   return target
 }
@@ -68,23 +77,30 @@ export async function installBinaryAgent(
     await fs.mkdir(content)
     const name = new URL(recipe.archive).pathname.toLowerCase()
     if (name.endsWith('.zip')) {
-      const zip = new StreamZip.async({ file: archive })
+      const zip = new StreamZip.async({ file: archive, skipEntryNameValidation: true })
       try {
         const entries = Object.values(await zip.entries())
+        const normalizedEntries = entries.map((entry) => ({
+          entry,
+          normalizedName: normalizeArchivePath(entry.name, true),
+          target: inside(content, entry.name, true)
+        }))
         assertZipEntriesWithin(
-          entries.map((entry) => entry.name),
+          normalizedEntries.map((item) => item.normalizedName),
           content
         )
         if (entries.reduce((size, entry) => size + entry.size, 0) > MAX_ARCHIVE_BYTES * 2)
           throw new Error('Agent archive expands beyond limit')
-        for (const entry of entries) {
-          inside(content, entry.name)
+        for (const { entry } of normalizedEntries) {
           if (((entry.attr >>> 16) & 0o170000) === 0o120000) throw new Error('Archive contains a symbolic link')
         }
-        await zip.extract(null, content)
-        if (process.platform !== 'win32') {
-          for (const entry of entries) {
-            if (!entry.isDirectory && (entry.attr >>> 16) & 0o111) await fs.chmod(inside(content, entry.name), 0o755)
+        for (const { entry, target } of normalizedEntries) {
+          if (entry.isDirectory) {
+            await fs.mkdir(target, { recursive: true })
+          } else {
+            await fs.mkdir(path.dirname(target), { recursive: true })
+            await zip.extract(entry.name, target)
+            if (process.platform !== 'win32' && (entry.attr >>> 16) & 0o111) await fs.chmod(target, 0o755)
           }
         }
       } finally {

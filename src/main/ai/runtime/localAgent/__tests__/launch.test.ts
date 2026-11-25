@@ -210,7 +210,11 @@ describe('local agent installation resolution', () => {
     installSystemCommands('agy_acp_server.par')
     try {
       const { env } = await resolveLocalAgentLaunch({ ...config, presetId: 'antigravity-acp', protocol: 'acp' })
-      expect(env).toMatchObject({ WSS_PROXY: 'http://desktop:9123', no_proxy: 'localhost' })
+      expect(env).toMatchObject(
+        process.platform === 'win32'
+          ? { WSS_PROXY: 'http://desktop:9123', NO_PROXY: 'localhost' }
+          : { WSS_PROXY: 'http://desktop:9123', no_proxy: 'localhost' }
+      )
     } finally {
       vi.unstubAllEnvs()
     }
@@ -759,22 +763,24 @@ agent_servers:
       code: 'LOCAL_AGENT_HOST_REQUIRED'
     })
 
-    // POSIX bundled desktop zcode.cjs under ~/Applications/ZCode.app
-    inventory.isWin = false
-    const macBundle = path.join(
-      directory,
-      'sys.home',
-      'Applications',
-      'ZCode.app',
-      'Contents',
-      'Resources',
-      'glm',
-      'zcode.cjs'
-    )
-    await mkdir(path.dirname(macBundle), { recursive: true })
-    await writeFile(macBundle, '// zcode\n')
-    const viaMacBundle = await resolveLocalAgentLaunch({ ...config, presetId: 'zcode', protocol: 'acp' })
-    expect(viaMacBundle.executable).toBe('/user/bin/zcode-acp')
+    if (process.platform !== 'win32') {
+      // POSIX bundled desktop zcode.cjs under ~/Applications/ZCode.app
+      inventory.isWin = false
+      const macBundle = path.join(
+        directory,
+        'sys.home',
+        'Applications',
+        'ZCode.app',
+        'Contents',
+        'Resources',
+        'glm',
+        'zcode.cjs'
+      )
+      await mkdir(path.dirname(macBundle), { recursive: true })
+      await writeFile(macBundle, '// zcode\n')
+      const viaMacBundle = await resolveLocalAgentLaunch({ ...config, presetId: 'zcode', protocol: 'acp' })
+      expect(viaMacBundle.executable).toBe('/user/bin/zcode-acp')
+    }
 
     // Windows bundled desktop zcode.cjs under LOCALAPPDATA/Programs/ZCode
     inventory.isWin = true

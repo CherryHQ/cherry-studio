@@ -101,7 +101,9 @@ export function resolveInstallRecipe(
     return { manager: 'uv', package: pythonPackage, args: ['tool', 'install', pythonPackage] }
   }
   const platformKey = `${platform === 'win32' ? 'windows' : platform}-${arch === 'arm64' ? 'aarch64' : arch === 'x64' ? 'x86_64' : arch}`
-  const binary = entry?.distribution.binary?.[platformKey]
+  const binary =
+    entry?.distribution.binary?.[platformKey] ??
+    (platform === 'win32' && arch === 'arm64' ? entry?.distribution.binary?.['windows-x86_64'] : undefined)
   if (binary && entry?.version) return { manager: 'binary', version: entry.version, ...binary }
   return undefined
 }

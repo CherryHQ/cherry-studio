@@ -1,4 +1,4 @@
-import { type ChildProcess, execFile } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -11,7 +11,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
-import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
+import { crossPlatformSpawn, executeCommand, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { parseUniqueModelId, type Model, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -499,18 +499,17 @@ function stripManagedCredentialEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return env
 }
 
-function readDshVersion(binaryPath: string): Promise<string | undefined> {
-  return new Promise((resolve) => {
-    execFile(
-      binaryPath,
-      ['--version'],
-      { timeout: 3000, windowsHide: true, env: stripManagedCredentialEnv({ ...process.env }) },
-      (error, stdout) => {
-        if (error) return resolve(undefined)
-        resolve(stdout.split('\n', 1)[0]?.trim().slice(0, 80) || undefined)
-      }
-    )
-  })
+async function readDshVersion(binaryPath: string): Promise<string | undefined> {
+  try {
+    const stdout = await executeCommand(binaryPath, ['--version'], {
+      timeout: 3000,
+      maxOutputBytes: 4096,
+      env: stripManagedCredentialEnv({ ...process.env })
+    })
+    return stdout.split('\n', 1)[0]?.trim().slice(0, 80) || undefined
+  } catch {
+    return undefined
+  }
 }
 
 function parseReadyUrl(output: string): string | undefined {
