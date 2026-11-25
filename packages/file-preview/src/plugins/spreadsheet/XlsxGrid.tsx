@@ -155,8 +155,8 @@ const V_ALIGN_TO_ITEMS: Record<NonNullable<CellStyle['vAlign']>, React.CSSProper
 }
 
 /** CellStyle -> inline style in the zoom=1 coordinate space. Positioning and sizing are added by callers. */
-const cellStyleToCss = (style: CellStyle | undefined): React.CSSProperties => {
-  const css: React.CSSProperties = { fontSize: style?.fontSizePx ?? DEFAULT_FONT_SIZE_PX }
+const cellStyleToCss = (style: CellStyle | undefined): React.CSSProperties & { fontSize: number } => {
+  const css: React.CSSProperties & { fontSize: number } = { fontSize: style?.fontSizePx ?? DEFAULT_FONT_SIZE_PX }
 
   if (!style) return css
 
@@ -248,7 +248,7 @@ const CellView = memo(function CellView({
   const css = cellStyleToCss(style)
   const hAlign = style?.hAlign ?? (cell ? defaultHAlign(cell) : 'left')
   // Wrapped cells show only complete lines that fit in the row height. The overlay shows the full content when selected.
-  const clampLines = style?.wrap ? wrapClampLines(height, css.fontSize as number) : undefined
+  const clampLines = style?.wrap ? wrapClampLines(height, css.fontSize) : undefined
 
   const finalCss: React.CSSProperties = {
     position: 'absolute',

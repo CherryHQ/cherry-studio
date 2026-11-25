@@ -20,10 +20,11 @@ export function paragraphExcerpt(paragraph: HTMLElement): string {
   for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
     if (node.nodeType === Node.TEXT_NODE) {
       excerpt += node.nodeValue ?? ''
-    } else if ((node as Element).localName === 'br') {
-      excerpt += '\n'
-    } else if ((node as Element).localName === 'wbr') {
-      excerpt += '-'
+    } else if ('localName' in node) {
+      const name = node.localName
+
+      if (name === 'br') excerpt += '\n'
+      else if (name === 'wbr') excerpt += '-'
     }
   }
 

@@ -58,7 +58,7 @@ function isEffectiveBackground(value: string): boolean {
 }
 
 function resolveThemeBackground(element: HTMLElement | null): string | null {
-  const candidates = [element, document.documentElement].filter(Boolean) as HTMLElement[]
+  const candidates = [element, document.documentElement].filter((candidate) => candidate !== null)
 
   for (const candidate of candidates) {
     const value = getComputedStyle(candidate).getPropertyValue('--background').trim()
@@ -91,6 +91,7 @@ function normalizePinchWheelDelta(event: WheelEvent): number {
 }
 
 function detachDocument(viewer: PdfJsViewer): void {
+  // SAFETY: PDF.js 5.4.296 implements null as cancel/reset/detach; its setDocument declaration omits the supported null case.
   ;(viewer.setDocument as (pdfDocument: PDFDocumentProxy | null) => void)(null)
 }
 

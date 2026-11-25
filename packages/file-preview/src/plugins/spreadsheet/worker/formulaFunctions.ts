@@ -121,7 +121,7 @@ function sumOfSquares(nums: number[]): number {
 /** LARGE/SMALL: sort and return the kth value. Out-of-range k or no numeric values throws #NUM!. */
 function nthOrdered(params: FunctionArg[], k: FunctionArg, compare: (a: number, b: number) => number): number {
   const nums = collectNumbers([params[0]]).sort(compare)
-  const index = Math.trunc(H.accept(k, NUMBER) as number)
+  const index = Math.trunc(Number(H.accept(k, NUMBER)))
 
   if (nums.length === 0 || index < 1 || index > nums.length) throw FormulaError.NUM
 

@@ -25,34 +25,34 @@ interface PdfOutlineListProps {
 function PdfOutlineList({ items, onNavigate }: PdfOutlineListProps) {
   return (
     <ul className="space-y-0.5">
-      {items.map((item, index) => (
-        <li key={`${item.title}-${index}`}>
-          {item.dest ? (
+      {items.map(({ dest, items, title, url }, index) => (
+        <li key={`${title}-${index}`}>
+          {dest ? (
             <Button
               type="button"
               variant="ghost"
               size="sm"
               className="h-auto min-h-7 w-full justify-start whitespace-normal px-2 py-1 text-left text-xs shadow-none"
-              onClick={() => onNavigate(item.dest as PdfDestination)}>
-              {item.title}
+              onClick={() => onNavigate(dest)}>
+              {title}
             </Button>
-          ) : item.url ? (
+          ) : url ? (
             <Button
               asChild
               variant="ghost"
               size="sm"
               className="h-auto min-h-7 w-full justify-start whitespace-normal px-2 py-1 text-left text-xs shadow-none">
-              <a href={item.url} target="_blank" rel="noreferrer">
-                <span className="min-w-0 flex-1">{item.title}</span>
+              <a href={url} target="_blank" rel="noreferrer">
+                <span className="min-w-0 flex-1">{title}</span>
                 <ExternalLink className="size-3" aria-hidden />
               </a>
             </Button>
           ) : (
-            <span className="block px-2 py-1 text-foreground text-xs">{item.title}</span>
+            <span className="block px-2 py-1 text-foreground text-xs">{title}</span>
           )}
-          {item.items.length > 0 ? (
+          {items.length > 0 ? (
             <div className="ml-3 border-border-subtle border-l pl-1">
-              <PdfOutlineList items={item.items} onNavigate={onNavigate} />
+              <PdfOutlineList items={items} onNavigate={onNavigate} />
             </div>
           ) : null}
         </li>

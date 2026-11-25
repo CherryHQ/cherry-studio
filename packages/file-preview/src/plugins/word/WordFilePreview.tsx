@@ -1,7 +1,6 @@
 import { renderAsync } from 'docx-preview'
 import { AlertCircle, LoaderCircle } from 'lucide-react'
 import {
-  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
@@ -297,12 +296,12 @@ export default function WordFilePreview({
 
     if (pages.length === 0) return
 
-    const visiblePages = new Set<HTMLElement>()
+    const visiblePages = new Set<Element>()
 
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          const page = entry.target as HTMLElement
+          const page = entry.target
 
           if (entry.isIntersecting) {
             visiblePages.add(page)
@@ -414,7 +413,7 @@ export default function WordFilePreview({
   }, [minZoom])
 
   const hasPages = !error && pageCount > 0
-  const contentStyle = { zoom } as CSSProperties
+  const contentStyle = { zoom }
 
   return (
     <FilePreviewLayout.Frame>
