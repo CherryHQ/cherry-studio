@@ -216,7 +216,7 @@ function mergeErrorIntoMessage(
   failure: ExecutionFailure,
   anchorMessageId?: string
 ): CherryUIMessage {
-  const baseParts = (base?.parts ?? []) as CherryMessagePart[]
+  const baseParts = base?.parts ?? []
   const errorPart: CherryMessagePart = { type: 'data-error', data: { ...error, executionFailure: failure } }
 
   const message: CherryUIMessage = {

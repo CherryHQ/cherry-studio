@@ -1,6 +1,6 @@
 import type { UIMessageChunk } from 'ai'
 
-import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import type { PipeStreamLoopResult } from './pipeStreamLoop'
 import type { MessageStreamEvent } from './types'
@@ -38,7 +38,7 @@ export async function pipeMessageStream(
       if (value.type === 'message') {
         message = { ...message, parts: value.parts }
       } else {
-        const chunk = value.chunk as CherryUIMessageChunk
+        const chunk = value.chunk
         onControl(chunk)
 
         if (chunk.type === 'error') streamErrorText ??= chunk.errorText

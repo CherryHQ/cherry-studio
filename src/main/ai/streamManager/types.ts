@@ -4,7 +4,7 @@ import type { UIMessageChunk } from 'ai'
 import type { ExecutionFailure } from '@cherrystudio/remote-protocol/failure'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
-import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
+import type { CherryUIMessage, CherryUIMessageChunk, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
@@ -95,7 +95,7 @@ export interface StreamErrorResult extends TerminalOutcome {
 export type MessageStreamEvent =
   | { type: 'error'; error: unknown }
   | { type: 'message'; parts: CherryUIMessage['parts'] }
-  | { type: 'control'; chunk: UIMessageChunk }
+  | { type: 'control'; chunk: CherryUIMessageChunk }
 
 /** One content producer per execution: either SDK chunks or authoritative message views. */
 export type AiStreamSource =

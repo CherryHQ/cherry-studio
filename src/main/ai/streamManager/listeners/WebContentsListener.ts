@@ -43,10 +43,7 @@ type StreamResultIdentity = Pick<
   'topicId' | 'userMessageId' | 'executionId' | 'attemptId' | 'topicAttemptWatermark'
 >
 
-type CoalescableChunk =
-  | { type: 'text-delta'; id: string; delta: string; providerMetadata?: undefined }
-  | { type: 'reasoning-delta'; id: string; delta: string; providerMetadata?: undefined }
-  | { type: 'tool-input-delta'; toolCallId: string; inputTextDelta: string }
+type CoalescableChunk = Extract<UIMessageChunk, { type: 'text-delta' | 'reasoning-delta' | 'tool-input-delta' }>
 
 /** One instance per (topic, window). Id `wc:${wc.id}:${topicId}` is stable across re-attach. */
 export class WebContentsListener implements StreamListener {
@@ -254,7 +251,7 @@ function toCoalescable(chunk: UIMessageChunk): CoalescableChunk | null {
   if (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta') {
     if ('providerMetadata' in chunk && chunk.providerMetadata !== undefined) return null
 
-    return chunk as CoalescableChunk
+    return chunk
   }
 
   if (chunk.type === 'tool-input-delta') {

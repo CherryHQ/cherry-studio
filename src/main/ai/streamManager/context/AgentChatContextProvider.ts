@@ -4,7 +4,6 @@
  * only (no selector fan-out), passes `userMessage` for the inject path.
  */
 
-import type { UIMessage } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
@@ -312,7 +311,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       modelId: validated.uniqueModelId,
       topicId: validated.topicId,
       operation: 'invoke_agent',
-      messages: [{ id: validated.userMessageId, role: 'user', parts: validated.userMessageParts }] as UIMessage[],
+      messages: [{ id: validated.userMessageId, role: 'user', parts: validated.userMessageParts }],
       agentName: validated.agentName
     })
 
