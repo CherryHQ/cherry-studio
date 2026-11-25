@@ -7,10 +7,12 @@ import {
   resolveToolResultMediaCapabilities
 } from '@main/ai/messages/messageCapabilities'
 import { toModelMessages } from '@main/ai/messages/messageRules'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
 import { countToolDefs, estimateModelMessagesFootprint } from '@main/ai/tokens/footprint'
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { MessageConverterFactory } from '../adapters'
 import { type ResolvedGatewayModelAddress, resolveGatewayModelAddress } from '../utils/models'
@@ -65,6 +67,18 @@ async function estimateConvertedRequest(
   let resolved: ResolvedGatewayModelAddress | undefined
   try {
     resolved = await resolveGatewayModelAddress(body.model, internal)
+    const endpoint = resolveEffectiveEndpoint(
+      resolved.provider,
+      resolved.model,
+      internal ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
+    )
+    // Carry the selected dialect into config construction too, including when
+    // it was already first in a mixed model row.
+    if (endpoint.endpointType)
+      resolved = {
+        ...resolved,
+        model: { ...resolved.model, endpointTypes: [endpoint.endpointType] }
+      }
     dialect = resolveModelTokenDialect(resolved.provider, resolved.model)
     caps = resolveMediaCapabilities(resolved.model)
   } catch (error) {

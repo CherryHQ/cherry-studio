@@ -61,6 +61,32 @@ describe('estimateAnthropicRequestTokens', () => {
     expect(mocks.resolveGatewayModelAddress).toHaveBeenCalledWith('p:m', true)
   })
 
+  it('counts the forced internal Anthropic route even when Messages was already first', async () => {
+    const model = makeModel({
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://messages.test/v1', adapterFamily: 'anthropic' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://chat.test/v1', adapterFamily: 'openai-compatible' }
+      }
+    })
+    resolveTo(model, provider)
+    mocks.tryRemoteAnthropicCount.mockResolvedValue(1234)
+    expect(await estimateAnthropicRequestTokens(body([{ role: 'user', content: 'hello' }]), undefined, true)).toBe(1234)
+    expect(mocks.tryRemoteAnthropicCount).toHaveBeenCalledWith(
+      expect.anything(),
+      provider,
+      expect.objectContaining({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] }),
+      'm',
+      undefined
+    )
+    mocks.tryRemoteAnthropicCount.mockClear()
+    await estimateAnthropicRequestTokens(body([{ role: 'user', content: 'hello' }]), undefined, false)
+    expect(mocks.tryRemoteAnthropicCount).not.toHaveBeenCalled()
+  })
+
   it('#17079: a base64 image nested in tool_result costs its image constant, not its base64 length', async () => {
     resolveTo(textModel)
     const messages = [

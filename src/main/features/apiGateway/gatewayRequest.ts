@@ -136,10 +136,9 @@ export async function resolveGatewayRequest(config: MessageConfig) {
     resolvedAddress.model,
     isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
   )
-  const model =
-    endpoint.endpointType && endpoint.endpointType !== resolvedAddress.model.endpointTypes?.[0]
-      ? { ...resolvedAddress.model, endpointTypes: [endpoint.endpointType] }
-      : resolvedAddress.model
+  const model = endpoint.endpointType
+    ? { ...resolvedAddress.model, endpointTypes: [endpoint.endpointType] }
+    : resolvedAddress.model
   const resolvedModel = { provider, model }
   return {
     inputFormat,
