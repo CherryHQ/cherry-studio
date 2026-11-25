@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-24-anthropic-thinking-prefix.md
+2026-11-24-anthropic-thinking-prefix.md: 8dda6e73dfb0559788105d2500018a644755f88c
+2026-11-24-anthropic-thinking-prefix.zh.md: f4354d8a189d6f1670211f046cc1cc77a89b07b0

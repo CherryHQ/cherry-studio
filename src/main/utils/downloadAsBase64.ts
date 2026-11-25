@@ -1,3 +1,5 @@
+import { addAbortSignal, Readable } from 'node:stream'
+
 import { net } from 'electron'
 import { fileTypeFromBuffer } from 'file-type'
 
@@ -7,6 +9,7 @@ import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { MB } from '@shared/utils/constants'
 
 const logger = loggerService.withContext('downloadAsBase64')
+const MAX_IMAGE_REDIRECTS = 20
 
 const TRUSTED_REMOTE_IMAGE_EXT_TO_MIME: Readonly<Record<string, string>> = {
   avif: 'image/avif',
@@ -28,6 +31,13 @@ const TRUSTED_REMOTE_IMAGE_EXT_TO_MIME: Readonly<Record<string, string>> = {
 export type ImageAttachment = {
   data: string // base64-encoded image bytes
   media_type: string // e.g. 'image/png', 'image/jpeg', 'image/gif', 'image/webp'
+}
+
+type ImageDownloadOptions = {
+  baseURL?: string
+  apiKey?: string
+  signal?: AbortSignal
+  onHttpError?: (host: string, status: number) => void
 }
 
 /** Pre-downloaded, base64-encoded file attachment. */
@@ -130,49 +140,121 @@ export async function downloadPublicImageAsBase64(url: string, signal?: AbortSig
   }
 }
 
+function requestProviderImage(url: URL, apiKey?: string, signal?: AbortSignal): Promise<Response> {
+  signal?.throwIfAborted()
+  return new Promise((resolve, reject) => {
+    const request = net.request({
+      url: url.href,
+      credentials: 'omit',
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+      redirect: 'manual'
+    })
+    const abort = () => {
+      request.abort()
+      reject(signal?.reason)
+    }
+    const cleanup = () => signal?.removeEventListener('abort', abort)
+    signal?.addEventListener('abort', abort, { once: true })
+    request.on('error', (error) => {
+      cleanup()
+      reject(error)
+    })
+    // Electron net.fetch cannot expose a manual redirect and may forward Authorization when following it.
+    request.once('redirect', (status, _method, location) => {
+      cleanup()
+      request.abort()
+      resolve(new Response(null, { status, headers: { location } }))
+    })
+    request.once('response', (incoming) => {
+      const status = incoming.statusCode
+      if (status < 200 || status >= 300 || status === 204 || status === 205) {
+        cleanup()
+        resolve(new Response(null, { status }))
+        request.abort()
+        return
+      }
+
+      // Electron's IncomingMessage extends Readable at runtime.
+      const stream = incoming as unknown as Readable
+      stream.once('aborted', () => stream.destroy(new Error('Image response aborted')))
+      stream.once('close', () => {
+        cleanup()
+        if (!stream.readableEnded) request.abort()
+      })
+      if (signal) addAbortSignal(signal, stream)
+      const headers = Object.entries(incoming.headers).map<[string, string]>(([name, value]) => [name, String(value)])
+      resolve(new Response(Readable.toWeb(stream) as ReadableStream, { status, headers }))
+    })
+    request.end()
+  })
+}
+
+async function fetchProviderImage(url: URL, options: ImageDownloadOptions): Promise<{ url: URL; response: Response }> {
+  const origin = options.baseURL ? URL.parse(options.baseURL)?.origin : undefined
+  let apiKey = url.origin === origin ? options.apiKey : undefined
+  for (let redirects = 0; ; redirects++) {
+    const response = await requestProviderImage(url, apiKey, options.signal)
+    const location = response.headers.get('location')
+    if (![301, 302, 303, 307, 308].includes(response.status) || !location || redirects === MAX_IMAGE_REDIRECTS) {
+      return { url, response }
+    }
+
+    const next = new URL(sanitizeRemoteUrl(new URL(location, url).href))
+    if (next.origin !== url.origin) apiKey = undefined
+    url = next
+  }
+}
+
 /**
- * Download an image URL via Electron's net.fetch (respects system proxy) and
+ * Download an image URL via Electron's network stack (respects system proxy) and
  * return base64-encoded data. Returns null on failure.
  */
-export async function downloadImageAsBase64(url: string): Promise<ImageAttachment | null> {
+export async function downloadImageAsBase64(
+  url: string,
+  options?: ImageDownloadOptions
+): Promise<ImageAttachment | null> {
+  let host = URL.parse(url)?.host
   try {
     // Reject non-http(s) schemes and local/private hosts before fetching (SSRF guard).
-    const safeUrl = sanitizeRemoteUrl(url)
-    const response = await net.fetch(safeUrl)
+    const safeUrl = new URL(sanitizeRemoteUrl(url))
+    const { response, url: finalUrl } = options
+      ? await fetchProviderImage(safeUrl, options)
+      : { response: await net.fetch(safeUrl.href), url: safeUrl }
+    host = finalUrl.host
     if (!response.ok) {
-      logger.warn('Failed to download image', { url, status: response.status })
+      options?.onHttpError?.(host, response.status)
+      logger.warn('Failed to download image', { host, status: response.status })
+      await response.body?.cancel()
       return null
     }
 
     const contentLength = response.headers.get('content-length')
     if (contentLength && parseInt(contentLength, 10) > MAX_FILE_SIZE_BYTES) {
-      logger.warn('Image too large, skipping download', { url, size: contentLength })
+      logger.warn('Image too large, skipping download', { host, size: contentLength })
+      await response.body?.cancel()
       return null
     }
 
     const buffer = Buffer.from(await response.arrayBuffer())
     if (buffer.length > MAX_FILE_SIZE_BYTES) {
-      logger.warn('Image too large after download', { url, size: buffer.length })
+      logger.warn('Image too large after download', { host, size: buffer.length })
       return null
     }
 
     const mediaType = await resolveTrustedImageMime(
       buffer,
-      safeUrl,
+      finalUrl.href,
       response.headers.get('content-type'),
       response.headers.get('content-disposition')
     )
     if (!mediaType) {
-      logger.warn('Downloaded image response has no trustworthy image format', { url })
+      logger.warn('Downloaded image response has no trustworthy image format', { host })
       return null
     }
 
     return { data: buffer.toString('base64'), media_type: mediaType }
-  } catch (error) {
-    logger.warn('Failed to fetch image', {
-      url,
-      error: error instanceof Error ? error.message : String(error)
-    })
+  } catch {
+    logger.warn('Failed to fetch image', { host })
     return null
   }
 }
