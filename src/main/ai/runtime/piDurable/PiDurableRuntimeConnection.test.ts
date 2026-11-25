@@ -2334,21 +2334,21 @@ describe('desktop Pi Durable connection', () => {
 
   it('refreshes an existing child compaction policy before continuation', async () => {
     const prefs = application.get('PreferenceService')
-    prefs.set('chat.context_settings.enabled', true)
-    prefs.set('chat.context_settings.compress.enabled', false)
+    await prefs.set('chat.context_settings.enabled', true)
+    await prefs.set('chat.context_settings.compress.enabled', false)
     const connection = await finishedChild()
     const view = (await connection.childProjection('spawn'))!
     const unsubscribe = view.subscribe(() => {})
     const [child] = await connection['childResources']()
-    const configure = vi.spyOn(child.handle!.durable, 'configure')
-    prefs.set('chat.context_settings.compress.enabled', true)
-    prefs.set('chat.context_settings.compress.threshold_percent', 60)
+    const configure = vi.spyOn(child.handle.durable, 'configure')
+    await prefs.set('chat.context_settings.compress.enabled', true)
+    await prefs.set('chat.context_settings.compress.threshold_percent', 60)
     await connection.messageChild(view.snapshot().contextId, 'continue research')
     expect(configure).toHaveBeenCalledWith({
       compaction: expect.objectContaining({ enabled: true, backgroundTokens: 0 })
     })
     expect(configure.mock.calls[0][0].compaction?.reserveTokens).toBeGreaterThan(0)
-    const usage = await child.handle!.contextUsage()
+    const usage = await child.handle.contextUsage()
     expect(usage.status).toBe('confirmed')
     unsubscribe()
   })
