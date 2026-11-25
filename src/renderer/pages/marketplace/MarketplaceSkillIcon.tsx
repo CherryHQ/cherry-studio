@@ -39,6 +39,7 @@ export function MarketplaceSkillIcon({
   skill: Pick<MarketplaceSkill, 'icon' | 'sourceUrl'>
   large?: boolean
 }) {
+  // SAFETY: The own-key check restricts the remote name to this private icon table; unknown names retain the Sparkles fallback.
   const Icon = skill.icon && Object.hasOwn(icons, skill.icon) ? icons[skill.icon as keyof typeof icons] : Sparkles
   const source = skill.sourceUrl ? parseSkillSourceUrl(skill.sourceUrl) : null
 

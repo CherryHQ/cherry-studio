@@ -250,11 +250,11 @@ export function useMarketplace(sourceId: string | null = null, active = true) {
     [mutateCatalog, i18n.language, installedMembers, invalidate, mutate, t]
   )
 
+  const cachedCatalogData = cache.get('skill.marketplace.list')?.data
+  const cachedCatalogCount = Array.isArray(cachedCatalogData) ? cachedCatalogData.length : undefined
+
   return {
-    curatedCount:
-      (cache.get('skill.marketplace.list')?.data as MarketplaceSkill[] | undefined)?.length ??
-      persistedCatalog?.length ??
-      null,
+    curatedCount: cachedCatalogCount ?? persistedCatalog?.length ?? null,
     catalog: {
       ...catalog,
       data: items,
