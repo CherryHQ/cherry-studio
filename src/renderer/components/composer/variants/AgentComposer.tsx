@@ -1083,7 +1083,7 @@ const AgentComposerInner = ({
     })
   }, [refreshAvailableSkills])
 
-  useComposerQuoteInsertion(actionsRef)
+  useComposerQuoteInsertion(actionsRef, sessionTopicId, !launchOptions?.editing)
   useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
   useComposerPrefill(actionsRef, {
     topicId: sessionTopicId,

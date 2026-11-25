@@ -18,6 +18,7 @@ import MultiSelectActionPopup from '@renderer/components/chat/messages/MultiSele
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { dataUrlToBlob } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
@@ -49,6 +50,7 @@ import {
   useMessageRenderConfig
 } from './MessageListProvider'
 import { CHAT_CAPTURE_BACKDROP_VARIABLE, defaultMessageRenderConfig } from './types'
+import { dispatchLocateMessage } from './utils/dispatchLocateMessage'
 import { getLatestAssistantGroupKey, getMessageGroupKey } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
@@ -181,6 +183,7 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
     previous.messages === next.messages &&
     groupPartsShallowEqual(previous.partsByMessageId, next.partsByMessageId, next.messages) &&
     previous.captureMode === next.captureMode &&
+    previous.quoteTopicId === next.quoteTopicId &&
     previous.registerMessageElement === next.registerMessageElement &&
     previous.isLatestAssistantGroup === next.isLatestAssistantGroup &&
     previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
@@ -747,6 +750,14 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     })
   }, [bindRuntime])
 
+  useEffect(() => {
+    if (!actions.bindMessageRuntime) return
+    return EventEmitter.on(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, (messageId) => {
+      if (typeof messageId !== 'string' || !messageByIdRef.current.has(messageId)) return
+      dispatchLocateMessage({ locateMessage: scrollToMessageById }, messageId, true)
+    })
+  }, [actions.bindMessageRuntime, scrollToMessageById])
+
   const keepMountedKeys = useMemo(() => {
     const keys = new Set<string>()
     if (shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey) keys.add(latestAssistantGroupKey)
@@ -803,7 +814,10 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
           scopeRef={messageListScopeRef}
         />
       )}
-      <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
+      <SelectionContextMenu
+        openBrowserUrl={actions.openBrowserUrl}
+        quoteTopicId={actions.locateMessage ? topic.id : undefined}
+        replyDisabled={isMultiSelectMode}>
         <div ref={messageListScopeRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <MessageVirtualList
             handleRef={messageListRef}
@@ -847,6 +861,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
                 railGutterPx,
                 sidePaddingPx,
                 messageEndInsetPx,
+                quoteTopicId: actions.locateMessage ? topic.id : undefined,
                 isLatestAssistantGroup: key === latestAssistantGroupKey,
                 directAssistantModelsByUserId,
                 messageTail: groupMessageTail,
