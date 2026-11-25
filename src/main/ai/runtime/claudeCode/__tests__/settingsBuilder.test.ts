@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => ({
   getSkillPluginDirectory: vi.fn(),
   checkSkillRuntimeDependencies: vi.fn(),
   modelGetByKey: vi.fn(),
+  listModels: vi.fn(),
   getByProviderId: vi.fn(),
   findBySessionId: vi.fn(),
   createMcpBridgeServer: vi.fn(),
@@ -111,7 +112,7 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@data/services/ModelService', () => ({
-  modelService: { getByKey: mocks.modelGetByKey }
+  modelService: { getByKey: mocks.modelGetByKey, list: mocks.listModels }
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
@@ -849,6 +850,32 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
     expect((trusted.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
   })
+
+  it.each(['CLAUDE_CODE_SUBAGENT_MODEL', 'CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL'])(
+    'includes an admitted inherited %s pin in the shared gateway budget',
+    async (pin) => {
+      mocks.getShellEnv.mockResolvedValue({ [pin]: 'relay:task-api' })
+      mocks.getByProviderId.mockReturnValue({ id: 'relay', isEnabled: true })
+      mocks.listModels.mockReturnValue([
+        {
+          id: 'relay::task',
+          providerId: 'relay',
+          apiModelId: 'task-api',
+          capabilities: [],
+          contextWindow: 64_000,
+          maxOutputTokens: 32_000
+        }
+      ])
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        { id: 'anthropic', presetProviderId: 'anthropic', defaultChatEndpoint: 'anthropic-messages' } as never,
+        { contextWindow: 256_000, maxOutputTokens: 32_000, primaryTrusted: true, gatewayModelSlots: [] }
+      )
+      expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
+      expect(settings.env?.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE).toBe('32')
+      expect(settings.env?.[pin]).toBe('relay:task-api')
+    }
+  )
 
   // A gateway route fans out per-model slots to providers the builder never sees,
   // so even a trusted primary is budgeted at the weakest usable slot: the 100K

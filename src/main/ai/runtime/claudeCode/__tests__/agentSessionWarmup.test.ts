@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getProviderByProviderId: vi.fn(),
   getModelByKey: vi.fn(),
+  listModels: vi.fn(),
   resolveApiKey: vi.fn(),
   getApiKeys: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
@@ -49,7 +50,7 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@data/services/ModelService', () => ({
-  modelService: { getByKey: mocks.getModelByKey }
+  modelService: { getByKey: mocks.getModelByKey, list: mocks.listModels }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -1296,6 +1297,40 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     }
   })
 
+  it('captures only admitted background models and both effective pin budgets', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'primary::main',
+      planModel: 'disabled::plan',
+      configuration: { env_vars: { CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: 'workflow:task-api' } }
+    })
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({ CLAUDE_CODE_SUBAGENT_MODEL: 'child:task-api' })
+    mocks.getProviderByProviderId.mockImplementation((id: string) => ({ id, isEnabled: id !== 'disabled' }))
+    mocks.getModelByKey.mockImplementation((providerId: string, modelId: string) => ({
+      id: `${providerId}::${modelId}`,
+      providerId,
+      capabilities: [],
+      apiModelId: `${modelId}-api`,
+      contextWindow: providerId === 'primary' ? 256_000 : 64_000
+    }))
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => [
+      mocks.getModelByKey(providerId, providerId === 'primary' ? 'main' : 'task')
+    ])
+    let capturedOptions: { gatewayModelSlots?: unknown[]; gatewayPinBudgetSlots?: unknown[] } | undefined
+    mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => {
+      capturedOptions = options
+      return { env: {} }
+    })
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+    expect(capturedOptions?.gatewayModelSlots).toEqual([expect.objectContaining({ providerId: 'primary' })])
+    expect(capturedOptions?.gatewayPinBudgetSlots).toEqual([
+      expect.objectContaining({ providerId: 'child', contextWindow: 64_000 }),
+      expect.objectContaining({ providerId: 'workflow', contextWindow: 64_000 })
+    ])
+    const derived = await deriveConnectionConfig('session-1', undefined, 'default', false, [])
+    expect(derived.ok && derived.config.rebuildSignature).toBe(request?.connectionConfig.rebuildSignature)
+  })
+
   it('preserves explicit timeout controls for local API gateway routes', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
     mocks.getProviderByProviderId.mockReturnValue({
@@ -2075,6 +2110,16 @@ describe('deriveConnectionConfig', () => {
   })
 
   it('changes the rebuild signature when model context metadata changes', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({ id: 'provider-1', isEnabled: true })
+    mocks.listModels.mockImplementation(() => [
+      {
+        ...mocks.getModelByKey('provider-1', 'model-1'),
+        id: 'provider-1::model-1',
+        providerId: 'provider-1',
+        capabilities: []
+      }
+    ])
+
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
       apiModelId: `${modelId}-api`,
@@ -2194,6 +2239,15 @@ describe('deriveConnectionConfig', () => {
   })
 
   it('rebuilds when a routed gateway sub-provider endpoint flips trust without id or window changes', async () => {
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => [
+      {
+        ...mocks.getModelByKey(providerId, providerId === 'relay' ? 'model-2' : 'model-1'),
+        id: `${providerId}::${providerId === 'relay' ? 'model-2' : 'model-1'}`,
+        providerId,
+        capabilities: []
+      }
+    ])
+
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'provider-1::model-1',
@@ -2204,6 +2258,7 @@ describe('deriveConnectionConfig', () => {
     })
     const relayEndpoint = (baseUrl: string) => ({
       id: 'relay',
+      isEnabled: true,
       presetProviderId: 'relay',
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: { 'anthropic-messages': { baseUrl } }

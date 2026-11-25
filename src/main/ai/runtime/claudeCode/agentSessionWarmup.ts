@@ -54,6 +54,7 @@ import type { AgentRuntimeConnectInput, AgentSessionUsageCapture } from '../type
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { isTrustedClaudeSlot } from './environment'
+import { gatewayPinAddresses, resolveGatewayBudgetSlots } from './gatewayBudget'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import type { ClaudeCodeGatewayModelSlot } from './settingsBuilder'
 import {
@@ -137,6 +138,7 @@ function gatewayBypassRule(route: Pick<ClaudeCodeRouteFacts, 'branch' | 'baseUrl
 
 interface ConnectionMaterializationFacts {
   route: ClaudeCodeRouteFacts
+  gatewayPins: ClaudeCodeGatewayModelSlot[]
   mcp: unknown[]
   skills: string[]
   notificationContext: AgentNotificationContext
@@ -444,6 +446,16 @@ async function deriveConnectionConfigFromSnapshot(
     serviceTier: routeFacts.branch === 'gateway' ? serviceTier : undefined,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
+    gatewayPins:
+      materialized?.gatewayPins ??
+      (routeFacts.branch === 'gateway'
+        ? resolveGatewayBudgetSlots(
+            gatewayPinAddresses({
+              ...(await getClaudeCodeLoginShellEnvironment(getProxyEnvironment(process.env))),
+              ...agent.configuration?.env_vars
+            })
+          )
+        : []),
     cwd,
     // Rebuild fact: language change invalidates the warm connection so the new
     // language instruction is baked into the next prompt and prompt cache. This
@@ -603,6 +615,15 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       : effectiveResume) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const promptModelName = resolvePromptModelName(uniqueModelId, agent)
+  const gatewayPins =
+    route.branch === 'gateway'
+      ? resolveGatewayBudgetSlots(
+          gatewayPinAddresses({
+            ...(await getClaudeCodeLoginShellEnvironment(getProxyEnvironment(process.env))),
+            ...agent.configuration?.env_vars
+          })
+        )
+      : []
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -625,7 +646,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         effectiveModelId: uniqueModelId,
         primaryModelId: uniqueModelId,
         primaryTrusted: route.primaryTrusted,
-        gatewayModelSlots: route.branch === 'gateway' ? route.budgetSlots : undefined
+        gatewayModelSlots: route.branch === 'gateway' ? route.budgetSlots : undefined,
+        gatewayPinBudgetSlots: gatewayPins
       },
       agent
     ),
@@ -644,6 +666,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     selectedKnowledgeBaseIds,
     {
       route: toConnectionRouteFacts(route),
+      gatewayPins,
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
       notificationContext,
@@ -798,13 +821,7 @@ function deriveRouteFacts(
       sonnet: slotModelId(sonnetRef),
       haiku: slotModelId(haikuRef)
     },
-    budgetSlots: [sonnetRef, haikuRef].map((ref) => ({
-      providerId: ref.providerId,
-      modelId: ref.modelId,
-      contextWindow: ref.contextWindow,
-      maxOutputTokens: ref.model?.maxOutputTokens,
-      trusted: isTrustedClaudeSlot(ref.provider ?? null, ref.model ?? null)
-    })),
+    budgetSlots: resolveGatewayBudgetSlots([slotModelId(sonnetRef), slotModelId(haikuRef)]),
     primaryTrusted: isTrustedClaudeSlot(primaryProvider, primaryModel),
     usageModels: []
   }

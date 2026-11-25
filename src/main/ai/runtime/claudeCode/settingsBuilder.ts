@@ -83,6 +83,7 @@ import {
   resolveClaudeOutputCap,
   resolveRequestedOutputTokens
 } from './environment'
+import { gatewayPinAddresses, resolveGatewayBudgetSlots } from './gatewayBudget'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import {
   approvalRequiredRuntimeNames,
@@ -166,6 +167,8 @@ export interface ClaudeCodeSessionOptions {
    * Covered by route facts for staleness (branch + per-slot providers/windows).
    */
   gatewayModelSlots?: ClaudeCodeGatewayModelSlot[]
+  /** Admitted explicit pins captured with the connection baseline. */
+  gatewayPinBudgetSlots?: ClaudeCodeGatewayModelSlot[]
   /**
    * Primary model id (`providerId::modelId`) for model-aware trust: the budget follows
    * the endpoint that actually serves the primary model rather than the provider-wide
@@ -371,7 +374,12 @@ export async function buildClaudeCodeSessionSettings(
   } catch {
     primaryModel = null
   }
-  const hasGatewaySlots = (options?.gatewayModelSlots ?? []).length > 0
+  const gatewaySlots = [
+    ...(options?.gatewayModelSlots ?? []),
+    ...(options?.gatewayPinBudgetSlots ??
+      (options?.gatewayModelSlots !== undefined ? resolveGatewayBudgetSlots(gatewayPinAddresses(env)) : []))
+  ]
+  const hasGatewaySlots = options?.gatewayModelSlots !== undefined
   const budgetSlots: Array<{
     contextWindow?: number
     output: number
@@ -390,7 +398,7 @@ export async function buildClaudeCodeSessionSettings(
       isGatewaySlot: false
     }
   ]
-  for (const gatewaySlot of options?.gatewayModelSlots ?? []) {
+  for (const gatewaySlot of gatewaySlots) {
     // The verdict travels with the route facts; only resolve live without one.
     let slotProvider: Provider | null = null
     let slotModel: Model | null = null
