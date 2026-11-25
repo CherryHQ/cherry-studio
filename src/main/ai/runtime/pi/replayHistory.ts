@@ -1,6 +1,6 @@
 import type { Api, AssistantMessage, Model, TranscriptContext } from '@earendil-works/pi-ai'
 
-import { ToolContinuationRouteError } from '../../provider/replayRoute'
+import { selectToolContinuation } from '../../provider/replayRoute'
 
 export type ReplayAssistantMessage = AssistantMessage & {
   cherryReplayRouteId?: string
@@ -10,26 +10,24 @@ export type ReplayAssistantMessage = AssistantMessage & {
 export function getPendingPiReplayMessage(context: TranscriptContext): ReplayAssistantMessage | undefined {
   const active = context.messages.slice(context.messages.findLastIndex((message) => message.role === 'user') + 1)
   const results = new Set(active.flatMap((message) => (message.role === 'toolResult' ? [message.toolCallId] : [])))
-  let source: ReplayAssistantMessage | undefined
-  for (const message of active) {
-    if (message.role !== 'assistant') continue
-    const tagged = message as ReplayAssistantMessage
-    if (
-      !tagged.cherryReplayRouteId ||
-      !tagged.content.some((part) => part.type === 'toolCall' && results.has(part.id)) ||
-      !tagged.content.some((part) =>
+  const steps = active
+    .filter((message) => message.role === 'assistant')
+    .map((message) => {
+      const source = message as ReplayAssistantMessage
+      const hasRequiredState = source.content.some((part) =>
         part.type === 'thinking'
-          ? part.thinkingSignature || part.redacted || (tagged.cherryRequiresToolReasoning && part.thinking)
+          ? part.thinkingSignature || part.redacted || (source.cherryRequiresToolReasoning && part.thinking)
           : part.type === 'text'
             ? part.textSignature
             : part.thoughtSignature
       )
-    )
-      continue
-    if (source && source.cherryReplayRouteId !== tagged.cherryReplayRouteId) throw new ToolContinuationRouteError()
-    source = tagged
-  }
-  return source
+      return {
+        source,
+        toolCallIds: source.content.flatMap((part) => (part.type === 'toolCall' ? [part.id] : [])),
+        requiredRoutes: source.cherryReplayRouteId && hasRequiredState ? [source.cherryReplayRouteId] : []
+      }
+    })
+  return selectToolContinuation(steps, results)?.source
 }
 
 export function getForeignPiToolOrdinals(context: TranscriptContext, routeId: string): ReadonlySet<number> {

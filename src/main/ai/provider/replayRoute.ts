@@ -62,6 +62,21 @@ export class ToolContinuationRouteError extends Error {
   }
 }
 
+export function selectToolContinuation<Source>(
+  steps: Iterable<{ source: Source; toolCallIds: readonly string[]; requiredRoutes: readonly string[] }>,
+  completedCalls: ReadonlySet<string>
+): { source: Source; routeId: string } | undefined {
+  let pending: { source: Source; routeId: string } | undefined
+  for (const { source, toolCallIds, requiredRoutes } of steps) {
+    if (!toolCallIds.some((id) => completedCalls.has(id))) continue
+    for (const routeId of requiredRoutes) {
+      if (pending && pending.routeId !== routeId) throw new ToolContinuationRouteError()
+      pending = { source, routeId }
+    }
+  }
+  return pending
+}
+
 export function getPendingReplayRoute(prompt: LanguageModelV3Prompt): string | undefined {
   const active = prompt.slice(prompt.findLastIndex((message) => message.role === 'user') + 1)
   const completedCalls = new Set(
@@ -71,21 +86,17 @@ export function getPendingReplayRoute(prompt: LanguageModelV3Prompt): string | u
         : []
     )
   )
-  let route: string | undefined
-  for (const message of active) {
-    if (
-      message.role !== 'assistant' ||
-      !message.content.some(
-        (part) => part.type === 'tool-call' && !part.providerExecuted && completedCalls.has(part.toolCallId)
-      )
-    )
-      continue
-    for (const part of message.content) {
-      const source = part.providerOptions?.cherry?.replayRouteId
-      if (typeof source !== 'string' || part.providerOptions?.cherry?.replayRequiresRoute === false) continue
-      if (route !== undefined && source !== route) throw new ToolContinuationRouteError()
-      route = source
-    }
-  }
-  return route
+  const steps = active
+    .filter((message) => message.role === 'assistant')
+    .map((message) => ({
+      source: message,
+      toolCallIds: message.content.flatMap((part) =>
+        part.type === 'tool-call' && !part.providerExecuted ? [part.toolCallId] : []
+      ),
+      requiredRoutes: message.content.flatMap((part) => {
+        const source = part.providerOptions?.cherry?.replayRouteId
+        return typeof source === 'string' && part.providerOptions?.cherry?.replayRequiresRoute !== false ? [source] : []
+      })
+    }))
+  return selectToolContinuation(steps, completedCalls)?.routeId
 }
