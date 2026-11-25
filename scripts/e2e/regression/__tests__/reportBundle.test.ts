@@ -59,7 +59,10 @@ describe('desktop regression and smoke report bundle', () => {
     expect(smokeUpload.with.path.trim().split('\n')).toEqual(
       ['report', 'evidence'].map((path) => `\${{ runner.temp }}/cherry-regression/${path}`)
     )
-    const aggregateVerify = steps.find((step) => step.name === 'Verify artifact identity evidence') as { run: string }
+    const aggregateVerify = steps.find((step) => step.name === 'Verify artifact identity evidence') as {
+      name: string
+      run: string
+    }
     const assemble = steps.find((step) => step.name === 'Assemble complete report')!
     const uploadReport = steps.find((step) => step.name === 'Upload aggregate report')!
     expect(aggregateVerify.run).toContain('verify-evidence --aggregate-root combined-report')
