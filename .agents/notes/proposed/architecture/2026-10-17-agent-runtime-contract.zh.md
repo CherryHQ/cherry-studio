@@ -343,6 +343,8 @@ P1 使用 `DbService` 保存 Cherry 的上下文关联及消息上的两个输�
 
 部分文本同时存在于原生历史与展示消息中，因为二者的保留规则和消费者不同。原生压缩或分支不能删除产品归档；产品编辑也不能静默改写模型的原生上下文。不再保存第三份完整 transcript，不把 Durable entry/submission/task/commit 镜像到 Cherry 表。保持已提交消息版本稳定，不强制向独立输入记录复制正文。未来若有重试消费者需要保留消息无法重现的变换后载荷，应为该路径单独论证私有载荷快照，不能据此要求每条输入都存一份。
 
+更换 harness 或显式切换上下文时，用选中分支的产品消息构建有预算的参考历史，初始化新原生线程。Cherry 存储原生绑定和输入关联。[智能体会话 Timeline Spec](2026-11-19-agent-session-timeline-and-context-transfer.md) 负责切换、旧运行时释放和原生历史保留规则，并允许每个会话有多个根绑定。
+
 ```mermaid
 flowchart LR
     Host["Main runtime coordinator"]
