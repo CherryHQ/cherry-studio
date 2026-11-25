@@ -90,7 +90,7 @@ it('resolves edit eligibility through saved handoffs without hiding them from pr
     }
   })
   const next = user('Next')
-  expect(runtime.getHistoryActions(sessionId, [next.id]).get(next.id)?.edit).toBeNull()
+  expect(readHistoryActions(sessionId, [next.id]).get(next.id)?.edit).toBeNull()
   await expect(runtime.getEditTarget(sessionId, next.id)).resolves.toMatchObject({ messageId: next.id })
   expect(messages.listSessionMessages(sessionId).items.some((row) => row.id === handoff.id)).toBe(true)
 })

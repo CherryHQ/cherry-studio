@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSessionMessagePartTable, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -84,7 +84,7 @@ describe('model-switch handoff persistence and generation', () => {
       name: 'Task',
       workspace: { type: 'user', workspaceId: workspace.id }
     }).id
-    agentSessionMessageService.saveMessages({
+    agentSessionMessageService.saveMessagesTx(dbh.db, {
       sessionId,
       runtimeResumeToken: 'native-original',
       messages: [
@@ -131,7 +131,7 @@ describe('model-switch handoff persistence and generation', () => {
 
   it('rejects a stale branch and does not append or change the selected model', () => {
     const input = draft()
-    agentSessionMessageService.saveMessages({
+    agentSessionMessageService.saveMessagesTx(dbh.db, {
       sessionId,
       messages: [{ role: 'user', data: { parts: [{ type: 'text', text: 'New request' }] } }]
     })
@@ -144,9 +144,9 @@ describe('model-switch handoff persistence and generation', () => {
   it('detects edits to source text even when the branch head stays the same', () => {
     const input = draft()
     dbh.db
-      .update(agentSessionMessageTable)
-      .set({ data: { parts: [{ type: 'text', text: 'Changed source' }] } })
-      .where(eq(agentSessionMessageTable.id, input.sourceHead))
+      .update(agentSessionMessagePartTable)
+      .set({ payload: { type: 'text', text: 'Changed source' } })
+      .where(eq(agentSessionMessagePartTable.messageId, input.sourceHead))
       .run()
     expect(() => agentSessionService.switchModelWithHandoff(sessionId, input)).toThrow(/Session changed/)
     expect(agentSessionService.getById(sessionId).model).toBeNull()
@@ -224,7 +224,7 @@ describe('model-switch handoff persistence and generation', () => {
       maxInputTokens: 8192,
       maxOutputTokens: 4096
     } as never)
-    agentSessionMessageService.saveMessages({
+    agentSessionMessageService.saveMessagesTx(dbh.db, {
       sessionId,
       messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'x'.repeat(9000) }] } }]
     })

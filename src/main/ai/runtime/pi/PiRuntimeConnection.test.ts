@@ -277,7 +277,7 @@ describe('desktop Pi root connection', () => {
     await done(first.events)
     const nativeId = script.calls[0].sessionId
     await first.connection.close()
-    messages.saveMessages({
+    messages.saveMessagesTx(dbh.db, {
       sessionId: input.sessionId,
       messages: [
         {
