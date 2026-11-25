@@ -1,4 +1,4 @@
-import { getCurrentTools, type Message } from '@earendil-works/pi-ai'
+import { getCurrentTools } from '@earendil-works/pi-ai'
 import {
   type AgentSessionEvent,
   type SessionBeforeCompactEvent,
@@ -102,7 +102,7 @@ export class SessionEvents {
     if (!this.baseTools) return
     const { messages } = buildSessionContext(this.manager.getEntries(), entryId)
 
-    const activated = getCurrentTools(messages as Message[])
+    const activated = getCurrentTools(messages)
       .map((tool) => tool.name)
       .filter((name) => !this.baseTools!.has(name))
 

@@ -448,6 +448,7 @@ export class PiProjection {
         }
 
         if (!isError) return { ...base, state: 'output-available', output, preliminary }
+        // SAFETY: Only write(toolResult) passes isError=true with native content; unconstrained progress always passes false.
         const content = (output as { content?: { type: string; text?: string }[] }).content
 
         return {

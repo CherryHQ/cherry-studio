@@ -257,6 +257,7 @@ export function modelContext(adapter: Adapter, thread: ThreadId): JsonValue[] {
   const omit = adapter.installation.filter?.omit(thread, readFacts(adapter, thread)) ?? []
   const visible = withoutMarkers(messages, omittedMarkers(conv.manager.getBranch(), omit))
 
+  // SAFETY: Native transforms return an array; the JSON round trip produces detached JSON values or propagates serialization failure.
   return JSON.parse(JSON.stringify(transformMessages(convertToLlm(visible), model))) as JsonValue[]
 }
 

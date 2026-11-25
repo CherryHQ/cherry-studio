@@ -244,6 +244,7 @@ function nativeTool(adapter: Adapter, conv: Conversation, tool: ToolDefinition):
 function replaceArgs(input: ToolResultEvent['input'], args: JsonValue): void {
   if (typeof args !== 'object' || args === null || Array.isArray(args))
     throw new TypeError('A gate can only rewrite tool arguments to an object')
+
   for (const field of Object.keys(input)) delete input[field]
 
   for (const [field, value] of Object.entries(args)) {
