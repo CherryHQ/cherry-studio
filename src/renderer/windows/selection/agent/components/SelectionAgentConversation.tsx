@@ -24,7 +24,7 @@ import { useAgentChatRuntimeState } from '@renderer/pages/agents/useAgentChatRun
 import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
@@ -203,6 +203,7 @@ export const SelectionAgentConversation: FC<SelectionAgentConversationProps> = (
             editBusy={runtime.editBusy}
             cancelEditing={runtime.cancelEditing}
             resendEditedMessage={runtime.resendEditedMessage}
+            providerQuotaExhausted={runtime.providerQuotaExhausted}
             steerWhileBusy
           />
         )}

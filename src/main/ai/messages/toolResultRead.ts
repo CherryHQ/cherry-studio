@@ -1,8 +1,8 @@
 import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { fileEntryService } from '@data/services/FileEntryService'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { isToolOutputBlobEntry } from '@main/ai/contextBuild/toolOutputStore'
+import { extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import {
   blobRefsOf,
   isPersistedToolOutput,

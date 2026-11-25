@@ -98,7 +98,7 @@ markers.
 - Path-derived file token ids are never written to the clipboard. If the current
   renderer session has the original file metadata, the token may still be
   restored through a handle.
-- `quote` and `promptVariable` tokens are restored from sanitized token fields.
+- `quote` and `promptVariable` tokens are restored from sanitized token fields. The private fragment retains a quote’s source message ID when the same renderer session restores it.
 - Unsupported, unsafe, or unresolved token segments fall back to their visible
   text.
 - A fragment is restored only from the paste event's clipboard data or from the

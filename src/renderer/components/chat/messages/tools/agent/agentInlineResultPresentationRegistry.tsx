@@ -5,8 +5,7 @@ import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transpor
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useToolResponsePreview } from '../useToolResponsePreview'
-import { getCreateAgentResult, isCreateAgentResultPart, isCreateAgentToolResponse } from './createAgentResult'
-import { CreateAgentToolInline } from './CreateAgentTool'
+import { getAgentConfigToolKind } from './agentConfigTool'
 import { getAgentNavigateResult, isAgentNavigateResultPart, isAgentNavigateResponse } from './navigateResult'
 import { NavigateToolInline } from './NavigateTool'
 import {
@@ -15,6 +14,8 @@ import {
   isPrepareDiagnosticReportToolResponse
 } from './prepareDiagnosticReportResult'
 import { PrepareDiagnosticReportTool } from './PrepareDiagnosticReportTool'
+import { ResourceIdentityCard } from './ResourceIdentityCard'
+import { getResourceIdentityResult, isResourceIdentityResultPart } from './resourceIdentityResult'
 import { getScheduledTaskResult, isScheduledTaskResultPart, isTaskWriteToolResponse } from './scheduledTaskResult'
 import { ScheduledTaskToolInline } from './ScheduledTaskTool'
 
@@ -42,11 +43,11 @@ const AGENT_INLINE_RESULT_PRESENTATIONS = [
     }
   },
   {
-    isResultPart: isCreateAgentResultPart,
-    matches: isCreateAgentToolResponse,
+    isResultPart: isResourceIdentityResultPart,
+    matches: (response) => Boolean(getAgentConfigToolKind(response)),
     renderResult: (toolResponse) => {
-      const result = getCreateAgentResult(toolResponse)
-      return result ? <CreateAgentToolInline result={result} /> : undefined
+      const result = getResourceIdentityResult(toolResponse)
+      return result ? <ResourceIdentityCard result={result} /> : undefined
     }
   },
   {

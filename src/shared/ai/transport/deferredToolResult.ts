@@ -19,6 +19,7 @@ export interface DeferredToolOutputExcerpt {
 /** Replaces a tool part's `output` when the real value was too large to send. */
 export interface DeferredToolOutput {
   $deferredToolResult: DeferredToolResultRef
+  hasMcpApp?: true
   /** Present when the stored output is a persisted excerpt (`$persistedToolOutput`). */
   excerpt?: DeferredToolOutputExcerpt
   /** Bounded identity/citation fields carried when available, either from a

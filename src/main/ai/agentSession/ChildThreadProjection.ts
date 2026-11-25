@@ -13,6 +13,7 @@ import { MessageProjection } from '@main/ai/messages/MessageProjection'
 import { projectMessagePartForRenderer } from '@main/utils/messageOutputProjection'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { ChildProjectionState } from '@shared/ai/messageProjection'
 import type { DeferredToolResultRef } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageStatus } from '@shared/data/types/message'
@@ -20,7 +21,6 @@ import type { RetryPartData } from '@shared/data/types/uiParts'
 
 import { bindNativeInput } from './nativeSubmission'
 import { ThreadMessageProjection, type MessageDecorator } from './ThreadMessageProjection'
-import { buildAgentSessionTopicId } from './topic'
 
 const logger = loggerService.withContext('ChildThreadProjection')
 type CommittedHistory = {

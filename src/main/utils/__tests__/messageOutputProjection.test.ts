@@ -70,6 +70,39 @@ const blob = (key: string, n: number) => ({
 })
 
 describe('message tool-output projection', () => {
+  it('retains the App affordance without sending the full input or result for deferred tool output', () => {
+    const text = 'result'.repeat(10_000)
+    const metadata = {
+      type: 'mcp',
+      app: { serverId: 'server', serverKey: 'key', toolName: 'tool', resourceUri: 'ui://example/view' },
+      appInput: { privateInput: 'do not project this' }
+    }
+    const outputs = [
+      { metadata, content: [{ type: 'text', text }] },
+      {
+        $persistedToolOutput: {
+          fileEntryId: 'entry-1',
+          vfsFilename: 'vfs_1234.txt',
+          head: text.slice(0, 10),
+          tail: text.slice(-10),
+          totalChars: text.length,
+          totalLines: 1,
+          shape: 'mcp-content',
+          metadata
+        }
+      }
+    ]
+    for (const output of outputs) {
+      const projected = projectMessagePartForRenderer(partWith(output), TOPIC_ID, MESSAGE_ID)
+      if (!('output' in projected) || !isDeferredToolOutput(projected.output))
+        throw new Error('Expected deferred output')
+      expect(projected.output.hasMcpApp).toBe(true)
+      const bytes = JSON.stringify(projected.output)
+      expect(bytes).not.toContain(metadata.appInput.privateInput)
+      expect(Buffer.byteLength(bytes)).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
+    }
+  })
+
   it('keeps latest-value references stable and invalidates details on replacement', () => {
     const parts = (value: string) => [projectMessagePartForRenderer(partWith(value), TOPIC_ID, MESSAGE_ID)]
     const first = { id: MESSAGE_ID, role: 'assistant' as const, parts: parts('a'.repeat(64 * 1024)) }
