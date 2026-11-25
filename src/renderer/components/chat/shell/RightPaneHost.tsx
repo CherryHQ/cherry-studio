@@ -624,12 +624,8 @@ export function PersistentRightPaneHost({
     onResizingChangeRef.current?.(isResizing)
   }, [isResizing])
 
-  const composerStyle =
-    composerInset === null
-      ? undefined
-      : ({ '--chat-composer-inset': `${composerInset}px` } satisfies CSSProperties & {
-          '--chat-composer-inset': string
-        })
+  const composerStyle: (CSSProperties & { '--chat-composer-inset': string }) | undefined =
+    composerInset === null ? undefined : { '--chat-composer-inset': `${composerInset}px` }
 
   return (
     <>

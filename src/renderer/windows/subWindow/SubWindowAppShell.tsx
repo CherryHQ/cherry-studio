@@ -78,9 +78,9 @@ export const SubWindowAppShell = () => {
     })
   }
 
-  const windowStyle = {
+  const windowStyle: CSSProperties & { '--window-controls-width': string } = {
     '--window-controls-width': !isFullscreen && (isWin || isLinux) ? WINDOW_CONTROLS_OVERLAY_WIDTH : '0px'
-  } satisfies CSSProperties & { '--window-controls-width': string }
+  }
 
   return (
     // The window frame keeps detached-page behavior scoped to this window. The standalone
