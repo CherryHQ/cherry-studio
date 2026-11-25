@@ -177,7 +177,6 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   // resolution failure as `bad_request` ("请求错误… If you changed model settings, reset them").
   if (getLocalModelResolutionFailure(error)) return classify('model')
   const numStatus = getErrorHttpStatus(error)
-  if (numStatus === undefined && error.name === 'AI_InvalidArgumentError') return classify('bad_request')
 
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody : ''
   let dataText = ''

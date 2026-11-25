@@ -1,15 +1,12 @@
 import { EventEmitter } from 'node:events'
 
-import { createMistral } from '@ai-sdk/mistral'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiService } from '@main/ai/AiService'
-import { createRetryableWrap } from '@main/ai/runtime/aiSdk/retry/createRetryableWrap'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { diagnose } from '@main/services/diagnostics/scan/engine'
-import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -4130,55 +4127,6 @@ describe('AiStreamManager', () => {
         sender.emit('destroyed')
       }
     )
-
-    it.each(['low', 'medium'])('reports rejected Mistral reasoning effort %s without retrying', async (effort) => {
-      vi.useRealTimers()
-      const providerFetch = vi.fn<typeof fetch>()
-      const fallback = vi.fn().mockResolvedValue(null)
-      const onRetryEvent = vi.fn()
-      const mistral = createMistral({ apiKey: 'fixture', fetch: providerFetch })
-      const wrap = createRetryableWrap({
-        retryPolicy: { enabled: true, maxAttempts: 2, backoffEnabled: false, fallbackModelIds: [] },
-        fallbacks: [fallback],
-        onRetryEvent
-      })!
-      const model = wrap(mistral('mistral-large-4-0'))
-      let sentErrorChunk = false
-      mockStreamText.mockResolvedValueOnce(
-        new ReadableStream({
-          async pull(controller) {
-            if (!sentErrorChunk) {
-              sentErrorChunk = true
-              controller.enqueue({ type: 'error', errorText: 'invalid mistral provider options' })
-              return
-            }
-            await model.doStream({ prompt: [], providerOptions: { mistral: { reasoningEffort: effort } } })
-            controller.close()
-          }
-        })
-      )
-      const listener = new FakeListener('l:a')
-      startSingle(mgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [listener]
-      })
-
-      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
-
-      const terminal = listener.errorResults[0]
-      expect(terminal.error).toMatchObject({
-        name: 'AI_InvalidArgumentError',
-        message: `invalid mistral provider options: reasoningEffort = "${effort}"`,
-        providerErrorCategory: 'bad_request',
-        isRetryable: false
-      })
-      expect(toExecutionFailure(terminal.error).retryable).toBe(false)
-      expect(providerFetch).not.toHaveBeenCalled()
-      expect(fallback).not.toHaveBeenCalled()
-      expect(onRetryEvent).not.toHaveBeenCalled()
-    })
 
     it('keeps app-owned guidance when lossy chunk text precedes a typed rejection', async () => {
       vi.useRealTimers()

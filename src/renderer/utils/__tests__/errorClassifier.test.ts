@@ -101,16 +101,6 @@ describe('classifyError', () => {
     ).toBe(category)
   })
 
-  it('classifies a statusless SDK argument rejection as a bad request during streaming', () => {
-    const error = makeError({
-      name: 'AI_InvalidArgumentError',
-      message: 'invalid mistral provider options',
-      streamStage: 'response-stream'
-    })
-
-    expect(classifyError(error).i18nKey).toBe('error.diagnosis.bad_request')
-  })
-
   // #24238: a provider's validation error without a structured status was shown as
   // "Response interrupted, check network stability or retry".
   it('reports a status-less provider validation error in the response stream as a request failure', () => {
