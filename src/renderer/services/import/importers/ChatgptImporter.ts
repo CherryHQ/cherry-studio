@@ -12,9 +12,11 @@ const METADATA_MARKER = /\uE200(?:cite|filecite|genui|image_group)\uE202[^\uE201
 const normalizeExportText = (text: string): string =>
   text
     .replace(ENTITY_MARKER, (_, payload: string) => {
-      const [, label] = JSON.parse(payload) as [string, string, string]
+      const entity: unknown = JSON.parse(payload)
 
-      return label
+      if (!Array.isArray(entity) || typeof entity[1] !== 'string') throw new Error('Invalid ChatGPT entity label')
+
+      return entity[1]
     })
     .replace(URL_MARKER, (_, label: string, target: string) =>
       target.startsWith('https://') || target.startsWith('http://') ? `[${label}](${target})` : label

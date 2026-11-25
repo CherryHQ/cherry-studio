@@ -128,7 +128,8 @@ export class AnthropicImporter implements ConversationImporter {
   async parse(fileContent: string): Promise<ImportResult> {
     logger.info('Starting Anthropic Claude import...')
 
-    const parsed = JSON.parse(fileContent)
+    const parsed: unknown = JSON.parse(fileContent)
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Export fingerprinting checks IDs and roles, not every vendor content field; retain the legacy per-conversation compatibility boundary.
     const conversations = (Array.isArray(parsed) ? parsed : [parsed]) as AnthropicConversation[]
 
     if (conversations.length === 0) {

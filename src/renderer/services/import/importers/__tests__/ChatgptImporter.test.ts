@@ -55,6 +55,16 @@ describe('ChatgptImporter', () => {
     ])
   })
 
+  it.each([null, {}, ['company'], ['company', 17]])(
+    'isolates an invalid entity label while importing other conversations: %j',
+    async (payload) => {
+      const marker = `\uE200entity\uE202${JSON.stringify(payload)}\uE201`
+      const result = await importer.parse(JSON.stringify([conversation([marker]), conversation(['Readable text'])]))
+      expect(result.conversations).toHaveLength(1)
+      expect(result.conversations[0].messages[0].parts).toEqual([{ type: 'text', text: 'Readable text' }])
+    }
+  )
+
   it('imports only text from multimodal content', async () => {
     const result = await importer.parse(
       JSON.stringify([
