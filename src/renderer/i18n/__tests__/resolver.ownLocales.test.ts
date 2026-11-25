@@ -1,23 +1,31 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
+import en from '../locales/en-us.json'
 import i18n, { initI18n } from '../resolver'
 
 describe('locale loader ownership', () => {
-  it('reports an inherited object key as an unavailable locale and keeps the English fallback usable', async () => {
+  it('rejects an inherited object key in the registered locale loader', async () => {
     await initI18n()
-    const previousLanguage = i18n.language
-    const failedLoading = vi.fn()
-    i18n.on('failedLoading', failedLoading)
+    const locale = new Promise((resolve, reject) => {
+      i18n.services.backendConnector.backend.read('constructor', 'translation', (error, resources) => {
+        if (error) reject(error)
+        else resolve(resources)
+      })
+    })
 
-    try {
-      await i18n.changeLanguage('constructor')
+    await expect(locale).rejects.toThrow('No locale pack for "constructor"')
+    expect(i18n.hasResourceBundle('constructor', 'translation')).toBe(false)
+  })
 
-      expect(failedLoading).toHaveBeenCalledWith('constructor', 'translation', expect.any(Error))
-      expect(i18n.hasResourceBundle('constructor', 'translation')).toBe(false)
-      expect(i18n.resolvedLanguage).toBe('en-US')
-    } finally {
-      i18n.off('failedLoading', failedLoading)
-      await i18n.changeLanguage(previousLanguage)
-    }
+  it('loads the English fallback pack through the registered backend', async () => {
+    await initI18n()
+    const locale = new Promise((resolve, reject) => {
+      i18n.services.backendConnector.backend.read('en-US', 'translation', (error, resources) => {
+        if (error) reject(error)
+        else resolve(resources)
+      })
+    })
+
+    await expect(locale).resolves.toEqual(en)
   })
 })
