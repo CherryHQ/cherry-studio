@@ -679,7 +679,8 @@ export class MiniAppRuntimeService extends BaseService {
     const unrepaired = await this.recovered
 
     // SAFETY: onReady resolves this barrier with a service-owned Set; clearUnrepaired removes marks after a clean install.
-    ;(unrepaired as Set<string>).delete(appId)
+    const recoveredSet = unrepaired as Set<string>
+    recoveredSet.delete(appId)
   }
 
   /**

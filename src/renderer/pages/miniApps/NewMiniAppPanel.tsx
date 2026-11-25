@@ -275,7 +275,12 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
         {isEditing ? (
           siteForm
         ) : (
-          <Tabs value={tab} onValueChange={(value) => setTab(value as AddTab)} className="min-w-0">
+          <Tabs
+            value={tab}
+            onValueChange={(value) => {
+              if (value === 'site' || value === 'app') setTab(value)
+            }}
+            className="min-w-0">
             <TabsList className="w-full">
               <TabsTrigger value="site" className="flex-1">
                 <Globe className="size-4" />
