@@ -1,5 +1,5 @@
 import { CLI_TOOLS } from '@renderer/components/icons/CliIcon'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { isGeminiProvider, isLoginBasedProvider, resolveEndpointDialect } from '@shared/utils/provider'
@@ -17,8 +17,7 @@ export const PROVIDERLESS_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([CodeCli.QOD
  * here so Gemini-compatible CLIs can select them despite lacking a Gemini endpoint. */
 const GEMINI_AGGREGATOR_PROVIDERS = new Set(['aihubmix', 'dmxapi', 'new-api', 'cherryin'])
 
-const hasEndpoint = (p: Provider, type: string): boolean =>
-  Boolean(p.endpointConfigs?.[type as 'anthropic-messages']?.baseUrl)
+const hasEndpoint = (p: Provider, type: EndpointType): boolean => Boolean(p.endpointConfigs?.[type]?.baseUrl)
 
 const hasAnthropic = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 const hasChat = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)

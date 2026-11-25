@@ -21,9 +21,7 @@ export function useManagedToolStatus(tool: ManagedTool, enabled: boolean): Manag
 
   useEffect(() => {
     if (!enabled || tool !== 'openclaw') return
-    void ipcApi
-      .request('openclaw.get_status')
-      .catch((error) => logger.error('Failed to probe OpenClaw status', error as Error))
+    void ipcApi.request('openclaw.get_status').catch((error) => logger.error('Failed to probe OpenClaw status', error))
   }, [enabled, tool])
 
   if (!enabled) return STOPPED

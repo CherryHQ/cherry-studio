@@ -20,7 +20,7 @@ import type { ApiGatewayProviderBundle } from './useApiGatewayProvider'
 const logger = loggerService.withContext('useCurrentCliConfigConnection')
 
 async function readProviderApiKeys(providerId: string): Promise<ApiKeyEntry[]> {
-  const result = (await dataApiService.get(`/providers/${providerId}/api-keys`)) as { keys?: ApiKeyEntry[] } | undefined
+  const result = await dataApiService.get(`/providers/${providerId}/api-keys`)
 
   return result?.keys ?? []
 }
@@ -101,7 +101,7 @@ export function useCurrentCliConfigConnection({
           : connection
       )
     })().catch((error) => {
-      logger.error('Failed to read current CLI config connection:', error as Error)
+      logger.error('Failed to read current CLI config connection:', error)
 
       if (!cancelled && readGeneration === readGenerationRef.current) setCurrentCliConfigConnection(null)
     })

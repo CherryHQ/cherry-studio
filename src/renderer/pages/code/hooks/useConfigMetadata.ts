@@ -46,8 +46,8 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
     [allModels, gatewayProviderIds]
   )
 
-  const defaultGatewayModelId =
-    defaultModelId && gatewayModelsById.has(defaultModelId as Model['id']) ? (defaultModelId as Model['id']) : undefined
+  const gatewayModelLookup: ReadonlyMap<string, Model> = gatewayModelsById
+  const defaultGatewayModelId = defaultModelId ? gatewayModelLookup.get(defaultModelId)?.id : undefined
 
   const filterProvidersForTool = useCallback((toolId: CodeCli, providers: Provider[]): Provider[] => {
     const filterFn = CLI_TOOL_PROVIDER_MAP[toolId]

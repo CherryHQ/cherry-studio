@@ -131,6 +131,7 @@ export function renderDotenvFile(envMap: Map<string, string>, originalContent = 
     }
 
     const value = envMap.get(block.key)
+
     // Drop every occurrence of a deleted key so it cannot resurface on read-back.
     if (value === undefined) continue
 

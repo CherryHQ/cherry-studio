@@ -1,15 +1,15 @@
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
 const OPENAI_LIKE_ENDPOINTS = [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
 
-function hasModelEndpoint(model: Model, endpoint: string): boolean {
+function hasModelEndpoint(model: Model, endpoint: EndpointType): boolean {
   if (!model.endpointTypes?.length) return true
 
-  return model.endpointTypes.includes(endpoint as any)
+  return model.endpointTypes.includes(endpoint)
 }
 
-function hasAnyModelEndpoint(model: Model, endpoints: string[]): boolean {
+function hasAnyModelEndpoint(model: Model, endpoints: readonly EndpointType[]): boolean {
   if (!model.endpointTypes?.length) return true
 
   return model.endpointTypes.some((endpoint) => endpoints.includes(endpoint))
