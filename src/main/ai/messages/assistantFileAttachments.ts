@@ -13,7 +13,9 @@ export function createAssistantFileAttachmentHandle(fileEntryId: string): string
   return `file_${digest}`
 }
 
-export function collectAssistantFileAttachments(messages: UIMessage[] | undefined): FileAttachmentRef[] {
+export function collectAssistantFileAttachments(
+  messages: readonly Partial<Pick<UIMessage, 'parts'>>[] | undefined
+): FileAttachmentRef[] {
   const attachments = new Map<string, FileAttachmentRef>()
 
   for (const message of messages ?? []) {

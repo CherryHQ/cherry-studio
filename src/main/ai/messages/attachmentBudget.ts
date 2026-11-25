@@ -81,9 +81,9 @@ async function countToolSetTokens(tools: ToolSet | undefined, tokenizer: TextTok
 
   const perTool = await Promise.all(
     Object.entries(tools).map(async ([name, tool]) => {
-      const schema = await serializeToolSchema((tool as { inputSchema?: unknown }).inputSchema)
+      const schema = await serializeToolSchema(tool.inputSchema)
 
-      return countToolTokens({ name, description: (tool as { description?: string }).description, schema }, tokenizer)
+      return countToolTokens({ name, description: tool.description, schema }, tokenizer)
     })
   )
 

@@ -7,7 +7,7 @@ import type { FileAttachmentRef } from './attachmentTypes'
 
 /** Build the current attachment allow-list from persisted user messages in one Agent session. */
 export function listAgentSessionAttachments(sessionId: string): FileAttachmentRef[] {
-  const messages: CherryUIMessage[] = []
+  const messages: Array<Partial<Pick<CherryUIMessage, 'parts'>>> = []
   let cursor: string | undefined
 
   do {
@@ -18,7 +18,7 @@ export function listAgentSessionAttachments(sessionId: string): FileAttachmentRe
 
     for (const message of page.items) {
       if (message.role !== 'user') continue
-      messages.push({ id: message.id, role: 'user', parts: message.data.parts } as CherryUIMessage)
+      messages.push({ parts: message.data.parts })
     }
 
     cursor = page.nextCursor

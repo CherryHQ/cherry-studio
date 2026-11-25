@@ -316,7 +316,7 @@ export function attributeUserDenialReasons<T extends UIMessage>(messages: T[]): 
 
       if (reason === approval.reason) return
       parts ??= [...message.parts]
-      parts[partIndex] = { ...part, approval: { ...approval, reason } }
+      parts[partIndex] = { ...part, approval: { ...approval, approved: false as const, reason } }
     })
 
     if (parts) {
