@@ -437,6 +437,30 @@ describe('resolveEffectiveEndpoint', () => {
     expect(resolveEffectiveEndpoint(provider, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   })
 
+  it('does not promote chat-first New API embedding rows to the Gemini host', () => {
+    const provider = makeProvider({
+      id: 'aionly',
+      presetProviderId: 'aionly',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://relay.example/v1', adapterFamily: 'newapi' },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://native.example', adapterFamily: 'newapi' }
+      }
+    })
+    const model = makeModel({
+      apiModelId: 'gemini-embedding-001',
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+        ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      ]
+    })
+    expect(resolveEffectiveEndpoint(provider, model, undefined, 'embedding')).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      baseUrl: 'https://relay.example/v1'
+    })
+  })
+
   it('ignores an unconfigured chat default but retains forced SDK and image priority', () => {
     const provider = makeProvider({
       id: 'aionly',

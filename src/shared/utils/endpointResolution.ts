@@ -38,6 +38,8 @@ function resolveNewApiModelEndpoint(
     return imageEndpoint ?? primaryEndpoint
   }
 
+  if (intent !== 'chat') return primaryEndpoint
+
   const modelId = getLowerBaseModelName(getRawModelId(model))
   const pick = (endpointType: EndpointType, matches: boolean): EndpointType | undefined =>
     matches && endpointTypes.includes(endpointType) && provider.endpointConfigs?.[endpointType]
