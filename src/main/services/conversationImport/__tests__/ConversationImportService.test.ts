@@ -312,6 +312,51 @@ describe('local history atomic import', () => {
         : dbh.db.select().from(table).all().length
     )
   }
+  it('retries a partially written Codex rollout without reserving its thread ID or hiding the first prompt', async () => {
+    const dir = path.join(root, 'source')
+    const file = path.join(dir, 'rollout-partial.jsonl')
+    const first = '[Historical environment]\n\ncwd: /project\nPlease fix the login failure.'
+    const message = (ordinal: number, text: string) =>
+      JSON.stringify({
+        ordinal,
+        timestamp: '2026-01-02T00:00:00Z',
+        type: 'response_item',
+        payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] }
+      })
+    const last = message(2, 'Later question')
+    const text = [
+      JSON.stringify({
+        ordinal: 0,
+        type: 'session_meta',
+        payload: { id: 'thread', cli_version: '0.114.0', history_mode: 'paginated' }
+      }),
+      message(1, first),
+      last
+    ].join('\n')
+    await writeFile(file, text.slice(0, -2))
+    const scan = await service.discover('window', 'codex', dir)
+    const [{ ref }] = scan.candidates
+    const prepare = () => service.preview('window', scan.scanId, 'pi', [{ ref }])
+    const partial = await prepare()
+    expect(partial.items[0].diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'invalid_json', severity: 'error', line: 3 })
+    )
+    expect((await service.commit('window', partial.previewId, [ref]))[0].status).toBe('failed')
+    expect(counts()).toEqual([0, 0, 0, 0])
+    await writeFile(file, text)
+    const repaired = await prepare()
+    const [result] = await service.commit('window', repaired.previewId, [ref])
+    expect(result.status).toBe('imported')
+    expect(
+      agentSessionMessageService
+        .listSessionMessages(result.sessionId!)
+        .items.reverse()
+        .map((m) => [m.role, m.data.parts?.[0]])
+    ).toEqual([
+      ['user', { type: 'text', text: first }],
+      ['user', { type: 'text', text: 'Later question' }]
+    ])
+  })
   it('keeps preview read-only and imports historical times into the selected existing agent', async () => {
     await source()
     const before = dbh.db.select().from(agentTable).all()
