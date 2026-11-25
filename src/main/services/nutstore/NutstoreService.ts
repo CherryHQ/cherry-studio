@@ -4,6 +4,7 @@ import { net } from 'electron'
 import { isNil, partial } from 'es-toolkit/compat'
 import { XMLParser } from 'fast-xml-parser'
 import { type FileStat } from 'webdav'
+import * as z from 'zod'
 
 import { loggerService } from '@logger'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
@@ -12,11 +13,8 @@ import { createOAuthUrl, decryptSecret } from './sso/lib/index.mjs'
 
 const logger = loggerService.withContext('NutstoreService')
 
-interface OAuthResponse {
-  username: string
-  userid: string
-  access_token: string
-}
+const oauthResponseSchema = z.object({ username: z.string(), access_token: z.string() })
+type OAuthResponse = z.infer<typeof oauthResponseSchema>
 
 interface WebDAVResponse {
   multistatus: {
@@ -49,7 +47,11 @@ export async function decryptToken(token: string) {
       s: token
     })
 
-    return JSON.parse(decrypted) as OAuthResponse
+    const response: unknown = JSON.parse(decrypted)
+    oauthResponseSchema.parse(response)
+
+    // SAFETY: The schema checks both declared auth fields; returning the original JSON preserves extension and reserved keys.
+    return response as OAuthResponse
   } catch (error) {
     logger.error('Failed to decrypt token:', error)
 
@@ -88,7 +90,7 @@ export async function getDirectoryContents(token: string, target: string): Promi
 
     const text = await response.text()
 
-    const result = parseXml<WebDAVResponse>(text)
+    const result = readWebDavResponse(text)
 
     const items = Array.isArray(result.multistatus.response)
       ? result.multistatus.response
@@ -138,11 +140,12 @@ function convertToFileStat(serverBase: string, item: WebDAVResponse['multistatus
   }
 }
 
-function parseXml<T>(xml: string) {
+function readWebDavResponse(xml: string): WebDAVResponse {
   const parser = new XMLParser({
     attributeNamePrefix: '',
     removeNSPrefix: true
   })
 
-  return parser.parse(xml) as T
+  // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- XMLParser does not validate WebDAV; retain the legacy numeric-value and singleton-response projection without claiming a decoded DTO.
+  return parser.parse(xml) as WebDAVResponse
 }
