@@ -3,6 +3,7 @@ import { lstat, mkdir, open, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 import { hasHeartbeatTasks } from '@shared/ai/agentHeartbeat'
 
 const logger = loggerService.withContext('HeartbeatReader')
@@ -79,7 +80,7 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
 
     return trimmed
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
+    const code = getErrorCode(error)
 
     if (code === 'ENOENT') {
       logger.debug(`Heartbeat file not found: ${resolved}`)
@@ -127,7 +128,7 @@ export async function ensureHeartbeatFile(workspacePath: string): Promise<void> 
 
     return
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+    if (getErrorCode(error) === 'EEXIST') {
       // Exclusive creation preserves user files; reject non-regular occupants before arming.
       if (!(await heartbeatOccupantIsRegular(resolved))) throw new HeartbeatFileNotRegularError(resolved)
 
@@ -135,7 +136,7 @@ export async function ensureHeartbeatFile(workspacePath: string): Promise<void> 
     }
 
     // Missing workspace directory (migrated/corrupted install or manual deletion): recreate and retry once.
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    if (getErrorCode(error) !== 'ENOENT') throw error
   }
 
   try {
@@ -148,7 +149,7 @@ export async function ensureHeartbeatFile(workspacePath: string): Promise<void> 
     await writeTemplate(resolved)
     logger.info(`Provisioned heartbeat file after recreating workspace: ${resolved}`)
   } catch (retryError) {
-    if ((retryError as NodeJS.ErrnoException).code === 'EEXIST') {
+    if (getErrorCode(retryError) === 'EEXIST') {
       // Same non-regular check as the first attempt: an occupant that appeared
       // during the recovery window must not be silently accepted.
       if (!(await heartbeatOccupantIsRegular(resolved))) throw new HeartbeatFileNotRegularError(resolved)
@@ -156,7 +157,7 @@ export async function ensureHeartbeatFile(workspacePath: string): Promise<void> 
       return
     }
 
-    if ((retryError as NodeJS.ErrnoException).code !== 'ENOENT') throw retryError
+    if (getErrorCode(retryError) !== 'ENOENT') throw retryError
     // A concurrent remover deleted the directory between mkdir and open; a
     // missing file reads as empty, so skip rather than abort the sync.
     logger.warn(`Workspace directory vanished while provisioning heartbeat file: ${resolved}`)

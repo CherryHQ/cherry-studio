@@ -9,6 +9,7 @@ import type { TimedEvent } from '@opentelemetry/sdk-trace-base'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { getErrorCode } from '@main/utils/error'
 import type { SpanEntity } from '@shared/data/types/trace'
 import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -758,6 +759,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     if (!trimmed) return undefined
 
     try {
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy JSONL history has no runtime SpanEntity decoder; retain its existing read contract without claiming validation.
       return JSON.parse(trimmed) as SpanEntity
     } catch (error) {
       logger.error('Failed to parse trace history line', error, { lineLength: trimmed.length })
@@ -774,7 +776,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       const stats = await fs.stat(filePath, { bigint: true })
       version = `${stats.mtimeNs}:${stats.size}`
     } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error
+      if (getErrorCode(error) !== 'ENOENT') throw error
     }
 
     // Include the legacy file so the viewer resyncs when pre-encoding history appears or migrates
@@ -784,7 +786,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     const legacyVersion = legacyPath
       ? await fs.stat(legacyPath, { bigint: true }).then(
           (stats) => `${stats.mtimeNs}:${stats.size}`,
-          () => null as string | null
+          () => null
         )
       : null
 
@@ -840,7 +842,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     try {
       return (await fs.stat(filePath)).size
     } catch (err) {
-      if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return null
+      if (getErrorCode(err) === 'ENOENT') return null
       throw err
     }
   }
@@ -853,7 +855,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     } catch (err) {
       // Only a genuinely-missing file means "no history". Surface anything else (e.g. EACCES)
       // instead of silently returning an empty viewer.
-      if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return false
+      if (getErrorCode(err) === 'ENOENT') return false
       throw err
     }
   }

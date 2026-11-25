@@ -57,15 +57,17 @@ export class AdapterTracer {
     return this.instrumentSpan(span, name)
   }
 
-  // AI SDK only calls the (name, fn) / (name, options, fn) overloads; we
-  // mirror all four for completeness.
+  // Mirror all three OTel overloads; AI SDK uses the callback forms without explicit Context.
+  // SAFETY: Tracer callers select a declared overload; forwarding preserves the callback's return value and generic result.
   startActiveSpan: Tracer['startActiveSpan'] = ((name: string, ...args: any[]): any => {
     const fnIndex = args.findIndex((a) => typeof a === 'function')
 
     if (fnIndex < 0) throw new Error('AdapterTracer.startActiveSpan: no callback provided')
 
+    // SAFETY: findIndex selected the callback supplied by the Tracer overload; it receives the instrumented Span below.
     const fn = args[fnIndex] as (span: Span) => any
     const options = fnIndex === 0 ? {} : args[0]
+    // SAFETY: The three-argument overload tail is [options, Context, callback], so index 2 identifies the Context slot.
     const activeContext = fnIndex === 2 ? (args[1] as Context) : otelContext.active()
     const parent = trace.getSpanContext(activeContext) ? activeContext : (this.parentContext ?? activeContext)
 
