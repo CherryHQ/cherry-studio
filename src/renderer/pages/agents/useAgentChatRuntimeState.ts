@@ -148,7 +148,7 @@ function findAskUserQuestionPartByCallId(
   for (const parts of Object.values(partsByMessageId)) {
     for (const part of parts) {
       if (!isToolUIPart(part)) continue
-      const toolPart = part as AskUserQuestionApprovalPart
+      const toolPart = part
 
       if (toolPart.toolCallId !== toolCallId) continue
 
