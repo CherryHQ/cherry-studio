@@ -48,6 +48,7 @@
   "agent.session.fork.execution_not_inherited": "Execuția nu a fost preluată în această ramificare a sesiunii.",
   "agent.session.new": "Sarcină nouă",
   "agent.session.pi.legacy_tool_policy_unresolved": "Unele instrumente dezactivate din mediul anterior nu au putut fi asociate. Reconfigurați accesul acestui agent la instrumente înainte de a-l rula.",
+  "agent.session.pi.unsupported_image_input": "Modelul „{{model}}” nu poate citi imagini. Alegeți un model care acceptă imagini sau eliminați-le și încercați din nou.",
   "agent.session.run_status.busy": "Sesiunea Agent este ocupată. Încercați din nou în curând.",
   "agent.session.run_status.unavailable": "Sesiunea Agent nu mai este disponibilă.",
   "agent.session.workspace_status.inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",

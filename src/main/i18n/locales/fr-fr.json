@@ -48,6 +48,7 @@
   "agent.session.fork.execution_not_inherited": "L’exécution n’a pas été héritée par cette bifurcation de session.",
   "agent.session.new": "Nouvelle tâche",
   "agent.session.pi.legacy_tool_policy_unresolved": "Certains outils désactivés de l’ancien environnement n’ont pas pu être associés. Reconfigurez l’accès aux outils de cet agent avant de l’exécuter.",
+  "agent.session.pi.unsupported_image_input": "Le modèle « {{model}} » ne peut pas lire les images. Choisissez un modèle qui prend en charge les images ou retirez-les et réessayez.",
   "agent.session.run_status.busy": "La session Agent est occupée. Veuillez réessayer dans quelques instants.",
   "agent.session.run_status.unavailable": "La session Agent n’est plus disponible.",
   "agent.session.workspace_status.inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}",

@@ -48,6 +48,7 @@
   "agent.session.fork.execution_not_inherited": "此分叉工作階段未繼承原本的執行狀態。",
   "agent.session.new": "新任務",
   "agent.session.pi.legacy_tool_policy_unresolved": "無法對應舊執行環境的部分停用工具。請重新設定此智能體的工具存取權限後再執行。",
+  "agent.session.pi.unsupported_image_input": "模型「{{model}}」無法讀取圖片。請改用支援圖片的模型，或移除圖片後重試。",
   "agent.session.run_status.busy": "智能體工作階段忙碌中，請稍後再試。",
   "agent.session.run_status.unavailable": "智能體工作階段已無法使用。",
   "agent.session.workspace_status.inaccessible": "工作區路徑無法存取：{{path}}",

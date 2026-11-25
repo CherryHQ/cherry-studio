@@ -34,6 +34,7 @@ import { validateEditedInput } from '../../agentSession/editInput'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'
+import { assertAgentImageInput } from './agentImageInputGuard'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
 
@@ -179,6 +180,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new Error('Invalid durable agent delivery message')
     }
 
+    const userMessageParts = deliveryMessage?.data.parts ?? req.userMessageParts ?? []
+    assertAgentImageInput(agent.type, uniqueModelId, userMessageParts, (providerId, modelId) =>
+      modelService.getByKey(providerId, modelId)
+    )
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
     const modelName =
       uniqueModelId === agent.model
@@ -216,7 +221,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         model: { id: rawModelId, name: modelName, provider: providerId }
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
-      userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
+      userMessageParts,
       ...(deliveryMessage ? { deliveryMessage } : {}),
       shouldAutoNameInitialTurn
     }

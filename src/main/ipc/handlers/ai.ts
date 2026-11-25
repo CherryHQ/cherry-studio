@@ -18,7 +18,12 @@ import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSuppor
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
-import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
+import {
+  AiStreamAdmissionError,
+  type MainDispatchRequest,
+  UnsupportedAgentImageInputError
+} from '@main/ai/streamManager'
+import { serializeError } from '@main/ai/utils/serializeError'
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
@@ -46,6 +51,9 @@ async function exposeAiStreamAdmission<T>(op: () => Promise<T>): Promise<T> {
     }
     if (error instanceof AiStreamAdmissionError) {
       throw new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, error.reason, { reason: error.reason })
+    }
+    if (error instanceof UnsupportedAgentImageInputError) {
+      throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, error.message, serializeError(error))
     }
     throw error
   }

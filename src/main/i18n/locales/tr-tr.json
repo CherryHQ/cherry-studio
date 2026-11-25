@@ -48,6 +48,7 @@
   "agent.session.fork.execution_not_inherited": "Yürütme durumu bu oturum dalına aktarılmadı.",
   "agent.session.new": "Yeni görev",
   "agent.session.pi.legacy_tool_policy_unresolved": "Önceki çalışma ortamındaki bazı devre dışı araçlar eşleştirilemedi. Çalıştırmadan önce bu aracının araç erişimini yeniden yapılandırın.",
+  "agent.session.pi.unsupported_image_input": "\"{{model}}\" modeli görselleri okuyamaz. Görselleri destekleyen bir modele geçin veya görselleri kaldırıp tekrar deneyin.",
   "agent.session.run_status.busy": "Ajan Oturumu meşgul. Lütfen kısa süre sonra tekrar deneyin.",
   "agent.session.run_status.unavailable": "Ajan Oturumu artık kullanılamıyor.",
   "agent.session.workspace_status.inaccessible": "Çalışma alanı yoluna erişilemiyor: {{path}}",

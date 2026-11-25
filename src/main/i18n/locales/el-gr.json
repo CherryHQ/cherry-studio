@@ -48,6 +48,7 @@
   "agent.session.fork.execution_not_inherited": "Η εκτέλεση δεν μεταφέρθηκε σε αυτή τη διακλάδωση της συνεδρίας.",
   "agent.session.new": "Νέα εργασία",
   "agent.session.pi.legacy_tool_policy_unresolved": "Δεν ήταν δυνατή η αντιστοίχιση ορισμένων απενεργοποιημένων εργαλείων του προηγούμενου περιβάλλοντος εκτέλεσης. Ρυθμίστε ξανά την πρόσβαση του πράκτορα στα εργαλεία πριν τον εκτελέσετε.",
+  "agent.session.pi.unsupported_image_input": "Το μοντέλο «{{model}}» δεν μπορεί να διαβάσει εικόνες. Επιλέξτε ένα μοντέλο που υποστηρίζει εικόνες ή αφαιρέστε τις εικόνες και δοκιμάστε ξανά.",
   "agent.session.run_status.busy": "Η συνεδρία Agent είναι απασχολημένη. Δοκιμάστε ξανά σε λίγο.",
   "agent.session.run_status.unavailable": "Η συνεδρία Agent δεν είναι πλέον διαθέσιμη.",
   "agent.session.workspace_status.inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}",

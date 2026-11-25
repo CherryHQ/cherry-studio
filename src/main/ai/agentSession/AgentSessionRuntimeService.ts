@@ -93,6 +93,7 @@ import type {
 } from '../runtime/types'
 import type { AiStreamSource, MessageStreamEvent } from '../streamManager'
 import {
+  assertAgentImageInput,
   finalizeInterruptedParts,
   PersistenceListener,
   type StreamErrorResult,
@@ -3356,6 +3357,9 @@ export class AgentSessionRuntimeService extends BaseService {
       this.currentConnection(entry) !== connection
     )
       return
+    assertAgentImageInput(entry.agentType, turn.modelId, turn.userMessage.data.parts, (providerId, modelId) =>
+      modelService.getByKey(providerId, modelId)
+    )
     await connection.send({
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true,

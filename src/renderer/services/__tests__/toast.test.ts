@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '@renderer/i18n/locales/en-us.json'
+import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 vi.mock('@renderer/services/toast', (importOriginal) => importOriginal())
 vi.mock('@cherrystudio/ui', async () => import('@cherrystudio/ui/components/primitives/toast'))
@@ -12,6 +14,25 @@ vi.mock('@renderer/i18n/resolver', () => ({
 import { toast } from '../toast'
 
 afterEach(() => toast.closeAll())
+
+it('shows the unsupported image guidance directly with the existing switch-model action', async () => {
+  const switchModel = vi.fn()
+  const message =
+    'Model "deepseek-flash" cannot read images. Switch to a model that supports images or remove the images and try again.'
+  const error = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, message, {
+    name: 'UnsupportedAgentImageInputError',
+    message,
+    providerErrorCategory: 'model'
+  })
+
+  const key = toast.errorFromException(error, { actions: { switchModel } })
+  const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+
+  expect(shown.title).toBe(message)
+  expect(shown.action?.label).toBe(enUS['toast.error.switchModel'])
+  await shown.action!.onClick()
+  expect(switchModel).toHaveBeenCalledOnce()
+})
 
 describe('provider entitlement toasts', () => {
   it('shows permission without a billing action and preserves real quota recovery', () => {

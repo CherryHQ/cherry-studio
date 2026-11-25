@@ -48,6 +48,7 @@
   "agent.session.fork.execution_not_inherited": "A execução não foi herdada por esta ramificação da sessão.",
   "agent.session.new": "Nova tarefa",
   "agent.session.pi.legacy_tool_policy_unresolved": "Não foi possível associar algumas ferramentas desativadas do ambiente anterior. Reconfigure o acesso às ferramentas deste agente antes de o executar.",
+  "agent.session.pi.unsupported_image_input": "O modelo «{{model}}» não consegue ler imagens. Mude para um modelo que suporte imagens ou remova-as e tente novamente.",
   "agent.session.run_status.busy": "A sessão do Agent está ocupada. Tente novamente dentro de instantes.",
   "agent.session.run_status.unavailable": "A sessão do Agent já não está disponível.",
   "agent.session.workspace_status.inaccessible": "O caminho do espaço de trabalho não está acessível: {{path}}",

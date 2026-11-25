@@ -48,6 +48,7 @@
   "agent.session.fork.execution_not_inherited": "Выполнение не было перенесено в эту ветку сеанса.",
   "agent.session.new": "Новая задача",
   "agent.session.pi.legacy_tool_policy_unresolved": "Не удалось сопоставить некоторые отключённые инструменты предыдущей среды выполнения. Перед запуском агента настройте его доступ к инструментам заново.",
+  "agent.session.pi.unsupported_image_input": "Модель «{{model}}» не может читать изображения. Переключитесь на модель с поддержкой изображений или удалите изображения и повторите попытку.",
   "agent.session.run_status.busy": "Сеанс Agent занят. Повторите попытку чуть позже.",
   "agent.session.run_status.unavailable": "Сеанс Agent больше недоступен.",
   "agent.session.workspace_status.inaccessible": "Путь к рабочей области недоступен: {{path}}",

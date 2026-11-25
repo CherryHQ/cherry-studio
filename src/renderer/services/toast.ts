@@ -55,6 +55,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const planQuota = cloudPresentation.quota
   const presentation: ErrorToastPresentation = planQuota ? { type: 'warning' } : errorToastPresentations[category]
   const details = planQuota ? cloudPresentation.text : providerErrorText(serialized)
+  const showDetailsInTitle = category === 'unknown' || serialized.name === 'UnsupportedAgentImageInputError'
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
     : undefined
@@ -76,7 +77,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
     key: context.key,
     title: planQuota
       ? i18n.t('models.detail.quota_insufficient_for_request')
-      : category === 'unknown'
+      : showDetailsInTitle
         ? details || i18n.t('error.unknown')
         : i18n.t(diagnosisKey),
     description:
@@ -89,7 +90,7 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
       ]
         .filter(Boolean)
         .join(' · ') || undefined,
-    details: category === 'unknown' ? undefined : details,
+    details: showDetailsInTitle ? undefined : details,
     action:
       run && actionKind
         ? {
