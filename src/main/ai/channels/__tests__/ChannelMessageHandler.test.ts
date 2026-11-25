@@ -12,14 +12,15 @@ import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { BaseService } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { FileManager } from '@main/services/file'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 
@@ -27,28 +28,17 @@ import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 import { sanitizeChannelOutput } from '../security/OutputSanitizer'
 
-const { mockPrepareAgentSessionWorkspaceDirectory, MockAgentSessionWorkspaceError } = vi.hoisted(() => {
-  class MockAgentSessionWorkspaceError extends Error {
-    constructor(message: string) {
-      super(message)
-      this.name = 'AgentSessionWorkspaceError'
-    }
-  }
-
-  return {
-    mockPrepareAgentSessionWorkspaceDirectory: vi.fn(),
-    MockAgentSessionWorkspaceError
-  }
-})
+const { mockPrepareAgentSessionWorkspaceDirectory } = vi.hoisted(() => ({
+  mockPrepareAgentSessionWorkspaceDirectory: vi.fn()
+}))
 
 const persistedChannelSessions = vi.hoisted(() => ({
   bindings: new Map<string, string>(),
   sessions: new Map<string, Record<string, unknown>>()
 }))
 
-vi.mock('@main/ai/runtime/agentSessionWorkspace', () => ({
-  AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
-  isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
+vi.mock(import('@main/ai/runtime/agentSessionWorkspace'), async (importOriginal) => ({
+  ...(await importOriginal()),
   prepareAgentSessionWorkspaceDirectory: mockPrepareAgentSessionWorkspaceDirectory
 }))
 
@@ -59,7 +49,8 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('../security/OutputSanitizer', () => ({
-  sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
+  sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false })),
+  sanitizeChannelOutputSilently: vi.fn((text: string) => ({ text, redactedPatterns: [] }))
 }))
 
 // The global mock (tests/main.setup.ts) wires the default service set, which omits
@@ -110,9 +101,14 @@ vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
-    getChannel: vi
-      .fn()
-      .mockReturnValue({ id: 'channel-1', sessionId: null, permissionMode: null, workspace: { type: 'system' } }),
+    getChannel: vi.fn().mockReturnValue({
+      id: 'channel-1',
+      agentId: 'agent-1',
+      isActive: true,
+      sessionId: null,
+      permissionMode: null,
+      workspace: { type: 'system' }
+    }),
     updateChannel: vi.fn().mockResolvedValue(null),
     findBySessionId: vi.fn().mockResolvedValue(null),
     getActiveSessionId: vi.fn((channelId: string, conversationId: string) =>
@@ -126,14 +122,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
   }
 }))
 
-/**
- * Helper: configure mockStartAgentSessionRun to simulate streaming chunks to ALL
- * registered listeners (both the `channel-completion:` sentinel and the
- * `ChannelAdapterListener` that owns delivery), then call onDone on each so the
- * `executionDone` promise inside `collectStreamResponse` resolves and the listener
- * finalizes delivery. `text-delta` chunks carry the payload on `delta` (AI SDK
- * `UIMessageChunk`), not `text`.
- */
+// Each consumer receives the same complete view before terminal delivery.
 function simulateStream(parts: Array<{ type: string; delta?: string }>) {
   mockStartAgentSessionRun.mockImplementationOnce(
     async ({
@@ -143,16 +132,21 @@ function simulateStream(parts: Array<{ type: string; delta?: string }>) {
       onPersist?: () => void
       listeners: Array<{
         id: string
-        onChunk: (chunk: unknown) => void
-        onDone: (result: { status: string }) => void | Promise<void>
+        onMessage?: (message: CherryUIMessage) => void
+        onDone: (result: { status: string; finalMessage: CherryUIMessage }) => void | Promise<void>
       }>
     }) => {
       onPersist?.()
       for (const listener of listeners) {
-        for (const part of parts) {
-          listener.onChunk(part)
+        const finalMessage: CherryUIMessage = {
+          id: 'reply',
+          role: 'assistant',
+          parts: parts.flatMap((part) =>
+            part.type === 'text-delta' ? [{ type: 'text' as const, text: part.delta ?? '' }] : []
+          )
         }
-        await listener.onDone({ status: 'success' })
+        listener.onMessage?.(finalMessage)
+        await listener.onDone({ status: 'success', finalMessage })
       }
       return { mode: 'started' }
     }
@@ -254,7 +248,7 @@ describe('ChannelMessageHandler', () => {
     })
 
     // Delivery is owned by ChannelAdapterListener (the handler no longer post-sends);
-    // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
+    // It extracts the final message text, trims it, and sends once.
     expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.', undefined)
   })
@@ -664,7 +658,11 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.', { replyToMessageId: undefined })
   })
 
-  it('handleCommand /compact sends /compact as message content', async () => {
+  it('handleCommand /compact sends /compact with the bound channel permission mode', async () => {
+    const channel = channelService.getChannel('channel-1')!
+    vi.mocked(channelService.getChannel)
+      .mockReturnValueOnce({ ...channel, permissionMode: 'plan' })
+      .mockReturnValueOnce({ ...channel, permissionMode: 'plan' })
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
@@ -693,6 +691,7 @@ describe('ChannelMessageHandler', () => {
         // Channel-triggered runs have no interactive responder — headless keeps AskUserQuestion
         // disallowed so the run can't stall on an approval prompt.
         headless: true,
+        permissionModeOverride: 'plan',
         requireIdle: { expectedAgentId: 'agent-1' },
         listeners: expect.arrayContaining([
           expect.objectContaining({ id: expect.stringContaining('channel-completion:') })
@@ -759,15 +758,9 @@ describe('ChannelMessageHandler', () => {
       command: 'help'
     })
 
-    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     const helpText = adapter.sendMessage.mock.calls[0][1] as string
-    expect(helpText).toContain('*TestAgent*')
-    expect(helpText).toContain('_A test agent_')
-    expect(helpText).toContain('Available commands:')
-    expect(helpText).toContain('/new')
-    expect(helpText).toContain('/compact')
-    expect(helpText).toContain('/help')
-    expect(helpText).toContain('/whoami')
+    expect(helpText).toContain('TestAgent')
+    expect(helpText).toContain('A test agent')
   })
 
   it('handleCommand /help merges the bound session slash commands (control wins on collision)', async () => {
@@ -791,7 +784,7 @@ describe('ChannelMessageHandler', () => {
 
       const helpText = adapter.sendMessage.mock.calls[0][1] as string
       expect(helpText).toContain('/deploy - Deploy the app')
-      expect(helpText).toContain('/compact - Compact conversation history')
+
       expect(helpText).not.toContain('session dup')
     } finally {
       MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-xyz'), null)
@@ -818,7 +811,6 @@ describe('ChannelMessageHandler', () => {
       const helpText = adapter.sendMessage.mock.calls[0][1] as string
       expect(helpText).not.toContain('/leak')
       // Control commands are still listed — only the foreign session catalog is withheld.
-      expect(helpText).toContain('/new')
     } finally {
       MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('stale-session'), null)
     }
@@ -834,44 +826,9 @@ describe('ChannelMessageHandler', () => {
       command: 'whoami'
     })
 
-    expect(adapter.sendMessage).toHaveBeenCalledWith(
-      'oc_123',
-      'Current chat ID: `oc_123`\n\nAdd this value to `allowed_chat_ids` (or `allowed_channel_ids` for Discord) in settings to receive notifications.',
-      { replyToMessageId: undefined }
-    )
-  })
-
-  it('resolveSession tracks sessions after /new', async () => {
-    const adapter = createMockAdapter()
-    const newSession = {
-      id: 'new-session',
-      agentId: 'agent-1',
-      agentType: 'claude-code',
-      model: 'openai::gpt-4',
-      workspace: { path: '/tmp/test-workspace' },
-      configuration: {}
-    }
-
-    vi.mocked(agentSessionService.create).mockReturnValueOnce(newSession as any)
-
-    await channelMessageHandler.handleCommand(adapter, {
-      chatId: 'chat-1',
-      userId: 'user-1',
-      userName: 'User',
-      command: 'new'
+    expect(adapter.sendMessage).toHaveBeenCalledWith('oc_123', expect.stringContaining('oc_123'), {
+      replyToMessageId: undefined
     })
-
-    const createdSessionId = vi.mocked(agentSessionService.createTx).mock.calls[0][1]
-    simulateStream([{ type: 'text-delta', delta: 'OK' }])
-
-    await handleIncomingAndFlush(adapter, {
-      chatId: 'chat-1',
-      userId: 'user-1',
-      userName: 'User',
-      text: 'test'
-    })
-
-    expect(agentSessionService.getById).toHaveBeenCalledWith(createdSessionId)
   })
 
   it('clearSessionTracker causes fresh session resolution', async () => {

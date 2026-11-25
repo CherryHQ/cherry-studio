@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { HTMLAttributes } from 'react'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,11 +31,12 @@ vi.mock('@renderer/hooks/useShowWorkspace', () => ({
   useShowWorkspace: () => workspaceMock
 }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
-vi.mock('@renderer/services/NotesTreeService', () => ({ findNode: vi.fn() }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }))
 vi.mock('../NotesSettings', () => ({ default: () => null }))
 
 import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
+import type { NoteRenameResult } from '@renderer/types/note'
 
 import HeaderNavbar from '../HeaderNavbar'
 
@@ -52,6 +53,7 @@ afterAll(async () => {
 
 describe('HeaderNavbar accessibility', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     workspaceMock.showWorkspace = false
     workspaceMock.toggleShowWorkspace.mockClear()
     notesQueryMock.activeNode = undefined
@@ -103,5 +105,44 @@ describe('HeaderNavbar accessibility', () => {
 
     await user.keyboard('{Escape}')
     expect(moreButton).toHaveFocus()
+  })
+
+  it.each([
+    ['blur', true],
+    ['blur', false],
+    ['Enter', true],
+    ['Enter', false]
+  ] as const)('awaits rename through %s (ok=%s) without extra notifications', async (trigger, ok) => {
+    const note: NotesTreeNode = {
+      id: '/notes/note.md',
+      name: 'note',
+      type: 'file',
+      treePath: '/note',
+      externalPath: '/notes/note.md',
+      createdAt: '',
+      updatedAt: ''
+    }
+    notesQueryMock.activeNode = note
+    let finish!: (outcome: NoteRenameResult) => void
+    const pending = new Promise<NoteRenameResult>((resolve) => {
+      finish = resolve
+    })
+    const onRenameNode = vi.fn(() => pending)
+    const user = userEvent.setup()
+    render(<HeaderNavbar notesTree={[note]} activeFilePath={note.externalPath} onRenameNode={onRenameNode} />)
+    const input = screen.getByRole('textbox')
+    await user.clear(input)
+    await user.type(input, 'Roadmap')
+    if (trigger === 'blur') await user.tab()
+    else await user.keyboard('{Enter}')
+    expect(onRenameNode).toHaveBeenCalledExactlyOnceWith(note.id, 'Roadmap')
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    await act(async () => {
+      finish(ok ? { ok: true, name: 'Roadmap' } : { ok: false, reason: 'exists' })
+      await pending
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

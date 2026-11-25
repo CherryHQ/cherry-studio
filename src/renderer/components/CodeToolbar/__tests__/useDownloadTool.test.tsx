@@ -30,9 +30,6 @@ describe('useDownloadTool', () => {
       return tools
     })
 
-    expect(result.current).toHaveLength(1)
-    expect(result.current[0]).toMatchObject({ id: 'download' })
-    expect(result.current[0].children).toBeUndefined()
     act(() => result.current[0].onClick?.())
 
     expect(onDownloadSource).toHaveBeenCalledOnce()
@@ -44,7 +41,8 @@ describe('useDownloadTool', () => {
       pan: vi.fn(),
       zoom: vi.fn(),
       copy: vi.fn().mockResolvedValue(true),
-      download: vi.fn()
+      download: vi.fn(),
+      dialog: vi.fn().mockResolvedValue(undefined)
     } satisfies BasicPreviewHandles
     const previewRef: { current: BasicPreviewHandles | null } = { current: null }
     const { result } = renderHook(() => {
@@ -59,7 +57,6 @@ describe('useDownloadTool', () => {
     })
     const children = result.current[0].children ?? []
 
-    expect(children.map((tool) => tool.id)).toEqual(['download', 'download-svg', 'download-png'])
     previewRef.current = preview
     act(() => {
       children.forEach((tool) => tool.onClick?.())

@@ -54,7 +54,7 @@ type RefreshOption<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELE
  * Create mock data based on API path
  */
 function createMockDataForPath(path: string): any {
-  if (path === '/skills' || path === '/api-gateway/paired-devices') return []
+  if (path === '/skills' || path === '/api-gateway/paired-devices' || path === '/agent-channels') return []
   if (path === '/providers/:providerId/api-keys') {
     return { keys: [] }
   }
@@ -218,6 +218,7 @@ export const mockUsePaginatedQuery = vi.fn(
         hasPrev: boolean
         prevPage: () => void
         nextPage: () => void
+        goToPage: (page: number) => void
         refresh: () => Promise<unknown>
         reset: () => void
       }
@@ -241,6 +242,7 @@ export const mockUsePaginatedQuery = vi.fn(
       hasPrev: false,
       prevPage: vi.fn(),
       nextPage: vi.fn(),
+      goToPage: vi.fn(),
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn()
     } as unknown as ResponseForPath<TPath, 'GET'> extends PaginationResponse<infer T>
@@ -255,6 +257,7 @@ export const mockUsePaginatedQuery = vi.fn(
           hasPrev: boolean
           prevPage: () => void
           nextPage: () => void
+          goToPage: (page: number) => void
           refresh: () => Promise<unknown>
           reset: () => void
         }
@@ -892,6 +895,7 @@ export const MockUseDataApiUtils = {
           hasPrev: options?.hasPrev ?? false,
           prevPage: vi.fn(),
           nextPage: vi.fn(),
+          goToPage: vi.fn(),
           refresh: vi.fn(),
           reset: vi.fn()
         }
@@ -908,6 +912,7 @@ export const MockUseDataApiUtils = {
         hasPrev: false,
         prevPage: vi.fn(),
         nextPage: vi.fn(),
+        goToPage: vi.fn(),
         refresh: vi.fn(),
         reset: vi.fn()
       }

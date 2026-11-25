@@ -79,6 +79,42 @@ describe('computeMessageSearchMatches', () => {
     ])
   })
 
+  it('searches intermediate assistant text kept in the response lane', () => {
+    const messages = [message('a1', 'assistant')]
+    const parts = {
+      a1: [textPart('first apple'), toolPart(), textPart('second apple'), toolPart(), textPart('final apple')]
+    }
+
+    expect(
+      computeMessageSearchMatches(messages, parts, 'apple', {
+        ...DEFAULT_OPTIONS,
+        keepIntermediateAssistantText: true
+      })
+    ).toEqual([
+      { type: 'text', key: 'a1-part-0:0', messageId: 'a1', partId: 'a1-part-0', role: 'assistant', occurrence: 0 },
+      { type: 'text', key: 'a1-part-2:0', messageId: 'a1', partId: 'a1-part-2', role: 'assistant', occurrence: 0 },
+      { type: 'text', key: 'a1-part-4:0', messageId: 'a1', partId: 'a1-part-4', role: 'assistant', occurrence: 0 }
+    ])
+  })
+
+  it('keeps intermediate assistant text out of search when the switch is off or absent', () => {
+    const messages = [message('a1', 'assistant')]
+    const parts = {
+      a1: [textPart('first apple'), toolPart(), textPart('second apple'), toolPart(), textPart('final apple')]
+    }
+    const expected = [
+      { type: 'text', key: 'a1-part-4:0', messageId: 'a1', partId: 'a1-part-4', role: 'assistant', occurrence: 0 }
+    ]
+
+    expect(computeMessageSearchMatches(messages, parts, 'apple', DEFAULT_OPTIONS)).toEqual(expected)
+    expect(
+      computeMessageSearchMatches(messages, parts, 'apple', {
+        ...DEFAULT_OPTIONS,
+        keepIntermediateAssistantText: false
+      })
+    ).toEqual(expected)
+  })
+
   it('excludes pending assistant messages until streaming completes', () => {
     const messages = [message('a1', 'assistant', 'pending')]
     const parts = {

@@ -26,7 +26,7 @@ export default defineProvider({
     }
   },
   modelsDevProvider: 'vercel',
-  overrides: [
+  modelTemplates: [
     {
       modelId: 'minimax-m3-1-flash',
       pricing: {

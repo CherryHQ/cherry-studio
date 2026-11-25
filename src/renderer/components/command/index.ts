@@ -9,3 +9,5 @@ export {
 export type { CommandContextMenuExtraItem, MaybePromise } from './CommandMenus'
 export { CommandContextMenu, CommandMenuItems, CommandPopupMenu } from './CommandMenus'
 export { CommandProvider } from './CommandProvider'
+
+export { CommandFocusScope, CommandKeyboardLayer } from './CommandFocusScope'

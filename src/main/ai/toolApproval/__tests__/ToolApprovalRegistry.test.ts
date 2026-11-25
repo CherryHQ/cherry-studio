@@ -102,6 +102,50 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     expect(toolApprovalRegistry.size()).toBe(0)
   })
 
+  // A parked card whose waiter was cancelled must still be retired by onAborted listeners.
+  it('notifies onAborted when a signal aborts, but not when the user decides', () => {
+    const aborted: string[] = []
+    const subscription = toolApprovalRegistry.onAborted((entry) => aborted.push(entry.approvalId))
+    const controller = new AbortController()
+    const cancelled = makeEntry({ signal: controller.signal, presentation: 'message' })
+    const answered = makeEntry({ signal: new AbortController().signal, presentation: 'message' })
+    toolApprovalRegistry.register(cancelled.entry)
+    toolApprovalRegistry.register(answered.entry)
+
+    controller.abort()
+    toolApprovalRegistry.dispatch(answered.approvalId, { approved: true })
+    subscription.dispose()
+
+    expect(aborted).toEqual([cancelled.approvalId])
+  })
+
+  it.each(['signal', 'session'] as const)('notifies once when %s cancellation arrives first', async (first) => {
+    const controller = new AbortController()
+    const { entry, result, approvalId } = makeEntry({ signal: controller.signal, presentation: 'message' })
+    const aborted: { approvalId: string; reason: string }[] = []
+    const subscription = toolApprovalRegistry.onAborted(({ approvalId, reason }) => {
+      aborted.push({ approvalId, reason })
+    })
+
+    try {
+      toolApprovalRegistry.register(entry)
+      if (first === 'signal') {
+        controller.abort()
+        expect(toolApprovalRegistry.abort(entry.sessionId)).toBe(0)
+      } else {
+        expect(toolApprovalRegistry.abort(entry.sessionId)).toBe(1)
+        controller.abort()
+      }
+
+      const reason = first === 'signal' ? 'aborted' : 'session-aborted'
+      expect(aborted).toEqual([{ approvalId, reason }])
+      await expect(result).resolves.toEqual({ approved: false, reason })
+      expect(toolApprovalRegistry.peek(approvalId)).toBeUndefined()
+    } finally {
+      subscription.dispose()
+    }
+  })
+
   it('aborts only the matching session and reports the count', async () => {
     const a = makeEntry({ sessionId: 'sA' })
     const b = makeEntry({ sessionId: 'sA' })
@@ -129,6 +173,28 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     await expect(a.result).resolves.toEqual({ approved: false, reason: 'shutdown' })
     await expect(b.result).resolves.toEqual({ approved: false, reason: 'shutdown' })
     expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  it('notifies after a clear sweep so listeners can register a new approval', async () => {
+    const first = makeEntry()
+    const second = makeEntry()
+    const replacement = makeEntry({ approvalId: second.approvalId })
+    toolApprovalRegistry.register(first.entry)
+    toolApprovalRegistry.register(second.entry)
+    const aborted: string[] = []
+    const subscription = toolApprovalRegistry.onAborted(({ approvalId }) => {
+      aborted.push(approvalId)
+      if (approvalId === first.approvalId) toolApprovalRegistry.register(replacement.entry)
+    })
+
+    try {
+      expect(toolApprovalRegistry.clear()).toBe(2)
+      expect(aborted).toEqual([first.approvalId, second.approvalId])
+      expect(toolApprovalRegistry.dispatch(second.approvalId, { approved: true })).toBeDefined()
+      await expect(replacement.result).resolves.toEqual({ approved: true })
+    } finally {
+      subscription.dispose()
+    }
   })
 
   it('clear() is a no-op (returns 0) when nothing is pending', () => {

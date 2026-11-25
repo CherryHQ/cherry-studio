@@ -5,6 +5,7 @@ import { MessageListProvider } from '@renderer/components/chat/messages/MessageL
 import type {
   MessageListActions,
   MessageListSelectAllPagination,
+  MessageListState,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import type { Assistant } from '@renderer/types/assistant'
@@ -26,7 +27,10 @@ interface ChatMainProps {
   hasOlder: boolean
   selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  addGeneratedImageToComposer?: MessageListActions['addGeneratedImageToComposer']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
+  messageHead?: MessageListState['messageHead']
+  afterMessages?: MessageListState['afterMessages']
 }
 
 const ChatMain: FC<ChatMainProps> = ({
@@ -42,7 +46,10 @@ const ChatMain: FC<ChatMainProps> = ({
   hasOlder,
   selectAllPagination,
   openCitationsPanel,
-  onStartBranchDraft
+  addGeneratedImageToComposer,
+  onStartBranchDraft,
+  messageHead,
+  afterMessages
 }) => {
   const value = useHomeMessageListProviderValue({
     topic,
@@ -57,7 +64,10 @@ const ChatMain: FC<ChatMainProps> = ({
     hasOlder,
     selectAllPagination,
     openCitationsPanel,
-    onStartBranchDraft
+    addGeneratedImageToComposer,
+    onStartBranchDraft,
+    messageHead,
+    afterMessages
   })
   return (
     <MessageListProvider value={value}>

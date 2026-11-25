@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import {
+  ArrowUpToLine,
   AtSign,
   Check,
   CirclePause,
@@ -24,6 +25,7 @@ import {
   type MessageMenuBarButtonId,
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import { CHAT_CAPTURE_BACKDROP_VARIABLE } from '@renderer/components/chat/messages/types'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
@@ -265,6 +267,10 @@ registerCommand('message.multiSelect', ({ actions }) => {
   actions.toggleMultiSelectMode?.(true)
 })
 
+registerCommand('message.deleteAbove', async ({ actions, message }) => {
+  await actions.deleteMessagesBefore?.(message.id)
+})
+
 registerCommand('message.saveFile', async ({ actions, mainTextContent, message }) => {
   const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
   await actions.saveTextFile?.(fileName, mainTextContent)
@@ -289,18 +295,25 @@ registerCommand('message.copyImage', async (context) => {
   await withMessageCaptureLease(context, async () => {
     const { exportService } = await import('@renderer/services/ExportService')
     const messageContainerRef = getMessageCaptureRef(context)
-    await exportService.captureScrollableAsBlob(messageContainerRef, async (blob) => {
-      if (blob) {
-        await context.actions.copyImage?.(blob)
-      }
-    })
+    await exportService.captureScrollableAsBlob(
+      messageContainerRef,
+      async (blob) => {
+        if (blob) {
+          await context.actions.copyImage?.(blob)
+        }
+      },
+      CHAT_CAPTURE_BACKDROP_VARIABLE
+    )
   })
 })
 
 registerCommand('message.exportImage', async (context) => {
   await withMessageCaptureLease(context, async () => {
     const { exportService, getMessageTitle } = await import('@renderer/services/ExportService')
-    const imageData = await exportService.captureScrollableAsDataUrl(getMessageCaptureRef(context))
+    const imageData = await exportService.captureScrollableAsDataUrl(
+      getMessageCaptureRef(context),
+      CHAT_CAPTURE_BACKDROP_VARIABLE
+    )
     const title = await getMessageTitle(context.messageForExport)
     if (!title || !imageData || !context.actions.saveImage) {
       context.actions.notifyError?.(context.t('message.error.unknown'))
@@ -403,7 +416,8 @@ registerToolbarAction({
   icon: <RefreshIcon size={15} />,
   availability: toolbarAvailability(
     'assistant-regenerate',
-    ({ actions, isAssistantMessage }) => isAssistantMessage && !!actions.regenerateMessage
+    ({ actions, isAssistantMessage, isUserMessage }) =>
+      (isAssistantMessage || isUserMessage) && !!actions.regenerateMessage
   )
 })
 
@@ -561,6 +575,20 @@ registerAction({
   surface: 'menu',
   availability: ({ actions, isProcessing, selection }) => ({
     visible: !!selection?.enabled && !!actions.toggleMultiSelectMode,
+    enabled: !isProcessing
+  })
+})
+
+registerAction({
+  id: 'delete-above',
+  commandId: 'message.deleteAbove',
+  label: ({ t }) => t('chat.multiple.select.delete_above'),
+  icon: <ArrowUpToLine size={15} />,
+  group: 'write',
+  order: 35,
+  surface: 'menu',
+  availability: ({ actions, isProcessing }) => ({
+    visible: !!actions.deleteMessagesBefore,
     enabled: !isProcessing
   })
 })

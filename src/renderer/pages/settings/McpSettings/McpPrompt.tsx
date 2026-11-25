@@ -79,7 +79,7 @@ const McpPromptsSection = ({ prompts }: McpPromptsSectionProps) => {
           </Accordion>
         </>
       ) : (
-        <EmptyState compact preset="no-result" description={t('settings.mcp.prompts.noPromptsAvailable')} />
+        <EmptyState compact description={t('settings.mcp.prompts.noPromptsAvailable')} />
       )}
     </div>
   )

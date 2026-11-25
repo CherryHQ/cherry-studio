@@ -12,7 +12,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
  * MCP servers list hook — data fetching with optional filters and create mutation.
  */
 export const useMcpServers = (query?: ListMcpServersQuery, options: { enabled?: boolean } = {}) => {
-  const { data, isLoading, mutate } = useQuery('/mcp-servers', { query, enabled: options.enabled })
+  const { data, isLoading, error, mutate } = useQuery('/mcp-servers', { query, enabled: options.enabled })
 
   const mcpServers = useMemo(() => data?.items ?? [], [data])
 
@@ -39,6 +39,7 @@ export const useMcpServers = (query?: ListMcpServersQuery, options: { enabled?: 
 
   return {
     mcpServers,
+    error,
     isLoading,
     addMcpServer,
     reorderMcpServers,

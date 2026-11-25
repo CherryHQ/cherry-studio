@@ -2,6 +2,9 @@ import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
+
+import type { RequestFeature } from '../feature'
 
 /**
  * https://openrouter.ai/docs/docs/best-practices/reasoning-tokens#example-preserving-reasoning-blocks-with-openrouter-and-claude
@@ -61,10 +64,6 @@ const createOpenrouterReasoningPlugin = () =>
       context.middlewares.push(createOpenrouterReasoningMiddleware())
     }
   })
-
-import { SystemProviderIds } from '@shared/utils/systemProviderId'
-
-import type { RequestFeature } from '../feature'
 
 /** Strip OpenRouter reasoning-redacted blocks. */
 export const openrouterReasoningFeature: RequestFeature = {

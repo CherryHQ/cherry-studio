@@ -154,6 +154,23 @@ describe('useMiniApps', () => {
   // === Region Filtering ===
 
   describe('region filtering', () => {
+    it.each(['CN', 'Global'] as const)('shows the matching Coze entry for %s without hiding custom sites', (region) => {
+      const apps = [
+        createGlobalApp('coze'),
+        createCnOnlyApp('coze-cn'),
+        createMiniApp('custom-coze', { presetMiniAppId: null })
+      ]
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', region)
+
+      const { result } = renderHook(() => useMiniApps())
+
+      expect(result.current.miniApps.map(({ appId }) => appId)).toEqual([
+        region === 'CN' ? 'coze-cn' : 'coze',
+        'custom-coze'
+      ])
+    })
+
     it('forces the CN-only catalog in the CN edition without overwriting the shared preference', () => {
       vi.stubGlobal('__APP_EDITION__', 'cn')
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
@@ -188,31 +205,9 @@ describe('useMiniApps', () => {
       expect(mocks.request).not.toHaveBeenCalledWith('system.get_ip_country')
     })
 
-    it('should show all apps when region is CN (default)', () => {
-      const { mixedRegion } = appFixtures
-      const apps = Object.values(mixedRegion).map((a) => ({ ...a, status: 'enabled' as const }))
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
-      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'CN')
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniApps).toHaveLength(3)
-    })
-
     it('should only show Global apps when region is Global', () => {
       const { mixedRegion } = appFixtures
       const apps = Object.values(mixedRegion).map((a) => ({ ...a, status: 'enabled' as const }))
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
-      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniApps).toHaveLength(1)
-      expect(result.current.miniApps[0].appId).toBe('global-app')
-    })
-
-    it('should show apps without supportedRegions as CN-only (hidden from Global)', () => {
-      const { mixedRegion } = appFixtures
-      const apps = [mixedRegion.globalApp, mixedRegion.noRegionApp].map((a) => ({
-        ...a,
-        status: 'enabled' as const
-      }))
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       const { result } = renderHook(() => useMiniApps())
@@ -272,15 +267,6 @@ describe('useMiniApps', () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       const { result } = renderHook(() => useMiniApps())
       expect(result.current.miniApps).toHaveLength(1)
-    })
-
-    it('should default to CN when preference is auto and no detected region', () => {
-      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
-      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
-      const apps = [createGlobalApp('g', { status: 'enabled' }), createCnOnlyApp('c', { status: 'enabled' })]
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniApps).toHaveLength(2)
     })
   })
 
@@ -554,14 +540,6 @@ describe('useMiniApps', () => {
   // === Edge Cases ===
 
   describe('edge cases', () => {
-    it('should handle preset apps with empty supportedRegions array as CN-only', () => {
-      const apps = [createMiniApp('empty-regions', { supportedRegions: [], status: 'enabled' })]
-      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
-      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniApps).toHaveLength(0)
-    })
-
     it('should treat custom apps without supportedRegions as visible everywhere', () => {
       // Custom rows (presetMiniAppId === null) without region info come from
       // migrated v1 data or hand-added apps. Defaulting them to CN-only would

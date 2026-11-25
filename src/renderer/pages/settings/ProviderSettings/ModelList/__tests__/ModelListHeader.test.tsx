@@ -34,9 +34,10 @@ const baseProps = {
   hasNoModels: false,
   searchText: '',
   setSearchText: vi.fn(),
-  selectedTypeFilter: 'all' as const,
-  setSelectedTypeFilter: vi.fn(),
+  selectedFilter: 'all' as const,
+  setSelectedFilter: vi.fn(),
   typeCounts: emptyTypeCounts,
+  failedModelCount: 0,
   groupsExpanded: true,
   onToggleGroupsExpanded: vi.fn()
 }
@@ -47,18 +48,6 @@ describe('ModelListHeader', () => {
     ;(window as any).toast = {
       error: vi.fn()
     }
-  })
-
-  it('renders the model list title, collapsed search action, and external action slot', () => {
-    render(<ModelListHeader {...baseProps} actions={<button type="button">external-action</button>} />)
-
-    expect(screen.getByText('settings.models.list_title')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.models.collapse_all' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.search' })).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('models.search.placeholder')).not.toBeInTheDocument()
-    expect(screen.getByText('external-action')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.models.bulk_enable' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.models.bulk_disable' })).not.toBeInTheDocument()
   })
 
   it('disables billing and filtering together when the provider has no models', () => {
@@ -130,5 +119,15 @@ describe('ModelListHeader', () => {
 
     expect(screen.getByRole('tab', { name: 'models.all' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'models.type.text' })).toBeInTheDocument()
+  })
+
+  it('shows the failed-model filter only when the latest check found failures', () => {
+    const { rerender } = render(<ModelListHeader {...baseProps} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.filter.label' }))
+    expect(screen.queryByRole('tab', { name: 'settings.models.check.filter_failed' })).not.toBeInTheDocument()
+
+    rerender(<ModelListHeader {...baseProps} failedModelCount={2} />)
+    expect(screen.getByRole('tab', { name: 'settings.models.check.filter_failed' })).toBeInTheDocument()
   })
 })

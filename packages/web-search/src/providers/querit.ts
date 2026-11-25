@@ -1,7 +1,7 @@
 import * as z from 'zod'
 
 import { WEB_SEARCH_PROVIDER_CATALOG } from '../catalog'
-import { apiUrl, bearer, checkProviderError, invalidResponse, requestJson } from '../protocols/http'
+import { apiUrl, bearer, checkProviderError, invalidResponse, protocolError, requestJson } from '../protocols/http'
 import type { ProtocolContext, WebSearchProviderModule } from '../types'
 
 const QueritStatusSchema = z.object({ error_code: z.coerce.number() })
@@ -30,6 +30,7 @@ const QueritContentsResponseSchema = QueritStatusSchema.extend({
   results: z
     .array(
       z.object({
+        id: z.string().optional(),
         url: z.string().optional(),
         content: z.string().optional(),
         extrasMeta: z
@@ -39,7 +40,8 @@ const QueritContentsResponseSchema = QueritStatusSchema.extend({
           .optional()
       })
     )
-    .default([])
+    .default([]),
+  statuses: z.array(z.object({ id: z.string().optional(), status: z.enum(['success', 'failed']) })).optional()
 })
 
 function queritUrl(apiHost: string, endpoint: 'search' | 'contents'): string {
@@ -102,6 +104,13 @@ export const querit: WebSearchProviderModule = {
       (value) => checkQueritError(context, value)
     )
     const page = payload.results[0]
+    const statuses = payload.statuses ?? []
+    const status =
+      statuses.find((entry) => page?.id !== undefined && entry.id === page.id) ??
+      (statuses.length === 1 && (page?.id === undefined || statuses[0].id === undefined) ? statuses[0] : undefined)
+    if (status?.status === 'failed') {
+      throw protocolError(context, 'page_fetch_failed', `Querit could not fetch page content for ${call.input.trim()}`)
+    }
     const content = page?.content?.trim()
     if (!content) throw invalidResponse(context, 'empty_content', 'Querit contents returned empty content')
     return [

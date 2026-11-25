@@ -7,22 +7,17 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 
 import type { ChannelMessageEvent } from '../ChannelAdapter'
-import { ChannelManager } from '../ChannelManager'
-import { ChannelMessageHandler, channelMessageHandler } from '../ChannelMessageHandler'
+import { ChannelMessageHandler } from '../ChannelMessageHandler'
 
 const persistedChannelSessions = vi.hoisted(() => ({
   bindings: new Map<string, string>(),
   sessions: new Map<string, Record<string, unknown>>()
 }))
 
-vi.mock('@main/ai/runtime/agentSessionWorkspace', () => {
-  class MockAgentSessionWorkspaceError extends Error {}
-  return {
-    AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
-    isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
-    prepareAgentSessionWorkspaceDirectory: vi.fn()
-  }
-})
+vi.mock(import('@main/ai/runtime/agentSessionWorkspace'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  prepareAgentSessionWorkspaceDirectory: vi.fn()
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -31,7 +26,8 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('../security/OutputSanitizer', () => ({
-  sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
+  sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false })),
+  sanitizeChannelOutputSilently: vi.fn((text: string) => ({ text, redactedPatterns: [] }))
 }))
 
 // The global mock (tests/main.setup.ts) wires the default service set, which omits
@@ -81,9 +77,14 @@ vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
-    getChannel: vi
-      .fn()
-      .mockReturnValue({ id: 'channel-1', sessionId: null, permissionMode: null, workspace: { type: 'system' } }),
+    getChannel: vi.fn().mockReturnValue({
+      id: 'channel-1',
+      agentId: 'agent-1',
+      isActive: true,
+      sessionId: null,
+      permissionMode: null,
+      workspace: { type: 'system' }
+    }),
     updateChannel: vi.fn().mockResolvedValue(null),
     findBySessionId: vi.fn().mockResolvedValue(null),
     getActiveSessionId: vi.fn((channelId: string, conversationId: string) =>
@@ -159,7 +160,6 @@ function pendingAdmissionCount(handler: ChannelMessageHandler): number {
 
 // Delegate coverage below constructs the manager directly, like ChannelManager.test.ts —
 // BaseService's singleton guard allows one instance per module registry.
-const channelManager = new ChannelManager()
 
 describe('ChannelMessageHandler write quiesce', () => {
   // Fresh instance per test so pauseHolds / pendingAdmissions never leak between tests
@@ -433,22 +433,5 @@ describe('ChannelMessageHandler write quiesce', () => {
     // Discard the pending batch so its debounce timer and promise don't outlive the test.
     handler.clearSessionTracker('agent-1')
     await expect(turn).rejects.toThrow('Agent removed; batch discarded')
-  })
-})
-
-describe('ChannelManager write-quiesce delegates', () => {
-  it('pause / drainInFlight / listActiveWork delegate to the channelMessageHandler singleton', async () => {
-    expect(channelMessageHandler.isWriteQuiesced).toBe(false)
-
-    const hold = channelManager.pause('delegate-test')
-    try {
-      expect(channelMessageHandler.isWriteQuiesced).toBe(true)
-      expect(channelManager.listActiveWork()).toEqual([])
-      await expect(channelManager.drainInFlight({ timeoutMs: 10 })).resolves.toEqual({ stragglerIds: [] })
-    } finally {
-      hold.dispose()
-    }
-
-    expect(channelMessageHandler.isWriteQuiesced).toBe(false)
   })
 })

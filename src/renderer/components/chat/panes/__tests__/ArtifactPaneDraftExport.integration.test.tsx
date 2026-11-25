@@ -12,18 +12,16 @@ import { ArtifactPaneView } from '../ArtifactPane'
 import type { ArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
 // Opt out of the global UI stand-in so FileTree keeps the real TreeView.
-// CodeEditor is no longer what this pane mounts.
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal<typeof CherryStudioUi>())
 }))
-vi.mock('@renderer/components/LazyCodeEditor', () => ({
-  LazyCodeEditor: () => null
-}))
+vi.mock('@renderer/components/FileEditor', () => ({ default: () => null }))
 vi.mock('@renderer/components/FilePreview', () => ({
   useOptionalOpenFilePreviewTab: () => undefined,
+  canProduceSelectionReference: () => false,
+  hasRenderedFilePreview: () => true,
   FilePreview: () => null
 }))
-vi.mock('@renderer/hooks/useCodeStyle', () => ({ useCmTheme: () => 'light' }))
 // JSDOM has no layout; keep the real tree rows and menus while rendering every row.
 vi.mock('@renderer/components/VirtualList', () => ({
   DynamicVirtualList: ({
@@ -70,12 +68,15 @@ function renderDraft(workspacePath: string) {
     isLoading: false,
     hasLoaded: true,
     setExpandedIds: vi.fn(),
-    reloadExpandedDirectories: vi.fn(),
-    refresh: vi.fn()
+    loadFolder: vi.fn(),
+    refresh: vi.fn().mockResolvedValue(undefined)
   }
   const fileSession: FileEditSession = {
     status: 'ready',
+    documentEpoch: 0,
+    readOnly: false,
     savedContent: 'Saved report',
+    saveCount: 0,
     draft,
     isDirty: true,
     isSaving: false,
@@ -85,14 +86,19 @@ function renderDraft(workspacePath: string) {
     setDraft: vi.fn(),
     discard: vi.fn(),
     reload: vi.fn(),
+    refresh: vi.fn(),
     keepDraft: vi.fn(),
     flush: vi.fn(),
-    notifyExternalChange: vi.fn()
+    prepareMutation: vi.fn()
   }
   render(
     <CommandContextKeyProvider>
       <CommandProvider>
         <ArtifactPaneView
+          paneTitle="Files"
+          paneActions={null}
+          fileTabs={[]}
+          onPreviewClose={vi.fn()}
           workspacePath={workspacePath}
           selectedFile="report.md"
           onSelectedFileChange={vi.fn()}

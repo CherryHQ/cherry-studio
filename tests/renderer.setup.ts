@@ -104,6 +104,7 @@ vi.mock('uuid', () => ({
 vi.mock('@iconify/react', () => {
   const React = require('react')
   return {
+    addCollection: vi.fn(),
     Icon: ({ icon, ...props }: { icon?: string }) =>
       React.createElement('span', { ...props, 'data-icon': icon, 'data-testid': 'iconify-icon' })
   }
@@ -147,11 +148,6 @@ vi.stubGlobal('api', {
     read: vi.fn().mockResolvedValue('[]'),
     writeWithId: vi.fn().mockResolvedValue(undefined)
   },
-  // Legacy `window.api.application.*` bridge — `relaunch` stays on legacy IPC, so tests that
-  // trigger a restart flow reach this stub. Stubbed to a no-op resolving spy.
-  application: {
-    relaunch: vi.fn().mockResolvedValue(undefined)
-  },
   // Low-level IpcApi bridge — the typed `ipcApi` facade calls through this. Stubbed so
   // module-level `ipcApi.on(...)` side effects (e.g. the renderer notification singleton)
   // don't crash tests that transitively import them without a local `@renderer/ipc` mock.
@@ -169,9 +165,16 @@ vi.mock('@cherrystudio/ui', async () => {
   const React = require('react')
   // Real implementation: its filtering/normalization contract is what callers
   // are tested against, and a stub would drift from it.
+  const { KeyboardLayerProvider } = await import('@cherrystudio/ui/components/primitives/keyboard-layer')
   const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
   const { BarVisualizer } = await import('@cherrystudio/ui/components/primitives/bar-visualizer')
+  const { Progress } = await import('@cherrystudio/ui/components/primitives/progress')
   const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
+  const { createCodeHighlightPlugin } =
+    await import('@cherrystudio/ui/components/composites/markdown/plugins/code-highlight')
+  const { BUTTON_HANDLE_DRAG_SENSORS, DragDropRoot } =
+    await import('@cherrystudio/ui/components/composites/sortable/drag-drop-root')
+  const { withManagerProbe } = await import('./__mocks__/dndDriver')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -184,8 +187,21 @@ vi.mock('@cherrystudio/ui', async () => {
   })
   const AccordionItemContext = React.createContext({ disabled: false, value: '' })
   const FormFieldNameContext = React.createContext(undefined)
+  const DialogOpenChangeContext = React.createContext(undefined)
+  // Hidden so role queries never see it; tests reach the dialog's X button through its data-slot.
+  const MockDialogClose = () => {
+    const onOpenChange = React.useContext(DialogOpenChangeContext)
+    return React.createElement('button', {
+      type: 'button',
+      hidden: true,
+      'data-slot': 'dialog-close',
+      onClick: () => onOpenChange?.(false)
+    })
+  }
   return {
+    KeyboardLayerProvider,
     BarVisualizer,
+    createCodeHighlightPlugin,
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
     Markdown: ({ children }) => React.createElement('div', null, children),
@@ -198,7 +214,8 @@ vi.mock('@cherrystudio/ui', async () => {
     useMarkdownBlockContext: () => ({ content: '' }),
     createSlugger: () => ({ slug: (value) => String(value ?? '') }),
     extractTextFromNode: () => '',
-    BlurCancelPointerSensor: class BlurCancelPointerSensor {},
+    BUTTON_HANDLE_DRAG_SENSORS,
+    DragDropRoot: withManagerProbe(DragDropRoot),
     ReorderableList: ({ items, renderItem, getId }) =>
       React.createElement(
         React.Fragment,
@@ -556,16 +573,29 @@ vi.mock('@cherrystudio/ui', async () => {
       }),
     ImagePreviewTrigger: ({ alt, dialogProps: _dialogProps, item, items: _items, ...props }) =>
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
-    Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>
-      open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
+    Dialog: ({ children, onOpenChange, open, ...props }) =>
+      open
+        ? React.createElement(
+            DialogOpenChangeContext.Provider,
+            { value: onOpenChange },
+            React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children)
+          )
+        : null,
     DialogContent: ({
       children,
       closeOnOverlayClick: _closeOnOverlayClick,
+      guardDismiss: _guardDismiss,
       onEscapeKeyDown: _onEscapeKeyDown,
-      showCloseButton: _showCloseButton,
+      showCloseButton = true,
       size,
       ...props
-    }) => React.createElement('div', { ...props, 'data-size': size, 'data-testid': 'dialog-content' }, children),
+    }) =>
+      React.createElement(
+        'div',
+        { ...props, 'data-size': size, 'data-testid': 'dialog-content' },
+        children,
+        showCloseButton ? React.createElement(MockDialogClose) : null
+      ),
     DialogHeader: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),
     DialogTitle: ({ children, ...props }) =>
@@ -706,8 +736,7 @@ vi.mock('@cherrystudio/ui', async () => {
       ),
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
-    Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, showOnHover: _showOnHover, ...props }) =>
-      React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Dropzone: ({
       children,
       getFilesFromEvent: _getFilesFromEvent,
@@ -785,6 +814,8 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement('div', { ...props, 'data-testid': 'select-content' }, children),
     SelectGroup: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'select-group' }, children),
+    SelectLabel: ({ children, ...props }) => React.createElement('div', props, children),
+    SelectSeparator: (props) => React.createElement('hr', props),
     SelectItem: ({ children, value, ...props }) => {
       const context = React.useContext(SelectContext)
       return React.createElement(
@@ -854,6 +885,7 @@ vi.mock('@cherrystudio/ui', async () => {
         tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null
       )
     },
+    Progress,
     CircularProgress: ({ value, renderLabel, showLabel, ...props }) =>
       React.createElement(
         'div',
@@ -921,6 +953,7 @@ vi.mock('@cherrystudio/ui', async () => {
         : tag
     },
     Spinner: ({ text, ...props }) => React.createElement('div', { ...props, 'data-testid': 'spinner' }, text),
+    IndicatorLight: () => React.createElement('div', { 'data-testid': 'indicator-light' }),
     CodeEditor: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'code-editor' }, children),
     Flex: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'flex' }, children),
@@ -987,8 +1020,7 @@ vi.mock('@cherrystudio/ui', async () => {
       React.createElement('div', { ...props, 'data-testid': 'help-tooltip' }, children),
     InfoTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'info-tooltip' }, children),
-    Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, showOnHover: _showOnHover, ...props }) =>
-      React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
+    ScrollArea: MockCherrystudioUI.ScrollArea,
     Avatar: ({ children, src, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
     AvatarImage: ({ src, ...props }) => React.createElement('img', { ...props, src, 'data-testid': 'avatar-image' }),

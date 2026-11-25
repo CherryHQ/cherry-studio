@@ -12,7 +12,7 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   default: ({ value }: { value: string }) => <pre aria-label="Code viewer">{value}</pre>
 }))
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({ useCmTheme: () => 'light' }))
+vi.mock('@renderer/hooks/useCodeStyle', () => ({ useCodeStyle: () => ({ isCodeThemeDark: false }) }))
 vi.mock('@renderer/services/PyodideService', () => ({ pyodideService: {} }))
 
 describe('LaTeX code block preview', () => {

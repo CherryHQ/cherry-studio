@@ -3,6 +3,8 @@
  * Full oversized values remain addressable through `ai.tool.get_result`.
  */
 
+import { createHash } from 'node:crypto'
+
 import type { UIMessageChunk } from 'ai'
 import { isToolUIPart } from 'ai'
 
@@ -134,18 +136,64 @@ function toCitationSkeleton(output: unknown): unknown | undefined {
   }
 }
 
-/** Whether a serialized payload exceeds the renderer transport budget. */
-function exceedsToolOutputTransportLimit(output: unknown): boolean {
-  if (output === undefined || output === null) return false
+/**
+ * Whether the strings and kept keys alone exceed `limit` characters; JSON spends at least one UTF-8 byte on each.
+ * Undefined when a cycle or `toJSON` leaves the answer to serialization.
+ */
+function textExceeds(value: unknown, limit: number): boolean | undefined {
+  let remaining = limit
+  const path = new Set<object>()
+  const visit = (node: unknown): boolean | undefined => {
+    if (typeof node === 'string') return (remaining -= node.length) < 0
+    if (node === null || typeof node !== 'object') return false
+    if (path.has(node) || typeof (node as { toJSON?: unknown }).toJSON === 'function') return undefined
+    path.add(node)
+    try {
+      if (Array.isArray(node)) {
+        for (const item of node) {
+          const exceeds = visit(item)
+          if (exceeds !== false) return exceeds
+        }
+        return false
+      }
+      for (const [key, child] of Object.entries(node)) {
+        if (child === undefined || typeof child === 'function' || typeof child === 'symbol') continue
+        if ((remaining -= key.length) < 0) return true
+        const exceeds = visit(child)
+        if (exceeds !== false) return exceeds
+      }
+      return false
+    } finally {
+      path.delete(node)
+    }
+  }
+  return visit(value)
+}
+
+/** Serialize an oversized payload for reuse in transport checks and revision hashing. */
+function serializeOversizedToolOutput(output: unknown): string | undefined {
+  if (output === undefined || output === null) return undefined
   try {
     const serialized = JSON.stringify(output)
-    if (serialized === undefined) return false
+    if (serialized === undefined) return undefined
     // UTF-16 code units are a lower bound on UTF-8 bytes, so this short-circuits without encoding.
-    if (serialized.length > DEFER_TOOL_OUTPUT_BYTES) return true
-    return new TextEncoder().encode(serialized).length > DEFER_TOOL_OUTPUT_BYTES
+    if (serialized.length > DEFER_TOOL_OUTPUT_BYTES) return serialized
+    return new TextEncoder().encode(serialized).length > DEFER_TOOL_OUTPUT_BYTES ? serialized : undefined
   } catch {
+    return undefined
+  }
+}
+
+/** Whether a payload exceeds the renderer transport budget. */
+function exceedsToolOutputTransportLimit(output: unknown): boolean {
+  try {
+    // Decides large payloads without serializing them; only small ones are measured exactly.
+    if (textExceeds(output, DEFER_TOOL_OUTPUT_BYTES)) return true
+  } catch {
+    // Nesting too deep to walk is too deep to serialize, so the output stays inline.
     return false
   }
+  return serializeOversizedToolOutput(output) !== undefined
 }
 
 export function shouldDeferToolOutput(output: unknown): boolean {
@@ -180,17 +228,21 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
 }
 
 function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRef): unknown {
-  if (isPersistedToolOutput(output)) {
+  const isPersisted = isPersistedToolOutput(output)
+  if (!isPersisted && isDeferredToolOutput(output)) return output
+  const serialized = isPersisted ? JSON.stringify(output) : serializeOversizedToolOutput(output)
+  if (serialized === undefined) return output
+  const versionedRef = { ...ref, revision: createHash('sha256').update(serialized).digest('hex') }
+  if (isPersisted) {
     const persisted = output.$persistedToolOutput
     const deferred = {
-      $deferredToolResult: ref,
+      $deferredToolResult: versionedRef,
       excerpt: envelopeDisplayExcerpt(persisted)
     } satisfies DeferredToolOutput
     return persisted.shape === 'entities' ? withCitationSkeleton(deferred, persisted.skeleton) : deferred
   }
 
-  if (!shouldDeferToolOutput(output)) return output
-  return withCitationSkeleton({ $deferredToolResult: ref }, output)
+  return withCitationSkeleton({ $deferredToolResult: versionedRef }, output)
 }
 
 /** Projects a stored or finalized message part. Returns the same object when nothing changed. */

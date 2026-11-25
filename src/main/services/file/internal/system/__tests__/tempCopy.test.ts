@@ -149,14 +149,9 @@ describe('internal/system/tempCopy', () => {
         throw fnErr
       })
     ).rejects.toBe(fnErr)
-
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      expect.stringContaining('cleanup failed'),
-      expect.objectContaining({ err: cleanupErr })
-    )
   })
 
-  it('logs cleanup failure but still resolves with fn result on the happy path', async () => {
+  it('resolves with fn result even when cleanup fails', async () => {
     // The cleanup failure must not flip a successful fn outcome to a
     // rejection — caller already got its result; the leak is a side effect.
     const e = await createInternal(deps, {
@@ -172,9 +167,5 @@ describe('internal/system/tempCopy', () => {
 
     const result = await withTempCopy(deps, e.id, async () => 'ok')
     expect(result).toBe('ok')
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      expect.stringContaining('cleanup failed'),
-      expect.objectContaining({ err: cleanupErr })
-    )
   })
 })

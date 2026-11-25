@@ -340,6 +340,7 @@ export async function publishFileNoClobber(
     reservationStat = await reservationHandle.stat({ bigint: true })
 
     options.signal?.throwIfAborted()
+    await options.validateTarget?.()
     try {
       await link(reservationPath, target)
       targetReserved = true

@@ -11,7 +11,9 @@ import type { DbOrTx, DbType } from '@data/db/types'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 
+import { agentSessionContextService } from './AgentSessionContextService'
 import type { RuntimeForkAnchor } from './agentSessionForkContract'
+import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
 
 const MIGRATION_KEY_PREFIX = 'agent-runtime-migration:'
 const PI_FILE_SHELL_TOOLS = new Set(['read', 'edit', 'write', 'bash'])
@@ -130,6 +132,23 @@ export function commitRetiredAgentSessionMigration(
       })
       .where(eq(agentSessionMessageTable.id, row.id))
       .run()
+  }
+  if (expectedHistory) {
+    const anchorMessageId = ensureAgentSessionRootTx(tx, migration.sessionId)
+    const backend = agentSessionContextService.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound')
+    const context = agentSessionContextService.reserveBranchTx(tx, {
+      sessionId: migration.sessionId,
+      backendId: backend.id,
+      anchorMessageId,
+      nativeThreadId: migration.resumeToken
+    })
+    agentSessionContextService.confirmBranchTx(
+      tx,
+      context.id,
+      migration.sessionId,
+      anchorMessageId,
+      migration.resumeToken
+    )
   }
   tx.delete(appStateTable)
     .where(eq(appStateTable.key, `${MIGRATION_KEY_PREFIX}${migration.sessionId}`))

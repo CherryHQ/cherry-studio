@@ -8,6 +8,6 @@ export const printHandlers: IpcHandlersFor<typeof printRequestSchemas> = {
     if (!senderId) throw new IpcError(IpcErrorCode.FORBIDDEN_SENDER)
     printService.completeDocumentRender(senderId, error)
   },
-  'print.export_pdf': async (payload) => printService.exportToPdf(payload),
+  'print.export_pdf': async (payload, ctx) => printService.exportToPdf(payload, ctx.senderId),
   'print.print': async (payload) => printService.print(payload)
 }

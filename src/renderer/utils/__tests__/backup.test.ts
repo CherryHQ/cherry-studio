@@ -19,6 +19,12 @@ vi.mock('@renderer/i18n/resolver', () => ({
 }))
 
 describe('getLocalizedBackupErrorMessage', () => {
+  it('maps a WebDAV upload size rejection after IPC without exposing the server response', () => {
+    expect(
+      getLocalizedBackupErrorMessage(new Error('Error invoking remote method: BACKUP_WEBDAV_TOO_LARGE: HTTP 413'))
+    ).toBe('localized:backup.error.webdav_too_large')
+  })
+
   it('maps the active-writer code without exposing the raw English error', () => {
     const result = getLocalizedBackupErrorMessage(
       new Error(`Error invoking remote method: ${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running.`)
@@ -49,7 +55,7 @@ describe('getLocalizedBackupErrorMessage', () => {
   it('includes the available space reported by the failing filesystem', () => {
     const error = new Error(`Error invoking remote method: ${BACKUP_DISK_FULL_ERROR_CODE}:536870912`)
 
-    expect(getLocalizedBackupErrorMessage(error)).toBe('localized:backup.error.disk_full_with_available:512.0 MB')
+    expect(getLocalizedBackupErrorMessage(error)).toBe('localized:backup.error.disk_full_with_available:512 MB')
   })
 
   it('uses the operation-neutral disk-full error for restore failures', () => {

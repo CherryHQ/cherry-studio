@@ -19,11 +19,15 @@ export type LocalModelStatus = (typeof LOCAL_MODEL_STATUSES)[number]
 export const LOCAL_MODEL_ERROR_CODES = ['download_failed', 'incomplete_cache'] as const
 export type LocalModelErrorCode = (typeof LOCAL_MODEL_ERROR_CODES)[number]
 
+export const LOCAL_MODEL_STATUS_HINT_CODES = ['missing_shared_runtime'] as const
+export type LocalModelStatusHintCode = (typeof LOCAL_MODEL_STATUS_HINT_CODES)[number]
+
 /** Main-owned status projected to every renderer window through Shared Cache. */
 export interface LocalModelStatusSnapshot {
   status: LocalModelStatus
   percent: number
   errorCode?: LocalModelErrorCode
+  hintCode?: LocalModelStatusHintCode
 }
 
 /** Terminal result returned to every caller awaiting the shared download. */

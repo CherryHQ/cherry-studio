@@ -21,7 +21,7 @@ import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
 import { computeCatchUpAction } from './runtime/catchUp'
 import { DispatchQueue } from './runtime/DispatchQueue'
-import { runStartupRecovery } from './runtime/recovery'
+import { abandonLeftovers, runStartupRecovery } from './runtime/recovery'
 import {
   type EnqueueOptions,
   JOB_PROGRESS_KEY_PREFIX,
@@ -32,6 +32,12 @@ import {
   type JobHandler,
   type JobScheduleRegistrationInput
 } from './types'
+
+function isSpentOnce(schedule: JobScheduleSnapshot): boolean {
+  return (
+    schedule.trigger.kind === 'once' && schedule.lastRun !== null && Date.parse(schedule.lastRun) >= schedule.trigger.at
+  )
+}
 
 const logger = loggerService.withContext('JobManager')
 
@@ -124,7 +130,7 @@ interface RecoveryResumePoint {
  * 6-state state machine, schedule registry, retry backoff, startup recovery,
  * catch-up detection, GC.
  *
- * See `docs/references/job-and-scheduler/` for the full architecture, the
+ * See `docs/dev/references/job-and-scheduler/` for the full architecture, the
  * four-layer lock model, and the handler authoring contract.
  *
  * Current shape:
@@ -150,14 +156,22 @@ export class JobManager extends BaseService {
    * enqueued the job. The authoritative in-memory set of jobIds this process is
    * currently executing. Consumers:
    *   - `cancel()` waits on the promise for the handler to release.
-   *   - startup recovery filters these out (via the `isJobInFlight` predicate)
-   *     so a job started during the quiet window is never reset/re-dispatched.
+   *   - startup recovery filters these out, so a leftover already picked up
+   *     during the quiet window is never reset/re-dispatched.
    *   - `spawnExecute` guards against double-running an id already present.
    * Lives independent of `finishedResolvers` because cross-restart dispatch
    * never builds a `handleFor` entry, leaving the resolver map empty even while
    * a controller is registered.
    */
   private readonly inFlightExecuted = new Map<string, Promise<void>>()
+  /**
+   * Non-terminal rows a previous launch left behind, read in `onInit` before
+   * any service can enqueue (every one depends on JobManager). Startup recovery
+   * reconciles only these: a row this launch enqueued is never a leftover,
+   * whatever its status when the sweep fires. The ones a handler abandons are
+   * cancelled once that handler registers, before anything can read them.
+   */
+  private leftoverJobIds: ReadonlySet<string> = new Set()
   private readonly scheduleDisposables = new Map<string, Disposable>()
   private readonly globalMaxConcurrency = DEFAULT_GLOBAL_MAX_CONCURRENCY
   /**
@@ -272,7 +286,10 @@ export class JobManager extends BaseService {
   // ---------------- Lifecycle ----------------
 
   protected override onInit(): void {
-    logger.info('JobManager initialized')
+    this.leftoverJobIds = new Set(jobService.getStaleActive().map((row) => row.id))
+    // Covers handlers registered before the snapshot; `registerHandler` covers later ones.
+    for (const [type, handler] of this.handlers) abandonLeftovers(type, handler, this.leftoverJobIds)
+    logger.info('JobManager initialized', { leftoverJobs: this.leftoverJobIds.size })
   }
 
   protected override async onReady(): Promise<void> {
@@ -343,9 +360,11 @@ export class JobManager extends BaseService {
    * Step order is significant:
    *
    *   1. `runStartupRecovery` resets non-terminal rows per handler strategy
-   *      (abandon / retry / singleton) and honours `cancelRequested` overrides,
-   *      EXCEPT rows this process is still executing (`inFlightExecuted`), which
-   *      are excluded so a job started during the quiet window is not re-dispatched.
+   *      (retry / singleton; abandon leftovers were cancelled when their handler
+   *      registered) and honours `cancelRequested` overrides,
+   *      on the previous launch's leftovers only (`leftoverJobIds`), minus any
+   *      this process is already executing (`inFlightExecuted`). A job enqueued
+   *      during the quiet window is neither cancelled nor re-dispatched.
    *
    *   2. Resurrect queues for any non-terminal rows from previous runs so
    *      pending dispatch lands on the next tick. `dispatchAll()` iterates
@@ -421,7 +440,10 @@ export class JobManager extends BaseService {
     if (startIndex <= RECOVERY_STEPS.indexOf('reset')) {
       if (interruptedAt({ step: 'reset' })) return
       try {
-        const stats = runStartupRecovery(this.handlers, (id) => this.inFlightExecuted.has(id))
+        const stats = runStartupRecovery(
+          this.handlers,
+          (id) => !this.leftoverJobIds.has(id) || this.inFlightExecuted.has(id)
+        )
         logger.info('Startup recovery complete', stats)
       } catch (err) {
         logger.error('Startup recovery failed', err as Error)
@@ -577,6 +599,9 @@ export class JobManager extends BaseService {
    * Do not defer registration to `onAllReady`: those hooks may start async work
    * without the lifecycle manager awaiting completion, while startup recovery
    * later treats non-terminal jobs for an unregistered type as orphans.
+   * Registering cancels the type's `abandon` leftovers on the spot, so no
+   * enqueue can deduplicate against, or dispatch claim, a row that died with the
+   * previous launch.
    *
    * @param type - JobRegistry key (compile-time validated via declaration merging)
    * @param handler - Handler implementation; `recovery` is required
@@ -587,6 +612,7 @@ export class JobManager extends BaseService {
       throw new Error(`JobManager: handler for type "${type}" is already registered`)
     }
     this.handlers.set(type, handler as JobHandler)
+    abandonLeftovers(type, handler as JobHandler, this.leftoverJobIds)
     logger.info('Handler registered', { type, recovery: handler.recovery })
   }
 
@@ -922,7 +948,8 @@ export class JobManager extends BaseService {
       parentId: opts.parentId ?? null,
       cancelRequested: false,
       metadata: opts.metadata ?? {},
-      timeoutMs: opts.timeoutMs ?? handler.defaultTimeoutMs ?? null
+      timeoutMs: opts.timeoutMs ?? handler.defaultTimeoutMs ?? null,
+      recovery: opts.recovery ?? null
     }
 
     return { handler, queueName, insertRow }
@@ -1253,7 +1280,7 @@ export class JobManager extends BaseService {
    * MUST call `syncJobScheduleTimerById(id)` on its own deterministic code
    * path. A rollback therefore has zero timer side effects. See
    * "Transactional schedule mutation" in
-   * `docs/references/job-and-scheduler/overview.md`.
+   * `docs/dev/references/job-and-scheduler/overview.md`.
    *
    * Handler, name, and trigger-semantics validation run up front (outside the
    * write) as the primitive's own precondition — an invalid cron expression /
@@ -1410,7 +1437,7 @@ export class JobManager extends BaseService {
    */
   async triggerJobScheduleNowById(id: string): Promise<boolean> {
     const schedule = jobScheduleService.getById(id)
-    if (!schedule) return false
+    if (!schedule || isSpentOnce(schedule)) return false
     // While paused, force the fallback: croner's .trigger() bypasses its own
     // pause AND the armed callback's gate suppresses the enqueue — the cron
     // path would return true having persisted nothing, silently dropping an
@@ -1421,6 +1448,10 @@ export class JobManager extends BaseService {
       ? false
       : await application.get('SchedulerService').triggerNow(`schedule:${id}`)
     if (triggered) return true
+    if (schedule.trigger.kind === 'once') {
+      const current = jobScheduleService.getById(id)
+      if (!current || isSpentOnce(current)) return false
+    }
     // Fallback path (non-cron OR cron not currently armed in this process).
     this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
       scheduleId: schedule.id
@@ -2105,11 +2136,7 @@ export class JobManager extends BaseService {
     // every restart, since scheduleOnce fires a past `at` immediately. Compare
     // against trigger.at rather than mere lastRun presence: a manual trigger
     // also writes lastRun but must not swallow a still-pending natural fire.
-    if (
-      schedule.trigger.kind === 'once' &&
-      schedule.lastRun !== null &&
-      Date.parse(schedule.lastRun) >= schedule.trigger.at
-    ) {
+    if (isSpentOnce(schedule)) {
       if (schedule.nextRun !== null) {
         try {
           jobScheduleService.setNextRun(schedule.id, null)
@@ -2143,7 +2170,7 @@ export class JobManager extends BaseService {
       // DB-backed so prompt/workspace/timeout edits take effect on the next
       // fire without re-arming (which would reset an interval's cadence).
       const currentSchedule = jobScheduleService.getById(schedule.id)
-      if (!currentSchedule?.enabled) return
+      if (!currentSchedule?.enabled || isSpentOnce(currentSchedule)) return
 
       const firedAt = Date.now()
       try {
@@ -2208,7 +2235,7 @@ export class JobManager extends BaseService {
    * fast-path is skipped — the normal dispatch loop handles them.
    *
    * Uses the reserved `job:${jobId}` SchedulerService id prefix (see the
-   * reserved-prefix table in `docs/references/job-and-scheduler/scheduler-usage.md`).
+   * reserved-prefix table in `docs/dev/references/job-and-scheduler/scheduler-usage.md`).
    * The disposable returned by `registerSchedule` is intentionally discarded —
    * cancel() drives termination via the dispatch path rather than disposing
    * the timer, and `scheduleOnce` self-cleans from its map before firing.
@@ -2347,7 +2374,10 @@ export class JobManager extends BaseService {
       logger.error('GC: pruneTerminalOlderThan failed', { err: (err as Error).message })
     }
     try {
-      byCount = jobService.pruneTerminalKeepLatestPerSchedule(GC_KEEP_PER_SCHEDULE)
+      const retainedTypes = [...this.handlers]
+        .filter(([, handler]) => handler.retainTerminalHistoryForTtl)
+        .map(([type]) => type)
+      byCount = jobService.pruneTerminalKeepLatestPerSchedule(GC_KEEP_PER_SCHEDULE, retainedTypes)
     } catch (err) {
       logger.error('GC: pruneTerminalKeepLatestPerSchedule failed', { err: (err as Error).message })
     }

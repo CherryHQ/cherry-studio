@@ -13,6 +13,8 @@ import type { Serializable } from './serializable'
  *   provider diagnostic. Set by error handlers that own their recovery text
  *   (e.g. the non-vision OCR fallback in attachmentRouting).
  * - `providerErrorCategory?: ErrorCategory` — Diagnosis retained before provider payload redaction.
+ * - `streamStage?: 'response-stream'` — Boundary where the failure was observed;
+ *   does not identify a provider or network cause.
  * - `providerId?: string` — Provider ID for i18n interpolation in error messages.
  */
 export interface SerializedError {

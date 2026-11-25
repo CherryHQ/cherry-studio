@@ -10,7 +10,7 @@ import * as React from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
 
-import { usePortalContainer } from './portal-container'
+import { useTooltipPortalContainer, useTooltipZIndex } from './portal-container'
 
 type Side = 'top' | 'bottom' | 'left' | 'right'
 type Align = 'start' | 'center' | 'end'
@@ -253,8 +253,31 @@ function setupTooltipOrphanSweeper(): void {
   }
   ensureObserved(document)
 }
+// A menu restores focus to its trigger with a script focus(), which Chromium marks :focus-visible
+// when nothing was focused before it opened, even after a mouse pick; the last input settles it.
+let lastInputWasPointer = false
+
+// Shortcuts and app switching (Cmd/Alt+Tab) are not focus navigation; returning to the window
+// restores focus to the trigger, which must not count as keyboard focus.
+function isNavigationKey(e: KeyboardEvent): boolean {
+  return !(e.metaKey || e.ctrlKey || e.altKey || e.key === 'Shift')
+}
+
+function trackInputModality(): void {
+  const capture = { capture: true, passive: true }
+  document.addEventListener('pointerdown', () => (lastInputWasPointer = true), capture)
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      if (isNavigationKey(e)) lastInputWasPointer = false
+    },
+    capture
+  )
+}
+
 if (typeof document !== 'undefined' && typeof window !== 'undefined') {
   setupTooltipOrphanSweeper()
+  trackInputModality()
 }
 
 /** 由 TooltipRoot 提供，让低层 TooltipContent 走同一套挂载接管；无 Provider 时保持原行为。 */
@@ -305,7 +328,7 @@ function TooltipTrigger({ onFocus, ...props }: TooltipTriggerProps) {
       onFocus={(e) => {
         onFocus?.(e)
         // Radix composeEventHandlers respects defaultPrevented
-        if (!e.defaultPrevented && !e.target.matches(':focus-visible')) {
+        if (!e.defaultPrevented && (lastInputWasPointer || !e.target.matches(':focus-visible'))) {
           e.preventDefault()
         }
       }}
@@ -318,7 +341,7 @@ function TooltipTrigger({ onFocus, ...props }: TooltipTriggerProps) {
 // so hover/click reach the items instead of the window-drag hit test (Electron).
 // Radix Tooltip 的打开态 data-state 是 instant-open/delayed-open（非 open），选择器必须用子串匹配
 const contentStyles =
-  'z-[80] w-fit max-w-80 origin-(--radix-tooltip-content-transform-origin) rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-50 text-xs leading-relaxed whitespace-normal break-words data-[state*=open]:animate-in data-[state*=open]:fade-in-0 data-[state*=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 dark:bg-neutral-100 dark:text-neutral-900 [-webkit-app-region:no-drag]'
+  'z-[80] w-fit max-w-80 origin-(--radix-tooltip-content-transform-origin) rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-50 text-xs leading-relaxed whitespace-normal break-words data-[state*=open]:animate-in data-[state*=open]:fade-in-0 data-[state*=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fill-mode-forwards data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 dark:bg-neutral-100 dark:text-neutral-900 [-webkit-app-region:no-drag]'
 
 const arrowStyles =
   'z-[80] -translate-y-px fill-neutral-900 stroke-neutral-900 stroke-2 dark:fill-neutral-100 dark:stroke-neutral-100 [paint-order:stroke_fill]'
@@ -340,13 +363,16 @@ function TooltipContent({
   portalContainer,
   showArrow = true,
   forceMount,
+  style,
   ...props
 }: TooltipContentProps) {
-  const defaultPortalContainer = usePortalContainer()
+  const defaultPortalContainer = useTooltipPortalContainer()
+  const zIndex = useTooltipZIndex()
   const contentVisible = React.use(TooltipOverlayContext)
   // 显式 forceMount 保留 Radix 公共契约（closed 也常驻 DOM），豁免 150ms 门控
   if (contentVisible === false && !forceMount) return null
   const container = portalContainer ?? defaultPortalContainer ?? undefined
+  const contentStyle = zIndex ? { zIndex, ...style } : style
   const arrow = showArrow ? <RadixArrow width={12} height={6} className={arrowStyles} /> : null
   // 有 overlay context（TooltipRoot 组合）时挂载由门控接管：forceMount + 150ms 退出窗口；
   // 显式 forceMount 内容由用户持有生命周期，不带清扫标记；独立使用保持 Radix 原生 presence 卸载。
@@ -359,6 +385,7 @@ function TooltipContent({
           sideOffset={sideOffset}
           forceMount
           className={cn(contentStyles, className)}
+          style={contentStyle}
           {...props}>
           {children}
           {arrow}
@@ -374,6 +401,7 @@ function TooltipContent({
         sideOffset={sideOffset}
         forceMount={forceMount}
         className={cn(contentStyles, className)}
+        style={contentStyle}
         {...props}>
         {children}
         {arrow}
@@ -424,7 +452,8 @@ export const Tooltip = ({
   asChild = false
 }: TooltipProps) => {
   const tooltipContent = content ?? title
-  const defaultPortalContainer = usePortalContainer()
+  const defaultPortalContainer = useTooltipPortalContainer()
+  const zIndex = useTooltipZIndex()
   // An inactive surface drops the tooltip exactly like a disabled one; the disabled pass also
   // resets the open state so nothing resurfaces unhovered when the surface comes back.
   const surfaceActive = React.use(TooltipSurfaceContext)
@@ -474,7 +503,8 @@ export const Tooltip = ({
               side={side}
               align={align}
               sideOffset={sideOffset}
-              className={cn(contentStyles, classNames?.content, className)}>
+              className={cn(contentStyles, classNames?.content, className)}
+              style={zIndex ? { zIndex } : undefined}>
               {tooltipContent}
               {showArrow && <RadixArrow width={12} height={6} className={arrowStyles} />}
             </RadixContent>

@@ -37,6 +37,7 @@ export default defineCreator({
       budget: { min: 0, max: 262144 },
       toggle: true
     },
+    { pattern: '^qwen3[.-]8-flash-next$', effort: ['low', 'medium', 'xhigh'] },
     // QwQ/QVQ always-reasoning previews.
     { pattern: '^qwq|^qvq', toggle: false },
     { pattern: '^qwen', toggle: true, template: true },

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type RefObject, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -11,7 +12,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light', activeShikiTheme: 'one-light' }),
+  useCodeStyle: () => ({ activeCmTheme: 'light', activeCodeTheme: 'one-light' }),
   useCmTheme: () => 'light'
 }))
 
@@ -90,5 +91,48 @@ describe('NotesEditor RichEditor integration', () => {
     await waitFor(() => expect(undoButton).toBeEnabled())
     fireEvent.click(undoButton)
     await waitFor(() => expect(screen.getByText('notes.characters: 20')).toBeInTheDocument())
+  })
+
+  it('renders loaded bracket math in preview and read without rewriting, and preserves it on text edits', async () => {
+    const user = userEvent.setup()
+    const editorRef: RefObject<RichEditorRef | null> = { current: null }
+    const initialContent = String.raw`before \[ a^2+b^2=c^2 \] after`
+    let externalContent = initialContent
+    const TestEditor = () => {
+      const [content, setContent] = useState(initialContent)
+      return (
+        <NotesEditor
+          activeNodeId="/notes/math.md"
+          currentContent={content}
+          tokenCount={content.length}
+          editorRef={editorRef}
+          codeEditorRef={{ current: null }}
+          onMarkdownChange={(next) => {
+            externalContent = next
+            setContent(next)
+          }}
+        />
+      )
+    }
+    const { container } = render(<TestEditor />)
+    // KaTeX output and its error markers are the rendering contract for loaded formulas.
+    const expectFormula = async () => {
+      await waitFor(() => expect(container.querySelector('.katex')).not.toBeNull(), { timeout: 10_000 })
+      expect(container.querySelector('.katex-error, .inline-math-error, .block-math-error')).toBeNull()
+      expect(externalContent).toBe(initialContent)
+    }
+    await expectFormula()
+    await user.click(screen.getByRole('combobox'))
+    await user.click(screen.getByRole('option', { name: 'notes.settings.editor.view_mode.read_mode' }))
+    await expectFormula()
+    expect(container.querySelector('[contenteditable="true"]')).toBeNull()
+    await user.click(screen.getByRole('combobox'))
+    await user.click(screen.getByRole('option', { name: 'notes.settings.editor.edit_mode.preview_mode' }))
+    await expectFormula()
+    act(() => {
+      editorRef.current?.focus()
+      editorRef.current?.replaceRange({ from: 1, to: 8 }, 'edited ')
+    })
+    await waitFor(() => expect(externalContent).toBe(String.raw`edited \[ a^2+b^2=c^2 \] after`))
   })
 })

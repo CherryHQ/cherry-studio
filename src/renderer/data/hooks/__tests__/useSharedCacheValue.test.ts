@@ -1,6 +1,3 @@
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Tests for the read-only shared cache observer hook (issue #17050).
  *
@@ -9,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * broadcasts, and never pins the key against owner deletion. The writable
  * `useSharedCache` serves as the negative control for each guarantee.
  */
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
 import { useSharedCache, useSharedCacheValue } from '@data/hooks/useCache'
 

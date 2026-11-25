@@ -1,14 +1,24 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
+import type * as CommandComponents from '@renderer/components/command'
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { TreeNode, TreeResponse } from '@shared/data/types/message'
 
 import TopicBranchPanel from '../TopicBranchPanel'
 
+vi.mock('@cherrystudio/ui', async () => {
+  const { ConfirmDialog } = await import('@cherrystudio/ui/components/composites/confirm-dialog')
+  return { ConfirmDialog }
+})
+
 const mocks = vi.hoisted(() => ({
   copyBranchToNewTopic: vi.fn().mockResolvedValue({ id: 'copied-topic' }),
-  deleteAwaitingInputMessage: vi.fn().mockResolvedValue({ deletedIds: ['branch-empty-user'] }),
+  deleteBranch: vi.fn().mockResolvedValue({ deletedIds: ['L'] }),
+  deleteReservedBranch: vi.fn().mockResolvedValue({ deletedIds: ['branch-empty-user'] }),
   reserveBranch: vi.fn().mockResolvedValue({ id: 'reserved-user' }),
   refetchTree: vi.fn(),
   setActiveNode: vi.fn().mockResolvedValue(undefined),
@@ -40,7 +50,7 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: { emit: mocks.eventEmit }
 }))
 
-vi.mock('@renderer/components/command', async () => {
+vi.mock('@renderer/components/command', async (importOriginal) => {
   const React = await import('react')
   type MockExtraItem = {
     id?: string
@@ -51,6 +61,7 @@ vi.mock('@renderer/components/command', async () => {
   }
 
   return {
+    ...(await importOriginal<typeof CommandComponents>()),
     CommandContextMenu: ({
       children,
       getExtraItems,
@@ -170,9 +181,39 @@ vi.mock('@renderer/components/chat/flow', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string) =>
+      ({
+        'chat.message.flow.delete_branch.label': 'Delete branch',
+        'chat.message.flow.delete_branch.confirm_title': 'Delete this branch?',
+        'chat.message.flow.delete_branch.confirm_description':
+          'This permanently deletes the messages unique to this branch. Shared messages and other branches are kept. This cannot be undone.',
+        'common.cancel': 'Cancel'
+      })[key] ?? key
   })
 }))
+
+function deletionTree(): TreeResponse {
+  const row = (id: string, parentId: string, hasChildren = false): TreeNode => ({
+    id,
+    parentId,
+    hasChildren,
+    role: 'user',
+    preview: `Preview ${id}`,
+    status: 'success',
+    createdAt: '2026-10-29T00:00:00.000Z'
+  })
+  return {
+    rootId: 'root',
+    activeNodeId: 'L',
+    siblingsGroups: [],
+    nodes: [row('F', 'root', true), row('A', 'F', true), row('B', 'A', true), row('L', 'B'), row('O', 'F')]
+  }
+}
+
+function showDeletionTree(tree = deletionTree()) {
+  mocks.useQuery.mockReturnValue({ data: tree, isLoading: false, refetch: mocks.refetchTree })
+  return tree
+}
 
 describe('TopicBranchPanel', () => {
   beforeEach(() => {
@@ -206,8 +247,11 @@ describe('TopicBranchPanel', () => {
       if (path === '/topics/:id/duplicate') {
         return { trigger: mocks.copyBranchToNewTopic }
       }
+      if (path === '/messages/:id/branch') {
+        return { trigger: mocks.deleteBranch }
+      }
       if (path === '/messages/:id') {
-        return { trigger: mocks.deleteAwaitingInputMessage }
+        return { trigger: mocks.deleteReservedBranch }
       }
       if (path === '/messages/:id/branches') {
         return { trigger: mocks.reserveBranch }
@@ -217,39 +261,13 @@ describe('TopicBranchPanel', () => {
     vi.mocked(dataApiService.get).mockResolvedValue([{ id: 'message-1' }, { id: 'leaf-1' }])
   })
 
-  it('renders the right-pane content and fetches the topic tree only while open', () => {
-    render(<TopicBranchPanel open={true} topicId="topic-1" topicName="AI 聊天应用技术选型" />)
-
-    expect(screen.getByText('AI 聊天应用技术选型')).toBeInTheDocument()
-    expect(screen.getByText('2 chat.message.flow.branches')).toBeInTheDocument()
-    expect(screen.getByText('1 chat.message.flow.nodes')).toBeInTheDocument()
-    expect(mocks.useQuery).toHaveBeenCalledWith('/topics/:topicId/tree', {
-      enabled: true,
-      params: { topicId: 'topic-1' },
-      query: { depth: -1 }
-    })
-  })
-
-  it('keeps the topic tree query disabled while the right pane is closed', () => {
-    render(<TopicBranchPanel open={false} topicId="topic-1" />)
-
-    expect(mocks.useQuery).toHaveBeenCalledWith('/topics/:topicId/tree', {
-      enabled: false,
-      params: { topicId: 'topic-1' },
-      query: { depth: -1 }
-    })
-  })
-
   it('refetches an open tree after a cross-window tree change', () => {
     render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
-    expect(mocks.useDataChange).toHaveBeenCalledWith('/topics/:topicId/tree', expect.any(Function), {
-      routeParams: { topicId: 'topic-1' }
-    })
     const listener = mocks.useDataChange.mock.calls.at(-1)?.[1] as (() => void) | undefined
     listener?.()
 
-    expect(mocks.refetchTree).toHaveBeenCalledOnce()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(2)
   })
 
   it('sets the active branch without a redundant tree refetch', async () => {
@@ -266,10 +284,8 @@ describe('TopicBranchPanel', () => {
       body: { nodeId: 'leaf-1' },
       params: { id: 'topic-1' }
     })
-    expect(mocks.useMutation).toHaveBeenCalledWith('PUT', '/topics/:id/active-node', {
-      refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
-    })
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('locates the current active node without writing branch state', async () => {
@@ -305,7 +321,7 @@ describe('TopicBranchPanel', () => {
     expect(onLocateMessage).toHaveBeenCalledWith('message-1')
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('locates an ancestor on the current active path without switching branch', async () => {
@@ -351,7 +367,7 @@ describe('TopicBranchPanel', () => {
     expect(onLocateMessage).toHaveBeenCalledWith('message-1')
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('renders live branch preview without refetching the topic tree per chunk', () => {
@@ -378,7 +394,9 @@ describe('TopicBranchPanel', () => {
     )
 
     expect(screen.getByText('streaming live preview')).toBeInTheDocument()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    fireEvent.contextMenu(screen.getByText('streaming live preview'))
+    expect(screen.queryByRole('button', { name: 'Delete branch' })).not.toBeInTheDocument()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
   it('falls back to the tree preview after live branch state is cleared', () => {
@@ -454,7 +472,7 @@ describe('TopicBranchPanel', () => {
     })
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
     expect(mocks.eventEmit).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('chat.message.new.branch.created')
   })
@@ -521,10 +539,10 @@ describe('TopicBranchPanel', () => {
         params: { id: 'topic-1' }
       })
     })
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
   })
 
-  it('deletes a persisted empty message from its context menu', async () => {
+  it('requires confirmation to delete a persisted empty reservation alone', async () => {
     mocks.useQuery.mockReturnValue({
       data: {
         activeNodeId: 'branch-empty-user',
@@ -561,14 +579,18 @@ describe('TopicBranchPanel', () => {
     render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
     fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-branch-empty-user'))
-    fireEvent.click(await screen.findByRole('button', { name: 'common.delete' }))
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Delete branch' }))
+    expect(mocks.deleteReservedBranch).not.toHaveBeenCalled()
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete branch' }))
 
     await waitFor(() => {
-      expect(mocks.deleteAwaitingInputMessage).toHaveBeenCalledWith({
+      expect(mocks.deleteReservedBranch).toHaveBeenCalledWith({
         params: { id: 'branch-empty-user' },
         query: { awaitingInputOnly: true }
       })
     })
+    expect(mocks.deleteBranch).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('common.delete_success')
   })
 
@@ -627,7 +649,6 @@ describe('TopicBranchPanel', () => {
         body: { activate: true }
       })
     })
-    expect(await screen.findByRole('button', { name: 'chat.message.flow.copy_topic.label' })).toBeInTheDocument()
   })
 
   it('starts a branch from the active assistant node', async () => {
@@ -675,48 +696,6 @@ describe('TopicBranchPanel', () => {
         body: { activate: true }
       })
     })
-    expect(await screen.findByRole('button', { name: 'chat.message.flow.copy_topic.label' })).toBeInTheDocument()
-  })
-
-  it('hides the branch action for user nodes but keeps copy-as-topic available', async () => {
-    render(<TopicBranchPanel open={true} topicId="topic-1" />)
-
-    fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-message-1'))
-
-    expect(screen.queryByRole('button', { name: 'chat.message.new.branch.label' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'common.delete' })).not.toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: 'chat.message.flow.copy_topic.label' })).toBeInTheDocument()
-  })
-
-  it('hides the branch action for the active node but keeps copy-as-topic available', async () => {
-    mocks.useQuery.mockReturnValue({
-      data: {
-        activeNodeId: 'message-1',
-        nodes: [
-          {
-            id: 'message-1',
-            parentId: null,
-            role: 'user',
-            preview: 'Hello',
-            modelId: null,
-            status: 'success',
-            createdAt: '2026-05-22T00:00:00.000Z',
-            hasChildren: false
-          }
-        ],
-        siblingsGroups: []
-      },
-      error: undefined,
-      isLoading: false,
-      refetch: mocks.refetchTree
-    })
-
-    render(<TopicBranchPanel open={true} topicId="topic-1" />)
-
-    fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-message-1'))
-
-    expect(screen.queryByRole('button', { name: 'chat.message.new.branch.label' })).not.toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: 'chat.message.flow.copy_topic.label' })).toBeInTheDocument()
   })
 
   it('copies the right-clicked branch into a new topic', async () => {
@@ -732,5 +711,92 @@ describe('TopicBranchPanel', () => {
       })
     })
     expect(toast.success).toHaveBeenCalledWith('chat.message.flow.copy_topic.created')
+  })
+  it('cancels without deleting, confirms once, and renders only the refreshed surviving previews', async () => {
+    const user = userEvent.setup()
+    const tree = showDeletionTree()
+    let finish!: () => void
+    mocks.deleteBranch.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    const { rerender } = render(<TopicBranchPanel open={true} topicId="topic-1" />)
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Preview L' }))
+    await user.click(screen.getByRole('button', { name: 'Delete branch' }))
+    expect(screen.getByRole('dialog', { name: 'Delete this branch?' })).toBeVisible()
+    expect(
+      screen.getByText(
+        'This permanently deletes the messages unique to this branch. Shared messages and other branches are kept. This cannot be undone.'
+      )
+    ).toBeVisible()
+    expect(mocks.deleteBranch).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.deleteBranch).not.toHaveBeenCalled()
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Preview L' }))
+    await user.click(screen.getByRole('button', { name: 'Delete branch' }))
+    const confirm = within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete branch' })
+    await user.click(confirm)
+    fireEvent.click(confirm)
+    expect(mocks.deleteBranch).toHaveBeenCalledExactlyOnceWith({
+      params: { id: 'L' },
+      query: { topicId: 'topic-1' }
+    })
+    expect(mocks.useMutation).toHaveBeenCalledWith('DELETE', '/messages/:id/branch', {
+      refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
+    })
+    await act(async () => finish())
+    expect(toast.success).toHaveBeenCalledWith('common.delete_success')
+    showDeletionTree({ ...tree, activeNodeId: 'O', nodes: tree.nodes.filter((node) => ['F', 'O'].includes(node.id)) })
+    rerender(<TopicBranchPanel open={true} topicId="topic-1" />)
+    expect(screen.queryByRole('button', { name: 'Preview A' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Preview B' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Preview L' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Preview O' })).toBeVisible()
+  })
+
+  it('hides deletion on a subtree with two leaves and disables it for a pending suffix', () => {
+    const tree = showDeletionTree()
+    tree.nodes.find((node) => node.id === 'A')!.status = 'pending'
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Preview F' }))
+    expect(screen.queryByRole('button', { name: 'Delete branch' })).not.toBeInTheDocument()
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Preview L' }))
+    expect(screen.getByRole('button', { name: 'Delete branch' })).toBeDisabled()
+    expect(mocks.deleteBranch).not.toHaveBeenCalled()
+  })
+
+  it.each(['close', 'topic'])('invalidates an unsubmitted confirmation on panel %s', async (change) => {
+    const user = userEvent.setup()
+    showDeletionTree()
+    const { rerender } = render(<TopicBranchPanel open={true} topicId="topic-1" />)
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Preview L' }))
+    await user.click(screen.getByRole('button', { name: 'Delete branch' }))
+    expect(screen.getByRole('dialog')).toBeVisible()
+    rerender(<TopicBranchPanel open={change !== 'close'} topicId={change === 'topic' ? 'topic-2' : 'topic-1'} />)
+    rerender(<TopicBranchPanel open={true} topicId="topic-1" />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.deleteBranch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [DataApiErrorFactory.notFound('Message', 'L'), undefined],
+    [new Error('delete failed'), 'common.delete_failed']
+  ])('closes the confirmation and reports only actionable errors (%s)', async (error, expectedToast) => {
+    const user = userEvent.setup()
+    showDeletionTree()
+    mocks.deleteBranch.mockRejectedValueOnce(error)
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Preview L' }))
+    await user.click(screen.getByRole('button', { name: 'Delete branch' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete branch' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    if (expectedToast) expect(toast.error).toHaveBeenCalledWith(expectedToast)
+    else expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 })

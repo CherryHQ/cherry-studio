@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import Spinner from '@renderer/components/Spinner'
+import { Spinner } from '@cherrystudio/ui'
+import { useOptionalMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { toSafeFileUrl } from '@shared/utils/file'
 
@@ -21,9 +22,21 @@ import { parseGeneratedImageOutput } from './generateImageTool'
  * file was since deleted — so the caller can show an error instead of a spinner
  * that never resolves.
  */
-function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean } {
-  const key = ids.join(',')
-  const [state, setState] = useState<{ urls: string[]; failed: boolean }>({ urls: [], failed: false })
+interface ResolvedGeneratedImage {
+  id: string
+  name: string
+  url: string
+}
+
+function useGeneratedImageUrls(items: Array<{ id: string; name: string }>): {
+  images: ResolvedGeneratedImage[]
+  failed: boolean
+} {
+  const key = items.map((item) => item.id).join(',')
+  const [state, setState] = useState<{ images: ResolvedGeneratedImage[]; failed: boolean }>({
+    images: [],
+    failed: false
+  })
   // Key of the last completed resolution: an <Activity> re-show re-runs the
   // effect with an unchanged key, and re-resolving would blank the tiles and
   // re-pay one getPhysicalPath IPC per image.
@@ -32,13 +45,13 @@ function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean
     const list = key ? key.split(',') : []
     if (list.length === 0) {
       resolvedKeyRef.current = null
-      setState((current) => (current.urls.length === 0 && !current.failed ? current : { urls: [], failed: false }))
+      setState((current) => (current.images.length === 0 && !current.failed ? current : { images: [], failed: false }))
       return
     }
     if (resolvedKeyRef.current === key) return
     let cancelled = false
     // Back to "resolving" for this id set (drops any stale failed flag from a previous set).
-    setState({ urls: [], failed: false })
+    setState({ images: [], failed: false })
     // Resolve each id independently so one deleted/unreadable FileEntry drops only its own tile
     // instead of blanking the whole group; only flag `failed` when every id fails to resolve.
     // Per-item try/catch means the outer promise never rejects, so it is fire-and-forget (`void`).
@@ -52,14 +65,14 @@ function useGeneratedImageUrls(ids: string[]): { urls: string[]; failed: boolean
       })
     ).then((resolved) => {
       if (cancelled) return
-      const urls = resolved.filter((url): url is NonNullable<typeof url> => url !== null)
+      const images = resolved.flatMap((url, index) => (url ? [{ ...items[index], url }] : []))
       resolvedKeyRef.current = key
-      setState({ urls, failed: urls.length === 0 })
+      setState({ images, failed: images.length === 0 })
     })
     return () => {
       cancelled = true
     }
-  }, [key])
+  }, [items, key])
   return state
 }
 
@@ -73,9 +86,18 @@ export const MessageGenerateImageToolTitle = ({
   toolResponse: McpToolResponse | NormalToolResponse
 }) => {
   const { t } = useTranslation()
+  const { addGeneratedImageToComposer } = useOptionalMessageListActions() ?? {}
   const { inlineUrls, items } = useMemo(() => parseGeneratedImageOutput(toolResponse.response), [toolResponse.response])
-  const { urls: resolvedUrls, failed: resolveFailed } = useGeneratedImageUrls(items.map((item) => item.id))
-  const urls = inlineUrls.length > 0 ? inlineUrls : resolvedUrls
+  const { images: resolvedImages, failed: resolveFailed } = useGeneratedImageUrls(items)
+  const images =
+    inlineUrls.length > 0 ? inlineUrls.map((url, index) => ({ url, name: items[index]?.name ?? '' })) : resolvedImages
+  const urls = images.map((image) => image.url)
+  const useAsReference = addGeneratedImageToComposer
+    ? (index: number) => {
+        const image = images[index]
+        if (image) return addGeneratedImageToComposer({ url: image.url, name: image.name })
+      }
+    : undefined
 
   if (toolResponse.approval?.approved === false) {
     return <ToolApprovalOutcome approval={toolResponse.approval} />
@@ -101,9 +123,9 @@ export const MessageGenerateImageToolTitle = ({
     <div className="group/tool my-px flex flex-col gap-1 first:mt-0 first:pt-0">
       <NoteText>{t('chat.input.tools.generate_image.title')}</NoteText>
       {isSingle ? (
-        <ImageBlock images={urls} isPending={urls.length === 0} isSingle />
+        <ImageBlock images={urls} isPending={urls.length === 0} isSingle onUseAsReference={useAsReference} />
       ) : urls.length > 0 ? (
-        <ImageBlock images={urls} isSingle={false} />
+        <ImageBlock images={urls} isSingle={false} onUseAsReference={useAsReference} />
       ) : (
         <div className="flex flex-wrap gap-2.5">
           {items.map((item) => (

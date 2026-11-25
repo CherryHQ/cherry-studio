@@ -212,7 +212,8 @@ vi.mock('@renderer/hooks/useAppUpdateState', () => ({
       downloadProgress: 0,
       available: false,
       ignore: false,
-      manualCheck: false
+      manualCheck: false,
+      lastErrorKey: null
     }
   })
 }))
@@ -868,6 +869,7 @@ describe('ErrorDetailContent diagnostics', () => {
     act(() => {
       showErrorDetailPopup({
         subject: { kind: 'global' },
+        incident: { topicId: 'errored-conversation', messageId: 'errored-message' },
         diagnosticReport: { location: 'Home conversation' },
         error: providerError
       })
@@ -888,6 +890,7 @@ describe('ErrorDetailContent diagnostics', () => {
     await act(async () => {})
     expect(mocks.showDoctor).toHaveBeenCalledWith({
       initialPanel: 'report',
+      chatTopicId: 'errored-conversation',
       initialDescription: expect.stringContaining('Location: Home conversation')
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

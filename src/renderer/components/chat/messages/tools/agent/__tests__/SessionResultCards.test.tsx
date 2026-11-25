@@ -88,6 +88,27 @@ describe('SessionResultCards', () => {
     })
   })
 
+  it('names the target Agent in the open button for a cross-Agent create', () => {
+    renderCards([
+      toolResponse(
+        'session_create',
+        {
+          ok: true,
+          agentId: 'agent-b',
+          sessionId: 'session-created',
+          delivery: {
+            sender: { agentId: 'agent-a' },
+            receiver: { agentId: 'agent-b' },
+            receiverSnapshot: { agentName: 'Various Scripts', sessionName: 'Research session' }
+          }
+        },
+        { title: 'Research session' }
+      )
+    ])
+
+    expect(screen.getByRole('button', { name: 'Open session: Various Scripts / Research session' })).toBeInTheDocument()
+  })
+
   it('opens a searched agent session and a read chat topic on their own surfaces', async () => {
     const user = userEvent.setup()
     renderCards([

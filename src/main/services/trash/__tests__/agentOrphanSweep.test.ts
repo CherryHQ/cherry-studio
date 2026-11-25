@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, utim
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
@@ -95,6 +95,7 @@ describe('sweepAgentOrphans', () => {
       .insert(agentSessionTable)
       .values({ id: sessionId, agentId: null, name: sessionId, workspaceId: `ws-${sessionId}`, orderKey: 'a0' })
     await dbh.db.insert(agentSessionMessageTable).values({
+      parentId: seedSessionRoot(dbh.db, sessionId),
       id: `msg-${sessionId}`,
       sessionId,
       role: 'user',
@@ -237,12 +238,10 @@ describe('sweepAgentOrphans', () => {
     function registerDriver(type: string, reclaim: AgentSessionRuntimeDriver['reclaimOrphanSessions']) {
       runtimeDriverRegistry.register({
         type,
-        capabilities: ['agent-session'],
         validateSession: vi.fn(),
-        listAvailableTools: vi.fn(),
         connect: vi.fn(),
         reclaimOrphanSessions: reclaim
-      } as unknown as AgentSessionRuntimeDriver)
+      })
     }
 
     afterEach(() => runtimeDriverRegistry.clearForTest())

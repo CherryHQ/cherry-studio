@@ -1,0 +1,100 @@
+import type { McpServer } from '@shared/data/types/mcpServer'
+
+export const MCP_MARKETS = [
+  {
+    name: 'MCP World',
+    url: 'https://www.mcpworld.com',
+    logo: 'https://mcpworld.bdstatic.com/store/v2/865ad5d/mcp-server-store/ec04344/favicon.ico',
+    descriptionKey: 'settings.mcp.more.mcpworld'
+  },
+  {
+    name: 'BigModel MCP Market',
+    url: 'https://bigmodel.cn/marketplace/index/mcp',
+    logo: 'icon:zhipu',
+    descriptionKey: 'settings.mcp.more.zhipu'
+  },
+  {
+    name: 'modelscope.cn',
+    url: 'https://www.modelscope.cn/mcp',
+    logo: 'icon:modelscope',
+    descriptionKey: 'settings.mcp.more.modelscope'
+  },
+  {
+    name: 'mcp.higress.ai',
+    url: 'https://mcp.higress.ai/',
+    logo: 'icon:higress',
+    descriptionKey: 'settings.mcp.more.higress'
+  },
+  {
+    name: 'mcp.so',
+    url: 'https://mcp.so/',
+    logo: 'icon:mcpso',
+    descriptionKey: 'settings.mcp.more.mcpso'
+  },
+  {
+    name: 'smithery.ai',
+    url: 'https://smithery.ai/',
+    logo: 'icon:smithery',
+    descriptionKey: 'settings.mcp.more.smithery'
+  },
+  {
+    name: 'glama.ai',
+    url: 'https://glama.ai/mcp/servers',
+    logo: 'icon:glama',
+    descriptionKey: 'settings.mcp.more.glama'
+  },
+  {
+    name: 'pulsemcp.com',
+    url: 'https://www.pulsemcp.com',
+    logo: 'icon:pulse',
+    descriptionKey: 'settings.mcp.more.pulsemcp'
+  },
+  {
+    name: 'mcp.composio.dev',
+    url: 'https://mcp.composio.dev/',
+    logo: 'icon:composio',
+    descriptionKey: 'settings.mcp.more.composio'
+  },
+  {
+    name: 'Model Context Protocol Servers',
+    url: 'https://github.com/modelcontextprotocol/servers',
+    logo: 'icon:mcp',
+    descriptionKey: 'settings.mcp.more.official'
+  },
+  {
+    name: 'Awesome MCP Servers',
+    url: 'https://github.com/wong2/awesome-mcp-servers',
+    logo: 'https://github.githubassets.com/assets/github-logo-55c5b9a1fe52.png',
+    descriptionKey: 'settings.mcp.more.awesome'
+  }
+]
+
+export const MCP_PROVIDER_ENTRIES = [
+  { key: 'bailian', nameKey: 'provider.dashscope', logo: 'icon:bailian' },
+  { key: 'modelscope', nameKey: 'ModelScope', logo: 'icon:modelscope' }
+] as const
+
+export function getProviderDisplayName(provider: { nameKey: string }, t: (key: string) => string): string {
+  return provider.nameKey.startsWith('provider.') ? t(provider.nameKey) : provider.nameKey
+}
+
+export type McpProviderKey = (typeof MCP_PROVIDER_ENTRIES)[number]['key']
+
+export const isSameMcpServerCandidate = (existing: McpServer, candidate: McpServer): boolean => {
+  if (candidate.baseUrl && existing.baseUrl === candidate.baseUrl) {
+    return true
+  }
+
+  if (candidate.provider && existing.provider === candidate.provider) {
+    return (
+      (candidate.providerUrl !== undefined && existing.providerUrl === candidate.providerUrl) ||
+      existing.name === candidate.name
+    )
+  }
+
+  if (candidate.installSource === 'builtin') {
+    return existing.name === candidate.name
+  }
+
+  return false
+}

@@ -35,7 +35,7 @@ import {
   SettingGroup,
   SettingRowTitle,
   SettingsContentColumn,
-  SettingTitle
+  SettingsPageHeader
 } from '@renderer/components/SettingsPrimitives'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -68,7 +68,11 @@ const DeviceConnectionsSettings: FC = () => {
     'feature.remote_access.advertised_endpoint',
     ENDPOINT_PREFERENCE_OPTIONS
   )
-  const endpointKey = JSON.stringify(advertisedEndpoint)
+  const endpointKey = JSON.stringify(
+    advertisedEndpoint
+      ? { host: advertisedEndpoint.host, port: advertisedEndpoint.port, security: advertisedEndpoint.security }
+      : null
+  )
   const discoveryStatus = useSharedCacheValue('feature.remote_access.discovery_status')
   const lanRunning = useSharedCacheValue('feature.api_gateway.lan_running') ?? false
   const {
@@ -278,20 +282,22 @@ const DeviceConnectionsSettings: FC = () => {
   return (
     <SettingsContentColumn
       theme={theme}
-      className="@container min-w-0 pb-12"
-      innerClassName="flex min-h-full max-w-6xl flex-col">
-      <div className="min-w-0">
-        <SettingTitle className="justify-start gap-2">
-          <MonitorSmartphone size={16} />
-          {t('deviceConnections.title')}
-        </SettingTitle>
-        <PageDescription>{t('deviceConnections.description')}</PageDescription>
-      </div>
-
+      className="@container min-w-0"
+      contentProps={{ className: 'pb-18' }}
+      innerClassName="flex min-h-full flex-col">
+      <SettingsPageHeader
+        title={
+          <>
+            <MonitorSmartphone size={16} />
+            {t('deviceConnections.title')}
+          </>
+        }
+        help={t('deviceConnections.description')}
+      />
       <Dialog open={endpointDialogOpen} onOpenChange={setEndpointDialogOpen}>
         <DialogContent closeLabel={t('common.close')}>
           <RemoteEndpointSettings
-            key={endpointKey}
+            key={JSON.stringify(advertisedEndpoint)}
             endpoint={advertisedEndpoint}
             onSave={async (endpoint) => {
               await setAdvertisedEndpoint(endpoint)
@@ -338,7 +344,6 @@ const DeviceConnectionsSettings: FC = () => {
               </div>
               {connectionAction}
             </StatusCard>
-
             <Sections>
               <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
                 <SectionFields>
@@ -368,7 +373,6 @@ const DeviceConnectionsSettings: FC = () => {
                       </div>
                     </div>
                   </div>
-
                   {(invitation || claims.length > 0) && (
                     <div
                       role="alert"
@@ -471,7 +475,7 @@ const DeviceConnectionsSettings: FC = () => {
                               <SelectItem value="auto">{t('deviceConnections.pairing.automatic')}</SelectItem>
                               {invitation.advertisedEndpoint && (
                                 <SelectItem value="configured" className="whitespace-normal break-all">
-                                  {directEndpointUrl(invitation.advertisedEndpoint)}
+                                  {advertisedEndpoint?.inputUrl ?? directEndpointUrl(invitation.advertisedEndpoint)}
                                 </SelectItem>
                               )}
                               {!selectedAddressAvailable && (
@@ -534,7 +538,6 @@ const DeviceConnectionsSettings: FC = () => {
                   )}
                 </SectionFields>
               </SettingGroup>
-
               <SettingGroup theme={theme} className="mt-0 overflow-hidden p-0">
                 <SectionFields>
                   <SettingRowTitle>{t('deviceConnections.devices.title')}</SettingRowTitle>
@@ -609,10 +612,6 @@ const DeviceConnectionsSettings: FC = () => {
     </SettingsContentColumn>
   )
 }
-
-const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2 max-w-140 text-foreground-tertiary text-xs leading-5', className)} {...props} />
-)
 
 const StatusCard = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div

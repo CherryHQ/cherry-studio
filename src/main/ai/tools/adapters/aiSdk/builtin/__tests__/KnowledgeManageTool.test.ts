@@ -7,12 +7,13 @@ import type { Assistant } from '@shared/data/types/assistant'
 const addItems = vi.fn()
 const deleteConcepts = vi.fn()
 const refreshConcepts = vi.fn()
+const createBase = vi.fn()
 const loggerWarn = vi.hoisted(() => vi.fn())
 
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
-      if (name === 'KnowledgeService') return { addItems, deleteConcepts, refreshConcepts }
+      if (name === 'KnowledgeService') return { addItems, deleteConcepts, refreshConcepts, createBase }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -24,7 +25,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { createKbManageToolEntry, KB_MANAGE_TOOL_NAME } from '../KnowledgeManageTool'
+import { createKbManageToolEntry } from '../KnowledgeManageTool'
 
 const entry = createKbManageToolEntry()
 
@@ -33,8 +34,10 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 }
 
 type ManageArgs = {
-  baseId: string
-  action: 'add' | 'delete' | 'refresh'
+  baseId?: string
+  action: 'add' | 'delete' | 'refresh' | 'create'
+  name?: string
+  items?: Array<{ type?: 'file' | 'url' | 'note'; path?: string; url?: string; content?: string; title?: string }>
   type?: 'file' | 'url' | 'note'
   path?: string
   url?: string
@@ -66,19 +69,14 @@ describe('kb_manage', () => {
     addItems.mockReset()
     deleteConcepts.mockReset()
     refreshConcepts.mockReset()
+    createBase.mockReset()
     loggerWarn.mockReset()
     addItems.mockResolvedValue({ status: 'added' })
     deleteConcepts.mockResolvedValue({ applied: [], notFound: [] })
     refreshConcepts.mockResolvedValue({ applied: [], notFound: [] })
   })
 
-  it('builds an entry with the agreed namespace + defer policy and is approval-gated', () => {
-    expect(entry.name).toBe(KB_MANAGE_TOOL_NAME)
-    expect(entry.namespace).toBe('kb')
-    // Approval-gated tools must stay inline (never deferred) — see applyDeferExposition/toolInvoke:
-    // a deferred approval-gated tool is unreachable (stripped from the inline set, and tool_invoke
-    // refuses to run an approval-gated tool blind).
-    expect(entry.defer).toBe('never')
+  it('requires approval for knowledge mutations', () => {
     // Every action mutates the base, so the tool must require user approval.
     expect(entry.tool.needsApproval).toBe(true)
   })
@@ -140,6 +138,32 @@ describe('kb_manage', () => {
       { type: 'note', data: { source: 'First line', content: 'First line\nsecond line' } }
     ])
     expect(result).toEqual({ action: 'add', added: ['First line'] })
+  })
+
+  it('creates a knowledge base via the shared core and reports it', async () => {
+    createBase.mockResolvedValueOnce({ id: 'kb-new', name: 'Research' })
+
+    const result = await callExecute({ action: 'create', name: 'Research' }, { knowledgeBaseIds: ['kb-1'] })
+
+    expect(createBase).toHaveBeenCalledWith({ name: 'Research' })
+    expect(result).toEqual({ action: 'create', created: { baseId: 'kb-new', name: 'Research' } })
+  })
+
+  it('imports a batch of items in one service call', async () => {
+    const result = await callExecute(
+      {
+        baseId: 'kb-1',
+        action: 'add',
+        items: [
+          { type: 'note', content: 'first' },
+          { type: 'url', url: 'https://example.com/a' }
+        ]
+      },
+      { knowledgeBaseIds: ['kb-1'] }
+    )
+
+    expect(addItems).toHaveBeenCalledTimes(1)
+    expect(result).toEqual({ action: 'add', added: ['first', 'https://example.com/a'] })
   })
 
   it('returns a steer and does not add when a required add field is missing', async () => {

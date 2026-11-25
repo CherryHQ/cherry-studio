@@ -1,12 +1,16 @@
-import { createEvent, fireEvent, render, screen } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Element } from 'hast'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { Citation } from '@renderer/types/message'
 
+import type * as CitationTooltipModule from '../CitationTooltip'
 import Link from '../Link'
+
+const { default: ActualCitationTooltip } = await vi.importActual<typeof CitationTooltipModule>('../CitationTooltip')
 
 const mocks = vi.hoisted(() => {
   const navigateToRoute = vi.fn()
@@ -30,6 +34,8 @@ const mocks = vi.hoisted(() => {
     )
   }
 })
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 vi.mock('@renderer/utils/markdownLight', () => ({ findCitationInChildren: mocks.findCitationInChildren }))
 vi.mock('@renderer/components/icons/FallbackFavicon', () => ({ __esModule: true, default: mocks.Favicon }))
@@ -278,4 +284,39 @@ describe('Link file-path opener', () => {
     // No opener → the existing Hyperlink behavior is preserved (no regression).
     expect(screen.getByTestId('hyperlink')).toBeInTheDocument()
   })
+})
+
+describe('trusted application citations', () => {
+  it.each(['zotero://select/items/Note', 'obsidian://new?file=Note'])(
+    'opens %s exactly once without web metadata',
+    (href) => {
+      mocks.openExternalUrl.mockClear()
+      mocks.findCitationInChildren.mockReturnValue('1')
+      render(
+        <Link href={href} node={supNode} citationRegistry={new Map([[1, { ...citation, url: href }]])}>
+          <CitationSup>1</CitationSup>
+        </Link>
+      )
+      const anchor = screen.getByRole('link', { name: '1' })
+      const event = createEvent.click(anchor)
+      fireEvent(anchor, event)
+      expect(event.defaultPrevented).toBe(true)
+      expect(mocks.openExternalUrl).toHaveBeenCalledExactlyOnceWith(href)
+      expect(screen.queryByTestId('hyperlink')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('favicon')).not.toBeInTheDocument()
+    }
+  )
+})
+
+it('keeps a Zotero citation on non-web hover content', async () => {
+  const user = userEvent.setup()
+  render(
+    <ActualCitationTooltip citation={{ ...citation, url: 'zotero://select/items/Note', content: 'Saved note snippet' }}>
+      <a href="zotero://select/items/Note">Saved note</a>
+    </ActualCitationTooltip>
+  )
+  await user.hover(screen.getByRole('link', { name: 'Saved note' }))
+  const tooltip = await screen.findByRole('tooltip')
+  expect(within(tooltip).getByRole('article')).toHaveTextContent('Saved note snippet')
+  expect(screen.getAllByRole('link')).toHaveLength(1)
 })

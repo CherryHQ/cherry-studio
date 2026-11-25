@@ -14,8 +14,10 @@ describe('preview translations', () => {
     expect(chinese.t('file_preview.load_error.title')).toBe('Preview failed')
   })
 
-  it('translates every desktop language, matching host codes case-insensitively', () => {
+  it('matches supported host language codes case-insensitively', () => {
+    expect(createPreviewI18n('it-IT').t('file_preview.load_error.title')).toBe('Anteprima non riuscita')
     expect(createPreviewI18n('ja-JP').t('file_preview.load_error.title')).toBe('プレビューに失敗しました')
+    expect(createPreviewI18n('ko-KR').t('file_preview.load_error.title')).toBe('미리보기에 실패했습니다')
     expect(createPreviewI18n('zh-TW').t('file_preview.load_error.title')).not.toBe('Preview failed')
   })
 

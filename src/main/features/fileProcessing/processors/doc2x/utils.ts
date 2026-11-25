@@ -6,6 +6,7 @@ import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 
 import type {
   Doc2xExportStatusResponse,
+  Doc2xFormulaLevel,
   Doc2xParseStatusResponse,
   PreparedDoc2xQueryContext,
   PreparedDoc2xStartContext
@@ -97,9 +98,15 @@ export async function getParseStatus(
 
 export async function triggerExportTask(
   providerTaskId: string,
-  context: PreparedDoc2xQueryContext
+  context: PreparedDoc2xQueryContext,
+  options: {
+    modelVersion?: string
+    formulaLevel?: Doc2xFormulaLevel
+    mergeCrossPageForms?: boolean
+  } = {}
 ): Promise<Doc2xExportStatusResponse> {
   const endpoint = `${context.apiHost}/api/v2/convert/parse`
+  const isV3Model = options.modelVersion === 'v3-2026'
   const response = await net.fetch(endpoint, {
     method: 'POST',
     headers: {
@@ -111,7 +118,12 @@ export async function triggerExportTask(
       uid: providerTaskId,
       to: 'md',
       formula_mode: 'normal',
-      formula_level: 0
+      ...(isV3Model
+        ? {
+            formula_level: options.formulaLevel ?? 0,
+            merge_cross_page_forms: options.mergeCrossPageForms ?? false
+          }
+        : {})
     }),
     signal: context.signal
   })

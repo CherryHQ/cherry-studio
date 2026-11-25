@@ -1,4 +1,7 @@
 import { application } from '@application'
+import { isWebSearchError } from '@cherrystudio/web-search'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { webSearchErrorCodes } from '@shared/ipc/errors/webSearch'
 import type { webSearchRequestSchemas } from '@shared/ipc/schemas/webSearch'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -17,6 +20,19 @@ export const webSearchHandlers: IpcHandlersFor<typeof webSearchRequestSchemas> =
     await application.get('WebSearchService').searchKeywords(request, undefined, { fallback: false })
   },
   'web_search.fetch_urls': async (request) => {
-    await application.get('WebSearchService').fetchUrls(request, undefined, { fallback: false })
+    try {
+      await application.get('WebSearchService').fetchUrls(request, undefined, { fallback: false })
+    } catch (error) {
+      if (
+        isWebSearchError(error) &&
+        error.providerId === 'querit' &&
+        error.capability === 'fetchUrls' &&
+        error.kind === 'provider' &&
+        error.code === 'page_fetch_failed'
+      ) {
+        throw new IpcError(webSearchErrorCodes.WEB_SEARCH_PAGE_FETCH_FAILED, error.message)
+      }
+      throw error
+    }
   }
 }

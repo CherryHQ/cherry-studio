@@ -29,37 +29,33 @@ describe('useTopicMessages', () => {
     MockUseDataApiUtils.resetMocks()
   })
 
-  describe('page size by navigation mode', () => {
-    it('requests 50-item pages when navigation mode is the default (none)', () => {
-      renderHook(() => useTopicMessages('topic-1'))
-
-      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        '/topics/:topicId/messages',
-        expect.objectContaining({ limit: 50 })
-      )
+  it('keeps optimistic parallel replies out of the active history path', () => {
+    const firstReply = createAssistantMessage('a1', 'test:model-a', '2026-01-01T00:00:01.000Z')
+    const firstUser: Message = { ...firstReply, id: 'user-1', role: 'user', parentId: 'root' }
+    const secondUser: Message = { ...firstUser, id: 'user-2', parentId: 'a1' }
+    const otherReply: Message = { ...firstReply, id: 'a2-other', parentId: 'user-2', status: 'pending' }
+    const activeReply: Message = { ...otherReply, id: 'a2-active', modelId: 'test:model-b' }
+    mockUseInfiniteQuery.mockReturnValueOnce({
+      pages: [
+        {
+          items: [firstUser, firstReply, secondUser, otherReply, activeReply].map((message) => ({ message })),
+          activeNodeId: activeReply.id,
+          assistantId: null,
+          rootId: 'root'
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
     })
 
-    it('requests 150-item pages when navigation mode is anchor (fills the tick rail)', () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.message.navigation_mode', 'anchor')
-
-      renderHook(() => useTopicMessages('topic-1'))
-
-      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        '/topics/:topicId/messages',
-        expect.objectContaining({ limit: 150 })
-      )
-    })
-
-    it('keeps the 50-item baseline for the buttons navigation mode', () => {
-      MockUsePreferenceUtils.setPreferenceValue('chat.message.navigation_mode', 'buttons')
-
-      renderHook(() => useTopicMessages('topic-1'))
-
-      expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-        '/topics/:topicId/messages',
-        expect.objectContaining({ limit: 50 })
-      )
-    })
+    const { result } = renderHook(() => useTopicMessages('topic-1', { fetchOnMount: false }))
+    expect(result.current.pathMessages.map((message) => message.id)).toEqual(['user-1', 'a1', 'user-2', 'a2-active'])
   })
 
   it('revalidates when a loaded message read model changes', () => {

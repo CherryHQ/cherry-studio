@@ -1,7 +1,7 @@
 import { zodSchema } from '@ai-sdk/provider-utils'
 import { describe, expect, it } from 'vitest'
 
-import { sessionToolDefinitions } from '../browserToolDefinitions'
+import { toolDefinitions } from '../browserToolDefinitions'
 
 const SCHEMA_MAPS = new Set(['properties', 'patternProperties', '$defs', 'definitions', 'dependentSchemas'])
 const SCHEMA_LISTS = new Set(['allOf', 'anyOf', 'oneOf', 'prefixItems'])
@@ -43,7 +43,7 @@ function numericLiterals(schema: unknown, path: string, found: string[] = []): s
 
 describe('browser tool definitions', () => {
   it('reaches every provider without a numeric const/enum literal', () => {
-    const offenders = sessionToolDefinitions.flatMap(({ name, inputSchema }) =>
+    const offenders = toolDefinitions.flatMap(({ name, inputSchema }) =>
       numericLiterals(zodSchema(inputSchema).jsonSchema, name)
     )
 

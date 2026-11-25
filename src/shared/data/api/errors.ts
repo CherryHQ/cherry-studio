@@ -22,6 +22,7 @@
  * ```
  */
 
+import { hasReportingOwner } from '../../utils/errorReporting'
 import type { HttpMethod } from './types'
 
 // ============================================================================
@@ -353,6 +354,7 @@ export function isRetryableErrorCode(code: ErrorCode): boolean {
  * Note: Does not include stack trace - rely on Main process logs.
  */
 export interface SerializedDataApiError {
+  reportingHandled?: true
   /** Error code from ErrorCode enum */
   code: ErrorCode | string
   /** Human-readable error message */
@@ -395,6 +397,7 @@ export interface SerializedDataApiError {
  * ```
  */
 export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
+  public reportingHandled?: true
   /** Error code from ErrorCode enum */
   public readonly code: T
   /** HTTP status code */
@@ -453,7 +456,8 @@ export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
       message: this.message,
       status: this.status,
       details: this.details as Record<string, unknown> | undefined,
-      requestContext: this.requestContext
+      requestContext: this.requestContext,
+      ...(this.reportingHandled ? { reportingHandled: true as const } : {})
     }
   }
 
@@ -463,7 +467,15 @@ export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
    * @returns DataApiError instance
    */
   static fromJSON(error: SerializedDataApiError): DataApiError {
-    return new DataApiError(error.code as ErrorCode, error.message, error.status, error.details, error.requestContext)
+    const result = new DataApiError(
+      error.code as ErrorCode,
+      error.message,
+      error.status,
+      error.details,
+      error.requestContext
+    )
+    if (hasReportingOwner(error)) result.reportingHandled = true
+    return result
   }
 
   /**
@@ -478,13 +490,15 @@ export class DataApiError<T extends ErrorCode = ErrorCode> extends Error {
     code: ErrorCode = ErrorCode.INTERNAL_SERVER_ERROR,
     requestContext?: RequestContext
   ): DataApiError {
-    return new DataApiError(
+    const result = new DataApiError(
       code,
       error.message,
       ERROR_STATUS_MAP[code],
       { originalError: error.message, context: error.name },
       requestContext
     )
+    if (hasReportingOwner(error)) result.reportingHandled = true
+    return result
   }
 }
 
@@ -608,13 +622,15 @@ export class DataApiErrorFactory {
     const message = context
       ? `Internal error in ${context}: ${originalError.message}`
       : `Internal error: ${originalError.message}`
-    return new DataApiError(
+    const result = new DataApiError(
       ErrorCode.INTERNAL_SERVER_ERROR,
       message,
       ERROR_STATUS_MAP[ErrorCode.INTERNAL_SERVER_ERROR],
       { originalError: originalError.message, context },
       requestContext
     )
+    if (hasReportingOwner(originalError)) result.reportingHandled = true
+    return result
   }
 
   /**
@@ -813,6 +829,19 @@ export function isDataApiError(error: unknown): error is DataApiError {
  */
 export function isDataApiNotFoundError(error: unknown): boolean {
   return isDataApiError(error) && error.code === ErrorCode.NOT_FOUND
+}
+
+/**
+ * Check if an error is a NOT_FOUND DataApiError raised for a specific resource.
+ * @param error - Any thrown value
+ * @param resource - The resource name passed to `DataApiErrorFactory.notFound`
+ * @returns true if the error is that resource's NOT_FOUND DataApiError
+ */
+export function isDataApiResourceNotFoundError(
+  error: unknown,
+  resource: string
+): error is DataApiError<ErrorCode.NOT_FOUND> {
+  return isDataApiNotFoundError(error) && (error as DataApiError<ErrorCode.NOT_FOUND>).details?.resource === resource
 }
 
 /**

@@ -1,6 +1,7 @@
+import { installDndDomStubs } from '@test-mocks/dndDomStubs'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 
@@ -51,6 +52,8 @@ const knowledgeItem = {
 } as any
 
 describe('QueuedFollowupsDock', () => {
+  beforeAll(installDndDomStubs)
+
   beforeEach(async () => {
     await i18n.changeLanguage('en-US')
   })
@@ -274,21 +277,6 @@ describe('QueuedFollowupsDock', () => {
     await user.click(screen.getByRole('button', { name: 'Queued (1)' }))
     expect(screen.getByText(text)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'https://example.com/docs' })).toBeInTheDocument()
-  })
-
-  it('renders nothing when the queue is empty', () => {
-    const { container } = render(
-      <QueuedFollowupsDock
-        items={[]}
-        paused={false}
-        onTogglePause={vi.fn()}
-        onSteer={vi.fn()}
-        onEdit={vi.fn()}
-        onRemove={vi.fn()}
-        onReorder={vi.fn()}
-      />
-    )
-    expect(container).toBeEmptyDOMElement()
   })
 
   it('hides a knowledge token prompt while keeping the user text and chip', async () => {

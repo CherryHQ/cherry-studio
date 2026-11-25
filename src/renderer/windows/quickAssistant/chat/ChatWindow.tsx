@@ -1,6 +1,5 @@
 import type { FC } from 'react'
 
-import { Scrollbar } from '@cherrystudio/ui'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import type { Assistant } from '@renderer/types/assistant'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -17,7 +16,7 @@ interface Props {
 
 const ChatWindow: FC<Props> = ({ route, assistant, isOutputted, messages, partsByMessageId }) => {
   return (
-    <Scrollbar className="bubble mb-auto flex max-h-full w-full flex-row justify-start bg-transparent! [-webkit-app-region:no-drag]">
+    <div className="bubble mb-auto flex min-h-0 max-h-full w-full flex-col bg-transparent! [-webkit-app-region:no-drag]">
       <Messages
         assistant={assistant}
         route={route}
@@ -25,7 +24,7 @@ const ChatWindow: FC<Props> = ({ route, assistant, isOutputted, messages, partsB
         messages={messages}
         partsByMessageId={partsByMessageId}
       />
-    </Scrollbar>
+    </div>
   )
 }
 

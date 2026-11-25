@@ -69,8 +69,8 @@ export function getClaudeCodeExitInfo(error?: SerializedError): ClaudeCodeExitIn
 }
 
 /**
- * Errors nested inside a serialized AI SDK wrapper. `serializeError` drops non-enumerable
- * `message`/`stack` from them, so they are partial — only shape-tolerant readers may use them.
+ * Errors nested inside a serialized AI SDK wrapper may be partial. Readers tolerate absent
+ * `message`/`stack` while preserving normalized provider facts when present.
  */
 function unwrapNestedErrors(error: SerializedError): SerializedError[] {
   const nested = isSerializedAiSdkRetryError(error)
@@ -92,6 +92,56 @@ function readStructuredStatus(value: unknown): number | undefined {
   const status = record.statusCode ?? record.status
   const parsed = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
   return typeof parsed === 'number' && !Number.isNaN(parsed) ? parsed : undefined
+}
+
+/**
+ * The model / provider ids from a locally raised resolution failure ("Cannot resolve modelId…").
+ * Main rejects those before any provider call, so the ids are the only layer detail the user can
+ * act on — a provider 404 body already names the model in its own text. Null for anything else.
+ */
+export function getLocalModelResolutionFailure(
+  error?: SerializedError
+): { providerId?: string; modelId?: string } | null {
+  const message = typeof error?.message === 'string' ? error.message : ''
+
+  // AiService cannot supply an identifier when neither the request nor assistant has a model.
+  // Keep the local failure recognizable without treating the word "not" as a model ID.
+  if (/^Cannot resolve (?:providerId|modelId): not in request and assistant has no model$/.test(message)) {
+    return {}
+  }
+
+  // Format 1: "Cannot resolve modelId: <id>" or "Cannot resolve providerId: <id>"
+  if (/^Cannot resolve (?:providerId|modelId)/.test(message)) {
+    const prefixMatch = /^Cannot resolve (?:providerId|modelId):\s*([^,\s]+)/.exec(message)
+    if (prefixMatch) {
+      return { modelId: prefixMatch[1] }
+    }
+
+    // Format 2: "Cannot resolve modelId="..."" or "Cannot resolve providerId="..."" (quoted)
+    const providerId = /providerId="([^"]+)"/.exec(message)?.[1]
+    const modelId = /modelId="([^"]+)"/.exec(message)?.[1]
+    if (modelId) return { providerId, modelId }
+
+    // Format 3: "[model1,model2,model3]" list format
+    const list = /\[([^\]]*)\]/.exec(message)
+    if (list) {
+      const m = list[1]
+        .split(',')
+        .map((id) => id.trim())
+        .find(Boolean)
+      return m ? { modelId: m } : null
+    }
+
+    return null
+  }
+
+  // Format 4: "Model with id 'provider/model' not found" (DataApiErrorFactory.notFound)
+  const modelIdMatch = /^Model with id '([^']+)' not found$/.exec(message)
+  if (modelIdMatch) {
+    return { modelId: modelIdMatch[1] }
+  }
+
+  return null
 }
 
 /**
@@ -123,6 +173,9 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   if (isErrorCategory(errorBag.providerErrorCategory) && errorBag.providerErrorCategory !== 'unknown') {
     return classify(errorBag.providerErrorCategory)
   }
+  // Checked before text classification: the unknown-text fallback would reclassify this local
+  // resolution failure as `bad_request` ("请求错误… If you changed model settings, reset them").
+  if (getLocalModelResolutionFailure(error)) return classify('model')
   const numStatus = getErrorHttpStatus(error)
 
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody : ''
@@ -140,6 +193,19 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     status: numStatus,
     finishReason: String(errorBag.finishReason ?? '')
   })
+  if (
+    isSerializedAiSdkRetryError(error) &&
+    readStructuredStatus(error) === undefined &&
+    classifyErrorCategory({ finishReason: String(errorBag.finishReason ?? '') }) === 'unknown'
+  ) {
+    const terminal = error.lastError
+    const terminalCategory =
+      terminal && typeof terminal === 'object' && !Array.isArray(terminal) && 'providerErrorCategory' in terminal
+        ? terminal.providerErrorCategory
+        : undefined
+    // A retry wrapper's copied prose cannot override its terminal attempt's normalized identity.
+    if (isErrorCategory(terminalCategory) && terminalCategory !== 'unknown') return classify(terminalCategory)
+  }
   if (category !== 'unknown' && category !== 'bad_request') return classify(category)
 
   // Prefer a specific diagnosis over a generic request failure in another attempt.
@@ -152,6 +218,10 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     if (!nestedRecovery && nestedClassification.navTarget) nestedRecovery = nestedClassification
   }
   if (nestedRecovery) return nestedRecovery
+
+  if (category === 'unknown' && error.streamStage === 'response-stream' && !error.i18nKey) {
+    return classify('stream')
+  }
 
   return classify(category)
 }

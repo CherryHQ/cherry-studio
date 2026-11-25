@@ -4,12 +4,13 @@ import { buildNoteSnapshotFile } from './noteSnapshot'
 import { fetchKnowledgeWebPage } from './url'
 import { buildUrlSnapshotFile } from './urlSnapshot'
 
-/** Overwrites the item's already-pinned `raw/` path; runs under the base mutation lock. */
+/** Overwrites the item's already-pinned `raw/` path; runs once reindex has activated the item, off the base mutation lock. */
 export type KnowledgeReacquireWrite = (signal: AbortSignal) => Promise<void>
 
 /**
- * Fetches/validates the new content OUTSIDE the base mutation lock and hands back the write to run
- * under it. Returning the write as a closure keeps each source's payload private to its own branch.
+ * Fetches/validates the new content before reindex touches the item and hands back the write to run
+ * once the item is activated. Returning the write as a closure keeps each source's payload private
+ * to its own branch.
  */
 export type KnowledgeReacquireProducer = (signal: AbortSignal) => Promise<KnowledgeReacquireWrite>
 
@@ -18,8 +19,7 @@ export type KnowledgeReacquireProducer = (signal: AbortSignal) => Promise<Knowle
  * re-acquire. Reindex means *re-acquire from the real source, then rebuild*: a file re-copies the
  * user's original, a url re-fetches the page, and a note rewrites its snapshot from `data.content`
  * (a note's source is inline in the DB; its `raw/*.md` file is a derived export). The two phases are
- * split so the slow half stays off the base lock, mirroring the first-index snapshot capture in
- * `indexDocumentsJobHandler`.
+ * split so a failed fetch fails before the item is activated; neither phase holds the base lock.
  *
  * The item keeps its identity: every write targets the existing `relativePath` rather than reserving
  * a new name, or each refresh would mint a `name_2.md` twin. A url/note that never captured a

@@ -18,7 +18,7 @@
  *
  * Internal entries are always `'present'` — the cache is external-only.
  *
- * See [file-manager-architecture.md §11](../../../docs/references/file/file-manager-architecture.md)
+ * See [file-manager-architecture.md §11](../../../docs/dev/references/file/file-manager-architecture.md)
  * for the full design.
  */
 

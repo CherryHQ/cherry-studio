@@ -18,6 +18,7 @@ import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'
 import type {
@@ -121,12 +122,12 @@ export class ExportService {
     return queuedCapture
   }
 
-  public captureScrollableAsDataUrl(elRef: ScrollableCaptureRef) {
-    return this.enqueueImageCapture(() => captureScrollableAsDataUrlUtil(elRef))
+  public captureScrollableAsDataUrl(elRef: ScrollableCaptureRef, backdropVariable?: string) {
+    return this.enqueueImageCapture(() => captureScrollableAsDataUrlUtil(elRef, backdropVariable))
   }
 
-  public captureScrollableAsBlob(elRef: ScrollableCaptureRef, func: ScrollableBlobCallback) {
-    return this.enqueueImageCapture(() => captureScrollableAsBlobUtil(elRef, func))
+  public captureScrollableAsBlob(elRef: ScrollableCaptureRef, func: ScrollableBlobCallback, backdropVariable?: string) {
+    return this.enqueueImageCapture(() => captureScrollableAsBlobUtil(elRef, func, backdropVariable))
   }
 }
 
@@ -287,7 +288,8 @@ const createBaseMarkdown = async (
   includeReasoning: boolean = false,
   excludeCitations: boolean = false,
   normalizeCitations: boolean = true,
-  rawContentOverride?: string
+  rawContentOverride?: string,
+  attributeModel: boolean = false
 ): Promise<{ titleSection: string; reasoningSection: string; contentSection: string; citation: string }> => {
   const forceDollarMathInMarkdown = await preferenceService.get('data.export.markdown.force_dollar_math')
   const author = 'messageSnapshot' in message ? message.messageSnapshot : undefined
@@ -295,7 +297,8 @@ const createBaseMarkdown = async (
   // (e.g. topic exports), so the model/provider still render when those export prefs are on.
   const model = message.model ?? author?.model
   const roleText = await getRoleText(message.role, model?.name, model?.provider, author)
-  const titleSection = `## ${roleText}`
+  const modelLabel = attributeModel && message.role === 'assistant' ? model?.name : undefined
+  const titleSection = modelLabel ? `## ${roleText}\n\n**${modelLabel}**` : `## ${roleText}`
   let reasoningSection = ''
 
   if (includeReasoning) {
@@ -389,7 +392,8 @@ export async function getMessageTitle(message: ExportableMessage, length = 30): 
 export const messageToMarkdown = async (
   message: ExportableMessage,
   excludeCitations?: boolean,
-  rawContentOverride?: string
+  rawContentOverride?: string,
+  attributeModel?: boolean
 ): Promise<string> => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
     excludeCitationsInExport: 'data.export.markdown.exclude_citations',
@@ -401,7 +405,8 @@ export const messageToMarkdown = async (
     false,
     shouldExcludeCitations,
     standardizeCitationsInExport,
-    rawContentOverride
+    rawContentOverride,
+    attributeModel
   )
   return [titleSection, '', contentSection, citation].join('\n')
 }
@@ -409,7 +414,8 @@ export const messageToMarkdown = async (
 export const messageToMarkdownWithReasoning = async (
   message: ExportableMessage,
   excludeCitations?: boolean,
-  rawContentOverride?: string
+  rawContentOverride?: string,
+  attributeModel?: boolean
 ): Promise<string> => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
     excludeCitationsInExport: 'data.export.markdown.exclude_citations',
@@ -421,7 +427,8 @@ export const messageToMarkdownWithReasoning = async (
     true,
     shouldExcludeCitations,
     standardizeCitationsInExport,
-    rawContentOverride
+    rawContentOverride,
+    attributeModel
   )
   return [titleSection, '', reasoningSection, contentSection, citation].join('\n')
 }
@@ -430,11 +437,14 @@ export const messagesToMarkdown = async (
   messages: ExportableMessage[],
   exportReasoning?: boolean,
   excludeCitations?: boolean,
-  rawContentOverrides?: Map<string, string>
+  rawContentOverrides?: Map<string, string>,
+  attributeModel?: boolean
 ): Promise<string> => {
   const converter = exportReasoning ? messageToMarkdownWithReasoning : messageToMarkdown
   const markdowns = await Promise.all(
-    messages.map((message) => converter(message, excludeCitations, rawContentOverrides?.get(message.id)))
+    messages.map((message) =>
+      converter(message, excludeCitations, rawContentOverrides?.get(message.id), attributeModel)
+    )
   )
   return markdowns.join('\n---\n')
 }
@@ -444,7 +454,8 @@ export const topicToMarkdown = async (
   exportReasoning?: boolean,
   excludeCitations?: boolean,
   rawContentOverrides?: Map<string, string>,
-  messagesOverride?: ExportableMessage[]
+  messagesOverride?: ExportableMessage[],
+  attributeModel?: boolean
 ): Promise<string> => {
   const topicName = `# ${topic.name}`
 
@@ -454,7 +465,9 @@ export const topicToMarkdown = async (
 
   if (messages && messages.length > 0) {
     return (
-      topicName + '\n\n' + (await messagesToMarkdown(messages, exportReasoning, excludeCitations, rawContentOverrides))
+      topicName +
+      '\n\n' +
+      (await messagesToMarkdown(messages, exportReasoning, excludeCitations, rawContentOverrides, attributeModel))
     )
   }
 
@@ -1511,9 +1524,16 @@ async function createSiyuanDoc(
 }
 
 const saveContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
-  await addNote(title, content, folderPath)
+  const { path } = await addNote(title, content, folderPath)
 
-  toast.success(i18n.t('message.success.notes.export'))
+  toast.success({
+    title: i18n.t('message.success.notes.export'),
+    timeout: 5000,
+    action: {
+      label: i18n.t('notes.open'),
+      onClick: () => openRoute('/app/notes', { notePath: path })
+    }
+  })
 }
 
 const handleNotesExportError = (error: unknown): void => {

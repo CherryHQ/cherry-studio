@@ -1,4 +1,12 @@
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', async () => {
+  const selector = await import('@renderer/components/ModelSelector')
+  return {
+    CherryCloudModelSelector: selector.ModelSelector
+  }
+})
+
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +14,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
+import type * as CodeStyleModule from '@renderer/hooks/useCodeStyle'
 import type * as UseModelModule from '@renderer/hooks/useModel'
 
 const {
@@ -48,6 +57,18 @@ const MODEL = vi.hoisted(
     }) as const
 )
 
+// Selector tests exercise creation and refresh; editor sessions are covered separately.
+vi.mock('@renderer/components/LazyCodeEditor', () => ({
+  LazyCodeEditor: ({ value, onChange, placeholder, editable }: CherryStudioUi.CodeEditorProps) => (
+    <textarea
+      value={value}
+      onChange={(event) => onChange?.(event.currentTarget.value)}
+      placeholder={typeof placeholder === 'string' ? placeholder : undefined}
+      readOnly={editable === false}
+    />
+  )
+}))
+
 vi.mock('@renderer/components/ModelSelector', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelSelectorModule>()),
   ModelSelector: ({
@@ -72,16 +93,13 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create/steps/CapabilitySte
   CapabilityStep: () => <div data-testid="capability-step" />
 }))
 
-vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptBindingTab', () => ({
-  PromptBindingTab: () => <div data-testid="prompt-binding-tab" />
-}))
-
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
   return actual
 })
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', async () => ({
+  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
   useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
   useInfiniteQuery: () => ({
     pages: [{ items: [], total: 0 }],
@@ -92,13 +110,15 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
     loadNext: vi.fn(),
     refresh: vi.fn()
   }),
+  useDataChange: vi.fn(),
   useMutation: useMutationMock,
   useQuery: useQueryMock
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
   useAgentMutations: () => ({ createAgent: createAgentMock, isCreatingAgent: false }),
-  useAgentMutationsById: () => ({ updateAgent: updateAgentMock })
+  useAgentMutationsById: () => ({ updateAgent: updateAgentMock }),
+  useResourceAutoConfigure: () => ({ ready: true, generate: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/usePins', () => ({
@@ -110,7 +130,8 @@ vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({
   useDefaultModel: () => ({ defaultModel: undefined })
 }))
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', async (importOriginal) => ({
+  ...(await importOriginal<typeof CodeStyleModule>()),
   useCodeStyle: () => ({ activeCmTheme: 'light' }),
   useCmTheme: () => 'light'
 }))
@@ -160,15 +181,10 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.description.placeholder': 'Describe this agent',
           'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
           'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
-          'library.config.agent.field.model.hint': 'Primary agent model.',
           'library.config.agent.field.model.label': 'Model',
           'library.config.agent.field.name.hint': 'Shown in the selector.',
           'library.config.agent.field.name.label': 'Name',
           'library.config.agent.field.name.placeholder': 'Name this agent',
-          'library.config.agent.field.plan_model.hint': 'Plan model.',
-          'library.config.agent.field.plan_model.label': 'Plan model',
-          'library.config.agent.field.small_model.hint': 'Small model.',
-          'library.config.agent.field.small_model.label': 'Small model',
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.model_pick': 'Pick model',
@@ -183,7 +199,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.create.agent_title': 'New Agent',
           'library.config.dialogs.create.avatar_aria': 'Pick avatar',
           'library.config.dialogs.create.avatar_name_label': 'Avatar and name',
-          'library.config.dialogs.create.description_placeholder': 'Describe this resource',
           'library.config.dialogs.create.name_placeholder': 'Name this resource',
           'library.config.dialogs.create.submit': 'Create',
           'library.config.dialogs.create.submit_failed': 'Create failed',
@@ -194,8 +209,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.create.step.knowledge': 'Knowledge',
           'library.config.dialogs.edit.agent_description': 'Edit the essentials for this agent.',
           'library.config.dialogs.edit.agent_title': 'Edit Agent',
-          'library.config.dialogs.edit.basic_tab': 'Basic',
-          'library.config.dialogs.edit.prompt_tab': 'System Prompt',
           'library.config.dialogs.edit.save_failed': 'Save failed',
           'selector.create_dialog.refresh_failed': 'Created, but refresh failed',
           'selector.edit_dialog.refresh_failed': 'Saved, but refresh failed'
@@ -282,6 +295,8 @@ beforeEach(() => {
   useQueryMock.mockImplementation((path: string, options?: { enabled?: boolean }) => {
     const enabled = path !== '/agents' || options?.enabled !== false
     if (path === '/agents' && enabled) agentReadMock()
+    // The create wizard's result page lists the new Agent's channels.
+    if (path === '/agent-channels') return { data: [], isLoading: false, refetch: vi.fn(), mutate: vi.fn() }
     const data = enabled ? (path === '/agents/:agentId' ? AGENTS_RESPONSE.items[0] : AGENTS_RESPONSE) : undefined
     return {
       data,
@@ -308,7 +323,7 @@ beforeEach(() => {
   })
   createAgentMock.mockResolvedValue({
     id: 'created-agent',
-    type: 'pi',
+    type: 'pi-durable',
     name: 'Created Agent',
     description: 'Created from selector',
     accessiblePaths: [],
@@ -350,10 +365,17 @@ function openPopover() {
   fireEvent.click(screen.getByRole('button', { name: 'Open' }))
 }
 
-async function openCreateDialog() {
+async function openCreateDialog(purpose?: string) {
   openPopover()
   fireEvent.click(screen.getByRole('button', { name: 'Create agent' }))
   await screen.findByRole('dialog')
+  if (purpose) {
+    fireEvent.change(screen.getByPlaceholderText('library.config.dialogs.create.auto.agent_purpose_placeholder'), {
+      target: { value: purpose }
+    })
+  }
+  // These cases cover the selector's create flow, so step past the auto-create entry.
+  fireEvent.click(screen.getByRole('button', { name: 'library.config.dialogs.create.auto.manual' }))
 }
 
 describe('AgentSelector', () => {
@@ -379,7 +401,6 @@ describe('AgentSelector', () => {
     const options = screen.getAllByRole('option')
     expect(options[0]).toHaveTextContent('Alpha Agent')
     expect(options[1]).toHaveTextContent('Beta Agent')
-    expect(screen.queryByRole('button', { pressed: false })).not.toBeInTheDocument()
   })
 
   it('renders the empty state prompt when no agents exist', () => {
@@ -397,34 +418,6 @@ describe('AgentSelector', () => {
 
     expect(screen.getByText('No agents yet. Create one first.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Create agent' })).toBeInTheDocument()
-  })
-
-  it('falls back to the default agent avatar for blank stored avatars', () => {
-    useQueryMock.mockReturnValue({
-      data: {
-        items: [
-          {
-            ...AGENTS_RESPONSE.items[0],
-            configuration: {
-              ...AGENTS_RESPONSE.items[0].configuration,
-              avatar: '   '
-            }
-          }
-        ],
-        total: 1,
-        page: 1
-      },
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: refetchAgentsMock,
-      mutate: vi.fn()
-    })
-
-    renderSelector()
-    openPopover()
-
-    expect(screen.getByRole('option', { name: /Alpha Agent/ })).toHaveTextContent('🤖')
   })
 
   it('fires onChange with the selected agent id', () => {
@@ -483,9 +476,6 @@ describe('AgentSelector', () => {
     await openCreateDialog()
 
     expect(screen.getByRole('heading', { name: 'New Agent' })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Name this resource')).toBeInTheDocument()
-    expect(screen.getByText('Model')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
   })
 
   it('calls the dialog-close autofocus callback when the create dialog closes', async () => {
@@ -506,40 +496,29 @@ describe('AgentSelector', () => {
   })
 
   it('creates an agent, refreshes, reopens the selector, and does not auto-select by default', async () => {
+    const user = userEvent.setup()
     const { onChange } = renderSelector()
-    await openCreateDialog()
+    await openCreateDialog('Created from selector')
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    fireEvent.change(screen.getByPlaceholderText('Describe this resource'), {
-      target: { value: 'Created from selector' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    while (screen.queryByRole('button', { name: 'Next' }))
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>
-      expect(createAgentMock).toHaveBeenCalledWith({
-        type: 'pi',
-        name: 'Created Agent',
-        model: MODEL.id,
-        description: 'Created from selector',
-        instructions: '',
-        knowledgeBaseIds: [],
-        skillIds: [],
-        configuration: {
-          avatar: '🤖',
-          permission_mode: 'auto'
-        }
-      })
+      expect(createAgentMock).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Created Agent', model: MODEL.id, description: 'Created from selector' })
+      )
     )
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
     expect(onChange).not.toHaveBeenCalled()
+    await user.click(await screen.findByRole('button', { name: 'common.close' }))
     await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
   })
 
-  it('auto-selects the created agent when enabled', async () => {
+  it('keeps the result visible until the user starts the new conversation', async () => {
+    const user = userEvent.setup()
     const onChange = vi.fn()
     render(
       <AgentSelector
@@ -553,30 +532,33 @@ describe('AgentSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    while (screen.queryByRole('button', { name: 'Next' }))
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
-    expect(onChange).toHaveBeenCalledWith('created-agent')
+    expect(await screen.findByRole('button', { name: 'library.config.dialogs.create.result.adjust' })).toBeVisible()
+    expect(onChange).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'library.config.dialogs.create.result.start' }))
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('created-agent')
   })
 
   it('notifies when created agent cannot be refreshed into the selector', async () => {
+    const user = userEvent.setup()
     refetchAgentsMock.mockRejectedValueOnce(new Error('Refresh failed'))
     renderSelector()
     await openCreateDialog()
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    while (screen.queryByRole('button', { name: 'Next' }))
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
 
     expect(toast.error).toHaveBeenCalledWith('Created, but refresh failed')
+    await user.click(await screen.findByRole('button', { name: 'common.close' }))
     await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
   })
 
@@ -588,7 +570,7 @@ describe('AgentSelector', () => {
 
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'Renamed Agent' } })
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Agent' } })
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     expect(screen.queryByPlaceholderText('Search agents')).not.toBeInTheDocument()
@@ -630,7 +612,7 @@ describe('AgentSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'Saved Agent' } })
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())

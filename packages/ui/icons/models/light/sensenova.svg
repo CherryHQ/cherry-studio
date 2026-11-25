@@ -1,4 +1,6 @@
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+<rect width="120" height="120" fill="#e8fff9"/>
+<g fill="none" transform="translate(18 18) scale(5.20661157) translate(-3.8667 -3.9333)">
 <path d="M4 14.6665H6.63956V6.6665H14.5587V4H4V14.6665Z" fill="#5B29DA"/>
 <path d="M19.838 9.3335H14.5588V14.667H19.838V9.3335Z" fill="#01FFB9"/>
 <path d="M9.27972 20H14.5589V14.6665H9.27972V20Z" fill="#01FFB9"/>
@@ -18,4 +20,5 @@
 <path d="M6.63965 9.9514L9.27921 12.6179V12.2615L6.63965 9.59497V9.9514Z" fill="#01FFB9"/>
 <path d="M6.63965 8.91603L9.27921 11.5825V11.2261L6.63965 8.5596V8.91603Z" fill="#01FFB9"/>
 <path d="M6.63965 7.88027L9.27921 10.5473V10.1903L6.63965 7.52383V7.88027Z" fill="#01FFB9"/>
+</g>
 </svg>

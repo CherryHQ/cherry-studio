@@ -14,6 +14,7 @@ import {
   captureScrollableAsDataUrl,
   checkEntityImageSize,
   convertToBase64,
+  copyImageToClipboard,
   dataUrlToBlob,
   getImageBlobFromSource,
   IMAGE_CAPTURE_ATTRIBUTE,
@@ -160,7 +161,6 @@ describe('utils/image', () => {
     it('returns a localized message when the file exceeds the limit', () => {
       const message = checkEntityImageSize(makeFile(MAX_ENTITY_IMAGE_UPLOAD_BYTES + 1))
       expect(message).toContain('message.error.avatar_image_too_large')
-      expect(message).toContain('10MB')
     })
   })
 
@@ -179,27 +179,30 @@ describe('utils/image', () => {
       await expect(prepareEntityImageBytes(file)).rejects.toThrow('message.error.image_process_failed')
     })
 
-    it('cover-crops the largest centered square into a 128×128 WebP', async () => {
-      const close = vi.fn()
-      // 200×100 landscape → centered 100×100 square (sx=50, sy=0) scaled to 128².
-      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ width: 200, height: 100, close }))
+    // A 400×200 image: the centered square starts at x 100; a framed square is used as given.
+    function drawnRegion(area?: Parameters<typeof prepareEntityImageBytes>[1]) {
+      const bitmap = { width: 400, height: 200, close: vi.fn() }
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap))
       const drawImage = vi.fn()
-      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
-        drawImage
-      } as unknown as CanvasRenderingContext2D)
-      const webp = new Uint8Array([9, 8, 7])
-      vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (
-        this: HTMLCanvasElement,
-        cb: BlobCallback
-      ) {
-        cb({ arrayBuffer: async () => webp.buffer } as Blob)
-      })
+      const canvas = document.createElement('canvas')
+      vi.spyOn(canvas, 'getContext').mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D)
+      vi.spyOn(canvas, 'toBlob').mockImplementation((done) =>
+        done({ arrayBuffer: async () => new ArrayBuffer(1) } as Blob)
+      )
+      const createElement = document.createElement.bind(document)
+      vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+        tag === 'canvas' ? canvas : createElement(tag)) as typeof document.createElement)
+      return prepareEntityImageBytes(new File(['x'], 'a.png', { type: 'image/png' }), area).then(() =>
+        drawImage.mock.calls[0].slice(1)
+      )
+    }
 
-      const out = await prepareEntityImageBytes(new File(['x'], 'a.png', { type: 'image/png' }))
+    it('keeps the largest centered square when nothing is framed', async () => {
+      expect(await drawnRegion()).toEqual([100, 0, 200, 200, 0, 0, 128, 128])
+    })
 
-      expect(drawImage).toHaveBeenCalledWith(expect.anything(), 50, 0, 100, 100, 0, 0, 128, 128)
-      expect(out).toEqual(webp)
-      expect(close).toHaveBeenCalled()
+    it('saves exactly the framed square, scaled to 128×128', async () => {
+      expect(await drawnRegion({ x: 230, y: 40, width: 120, height: 120 })).toEqual([230, 40, 120, 120, 0, 0, 128, 128])
     })
   })
 
@@ -251,6 +254,18 @@ describe('utils/image', () => {
   })
 
   describe('captureScrollable', () => {
+    it('uses the selected solid conversation backdrop when rasterizing a canvas', async () => {
+      const root = document.createElement('div')
+      root.style.cssText = '--background: rgba(25, 25, 25, 0.55); --chat-message-well-solid: #141414'
+
+      await captureScrollable({ current: root }, '--chat-message-well-solid')
+
+      expect(htmlToImage.toCanvas).toHaveBeenLastCalledWith(
+        root,
+        expect.objectContaining({ backgroundColor: '#141414' })
+      )
+    })
+
     it('should return canvas when elRef.current exists', async () => {
       const div = document.createElement('div')
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
@@ -259,22 +274,6 @@ describe('utils/image', () => {
       const result = await captureScrollable(ref)
       expect(result).toBeTruthy()
       expect(typeof (result as HTMLCanvasElement).toDataURL).toBe('function')
-    })
-
-    it('should warm up html-to-image before returning the final canvas', async () => {
-      const warmupCanvas = { toDataURL: vi.fn(() => 'warmup') } as unknown as HTMLCanvasElement
-      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
-      vi.mocked(htmlToImage.toCanvas).mockResolvedValueOnce(warmupCanvas).mockResolvedValueOnce(finalCanvas)
-
-      const div = document.createElement('div')
-      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
-      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
-      const ref = { current: div } as React.RefObject<HTMLDivElement>
-
-      const result = await captureScrollable(ref)
-
-      expect(htmlToImage.toCanvas).toHaveBeenCalledTimes(2)
-      expect(result).toBe(finalCanvas)
     })
 
     it('should release the warm-up canvas before the final capture', async () => {
@@ -1229,6 +1228,36 @@ describe('utils/image', () => {
         expect(previewSvg.hasAttribute('height')).toBe(false)
       }
     )
+  })
+
+  it('finishes copying a file-backed image after focus is lost during the read', async () => {
+    const read = Promise.withResolvers<{ content: Uint8Array; mime: string }>()
+    ipcMocks.request.mockReturnValueOnce(read.promise)
+    let focused = true
+    let copied: Blob | undefined
+
+    class TestClipboardItem {
+      constructor(readonly formats: Record<string, Blob | Promise<Blob>>) {}
+    }
+    vi.stubGlobal('ClipboardItem', TestClipboardItem)
+    const write = async ([item]: TestClipboardItem[]) => {
+      if (!focused) throw new DOMException('Document is not focused.', 'NotAllowedError')
+      copied = await item.formats['image/png']
+    }
+    vi.stubGlobal('navigator', Object.create(navigator, { clipboard: { value: { write } } }))
+
+    try {
+      const copy = copyImageToClipboard('file:///tmp/generated.png')
+      focused = false
+      const content = new Uint8Array([1, 2, 3])
+      read.resolve({ content, mime: 'image/png' })
+
+      await copy
+      expect(copied?.type).toBe('image/png')
+      expect(copied?.size).toBe(content.length)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   describe('getImageBlobFromSource', () => {

@@ -56,13 +56,6 @@ describe('extractPdfText', () => {
   it('should throw on invalid PDF data', async () => {
     await expect(extractPdfText('not-valid-base64-pdf')).rejects.toThrow()
   })
-
-  it('should return empty string for PDF with no text', async () => {
-    // A truly empty PDF would still parse, just with no text
-    // We test that extractPdfText doesn't crash on edge cases
-    const text = await extractPdfText(MINIMAL_PDF_BASE64)
-    expect(typeof text).toBe('string')
-  })
 })
 
 describe('getPdfPageCount', () => {

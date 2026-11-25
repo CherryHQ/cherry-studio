@@ -48,6 +48,31 @@ export default defineProvider({
   },
   overrides: [
     {
+      modelId: 'gpt-6-2-astra',
+      apiModelId: 'gpt-6.2-astra',
+      supportsFastMode: true,
+      limits: { contextWindow: 272000, maxInputTokens: 144000 },
+      endpointTypes: ['openai-responses'],
+      reasoningContracts: codexReasoning(['low', 'medium', 'high', 'xhigh', 'max'], 'low')
+    },
+    {
+      modelId: 'gpt-6-2-sol',
+      apiModelId: 'gpt-6.2-sol',
+      supportsFastMode: true,
+      limits: { contextWindow: 500000, maxInputTokens: 372000 },
+      endpointTypes: ['openai-responses'],
+      reasoningContracts: codexReasoning(['low', 'medium', 'high', 'xhigh', 'max'], 'low')
+    },
+    {
+      modelId: 'gpt-6-1-terra',
+      apiModelId: 'gpt-6.1-terra',
+      supportsFastMode: true,
+      limits: { contextWindow: 500000, maxInputTokens: 372000 },
+      endpointTypes: ['openai-responses'],
+      // Codex Ultra requires client-side task delegation; it is not a wire effort.
+      reasoningContracts: codexReasoning(['low', 'medium', 'high', 'xhigh', 'max'], 'low')
+    },
+    {
       modelId: 'gpt-6-1-sol',
       apiModelId: 'gpt-6.1-sol',
       supportsFastMode: true,

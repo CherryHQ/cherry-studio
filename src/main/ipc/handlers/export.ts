@@ -19,8 +19,8 @@ export const exportHandlers: IpcHandlersFor<typeof exportRequestSchemas> = {
       throw error
     }
   },
-  'export.word.from_markdown': async ({ markdown, fileName }) => {
-    return exportService.exportToWord(markdown, fileName)
+  'export.word.from_markdown': async ({ markdown, fileName }, ctx) => {
+    return exportService.exportToWord(markdown, fileName, ctx.senderId)
   },
   'export.obsidian.get_vaults': async () => obsidianVaultService.getVaults(),
   'export.obsidian.get_files': async ({ vaultName }) => obsidianVaultService.getFilesByVaultName(vaultName)

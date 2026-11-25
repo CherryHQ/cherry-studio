@@ -31,7 +31,7 @@ import { ipcApi } from '@renderer/ipc'
 import { exportDocument, getDocumentExportLabel } from '@renderer/services/documentExport'
 import { findNode } from '@renderer/services/NotesTreeService'
 import { toast } from '@renderer/services/toast'
-import type { NotesTreeNode } from '@renderer/types/note'
+import type { NotesTreeNode, RenameNote } from '@renderer/types/note'
 import type { DocumentFormat } from '@shared/types/documentConversion'
 
 import type { MenuItem as NotesMenuItem } from './MenuConfig'
@@ -45,7 +45,7 @@ interface HeaderNavbarProps {
   getCurrentNoteContent?: () => string
   onToggleStar?: (nodeId: string) => void
   onExpandPath?: (treePath: string) => void
-  onRenameNode?: (nodeId: string, newName: string) => void
+  onRenameNode?: RenameNote
 }
 
 const HeaderNavbar = ({
@@ -168,9 +168,9 @@ const HeaderNavbar = ({
     setTitleValue(e.target.value)
   }, [])
 
-  const handleTitleBlur = useCallback(() => {
+  const handleTitleBlur = useCallback(async () => {
     if (activeNode && titleValue.trim() && titleValue.trim() !== activeNode.name.replace('.md', '')) {
-      onRenameNode?.(activeNode.id, titleValue.trim())
+      await onRenameNode?.(activeNode.id, titleValue.trim())
     } else if (activeNode) {
       // 如果没有更改或为空，恢复原始值
       setTitleValue(activeNode.name.replace('.md', ''))
@@ -286,7 +286,7 @@ const HeaderNavbar = ({
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
             <BaseNavbarIcon
-              className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
+              className="[&_svg]:size-4.5"
               aria-label={t('navbar.hide_sidebar')}
               aria-pressed={showWorkspace}
               onClick={handleToggleShowWorkspace}>
@@ -297,7 +297,7 @@ const HeaderNavbar = ({
         {!showWorkspace && (
           <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
             <BaseNavbarIcon
-              className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
+              className="[&_svg]:size-4.5"
               aria-label={t('navbar.show_sidebar')}
               aria-pressed={showWorkspace}
               onClick={handleToggleShowWorkspace}>
@@ -365,7 +365,7 @@ const HeaderNavbar = ({
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
           <Tooltip title={t('common.more')} delay={800}>
             <PopoverTrigger asChild>
-              <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground" aria-label={t('common.more')}>
+              <BaseNavbarIcon className="[&_svg]:size-4.5" aria-label={t('common.more')}>
                 <MoreHorizontal size={18} />
               </BaseNavbarIcon>
             </PopoverTrigger>

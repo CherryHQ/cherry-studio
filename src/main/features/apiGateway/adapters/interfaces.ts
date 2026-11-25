@@ -8,10 +8,11 @@
  */
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import type { ToolSet, UIMessageChunk } from 'ai'
+import type { ProviderMetadata, ToolSet, UIMessageChunk } from 'ai'
 
+import type { CallOverrides } from '@main/ai/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 /**
@@ -24,6 +25,8 @@ import type { Provider } from '@shared/data/types/provider'
  * only available through `inputTokenDetails`.
  */
 export interface GatewayUsageMetadata {
+  providerMetadata?: ProviderMetadata
+  rawFinishReason?: string
   stats?: {
     totalTokens?: number
     inputTokens?: number
@@ -53,13 +56,7 @@ export type InputFormat = 'anthropic' | 'openai' | 'openai-responses' | 'gemini'
  * Stream text options extracted from input params
  * These are the common parameters used by AI SDK's streamText/generateText
  */
-export interface StreamTextOptions {
-  maxOutputTokens?: number
-  temperature?: number
-  topP?: number
-  topK?: number
-  stopSequences?: string[]
-}
+export type StreamTextOptions = Omit<CallOverrides, 'tools' | 'providerOptions'>
 
 /**
  * Stream Adapter Interface
@@ -100,7 +97,7 @@ export interface IStreamAdapter<TOutputEvent = unknown> {
   buildNonStreamingResponse(): unknown
 
   /**
-   * Get the message ID for this adapter instance
+   * Get the response ID serialized on the provider-compatible wire
    */
   getMessageId(): string
 
@@ -142,7 +139,7 @@ export interface IMessageConverter<TInputParams = unknown> {
    * Convert input tools to AI SDK `ToolSet`. Tools have NO `execute` (client
    * tools): the model emits the call and the gateway forwards it to the client.
    */
-  toAiSdkTools?(params: TInputParams): ToolSet | undefined
+  toAiSdkTools?(params: TInputParams, targetEndpointType?: EndpointType): ToolSet | undefined
 
   /** Restore a provider-safe tool name before returning a tool call to the API client. */
   toClientToolName?(toolName: string): string
@@ -164,7 +161,8 @@ export interface IMessageConverter<TInputParams = unknown> {
     provider: Provider,
     model: Model,
     params: TInputParams,
-    maxOutputTokens?: number
+    maxOutputTokens?: number,
+    overrideReasoning?: boolean
   ): ProviderOptions | undefined
 }
 
@@ -191,7 +189,7 @@ export interface ISseFormatter<TEvent = unknown> {
  * Content block state for tracking streaming content
  */
 export interface ContentBlockState {
-  type: 'text' | 'tool_use' | 'thinking'
+  type: 'text' | 'tool_use' | 'thinking' | 'redacted_thinking'
   index: number
   started: boolean
   content: string
@@ -211,6 +209,7 @@ export interface AdapterState {
   model: string
   inputTokens: number
   cacheReadTokens?: number
+  cacheWriteTokens?: number
   outputTokens: number
   reasoningTokens?: number
   currentBlockIndex: number

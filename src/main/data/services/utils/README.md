@@ -2,7 +2,7 @@
 
 This directory holds **shared utility functions used by the data-service layer**. These utilities have a well-defined responsibility boundary and are not project-wide utilities.
 
-Before using, read the [Row → Entity Mapping](../../../../../docs/references/data/data-api-in-main.md#row--entity-mapping) section of `data-api-in-main.md` to understand the service-layer paradigm and conventions (what `rowToEntity` looks like, when to use `nullsToUndefined`, etc.). The section below captures the design-decision history behind these utilities.
+Before using, read the [Row → Entity Mapping](../../../../../docs/dev/references/data/data-api-in-main.md#row--entity-mapping) section of `data-api-in-main.md` to understand the service-layer paradigm and conventions (what `rowToEntity` looks like, when to use `nullsToUndefined`, etc.). The section below captures the design-decision history behind these utilities.
 
 ## File Index
 

@@ -71,6 +71,8 @@ export interface JobSettledEvent<TPayload = unknown> {
 export interface JobHandler<TPayload = unknown> {
   /** Required: startup recovery behavior for non-terminal jobs of this type. */
   recovery: RecoveryStrategy
+  /** Preserve terminal history for the full GC time window, even above the count cap. */
+  retainTerminalHistoryForTtl?: boolean
   /**
    * Default queue resolver. When enqueue does not pass `opts.queue` the handler
    * may pick one based on input (e.g. `base.${input.baseId}` for per-base
@@ -155,6 +157,11 @@ export interface EnqueueOptions {
   timeoutMs?: number
   maxAttempts?: number
   metadata?: Record<string, unknown>
+  /**
+   * Startup recovery for this job, overriding its handler's `recovery`. `singleton` is a per-type
+   * rule, so it cannot be set per job.
+   */
+  recovery?: Exclude<RecoveryStrategy, 'singleton'>
 }
 
 export interface JobScheduleRegistrationInput<K extends JobType = JobType> {

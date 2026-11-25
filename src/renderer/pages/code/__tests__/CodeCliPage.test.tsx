@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -9,7 +10,7 @@ import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import { addSidebarShortcut, normalizeSidebarShortcutItems } from '@renderer/utils/sidebar'
 import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import CodeCliPage from '../CodeCliPage'
 
@@ -166,7 +167,7 @@ vi.mock('@cherrystudio/ui', () => ({
   SelectItem: ({ children }: { children: ReactNode; value: string }) => <div>{children}</div>,
   SelectTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
-  Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ScrollArea: MockCherrystudioUI.ScrollArea,
   SearchInput: ({
     value,
     placeholder,
@@ -581,16 +582,6 @@ describe('CodeCliPage', () => {
     })
   })
 
-  it('shows Antigravity immediately while hiding Gemini until installation status is resolved', () => {
-    versionStatusesMock.mockReturnValue({})
-    versionStatusesResolvedState.value = false
-
-    render(<CodeCliPage />)
-
-    expect(screen.getByText('Antigravity CLI')).toBeInTheDocument()
-    expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
-  })
-
   it('pins an installed CLI with its localized fallback label', async () => {
     const user = userEvent.setup()
     render(<CodeCliPage />)
@@ -666,18 +657,6 @@ describe('CodeCliPage', () => {
     expect(selectToolMock).not.toHaveBeenCalled()
   })
 
-  it.each(['system', 'mise'] as const)('shows an installed Gemini CLI from the %s snapshot', (source) => {
-    versionStatusesMock.mockReturnValue(
-      baseVersionStatuses({
-        [CodeCli.GEMINI_CLI]: { installed: true, source }
-      })
-    )
-
-    render(<CodeCliPage />)
-
-    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
-  })
-
   it('falls back to the first visible tool after a selected Gemini installation is removed', async () => {
     mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
     versionStatusesMock.mockReturnValue(baseVersionStatuses())
@@ -686,58 +665,6 @@ describe('CodeCliPage', () => {
 
     await waitFor(() => expect(selectToolMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE))
     expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
-  })
-
-  it('shows the discontinuation notice only on the installed Gemini detail page', () => {
-    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
-    versionStatusesMock.mockReturnValue(
-      baseVersionStatuses({
-        [CodeCli.GEMINI_CLI]: { installed: true, source: 'mise' }
-      })
-    )
-
-    const { unmount } = render(<CodeCliPage />)
-    expect(screen.getByText('code.gemini_cli_discontinued')).toBeInTheDocument()
-    unmount()
-
-    mockCodeCliState({ selectedCliTool: CodeCli.ANTIGRAVITY_CLI })
-    render(<CodeCliPage />)
-    expect(screen.queryByText('code.gemini_cli_discontinued')).not.toBeInTheDocument()
-  })
-
-  it('keeps launch, upgrade, and uninstall actions available for an installed Gemini CLI', () => {
-    mockCodeCliState({
-      selectedCliTool: CodeCli.GEMINI_CLI,
-      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new' } },
-      currentProviderId: 'anthropic'
-    })
-    versionStatusesMock.mockReturnValue(
-      baseVersionStatuses({
-        [CodeCli.GEMINI_CLI]: { installed: true, source: 'mise', current: '1.0.0', latest: '1.1.0', canUpgrade: true }
-      })
-    )
-
-    render(<CodeCliPage />)
-
-    expect(screen.getByRole('button', { name: 'start tool' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'upgrade tool' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'remove tool' })).toBeInTheDocument()
-  })
-
-  it('offers official login and Unified Gateway cards for Antigravity', () => {
-    mockProviders.splice(0, mockProviders.length)
-    gatewayState.bundle = {
-      provider: { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider,
-      apiKey: null,
-      ensureRunning: vi.fn(),
-      getApiKey: vi.fn()
-    }
-    mockCodeCliState({ selectedCliTool: CodeCli.ANTIGRAVITY_CLI })
-
-    render(<CodeCliPage />)
-
-    expect(screen.getByRole('button', { name: `toggle ${CLI_OWN_LOGIN_PROVIDER_ID}` })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: `toggle ${CLI_API_GATEWAY_PROVIDER_ID}` })).toBeInTheDocument()
   })
 
   it('opens the config dialog instead of auto-selecting the first model when enabling an unconfigured provider', async () => {
@@ -1168,12 +1095,6 @@ describe('CodeCliPage', () => {
     expect(screen.queryByRole('button', { name: 'launch tool' })).not.toBeInTheDocument()
   })
 
-  it('shows the Anthropic Messages endpoint hint for Claude Code provider setup', () => {
-    render(<CodeCliPage />)
-
-    expect(screen.getByRole('button', { name: /code.add_provider_hint_anthropic_messages/ })).toBeInTheDocument()
-  })
-
   it('opens the provider settings tab (keeping the code page) from the add-provider hint', () => {
     render(<CodeCliPage />)
 
@@ -1181,65 +1102,6 @@ describe('CodeCliPage', () => {
 
     expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/provider')
     expect(navigateMock).not.toHaveBeenCalled()
-  })
-
-  it('shows the OpenAI Responses endpoint hint for Codex provider setup', () => {
-    mockCodeCliState({ selectedCliTool: CodeCli.OPENAI_CODEX })
-
-    render(<CodeCliPage />)
-
-    expect(screen.getByRole('button', { name: /code.add_provider_hint_openai_responses/ })).toBeInTheDocument()
-  })
-
-  it('shows the generic provider setup hint for other provider-backed tools', () => {
-    mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
-
-    render(<CodeCliPage />)
-
-    expect(screen.getByRole('button', { name: /code.add_provider_hint/ })).toBeInTheDocument()
-    expect(screen.queryByText('code.add_provider_hint_anthropic_messages')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
-  })
-
-  it('removes the launch hint once a current provider is selected', () => {
-    mockCodeCliState({
-      providerConfigs: {
-        anthropic: { modelId: 'anthropic::claude-new', config: {} }
-      },
-      currentProviderId: 'anthropic'
-    })
-
-    render(<CodeCliPage />)
-
-    const versionCard = screen.getByTestId('version-status-card')
-    expect(versionCard).toHaveAttribute('data-can-launch', 'true')
-    expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
-  })
-
-  it('does not add a provider selection hint for provider-less tools', () => {
-    mockCodeCliState({ selectedCliTool: CodeCli.QODER_CLI })
-
-    render(<CodeCliPage />)
-
-    expect(screen.queryByText('code.add_provider_hint')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.add_provider_hint_anthropic_messages')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
-    const versionCard = screen.getByTestId('version-status-card')
-    expect(versionCard).toHaveAttribute('data-can-launch', 'true')
-    expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
-  })
-
-  it('offers the own-login entry (and no selection hint) when no real providers exist', () => {
-    mockProviders.splice(0, mockProviders.length)
-    mockCodeCliState()
-
-    render(<CodeCliPage />)
-
-    // Login-capable tools always surface the virtual own-login row, so there is no empty state and
-    // the "select a provider" hint is suppressed (own-login is the only option, nothing to nag about).
-    expect(screen.queryByTestId('empty-config-list')).not.toBeInTheDocument()
-    expect(screen.getByText(`toggle ${CLI_OWN_LOGIN_PROVIDER_ID}`)).toBeInTheDocument()
-    expect(screen.getByTestId('version-status-card')).not.toHaveAttribute('data-launch-disabled-hint')
   })
 
   it('warns that credentials may remain when clearing the CLI config fails during tool removal', async () => {

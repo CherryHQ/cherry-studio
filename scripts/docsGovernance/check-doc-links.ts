@@ -25,6 +25,8 @@ function findMarkdownFiles(dir: string): string[] {
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name)
     if (entry.isDirectory()) {
+      // The website renderer validates its GitBook content separately.
+      if (fullPath === path.join(ROOT, 'docs/website/content')) continue
       // Skip node_modules, .git, out, dist
       if (['node_modules', '.git', 'out', 'dist'].includes(entry.name)) continue
       results.push(...findMarkdownFiles(fullPath))

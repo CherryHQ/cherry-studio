@@ -10,6 +10,15 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 describe('ConversationRowStatus', () => {
+  it('keeps the stream overlay hidden while a preview holds the expanded title layout', () => {
+    render(<ConversationRowStatus status="pending" />)
+
+    // The preview retains mr-0, so a visible pinned overlay would overlap the title.
+    expect(screen.getByRole('img', { name: 'message.tools.status.running' })).toHaveClass(
+      'group-has-[[data-slot=hover-card-trigger][data-state=open]]:opacity-0'
+    )
+  })
+
   it('steps the stream overlay aside when the action rail is pinned', () => {
     render(<ConversationRowStatus status="pending" testId="row-status" />)
 

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-10-31-right-panel-presentation-identity.md
+2026-10-31-right-panel-presentation-identity.md: c890a313c46ff584850c5ab60a73777973648339
+2026-10-31-right-panel-presentation-identity.zh.md: 1613284c83df5ee1d1bed4de504d21ac90a204d4

@@ -33,18 +33,10 @@ export class ScreenshotChatService extends BaseService {
       const id = application.get('WindowManager').getWindowId(window)
       if (id && this.targets.has(id)) this.lastWindowId = id
     }
-    this.registerDisposable(
-      application.get('WindowManager').onWindowDestroyed(({ id }) => {
-        this.targets.delete(id)
-        if (this.lastWindowId === id) this.lastWindowId = null
-        for (const delivery of this.deliveries.values()) {
-          if (delivery.windowId === id) {
-            delivery.outcome = false
-            this.release(delivery)
-          }
-        }
-      })
-    )
+    const manager = application.get('WindowManager')
+    this.registerDisposable(manager.onWindowDestroyed(({ id }) => this.forgetWindow(id)))
+    // A pooled window keeps its renderer, and so its registered target, until its next open.
+    this.registerDisposable(manager.onWindowReleasedToPool(({ id }) => this.forgetWindow(id)))
     app.on('browser-window-focus', rememberWindow)
     this.registerDisposable(() => app.removeListener('browser-window-focus', rememberWindow))
   }
@@ -156,6 +148,17 @@ export class ScreenshotChatService extends BaseService {
     delivery.outcome = accepted
     if (delivery.settle) delivery.settle(accepted)
     else this.release(delivery)
+  }
+
+  private forgetWindow(windowId: WindowId): void {
+    this.targets.delete(windowId)
+    if (this.lastWindowId === windowId) this.lastWindowId = null
+    for (const delivery of this.deliveries.values()) {
+      if (delivery.windowId === windowId) {
+        delivery.outcome = false
+        this.release(delivery)
+      }
+    }
   }
 
   private release(delivery: Delivery): void {

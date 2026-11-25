@@ -1,8 +1,10 @@
 import type { TFunction } from 'i18next'
 import { CircleAlert, FolderPen, Hand, Route, ShieldAlert, ShieldCheck } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 
 import {
+  ConfirmDialog,
   FormControl,
   NormalTooltip,
   Select,
@@ -104,7 +106,7 @@ export function PermissionModeSelectItem({
     <SelectItem
       value={card.mode}
       className={cn(
-        'py-2 data-[state=checked]:bg-accent! data-[state=checked]:text-accent-foreground! [&_.lucide-check]:text-muted-foreground!',
+        '[&_.lucide-check]:text-muted-foreground! py-2 data-[state=checked]:bg-accent! data-[state=checked]:text-accent-foreground!',
         warning && 'pr-14 [&>span:first-child]:right-8!'
       )}>
       <div className="flex w-full min-w-0 items-center gap-2">
@@ -126,11 +128,68 @@ export function PermissionModeSelectItem({
       content={warning}
       side="right"
       sideOffset={8}
-      contentProps={{ portalContainer: portalContainer ?? undefined }}>
+      contentProps={{ portalContainer: portalContainer ?? undefined, className: 'data-[state=closed]:hidden' }}>
       {option}
     </NormalTooltip>
   ) : (
     option
+  )
+}
+
+export type FullAccessScopeKind = 'agent' | 'channel'
+
+/** Confirm Full Access for the selected agent/channel scope before it applies. */
+export function FullAccessConfirmDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+  scopeName,
+  scopeKind = 'agent',
+  t
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => boolean | void
+  scopeName?: string
+  scopeKind?: FullAccessScopeKind
+  t: TFunction
+}) {
+  const scopeLabelKey =
+    scopeKind === 'channel'
+      ? 'agent.settings.tooling.permissionMode.fullAccessConfirm.channelLabel'
+      : 'agent.settings.tooling.permissionMode.fullAccessConfirm.agentLabel'
+  const scopeFallback = scopeKind === 'channel' ? 'Channel' : 'Agent'
+
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t('agent.settings.tooling.permissionMode.fullAccessConfirm.title', 'Enable Full Access?')}
+      description={t(
+        'agent.settings.tooling.permissionMode.fullAccessConfirm.description',
+        'This applies to every folder and resource in the selected scope, including folders connected later. Most tools will run without asking first.'
+      )}
+      content={
+        <div className="flex flex-col gap-2">
+          {scopeName ? (
+            <p className="text-sm">
+              <span className="text-muted-foreground">{t(scopeLabelKey, scopeFallback)}: </span>
+              <span className="font-medium text-foreground">{scopeName}</span>
+            </p>
+          ) : null}
+          <p className="text-muted-foreground text-sm">
+            {t(
+              'agent.settings.tooling.permissionMode.fullAccessConfirm.protections',
+              'Explicit safety blocks still apply, and you can switch back to another mode at any time.'
+            )}
+          </p>
+        </div>
+      }
+      confirmText={t('agent.settings.tooling.permissionMode.fullAccessConfirm.confirm', 'Enable Full Access')}
+      cancelText={t('common.cancel', 'Cancel')}
+      destructive
+      onConfirm={onConfirm}
+    />
   )
 }
 
@@ -140,6 +199,11 @@ export function PermissionModeSelect({
   onValueChange,
   portalContainer,
   ariaLabel,
+  scopeName,
+  scopeKind = 'agent',
+  standalone = false,
+  compact = false,
+  triggerClassName,
   t
 }: {
   cards: PermissionModeCard[]
@@ -147,35 +211,71 @@ export function PermissionModeSelect({
   onValueChange: (value: PermissionMode) => void
   portalContainer: HTMLElement | null
   ariaLabel: string
+  scopeName?: string
+  scopeKind?: FullAccessScopeKind
+  /** Rendered outside a react-hook-form field, so the trigger skips the `FormControl` wiring. */
+  standalone?: boolean
+  /** Single-line options without descriptions, for a pill in a settings list. */
+  compact?: boolean
+  triggerClassName?: string
   t: TFunction
 }) {
   const selectedCard = cards.find((card) => card.mode === value)
+  const trigger = (
+    <SelectTrigger className={cn('h-9 w-full rounded-md', triggerClassName)} aria-label={ariaLabel}>
+      <SelectValue>
+        {selectedCard ? (
+          <span className={cn('flex min-w-0 items-center gap-2', selectedCard.dangerous && 'text-destructive')}>
+            <PermissionModeIcon mode={selectedCard.mode} size={16} />
+            <span className="truncate">{t(selectedCard.titleKey, selectedCard.titleFallback)}</span>
+          </span>
+        ) : null}
+      </SelectValue>
+    </SelectTrigger>
+  )
+  const [fullAccessPending, setFullAccessPending] = useState(false)
+
+  // Any newer mode (local or from another window) wins; confirming must never apply a stale dialog.
+  useEffect(() => {
+    setFullAccessPending(false)
+  }, [value])
 
   return (
-    <Select
-      value={value}
-      onValueChange={(next) => {
-        // Radix's hidden native select can briefly emit an empty value while its dynamic options change.
-        if (next) onValueChange(next as PermissionMode)
-      }}>
-      <FormControl>
-        <SelectTrigger className="h-9 w-full rounded-md" aria-label={ariaLabel}>
-          <SelectValue>
-            {selectedCard ? (
-              <span className={cn('flex min-w-0 items-center gap-2', selectedCard.dangerous && 'text-destructive')}>
-                <PermissionModeIcon mode={selectedCard.mode} size={16} />
-                <span className="truncate">{t(selectedCard.titleKey, selectedCard.titleFallback)}</span>
-              </span>
-            ) : null}
-          </SelectValue>
-        </SelectTrigger>
-      </FormControl>
-      <SelectContent portalContainer={portalContainer} className="min-w-[360px]">
-        {cards.map((card) => (
-          <PermissionModeSelectItem key={card.mode} card={card} portalContainer={portalContainer} t={t} />
-        ))}
-      </SelectContent>
-    </Select>
+    <>
+      <Select
+        value={value}
+        onValueChange={(next) => {
+          // Radix's hidden native select can briefly emit an empty value while its dynamic options change.
+          if (!next) return
+          if (next === 'bypassPermissions' && value !== 'bypassPermissions') {
+            setFullAccessPending(true)
+            return
+          }
+          setFullAccessPending(false)
+          onValueChange(next as PermissionMode)
+        }}>
+        {standalone ? trigger : <FormControl>{trigger}</FormControl>}
+        <SelectContent portalContainer={portalContainer} className={compact ? undefined : 'min-w-[360px]'}>
+          {cards.map((card) => (
+            <PermissionModeSelectItem
+              key={card.mode}
+              card={card}
+              compact={compact}
+              portalContainer={portalContainer}
+              t={t}
+            />
+          ))}
+        </SelectContent>
+      </Select>
+      <FullAccessConfirmDialog
+        open={fullAccessPending}
+        onOpenChange={setFullAccessPending}
+        onConfirm={() => onValueChange('bypassPermissions')}
+        scopeName={scopeName}
+        scopeKind={scopeKind}
+        t={t}
+      />
+    </>
   )
 }
 
@@ -197,7 +297,7 @@ export function PermissionModeOptionLabel({
       <span
         className={cn(
           'truncate text-foreground',
-          withDescription ? 'font-medium text-sm' : 'font-normal text-[13px] leading-4',
+          withDescription ? 'text-sm font-medium' : 'text-[13px] leading-4 font-normal',
           card.dangerous && 'text-destructive'
         )}>
         {t(card.titleKey, card.titleFallback)}

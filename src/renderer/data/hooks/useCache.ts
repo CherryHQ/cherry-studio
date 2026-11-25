@@ -593,6 +593,19 @@ export function useSharedCacheSelector<const Keys extends readonly SharedCacheKe
 }
 
 /**
+ * Latest persisted value reader: a stable getter for the stored value, for call sites that
+ * must compare against the store at effect time instead of the render snapshot.
+ *
+ * @param key - Cache key from the predefined schema
+ * @returns A stable getter for the latest persisted value
+ *
+ * @example useEffect(() => { reconcile(readPinnedTabs()) }, [readPinnedTabs])
+ */
+export function usePersistCacheReader<K extends RendererPersistCacheKey>(key: K): () => RendererPersistCacheSchema[K] {
+  return useCallback(() => cacheService.getPersist(key), [key])
+}
+
+/**
  * React hook for persistent cache with localStorage
  *
  * Use this for data that needs to persist across app restarts and be shared between all windows.

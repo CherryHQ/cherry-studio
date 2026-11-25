@@ -5,7 +5,8 @@ import {
   BACKUP_BACKGROUND_TASKS_ERROR_CODE,
   BACKUP_DISK_FULL_ERROR_CODE,
   BACKUP_NEWER_VERSION_ERROR_CODE,
-  BACKUP_OPERATION_BUSY_ERROR_CODE
+  BACKUP_OPERATION_BUSY_ERROR_CODE,
+  BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE
 } from '@shared/types/backup'
 
 type BackupErrorFallbackKey =
@@ -46,6 +47,9 @@ type BackupMessageKey =
 function resolveBackupErrorKey(error: unknown): string | null {
   if (!(error instanceof Error)) {
     return null
+  }
+  if (error.message.includes(BACKUP_WEBDAV_TOO_LARGE_ERROR_CODE)) {
+    return 'backup.error.webdav_too_large'
   }
   if (error.message.includes(BACKUP_NEWER_VERSION_ERROR_CODE)) {
     return 'backup.error.newer_version'

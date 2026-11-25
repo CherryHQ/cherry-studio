@@ -41,6 +41,7 @@ export interface MessageSearchOptions {
   wholeWord: boolean
   includeUser: boolean
   renderUserTextAsMarkdown: boolean
+  keepIntermediateAssistantText?: boolean
   excludedMessageIds?: ReadonlySet<string>
 }
 
@@ -85,7 +86,11 @@ function projectMessageSearchDocuments(
 
     const entries = getTopLevelPartEntries(partsByMessageId[message.id] ?? [])
     const searchableEntries =
-      message.role === 'assistant' ? projectCompletedMessageParts(entries).resultEntries : entries
+      message.role === 'assistant'
+        ? projectCompletedMessageParts(entries, {
+            keepIntermediateAssistantText: options.keepIntermediateAssistantText
+          }).resultEntries
+        : entries
 
     return searchableEntries.flatMap((entry): MessageSearchDocument[] => {
       if (entry.part.type !== 'text' || !entry.part.text) return []

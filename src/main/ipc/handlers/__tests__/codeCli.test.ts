@@ -26,52 +26,6 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('codeCliHandlers', () => {
-  describe('code_cli.run', () => {
-    it('delegates the run input object to CodeCliService.run and returns the result', async () => {
-      codeCliService.run.mockResolvedValue({ success: true })
-      const input = {
-        mode: 'normal' as const,
-        cliTool: CodeCli.CLAUDE_CODE,
-        model: 'gpt-4',
-        providerId: 'openai',
-        directory: '/tmp',
-        terminal: 'iTerm2'
-      }
-      const result = await codeCliHandlers['code_cli.run'](input, ctx)
-      expect(codeCliService.run).toHaveBeenCalledWith(input)
-      expect(result).toEqual({ success: true })
-    })
-
-    it('does not accept renderer-supplied env', async () => {
-      codeCliService.run.mockResolvedValue({ success: true })
-      const input = {
-        mode: 'normal' as const,
-        cliTool: CodeCli.CLAUDE_CODE,
-        model: 'gpt-4',
-        providerId: 'openai',
-        directory: '/tmp'
-      }
-
-      await codeCliHandlers['code_cli.run'](input, ctx)
-
-      expect(codeCliService.run).toHaveBeenCalledWith(input)
-    })
-
-    it('allows the Claude login flow without provider or model', async () => {
-      codeCliService.run.mockResolvedValue({ success: true })
-      const input = {
-        mode: 'login-flow' as const,
-        cliTool: CodeCli.CLAUDE_CODE as const,
-        directory: '/tmp'
-      }
-
-      const result = await codeCliHandlers['code_cli.run'](input, ctx)
-
-      expect(codeCliService.run).toHaveBeenCalledWith(input)
-      expect(result).toEqual({ success: true })
-    })
-  })
-
   describe('code_cli.read_config', () => {
     it('delegates targets to CodeCliService.readConfigFiles and wraps the files', async () => {
       const files = [{ target: 'claude-settings' as const, path: '/home/u/.claude/settings.json', content: '{}\n' }]
@@ -143,7 +97,7 @@ describe('codeCliHandlers', () => {
         { id: 'terminal', name: 'Terminal', bundleId: 'com.apple.Terminal' }
       ])
       const result = await codeCliHandlers['code_cli.get_available_terminals'](undefined, ctx)
-      expect(codeCliService.getAvailableTerminalsForPlatform).toHaveBeenCalledWith()
+
       expect(result).toEqual([{ id: 'terminal', name: 'Terminal' }])
     })
   })

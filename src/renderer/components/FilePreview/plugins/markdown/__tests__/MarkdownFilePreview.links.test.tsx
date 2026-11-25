@@ -1,11 +1,12 @@
-import '@testing-library/jest-dom/vitest'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { FilePreviewNavigationProvider } from '@renderer/components/FilePreview'
+import type * as CodeStyleModule from '@renderer/hooks/useCodeStyle'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import MarkdownFilePreview from '../MarkdownFilePreview'
@@ -22,7 +23,8 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   default: ({ value }: { value: string }) => <pre aria-label="Code viewer">{value}</pre>
 }))
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', async (importOriginal) => ({
+  ...(await importOriginal<typeof CodeStyleModule>()),
   useCodeStyle: () => ({ activeCmTheme: 'light' }),
   useCmTheme: () => 'light'
 }))
@@ -78,6 +80,14 @@ describe('MarkdownFilePreview links', () => {
         fs: { readText: mocks.readText }
       }
     })
+  })
+
+  it('preserves encoded filename punctuation and source locations through preview navigation', async () => {
+    mocks.readText.mockResolvedValue('[Source](./src/report%3A42.ts#L7-L9)')
+    const openFile = vi.fn()
+    renderArtifactPreview(openFile)
+    await userEvent.click(await screen.findByRole('link', { name: 'Source' }))
+    expect(openFile).toHaveBeenCalledWith('/tmp/workspace/src/report:42.ts', { line: 7, endLine: 9 })
   })
 
   it('opens a relative Markdown link from the workspace root through the host', async () => {

@@ -24,6 +24,7 @@ export function useLocalModel(id: LocalModelBundleId) {
   return {
     status: snapshot?.status ?? 'not_downloaded',
     errorCode: snapshot?.errorCode ?? null,
+    hintCode: snapshot?.hintCode ?? null,
     isStatusResolved: snapshot !== undefined,
     percent: snapshot?.percent ?? 0,
     download,

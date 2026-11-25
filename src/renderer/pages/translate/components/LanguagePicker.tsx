@@ -1,8 +1,8 @@
 import { Check, ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 
-import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Popover, PopoverContent, PopoverTrigger, ScrollArea } from '@cherrystudio/ui'
 import { useLanguages } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils/style'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
@@ -20,8 +20,6 @@ const UNKNOWN_EMOJI = '🏳️'
 const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => {
   const { languages, getLabel, getLanguage } = useLanguages()
   const [open, setOpen] = useState(false)
-  const [isScrolling, setIsScrolling] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const options = useMemo(
     () => languages?.filter((lang) => String(lang.langCode) !== UNKNOWN_LANG_CODE) ?? [],
@@ -30,19 +28,6 @@ const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => 
 
   const selected = getLanguage(value)
   const selectedLabel = selected ? (getLabel(selected, false) ?? selected.value) : (getLabel(null, false) ?? value)
-
-  const handleScroll = () => {
-    setIsScrolling(true)
-    if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => setIsScrolling(false), 1000)
-  }
-
-  useEffect(
-    () => () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    },
-    []
-  )
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -71,13 +56,7 @@ const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => 
         align="start"
         sideOffset={4}
         className="w-(--radix-popover-trigger-width) rounded-md border border-border bg-popover p-1 shadow-xl">
-        <div
-          role="listbox"
-          onScroll={handleScroll}
-          style={{
-            scrollbarColor: isScrolling ? 'var(--scrollbar-thumb) transparent' : 'transparent transparent'
-          }}
-          className="max-h-60 overflow-y-auto">
+        <ScrollArea className="max-h-60" scrollHideDelay={1000} viewportProps={{ role: 'listbox' }}>
           {options.map((lang) => {
             const isSelected = lang.langCode === value
             const label = getLabel(lang, false) ?? lang.value
@@ -103,7 +82,7 @@ const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => 
               </button>
             )
           })}
-        </div>
+        </ScrollArea>
       </PopoverContent>
     </Popover>
   )

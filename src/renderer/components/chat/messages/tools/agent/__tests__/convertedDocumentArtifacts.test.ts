@@ -42,7 +42,16 @@ describe('converted document artifact cards', () => {
           toolName === 'tool_call'
             ? { name: 'mcp__cherry-tools__convert_to_document', params: {} }
             : { markdown: '# Report', format: 'pdf' },
-        callProviderMetadata: { cherry: { parentToolCallId: 'exec-1' } },
+        // Main stamps every Pi part with its resolved tool identity (PiMessageMetadata).
+        callProviderMetadata: {
+          cherry: {
+            parentToolCallId: 'exec-1',
+            tool:
+              toolName === 'tool_call'
+                ? { type: 'builtin', name: 'tool_call' }
+                : { type: 'mcp', name: 'convert_to_document', serverId: 'cherry-tools', serverName: 'cherry-tools' }
+          }
+        },
         output: responseOutput
       } as CherryMessagePart
       const response = buildToolResponseFromPart(part)!

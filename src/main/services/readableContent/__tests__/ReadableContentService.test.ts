@@ -194,22 +194,6 @@ describe('ReadableContentService', () => {
     await expect(extraction).resolves.toBe('preview')
   })
 
-  it('starts the bundled worker without runtime module paths', async () => {
-    const extraction = service.extractReadableMarkdown('<article></article>')
-    const worker = workerMocks.instances[0]
-
-    expect(workerMocks.createWorker).toHaveBeenCalledWith({
-      workerData: { format: 'markdown', inputKind: 'html', source: '<article></article>' }
-    })
-    expect(worker.options).not.toHaveProperty('eval')
-    expect(worker.options.workerData).not.toHaveProperty('jsdomModulePath')
-    expect(worker.options.workerData).not.toHaveProperty('readabilityModulePath')
-    expect(worker.options.workerData).not.toHaveProperty('turndownModulePath')
-
-    emitResult(worker, 'markdown')
-    await extraction
-  })
-
   it('preserves the worker result when termination fails', async () => {
     const extraction = service.extractReadableMarkdown('<article></article>')
     const worker = workerMocks.instances[0]

@@ -78,6 +78,7 @@ describe('native website tools', () => {
       tabId: 'tab',
       tools: [{ name: 'lookup', inputSchema: tool.inputSchema }]
     })
+    expect(f.mock.debugger.sendCommand.mock.calls.map(([method]) => method)).toContain('Runtime.enable')
     f.setExecute((id) =>
       f.emit('WebMCP.toolResponded', { invocationId: id, status: 'Completed', output: { price: 42 } })
     )

@@ -1,6 +1,8 @@
 import * as z from 'zod'
 
-import type { ConversationNavigationTarget } from '@shared/types/navigation'
+import { ComposerMessageTokenKindSchema } from '@shared/data/types/uiParts'
+import { AbsoluteFilePathSchema, FileTypeSchema } from '@shared/types/file'
+import type { ConversationDraft, ConversationNavigationTarget } from '@shared/types/navigation'
 
 import { defineRoute } from '../define'
 
@@ -13,6 +15,38 @@ import { defineRoute } from '../define'
 const conversationNavigationTargetSchema: z.ZodType<ConversationNavigationTarget> = z.object({
   conversationType: z.enum(['assistant', 'agent']),
   conversationId: z.string().min(1)
+})
+
+const conversationDraftSchema: z.ZodType<ConversationDraft> = z.object({
+  text: z.string(),
+  tokens: z.array(
+    z.object({
+      id: z.string(),
+      kind: z.union([ComposerMessageTokenKindSchema, z.enum(['promptVariable', 'messagePart'])]),
+      label: z.string(),
+      icon: z.string().optional(),
+      description: z.string().optional(),
+      promptText: z.string().optional(),
+      payload: z.unknown().optional(),
+      index: z.number(),
+      textOffset: z.number()
+    })
+  ),
+  files: z.array(
+    z.object({
+      fileTokenSourceId: z.string(),
+      path: AbsoluteFilePathSchema.optional(),
+      bytes: z.instanceof(Uint8Array).optional(),
+      mimeType: z.string().optional(),
+      name: z.string(),
+      origin_name: z.string(),
+      ext: z.string(),
+      size: z.number(),
+      type: FileTypeSchema,
+      composerFileKind: z.literal('pasted-text').optional()
+    })
+  ),
+  knowledgeBaseIds: z.array(z.string())
 })
 
 /**
@@ -52,11 +86,14 @@ export const navigationRequestSchemas = {
     output: z.void()
   }),
   // Main serializes this operation per conversation and chooses one full-chrome
-  // destination after the on-demand ownership responses below.
+  // destination after the on-demand ownership responses below. `draft` lands in
+  // that destination's composer for the conversation.
   'navigation.focus_or_open_conversation': defineRoute({
     input: z.object({
       target: conversationNavigationTargetSchema,
-      title: z.string()
+      title: z.string(),
+      draft: conversationDraftSchema.optional(),
+      messageId: z.string().min(1).nullable().optional()
     }),
     output: z.void()
   }),
@@ -84,6 +121,7 @@ export type NavigationEventSchemas = {
   'navigation.conversation_ownership_requested': {
     requestId: string
     target: ConversationNavigationTarget
+    activeOnly?: boolean
   }
   // Directed to exactly one selected owner/destination. The renderer confirms the
   // committed result through `navigation.report_conversation_ownership` above.
@@ -91,6 +129,8 @@ export type NavigationEventSchemas = {
     requestId: string
     target: ConversationNavigationTarget
     title: string
+    messageId?: string | null
+    draft?: ConversationDraft
   }
   // Broadcast fall-through for a deep link whose host matched no dedicated handler
   // (e.g. the PPIO OAuth callback, which has an empty host). Carries the raw url + query
