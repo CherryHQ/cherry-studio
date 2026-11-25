@@ -88,7 +88,7 @@ export const SubWindowAppShell = () => {
         style={
           {
             '--window-controls-width': !isFullscreen && (isWin || isLinux) ? WINDOW_CONTROLS_OVERLAY_WIDTH : '0px'
-          } as CSSProperties
+          } satisfies CSSProperties & { '--window-controls-width': string }
         }>
         <SubWindowTitleBar isFullscreen={isFullscreen} />
         {/* Content Area - Multi MemoryRouter Architecture */}

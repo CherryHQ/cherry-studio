@@ -150,7 +150,7 @@ export function TextInput({ position, selection, fontSize, color, onConfirm, onC
       // raw composition text. Letting it through here bypasses every other defence.
       if (pendingAcceptRef.current) return
 
-      if (!(e as InputEvent).isComposing && !isComposingRef.current) {
+      if (!('isComposing' in e && e.isComposing) && !isComposingRef.current) {
         safeValueRef.current = el.value
       }
     }

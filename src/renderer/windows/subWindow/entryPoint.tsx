@@ -8,6 +8,7 @@ import SubWindowApp from './SubWindowApp'
 
 await prepareWindow({ preference: 'all' })
 
+// SAFETY: index.html defines div#root before loading this entry; prepareWindow only initializes services.
 const root = createRoot(document.getElementById('root') as HTMLElement)
 
 root.render(<SubWindowApp />)

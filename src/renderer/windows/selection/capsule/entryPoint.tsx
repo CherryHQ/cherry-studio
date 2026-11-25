@@ -9,6 +9,7 @@ await prepareWindow({
   preference: ['app.language', 'ui.custom_css', 'ui.theme_mode', 'ui.theme_user.color_primary']
 })
 
+// SAFETY: index.html defines div#root before loading this entry; prepareWindow only initializes services.
 const root = createRoot(document.getElementById('root') as HTMLElement)
 
 root.render(<SelectionCapsuleApp />)
