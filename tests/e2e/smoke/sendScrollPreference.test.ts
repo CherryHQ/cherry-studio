@@ -1,13 +1,7 @@
 import { copyFile, mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import {
-  _electron as electron,
-  type ElectronApplication,
-  type Locator,
-  type Page,
-  type TestInfo
-} from '@playwright/test'
+import { type ElectronApplication, type Locator, type Page, type TestInfo } from '@playwright/test'
 
 import en from '../../../src/renderer/i18n/locales/en-us.json'
 import type { BranchMessagesResponse } from '../../../src/shared/data/types/message'
@@ -16,7 +10,7 @@ import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constan
 import { type MockChatRequest, type MockChatServer, startMockChatServer } from '../../helpers/http/mockChatServer'
 import { selectSidebarApp } from '../regression/helpers/navigation'
 import { openSettingsSection } from '../regression/helpers/settings'
-import { closeElectronApp, expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 
 const view = (page: Page) => page.locator('[data-ui~="chat.view"]:visible')
 const scroller = (page: Page) => view(page).locator('[data-message-virtual-list-scroller]')
@@ -47,7 +41,7 @@ const test = base.extend<{ session: Session; chat: Chat }>({
       }
       const env = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
       Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
-      app = await electron.launch({ args: ['.'], env, timeout: 60_000 })
+      app = await launchSmokeElectron({ args: ['.'], env, timeout: 60_000 })
       let page: Page | undefined
       await expect
         .poll(

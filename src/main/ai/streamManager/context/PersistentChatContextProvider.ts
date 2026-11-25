@@ -11,7 +11,7 @@ import type { ModelMessage, UIMessage } from 'ai'
 import { application } from '@application'
 import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
-import { applyMaxMessagesWindow, messageService } from '@data/services/MessageService'
+import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import {
@@ -37,6 +37,7 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
+import { applyMaxMessagesWindow } from '@shared/utils/contextSettings'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
@@ -854,6 +855,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       id: m.id,
       role: m.role,
       parts: m.data?.parts ?? [],
+      modelId: m.role === 'assistant' && m.status === 'success' ? (m.modelId ?? undefined) : undefined,
       compactionSummary: m.compactionSummary ?? undefined,
       contextTokens: m.stats?.contextTokens ?? undefined,
       createdAt: m.createdAt
@@ -870,7 +872,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       id: row.id,
       role: toContentRole(row.role as MessageRole),
       parts: row.parts,
-      ...(row.createdAt ? { metadata: { createdAt: row.createdAt } } : {})
+      ...((row.createdAt || row.modelId) && {
+        metadata: {
+          ...(row.createdAt && { createdAt: row.createdAt }),
+          ...(row.modelId && { modelId: row.modelId })
+        }
+      })
     } as CherryUIMessage
   }
 

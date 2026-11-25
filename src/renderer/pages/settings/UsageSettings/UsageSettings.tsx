@@ -425,6 +425,7 @@ function UsageSettings() {
                 )}>
                 <MetricCell
                   label={t('settings.usage.cards.totalCost')}
+                  helper={t('settings.usage.cards.costDisclosure')}
                   trendValues={costTrendValues}
                   delta={getRatioChange(totalCost, previousTotalCost)}
                   deltaLabel={t('settings.usage.cards.lastPeriod')}

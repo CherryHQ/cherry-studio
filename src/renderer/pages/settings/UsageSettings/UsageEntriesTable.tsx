@@ -207,9 +207,18 @@ export function UsageEntriesTable({
                         {totalTokens === null ? EMPTY_VALUE : formatCompactNumber(totalTokens)}
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap tabular-nums">
-                        {entry.cost !== null && entry.cost !== undefined
-                          ? formatCost(entry.cost, entry.costCurrency)
-                          : t('settings.usage.table.unpriced')}
+                        {entry.cost !== null && entry.cost !== undefined ? (
+                          <span className="inline-flex flex-wrap items-baseline justify-end gap-x-1.5">
+                            {entry.costSource === 'computed' ? (
+                              <span className="text-[11px] text-foreground-tertiary leading-5">
+                                {t('chat.message.token_details.cost_estimated')}
+                              </span>
+                            ) : null}
+                            <span>{formatCost(entry.cost, entry.costCurrency)}</span>
+                          </span>
+                        ) : (
+                          t('settings.usage.table.unpriced')
+                        )}
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap tabular-nums">
                         {formatMilliseconds(entry.timeFirstTokenMs)}

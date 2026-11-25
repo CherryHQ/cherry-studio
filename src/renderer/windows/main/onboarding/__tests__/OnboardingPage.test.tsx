@@ -114,7 +114,8 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models: enabledModelsMock, isLoading: false })
 }))
 
-vi.mock('@renderer/services/oauth', () => ({
+vi.mock('@renderer/services/oauth', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   oauthWithCherryIn: (...args: unknown[]) => oauthWithCherryInMock(...args)
 }))
 
@@ -190,6 +191,7 @@ describe('OnboardingPage', () => {
     cloudMocks.appEdition = 'global'
     cloudMocks.statusListener = undefined
     cloudMocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'system.shell.open_external_website') return
       if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', accountId: null, displayName: null }
       if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', accountId: null, displayName: null }
       if (route === 'cherry_cloud.login.cancel') return { phase: 'signed-out', accountId: null, displayName: null }
@@ -937,5 +939,23 @@ describe('OnboardingPage', () => {
     expect(screen.queryByTestId('model-settings')).not.toBeInTheDocument()
     expect(toastErrorMock).toHaveBeenCalledWith('onboarding.provider_setup.missing_model')
     expect(toastSuccessMock).not.toHaveBeenCalled()
+  })
+
+  it('offers API key setup after CherryIN authorization without advancing to model selection', async () => {
+    oauthWithCherryInMock.mockResolvedValueOnce('')
+    const user = userEvent.setup()
+    render(<OnboardingPage />)
+
+    await user.click(screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' }))
+    expect(await screen.findByText('settings.provider.oauth.cherryIn.missing_keys')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' })).toBeEnabled()
+    expect(screen.queryByTestId('model-settings')).not.toBeInTheDocument()
+    expect(toastErrorMock).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'settings.provider.get_api_key' }))
+    expect(cloudMocks.ipcRequest).toHaveBeenCalledWith(
+      'system.shell.open_external_website',
+      'https://open.cherryin.ai/console/token'
+    )
   })
 })

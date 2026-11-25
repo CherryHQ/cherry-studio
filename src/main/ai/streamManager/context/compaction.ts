@@ -14,6 +14,7 @@ export interface CompactionRow {
   id: string
   role: string
   parts: Array<{ type: string; text?: string; [k: string]: unknown }>
+  modelId?: string
   /** Durable summary covering the conversation up to AND INCLUDING this row. */
   compactionSummary?: string
   /** Real end-of-turn context size persisted on this row (last-step totalTokens), if any. */

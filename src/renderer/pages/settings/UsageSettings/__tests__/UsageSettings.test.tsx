@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import i18n from '@renderer/i18n/resolver'
 
 import { EMPTY_STATS_METRICS } from '../usageAnalytics'
 import UsageSettings from '../UsageSettings'
@@ -71,7 +72,8 @@ vi.mock('../useUsageData', () => {
   }
 })
 
-beforeAll(() => {
+beforeAll(async () => {
+  await i18n.changeLanguage('zh-cn')
   if (!HTMLElement.prototype.hasPointerCapture) HTMLElement.prototype.hasPointerCapture = () => false
   if (!HTMLElement.prototype.releasePointerCapture) HTMLElement.prototype.releasePointerCapture = () => {}
   if (!HTMLElement.prototype.setPointerCapture) HTMLElement.prototype.setPointerCapture = () => {}
@@ -82,6 +84,12 @@ describe('UsageSettings', () => {
   beforeEach(() => {
     MockCacheUtils.resetMocks()
     usageDataOverride.current = {}
+  })
+
+  it('discloses that totals may include local estimates even for an empty selection', () => {
+    render(<UsageSettings />)
+
+    expect(screen.getByText('总计可能包含本地成本估算；实际费用以服务商账单为准。')).toBeVisible()
   })
 
   it('restores the view selections after leaving and returning to the page', async () => {
