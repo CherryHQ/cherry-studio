@@ -3,7 +3,7 @@ import { expect } from '@playwright/test'
 
 import type { RegressionApp } from '../RegressionApp'
 import { ensureCustomChatProvider, selectVisibleModel } from './models'
-import { selectSidebarApp } from './navigation'
+import { selectSidebarApp, showConversationSidebar } from './navigation'
 import { closeSettings } from './settings'
 
 export function customAssistantName(app: RegressionApp): string {
@@ -23,11 +23,7 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
   await closeSettings(page)
   await selectSidebarApp(page, 'Chat')
   const chatView = page.locator('[data-ui~="chat.view"]:visible').first()
-  const topics = chatView.locator('[data-ui~="chat.topic-list"]:visible').first()
-  const showSidebar = chatView.getByRole('button', { name: 'Show Sidebar', exact: true })
-  await expect(topics.or(showSidebar).first()).toBeVisible()
-  if (!(await topics.isVisible())) await showSidebar.click()
-  await expect(topics).toBeVisible()
+  const topics = await showConversationSidebar(chatView)
   const assistant = topics.getByText(name, { exact: true }).first()
 
   if (!(await assistant.isVisible().catch(() => false))) {
