@@ -173,9 +173,11 @@ message reads strip `runtimeAnchor`. Remote MCP skills have no activation state 
 supporting files are read on demand against the current manifest. See [MCP Skills Client](./mcp-skills-client.md). The child uses the existing
 `runtimeResumeToken` persistence and normal runtime resume path.
 
-The message-list API composes Main-authored `historyActions` alongside the visible rows.
-`AgentSessionRuntimeService` obtains current-page boundary facts from `AgentSessionForkService`,
-including parents outside the page, and applies the shared fork-domain rules. Ordinary
+The message-list API and single-message GET with `deferToolOutputs: true` return
+Main-authored `historyActions` and sibling IDs alongside compact message content.
+The single-message GET looks up the addressed row directly. Both handlers use
+`readHistoryActions` to obtain the requested messages and their parent boundary facts
+from `AgentSessionForkService` and apply the shared fork-domain rules. Ordinary
 `AgentSessionMessageService.listSessionMessages()` reads neither compute these actions nor
 accept runtime callbacks. Raw anchors stay in Main.
 Fork requires a successful native-backed assistant boundary; editing requires either
