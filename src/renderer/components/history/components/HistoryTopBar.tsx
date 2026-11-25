@@ -115,7 +115,11 @@ const HistoryTopBar = ({
           <div className="group/status-select relative flex items-center">
             <Select
               value={selectedStatus === ALL_SOURCE_ID ? '' : selectedStatus}
-              onValueChange={(value) => onStatusSelect(value as HistorySourceStatus)}>
+              onValueChange={(value) => {
+                const selected = statusOptions.find((option) => option.id === value)
+
+                if (selected) onStatusSelect(selected.id)
+              }}>
               <SelectTrigger
                 aria-label={statusLabel}
                 className={cn(
