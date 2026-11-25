@@ -271,6 +271,7 @@ export const ComposerTokenNode = Node.create<ComposerTokenNodeOptions>({
       label: { default: '' },
       icon: { default: null },
       description: { default: null },
+      sourceMessageId: { default: null },
       promptText: { default: null },
       payload: { default: null }
     }
@@ -283,6 +284,7 @@ export const ComposerTokenNode = Node.create<ComposerTokenNodeOptions>({
   renderHTML({ HTMLAttributes }) {
     const safeAttributes = { ...HTMLAttributes }
     delete safeAttributes.payload
+    delete safeAttributes.sourceMessageId
 
     return [
       'span',

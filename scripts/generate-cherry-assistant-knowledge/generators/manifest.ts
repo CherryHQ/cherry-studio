@@ -41,21 +41,7 @@ export interface ProductManifest {
     primary: Array<{ id: string; path: string }>
     all: string[]
   }
-  commands: Array<{
-    id: string
-    titleKey: string
-    categoryKey: string
-    scope: string
-    enablement?: string
-    keybinding?: {
-      defaultBinding: string[]
-      additionalBindings?: string[][]
-      editable?: boolean
-      global?: boolean
-      when?: string
-      supportedPlatforms?: string[]
-    }
-  }>
+  commands: typeof COMMAND_DEFINITIONS
   providers: {
     version: string
     count: number
@@ -254,7 +240,7 @@ export function generateProductManifest(): ProductManifest {
       primary: primaryRoutes,
       all: readAllRoutes()
     },
-    commands: JSON.parse(JSON.stringify(COMMAND_DEFINITIONS)) as ProductManifest['commands'],
+    commands: COMMAND_DEFINITIONS,
     providers: readProviders(),
     locales: [...appLanguageOptions],
     agents: readAgentCapabilities(primaryRoutes),

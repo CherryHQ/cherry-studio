@@ -148,6 +148,32 @@ describe('McpCatalogService', () => {
     expect(service.listTools('server-1', { includeDisabled: true })[0].outputSchema).toBe(false)
   })
 
+  it('preserves the source catalog while separating model and App visibility', async () => {
+    getById.mockReturnValue(server({ disabledTools: ['disabled'] }))
+    listTools.mockResolvedValue([
+      sdkTool('ordinary'),
+      { ...sdkTool('launch'), _meta: { ui: { resourceUri: 'ui://tools/app' } } },
+      { ...sdkTool('app-only'), _meta: { ui: { visibility: ['app'] } } },
+      { ...sdkTool('model-only'), _meta: { ui: { visibility: ['model'] } } },
+      { ...sdkTool('disabled'), _meta: { ui: { visibility: ['app'] } } },
+      { ...sdkTool('invalid'), _meta: { ui: { visibility: ['unknown'] } } }
+    ])
+    const service = new McpCatalogService()
+    await service.refreshTools('server-1')
+
+    expect(service.listTools('server-1', { audience: 'model' }).map((tool) => tool.name)).toEqual([
+      'ordinary',
+      'launch',
+      'model-only'
+    ])
+    expect(service.listTools('server-1', { audience: 'app' }).map((tool) => tool.name)).toEqual([
+      'ordinary',
+      'launch',
+      'app-only'
+    ])
+    expect(service.listTools('server-1', { includeDisabled: true }).map((tool) => tool.name)).toContain('app-only')
+  })
+
   it('mints distinct ids for non-ASCII server names with the same readable slug', async () => {
     getById.mockImplementation((id: string) =>
       id === 'server-a' ? server({ id, name: 'mysql_报销' }) : server({ id, name: 'mysql_电梯' })

@@ -1,5 +1,5 @@
 diff --git a/dist/core/agent-session.d.ts b/dist/core/agent-session.d.ts
-index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..9e4057f33d8a8cfa09e41567d7384581d59fe0d1 100644
+index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..c4703d2a40555b2b4b2e8120f32b7b3652e7c691 100644
 --- a/dist/core/agent-session.d.ts
 +++ b/dist/core/agent-session.d.ts
 @@ -1,3 +1,4 @@
@@ -85,7 +85,16 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..9e4057f33d8a8cfa09e41567d7384581
      /** Messages queued to be included with the next user prompt as context ("asides"). */
      private _pendingNextTurnMessages;
      /** Context-only custom messages queued during a run, flushed once the current turn's tool results are in. */
-@@ -440,6 +465,11 @@ export declare class AgentSession {
+@@ -378,6 +403,8 @@ export declare class AgentSession {
+     /** Internal handler for agent events - shared by subscribe and reconnect */
+     private _handleAgentEvent;
+     private _willRetryAfterAgentEnd;
++    /** Committed identity for a message owned by this session. */
++    getCommittedEntryId(message: AgentMessage): string | undefined;
+     private _findPersistedMessageEntryId;
+     /**
+      * Persistently omit a failed attempt and its tool results from model context. Results are
+@@ -440,6 +467,11 @@ export declare class AgentSession {
       */
      getAllTools(): ToolInfo[];
      getToolDefinition(name: string): ToolDefinition | undefined;
@@ -97,7 +106,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..9e4057f33d8a8cfa09e41567d7384581
      /**
       * Set active tools by name.
       * Only tools in the registry can be enabled. Unknown and hidden tool names are ignored.
-@@ -577,6 +607,11 @@ export declare class AgentSession {
+@@ -577,6 +609,11 @@ export declare class AgentSession {
       * Try to execute an extension command. Returns true if command was found and executed.
       */
      private _tryExecuteExtensionCommand;
@@ -109,7 +118,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..9e4057f33d8a8cfa09e41567d7384581
      /**
       * Expand skill commands (/skill:name args) to their full content.
       * Returns the expanded text, or the original text if not a skill command or skill not found.
-@@ -593,9 +628,7 @@ export declare class AgentSession {
+@@ -593,9 +630,7 @@ export declare class AgentSession {
       * @param options Input source; defaults to interactive
       * @throws Error if text is an extension command
       */
@@ -120,7 +129,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..9e4057f33d8a8cfa09e41567d7384581
      /**
       * Queue a follow-up message to be processed after the agent finishes.
       * Delivered only when agent has no more tool calls or steering messages.
-@@ -604,9 +637,7 @@ export declare class AgentSession {
+@@ -604,9 +639,7 @@ export declare class AgentSession {
       * @param options Input source; defaults to interactive
       * @throws Error if text is an extension command
       */
@@ -131,7 +140,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..9e4057f33d8a8cfa09e41567d7384581
      /**
       * Internal: Queue a steering message (already expanded, no extension command check).
       */
-@@ -617,6 +648,7 @@ export declare class AgentSession {
+@@ -617,6 +650,7 @@ export declare class AgentSession {
      private _queueFollowUp;
      /** Replace a queued user message's images in place with normalized ones, appending hints to its text. */
      private _normalizeQueuedMessageImages;
@@ -139,7 +148,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..9e4057f33d8a8cfa09e41567d7384581
      /**
       * Throw an error if the text is an extension command.
       */
-@@ -633,10 +665,12 @@ export declare class AgentSession {
+@@ -633,10 +667,12 @@ export declare class AgentSession {
       * @param message Custom message with customType, content, display, details
       * @param options.triggerTurn If true and not streaming, triggers a new LLM turn
       * @param options.deliverAs Delivery mode: "steer", "followUp", or "nextTurn"
@@ -153,7 +162,7 @@ index 8b6a58430eea2cbb463e2b51773a8bc6e4914505..9e4057f33d8a8cfa09e41567d7384581
      private _appendCustomMessage;
      /**
 diff --git a/dist/core/agent-session.js b/dist/core/agent-session.js
-index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d8016e752d1 100644
+index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..1c5427152936eb9c6917578865a71df2c7a9c83a 100644
 --- a/dist/core/agent-session.js
 +++ b/dist/core/agent-session.js
 @@ -1,3 +1,4 @@
@@ -270,7 +279,17 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
                  this._lastAssistantMessage = assistantMsg;
                  if (assistantMsg.stopReason !== "error" && assistantMsg.stopReason !== "length") {
                      this._overflowRecoveryAttempted = false;
-@@ -1107,6 +1127,15 @@ export class AgentSession {
+@@ -870,6 +890,9 @@ export class AgentSession {
+         }
+         return false;
+     }
++    getCommittedEntryId(message) {
++        return this._entryIdsByMessage.get(message);
++    }
+     _findPersistedMessageEntryId(message) {
+         const mapped = this._entryIdsByMessage.get(message);
+         if (mapped)
+@@ -1107,6 +1130,15 @@ export class AgentSession {
          this.settingsManager.setCacheWarmingMode(mode);
          this._cacheWarmer?.onModeChanged();
      }
@@ -286,7 +305,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
      /** Current model (may be undefined if not yet selected) */
      get model() {
          return this.agent.state.model;
-@@ -1155,6 +1184,7 @@ export class AgentSession {
+@@ -1155,6 +1187,7 @@ export class AgentSession {
       */
      getAllTools() {
          return Array.from(this._toolDefinitions.values()).map(({ definition, sourceInfo }) => ({
@@ -294,7 +313,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
              name: definition.name,
              description: definition.description,
              parameters: definition.parameters,
-@@ -1175,6 +1205,10 @@ export class AgentSession {
+@@ -1175,6 +1208,10 @@ export class AgentSession {
       * Also rebuilds the system prompt to reflect the new tool set.
       * Changes take effect on the next agent turn.
       */
@@ -305,7 +324,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
      setActiveToolsByName(toolNames) {
          const previous = this.getActiveToolNames();
          this._setActiveTools(toolNames);
-@@ -1239,7 +1273,9 @@ export class AgentSession {
+@@ -1239,7 +1276,9 @@ export class AgentSession {
          const kept = this.getActiveToolNames().filter((name) => requested.has(name));
          const tools = [...new Set([...kept, ...requested])].flatMap((name) => {
              const tool = this._toolRegistry.get(name);
@@ -316,7 +335,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
          });
          const hooks = tools.flatMap((tool) => {
              const entry = this._toolDefinitions.get(tool.name);
-@@ -1388,8 +1424,12 @@ export class AgentSession {
+@@ -1388,8 +1427,12 @@ export class AgentSession {
          options.selectedTools = this._applyToolLoadout(options.selectedTools).map((tool) => tool.name);
          // The tool list and rules must match the declarations the request carries.
          options.hiddenTools = [...this._hiddenDeclarations];
@@ -331,7 +350,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
      }
      /**
       * Send a forced prompt as the provider's leading system prompt without recording it.
-@@ -1484,12 +1524,12 @@ export class AgentSession {
+@@ -1484,12 +1527,12 @@ export class AgentSession {
       * starting another, and an abort requested meanwhile aborts the run as soon as it exists.
       * @param onStarted Called once the run's messages are prepared, before the first request.
       */
@@ -346,7 +365,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
          }
          catch (error) {
              this._isAgentRunActive = false;
-@@ -1515,6 +1555,7 @@ export class AgentSession {
+@@ -1515,6 +1558,7 @@ export class AgentSession {
                  if (await this._handlePostAgentRun()) {
                      if (this._agentRunAbortRequested)
                          break;
@@ -354,7 +373,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
                      await this.agent.continue();
                      continue;
                  }
-@@ -1522,6 +1563,7 @@ export class AgentSession {
+@@ -1522,6 +1566,7 @@ export class AgentSession {
                      break;
                  if (this._agentRunAbortRequested)
                      break;
@@ -362,7 +381,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
                  await this.agent.continue();
              }
          }
-@@ -1541,7 +1583,7 @@ export class AgentSession {
+@@ -1541,7 +1586,7 @@ export class AgentSession {
       * message followed by pending nextTurn messages (consumed here) and handler messages, with a
       * system patch first when the prompt changed.
       */
@@ -371,7 +390,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
          // Check if we need to compact before sending (catches aborted responses).
          // The starting message is sent below, so do not call agent.continue() here.
          const lastAssistant = this._findLastAssistantMessage();
-@@ -1566,11 +1608,7 @@ export class AgentSession {
+@@ -1566,11 +1611,7 @@ export class AgentSession {
              // determines the resize profile used for the request and history.
              const normalized = await this._normalizePromptImages(trigger.images);
              const text = normalized.hints.length > 0 ? `${trigger.prompt}\n\n${normalized.hints.join("\n")}` : trigger.prompt;
@@ -384,7 +403,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
          }
          // Inject any pending "nextTurn" messages as context alongside the starting message
          messages.push(...this._pendingNextTurnMessages);
-@@ -1702,7 +1740,7 @@ export class AgentSession {
+@@ -1702,7 +1743,7 @@ export class AgentSession {
          // Handle extension commands first (execute immediately, even during streaming)
          // Extension commands manage their own LLM interaction via pi.sendMessage()
          if (expandPromptTemplates && text.startsWith("/")) {
@@ -393,7 +412,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
              if (handled) {
                  // Extension command executed, no prompt to send
                  preflightResult?.("handled");
-@@ -1723,7 +1761,7 @@ export class AgentSession {
+@@ -1723,7 +1764,7 @@ export class AgentSession {
              this._promptPreflightCount--;
          }
          if (trigger)
@@ -402,7 +421,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
      }
      /**
       * Run input hooks, expand templates, queue while streaming, and validate model and auth.
-@@ -1735,6 +1773,7 @@ export class AgentSession {
+@@ -1735,6 +1776,7 @@ export class AgentSession {
          // Emit input event for extension interception (before skill/template expansion)
          const processedInput = await this._runInputHandlers(text, options?.images, options?.source ?? "interactive", this.isStreaming ? options?.streamingBehavior : undefined);
          if (!processedInput) {
@@ -410,7 +429,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
              preflightResult?.("handled");
              return undefined;
          }
-@@ -1751,10 +1790,10 @@ export class AgentSession {
+@@ -1751,10 +1793,10 @@ export class AgentSession {
                  throw new Error("Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message.");
              }
              if (options.streamingBehavior === "followUp") {
@@ -423,7 +442,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
              }
              preflightResult?.("queued");
              return undefined;
-@@ -1779,7 +1818,7 @@ export class AgentSession {
+@@ -1779,7 +1821,7 @@ export class AgentSession {
      /**
       * Try to execute an extension command. Returns true if command was found and executed.
       */
@@ -432,7 +451,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
          // Parse command name and args
          const spaceIndex = text.indexOf(" ");
          const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
-@@ -1791,17 +1830,56 @@ export class AgentSession {
+@@ -1791,17 +1833,56 @@ export class AgentSession {
          const ctx = this._extensionRunner.createCommandContext();
          try {
              await command.handler(args, ctx);
@@ -491,7 +510,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
      }
      /**
       * Expand skill commands (/skill:name args) to their full content.
-@@ -1833,20 +1911,22 @@ export class AgentSession {
+@@ -1833,20 +1914,22 @@ export class AgentSession {
              return text; // Return original on error
          }
      }
@@ -518,7 +537,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
          }
          return "queued";
      }
-@@ -1860,7 +1940,7 @@ export class AgentSession {
+@@ -1860,7 +1943,7 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async steer(text, images, options) {
@@ -527,7 +546,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
      }
      /**
       * Queue a follow-up message to be processed after the agent finishes.
-@@ -1871,37 +1951,39 @@ export class AgentSession {
+@@ -1871,37 +1954,39 @@ export class AgentSession {
       * @throws Error if text is an extension command
       */
      async followUp(text, images, options) {
@@ -584,7 +603,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
      }
      /** Replace a queued user message's images in place with normalized ones, appending hints to its text. */
      async _normalizeQueuedMessageImages(message) {
-@@ -1942,6 +2024,7 @@ export class AgentSession {
+@@ -1942,6 +2027,7 @@ export class AgentSession {
       * @param message Custom message with customType, content, display, details
       * @param options.triggerTurn If true and not streaming, triggers a new LLM turn
       * @param options.deliverAs Delivery mode: "steer", "followUp", or "nextTurn"
@@ -592,7 +611,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
       */
      async sendCustomMessage(message, options) {
          const appMessage = {
-@@ -1953,6 +2036,8 @@ export class AgentSession {
+@@ -1953,6 +2039,8 @@ export class AgentSession {
              details: message.details,
              timestamp: Date.now(),
          };
@@ -601,12 +620,13 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
          if (options?.deliverAs === "nextTurn") {
              this._pendingNextTurnMessages.push(appMessage);
          }
-@@ -1983,10 +2068,11 @@ export class AgentSession {
+@@ -1983,10 +2071,12 @@ export class AgentSession {
          }
      }
      _appendCustomMessage(appMessage) {
 -        this.sessionManager.appendCustomMessageEntry(appMessage.customType, appMessage.content, appMessage.display, appMessage.details);
 +        const entryId = this.sessionManager.appendCustomMessageEntry(appMessage.customType, appMessage.content, appMessage.display, appMessage.details);
++        this._entryIdsByMessage.set(appMessage, entryId);
          this._refreshFinalizedContext();
          this._emit({ type: "message_start", message: appMessage });
          this._emit({ type: "message_end", message: appMessage });
@@ -614,7 +634,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
      }
      /**
       * Append custom messages queued while the agent was running.
-@@ -2044,8 +2130,8 @@ export class AgentSession {
+@@ -2044,8 +2134,8 @@ export class AgentSession {
       * @returns Object with steering and followUp arrays
       */
      clearQueue() {
@@ -625,7 +645,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
          this._steeringMessages = [];
          this._followUpMessages = [];
          this.agent.clearAllQueues();
-@@ -2058,11 +2144,11 @@ export class AgentSession {
+@@ -2058,11 +2148,11 @@ export class AgentSession {
      }
      /** Get pending steering messages (read-only) */
      getSteeringMessages() {
@@ -639,7 +659,7 @@ index d67feeb70a00ff60a93583bf4ffb79a3d780fa9b..ef6bb656027688f04f8e2e04f01e1d80
      }
      get resourceLoader() {
          return this._resourceLoader;
-@@ -2094,12 +2180,14 @@ export class AgentSession {
+@@ -2094,12 +2184,14 @@ export class AgentSession {
      async _emitModelSelect(nextModel, previousModel, source) {
          if (modelsAreEqual(previousModel, nextModel))
              return;

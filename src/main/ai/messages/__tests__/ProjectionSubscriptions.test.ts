@@ -49,7 +49,7 @@ it('fences a cancelled asynchronous attach and releases delivery on window destr
   )
   window.emit('destroyed')
   expect(source.observed).toBe(false)
-  source.update(
+  source.updateAccepted(
     { kind: 'topic', topicId: 't', executions: [], messages: [{ id: 'm', role: 'assistant', parts: [] }] },
     true
   )
@@ -91,7 +91,7 @@ it('keeps parent and child publishers independent over the same delivery protoco
   )
   subscriptions.detach(window, 'root')
   root.dispose()
-  child.update(
+  child.updateAccepted(
     {
       ...childState,
       messages: [{ id: 'child-message', role: 'assistant', parts: [{ type: 'text', text: 'still working' }] }]
@@ -112,17 +112,18 @@ it('starts a new revision domain on reattachment without accepting retired publi
   const window = sender()
   let view = previous.snapshot()
   const receive = (update: MessageProjectionUpdate) => {
-    view = applyMessageProjectionUpdate(view, update as MessageProjectionUpdate<TopicProjectionState>)!
+    if (update.kind !== 'topic' || update.type === 'parts') throw new Error('Expected topic structure')
+    view = applyMessageProjectionUpdate(view, update)!
   }
   await subscriptions.attach(window, 'previous', () => previous, receive)
-  previous.update({ ...state, messages: [{ id: 'old', role: 'assistant', parts: [] }] }, true)
+  previous.updateAccepted({ ...state, messages: [{ id: 'old', role: 'assistant', parts: [] }] }, true)
   expect(view.revision).toBe(1)
 
   subscriptions.detach(window, 'previous')
   view = (await subscriptions.attach(window, 'next', () => next, receive)) as typeof view
   expect(view.revision).toBe(0)
-  previous.update({ ...state, messages: [{ id: 'retired', role: 'assistant', parts: [] }] }, true)
-  next.update({ ...state, messages: [{ id: 'current', role: 'assistant', parts: [] }] }, true)
+  previous.updateAccepted({ ...state, messages: [{ id: 'retired', role: 'assistant', parts: [] }] }, true)
+  next.updateAccepted({ ...state, messages: [{ id: 'current', role: 'assistant', parts: [] }] }, true)
   expect(view.messages.map((message) => message.id)).toEqual(['current'])
   expect(view.revision).toBe(1)
   subscriptions.dispose()

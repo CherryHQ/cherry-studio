@@ -1163,6 +1163,10 @@ export class AiService extends BaseService {
     }
 
     const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
+    const imageDownloadSettings =
+      sdkConfig.providerId === 'openai-compatible'
+        ? (sdkConfig.providerSettings as AppProviderSettingsMap['openai-compatible'])
+        : undefined
     const promptParam = inputImages
       ? { text: request.prompt, images: inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -1184,6 +1188,7 @@ export class AiService extends BaseService {
     // (the WireProfile engine), which the image models read; passing them here is
     // dropped by `generateImage`, so they're omitted.
     let imageDownloadFailed = false
+    let imageDownloadErrorDetails: string | undefined
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
@@ -1201,10 +1206,20 @@ export class AiService extends BaseService {
             const downloaded =
               sdkConfig.providerId === 'google'
                 ? await downloadPublicImageAsBase64(url.href, signal)
-                : await downloadImageAsBase64(url.href)
+                : imageDownloadSettings
+                  ? await downloadImageAsBase64(url.href, {
+                      baseURL: imageDownloadSettings.baseURL,
+                      apiKey: imageDownloadSettings.apiKey,
+                      signal,
+                      onHttpError: (host, status) => {
+                        imageDownloadErrorDetails = `${host}, HTTP ${status}`
+                      }
+                    })
+                  : await downloadImageAsBase64(url.href)
             if (signal?.aborted) return null
             if (!downloaded) {
               imageDownloadFailed = true
+              if (imageDownloadSettings) imageDownloadErrorDetails ??= url.host
               return null
             }
             return {
@@ -1233,8 +1248,16 @@ export class AiService extends BaseService {
           onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
         }
       ).catch((error: unknown) => {
-        if (sdkConfig.providerId === 'google' && imageDownloadFailed && NoImageGeneratedError.isInstance(error)) {
-          throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.image_download_failed') })
+        if (
+          (sdkConfig.providerId === 'google' || imageDownloadSettings) &&
+          imageDownloadFailed &&
+          !signal?.aborted &&
+          NoImageGeneratedError.isInstance(error)
+        ) {
+          const message = t('paintings.image_download_failed')
+          throw createPaintingGenerateError('REMOTE_ERROR', {
+            message: imageDownloadErrorDetails ? `${message} (${imageDownloadErrorDetails})` : message
+          })
         }
         throw error
       })

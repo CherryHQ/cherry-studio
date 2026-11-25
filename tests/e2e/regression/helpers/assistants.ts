@@ -10,6 +10,13 @@ export function customAssistantName(app: RegressionApp): string {
   return app.resourceName('Cherry Regression Assistant 31415')
 }
 
+/**
+ * Create the regression assistant through the manual wizard.
+ *
+ * The catalog create dialog opens on a quick-entry view (avatar, name, purpose, model) whose footer
+ * offers "Manual create" / "Auto create"; the stepped wizard this suite drives lives behind
+ * "Manual create". Both views share one form, so entry values carry over into step 1.
+ */
 export async function ensureCustomAssistant(app: RegressionApp, page: Page): Promise<void> {
   const name = customAssistantName(app)
   const providerId = await ensureCustomChatProvider(app, page)
@@ -21,19 +28,44 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
   if (!(await assistant.isVisible().catch(() => false))) {
     await chatView.getByRole('button', { name: 'Add Assistant', exact: true }).click({ noWaitAfter: true })
     await page.getByRole('option', { name: 'New Assistant', exact: true }).click()
-    await page.getByPlaceholder('Enter a name', { exact: true }).fill(name)
-    await page.getByRole('textbox', { name: 'Description', exact: true }).fill('Cherry Regression Test Assistant')
-    await page.locator('[aria-label="Choose avatar"]').click()
-    await page.locator('button[aria-label="star-struck"]').first().click()
-    await page.locator('[aria-label="Model"]').click()
+
+    // One dialog element whose content swaps between the entry view and the steps view, so hold
+    // the locator by role, not by view-specific text.
+    const dialog = page.getByRole('dialog').last()
+    await expect(dialog).toBeVisible()
+
+    // Entry view. Older builds open straight on step 1 with the same field, so accept both
+    // placeholders and treat the purpose box as optional.
+    await dialog.getByPlaceholder(/^(Name your assistant|Enter a name)$/).fill(name)
+    const purpose = dialog.getByPlaceholder(/^What should it help you with\?/)
+    if (await purpose.isVisible().catch(() => false)) {
+      await purpose.fill('Cherry Regression Test Assistant')
+    }
+
+    const manual = dialog.getByRole('button', { name: 'Manual create', exact: true })
+    if (await manual.isVisible().catch(() => false)) {
+      await manual.click()
+      await expect(dialog.getByRole('button', { name: 'Next', exact: true })).toBeVisible()
+    }
+
+    // Step 1: avatar is cosmetic, so a missing emoji entry must not fail the fixture.
+    const avatar = dialog.locator('[aria-label="Choose avatar"]')
+    if (await avatar.isVisible().catch(() => false)) {
+      await avatar.click()
+      const emoji = page.locator('button[aria-label="star-struck"]').first()
+      if (await emoji.isVisible().catch(() => false)) await emoji.click()
+      else await page.keyboard.press('Escape')
+    }
+    await dialog.locator('[aria-label="Model"]').click()
     await selectVisibleModel(page, app.config.customProvider.chatModel, providerId)
-    await page.getByRole('button', { name: 'Next', exact: true }).click()
-    await page
-      .getByRole('dialog')
+    await dialog.getByRole('button', { name: 'Next', exact: true }).click()
+
+    // Step 2: system prompt.
+    await dialog
       .locator('.cm-content[contenteditable="true"]')
       .fill('You must always include the exact phrase ASSISTANT_PROMPT_PASS in every response.')
-    await page.getByRole('button', { name: 'Next', exact: true }).click()
-    await page.getByRole('button', { name: 'Create', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Next', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click()
   } else {
     await assistant.click({ noWaitAfter: true })
   }

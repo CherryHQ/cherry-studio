@@ -1,10 +1,14 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { createQuoteToken } from '@renderer/components/composer/variants/shared/composerQuote'
+import { useCurrentTabId } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
+import { composerReplyDraftService } from '@renderer/services/ComposerReplyDraftService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isHttpUrl } from '@shared/utils/url'
@@ -20,6 +24,14 @@ const TEXT_BLOCK_TAGS = new Set(['BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H
 interface SelectionContextMenuProps {
   children: React.ReactNode
   openBrowserUrl?: (url: string) => void
+  quoteTopicId?: string
+  replyDisabled?: boolean
+}
+
+function getSourceMessageId(range: Range): string | undefined {
+  const node = range.startContainer
+  const element = node instanceof Element ? node : node.parentElement
+  return element?.closest<HTMLElement>('[data-message-id]')?.dataset.messageId
 }
 
 /**
@@ -108,8 +120,19 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
 /**
  * Context menu and automatic toolbar actions for selected conversation content.
  */
-const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, openBrowserUrl }) => {
+const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
+  children,
+  openBrowserUrl,
+  quoteTopicId,
+  replyDisabled
+}) => {
   const { t } = useTranslation()
+  const tabId = useCurrentTabId()
+  const getReplyDestination = useCallback(
+    () => composerReplyDraftService.getDestination(tabId, quoteTopicId),
+    [quoteTopicId, tabId]
+  )
+  const replyDestination = useSyncExternalStore(composerReplyDraftService.subscribe, getReplyDestination)
   const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [notesPath] = usePreference('feature.notes.path')
   const savingNote = useRef(false)
@@ -127,9 +150,16 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
     [t]
   )
 
-  const handleQuote = useCallback((text: string) => {
-    void window.api.quoteToMainWindow(text)
-  }, [])
+  const handleQuote = useCallback(
+    (text: string, sourceMessageId?: string) => {
+      if (quoteTopicId && sourceMessageId) {
+        void EventEmitter.emit(EVENT_NAMES.INSERT_COMPOSER_QUOTE, { topicId: quoteTopicId, text, sourceMessageId })
+      } else {
+        void window.api.quoteToMainWindow(text)
+      }
+    },
+    [quoteTopicId]
+  )
 
   const handleSaveToNotes = useCallback(
     async (text: string) => {
@@ -155,7 +185,12 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
   )
 
   const getMenuItems = useCallback(
-    (text: string, quoteText: string, canSaveSelection: boolean): CommandContextMenuExtraItem[] => {
+    (
+      text: string,
+      quoteText: string,
+      canSaveSelection: boolean,
+      sourceMessageId?: string
+    ): CommandContextMenuExtraItem[] => {
       if (text.length === 0) return []
 
       return [
@@ -169,7 +204,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
           type: 'item',
           id: 'selection.quote',
           label: t('chat.message.quote'),
-          onSelect: () => handleQuote(quoteText)
+          onSelect: () => handleQuote(quoteText, sourceMessageId)
         },
         ...(canSaveSelection
           ? [
@@ -205,6 +240,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
             )
           )
         })
+      const sourceMessageId = canSaveSelection && range ? getSourceMessageId(range) : undefined
       const target = event.target instanceof Element ? event.target : null
       const latex = target
         ?.closest('.katex')
@@ -253,21 +289,40 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children, o
             onSelect: () => handleCopy(href)
           }
         ]
-        const contentItems = [...getMenuItems(selectedLinkText, quoteText, canSaveSelection), ...formulaItems]
+        const contentItems = [
+          ...getMenuItems(selectedLinkText, quoteText, canSaveSelection, sourceMessageId),
+          ...formulaItems
+        ]
         return contentItems.length > 0 ? [...contentItems, { type: 'separator' }, ...linkItems] : linkItems
       }
 
-      return [...getMenuItems(selectedText, quoteText, canSaveSelection), ...formulaItems]
+      return [...getMenuItems(selectedText, quoteText, canSaveSelection, sourceMessageId), ...formulaItems]
     },
     [getMenuItems, handleCopy, mathEnableSingleDollar, openBrowserUrl, t]
   )
 
+  const getQuoteText = (selection: Selection) =>
+    extractSelectedText(selection, { singleDollar: mathEnableSingleDollar })
+
   return (
     <TextSelectionToolbar
       onCopy={(selection) => handleCopy(extractSelectedText(selection))}
-      onQuote={(selection) => handleQuote(extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }))}
-      onSaveToNotes={(selection) =>
-        void handleSaveToNotes(extractSelectedText(selection, { singleDollar: mathEnableSingleDollar }))
+      onQuote={(selection) => handleQuote(getQuoteText(selection), getSourceMessageId(selection.getRangeAt(0)))}
+      onSaveToNotes={(selection) => void handleSaveToNotes(getQuoteText(selection))}
+      onStartReply={(selection) => {
+        const quote = getQuoteText(selection)
+        const sourceMessageId = getSourceMessageId(selection.getRangeAt(0))
+        return quote.trim() ? createQuoteToken(quote, t('selection.action.builtin.quote'), sourceMessageId) : null
+      }}
+      onSaveReply={
+        replyDestination && !replyDisabled
+          ? (text, token) =>
+              getReplyDestination()?.({
+                selectedText: token.description,
+                sourceMessageId: token.sourceMessageId,
+                text
+              }) ?? false
+          : undefined
       }
       isSavingNote={isSavingNote}>
       <CommandContextMenu location="chat.message.context" getExtraItems={getExtraItems}>
