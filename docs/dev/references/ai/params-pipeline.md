@@ -255,6 +255,13 @@ namespace bags remain exclusive to `providerOptions`, non-JSON requests are
 left unchanged, and SDK-produced body fields take precedence over custom
 parameters.
 
+For Anthropic Messages, each model attempt applies flat assistant custom
+`tool_choice` strings (`auto`, `none`, `any`, and `required`) through AI SDK
+middleware before serialization. The middleware supplies a default only when
+the current step has tools and supplies no explicit choice. This also applies
+when a retry switches to an Anthropic Messages model. Object values continue
+through request-body passthrough.
+
 ## Where to read more
 
 - Code: `src/main/ai/runtime/aiSdk/params/`
