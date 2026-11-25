@@ -2,6 +2,7 @@ import { t } from 'i18next'
 import React, { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
+import { getEventTargetElement } from '@renderer/utils/dom'
 import { isMac } from '@renderer/utils/platform'
 import { classNames } from '@renderer/utils/style'
 
@@ -1042,7 +1043,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     if (!ctx.isVisible) return
 
     const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
+      const target = getEventTargetElement(e.target)
+
+      if (!target) return
 
       if (target.closest('#inputbar')) return
 
