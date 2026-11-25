@@ -1,0 +1,72 @@
+@page {
+  size: A4;
+  margin: 18mm;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-family);
+  font-size: 11pt;
+  line-height: 1.65;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.markdown button,
+.markdown [data-streamdown='code-block-actions'] {
+  display: none;
+}
+
+.markdown [data-streamdown='code-block'] {
+  content-visibility: visible !important;
+  contain: none !important;
+}
+
+.markdown pre,
+.markdown pre span,
+.markdown [data-streamdown='code-block-body'] {
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.markdown code {
+  font-family: var(--code-font-family);
+}
+
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.markdown thead {
+  display: table-header-group;
+}
+
+.markdown tr,
+.markdown img {
+  break-inside: avoid;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  break-after: avoid;
+}
+
+.markdown img {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown .katex-display {
+  overflow: visible;
+}

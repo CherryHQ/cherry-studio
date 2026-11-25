@@ -1,21 +1,18 @@
-import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 import { beforeAll, describe, expect, it } from 'vitest'
+
+import type * as ExcelJS from '@cherrystudio/spreadsheet'
+import { createWorkbook, readWorkbookForPreview, writeWorkbook } from '@cherrystudio/spreadsheet'
 
 import { createZipBytes } from '../../../__tests__/zipTestBytes'
 import { OFFICE_ZIP_LIMITS } from '../../../officeZipPreflight'
 import { MAX_COLS, MAX_MERGED_RANGES, MAX_ROWS } from '../gridLayout'
 import type { CellStyle, WorkbookRenderModel } from '../renderModel'
-import { loadExcelJsWorkbook, parseWorkbook } from '../worker/parseWorkbook'
+import { parseWorkbook } from '../worker/parseWorkbook'
 import { buildChartWorkbookArrayBuffer } from './xlsxTestPackages'
 
 async function toArrayBuffer(workbook: ExcelJS.Workbook): Promise<ArrayBuffer> {
-  const buf = await workbook.xlsx.writeBuffer()
-  // writeBuffer() returns Buffer (a Uint8Array subclass) in Node; copy it into an independent ArrayBuffer.
-  const view = buf as unknown as Uint8Array
-  const arrayBuffer = new ArrayBuffer(view.byteLength)
-  new Uint8Array(arrayBuffer).set(view)
-  return arrayBuffer
+  return (await writeWorkbook(workbook)).buffer
 }
 
 const excelColor = (color: { theme?: number; tint?: number; indexed?: number }): ExcelJS.Color =>
@@ -25,7 +22,7 @@ describe('parseWorkbook — sheets, values, hidden', () => {
   let model: WorkbookRenderModel
 
   beforeAll(async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
 
     const s1 = wb.addWorksheet('Data')
     s1.getCell('A1').value = 'hello'
@@ -107,7 +104,7 @@ describe('parseWorkbook — styles: extraction + dedup', () => {
   let model: WorkbookRenderModel
 
   beforeAll(async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
 
     ws.getCell('A1').value = 'styled-1'
@@ -169,7 +166,7 @@ describe('parseWorkbook — merges, row/col sizing, hidden', () => {
   let model: WorkbookRenderModel
 
   beforeAll(async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
     ws.mergeCells('A1:C1')
     ws.getCell('A1').value = 'merged header'
@@ -213,11 +210,11 @@ describe('parseWorkbook — merges, row/col sizing, hidden', () => {
   })
 })
 
-describe('loadExcelJsWorkbook — declared ranges are not expanded per cell', () => {
+describe('readWorkbookForPreview — declared ranges are not expanded per cell', () => {
   let workbook: ExcelJS.Workbook
 
   beforeAll(async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
     ws.getCell('A1').value = 'value'
     wb.definedNames.add('S1!$A$1:$Z$100', 'wideRange')
@@ -231,7 +228,7 @@ describe('loadExcelJsWorkbook — declared ranges are not expanded per cell', ()
       '<formula1>"a,b"</formula1></dataValidation></dataValidations>'
     zip.file(sheetPath, sheetXml.replace('<pageMargins', `${rangeBlocks}<pageMargins`))
 
-    workbook = await loadExcelJsWorkbook(await zip.generateAsync({ type: 'arraybuffer' }))
+    workbook = await readWorkbookForPreview(await zip.generateAsync({ type: 'arraybuffer' }))
   })
 
   it('does not create cells covered by a merge', () => {
@@ -250,7 +247,7 @@ describe('loadExcelJsWorkbook — declared ranges are not expanded per cell', ()
 
 describe('parseWorkbook — merges are read from each sheet part', () => {
   it('assigns every merge to the sheet that declares it', async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     wb.addWorksheet('First').getCell('A1').value = 'first'
     const second = wb.addWorksheet('Second')
     second.getCell('B2').value = 'merged'
@@ -264,7 +261,7 @@ describe('parseWorkbook — merges are read from each sheet part', () => {
 
 describe('parseWorkbook — hostile merge count is bounded', () => {
   it('keeps only the configured number of merge ranges', async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
     ws.getCell('A1').value = 'value'
 
@@ -293,7 +290,7 @@ describe('parseWorkbook — per-sheet defaults + cell-less row definitions', () 
   let model: WorkbookRenderModel
 
   beforeAll(async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1', { properties: { defaultRowHeight: 30, defaultColWidth: 16 } })
     ws.getCell('A1').value = 'x'
     const buffer = await toArrayBuffer(wb)
@@ -331,7 +328,7 @@ describe('parseWorkbook — formulas: three states', () => {
   let model: WorkbookRenderModel
 
   beforeAll(async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
 
     ws.getCell('A1').value = 10
@@ -377,7 +374,7 @@ describe('parseWorkbook — formulas: forward references evaluate recursively', 
   let model: WorkbookRenderModel
 
   beforeAll(async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws1 = wb.addWorksheet('S1')
     const ws2 = wb.addWorksheet('S2')
 
@@ -418,7 +415,7 @@ describe('parseWorkbook — formulas: shared formula text is translated per cell
   let model: WorkbookRenderModel
 
   beforeAll(async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
 
     ws.getCell('N4').value = 0
@@ -477,7 +474,7 @@ describe('parseWorkbook — number formats', () => {
   let model: WorkbookRenderModel
 
   beforeAll(async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
 
     ws.getCell('A1').value = 0.4567
@@ -492,7 +489,7 @@ describe('parseWorkbook — number formats', () => {
     ws.getCell('A4').value = 12345678901234
     // General (default, no explicit numFmt)
 
-    const wb1904 = new ExcelJS.Workbook()
+    const wb1904 = createWorkbook()
     wb1904.properties.date1904 = true
     const ws1904 = wb1904.addWorksheet('S1')
     ws1904.getCell('A1').value = new Date(Date.UTC(2026, 0, 15))
@@ -533,7 +530,7 @@ describe('parseWorkbook — theme colors', () => {
   let model: WorkbookRenderModel
 
   beforeAll(async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('Theme')
 
     ws.getCell('A1').value = 'theme text'
@@ -601,7 +598,7 @@ describe('parseWorkbook — floating images', () => {
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
 
   beforeAll(async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
     const imgId = wb.addImage({ base64: PNG_BASE64, extension: 'png' })
     // oneCellAnchor: tl + ext in px. ExcelJS multiplies by 9525 when writing EMUs and divides back when reading.
@@ -641,7 +638,7 @@ describe('parseWorkbook — floating images', () => {
   })
 
   it('expands the used range to cover the full floating image bounds', async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
     const imgId = wb.addImage({ base64: PNG_BASE64, extension: 'png' })
     ws.addImage(imgId, { tl: { col: 0, row: 0 }, br: { col: 20, row: 40 } } as unknown as ExcelJS.ImageRange)
@@ -660,7 +657,7 @@ describe('parseWorkbook — floating images', () => {
   // anchor and the stored drawing XML is then mutated to the hostile coordinate — mirroring a crafted .xlsx. The
   // tight timeout fails if the local colX/rowY looping regression returns.
   it('bounds a hostile image anchor instead of looping up to the coordinate', async () => {
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
     const imgId = wb.addImage({ base64: PNG_BASE64, extension: 'png' })
     ws.addImage(imgId, { tl: { col: 1, row: 1 }, ext: { width: 20, height: 10 } })
@@ -694,7 +691,7 @@ describe('parseWorkbook — sparse rows reaching the last column', () => {
   it('reads only the cells present in the file instead of filling the gap up to column XFD', async () => {
     const rowCount = 100
     const fill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } }
-    const wb = new ExcelJS.Workbook()
+    const wb = createWorkbook()
     const ws = wb.addWorksheet('S1')
     for (let row = 1; row <= rowCount; row++) {
       // A row-level style makes any gap cell ExcelJS fabricates come back styled, so it would be rendered.

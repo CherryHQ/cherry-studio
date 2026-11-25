@@ -1,0 +1,13 @@
+{
+  "name": "@cherrystudio/spreadsheet",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/workbook.ts"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  }
+}

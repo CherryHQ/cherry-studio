@@ -9,6 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveLocalFile, resolveWorkspaceFile } from '@main/ai/channels'
 import { listAgentSessionAttachments } from '@main/ai/messages/agentSessionAttachments'
+import { convertToDocumentToWorkspace } from '@main/ai/tools/convertToDocument'
 import { isWinArm64 } from '@main/core/platform'
 import { t } from '@main/i18n'
 import type { FileAttachment } from '@main/utils/downloadAsBase64'
@@ -20,6 +21,11 @@ import {
   toMarkdownInputSchema,
   toMarkdownOutputSchema
 } from '@shared/ai/builtinTools'
+import {
+  CONVERT_TO_DOCUMENT_TOOL_NAME,
+  CONVERT_TO_DOCUMENT_DESCRIPTION,
+  convertToDocumentInputSchema
+} from '@shared/ai/documentConversionTool'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 export interface CherryDocumentContext {
@@ -144,6 +150,34 @@ async function processScannedPdf(source: FileAttachment, bytes: Buffer, signal: 
 }
 
 export function registerDocumentTools(server: McpServer, context: CherryDocumentContext): void {
+  server.registerTool(
+    CONVERT_TO_DOCUMENT_TOOL_NAME,
+    { description: CONVERT_TO_DOCUMENT_DESCRIPTION, inputSchema: convertToDocumentInputSchema },
+    async (input, ctx) => {
+      const source = input.source_path ? await resolveDocumentSource(context, input.source_path) : undefined
+      let assetRoot: string | undefined
+      if (input.source_path) {
+        const physicalPath = await realpath(
+          AbsoluteFilePathSchema.parse(path.resolve(context.workspacePath, input.source_path))
+        )
+        const workspaceRoot = await realpath(AbsoluteFilePathSchema.parse(context.workspacePath))
+        const agentRoot = await realpath(AbsoluteFilePathSchema.parse(context.agentDataPath)).catch(() => undefined)
+        assetRoot = isSameOrInside(physicalPath, workspaceRoot)
+          ? workspaceRoot
+          : agentRoot && isSameOrInside(physicalPath, agentRoot)
+            ? agentRoot
+            : ''
+      }
+      const output = await convertToDocumentToWorkspace(
+        context.workspacePath,
+        input,
+        ctx.mcpReq.signal,
+        source,
+        assetRoot
+      )
+      return { content: [{ type: 'text', text: JSON.stringify(output) }] }
+    }
+  )
   server.registerTool(
     TO_MARKDOWN_TOOL_NAME,
     { description: TO_MARKDOWN_DESCRIPTION, inputSchema: toMarkdownInputSchema },

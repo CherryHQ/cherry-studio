@@ -1071,6 +1071,7 @@ const NotesPage: FC<NotesPageProps> = ({ notePath, onNoteOpened }) => {
               <NotesSidebar
                 notesTree={notesTree}
                 activeFilePath={activeFilePath}
+                getCurrentNoteContent={getCurrentNoteContent}
                 sortType={sortType}
                 selectedFolderId={selectedFolderId}
                 onSelectNode={handleSelectNode}

@@ -8,6 +8,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { validatePath } from '@main/ai/mcp/servers/filesystem'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { isWindowsPath } from '@shared/utils/file'
 
 const logger = loggerService.withContext('AssistantFileSafety')
 const IO_CHUNK_BYTES = 64 * 1024
@@ -66,13 +67,14 @@ export function relativeWorkspacePath(workspacePath: string, targetPath: string)
 
 export function hasWindowsInvalidFilenameSegment(filePath: string): boolean {
   const pathWithoutDriveRoot = /^[A-Za-z]:[\\/]/.test(filePath) ? filePath.slice(2) : filePath
-  return pathWithoutDriveRoot
+  const hasInvalidCharacter = pathWithoutDriveRoot
     .split(/[\\/]+/)
     .some((segment) =>
       Array.from(segment).some(
         (character) => WINDOWS_INVALID_FILENAME_CHARACTERS.includes(character) || character.charCodeAt(0) <= 0x1f
       )
     )
+  return hasInvalidCharacter || !isWindowsPath(filePath)
 }
 
 export async function assertWorkspacePathUnchanged(
@@ -220,7 +222,7 @@ function runUnlinkOwnedPathChild(
   })
 }
 
-async function bestEffortUnlinkOwnedPath(
+export async function bestEffortUnlinkOwnedPath(
   target: AbsoluteFilePath,
   expected: Pick<BigIntStats, 'dev' | 'ino'>,
   operation: string

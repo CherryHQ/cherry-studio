@@ -333,6 +333,13 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Markdown is easier for the agent to read',
     mcpServer: 'cherry-tools'
   },
+  CherryConvertToDocument: {
+    name: 'mcp__cherry-tools__convert_to_document',
+    category: 'file',
+    exposure: 'user',
+    description: 'Converts Markdown into PDF, Word, PowerPoint, or Excel documents in the workspace',
+    mcpServer: 'cherry-tools'
+  },
   // agent autonomy / channels (hosted by cherry-tools). notify needs a connected channel to do anything.
   CherryCron: {
     name: 'mcp__cherry-tools__cron',
@@ -455,6 +462,7 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__kb_search': 'Knowledge Search',
   'mcp__cherry-tools__kb_manage': 'Manage Knowledge',
   'mcp__cherry-tools__to_markdown': 'File to Markdown',
+  'mcp__cherry-tools__convert_to_document': 'Convert to Document',
   'mcp__agent-memory__memory': 'Memory',
   'mcp__cherry-tools__cron': 'Scheduler',
   'mcp__cherry-tools__notify': 'Notify',

@@ -6,6 +6,7 @@ import {
   AtSign,
   Copy,
   Eye,
+  FileDown,
   Folder,
   List,
   LoaderCircle,
@@ -44,7 +45,12 @@ import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import FileCommentBox from '@renderer/components/FileCommentBox'
 import type { LineComment } from '@renderer/components/FileEditor'
-import { canProduceSelectionReference, FilePreview, hasRenderedFilePreview } from '@renderer/components/FilePreview'
+import {
+  canProduceSelectionReference,
+  FilePreview,
+  hasRenderedFilePreview,
+  useOptionalOpenFilePreviewTab
+} from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { buildOpenTargetMenuItems, loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
 import { RightPaneTabs } from '@renderer/components/RightPaneTabs'
@@ -58,14 +64,17 @@ import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { ipcApi } from '@renderer/ipc'
+import { exportDocument, getDocumentExportLabel } from '@renderer/services/documentExport'
 import { toast } from '@renderer/services/toast'
 import {
   type ComposerFileReference,
   SELECTION_EXCERPT_MAX_LENGTH,
   type SelectionReference
 } from '@renderer/types/selectionReference'
+import { getDocumentConversionFormats } from '@renderer/utils/documentConversion'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { hasUnwrappableLine } from '@renderer/utils/softWrap'
@@ -337,6 +346,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     onAttachPathToContext
   } = props
   const { t } = useTranslation()
+  const openFilePreviewTab = useOptionalOpenFilePreviewTab()
   const [paneElement, artifactPaneRef] = useState<HTMLDivElement | null>(null)
   const [paneSettings] = useFilePaneSettings()
   // Wide panes keep the tree beside the preview; narrow panes cover it with the preview overlay.
@@ -595,6 +605,11 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     filePath: overlayFilePath,
     workspacePath: overlayWorkspacePath
   }
+  const exportDraftRef = useRef<{ path: string; markdown: string } | null>(null)
+  exportDraftRef.current =
+    editMode === 'edit' && fileSession?.status === 'ready' && overlaySelection
+      ? { path: getArtifactPaneSelectionPath(overlaySelection), markdown: fileSession.draft }
+      : null
   // React 19 delegates events at the root container, so a document-level listener would never see a keydown
   // whose SyntheticEvent.stopPropagation() this handler already called.
   const handleOverlayKeyDown = useCallback(
@@ -676,6 +691,47 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     [onAttachPathToContext, t]
   )
 
+  const refreshTree = model.refresh
+  const getDocumentExportItems = useCallback(
+    (targetPath: string, assetRoot: string | undefined): CommandContextMenuExtraItem[] => {
+      const formats = getDocumentConversionFormats(targetPath)
+      if (!formats.length) return []
+      return [
+        {
+          type: 'submenu',
+          id: 'artifact.export',
+          label: t('document_export.convert_to'),
+          icon: <FileDown size={16} />,
+          children: formats.map((format) => ({
+            type: 'item',
+            id: `artifact.export.${format}`,
+            label: getDocumentExportLabel(format),
+            onSelect: () =>
+              void exportDocument({
+                filePath: targetPath,
+                onPreview: openFilePreviewTab
+                  ? (filePath) => openFilePreviewTab(AbsoluteFilePathSchema.parse(filePath))
+                  : undefined,
+                onConverted: () =>
+                  void refreshTree().catch((error: unknown) =>
+                    logger.warn('Failed to refresh the file tree after conversion', error as Error)
+                  ),
+                draft: () =>
+                  exportDraftRef.current?.path === normalizeFilePreviewPath(targetPath)
+                    ? exportDraftRef.current.markdown
+                    : undefined,
+                sourcePath: targetPath,
+                assetRoot,
+                defaultName: getPathBasename(targetPath),
+                format
+              })
+          }))
+        }
+      ]
+    },
+    [t, openFilePreviewTab, refreshTree]
+  )
+
   const getFileTreeMenuItems = useCallback(
     async (node: FileTreeNode): Promise<readonly CommandContextMenuExtraItem[]> => {
       const targetPath = getFileTreeNodeTargetPath(workspacePath, node)
@@ -696,10 +752,11 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           fileName: node.name,
           copyFile: { state: copyState, onSelect: () => void copyFile(targetPath) }
         }),
+        ...(node.kind === 'file' ? getDocumentExportItems(targetPath, workspacePath) : []),
         ...(openItems.length ? [{ type: 'separator' as const }, ...openItems] : [])
       ]
     },
-    [attachMenuItems, copyFile, copyPath, t, workspacePath]
+    [attachMenuItems, copyFile, copyPath, getDocumentExportItems, t, workspacePath]
   )
 
   const getFolderMenuItems = useCallback(
@@ -806,10 +863,11 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           fileName: getPreviewFileTitle(selection),
           copyFile: { state: copyState, onSelect: () => void copyFile(getArtifactPaneSelectionPath(selection)) }
         }),
+        ...getDocumentExportItems(getArtifactPaneSelectionPath(selection), selection.workspacePath),
         ...(openItems.length ? [{ type: 'separator' as const }, ...openItems] : [])
       ]
     },
-    [attachMenuItems, copyFile, copyPath, t, workspacePath]
+    [attachMenuItems, copyFile, copyPath, getDocumentExportItems, t, workspacePath]
   )
   const activeOpenItems = useMemo(
     () => buildOpenTargetMenuItems({ targets: fileOpenTargets, onOpen: handleOpenFileTarget, t }),

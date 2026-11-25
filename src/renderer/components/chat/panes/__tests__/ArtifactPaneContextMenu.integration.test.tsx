@@ -32,7 +32,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/services/toast', () => ({
-  toast: { success: mocks.toastSuccess, error: mocks.toastError, closeToast: vi.fn() }
+  toast: { success: mocks.toastSuccess, error: mocks.toastError, loading: vi.fn(), closeToast: vi.fn() }
 }))
 
 vi.mock('@logger', () => ({
@@ -67,6 +67,7 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({
+  useOptionalOpenFilePreviewTab: () => undefined,
   FilePreview: ({ filePath }: { filePath: string }) => <div data-testid="file-preview">{filePath}</div>,
   hasRenderedFilePreview: (filePath: string) => /\.(md|html?|svg)$/.test(filePath),
   FilePreviewModeToolbarPortalHost: () => null,
@@ -220,7 +221,7 @@ const breadcrumbTitle = (name: string) => within(screen.getByTestId('artifact-fi
 function createMockModel(): ArtifactFileTreeModel {
   return {
     nodes: [],
-    nodeById: {},
+    nodeById: new Map(),
     expandedIds: new Set(),
     errorKind: undefined,
     onExpandedChange: vi.fn(),
@@ -414,6 +415,50 @@ describe('ArtifactPane Context Menu Integration', () => {
     await waitFor(() => {
       expect(mocks.openTarget).toHaveBeenCalledWith('/tmp/workspace/README.md', 'file', 'vscode')
     })
+  })
+
+  it.each([
+    { selectedFile: 'reports/report.md', assetRoot: '/tmp/workspace' },
+    {
+      previewFileSelection: { workspacePath: '/tmp/other-workspace', filePath: 'reports/report.md' },
+      assetRoot: '/tmp/other-workspace'
+    }
+  ])(
+    'exports Markdown with the selected workspace as its image boundary: $assetRoot',
+    async ({ assetRoot, ...props }) => {
+      mocks.preferenceValues['menu.presentation_mode'] = 'native'
+      mocks.showNativePopupMenu.mockResolvedValueOnce({ type: 'custom', id: 'artifact.export.pdf' })
+
+      renderHarness(props)
+      fireEvent.contextMenu(breadcrumbTitle('report.md'))
+
+      await waitFor(() => {
+        expect(mocks.ipcRequest).toHaveBeenCalledWith('export.document.convert_and_save', {
+          filePath: `${assetRoot}/reports/report.md`,
+          markdown: undefined,
+          format: 'pdf',
+          defaultName: 'report.md',
+          sourcePath: `${assetRoot}/reports/report.md`,
+          assetRoot
+        })
+      })
+      expect(mocks.readExternal).not.toHaveBeenCalled()
+    }
+  )
+
+  it('offers Markdown conversion and omits the original PDF format', async () => {
+    mocks.preferenceValues['menu.presentation_mode'] = 'native'
+    mocks.showNativePopupMenu.mockResolvedValueOnce(null)
+
+    renderHarness({ previewFileSelection: { workspacePath: '/tmp/workspace', filePath: 'report.pdf' } })
+    fireEvent.contextMenu(breadcrumbTitle('report.pdf'))
+
+    await waitFor(() => expect(mocks.showNativePopupMenu).toHaveBeenCalled())
+    const items = mocks.showNativePopupMenu.mock.calls[0][0].items
+    const convert = items.find((item: { label?: string }) => item.label === 'document_export.convert_to')
+    const ids = convert.children.map((child: { id: string }) => child.id)
+    expect(ids).toContain('artifact.export.md')
+    expect(ids).not.toContain('artifact.export.pdf')
   })
 
   it('remounts context menu when preview selection switches, avoiding stale target actions (Issue 1)', async () => {

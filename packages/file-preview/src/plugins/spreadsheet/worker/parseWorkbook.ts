@@ -1,5 +1,7 @@
-import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
+
+import type * as ExcelJS from '@cherrystudio/spreadsheet'
+import { readWorkbookForPreview } from '@cherrystudio/spreadsheet'
 
 import { assertZipLimits } from '../../../officeZipPreflight'
 import {
@@ -549,22 +551,7 @@ function forEachExistingCell(row: ExcelJS.Row, iteratee: (cell: ExcelJS.Cell, co
   }
 }
 
-interface XlsxWorkbookPartParser {
-  parseWorkbook(stream: unknown): Promise<{ definedNames?: unknown[] }>
-}
-
 const MERGE_CELL_REF_PATTERN = /<mergeCell\b[^>]*?\sref\s*=\s*(["'])(.*?)\1/g
-
-// ExcelJS expands merges, data validations and defined names into one entry per covered cell while loading. The
-// preview reads merges itself and uses neither of the others; ignoreNodes cannot reach workbook.xml's defined names.
-export async function loadExcelJsWorkbook(data: ArrayBuffer): Promise<ExcelJS.Workbook> {
-  const workbook = new ExcelJS.Workbook()
-  const xlsx = workbook.xlsx as unknown as XlsxWorkbookPartParser
-  const parseWorkbookPart = xlsx.parseWorkbook.bind(xlsx)
-  xlsx.parseWorkbook = async (stream) => ({ ...(await parseWorkbookPart(stream)), definedNames: [] })
-  await workbook.xlsx.load(data, { ignoreNodes: ['mergeCells', 'dataValidations'] })
-  return workbook
-}
 
 async function readMergeRefs(zip: JSZip, sheetPartPath: string): Promise<string[]> {
   const xml = await zip.file(sheetPartPath)?.async('string')
@@ -602,7 +589,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
   let workbook: ExcelJS.Workbook
   try {
-    workbook = await loadExcelJsWorkbook(dataForExcelJs)
+    workbook = await readWorkbookForPreview(dataForExcelJs)
   } catch (err) {
     throw new Error(`Failed to parse xlsx file: ${err instanceof Error ? err.message : String(err)}`)
   }

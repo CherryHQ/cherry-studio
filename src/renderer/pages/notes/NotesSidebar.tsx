@@ -31,6 +31,7 @@ interface NotesSidebarProps {
   onLocateNoteLine: (noteId: string, match: SearchMatch) => void
   notesTree: NotesTreeNode[]
   activeFilePath?: string
+  getCurrentNoteContent?: () => string
   sortType: NotesSortType
   selectedFolderId?: string | null
 }
@@ -88,6 +89,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   onLocateNoteLine,
   notesTree,
   activeFilePath,
+  getCurrentNoteContent,
   sortType,
   selectedFolderId
 }) => {
@@ -123,7 +125,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     onSelectNode,
     handleStartEdit,
     handleAutoRename,
-    activeNode
+    activeNode,
+    getCurrentNoteContent
   })
 
   const searchOptions = useMemo(

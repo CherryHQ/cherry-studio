@@ -495,6 +495,7 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({
+  useOptionalOpenFilePreviewTab: () => undefined,
   FilePreview: (props: {
     filePath: string
     refreshKey: number
@@ -1468,7 +1469,7 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/src/index.ts'))
   })
 
-  it('groups the file menu: copy actions, then open targets with other apps in a submenu', async () => {
+  it('groups the file menu: copy and convert actions, then open targets with other apps in a submenu', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     render(<ArtifactPaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
@@ -1478,6 +1479,7 @@ describe('ArtifactPane', () => {
     const items = commandMenuMocks.calls.findLast((c) => c.pendingExtraItems?.length)?.pendingExtraItems ?? []
     expect(items.map((item) => (item.type === 'separator' ? '-' : item.id))).toEqual([
       'artifact-pane.file.copy',
+      'artifact.export',
       '-',
       'external-open-target.system-default',
       'external-open-target.file-manager',
@@ -1502,7 +1504,7 @@ describe('ArtifactPane', () => {
     await act(async () => relative.onSelect())
     expect(await navigator.clipboard.readText()).toBe('README.md')
 
-    const defaultApp = items[2]
+    const defaultApp = items.find((item) => item.type === 'item' && item.id === 'external-open-target.system-default')
     if (defaultApp?.type !== 'item') throw new Error('Missing default app item')
     defaultApp.onSelect()
     expect(mocks.openedTargets).toEqual(['system-default'])
@@ -1536,7 +1538,10 @@ describe('ArtifactPane', () => {
     await screen.findByTestId('artifact-file-preview-overlay')
 
     const items = commandMenuMocks.calls.findLast((c) => c.pendingExtraItems?.length)?.pendingExtraItems ?? []
-    expect(items.map((item) => item.type !== 'separator' && item.id)).toEqual(['artifact-pane.file.copy'])
+    expect(items.map((item) => item.type !== 'separator' && item.id)).toEqual([
+      'artifact-pane.file.copy',
+      'artifact.export'
+    ])
   })
 
   it('shows the full path on the file breadcrumb', async () => {

@@ -52,6 +52,16 @@ describe('builtinToolPolicy', () => {
     ).toBe(false)
   })
 
+  it('requires approval to write a converted document while document reads remain automatic', () => {
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__convert_to_document', WITHOUT_HOST_TOOLS)?.approval).toBe(
+      'required'
+    )
+    expect(findBuiltinToolPolicy('mcp__cherry-tools__to_markdown', WITHOUT_HOST_TOOLS)?.approval).toBe('auto')
+    expect(listBuiltinToolPolicies({ approval: 'auto' }).map(toMcpRuntimeName)).not.toContain(
+      'mcp__cherry-tools__convert_to_document'
+    )
+  })
+
   it('auto-approves Session renames only when cherry-tools is mounted', () => {
     expect(findBuiltinToolPolicy('mcp__cherry-tools__session_rename', WITHOUT_HOST_TOOLS)?.approval).toBe('auto')
     expect(findBuiltinToolPolicy('mcp__cherry-tools__session_rename', new Set())).toBeUndefined()
