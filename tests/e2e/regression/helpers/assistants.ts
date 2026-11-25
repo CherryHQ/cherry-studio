@@ -23,7 +23,12 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
   await closeSettings(page)
   await selectSidebarApp(page, 'Chat')
   const chatView = page.locator('[data-ui~="chat.view"]:visible').first()
-  const assistant = chatView.getByText(name, { exact: true }).first()
+  const topics = chatView.locator('[data-ui~="chat.topic-list"]:visible').first()
+  const showSidebar = chatView.getByRole('button', { name: 'Show Sidebar', exact: true })
+  await expect(topics.or(showSidebar).first()).toBeVisible()
+  if (!(await topics.isVisible())) await showSidebar.click()
+  await expect(topics).toBeVisible()
+  const assistant = topics.getByText(name, { exact: true }).first()
 
   if (!(await assistant.isVisible().catch(() => false))) {
     await chatView.getByRole('button', { name: 'Add Assistant', exact: true }).click({ noWaitAfter: true })
