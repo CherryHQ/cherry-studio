@@ -1860,8 +1860,12 @@ describe('local protocol processes', () => {
     expect(events.some((event) => event.type === 'local-session-info')).toBe(true)
 
     await connection.send(input)
+    await vi.waitFor(() => expect(events.some((event) => event.type === 'tool-approval-request')).toBe(true))
     await expect(connection.setMode?.('codex-mode', 'workspace')).rejects.toThrow('unavailable or busy')
     await expect(connection.setThoughtLevel?.('codex-effort', 'low')).rejects.toThrow('unavailable or busy')
+    const approval = events.find((event) => event.type === 'tool-approval-request')
+    if (!approval || approval.type !== 'tool-approval-request') throw new Error('Expected approval request')
+    toolApprovalRegistry.dispatch(approval.request.approvalId, { approved: true })
     await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1))
 
     await connection.setMode?.('codex-mode', 'fullAccess')

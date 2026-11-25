@@ -67,11 +67,6 @@ const CLAUDE_CODE_BUILTIN_COMMANDS = [
   { command: '/usage', description: 'Show session cost, plan usage limits, and activity stats' }
 ] as const satisfies readonly SlashCommand[]
 
-const LOCAL_BUILTIN_COMMANDS = [
-  ...CLAUDE_CODE_BUILTIN_COMMANDS,
-  { command: '/goal', description: 'Set a goal to work toward until it is completed' }
-] as const satisfies readonly SlashCommand[]
-
 const PI_BUILTIN_COMMANDS = [
   { command: '/compact', description: 'Compact conversation with optional focus instructions' },
   { command: '/goal', description: 'Set a goal to work toward until it is completed' }
@@ -123,7 +118,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     mcp: false,
     skills: false,
     claudeRegistryTools: false,
-    slashCommands: LOCAL_BUILTIN_COMMANDS,
+    slashCommands: [],
     nativeFollowUp: false,
     createDefaults: { permissionMode: 'default' },
     isModelCompatible: () => false,

@@ -1334,7 +1334,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         method: `item/${type}/requestApproval`,
         params: { threadId: 'native-session', turnId: 'turn', itemId: 'tool', reason: 'Review action' }
       })
-    } else if (scenario === 'permission' || scenario === 'standalone-permission') {
+    } else if (
+      scenario === 'permission' ||
+      scenario === 'standalone-permission' ||
+      (scenario === 'codex-full-access' && turn === 1)
+    ) {
       if (protocol === 'acp') {
         if (scenario !== 'standalone-permission')
           update({
