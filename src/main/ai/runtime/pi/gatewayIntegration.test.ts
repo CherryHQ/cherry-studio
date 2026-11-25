@@ -964,42 +964,47 @@ describe('native Pi through the production gateway', () => {
   })
 
   // Catches metadata stripped by the production stream pipeline before native Pi can replay it.
-  it('replays encrypted-only reasoning through native Pi and the production Responses gateway', async () => {
-    protocol = 'openai-responses'
-    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
-    dbh.db
-      .update(userProviderTable)
-      .set({
-        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: url } },
-        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+  it.each(['openai', 'xai-responses'])(
+    'replays encrypted-only %s reasoning through native Pi',
+    async (adapterFamily) => {
+      protocol = 'openai-responses'
+      const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: url, adapterFamily } },
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES
+        })
+        .where(eq(userProviderTable.providerId, 'port'))
+        .run()
+      const binding = await createPiGatewayModelBinding(
+        { sessionId: 'session' },
+        providerService.getByProviderId('port'),
+        modelService.getByKey('port', 'wire-model')
+      )
+      const directory = tempDir('gateway-responses')
+      session = await openSession({
+        ...binding,
+        cwd: directory,
+        agentDir: directory,
+        settings: { retry: { enabled: false } }
       })
-      .where(eq(userProviderTable.providerId, 'port'))
-      .run()
-    const binding = await createPiGatewayModelBinding(
-      { sessionId: 'session' },
-      providerService.getByProviderId('port'),
-      modelService.getByKey('port', 'wire-model')
-    )
-    const directory = tempDir('gateway-responses')
-    session = await openSession({
-      ...binding,
-      cwd: directory,
-      agentDir: directory,
-      settings: { retry: { enabled: false } }
-    })
-    await sendUser('first question')
-    expect(outcome()).toBe('completed')
-    await sendUser('continue')
-    expect(outcome()).toBe('completed')
-    expect(requests).toHaveLength(2)
-    expect(requests[1].input).toContainEqual({
-      type: 'reasoning',
-      id: 'rs_native_1',
-      summary: [],
-      encrypted_content: 'encrypted-native-state'
-    })
-    expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(2)
-  })
+      await sendUser('first question')
+      expect(outcome()).toBe('completed')
+      await sendUser('continue')
+      expect(outcome()).toBe('completed')
+      expect(requests).toHaveLength(2)
+      expect(requests[1].input).toContainEqual(
+        expect.objectContaining({
+          type: 'reasoning',
+          id: 'rs_native_1',
+          summary: [],
+          encrypted_content: 'encrypted-native-state'
+        })
+      )
+      expect(dbh.db.select().from(aiUsageRecordTable).all()).toHaveLength(2)
+    }
+  )
 
   it.each([
     { format: 'anthropic', endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES },

@@ -161,7 +161,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
           const part: ReasoningUIPart = {
             type: 'reasoning',
             text,
-            providerMetadata: { openai: metadata, azure: metadata }
+            providerMetadata: { openai: metadata, azure: metadata, xai: metadata }
           }
           messages.push({ id: nextUIMessageId(), role: 'assistant', parts: [part] })
         }

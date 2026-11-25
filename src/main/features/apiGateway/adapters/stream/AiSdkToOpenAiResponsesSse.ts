@@ -380,7 +380,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   }
 
   private ensureReasoningItem(metadata?: ProviderMetadata, hasText = false): void {
-    const native = metadata?.openai ?? metadata?.azure
+    const native = metadata?.openai ?? metadata?.azure ?? metadata?.xai
     const itemId = typeof native?.itemId === 'string' ? native.itemId : undefined
     const encryptedContent =
       typeof native?.reasoningEncryptedContent === 'string' ? native.reasoningEncryptedContent : undefined
