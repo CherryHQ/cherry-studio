@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
+// Registry assembly does not run native Electron integrations, which cannot load under the Node test runner.
 vi.mock('@sentry/electron/main', () => ({
   addIntegration: vi.fn(),
   sentryMinidumpIntegration: vi.fn()
 }))
+
+vi.mock('@electron-toolkit/utils', () => ({ optimizer: { watchWindowShortcuts: vi.fn() } }))
 
 import { serviceList, services } from '../serviceRegistry'
 
