@@ -30,7 +30,7 @@ import { isMac } from '@renderer/utils/platform'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
-import type { AbsoluteFilePath, FileType } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
 
@@ -602,7 +602,7 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
 
     if (!fileStats) return counts
 
-    for (const type of ['image', 'video', 'audio', 'text', 'document', 'other'] as FileType[]) {
+    for (const type of ['image', 'video', 'audio', 'text', 'document', 'other'] as const) {
       counts[`type_${type}`] = 0
     }
 
