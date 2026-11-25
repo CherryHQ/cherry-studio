@@ -1656,6 +1656,7 @@
   "error.diagnosis.bad_request": "O pedido ao fornecedor falhou (HTTP 400)",
   "error.diagnosis.content": "Conteúdo bloqueado pelo sistema de segurança, modifique e tente novamente",
   "error.diagnosis.context_length": "Conversa muito longa, por favor limpe o histórico ou inicie um novo chat",
+  "error.diagnosis.default_model_unavailable": "Não foi possível executar o diagnóstico por IA com o modelo predefinido. Verifique o modelo nas definições e tente novamente.",
   "error.diagnosis.deprecated": "Este modelo foi descontinuado; por favor, mude para outro modelo.",
   "error.diagnosis.free_model_unavailable": "O diagnóstico por IA está temporariamente indisponível",
   "error.diagnosis.go_to_settings": "Ir para definições",

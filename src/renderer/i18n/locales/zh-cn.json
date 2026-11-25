@@ -1656,6 +1656,7 @@
   "error.diagnosis.bad_request": "服务商请求失败（HTTP 400）",
   "error.diagnosis.content": "内容被安全系统拦截，请修改后重试",
   "error.diagnosis.context_length": "对话上下文过长，请清理历史消息或开始新对话",
+  "error.diagnosis.default_model_unavailable": "AI 诊断无法通过默认模型运行。请在设置中检查该模型后重试。",
   "error.diagnosis.deprecated": "该模型已弃用，请更换其他模型",
   "error.diagnosis.free_model_unavailable": "AI 诊断暂时不可用",
   "error.diagnosis.go_to_settings": "前往设置",

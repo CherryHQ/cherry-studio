@@ -1656,6 +1656,7 @@
   "error.diagnosis.bad_request": "คำขอไปยังผู้ให้บริการล้มเหลว (HTTP 400)",
   "error.diagnosis.content": "เนื้อหาถูกบล็อกโดยระบบความปลอดภัย กรุณาแก้ไขและลองอีกครั้ง",
   "error.diagnosis.context_length": "การสนทนายาวเกินไป กรุณาล้างประวัติหรือเริ่มแชทใหม่",
+  "error.diagnosis.default_model_unavailable": "การวินิจฉัยด้วย AI ทำงานกับโมเดลเริ่มต้นไม่สำเร็จ โปรดตรวจสอบโมเดลในการตั้งค่าแล้วลองอีกครั้ง",
   "error.diagnosis.deprecated": "โมเดลนี้ถูกยกเลิกแล้ว กรุณาเปลี่ยนเป็นโมเดลอื่น",
   "error.diagnosis.free_model_unavailable": "การวินิจฉัยด้วย AI ไม่ว่างชั่วคราว",
   "error.diagnosis.go_to_settings": "ไปที่การตั้งค่า",

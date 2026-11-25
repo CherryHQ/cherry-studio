@@ -1658,6 +1658,7 @@
   "error.diagnosis.bad_request": "Solicitarea către furnizor a eșuat (HTTP 400)",
   "error.diagnosis.content": "Conținutul a fost blocat de sistemul de siguranță; modifică-l și încearcă din nou",
   "error.diagnosis.context_length": "Conversația este prea lungă, te rugăm să ștergi istoricul sau să începi o conversație nouă",
+  "error.diagnosis.default_model_unavailable": "Diagnosticul AI nu a putut fi rulat cu modelul implicit. Verificați modelul în Setări și încercați din nou.",
   "error.diagnosis.deprecated": "Acest model a fost retras, te rugăm să treci la alt model",
   "error.diagnosis.free_model_unavailable": "Diagnosticul AI este temporar indisponibil",
   "error.diagnosis.go_to_settings": "Mergi la setări",

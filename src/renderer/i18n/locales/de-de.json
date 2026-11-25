@@ -1656,6 +1656,7 @@
   "error.diagnosis.bad_request": "Anfrage an den Anbieter fehlgeschlagen (HTTP 400)",
   "error.diagnosis.content": "Inhalt wurde vom Sicherheitssystem blockiert, bitte ändern und erneut versuchen",
   "error.diagnosis.context_length": "Unterhaltung zu lang, bitte Verlauf löschen oder einen neuen Chat beginnen",
+  "error.diagnosis.default_model_unavailable": "Die KI-Diagnose konnte nicht mit Ihrem Standardmodell ausgeführt werden. Prüfen Sie das Modell in den Einstellungen und versuchen Sie es erneut.",
   "error.diagnosis.deprecated": "Dieses Modell wurde außer Betrieb genommen, bitte wechseln Sie zu einem anderen Modell",
   "error.diagnosis.free_model_unavailable": "Die KI-Diagnose ist vorübergehend nicht verfügbar.",
   "error.diagnosis.go_to_settings": "Zu Einstellungen",

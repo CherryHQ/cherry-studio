@@ -1680,6 +1680,7 @@
   "error.diagnosis.bad_request": "Żądanie do dostawcy nie powiodło się (HTTP 400)",
   "error.diagnosis.content": "Treść została zablokowana przez system bezpieczeństwa, zmodyfikuj ją i spróbuj ponownie",
   "error.diagnosis.context_length": "Rozmowa jest zbyt długa, wyczyść historię lub rozpocznij nowy czat",
+  "error.diagnosis.default_model_unavailable": "Diagnoza AI nie mogła zostać uruchomiona z modelem domyślnym. Sprawdź model w ustawieniach i spróbuj ponownie.",
   "error.diagnosis.deprecated": "Ten model został wycofany, przełącz się na inny model",
   "error.diagnosis.free_model_unavailable": "Diagnoza AI jest tymczasowo niedostępna",
   "error.diagnosis.go_to_settings": "Przejdź do Ustawień",
