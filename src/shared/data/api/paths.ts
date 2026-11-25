@@ -10,10 +10,10 @@ import type { ApiSchemas } from './schemas/apiSchemas'
  * @example '/test/items/:id' -> '/test/items/${string}'
  * @example '/topics/:id/messages' -> '/topics/${string}/messages'
  */
-export type ResolvedPath<T extends string> = T extends `${infer Prefix}/:${string}/${infer Suffix}`
-  ? `${Prefix}/${string}/${ResolvedPath<Suffix>}`
-  : T extends `${infer Prefix}/:${string}`
-    ? `${Prefix}/${string}`
+export type ResolvedPath<T extends string> = T extends `${infer Head}/${infer Tail}`
+  ? `${Head extends `:${string}` ? string : Head}/${ResolvedPath<Tail>}`
+  : T extends `:${string}`
+    ? string
     : T
 
 /**

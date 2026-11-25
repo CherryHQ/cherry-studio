@@ -31,7 +31,7 @@ import {
 import { loggerService } from '@logger'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { computeMinimalMoves, reorderLocally } from '@renderer/data/utils/reorder'
-import type { BodyForPath, ConcreteApiPaths, TemplateApiPaths } from '@shared/data/api/paths'
+import type { BodyForPath, ConcreteApiPaths } from '@shared/data/api/paths'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { ApiSchemas, GetMethodApiPaths } from '@shared/data/api/types'
 
@@ -195,14 +195,17 @@ export type UseReorderResult<Path extends SortableCollectionPath = SortableColle
   isPending: boolean
 } & (Path extends BatchSortableCollectionPath ? { applyReorderedList: (reorderedList: ItemList) => Promise<void> } : {})
 
-type ReorderParamsOption<TCollection extends TemplateApiPaths> =
-  ParamsOption<TCollection, 'GET'> extends infer TParams
+type ReorderParamsOptions = {
+  [Path in SortableCollectionPath]: ParamsOption<Path, 'GET'> extends infer TParams
     ? TParams extends { params: infer TPathParams }
       ? 'id' extends keyof TPathParams
         ? never
         : TParams
       : TParams
     : never
+}
+
+type ReorderParamsOption<Path extends SortableCollectionPath> = ReorderParamsOptions[Path]
 
 type ReorderArgs<Cache> = {
   [Path in SortableCollectionPath]: Path extends ParameterizedSortableCollectionPath
@@ -274,7 +277,10 @@ export function useReorder<
   TCollection extends Exclude<SortableCollectionPath, ParameterizedSortableCollectionPath>,
   Cache = CollectionCache
 >(collectionUrl: TCollection, options?: UseReorderOptions<Cache>): UseReorderResult<TCollection>
-export function useReorder<Cache>(...[collectionUrl, options]: ReorderArgs<Cache>): UseReorderResult {
+export function useReorder<Cache>(
+  collectionUrl: SortableCollectionPath,
+  options?: ReorderArgs<Cache>[1]
+): UseReorderResult {
   const hasSelect = options?.selectItems !== undefined
   const hasUpdate = options?.updateItems !== undefined
 
