@@ -11,6 +11,8 @@ import {
   isSupportedWindowsRelease
 } from '@shared/utils/osSupport'
 
+import osSupportMessages from './osSupportMessages.json'
+
 /**
  * Minimum NT release for update manifests (`latest.yml`).
  * electron-updater compares this against the client's local `os.release()`
@@ -40,6 +42,16 @@ function isChinesePreferred(): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * Minimal mustache-style formatter for the preboot sidecar messages.
+ * Kept local (instead of `@main/i18n`'s `t()`) so this earliest gate stays
+ * dependency-free: `@main/i18n` pulls `@application` → `LoggerService`,
+ * whose file transports touch the profile on import.
+ */
+function formatPrebootTemplate(template: string, params: Record<string, string>): string {
+  return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, name: string) => (name in params ? params[name] : match))
 }
 
 /**
@@ -86,20 +98,19 @@ export function runOsSupportGate(): 'handled' | 'skipped' {
   })
   try {
     const chineseFirst = isChinesePreferred()
+    // Bilingual by construction: both EN and ZH are always shown (order only
+    // follows the system locale) so a locale-lookup failure can never leave a
+    // non-English user with English-only guidance. Strings live in the JSON
+    // sidecar — not in `@main/i18n` (pulls filesystem-touching imports and
+    // needs `app.getLocale()` which is unsafe pre-`ready`) and not as CJK
+    // literals here (rejected by `i18n:hardcoded:strict`).
     const title = chineseFirst
-      ? '当前 Windows 版本不受支持 / Windows version not supported'
-      : 'Windows version not supported / 当前 Windows 版本不受支持'
+      ? `${osSupportMessages.titleZh} / ${osSupportMessages.titleEn}`
+      : `${osSupportMessages.titleEn} / ${osSupportMessages.titleZh}`
     const osLabel = currentOsReleaseLabel(osRelease)
-    const enDetail =
-      `This device reports ${osLabel}. Cherry Studio requires ${MIN_SUPPORTED_WINDOWS_VERSION_LABEL} (64-bit) or later. ` +
-      `Windows 7, 8, and 8.1 are not supported, including launches through third-party compatibility layers.\n\n` +
-      `No data was changed. To continue, upgrade Windows or use a supported device. ` +
-      `Past installers remain available on the releases page for reference only and receive no support or security updates.`
-    const zhDetail =
-      `当前系统报告为 ${osLabel}。Cherry Studio 需要 ${MIN_SUPPORTED_WINDOWS_VERSION_LABEL}（64 位）或更高版本。` +
-      `Windows 7、8、8.1 均不受支持，通过第三方兼容层启动也不属于官方支持。\n\n` +
-      `未对你的数据做任何更改。如需继续使用，请升级 Windows 或更换受支持的设备。` +
-      `历史安装包仅可在发布页存档查看，不再提供支持与安全更新。`
+    const templateParams = { osLabel, minimum: MIN_SUPPORTED_WINDOWS_VERSION_LABEL }
+    const enDetail = formatPrebootTemplate(osSupportMessages.detailEn, templateParams)
+    const zhDetail = formatPrebootTemplate(osSupportMessages.detailZh, templateParams)
     const detail = chineseFirst
       ? `${zhDetail}\n\n${enDetail}\n\n${WINDOWS_SUPPORT_RELEASES_URL}`
       : `${enDetail}\n\n${zhDetail}\n\n${WINDOWS_SUPPORT_RELEASES_URL}`
