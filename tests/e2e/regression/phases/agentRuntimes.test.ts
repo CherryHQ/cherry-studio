@@ -1,15 +1,24 @@
+import { writeFile } from 'node:fs/promises'
+
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { createUniqueModelId } from '@shared/data/types/model'
+import type { IpcResult } from '@shared/ipc/errors/IpcError'
+
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
+import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/config'
+import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { expect, test } from '../fixture'
 import {
   builtinAssistantAgent,
   createAgent,
   runAgentFileTask,
+  selectAgent,
   selectAgentWorkspace,
   startNewAgentTask
 } from '../helpers/agents'
 import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
 import { dismissOnboarding, selectSidebarApp } from '../helpers/navigation'
-import { closeSettings } from '../helpers/settings'
+import { closeSettings, openSettingsSection } from '../helpers/settings'
 import { agentFilePreview } from '../scenarios/agentFilePreview'
 import { agentGlobalInstallApproval } from '../scenarios/agentGlobalInstallApproval'
 async function ensureAgentModel(
@@ -121,6 +130,127 @@ test(...caseDefinition('MP-53'), async ({ app, mainWindow }, testInfo) => {
 test(...caseDefinition('MP-54'), async ({ app, mainWindow: page }, testInfo) => {
   test.setTimeout(4 * 60_000)
   await agentSessionList(app, page, testInfo)
+})
+
+test(...caseDefinition('MP-161'), async ({ app, mainWindow: page }, testInfo) => {
+  const name = app.resourceName('MP-161 archive agent')
+  const names = [app.resourceName('MP-161 session one'), app.resourceName('MP-161 session two')]
+  const preferences = await page.evaluate(async () => ({
+    mode: await window.api.preference.get('agent.session.display_mode'),
+    position: await window.api.preference.get('agent.session.position'),
+    menu: await window.api.preference.get('menu.presentation_mode')
+  }))
+  let agentId: string | undefined
+  const providerId = `mp161-${Date.now()}`
+  try {
+    const provider = await page.evaluate(
+      (providerId) =>
+        window.api.dataApi.request({
+          id: 'mp161-provider',
+          method: 'POST',
+          path: '/providers',
+          body: { providerId, name: 'MP-161 provider', defaultChatEndpoint: 'openai-chat-completions' }
+        }),
+      providerId
+    )
+    expect(provider.status).toBe(201)
+    const model = await page.evaluate(
+      (providerId) =>
+        window.api.dataApi.request({
+          id: 'mp161-model',
+          method: 'POST',
+          path: '/models',
+          body: [{ providerId, modelId: 'mp161-model', endpointTypes: ['openai-chat-completions'] }]
+        }),
+      providerId
+    )
+    expect(model.status).toBe(201)
+    const agent = (await page.evaluate(
+      ({ name, model }) => window.api.ipcApi.request('ai.agent.create', { name, model, type: 'pi' }),
+      { name, model: createUniqueModelId(providerId, 'mp161-model') }
+    )) as IpcResult<AgentEntity>
+    expect(agent.ok).toBe(true)
+    if (!agent.ok) throw new Error('Failed to create MP-161 agent')
+    agentId = agent.data.id
+    for (const sessionName of names) {
+      const result = await page.evaluate(
+        ({ agentId, name }) =>
+          window.api.dataApi.request({
+            id: 'mp161-create-session',
+            method: 'POST',
+            path: '/agent-sessions',
+            body: { agentId, name, workspace: { type: 'system' } }
+          }),
+        { agentId, name: sessionName }
+      )
+      expect(result.status).toBe(201)
+    }
+    await page.evaluate(() =>
+      window.api.preference.setMultiple({
+        'agent.session.display_mode': 'agent',
+        'agent.session.position': 'left',
+        'menu.presentation_mode': 'cherry'
+      })
+    )
+    await page.reload()
+    await selectAgent(page, name)
+    const group = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: name }).first()
+    await expect(group).toBeVisible()
+    const expand = group.getByRole('button', { name: 'Expand', exact: true })
+    if (await expand.isVisible()) await expand.click()
+    const row = (sessionName: string) => page.getByTestId('agent-session-row').filter({ hasText: sessionName })
+    for (const sessionName of names) await expect(row(sessionName)).toBeVisible()
+    await group.hover()
+    await group.getByRole('button', { name: 'More', exact: true }).click()
+    const archive = page.getByRole('menuitem', { name: 'Archive all conversations', exact: true })
+    await expect(archive).toBeVisible()
+    await archive.click()
+    const dialog = page.getByRole('dialog', { name: 'Archive all conversations' })
+    await expect(dialog).toContainText(`Archive all conversations of “${name}” (2 total)?`)
+    const path = testInfo.outputPath('MP-161 archive confirmation.png')
+    await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
+    await testInfo.attach('MP-161 archive confirmation', { path, contentType: 'image/png' })
+    await dialog.getByRole('button', { name: 'Archive', exact: true }).click()
+    for (const sessionName of names) await expect(row(sessionName)).toHaveCount(0)
+    await openSettingsSection(page, 'Archive')
+    for (const sessionName of names) {
+      const archived = page.locator('[data-slot="item"]').filter({ hasText: sessionName })
+      await expect(archived).toBeVisible()
+      await archived.getByRole('button', { name: 'Restore', exact: true }).click()
+      await expect(archived).toHaveCount(0)
+    }
+    await closeSettings(page)
+    await selectAgent(page, name)
+    if (await expand.isVisible()) await expand.click()
+    for (const sessionName of names) await expect(row(sessionName)).toBeVisible()
+  } finally {
+    await page.evaluate(
+      async ({ preferences, agentId }) => {
+        await window.api.preference.setMultiple({
+          'agent.session.display_mode': preferences.mode,
+          'agent.session.position': preferences.position,
+          'menu.presentation_mode': preferences.menu
+        })
+        if (agentId) {
+          const result = (await window.api.ipcApi.request('ai.agent.delete_permanently', {
+            agentId,
+            deleteSessions: true
+          })) as IpcResult<{ deleted: boolean }>
+          if (!result.ok || !result.data.deleted) throw new Error('MP-161 agent cleanup failed')
+        }
+      },
+      { preferences, agentId }
+    )
+    await page.evaluate(
+      (providerId) =>
+        window.api.dataApi.request({
+          id: 'mp161-delete-provider',
+          method: 'DELETE',
+          path: `/providers/${providerId}`
+        }),
+      providerId
+    )
+  }
 })
 
 test(...caseDefinition('MP-55'), async ({ app, mainWindow }, testInfo) => {
