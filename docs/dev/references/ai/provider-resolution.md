@@ -54,8 +54,11 @@ Image intent does not use the chat-default preference. An image-capable primary
 endpoint stays primary. Otherwise a New API image endpoint is promoted only when
 its configuration uses the `newapi` adapter, preserving that adapter's URL handling;
 if none qualifies, the listed primary remains. OpenAI-compatible requests keep
-OpenAI tool-schema semantics even when the backend model is Gemini. Native Gemini
-schema compatibility is scoped to the native Google endpoint, excluding Vertex MaaS.
+OpenAI tool-schema semantics even when the backend model is Gemini, with one inherited
+exception: `toolSchemaCompatibility` removes `propertyNames` for recognized Gemini
+model IDs on Chat Completions, so key-pattern constraints do not survive on the wire.
+The remaining native Gemini schema transformations are scoped to the native Google
+endpoint, excluding Vertex MaaS.
 
 `resolveEffectiveEndpoint` also resolves registered multi-backend gateway routes
 (AiHubMix and DMXAPI) once. The route supplies both the wire endpoint and the
