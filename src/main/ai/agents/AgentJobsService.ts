@@ -63,13 +63,21 @@ type AgentTaskJobInputTemplate = {
 function workspacesEqual(a: AgentSessionWorkspaceSource, b: AgentSessionWorkspaceSource): boolean {
   if (a.type !== b.type) return false
 
-  return a.type === AGENT_WORKSPACE_TYPE.USER ? a.workspaceId === (b as typeof a).workspaceId : true
+  return a.type === AGENT_WORKSPACE_TYPE.USER && b.type === AGENT_WORKSPACE_TYPE.USER
+    ? a.workspaceId === b.workspaceId
+    : true
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Persisted job templates may predate workspace fields; validate them here before applying scheduling defaults.
 function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplate | null {
   if (typeof value !== 'object' || value === null) return null
-  const template = value as Partial<AgentTaskJobInputTemplate>
+  const template = {
+    agentId: 'agentId' in value ? value.agentId : undefined,
+    prompt: 'prompt' in value ? value.prompt : undefined,
+    timeoutMinutes: 'timeoutMinutes' in value ? value.timeoutMinutes : undefined,
+    workspace: 'workspace' in value ? value.workspace : undefined,
+    reuseRevision: 'reuseRevision' in value ? value.reuseRevision : undefined
+  }
 
   if (typeof template.agentId !== 'string') return null
   let workspace: AgentSessionWorkspaceSource
@@ -584,7 +592,7 @@ export class AgentJobsService extends BaseService {
           const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
 
           if (!template) return false
-          const missed = schedule.metadata.missed as { reason: string; at: number; jobId?: string }
+          const missed = schedule.metadata.missed
 
           const job = application.get('JobManager').enqueueTx(tx, AGENT_TASK_TYPE, template, {
             scheduleId: taskId,

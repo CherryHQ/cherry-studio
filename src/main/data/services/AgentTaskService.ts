@@ -195,7 +195,9 @@ export function writeTaskSessionReuse(
   return next
 }
 
-export function isMissedTask(metadata: JobScheduleSnapshot['metadata']): boolean {
+export function isMissedTask(
+  metadata: JobScheduleSnapshot['metadata']
+): metadata is JobScheduleSnapshot['metadata'] & { missed: { reason: 'agent_archived'; at?: unknown } } {
   return isPlainRecord(metadata.missed) && metadata.missed.reason === 'agent_archived'
 }
 
