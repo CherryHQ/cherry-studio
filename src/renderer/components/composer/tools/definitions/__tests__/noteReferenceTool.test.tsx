@@ -31,6 +31,7 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
+  QuickPanelEmptyIcon: () => null,
   useQuickPanel: () => ({
     isVisible: true,
     symbol: mocks.symbol,
