@@ -20,6 +20,7 @@ export type NativeInputId = RuntimeId<'native-input'>
 export function runtimeId<K extends string>(value: string): RuntimeId<K> {
   if (!value.trim()) throw new TypeError('Runtime IDs must not be empty')
 
+  // SAFETY: The nonblank check establishes an opaque caller-selected ID role; it does not prove existence or ownership.
   return value as RuntimeId<K>
 }
 
