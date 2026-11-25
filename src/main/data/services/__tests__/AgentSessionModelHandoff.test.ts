@@ -118,11 +118,11 @@ describe('model-switch handoff persistence and generation', () => {
     expect(saved).toMatchObject({
       role: 'system',
       parentId: input.sourceHead,
-      data: {
-        parts: [{ type: 'text', text: input.text }],
-        modelSwitchHandoff: { previousModel, nextModel, sourceHead: input.sourceHead }
-      }
+      data: { modelSwitchHandoff: { previousModel, nextModel, sourceHead: input.sourceHead } }
     })
+    expect(agentSessionMessageService.getSessionMessage(sessionId, saved.id).data.parts).toEqual([
+      { type: 'text', text: input.text }
+    ])
     expect(agentSessionService.getModelSwitchHandoff(sessionId)).toBe(input.text)
     expect(agentSessionService.getModelSwitchHandoff(sessionId, input.sourceHead)).toBeUndefined()
     expect(agentSessionService.getModelSwitchHandoff(sessionId, null)).toBeUndefined()
