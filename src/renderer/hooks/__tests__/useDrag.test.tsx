@@ -31,8 +31,14 @@ describe('drag leave target boundary', () => {
     const target = screen.getByRole('region', { name: 'Drop target' })
     fireEvent.dragOver(target)
 
-    fireEvent(target, new MouseEvent('dragleave', { bubbles: true, relatedTarget: window }))
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
 
-    expect(screen.getByRole('status')).toHaveTextContent('Idle')
+    try {
+      fireEvent(target, new MouseEvent('dragleave', { bubbles: true, relatedTarget: frame.contentWindow }))
+      expect(screen.getByRole('status')).toHaveTextContent('Idle')
+    } finally {
+      frame.remove()
+    }
   })
 })

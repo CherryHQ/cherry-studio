@@ -80,7 +80,7 @@ export function useExecutionOverlay(
     useCallback(() => executionStreamOverlayService.getView(topicId), [topicId])
   )
 
-  const api = useRef<ExecutionOverlayApi>(undefined as never)
+  const api = useRef<ExecutionOverlayApi | null>(null)
 
   if (!api.current) {
     api.current = {

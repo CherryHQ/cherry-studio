@@ -183,6 +183,8 @@ export const useAddKnowledgeItems = (baseId: string) => {
 
       try {
         result = await ipcApi.request('knowledge.add_items', { baseId, items, conflictStrategy })
+
+        return result
       } catch (error) {
         submitError = toError(error)
 
@@ -192,6 +194,8 @@ export const useAddKnowledgeItems = (baseId: string) => {
         })
 
         setError(submitError)
+
+        throw submitError
       } finally {
         // A 'conflicts' result added nothing, so skip the cache refresh; refresh
         // on success (rows added) or on error (a partial add may have landed).
@@ -207,12 +211,6 @@ export const useAddKnowledgeItems = (baseId: string) => {
 
         setIsSubmitting(false)
       }
-
-      if (submitError) {
-        throw submitError
-      }
-
-      return result as KnowledgeAddItemsResult
     },
     [baseId, invalidateCache]
   )

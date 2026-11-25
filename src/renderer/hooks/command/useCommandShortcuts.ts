@@ -79,8 +79,10 @@ export interface ShortcutListItem {
 
 export const getAllShortcutDefaultPreferences = (): Partial<Record<CommandShortcutKey, PreferenceShortcutType>> => {
   const defaults: Partial<Record<CommandShortcutKey, PreferenceShortcutType>> = {}
+
   for (const rule of REGISTERED_KEYBINDINGS) {
     const preference = getCommandDefaultShortcutPreference(rule.command, currentPlatform)
+
     if (!preference) continue
 
     defaults[rule.preferenceKey] = { binding: preference.binding, enabled: preference.enabled }

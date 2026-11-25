@@ -6,9 +6,12 @@ import type { TopicStreamStatus } from '@shared/ai/transport'
 const mockEntry = vi.fn<() => { status: TopicStreamStatus | undefined } | undefined>()
 
 // Mock at the cache layer (intra-module calls can't be intercepted at the hook).
-// The main-owned status entry is observed read-only via useSharedCacheValue.
+// The selector projects the same main-owned status entry on each render.
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  useSharedCacheValue: () => mockEntry()
+  useSharedCacheSelector: <Selection>(
+    _keys: readonly string[],
+    selector: (values: readonly [ReturnType<typeof mockEntry>]) => Selection
+  ) => selector([mockEntry()])
 }))
 
 import { useTopicOverlayHandoffOnTerminal } from '../useTopicStreamStatus'

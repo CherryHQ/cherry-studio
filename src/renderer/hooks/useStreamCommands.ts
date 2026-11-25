@@ -8,6 +8,8 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 
+export type StreamCommandRequestOptions = Omit<ChatRequestOptions, 'body'> & { body?: Partial<AiChatRequestBody> }
+
 /** Sends commands and retains local input; assistant output comes from the shared projection. */
 export function useStreamCommands(
   topicId: string,
@@ -88,8 +90,8 @@ export function useStreamCommands(
   )
 
   const sendMessage = useCallback(
-    async (message?: { text: string; files?: FileUIPart[] }, options?: ChatRequestOptions) => {
-      const body = (options?.body ?? {}) as Partial<AiChatRequestBody>
+    async (message?: { text: string; files?: FileUIPart[] }, options?: StreamCommandRequestOptions) => {
+      const body = options?.body ?? {}
 
       const parts = body.userMessageParts ?? [
         ...(message?.files ?? []),
@@ -115,8 +117,8 @@ export function useStreamCommands(
   )
 
   const regenerate = useCallback(
-    async (options?: ChatRequestOptions & { messageId?: string }) => {
-      const body = (options?.body ?? {}) as Partial<AiChatRequestBody>
+    async (options?: StreamCommandRequestOptions & { messageId?: string }) => {
+      const body = options?.body ?? {}
 
       const request: AiStreamOpenRequest = {
         trigger: 'regenerate-message',

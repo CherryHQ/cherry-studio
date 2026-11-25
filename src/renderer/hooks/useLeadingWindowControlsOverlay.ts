@@ -9,6 +9,7 @@ interface WindowControlsOverlay extends EventTarget {
 }
 
 function getOverlay(): WindowControlsOverlay | undefined {
+  // SAFETY: Electron's titleBarOverlay exposes this optional native API, whose Navigator declaration is absent from the current DOM lib.
   return (navigator as Navigator & { windowControlsOverlay?: WindowControlsOverlay }).windowControlsOverlay
 }
 

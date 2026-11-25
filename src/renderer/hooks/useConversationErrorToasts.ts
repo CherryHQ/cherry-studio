@@ -48,6 +48,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
       unmatched: new LRUCache<string, Attempt>({ max: 128 }),
       keys: new Set<string>(),
       waiting: new Map<string, Completion>(),
+      // SAFETY: The slot starts empty; waitForFinish stores its owned Completion objects, and cleanup clears it.
       pending: undefined as Completion | undefined
     }),
     [scopeKey]

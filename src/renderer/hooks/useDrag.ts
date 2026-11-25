@@ -25,6 +25,7 @@ export const useDrag = <T extends HTMLElement>(onDrop?: (e: React.DragEvent<T>) 
     // 确保是离开当前元素，而不是进入子元素
     // logger.debug('drag leave', { currentTarget: e.currentTarget, relatedTarget: e.relatedTarget })
     const NodeType = e.currentTarget.ownerDocument.defaultView?.Node ?? Node
+
     if (e.relatedTarget instanceof NodeType && e.currentTarget.contains(e.relatedTarget)) {
       return
     }
