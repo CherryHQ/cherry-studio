@@ -3,6 +3,8 @@ import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+
 import {
   getProviderDisplayName,
   useProvider,
@@ -739,5 +741,32 @@ describe('useProviderDisplayName', () => {
 
     const { result } = renderHook(() => useProviderDisplayName('my-custom'))
     expect(result.current).toBe('My Custom')
+  })
+
+  it('drops a cached provider name after the provider is deleted', () => {
+    mockUseQuery
+      .mockReturnValueOnce({
+        data: { id: 'my-custom', name: 'My Custom' },
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn()
+      })
+      .mockReturnValueOnce({
+        data: { id: 'my-custom', name: 'My Custom' },
+        isLoading: false,
+        isRefreshing: false,
+        error: DataApiErrorFactory.notFound('Provider', 'my-custom'),
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn()
+      })
+
+    const { result, rerender } = renderHook(() => useProviderDisplayName('my-custom'))
+    expect(result.current).toBe('My Custom')
+
+    rerender()
+
+    expect(result.current).toBe('')
   })
 })
