@@ -14,6 +14,8 @@ import type {
   ChatConversationControlsChangeHandler
 } from '@renderer/components/composer/variants/ChatComposer'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
@@ -22,10 +24,14 @@ import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { hasClearContextPart } from '@shared/data/types/uiParts'
+import { normalizeMaxMessages, resolveMaxMessages } from '@shared/utils/contextSettings'
 
 import ChatComposerSlot from './ChatComposerSlot'
 import ChatMain from './ChatMain'
 import { useTopicBranchActions } from './hooks/useTopicBranchActions'
+import { findContextWindowBoundary } from './messages/contextWindowBoundary'
+import { ContextWindowDivider } from './messages/ContextWindowDivider'
 import type { AddNewTopicPayload } from './types'
 import { useChatRuntimeState } from './useChatRuntimeState'
 
@@ -71,6 +77,7 @@ const ChatContent: FC<Props> = ({
   const {
     uiMessages,
     siblingsMap,
+    pathMessages,
     isLoading: isHistoryLoading,
     isStale: isHistoryStale,
     refresh,
@@ -100,6 +107,7 @@ const ChatContent: FC<Props> = ({
       initialMessages={uiMessages}
       uiMessages={uiMessages}
       siblingsMap={siblingsMap}
+      pathMessages={pathMessages}
       refresh={refresh}
       activeNodeId={activeNodeId}
       loadOlder={loadOlder}
@@ -123,6 +131,7 @@ interface InnerProps extends Props {
   /** Live DB-backed message list; reactive to SWR refreshes. */
   uiMessages: CherryUIMessage[]
   siblingsMap: ReturnType<typeof useTopicMessages>['siblingsMap']
+  pathMessages: ReturnType<typeof useTopicMessages>['pathMessages']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
   loadOlder: () => void
@@ -149,6 +158,7 @@ const ChatContentInner: FC<InnerProps> = ({
   initialMessages,
   uiMessages,
   siblingsMap,
+  pathMessages,
   refresh,
   activeNodeId,
   loadOlder,
@@ -189,6 +199,41 @@ const ChatContentInner: FC<InnerProps> = ({
       }),
     [topic.id]
   )
+  const [globalMaxMessages] = usePreference('chat.context_settings.max_messages')
+  const maxMessages = normalizeMaxMessages(
+    resolveMaxMessages(topic.assistantId ? assistant?.settings?.contextSettings : undefined, globalMaxMessages)
+  )
+  const nextTurnFillsActiveNode = runtime.composerChatTarget.mode === 'reserved-branch'
+  const canPreviewContextWindow =
+    !isHistoryLoading &&
+    !isHistoryStale &&
+    !runtime.isTurnBusy &&
+    (!topic.assistantId || assistant?.id === topic.assistantId)
+  const precedingMessageId = hasOlder ? (pathMessages[0]?.parentId ?? undefined) : undefined
+  const boundary = useMemo(
+    () =>
+      canPreviewContextWindow
+        ? findContextWindowBoundary(pathMessages, maxMessages, { nextTurnFillsActiveNode, precedingMessageId })
+        : null,
+    [canPreviewContextWindow, maxMessages, nextTurnFillsActiveNode, pathMessages, precedingMessageId]
+  )
+  const pageEdgeMessageId = boundary?.precedingMessageId
+  const { data: pageEdgeMessage } = useQuery('/messages/:id', {
+    enabled: Boolean(pageEdgeMessageId),
+    params: { id: pageEdgeMessageId ?? '' }
+  })
+  const pageEdgeHasEarlierHistory =
+    pageEdgeMessage !== undefined &&
+    pageEdgeMessage.id === pageEdgeMessageId &&
+    pageEdgeMessage.role !== 'root' &&
+    !hasClearContextPart(pageEdgeMessage.data.parts)
+  const contextWindowSlots = useMemo(() => {
+    if (maxMessages === null || !boundary || (pageEdgeMessageId && !pageEdgeHasEarlierHistory)) return {}
+    const divider = <ContextWindowDivider limit={maxMessages} />
+    return boundary.kind === 'before'
+      ? { messageHead: { messageId: boundary.messageId, content: divider } }
+      : { afterMessages: divider }
+  }, [boundary, maxMessages, pageEdgeHasEarlierHistory, pageEdgeMessageId])
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
   const contextUsage = useMemo<ChatContextUsageSource | null>(() => {
     if (isHistoryStale) return null
@@ -262,6 +307,8 @@ const ChatContentInner: FC<InnerProps> = ({
         openCitationsPanel={onOpenCitationsPanel}
         addGeneratedImageToComposer={supportsImageInput ? addGeneratedImageToComposer : undefined}
         onStartBranchDraft={reserveBranch}
+        messageHead={contextWindowSlots.messageHead}
+        afterMessages={contextWindowSlots.afterMessages}
       />
     </div>
   )

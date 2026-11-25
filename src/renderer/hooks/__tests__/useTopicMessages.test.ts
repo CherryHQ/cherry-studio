@@ -29,6 +29,35 @@ describe('useTopicMessages', () => {
     MockUseDataApiUtils.resetMocks()
   })
 
+  it('keeps optimistic parallel replies out of the active history path', () => {
+    const firstReply = createAssistantMessage('a1', 'test:model-a', '2026-01-01T00:00:01.000Z')
+    const firstUser: Message = { ...firstReply, id: 'user-1', role: 'user', parentId: 'root' }
+    const secondUser: Message = { ...firstUser, id: 'user-2', parentId: 'a1' }
+    const otherReply: Message = { ...firstReply, id: 'a2-other', parentId: 'user-2', status: 'pending' }
+    const activeReply: Message = { ...otherReply, id: 'a2-active', modelId: 'test:model-b' }
+    mockUseInfiniteQuery.mockReturnValueOnce({
+      pages: [
+        {
+          items: [firstUser, firstReply, secondUser, otherReply, activeReply].map((message) => ({ message })),
+          activeNodeId: activeReply.id,
+          assistantId: null,
+          rootId: 'root'
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { result } = renderHook(() => useTopicMessages('topic-1', { fetchOnMount: false }))
+    expect(result.current.pathMessages.map((message) => message.id)).toEqual(['user-1', 'a1', 'user-2', 'a2-active'])
+  })
+
   it('revalidates when a loaded message read model changes', () => {
     const mutate = vi.fn().mockResolvedValue(undefined)
     const anchorMessage = {
