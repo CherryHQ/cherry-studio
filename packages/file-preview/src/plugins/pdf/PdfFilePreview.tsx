@@ -92,7 +92,8 @@ function normalizePinchWheelDelta(event: WheelEvent): number {
 
 function detachDocument(viewer: PdfJsViewer): void {
   // SAFETY: PDF.js 5.4.296 implements null as cancel/reset/detach; its setDocument declaration omits the supported null case.
-  ;(viewer.setDocument as (pdfDocument: PDFDocumentProxy | null) => void)(null)
+  const setDocument = viewer.setDocument as (pdfDocument: PDFDocumentProxy | null) => void
+  setDocument.call(viewer, null)
 }
 
 function PdfPreviewTooLarge() {

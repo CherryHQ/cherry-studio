@@ -79,6 +79,7 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
   const [content, setContent] = useState('')
 
   // Use useRef for values that shouldn't trigger re-renders
+  const settingsContentRef = useRef<HTMLDivElement>(null)
   const targetLangRef = useRef(targetLanguage)
 
   // It's called only in initialization.
@@ -397,12 +398,12 @@ const ActionTranslate: FC<Props> = ({ action, sourceEntityId, scrollToBottom }) 
                 </PopoverTrigger>
               </Tooltip>
               <PopoverContent
+                ref={settingsContentRef}
                 align="end"
                 className="w-[220px] p-2"
                 onOpenAutoFocus={(event) => {
                   event.preventDefault()
-                  const content = event.currentTarget as HTMLElement
-                  content.focus()
+                  settingsContentRef.current?.focus()
                 }}>
                 {settingsContent}
               </PopoverContent>

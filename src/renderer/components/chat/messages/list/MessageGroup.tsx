@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { scrollIntoView } from '@renderer/utils/dom'
+import { getEventTargetElement, scrollIntoView } from '@renderer/utils/dom'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -297,9 +297,8 @@ const MessageGroup = ({
   }, [activeBranchMessageId, messages])
 
   const handleHorizontalGroupWheel = useCallback(
-    (event: WheelEvent) => {
-      const target = event.target as HTMLElement | null
-      const groupContainer = event.currentTarget as HTMLDivElement
+    (event: WheelEvent, groupContainer: HTMLDivElement) => {
+      const target = getEventTargetElement(event.target)
       const verticalPageSize = getScrollContainer()?.clientHeight ?? groupContainer.clientHeight
       const horizontalWheelDelta = normalizeWheelDelta(event.deltaX, event.deltaMode, groupContainer.clientWidth)
       const verticalWheelDelta = normalizeWheelDelta(event.deltaY, event.deltaMode, verticalPageSize)
@@ -359,9 +358,10 @@ const MessageGroup = ({
 
     if (!groupContainer || multiModelMessageStyle !== 'horizontal') return
 
-    groupContainer.addEventListener('wheel', handleHorizontalGroupWheel, { capture: true, passive: false })
+    const onWheel = (event: WheelEvent) => handleHorizontalGroupWheel(event, groupContainer)
+    groupContainer.addEventListener('wheel', onWheel, { capture: true, passive: false })
 
-    return () => groupContainer.removeEventListener('wheel', handleHorizontalGroupWheel, true)
+    return () => groupContainer.removeEventListener('wheel', onWheel, true)
   }, [handleHorizontalGroupWheel, multiModelMessageStyle])
 
   const renderMessage = useCallback(

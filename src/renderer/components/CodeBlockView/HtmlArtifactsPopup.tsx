@@ -1,4 +1,3 @@
-import type { EditorState } from '@uiw/react-codemirror'
 import {
   Camera,
   Check,
@@ -156,10 +155,15 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   const [splitSizes, setSplitSizes] = useState<[number, number]>([50, 50])
   const [captureOpen, setCaptureOpen] = useState(false)
 
-  const [session, setSession] = useState(() => ({
+  const [session, setSession] = useState<{
+    accepted: string
+    open: boolean
+    stateRef: CodePanelProps['stateRef']
+    epoch: number
+  }>(() => ({
     accepted: html,
     open,
-    stateRef: { current: null as EditorState | null },
+    stateRef: { current: null },
     epoch: 0
   }))
 

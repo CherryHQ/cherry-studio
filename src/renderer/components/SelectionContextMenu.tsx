@@ -7,6 +7,7 @@ import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { isElementNode } from '@renderer/utils/dom'
 import { isHttpUrl } from '@shared/utils/url'
 
 import { TextSelectionToolbar } from './TextSelectionToolbar'
@@ -93,8 +94,8 @@ function extractSelectedText(selection: Selection, mathOptions?: { singleDollar:
       } else {
         result += node.textContent
       }
-    } else if (node.nodeType === Node.ELEMENT_NODE) {
-      const element = node as Element
+    } else if (isElementNode(node)) {
+      const element = node
 
       if (element.tagName === 'BR') {
         result += '\n'

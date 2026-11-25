@@ -11,7 +11,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FindBar, type FindBarRef, type FindBarState, INITIAL_FIND_BAR_STATE } from '@renderer/components/FindBar'
 import { findRangesInScope, supportsCustomHighlights } from '@renderer/utils/contentSearch'
-import { scrollElementIntoView } from '@renderer/utils/dom'
+import { getEventTargetNode, isElementNode, scrollElementIntoView } from '@renderer/utils/dom'
 
 import {
   getAllCommands,
@@ -429,9 +429,9 @@ const RichEditor = ({
   // Handle drag end callback to clean up draggable attribute
   const handleDragEnd = useCallback((e: DragEvent) => {
     // Clean up draggable attribute from the drag handle element
-    const target = e.target as HTMLElement
+    const target = getEventTargetNode(e.target)
 
-    if (target && target.classList.contains('drag-handle')) {
+    if (isElementNode(target) && target.classList.contains('drag-handle')) {
       target.removeAttribute('draggable')
     }
   }, [])
