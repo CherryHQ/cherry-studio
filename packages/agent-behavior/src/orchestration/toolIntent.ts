@@ -94,6 +94,7 @@ export function createToolIntent(): <T extends IntentTool<Prepared>, Prepared = 
       // SAFETY: Each selected offer-state cache holds the wrapper constructed for this exact tool identity and prepareArguments.
       return known as PreparedTool<T, Prepared>
     }
+
     const schema = intentFreeProperties(tool.parameters)
 
     if (!schema) return tool

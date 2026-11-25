@@ -15,6 +15,7 @@ export function cloneHistoryData<T>(value: T): T {
       // SAFETY: Each cached object is the copy registered for this exact source identity.
       return existing as Value
     }
+
     const array = Array.isArray(source)
     const prototype = Object.getPrototypeOf(source)
 

@@ -14,6 +14,7 @@ import { createOAuthUrl, decryptSecret } from './sso/lib/index.mjs'
 const logger = loggerService.withContext('NutstoreService')
 
 const oauthResponseSchema = z.object({ username: z.string(), access_token: z.string() })
+
 type OAuthResponse = z.infer<typeof oauthResponseSchema>
 
 interface WebDAVResponse {
