@@ -61,7 +61,7 @@ describe('message/find', () => {
     ])
 
     expect(getCitationContent(message)).toBe(
-      '[0] [https://first.test](https://first.test)\n[2] [Second](https://second.test)'
+      '[0] [https://first.test](https://first.test)\n\n[2] [Second](https://second.test)'
     )
   })
 

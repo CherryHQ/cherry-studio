@@ -133,6 +133,7 @@ const PI_CARD_OVERRIDES: Partial<Record<AgentPermissionMode, Partial<PermissionM
 /** Permission-mode cards offered for an agent type. Unknown types keep the full set. */
 export function getPermissionModeCards(agentType: AgentType | string | undefined): PermissionModeCard[] {
   const runtimeType = AGENT_TYPES.find((type) => type === agentType)
+
   if (!runtimeType) return permissionModeCards
   const modes = new Set<AgentPermissionMode>(AGENT_RUNTIME_CAPABILITIES[runtimeType].permissionModes)
 

@@ -245,6 +245,7 @@ function normalizeKnownSidebarShortcut(value: SidebarCandidate): SidebarShortcut
   if (typeof value.type !== 'string') return undefined
 
   const providerId = LEGACY_PROVIDER_BY_TYPE.get(value.type)
+
   if (providerId === undefined) return undefined
 
   if (typeof value.id !== 'string' || value.id.length === 0) return undefined

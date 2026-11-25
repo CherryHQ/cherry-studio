@@ -8,6 +8,7 @@
  * const keys = objectKeys(obj) // ['foo', 'bar']
  * ```
  */
+// oxlint-disable-next-line anti-slop/no-object-parameters -- This generic key utility accepts any object and promises only own enumerable string keys.
 export function objectKeys(obj: object): string[] {
   return Object.keys(obj)
 }

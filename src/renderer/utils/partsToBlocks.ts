@@ -21,17 +21,22 @@ const citationDescriptorSchema = z.object({
   citationType: z.enum(CitationType),
   content: z.unknown().optional()
 })
+
 const optionalCitationString = z.string().optional().catch(undefined)
+
 const webReferenceFieldsSchema = z.object({
   results: z.unknown().optional(),
   source: WebSearchSourceSchema.optional().catch(undefined)
 })
+
 const knowledgeCitationFieldsSchema = z.object({
   id: z.number().optional().catch(undefined),
   content: optionalCitationString,
   sourceUrl: optionalCitationString
 })
+
 const memoryCitationFieldsSchema = z.object({ memory: optionalCitationString, hash: optionalCitationString })
+
 const groundingChunkFieldsSchema = z.object({
   web: z.object({ uri: optionalCitationString, title: optionalCitationString }).optional().catch(undefined)
 })
@@ -161,6 +166,7 @@ function normalizeWebResults(results: unknown): Citation[] {
       obj.groundingSupports && Array.isArray(obj.groundingSupports) ? obj.groundingSupports : undefined
 
     return chunks
+      .values()
       .map((chunk, index) => {
         const parsed = groundingChunkFieldsSchema.safeParse(chunk)
         const web = parsed.success ? parsed.data.web : undefined
@@ -181,6 +187,7 @@ function normalizeWebResults(results: unknown): Citation[] {
         return citation
       })
       .filter((citation) => citation !== null)
+      .toArray()
   }
 
   const list = Array.isArray(results) ? results : obj && Array.isArray(obj.results) ? obj.results : []

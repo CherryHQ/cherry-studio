@@ -143,11 +143,6 @@ export const isAbortError = (error: any): boolean => {
   return false
 }
 
-// TODO: format
-export const formatMcpError = (error: { message: string }) => {
-  return error.message
-}
-
 const getBaseError = (error: Error) => {
   return {
     name: error.name ?? null,

@@ -88,19 +88,16 @@ export const isVideoModels = (models: Model[]): boolean => models.every(isVideoM
  * 按 Qwen 系列模型分组
  */
 export function groupQwenModels(models: Model[]): Record<string, Model[]> {
-  return models.reduce(
-    (groups, model) => {
-      const modelId = getLowerBaseModelName(getRawModelId(model))
-      const prefixMatch = modelId.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
-      const groupKey = prefixMatch ? prefixMatch[1] : model.group || '其他'
+  return models.reduce<Record<string, Model[]>>((groups, model) => {
+    const modelId = getLowerBaseModelName(getRawModelId(model))
+    const prefixMatch = modelId.match(/^(qwen(?:\d+\.\d+|2(?:\.\d+)?|-\d+b|-(?:max|coder|vl)))/i)
+    const groupKey = prefixMatch ? prefixMatch[1] : model.group || '其他'
 
-      if (!groups[groupKey]) groups[groupKey] = []
-      groups[groupKey].push(model)
+    if (!groups[groupKey]) groups[groupKey] = []
+    groups[groupKey].push(model)
 
-      return groups
-    },
-    {} as Record<string, Model[]>
-  )
+    return groups
+  }, {})
 }
 
 // ── Renderer-only: verbosity (uses OpenAIVerbosity type) ─────────────────

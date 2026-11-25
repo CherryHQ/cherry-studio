@@ -23,11 +23,13 @@ const exportPartFieldsSchema = z.object({ type: z.string(), text: z.string().cat
 const exportStringField = z.string().optional().catch(undefined)
 const exportCodeFieldsSchema = z.object({ content: exportStringField, language: exportStringField })
 const exportTranslationFieldsSchema = z.object({ content: exportStringField })
+
 const exportErrorFieldsSchema = z.object({
   name: exportStringField,
   code: z.union([z.string(), z.number()]).optional().catch(undefined),
   message: exportStringField
 })
+
 const flatCitationFieldsSchema = z.object({
   category: z.literal('citation'),
   url: z.string(),
@@ -59,16 +61,19 @@ function renderExportPart(part: z.infer<typeof exportPartFieldsSchema>): string 
 
       return formatCodePart(data.success ? data.data : undefined)
     }
+
     case 'data-translation': {
       const data = exportTranslationFieldsSchema.safeParse(part.data)
 
       return data.success ? (data.data.content ?? '') : ''
     }
+
     case 'data-error': {
       const data = exportErrorFieldsSchema.safeParse(part.data)
 
       return formatErrorPart(data.success ? data.data : undefined)
     }
+
     default:
       return ''
   }
