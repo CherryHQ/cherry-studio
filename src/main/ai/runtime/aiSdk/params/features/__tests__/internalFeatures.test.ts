@@ -157,7 +157,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
       await qwenUserText(
         makeScope({
           ...base,
-          reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
+          reasoning: {
+            kind: 'off',
+            selection: 'none',
+            emissions: [{ target: 'enable_thinking', value: false, delivery: 'provider-option' }]
+          }
         })
       )
     ).toBe('hello /no_think')
@@ -166,7 +170,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         makeScope({
           ...base,
           assistant: { id: 'a', settings: { reasoning_effort: 'none' } as Assistant['settings'] },
-          reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'enable_thinking', value: true }] }
+          reasoning: {
+            kind: 'auto',
+            selection: 'auto',
+            emissions: [{ target: 'enable_thinking', value: true, delivery: 'provider-option' }]
+          }
         })
       )
     ).toBe('hello /think')
@@ -181,7 +189,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
       },
       request: { reasoningEffort: 'none' },
-      reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
+      reasoning: {
+        kind: 'off',
+        selection: 'none',
+        emissions: [{ target: 'enable_thinking', value: false, delivery: 'provider-option' }]
+      }
     }
 
     expect(await qwenUserText(makeScope(base))).toBe('hello /no_think')
@@ -209,7 +221,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
           reasoning: { selectableEfforts: ['none', 'auto'] }
         },
         assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
-        reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'reasoningEffort', value: 'low' }] }
+        reasoning: {
+          kind: 'auto',
+          selection: 'auto',
+          emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' }]
+        }
       })
 
       const plugin = collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.find(
@@ -237,7 +253,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
           reasoning: { selectableEfforts: ['none', 'auto'] }
         },
         assistant: { id: 'a', settings: { reasoning_effort: 'none' } as Assistant['settings'] },
-        reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'reasoningEffort', value: 'none' }] }
+        reasoning: {
+          kind: 'off',
+          selection: 'none',
+          emissions: [{ target: 'reasoningEffort', value: 'none', delivery: 'provider-option' }]
+        }
       })
 
       const plugin = collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.find(
@@ -254,6 +274,119 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
 
       expect(result.providerOptions.openai.enable_thinking).toBe(false)
       expect(result.providerOptions.openai.temperature).toBe(0.7)
+    })
+
+    it('activates for Qwen on an unregistered provider with reasoningEffort emissions', () => {
+      expect(
+        activeNames(
+          makeScope({
+            provider: { id: 'my-vllm' },
+            model: {
+              id: 'my-vllm::qwen3-14b',
+              providerId: 'my-vllm',
+              reasoning: { selectableEfforts: ['none', 'auto'] }
+            },
+            assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
+            reasoning: {
+              kind: 'auto',
+              selection: 'auto',
+              emissions: [
+                {
+                  target: 'reasoningEffort',
+                  value: 'low',
+                  delivery: 'provider-option' as const
+                }
+              ]
+            }
+          })
+        )
+      ).toContain('qwen-enable-thinking')
+    })
+
+    it('does not activate when the wire already emits enable_thinking (DashScope)', () => {
+      expect(
+        activeNames(
+          makeScope({
+            provider: { id: 'dashscope' },
+            model: {
+              id: 'dashscope::qwen3-14b',
+              providerId: 'dashscope',
+              reasoning: { selectableEfforts: ['none', 'auto'] }
+            },
+            assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
+            reasoning: {
+              kind: 'auto',
+              selection: 'auto',
+              emissions: [{ target: 'enable_thinking', value: true, delivery: 'provider-option' as const }]
+            }
+          })
+        )
+      ).not.toContain('qwen-enable-thinking')
+    })
+
+    it('does not activate for Ollama (excluded by isOllamaProvider)', () => {
+      expect(
+        activeNames(
+          makeScope({
+            provider: { id: 'ollama' },
+            model: {
+              id: 'ollama::qwen3-14b',
+              providerId: 'ollama',
+              reasoning: { selectableEfforts: ['none', 'auto'] }
+            },
+            assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
+            reasoning: {
+              kind: 'auto',
+              selection: 'auto',
+              emissions: [
+                {
+                  target: 'reasoningEffort',
+                  value: 'low',
+                  delivery: 'provider-option' as const
+                }
+              ]
+            }
+          })
+        )
+      ).not.toContain('qwen-enable-thinking')
+    })
+
+    it('is a strict complement of qwen-thinking (neither fires for the same scope)', () => {
+      // Unregistered provider: qwen-enable-thinking fires, qwen-thinking does not
+      const unregistered = makeScope({
+        provider: { id: 'my-vllm' },
+        model: {
+          id: 'my-vllm::qwen3-14b',
+          providerId: 'my-vllm',
+          reasoning: { selectableEfforts: ['none', 'auto'] }
+        },
+        assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
+        reasoning: {
+          kind: 'auto',
+          selection: 'auto',
+          emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' }]
+        }
+      })
+      expect(activeNames(unregistered)).toContain('qwen-enable-thinking')
+      expect(activeNames(unregistered)).not.toContain('qwen-thinking')
+
+      // LMStudio: qwen-thinking fires, qwen-enable-thinking does not
+      const lmstudio = makeScope({
+        provider: { id: 'lmstudio' },
+        model: {
+          id: 'lmstudio::qwen3-14b',
+          providerId: 'lmstudio',
+          reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
+        },
+        assistant: { id: 'a', settings: { reasoning_effort: 'auto' } as Assistant['settings'] },
+        reasoning: {
+          kind: 'auto',
+          selection: 'auto',
+          emissions: [{ target: 'reasoningEffort', value: 'low', delivery: 'provider-option' }]
+        }
+      })
+      expect(activeNames(lmstudio)).toContain('qwen-thinking')
+      expect(activeNames(lmstudio)).not.toContain('qwen-enable-thinking')
     })
   })
 })
