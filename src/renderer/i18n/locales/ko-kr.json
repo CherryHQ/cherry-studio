@@ -5405,6 +5405,8 @@
   "settings.messages.scroll_to_bottom_on_send.hint": "메시지를 보낸 후 최신 메시지로 자동 스크롤합니다.",
   "settings.messages.scroll_to_bottom_on_send.label": "전송 시 최신 메시지로 스크롤",
   "settings.messages.show_message_outline": "메시지 개요 표시",
+  "settings.messages.timestamp_context.hint": "모델에 보내는 각 사용자 메시지 앞에 전송 시각을 붙여, 모델이 현재 날짜와 경과 시간을 알 수 있게 합니다.",
+  "settings.messages.timestamp_context.label": "메시지에 타임스탬프 추가",
   "settings.messages.title": "메시지 설정",
   "settings.messages.use_serif_font": "세리프 글꼴 사용",
   "settings.messages.user_content.default_expanded.hint": "기본적으로 긴 사용자 메시지를 전체 표시합니다. 직접 펼치거나 접은 메시지는 현재 세션에서 선택을 유지합니다.",
