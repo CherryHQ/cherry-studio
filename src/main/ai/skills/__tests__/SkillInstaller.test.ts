@@ -76,7 +76,12 @@ describe('SkillInstaller', () => {
     })
 
     it('keeps the old skill recoverable until a prepared install is committed', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
       mockFsRename.mockResolvedValue(undefined)
 
@@ -101,7 +106,12 @@ describe('SkillInstaller', () => {
     })
 
     it('restores the old skill when a prepared install is rolled back', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
       mockFsRename.mockResolvedValue(undefined)
       mockDeleteDirectoryRecursive.mockResolvedValue(undefined)
@@ -125,7 +135,12 @@ describe('SkillInstaller', () => {
     })
 
     it('keeps the verified replacement when committed-backup cleanup is interrupted', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
       mockFsRename.mockResolvedValue(undefined)
       mockDeleteDirectoryRecursive.mockRejectedValue(new Error('cleanup interrupted'))
@@ -143,7 +158,12 @@ describe('SkillInstaller', () => {
     })
 
     it('restores the previous skill when committing the prepared replacement fails', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
       mockFsRename
         .mockResolvedValueOnce(undefined)
@@ -163,7 +183,12 @@ describe('SkillInstaller', () => {
     })
 
     it('keeps the original skill when moving it to the backup path fails', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockFsRename.mockRejectedValue(new Error('rename failed'))
 
       await expect(
@@ -175,7 +200,12 @@ describe('SkillInstaller', () => {
     })
 
     it('restores the previous skill when the copied destination is incomplete', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
       mockFsRename.mockResolvedValue(undefined)
       vi.mocked(installer.computeDirectoryHash)
@@ -195,7 +225,12 @@ describe('SkillInstaller', () => {
     })
 
     it('restores the previous skill when the copied descriptor differs from the source', async () => {
-      mockPathExists.mockResolvedValue(true)
+      mockPathExists.mockImplementation(
+        async (targetPath: unknown) =>
+          !String(targetPath).includes('.bak') &&
+          !String(targetPath).includes('.stash') &&
+          !String(targetPath).includes('.cleanup')
+      )
       mockCopyDirectoryRecursive.mockResolvedValue(undefined)
       mockFsRename.mockResolvedValue(undefined)
       vi.mocked(installer.computeDirectoryHash)

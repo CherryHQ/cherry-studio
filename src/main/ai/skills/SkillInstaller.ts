@@ -71,6 +71,24 @@ export class SkillInstaller {
     await this.removeCommittedCleanup(destPath)
 
     const backupPath = this.getBackupPath(destPath)
+    // A previous baseline-aware recovery may have preserved an obsolete `.bak` because
+    // neither tree matched the baseline and completeness was uncertain (a truncated helper
+    // passes path coverage, so paths alone cannot prove the replacement complete). POSIX
+    // `rename(dest, backup)` fails when `backup` is occupied, leaving a broken partial
+    // install in place. Stash the preserved marker aside so the next publish has a free
+    // rollback slot; the stash is deleted only after the new verified install commits
+    // (durable publish state), and restored to `.bak` if the retry fails.
+    let stashedBackupPath: string | null = null
+    if (await pathExists(backupPath)) {
+      stashedBackupPath = `${backupPath}.stash-${Date.now()}-${process.pid}`
+      try {
+        await fs.promises.rename(backupPath, stashedBackupPath)
+        logger.info('Stashed preserved skill backup to free rollback slot', { destPath, backupPath, stashedBackupPath })
+      } catch (error) {
+        stashedBackupPath = null
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      }
+    }
     let hasBackup = false
     let publishStarted = false
 
@@ -93,11 +111,28 @@ export class SkillInstaller {
       }
       logger.debug('Skill folder copied to destination', { destPath })
     } catch (error) {
-      if (!publishStarted) throw error
+      if (!publishStarted) {
+        if (stashedBackupPath) {
+          try {
+            await fs.promises.rename(stashedBackupPath, backupPath)
+          } catch {
+            // Best-effort: the stash remains for manual recovery.
+          }
+        }
+        throw error
+      }
       try {
         await this.rollbackPublishedInstall(destPath, backupPath, hasBackup)
       } catch (rollbackError) {
         throw new AggregateError([error, rollbackError], `Failed to publish and restore Skill folder: ${destPath}`)
+      }
+      if (stashedBackupPath) {
+        try {
+          await fs.promises.rename(stashedBackupPath, backupPath)
+          logger.info('Restored stashed skill backup after failed publish', { destPath, backupPath })
+        } catch {
+          logger.warn('Preserving stashed skill backup after failed publish', { destPath, stashedBackupPath })
+        }
       }
       throw error
     }
@@ -112,7 +147,15 @@ export class SkillInstaller {
           hasBackup = false
           state = 'committed'
           await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+          if (stashedBackupPath) {
+            await this.safeRemoveDirectory(stashedBackupPath, 'stashed skill backup')
+            stashedBackupPath = null
+          }
           return
+        }
+        if (stashedBackupPath) {
+          await this.safeRemoveDirectory(stashedBackupPath, 'stashed skill backup')
+          stashedBackupPath = null
         }
         state = 'committed'
       },
@@ -121,6 +164,15 @@ export class SkillInstaller {
         await this.rollbackPublishedInstall(destPath, backupPath, hasBackup)
         hasBackup = false
         state = 'rolled_back'
+        if (stashedBackupPath) {
+          try {
+            await fs.promises.rename(stashedBackupPath, backupPath)
+          } catch {
+            logger.warn('Preserving stashed skill backup after rollback', { destPath, stashedBackupPath })
+            return
+          }
+          stashedBackupPath = null
+        }
       }
     }
   }
@@ -223,20 +275,34 @@ export class SkillInstaller {
   }
 
   /**
-   * Check whether the destination covers every file present in an obsolete marker.
-   * A descriptor-only check treats `SKILL.md`-present-but-helper-missing as complete
-   * and would delete the only complete tree; requiring file-set coverage keeps the
-   * backup when the replacement may still be partial. Any listing failure preserves
-   * (returns false) so an unreadable tree never justifies deletion.
+   * Check whether the destination covers every file present in an obsolete marker
+   * with identical bytes. A descriptor-only or path-only check treats a truncated
+   * helper (`SKILL.md` present with the same paths but shortened bytes) as complete
+   * and would delete the only complete tree; requiring identical content keeps the
+   * backup until a baseline match or a verified publish establishes completeness.
+   * Any listing or read failure preserves (returns false) so an unreadable tree
+   * never justifies deletion.
    */
   private async isDestCoveringMarker(destPath: string, markerPath: string): Promise<boolean> {
     try {
       const [destFiles, markerFiles] = await Promise.all([
-        this.collectRelativeFiles(destPath),
-        this.collectRelativeFiles(markerPath)
+        this.collectCanonicalFileMap(destPath),
+        this.collectCanonicalFileMap(markerPath)
       ])
-      for (const file of markerFiles) {
-        if (!destFiles.has(file)) return false
+      for (const [canonical, markerFullPath] of markerFiles) {
+        const destFullPath = destFiles.get(canonical)
+        if (!destFullPath) return false
+        const [destStats, markerStats] = await Promise.all([
+          fs.promises.lstat(destFullPath),
+          fs.promises.lstat(markerFullPath)
+        ])
+        if (!destStats.isFile() || !markerStats.isFile()) return false
+        if ((destStats.mode & 0o111) !== (markerStats.mode & 0o111)) return false
+        const [destContent, markerContent] = await Promise.all([
+          fs.promises.readFile(destFullPath),
+          fs.promises.readFile(markerFullPath)
+        ])
+        if (!destContent.equals(markerContent)) return false
       }
       return true
     } catch {
@@ -244,8 +310,8 @@ export class SkillInstaller {
     }
   }
 
-  private async collectRelativeFiles(root: string): Promise<Set<string>> {
-    const files = new Set<string>()
+  private async collectCanonicalFileMap(root: string): Promise<Map<string, string>> {
+    const files = new Map<string, string>()
     const walk = async (dir: string, relativeDir: string): Promise<void> => {
       const entries = await fs.promises.readdir(dir, { withFileTypes: true })
       for (const entry of entries) {
@@ -256,7 +322,8 @@ export class SkillInstaller {
         if (stats.isDirectory()) {
           await walk(fullPath, relativePath)
         } else if (stats.isFile()) {
-          files.add(this.canonicalRelativePath(relativePath))
+          const canonical = this.canonicalRelativePath(relativePath)
+          if (!files.has(canonical)) files.set(canonical, fullPath)
         }
       }
     }
@@ -426,10 +493,12 @@ export class SkillInstaller {
       cleanupExists ? pathExists(cleanupPath) : Promise.resolve(false)
     ])
     if (backupStillExists && backupHash !== baselineHash) {
-      // A descriptor alone cannot prove the replacement is complete: an interrupted copy
-      // can leave `SKILL.md` present while a helper is still missing. Deleting the only
-      // complete tree would lose managed edits, so require the destination to cover the
-      // marker's file set before treating it as obsolete.
+      // A descriptor or path set alone cannot prove the replacement is complete: an
+      // interrupted copy can leave `SKILL.md` present while a helper is still missing,
+      // and a truncated helper passes path coverage with the same paths but shortened
+      // bytes. Deleting the only complete tree would lose managed edits, so require
+      // byte-identical coverage before treating the marker as obsolete; otherwise the
+      // next verified publish stashes this marker aside and deletes it only on commit.
       if (destComplete && (await this.isDestCoveringMarker(destPath, backupPath))) {
         await this.safeRemoveDirectory(backupPath, 'obsolete skill backup')
       } else {

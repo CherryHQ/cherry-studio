@@ -1134,11 +1134,16 @@ describe('SkillService authoring and remote updates', () => {
 
     // User edits before the next sweep: the destination no longer matches the baseline, but the
     // leftover `.bak` is still obsolete (old tree) and must not be restored over the edit.
+    // Content differs (edited vs old), so byte-identical coverage fails and the marker is
+    // preserved for the next verified publish instead of being deleted: a truncated helper
+    // passes path coverage with the same paths but shortened bytes, so paths alone cannot
+    // justify deletion. The next `prepareInstall` stashes this marker aside and deletes it
+    // only after the new verified install commits.
     await fs.promises.writeFile(path.join(destPath, 'scripts', 'run.sh'), 'echo edited\n', 'utf-8')
     await installer.recoverInterruptedInstallWithBaseline(destPath, newHash)
 
     await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo edited\n')
-    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(fs.promises.access(path.join(backupPath, 'SKILL.md'))).resolves.toBeUndefined()
   })
 
   it('restores the only complete copy when the replacement is partial and no tree matches the baseline', async () => {
@@ -1271,6 +1276,69 @@ describe('SkillService authoring and remote updates', () => {
     await expect(fs.promises.readFile(path.join(backupPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
       'echo old-edited\n'
     )
+  })
+
+  it('preserves the only complete backup when the replacement helper is truncated', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const oldDir = path.join(root, 'old-truncated')
+    const newDir = path.join(root, 'new-truncated')
+    await writeSkill(oldDir, { supportingContent: 'echo old-complete-content\n' })
+    await writeSkill(newDir, { supportingContent: 'echo new-complete-content\n' })
+    await fs.promises.writeFile(path.join(oldDir, 'scripts', 'run.sh'), 'echo old-edited\n', 'utf-8')
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    // Simulate a crash during the final helper copy: all paths exist but the helper
+    // is truncated, while `.bak` holds the only complete tree with managed edits.
+    // Neither tree matches the pre-commit baseline.
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.writeFile(path.join(destPath, 'scripts', 'run.sh'), 'echo new-c', 'utf-8')
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    const cleanOldDir = path.join(root, 'clean-old-truncated')
+    await writeSkill(cleanOldDir, { supportingContent: 'echo old\n' })
+    const cleanOldHash = await installer.computeContentHash(cleanOldDir)
+
+    await installer.recoverInterruptedInstallWithBaseline(destPath, cleanOldHash)
+
+    // Path coverage passes (same file set) but bytes differ: the backup must survive
+    // instead of being deleted as obsolete.
+    await expect(fs.promises.access(path.join(destPath, 'SKILL.md'))).resolves.toBeUndefined()
+    await expect(fs.promises.readFile(path.join(backupPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo old-edited\n'
+    )
+  })
+
+  it('retries a preserved interrupted install through prepareInstall without losing the repair', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const oldDir = path.join(root, 'old-retry')
+    const newDir = path.join(root, 'new-retry')
+    const sourceDir = path.join(root, 'source-retry')
+    await writeSkill(oldDir, { supportingContent: 'echo old\n' })
+    await writeSkill(newDir, { supportingContent: 'echo new\n' })
+    await writeSkill(sourceDir, { supportingContent: 'echo new\n' })
+    await fs.promises.writeFile(path.join(oldDir, 'scripts', 'run.sh'), 'echo old-edited\n', 'utf-8')
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    // Crash mid-copy: replacement is missing its helper while `.bak` is the only complete
+    // tree. Recovery preserves both; the next retry must install the complete source even
+    // though `.bak` already occupies the rollback slot.
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.rm(path.join(destPath, 'scripts', 'run.sh'))
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    const cleanOldDir = path.join(root, 'clean-old-retry')
+    await writeSkill(cleanOldDir, { supportingContent: 'echo old\n' })
+    const cleanOldHash = await installer.computeContentHash(cleanOldDir)
+    await installer.recoverInterruptedInstallWithBaseline(destPath, cleanOldHash)
+    await expect(fs.promises.access(path.join(backupPath, 'SKILL.md'))).resolves.toBeUndefined()
+
+    const prepared = await installer.prepareInstall(sourceDir, destPath, cleanOldHash)
+    await prepared.commit()
+
+    // The retry installs the complete tree and frees the preserved rollback slot.
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo new\n')
+    await expect(fs.promises.access(path.join(destPath, 'SKILL.md'))).resolves.toBeUndefined()
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('preserves both trees when the destination descriptor stat fails transiently during baseline recovery', async () => {

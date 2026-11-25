@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-10-system-skill-resync.md
-2026-11-10-system-skill-resync.md: f363f6176967ef47b65f7b09c68110c5beea32d6
-2026-11-10-system-skill-resync.zh.md: db182635a8a45b4e218ab02b081bb8b23451a510
+2026-11-10-system-skill-resync.md: 0315fd5d0d47dedbd5e0c1528f9a0b382e72479e
+2026-11-10-system-skill-resync.zh.md: e8af562b477b2934d6b97b9e42d804eab0f7d22a
