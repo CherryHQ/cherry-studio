@@ -5,6 +5,7 @@ import { gte, valid as validSemver } from 'semver'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getErrorCode } from '@main/utils/error'
 
 /**
  * Request shaping for the Grok CLI provider (xAI's `cli-chat-proxy.grok.com`
@@ -43,10 +44,10 @@ export function pickGrokClientVersion(fileContents: string | null, floor: string
   }
 
   if (!parsed || typeof parsed !== 'object') return floor
-  const obj = parsed as { stable_version?: unknown; version?: unknown }
+  const stableVersion = 'stable_version' in parsed ? parsed.stable_version : undefined
+  const version = 'version' in parsed ? parsed.version : undefined
 
-  const candidate =
-    typeof obj.stable_version === 'string' ? obj.stable_version : typeof obj.version === 'string' ? obj.version : null
+  const candidate = typeof stableVersion === 'string' ? stableVersion : typeof version === 'string' ? version : null
 
   if (!candidate) return floor
   const trimmed = candidate.trim()
@@ -79,7 +80,7 @@ export function resolveGrokClientVersion(): string {
   try {
     raw = fs.readFileSync(filePath, 'utf8')
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+    if (getErrorCode(err) !== 'ENOENT') {
       logger.warn(`Failed to read ${filePath}; using floor ${GROK_VERSION_FLOOR}.`, err)
     }
 

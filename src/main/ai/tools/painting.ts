@@ -97,9 +97,7 @@ export function paintingModelOutput(
 }
 
 export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null {
-  const uniqueModelId = application
-    .get('PreferenceService')
-    .get('feature.paintings.default_model_id') as UniqueModelId | null
+  const uniqueModelId = application.get('PreferenceService').get('feature.paintings.default_model_id')
 
   if (!uniqueModelId) return null
 
@@ -113,7 +111,7 @@ export function resolveConfiguredPaintingModel(): ConfiguredPaintingModel | null
   }
 
   return {
-    uniqueModelId,
+    uniqueModelId: `${providerId}::${modelId}`,
     support: providerRegistryService.getImageGenerationSupport(providerId, modelId)
   }
 }
@@ -133,7 +131,7 @@ function extractParamValues(
 
   const candidate: Partial<Pick<GenerateImageToolInput, CanonicalParamKey>> = {}
 
-  // Registry supports are validated against the finite canonical-key schema.
+  // SAFETY: Registry supports are decoded with the finite canonical-key schema; Object.keys erases those keys.
   for (const key of Object.keys(supports) as CanonicalParamKey[]) {
     const value = input[key]
 

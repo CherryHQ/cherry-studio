@@ -659,7 +659,7 @@ const ENDPOINT_TYPE_ALIASES: ReadonlyMap<string, EndpointType> = new Map(
   })
 )
 
-const ENDPOINT_TYPE_VALUES = new Set<string>(Object.values(ENDPOINT_TYPE))
+const ENDPOINT_TYPE_VALUES = Object.values(ENDPOINT_TYPE)
 
 function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | undefined {
   if (!values?.length) {
@@ -672,8 +672,7 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
         const normalized = value.trim().toLowerCase()
 
         return (
-          ENDPOINT_TYPE_ALIASES.get(normalized) ??
-          (ENDPOINT_TYPE_VALUES.has(normalized) ? (normalized as EndpointType) : undefined)
+          ENDPOINT_TYPE_ALIASES.get(normalized) ?? ENDPOINT_TYPE_VALUES.find((candidate) => candidate === normalized)
         )
       })
       .filter((value): value is EndpointType => Boolean(value)),
@@ -1326,8 +1325,10 @@ export async function probeOllamaModel(
   })
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => undefined)) as { error?: string; message?: string } | undefined
-    throw new Error(body?.error ?? body?.message ?? `Ollama /api/show returned ${response.status}`)
+    const body: unknown = await response.json().catch(() => undefined)
+    const error = body && typeof body === 'object' && 'error' in body ? body.error : undefined
+    const message = body && typeof body === 'object' && 'message' in body ? body.message : undefined
+    throw new Error(String(error ?? message ?? `Ollama /api/show returned ${response.status}`))
   }
 
   return { latency: performance.now() - start }
