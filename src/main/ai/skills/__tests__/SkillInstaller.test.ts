@@ -51,37 +51,44 @@ describe('SkillInstaller', () => {
   })
 
   it.each([
-    null,
-    undefined,
-    'filesystem unavailable',
-    { code: 'EACCES' },
-    {
-      get code() {
-        throw new Error('unreadable code')
-      }
+    ['null', () => null],
+    ['undefined', () => undefined],
+    ['string', () => 'filesystem unavailable'],
+    ['permission error', () => ({ code: 'EACCES' })],
+    [
+      'unreadable code',
+      () => ({
+        get code() {
+          throw new Error('unreadable code')
+        }
+      })
+    ]
+  ] as const)(
+    'preserves a non-missing filesystem failure through recovery and rollback: %s',
+    async (_label, createFailure) => {
+      const error = createFailure()
+      const source = resolvePath('/tmp/my-skill')
+      const destination = resolvePath('/global-skills/my-skill')
+      mockFsLstat.mockRejectedValue(error)
+      await expect(installer.recoverInterruptedInstall(destination)).rejects.toBe(error)
+
+      mockFsReaddir.mockRejectedValue(error)
+      await expect(installer.recoverInterruptedInstalls(path.dirname(destination))).rejects.toBe(error)
+
+      mockDeleteDirectoryRecursive.mockRejectedValue(error)
+      await expect(installer.uninstall(destination)).rejects.toBe(error)
+
+      vi.spyOn(installer, 'computeDirectoryHash').mockResolvedValue('same-hash')
+      mockFsLstat.mockRejectedValueOnce({ code: 'ENOENT' })
+      await expect(installer.prepareInstall(source, destination)).rejects.toBe(error)
+
+      mockFsLstat.mockRejectedValue({ code: 'ENOENT' })
+      mockPathExists.mockResolvedValue(false)
+      mockCopyDirectoryRecursive.mockResolvedValue(undefined)
+      const prepared = await installer.prepareInstall(source, destination)
+      await expect(prepared.rollback()).rejects.toBe(error)
     }
-  ])('preserves a non-missing filesystem failure through recovery and rollback: %s', async (error) => {
-    const source = resolvePath('/tmp/my-skill')
-    const destination = resolvePath('/global-skills/my-skill')
-    mockFsLstat.mockRejectedValue(error)
-    await expect(installer.recoverInterruptedInstall(destination)).rejects.toBe(error)
-
-    mockFsReaddir.mockRejectedValue(error)
-    await expect(installer.recoverInterruptedInstalls(path.dirname(destination))).rejects.toBe(error)
-
-    mockDeleteDirectoryRecursive.mockRejectedValue(error)
-    await expect(installer.uninstall(destination)).rejects.toBe(error)
-
-    vi.spyOn(installer, 'computeDirectoryHash').mockResolvedValue('same-hash')
-    mockFsLstat.mockRejectedValueOnce({ code: 'ENOENT' })
-    await expect(installer.prepareInstall(source, destination)).rejects.toBe(error)
-
-    mockFsLstat.mockRejectedValue({ code: 'ENOENT' })
-    mockPathExists.mockResolvedValue(false)
-    mockCopyDirectoryRecursive.mockResolvedValue(undefined)
-    const prepared = await installer.prepareInstall(source, destination)
-    await expect(prepared.rollback()).rejects.toBe(error)
-  })
+  )
 
   describe('install', () => {
     beforeEach(() => {

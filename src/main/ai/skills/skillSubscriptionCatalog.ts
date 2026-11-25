@@ -17,6 +17,7 @@ import { readGithubSkillCatalog, resolveGithubSkillSourceUrl } from './skillRemo
 const MAX_FEED_BYTES = 16 * 1024 * 1024
 
 // oxlint-disable anti-slop/no-unsafe-dictionary-type -- JSON/RSS container checks leave fields unvalidated; text and URL readers own their decoding.
+// SAFETY: The branch establishes an object container only; field values stay unknown for the existing feed readers.
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- JSON Feed entries and parsed RSS nodes are untyped; accept only object records before reading optional feed fields.
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}

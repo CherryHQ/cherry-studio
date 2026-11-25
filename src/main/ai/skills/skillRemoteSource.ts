@@ -448,6 +448,7 @@ async function resolveGithubCommit(
 
     if (!oid || !match || fullName.endsWith('^{}')) return []
 
+    // SAFETY: The matched regex restricts capture 1 to heads or tags; RegExpMatchArray does not preserve that literal union.
     return [{ oid, namespace: match[1] as 'heads' | 'tags', name: match[2] }]
   })
 
@@ -586,7 +587,7 @@ function assertGithubTargetTree(
 
   assertNoFoldedPathCollisions(entryPaths)
 
-  if (!entryPaths.some((entryPath) => descriptorFileNames.includes(entryPath as SkillDescriptorFileName))) {
+  if (!entryPaths.some((entryPath) => descriptorFileNames.some((descriptor) => descriptor === entryPath))) {
     throw missingDescriptorError(target, descriptorFileNames)
   }
 
