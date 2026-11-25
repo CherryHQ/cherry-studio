@@ -264,6 +264,7 @@
   "notification.result.failed": "작업 실패",
   "notification.result.interrupted": "작업 중단됨",
   "notification.result.succeeded": "작업 완료",
+  "notification.scheduled_task.started": "예약 작업이 시작되었습니다",
   "notification.subscription.activated_message": "구독이 활성화되었습니다. 모델 선택기에서 CherryAI가 제공하는 모델을 선택하여 사용하세요.",
   "notification.subscription.auto_renew_enabled_message": "자동 갱신 상태가 업데이트되었습니다. 설정 › 계정 › 구독 관리에서 자세한 내용을 확인하세요.",
   "notification.subscription.entitlement_restored_message": "구독 혜택이 복원되었습니다. 설정 › 계정 › 구독 관리에서 자세한 내용을 확인하세요.",
