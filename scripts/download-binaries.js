@@ -18,7 +18,6 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { execFileSync, spawn } = require('child_process')
-const StreamZip = require('node-stream-zip')
 
 const REPO_ROOT = path.join(__dirname, '..')
 const BINARIES_ROOT = path.join(REPO_ROOT, 'resources', 'binaries')
@@ -517,6 +516,7 @@ function download(url, dest) {
  * when extraction fails; the empty tree resurfaces later as a copy ENOENT.
  */
 async function extractZipArchive(archivePath, destinationDir) {
+  const StreamZip = require('node-stream-zip')
   fs.mkdirSync(destinationDir, { recursive: true })
   const zip = new StreamZip.async({ file: archivePath })
   try {

@@ -155,6 +155,7 @@ function useDataArchiveActions(
   refresh: () => Promise<unknown>,
   buildRestoreSuccessAction?: (item: ArchiveItem) => ToastAction
 ) {
+  const writeCache = useWriteCache()
   const { t } = useTranslation()
   const runAction = useArchiveActionRunner()
   const [pendingRestoreId, setPendingRestoreId] = useState<string | null>(null)
@@ -166,7 +167,15 @@ function useDataArchiveActions(
   const deleteMutation = useMutation('DELETE', `/${domain}/:id`)
 
   const restoreItem = (item: ArchiveItem) =>
-    reconcileNotFound(() => restoreMutation.trigger({ params: { id: item.id } }), refresh, `/${domain}/${item.id}`)
+    reconcileNotFound(
+      async () => {
+        const restored = await restoreMutation.trigger({ params: { id: item.id } })
+        if (domain === 'topics') await writeCache(`/topics/${item.id}`, restored)
+        return restored
+      },
+      refresh,
+      `/${domain}/${item.id}`
+    )
 
   const handleRestore = async (item: ArchiveItem) => {
     setPendingRestoreId(item.id)

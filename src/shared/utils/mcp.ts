@@ -1,6 +1,7 @@
 import { ContentBlockSchema } from '@modelcontextprotocol/core'
 import type * as z from 'zod'
 
+import { type Assistant, DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 type ContentBlock = z.infer<typeof ContentBlockSchema>
@@ -37,6 +38,12 @@ export type BuiltinMcpServer = McpServer & {
 
 export const isInMemoryBuiltinMcpServer = (server: McpServer): server is BuiltinMcpServer & { type: 'inMemory' } => {
   return server.type === 'inMemory' && isBuiltinMcpServerName(server.name)
+}
+
+/** `settings.mcpMode` if set; else the shared default ('manual' — only linked
+ *  servers; with zero links that resolves to no tools, same as 'disabled'). */
+export function getEffectiveMcpMode(assistant: Pick<Assistant, 'settings'>): McpMode {
+  return assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE
 }
 
 export const isBrowserMcpServer = (server: Pick<McpServer, 'type' | 'name'>): boolean =>

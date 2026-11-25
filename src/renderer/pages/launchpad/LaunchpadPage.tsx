@@ -1,9 +1,9 @@
-import { arrayMove } from '@dnd-kit/sortable'
+import { arrayMove } from '@dnd-kit/helpers'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ScrollArea } from '@cherrystudio/ui'
+import { Button, ScrollArea } from '@cherrystudio/ui'
 import { Sortable } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import agentsIcon from '@renderer/assets/images/apps/launchpad-agents.svg'
@@ -34,9 +34,9 @@ import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const APP_ICON_SURFACE_CLASS =
-  'relative flex size-14 items-center justify-center overflow-hidden rounded-[50%] [corner-shape:squircle] bg-muted group-focus-visible:inset-ring-2 group-focus-visible:inset-ring-ring'
+  'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl bg-muted group-focus-visible:inset-ring-2 group-focus-visible:inset-ring-ring'
 const APP_ICON_FRAME_CLASS =
-  'relative flex size-full shrink-0 items-center justify-center overflow-hidden rounded-[inherit] [corner-shape:inherit] [color-scheme:light] dark:[color-scheme:dark] select-none'
+  'relative flex size-full shrink-0 items-center justify-center overflow-hidden rounded-[inherit] [color-scheme:light] dark:[color-scheme:dark] select-none'
 const APP_ICON_CLASS = 'size-full object-contain'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
@@ -316,8 +316,14 @@ export default function LaunchpadPage() {
 
           {launchpadMiniAppsVisible && (
             <section className="flex flex-col gap-2">
-              <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
-                {t('launchpad.miniApps')}
+              <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="inline min-h-0 p-0 align-baseline text-inherit opacity-80 [font:inherit] hover:bg-transparent hover:text-inherit hover:opacity-100 focus-visible:bg-transparent focus-visible:text-inherit focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-ring"
+                  onClick={() => openLaunchpadItem('mini_app')}>
+                  {t('launchpad.miniApps')}
+                </Button>
               </h2>
               <div className={LAUNCHPAD_GRID_CLASS}>
                 <Sortable
