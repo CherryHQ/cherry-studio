@@ -55,6 +55,26 @@ const text = (id: string, value: string): CherryUIMessage => ({
   parts: [{ type: 'text', text: value, state: 'done' }]
 })
 
+it('keeps identified data part IDs when their source reorders or replaces them', () => {
+  const f = fixture()
+  const replyId = f.reply()
+  const part = (id: string): CherryUIMessage['parts'][number] => ({
+    type: 'data-error',
+    id,
+    data: { name: 'Error', message: id, stack: null }
+  })
+  const project = (ids: string[]) =>
+    f.projection.accept(f.update([{ id: 'native', role: 'assistant', parts: ids.map(part) }]), replyId)
+  project(['first', 'second'])
+  const [first, second] = f.projection.partIds(replyId)!
+  project(['second', 'first'])
+  expect(f.projection.partIds(replyId)).toEqual([second, first])
+  project(['second', 'new'])
+  const [retained, replacement] = f.projection.partIds(replyId)!
+  expect(retained).toBe(second)
+  expect(replacement).not.toBe(first)
+})
+
 it.each(['connected', 'reconnected'])(
   'keeps a deleted reply out of %s projection replay and the next reply',
   (mode) => {

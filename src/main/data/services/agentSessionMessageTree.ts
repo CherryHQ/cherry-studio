@@ -1,5 +1,6 @@
 import { isToolUIPart } from 'ai'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import {
@@ -56,12 +57,7 @@ export function splitAgentSessionMessageData(data: AgentSessionMessageData): {
   return { data: stored, parts }
 }
 
-/** Mirrors the FTS contract: only visible `text` parts are searchable, never reasoning. */
-export function agentSessionMessageSearchableText(parts: readonly CherryMessagePart[]): string {
-  return parts.flatMap((part) => (part.type === 'text' && typeof part.text === 'string' ? [part.text] : [])).join('\n')
-}
-
-/** Part IDs are allocated by the column default until callers carry stable part identities. */
+/** Bulk part rows for a fresh message; IDs come from the column default. */
 export function agentSessionMessagePartRows(input: {
   sessionId: string
   messageId: string
@@ -80,24 +76,127 @@ export function agentSessionMessagePartRows(input: {
   }))
 }
 
-/** Replaces a message's ordered body and its searchable text; the message row must already exist. */
-export function replaceAgentSessionMessagePartsTx(
+/** Reads a message's part IDs in body order, parallel to its assembled `parts`. */
+export function readAgentSessionMessagePartIdsTx(db: DbOrTx, messageId: string): string[] {
+  return db
+    .select({ id: messageParts.id })
+    .from(messageParts)
+    .where(eq(messageParts.messageId, messageId))
+    .orderBy(asc(messageParts.seq))
+    .all()
+    .map((row) => row.id)
+}
+
+/**
+ * Makes `order` the message's part list: drops parts outside it, re-sequences the rest and writes
+ * `parts` by ID. Rows whose payload and position are unchanged are not rewritten.
+ */
+export function writeAgentSessionMessagePartsTx(
   db: DbOrTx,
-  input: { sessionId: string; messageId: string; parts: readonly CherryMessagePart[]; timestampMs: number }
+  input: {
+    sessionId: string
+    messageId: string
+    order: readonly string[]
+    parts: ReadonlyMap<string, CherryMessagePart>
+    timestampMs: number
+  }
 ): void {
-  const { messageId, parts } = input
-  db.delete(messageParts).where(eq(messageParts.messageId, messageId)).run()
-  const rows = agentSessionMessagePartRows(input)
-  for (let index = 0; index < rows.length; index += SQLITE_INARRAY_CHUNK) {
+  const { sessionId, messageId, order, parts, timestampMs } = input
+  const seqById = new Map(order.map((id, seq) => [id, seq]))
+  if (seqById.size !== order.length) throw new Error('Agent session message part IDs must be unique')
+  const existing = db
+    .select({ id: messageParts.id, seq: messageParts.seq, type: messageParts.type })
+    .from(messageParts)
+    .where(eq(messageParts.messageId, messageId))
+    .all()
+  let textChanged = [...parts.values()].some((part) => part.type === 'text')
+  const removed = existing.filter((row) => !seqById.has(row.id))
+  const moved = existing.filter((row) => seqById.has(row.id) && seqById.get(row.id) !== row.seq)
+  textChanged ||= [...removed, ...moved].some((row) => row.type === 'text')
+  for (const [rows, apply] of [
+    [removed, (ids: string[]) => db.delete(messageParts).where(inArray(messageParts.id, ids)).run()],
+    // Negative seqs free the unique (message, seq) slots before rows take their new positions.
+    [
+      moved,
+      (ids: string[]) =>
+        db
+          .update(messageParts)
+          .set({ seq: sql`-1 - ${messageParts.seq}` })
+          .where(inArray(messageParts.id, ids))
+          .run()
+    ]
+  ] as const) {
+    const ids = rows.map((row) => row.id)
+    for (let index = 0; index < ids.length; index += SQLITE_INARRAY_CHUNK)
+      apply(ids.slice(index, index + SQLITE_INARRAY_CHUNK))
+  }
+  for (const row of moved) {
+    if (!parts.has(row.id))
+      db.update(messageParts)
+        .set({ seq: seqById.get(row.id)! })
+        .where(eq(messageParts.id, row.id))
+        .run()
+  }
+  for (const [id, part] of parts) {
+    const seq = seqById.get(id)
+    if (seq === undefined) throw new Error('Agent session message part is outside the message order')
     db.insert(messageParts)
-      .values(rows.slice(index, index + SQLITE_INARRAY_CHUNK))
+      .values({
+        id,
+        messageId,
+        sessionId,
+        seq,
+        type: part.type,
+        payload: part,
+        createdAt: timestampMs,
+        updatedAt: timestampMs
+      })
+      .onConflictDoUpdate({
+        target: messageParts.id,
+        set: { seq, type: part.type, payload: part, updatedAt: timestampMs },
+        setWhere: sql`${messageParts.payload} IS NOT excluded.payload OR ${messageParts.seq} IS NOT excluded.seq`
+      })
       .run()
   }
+  if (!textChanged) return
+  const text = db
+    .select({ text: sql<string | null>`json_extract(${messageParts.payload}, '$.text')` })
+    .from(messageParts)
+    .where(and(eq(messageParts.messageId, messageId), eq(messageParts.type, 'text')))
+    .orderBy(asc(messageParts.seq))
+    .all()
   // Callers own the container timestamp; keep the column's auto-update from overwriting it.
   db.update(messages)
-    .set({ searchableText: agentSessionMessageSearchableText(parts), updatedAt: messages.updatedAt })
+    .set({
+      searchableText: text.flatMap((row) => (typeof row.text === 'string' ? [row.text] : [])).join('\n'),
+      updatedAt: messages.updatedAt
+    })
     .where(eq(messages.id, messageId))
     .run()
+}
+
+/**
+ * Replaces a message's ordered body and its searchable text; the message row must already exist.
+ * `partIds` keep stored identities, so unchanged parts are not rewritten; without them every part
+ * gets a new ID.
+ */
+export function replaceAgentSessionMessagePartsTx(
+  db: DbOrTx,
+  input: {
+    sessionId: string
+    messageId: string
+    parts: readonly CherryMessagePart[]
+    partIds?: readonly string[]
+    timestampMs: number
+  }
+): void {
+  const { parts, partIds = parts.map(() => uuidv7()) } = input
+  if (partIds.length !== parts.length) throw new Error('Agent session message part IDs must parallel its parts')
+  writeAgentSessionMessagePartsTx(db, {
+    ...input,
+    order: partIds,
+    parts: new Map(partIds.map((id, index) => [id, parts[index]]))
+  })
 }
 
 export function hydrateAgentSessionMessageDataTx<T extends AgentSessionMessageData>(
