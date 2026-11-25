@@ -14,6 +14,7 @@ import type {
   ChatConversationControlsChangeHandler
 } from '@renderer/components/composer/variants/ChatComposer'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
@@ -23,6 +24,7 @@ import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { hasClearContextPart } from '@shared/data/types/uiParts'
 import { normalizeMaxMessages, resolveMaxMessages } from '@shared/utils/contextSettings'
 
 import ChatComposerSlot from './ChatComposerSlot'
@@ -202,15 +204,36 @@ const ChatContentInner: FC<InnerProps> = ({
     resolveMaxMessages(topic.assistantId ? assistant?.settings?.contextSettings : undefined, globalMaxMessages)
   )
   const nextTurnFillsActiveNode = runtime.composerChatTarget.mode === 'reserved-branch'
+  const canPreviewContextWindow =
+    !isHistoryLoading &&
+    !isHistoryStale &&
+    !runtime.isTurnBusy &&
+    (!topic.assistantId || assistant?.id === topic.assistantId)
+  const precedingMessageId = hasOlder ? (pathMessages[0]?.parentId ?? undefined) : undefined
+  const boundary = useMemo(
+    () =>
+      canPreviewContextWindow
+        ? findContextWindowBoundary(pathMessages, maxMessages, { nextTurnFillsActiveNode, precedingMessageId })
+        : null,
+    [canPreviewContextWindow, maxMessages, nextTurnFillsActiveNode, pathMessages, precedingMessageId]
+  )
+  const pageEdgeMessageId = boundary?.precedingMessageId
+  const { data: pageEdgeMessage } = useQuery('/messages/:id', {
+    enabled: Boolean(pageEdgeMessageId),
+    params: { id: pageEdgeMessageId ?? '' }
+  })
+  const pageEdgeHasEarlierHistory =
+    pageEdgeMessage !== undefined &&
+    pageEdgeMessage.id === pageEdgeMessageId &&
+    pageEdgeMessage.role !== 'root' &&
+    !hasClearContextPart(pageEdgeMessage.data.parts)
   const contextWindowSlots = useMemo(() => {
-    if (maxMessages === null || isHistoryStale) return {}
-    const boundary = findContextWindowBoundary(pathMessages, maxMessages, { nextTurnFillsActiveNode })
-    if (!boundary) return {}
+    if (maxMessages === null || !boundary || (pageEdgeMessageId && !pageEdgeHasEarlierHistory)) return {}
     const divider = <ContextWindowDivider limit={maxMessages} />
     return boundary.kind === 'before'
       ? { messageHead: { messageId: boundary.messageId, content: divider } }
       : { afterMessages: divider }
-  }, [isHistoryStale, maxMessages, nextTurnFillsActiveNode, pathMessages])
+  }, [boundary, maxMessages, pageEdgeHasEarlierHistory, pageEdgeMessageId])
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
   const contextUsage = useMemo<ChatContextUsageSource | null>(() => {
     if (isHistoryStale) return null

@@ -259,7 +259,22 @@ export function useTopicMessages(
     () => projectDisplayMessagesToUI(branchProjection.displayMessages, projectionCacheRef.current),
     [branchProjection.displayMessages]
   )
-  const pathMessages = useMemo(() => branchItems.map((item) => item.message), [branchItems])
+  const pathMessages = useMemo(() => {
+    const messagesById = new Map<string, SharedMessage>()
+    for (const { message, siblingsGroup } of branchItems) {
+      for (const sibling of siblingsGroup ?? []) messagesById.set(sibling.id, sibling)
+      messagesById.set(message.id, message)
+    }
+
+    // Optimistic reservations can include replies outside the active branch.
+    const path: SharedMessage[] = []
+    let message = activeNodeId ? messagesById.get(activeNodeId) : undefined
+    while (message) {
+      path.push(message)
+      message = message.parentId ? messagesById.get(message.parentId) : undefined
+    }
+    return path.reverse()
+  }, [activeNodeId, branchItems])
   const loadedMessageIds = useMemo(() => {
     const ids = new Set<string>()
     for (const item of branchItems) {

@@ -35,6 +35,19 @@ describe('findContextWindowBoundary', () => {
     expect(findContextWindowBoundary(path, 2, appendNextTurn)).toEqual({ kind: 'before', messageId: 'u2' })
   })
 
+  it('can mark the first loaded user row when the cut reaches the page edge', () => {
+    const path = [u('u2'), a('a2')]
+    const options = { ...appendNextTurn, precedingMessageId: 'a1' }
+    expect(findContextWindowBoundary(path, 2, options)).toEqual({
+      kind: 'before',
+      messageId: 'u2',
+      precedingMessageId: 'a1'
+    })
+    expect(findContextWindowBoundary(path, 4, options)).toBeNull()
+    expect(findContextWindowBoundary([a('a2')], 2, options)).toBeNull()
+    expect(findContextWindowBoundary([clear('reset'), ...path], 2, options)).toBeNull()
+  })
+
   it('places the boundary after the whole history when only the new message is sent', () => {
     expect(findContextWindowBoundary([u('u1'), a('a1')], 1, appendNextTurn)).toEqual({ kind: 'after-last' })
   })

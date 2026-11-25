@@ -150,8 +150,10 @@ The window and the `maxMessages` merge live in `src/shared/utils/contextSettings
 so Home chat can show the same cut: `pages/home/messages/contextWindowBoundary.ts`
 windows the loaded active path after the latest clear-context marker plus the next
 user row, and the list draws a divider above the first message that request still
-carries, or after the history when only the new message fits. Nothing is drawn when
-no row is dropped or the cut falls inside an unloaded page.
+carries, or after the history when only the new message fits. Home shows the
+prediction once the assistant settings are known and the topic is idle. If the
+cut starts at the first loaded user row, Home checks the preceding row for a
+context reset. A cut inside an unloaded page becomes visible when that page loads.
 An assistant-level `compress.modelId` of `null` inherits the global selection instead of forcing the current request model.
 
 ### Budget with a declared window
