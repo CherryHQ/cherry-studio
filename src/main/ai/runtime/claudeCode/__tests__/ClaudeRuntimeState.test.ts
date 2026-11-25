@@ -30,7 +30,10 @@ describe('Claude product control mapping', () => {
           input_tokens: 3,
           output_tokens: 5,
           cache_creation_input_tokens: 7,
-          cache_read_input_tokens: 11
+          cache_read_input_tokens: 11,
+          get iterations() {
+            throw new Error('Display statistics must only read the aggregate token counters')
+          }
         } as never
       })
     ).toMatchObject({
@@ -40,6 +43,7 @@ describe('Claude product control mapping', () => {
           inputTokens: 21,
           outputTokens: 5,
           totalTokens: 26,
+          inputTokenDetails: { noCacheTokens: 3, cacheWriteTokens: 7, cacheReadTokens: 11 },
           outputTokenDetails: { reasoningTokens: 4 }
         }
       }

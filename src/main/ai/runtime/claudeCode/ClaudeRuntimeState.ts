@@ -2,7 +2,7 @@ import type { ClaudeControl, ClaudeResultFailure, ClaudeTaskFact } from '@cherry
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
 import type { AgentRuntimeEvent } from '../types'
-import { convertClaudeCodeUsage, v3UsageToStats } from './usage'
+import { claudeMessageStats } from './usage'
 
 export class ClaudeCodeResultError extends Error {
   readonly exitCode = 1
@@ -23,11 +23,11 @@ export class ClaudeCodeResultError extends Error {
 
 export function toAgentRuntimeEvent(control: ClaudeControl): AgentRuntimeEvent | undefined {
   switch (control.type) {
-    case 'result': {
-      const usage = convertClaudeCodeUsage(control.usage)
-      usage.outputTokens.reasoning = control.reasoningTokens
-      return { type: 'message-metadata', messageMetadata: { stats: v3UsageToStats(usage) } }
-    }
+    case 'result':
+      return {
+        type: 'message-metadata',
+        messageMetadata: { stats: claudeMessageStats(control.usage, control.reasoningTokens) }
+      }
     case 'autonomous-turn-state':
       return control.state === 'started'
         ? { ...control, origin: { kind: 'background-work' } }
