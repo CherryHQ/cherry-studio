@@ -111,7 +111,6 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   const isFirstQuestion = currentIndex === 0
   const isLastQuestion = currentIndex === totalQuestions - 1
   const currentCustomAnswer = customAnswers[currentIndex] ?? ''
-  const currentCustomAnswerText = currentCustomAnswer.trim()
 
   const hasAnswerAt = useCallback(
     (index: number, answersByIndex: AnswersByIndex = selectedAnswers) =>
@@ -128,6 +127,8 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   const selectedForCurrent = selectedAnswers[currentIndex] ?? []
   const hasAnyAnswerValue = useMemo(() => hasAnyAnswer(), [hasAnyAnswer])
   const customActionSubmitsAll = isLastQuestion && (form != null || hasAnyAnswerValue)
+  const hasCurrentAnswer = hasAnswerAt(currentIndex)
+  const isPrimaryAction = form != null || customActionSubmitsAll || hasCurrentAnswer
 
   const buildAnswers = useCallback(
     (answersByIndex: AnswersByIndex = selectedAnswers) => {
@@ -470,12 +471,17 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           )}
           <Button
             type="button"
-            variant="ghost"
-            className="ml-auto h-9 px-2.5 font-semibold text-muted-foreground text-sm shadow-none hover:bg-transparent hover:text-foreground"
+            variant={isPrimaryAction ? 'emphasis' : 'ghost'}
+            className={cn(
+              'ml-auto h-9 font-semibold text-sm shadow-none',
+              isPrimaryAction
+                ? 'rounded-[12px] px-3.5'
+                : 'px-2.5 text-muted-foreground hover:bg-transparent hover:text-foreground'
+            )}
             loading={customActionSubmitsAll && isSubmitting}
             disabled={isSubmitting}
             onClick={handleCustomAction}>
-            {form || customActionSubmitsAll || currentCustomAnswerText
+            {isPrimaryAction
               ? isLastQuestion
                 ? t('agent.askUserQuestion.submit')
                 : t('agent.askUserQuestion.next')
