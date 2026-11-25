@@ -16,6 +16,8 @@ interface Schema<T> {
 }
 
 export class RemoteRpcError extends JSONRPCErrorException {
+  declare data: RemoteFailure
+
   constructor(reason: RemoteFailure['reason'], message: string, details?: RemoteFailure['details']) {
     const failure: RemoteFailure = { reason, message }
 

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
-import type { RemoteFailure } from '@cherrystudio/remote-protocol'
 import {
   type AgentInteraction,
   type AgentMethod,
@@ -63,10 +62,14 @@ export function registerAgentMethods(
   const on = <M extends AgentMethod>(
     name: M,
     handler: (params: AgentParams<M>, auth: Auth) => AgentResult<M> | Promise<AgentResult<M>>
-  ) =>
-    rpc.addMethod<AgentParams<M>, AgentResult<M>>(name, agentMethods[name] as never, (params) =>
+  ) => {
+    // SAFETY: The same method key selects the protocol schemas and handler; addMethod parses both params and results.
+    const schema = agentMethods[name] as Parameters<typeof rpc.addMethod<AgentParams<M>, AgentResult<M>>>[1]
+
+    return rpc.addMethod<AgentParams<M>, AgentResult<M>>(name, schema, (params) =>
       Promise.resolve().then(() => handler(params, access.requireAgent()))
     )
+  }
 
   // oxlint-disable-next-line anti-slop/no-known-value-widening -- The protocol map preserves each method's correlated params/result types for generic registration.
   const taskHandlers: { [M in TaskMethod]: (params: AgentParams<M>) => AgentResult<M> } = {
@@ -79,6 +82,7 @@ export function registerAgentMethods(
 
   const registerTask = <M extends TaskMethod>(name: M) => on(name, taskHandlers[name])
 
+  // SAFETY: taskHandlers is the local, complete TaskMethod map; Object.keys erases its own literal keys.
   for (const name of Object.keys(taskHandlers) as TaskMethod[]) registerTask(name)
 
   const summaryOf = (sessionId: string) => {
@@ -138,7 +142,7 @@ export function registerAgentMethods(
     try {
       outcome = await run()
     } catch (error) {
-      if (error instanceof RemoteRpcError) outcome = { status: 'rejected', error: error.data as RemoteFailure }
+      if (error instanceof RemoteRpcError) outcome = { status: 'rejected', error: error.data }
       else if (error instanceof AgentSessionDeliveryRoutingError && error.code === 'TARGET_UNAVAILABLE') {
         outcome = {
           status: 'rejected',
