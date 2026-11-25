@@ -276,6 +276,8 @@ export interface MessageRenderConfig {
   collapseCompletedToolHistory: boolean
   /** Open tool groups and the finished process by default, so each step reads without a click. */
   expandToolSteps: boolean
+  /** Open running (live) nested tool groups by default; Agent keeps them visible while the turn runs. */
+  expandLiveToolSteps: boolean
   keepIntermediateAssistantText: boolean
   mathEnableSingleDollar: boolean
   showMessageOutline: boolean
@@ -298,6 +300,7 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   thoughtAutoCollapse: true,
   collapseCompletedToolHistory: true,
   expandToolSteps: false,
+  expandLiveToolSteps: false,
   keepIntermediateAssistantText: false,
   mathEnableSingleDollar: false,
   showMessageOutline: false,
@@ -338,6 +341,8 @@ export interface MessageListState {
   afterMessages?: ReactNode
   /** Optional adapter-owned content rendered after one message's body. */
   messageTail?: MessageTailSlot
+  /** Optional adapter-owned content rendered above the list group that opens with this message. */
+  messageHead?: MessageTailSlot
   /** Renders the live turn's processing status inline, replacing the default placeholder. Receives
    *  that placeholder as a fallback, so an override (e.g. an ephemeral agent api-retry line) can take
    *  over while active and fall back to the placeholder otherwise. Called only in the message that owns

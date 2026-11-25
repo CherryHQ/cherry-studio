@@ -944,6 +944,11 @@ function mergeRuntimeSettings(
   if (route.branch === 'gateway' && !env.CLAUDE_CODE_SUBAGENT_MODEL?.trim()) {
     env.CLAUDE_CODE_SUBAGENT_MODEL = route.modelIds.primary
   }
+  // Since CLI 2.1.311, the separate workflow sub-agent slot overrides script `model` in workflow runs; bare IDs cause `400 Invalid model format` at the gateway.
+  // Default only missing/blank values on gateway routes to preserve explicit pins.
+  if (route.branch === 'gateway' && !env.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL?.trim()) {
+    env.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL = route.modelIds.primary
+  }
   // `buildEnvironment` force-enables the SDK's ToolSearch via `ENABLE_TOOL_SEARCH=auto` before the
   // per-turn model is known, and the var is in the blocked list so agents cannot override it. When
   // the effective connection model rejects dynamically-loaded tool declarations (e.g. Kimi models
