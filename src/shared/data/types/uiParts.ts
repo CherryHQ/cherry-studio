@@ -392,19 +392,6 @@ export function createClearContextPart(): ClearContextPart {
   }
 }
 
-/** Create the hidden marker for a dismissed synthetic no-response error. */
-export function createDismissedNoResponsePart(): DismissedNoResponsePart {
-  return {
-    type: DISMISSED_NO_RESPONSE_PART_TYPE,
-    data: {}
-  }
-}
-
-/** Whether parts contain a dismissed no-response marker. */
-export function hasDismissedNoResponsePart(parts: readonly CherryMessagePart[] | undefined): boolean {
-  return parts?.some((part) => part.type === DISMISSED_NO_RESPONSE_PART_TYPE) ?? false
-}
-
 /** Whether a message's persisted parts contain a model-context boundary. */
 export function hasClearContextPart(parts: readonly CherryMessagePart[] | undefined): boolean {
   return parts?.some((part) => part.type === CLEAR_CONTEXT_PART_TYPE) ?? false

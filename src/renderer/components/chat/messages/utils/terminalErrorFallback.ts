@@ -1,8 +1,8 @@
 import { hasRenderableContent, isSteerHandoffEmptySuccess } from '@shared/ai/messageRenderability'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { hasDismissedNoResponsePart } from '@shared/data/types/uiParts'
 
 import { isHiddenPart } from '../blocks/messagePartLayouts'
+import { hasDismissedNoResponsePart } from './dismissedNoResponse'
 
 /**
  * Appends a localized "no response" error part to assistant messages that ended

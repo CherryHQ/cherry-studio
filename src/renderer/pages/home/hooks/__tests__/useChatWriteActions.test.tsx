@@ -21,9 +21,9 @@ vi.mock('@renderer/services/messageUiStateCache', () => ({
   invalidateCachedMessageUiStates: invalidateMessages
 }))
 
+import { createDismissedNoResponsePart } from '@renderer/components/chat/messages/utils/dismissedNoResponse'
 import type { Topic } from '@renderer/types/topic'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { createDismissedNoResponsePart } from '@shared/data/types/uiParts'
 
 import { useChatWriteActions } from '../useChatWriteActions'
 

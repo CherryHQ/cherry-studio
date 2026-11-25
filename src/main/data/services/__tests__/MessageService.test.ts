@@ -33,7 +33,7 @@ import {
   TREE_OFF_PATH_DEPTH_LIMIT
 } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { createDismissedNoResponsePart } from '@shared/data/types/uiParts'
+import { DISMISSED_NO_RESPONSE_PART_TYPE } from '@shared/data/types/uiParts'
 
 function treeRow(topicId: string, id: string, parentId: string | null, order: number) {
   return {
@@ -644,7 +644,7 @@ describe('MessageService', () => {
       dbh.db
         .update(messageTable)
         .set({
-          data: { parts: [createDismissedNoResponsePart()], modelSelection: 'explicit' },
+          data: { parts: [{ type: DISMISSED_NO_RESPONSE_PART_TYPE, data: {} }], modelSelection: 'explicit' },
           status: 'success'
         })
         .where(eq(messageTable.id, 'm-a1'))

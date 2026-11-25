@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { createDismissedNoResponsePart } from '@shared/data/types/uiParts'
 
+import { createDismissedNoResponsePart } from '../dismissedNoResponse'
 import { withEmptySuccessFallback, withNoResponseFallback, withTerminalErrorFallback } from '../terminalErrorFallback'
 
 function makeMessage(id: string, status: 'success' | 'error' | undefined, parts: CherryMessagePart[]): CherryUIMessage {

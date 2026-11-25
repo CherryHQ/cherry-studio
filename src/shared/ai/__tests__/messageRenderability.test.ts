@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { createDismissedNoResponsePart } from '@shared/data/types/uiParts'
+import { DISMISSED_NO_RESPONSE_PART_TYPE } from '@shared/data/types/uiParts'
 
 import {
   hasRenderableContent,
@@ -273,7 +273,7 @@ describe('hasRenderableContent', () => {
   })
 
   it('treats dismissal markers as non-substantive for retry eligibility', () => {
-    const dismissed = createDismissedNoResponsePart() as unknown as CherryMessagePart
+    const dismissed = { type: DISMISSED_NO_RESPONSE_PART_TYPE, data: {} } as unknown as CherryMessagePart
     expect(hasSubstantiveAssistantParts([])).toBe(false)
     expect(hasSubstantiveAssistantParts([dismissed])).toBe(false)
     expect(hasSubstantiveAssistantParts([dismissed, part({ type: 'text', text: 'answer' })])).toBe(true)

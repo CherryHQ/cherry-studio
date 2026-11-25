@@ -28,6 +28,10 @@ import {
   type MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import {
+  createDismissedNoResponsePart,
+  hasDismissedNoResponsePart
+} from '@renderer/components/chat/messages/utils/dismissedNoResponse'
+import {
   bindCaptureMessageImageRuntime,
   flushPendingMessageImageActions,
   runMessageImageAction
@@ -58,7 +62,6 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
-import { createDismissedNoResponsePart, hasDismissedNoResponsePart } from '@shared/data/types/uiParts'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { isNonChatModel, isVisionModel } from '@shared/utils/model'
 
