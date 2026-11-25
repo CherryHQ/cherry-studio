@@ -24,7 +24,7 @@ Main resolves the referenced result, rechecks the current source and its convers
 
 Project the App reference from host-owned tool-part metadata. Mount one App slot per eligible call in the shared `MessagePartsRenderer` result area, keyed by message ID and the real tool call ID. The result area stays mounted across tool-group collapse and transition from streaming to completed history. `MessageMcpTool` continues to render the ordinary tool details. Page adapters supply the owning conversation and composer actions through the message-list provider. Read-only surfaces without the launch action render the ordinary result.
 
-The chat renderer sends the conversation, message and call identifiers to main and receives an opaque, single-use attachment reference for a local guest shell. The React card owns confirmation, loading and failure states, sizing, and close and reopen actions. The guest moves and clips with the message row. Resize changes the reserved height and preserves the running instance. The message list keeps the row mounted while its App is open, including when it scrolls out of view. Closing the App, switching conversations, or unmounting the surface releases the guest and its pending work.
+The chat renderer sends the conversation, message and call identifiers to main and receives an opaque, single-use attachment reference for a local guest shell. The result area shows confirmation when required, a loading state, and a retry action on failure. The guest moves and clips with the message row. Resize changes the reserved height and preserves the running instance. The message list keeps the row mounted while its App is open, including when it scrolls out of view. Switching conversations or unmounting the surface releases the guest and its pending work.
 
 ### Host and authorization
 
@@ -38,7 +38,7 @@ Send the invocation's input and result after the App handshake, along with local
 
 Keep the resource's URI, MIME type and reviewed network origins available to host UI before first render. The [MCP Security Inspector](https://github.com/CherryHQ/cherry-studio/issues/16128) can consume this information when it exists. The inspector's report and trust policy need their own implementation.
 
-Close the bridge and cancel pending approvals or requests on close, conversation change, owning window teardown or source revocation. Requests that may already have reached the server surface an uncertain outcome when appropriate and are never replayed by the App host.
+Close the bridge and cancel pending approvals or requests when the surface unmounts, the conversation changes, the owning window closes, or the source is revoked. Requests that may already have reached the server surface an uncertain outcome when appropriate and are never replayed by the App host.
 
 ### Presentation and additional capabilities
 
@@ -65,7 +65,7 @@ Treat full screen and picture-in-picture as separate standard display capabiliti
 - AC2 — An Assistant topic and Agent sessions on Claude Code, Pi and Pi Durable open the App inline from a completed tool result and display the original input and result. Reopening after restart fetches UI without a second invocation. (verification: Electron)
 - AC3 — Invalid or missing UI HTML, a forged launch binding, and a removed, disabled or reconfigured source leave the ordinary tool result available and load no App. Identical URIs on different servers stay bound to their respective origins. (verification: unit | Electron)
 - AC4 — The View cannot access Cherry Studio DOM, storage, preload or browser device permissions. Undeclared network destinations, navigation and messages from another frame or closed instance are rejected. (verification: packaged artifact)
-- AC5 — An approved same-server App tool call receives its result in the View and leaves a record in the conversation. Denied, disabled, cross-server, model-only and post-revocation calls send no tool request. Closing during consent clears the pending action. (verification: unit | Electron)
+- AC5 — An approved same-server App tool call receives its result in the View and leaves a record in the conversation. Denied, disabled, cross-server, model-only and post-revocation calls send no tool request. Leaving the conversation during consent clears the pending action. (verification: unit | Electron)
 - AC6 — Links and composer messages require confirmation in the host. Confirmed text becomes a draft for the user to edit and send. (verification: renderer | Electron)
 - AC7 — The same App launch contract works with stdio, Streamable HTTP and SSE. An unmodified upstream reference App completes its supported interaction in Electron. (verification: unit | Electron)
 - AC8 — The unmodified [OpenAI Todo Quickstart](https://developers.openai.com/plugins/build/app-quickstart) renders its initial data, then adds and completes a task through approved MCP tool calls. Native form submissions send no network request. (verification: Electron)
