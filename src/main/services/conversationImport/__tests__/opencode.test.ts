@@ -173,12 +173,15 @@ describe('OpenCode read-only source snapshots', () => {
       expect.objectContaining({ code: 'unsupported_version', severity: 'error' })
     )
   })
-  it('discovers independent source sessions', async () => {
+  it('discovers only sessions that have message rows', async () => {
     schema()
     db.prepare('INSERT INTO session_v2 VALUES (?, ?, ?, ?, NULL, NULL, NULL)').run('ses_b', 'Second', '', '2.2.5')
+    message('a', 0, 'user', { text: 'History' })
     const refs: SessionRef[] = []
     for await (const ref of opencodeAdapter.discover(root, signal())) refs.push(ref)
-    expect(refs.map((r) => r.originalSessionId)).toEqual(['ses_a', 'ses_b'])
+    expect(refs.map((r) => r.originalSessionId)).toEqual(['ses_a'])
+    db.prepare('DELETE FROM session_message').run()
+    expect((await read()).diagnostics).toContainEqual(expect.objectContaining({ code: 'empty_session' }))
   })
   it('rejects unknown database structures and never creates an absent source', async () => {
     db.exec('CREATE TABLE session_v2 (id TEXT)')

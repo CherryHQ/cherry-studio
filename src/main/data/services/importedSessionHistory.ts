@@ -71,7 +71,9 @@ export function hasImportedMessageOrder(db: DbOrTx, sessionId: string): boolean 
     db
       .select({ key: appStateTable.key })
       .from(appStateTable)
-      .where(and(keyRange(prefix), sql`json_extract(${appStateTable.value}, '$.source') = 'workbuddy'`))
+      .where(
+        and(keyRange(prefix), sql`json_extract(${appStateTable.value}, '$.source') IN ('workbuddy', 'claude-code')`)
+      )
       .limit(1)
       .get()
   )

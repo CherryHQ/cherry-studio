@@ -65,10 +65,10 @@ describe('Claude history projection', () => {
       ])
     )
   })
-  it('rejects time regression instead of rewriting valid timestamps', async () => {
+  it('keeps parent order and warns about backward timestamps', async () => {
     const result = await read([record('u', null, 'user', '2026-01-02T00:00:00Z'), record('a', 'u', 'assistant')])
     expect(result.messages[1].timestamp).toBe(1767225600000)
-    expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'timestamp_order', severity: 'error' }))
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'timestamp_order', severity: 'warning' }))
   })
   it('infers a missing time only from a known earlier time', async () => {
     const result = await read([record('u', null), { ...record('a', 'u', 'assistant'), timestamp: 'invalid' }])

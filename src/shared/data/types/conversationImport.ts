@@ -1,5 +1,11 @@
 import * as z from 'zod'
 
+export function supportsHistoryImport(type: string): boolean {
+  return type === 'pi-durable' || type === 'pi'
+}
+
+export const HISTORY_IMPORT_BATCH_SIZE = 100
+
 export const HistorySourceSchema = z.enum(['claude-code', 'codex', 'opencode', 'workbuddy'])
 export type HistorySource = z.infer<typeof HistorySourceSchema>
 
