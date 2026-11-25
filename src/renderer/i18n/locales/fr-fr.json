@@ -3218,7 +3218,6 @@
   "onboarding.welcome.subtitle": "Connectez un fournisseur pour activer votre station de travail IA tout-en-un",
   "onboarding.welcome.title": "Bienvenue à Cherry Studio",
   "openclaw.error.select_provider_model": "Veuillez d'abord sélectionner un fournisseur et un modèle",
-  "openclaw.gateway.open_dashboard": "Ouvrir OpenClaw",
   "openclaw.title": "OpenClaw",
   "ovms.action.install": "Installer",
   "ovms.action.installing": "Installation en cours",

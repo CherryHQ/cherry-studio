@@ -3218,7 +3218,6 @@
   "onboarding.welcome.subtitle": "เชื่อมต่อผู้ให้บริการเพื่อปลดล็อก AI Workstation แบบครบวงจรของคุณ",
   "onboarding.welcome.title": "ยินดีต้อนรับสู่ Cherry Studio",
   "openclaw.error.select_provider_model": "กรุณาเลือกผู้ให้บริการและโมเดลก่อน",
-  "openclaw.gateway.open_dashboard": "เปิด OpenClaw",
   "openclaw.title": "OpenClaw",
   "ovms.action.install": "ติดตั้ง",
   "ovms.action.installing": "กำลังติดตั้ง",
