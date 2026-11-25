@@ -844,6 +844,7 @@ function renderPart(
           content={reasoningPart.text || ''}
           livePart={isReasoningStreaming ? reasoningPart : undefined}
           isStreaming={isReasoningStreaming}
+          showTitlePreview
         />
       )
     }
@@ -1288,10 +1289,7 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
 }
 
 function hasVisibleReasoningInCompletedHistory(entries: readonly PartEntry[], messageId: string): boolean {
-  // Mirror renderNestedHistory's disclosure filtering: a process segment hides
-  // all of its reasoning when any of its renderable tools carries an intent.
-  // The outer sync must use the same visible-reasoning rule, otherwise a
-  // history that displays only tool steps would still sync and override manual state.
+  // Follow the history disclosure so tool-intent-hidden reasoning does not change the outer fold state.
   if (!entries.some((entry) => isReasoningMessagePart(entry.part))) return false
 
   for (const item of groupNestedHistoryEntries(entries)) {
@@ -1652,9 +1650,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
 
   const completedHistoryEntries = completedLayout.historyEntries
   const completedHasVisibleReasoning = hasVisibleReasoningInCompletedHistory(completedHistoryEntries, message.id)
-  // Preference-driven sync target for the outer group. Undefined for tool-only
-  // histories (including reasoning hidden behind tool intents) so toggling the
-  // thinking setting leaves manual tool state alone.
+  // Tool-only histories keep their own disclosure state when the thinking setting changes.
   const reasoningSyncTarget = completedHasVisibleReasoning ? !thoughtAutoCollapse : undefined
 
   const renderCompletedHistory = (isExpanded: boolean) =>

@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-以外层分组是否包含推理内容为条件，将其与偏好同步。`MessageProcessLayout` 计算 `reasoningSyncTarget = hasReasoning ? !thoughtAutoCollapse : undefined`，并作为 `syncExpanded` 传给 `MessageProcessGroup`。该分组沿用 `ThinkingBlock` 的模式：用 `completed-process-preference` 记录上一个目标，effect 在两个方向上把 `completed-process` 强制设为新目标。`undefined`（纯工具历史）跳过 effect，因此切换思考设置不会干扰手动的工具展开状态。默认值变为 `reasoningSyncTarget === true || (!oversized && expandToolSteps)`，即关闭自动折叠时，即使超大，含推理的历史也会展开。`ThinkingBlock` 面板仅在流式传输时保留视口自适应上限（保证跟随区域有界），已完成的推理按自然高度渲染。
+以外层分组是否包含推理内容为条件，将其与偏好同步。`MessageProcessLayout` 计算 `reasoningSyncTarget = hasReasoning ? !thoughtAutoCollapse : undefined`，并作为 `syncExpanded` 传给 `MessageProcessGroup`。该分组沿用 `ThinkingBlock` 的模式：用 `completed-process-preference` 记录上一个目标，effect 在两个方向上把 `completed-process` 强制设为新目标。`undefined`（纯工具历史）跳过 effect，因此切换思考设置不会干扰手动的工具展开状态。默认值变为 `reasoningSyncTarget === true || (!oversized && expandToolSteps)`，即关闭自动折叠时，即使超大，含推理的历史也会展开。`ThinkingBlock` 面板仅在流式传输时保留视口自适应上限（保证跟随区域有界），已完成的推理按自然高度渲染。流式传输时该块渲染 `effectiveExpanded`（除非用户在同一次挂载中明确收起，否则保持展开），且不写入 `reasoning:${id}` 展开缓存，因此 live 的 `true` 不会泄漏到已完成挂载；思考结束后视图回落到缓存的偏好默认值，自动折叠开启时（含智能体会话，#25247）收起为一行摘要条，正式回答继续流式输出。同一次挂载中的手动切换会设置 `hasManualOverride` 并在此后被尊重；切换偏好会强制写入缓存并清除该标记。
 
 ## 考虑过的替代方案
 
@@ -21,10 +21,10 @@ Status: implemented
 
 ## 后果
 
-切换该设置会立即在两个方向上作用于所有已渲染的含推理历史，包括缓存的旧分组和超大对话。纯工具历史永不同步，保持手动状态。关闭自动折叠时，超大推理会挂载完整 DOM（这是尊重明确意图所接受的代价）；流式对话保持上限并跟随底部。内层 `ThinkingBlock` 的偏好同步逻辑不变。
+切换该设置会立即在两个方向上作用于所有已渲染的含推理历史，包括缓存的旧分组和超大对话。纯工具历史永不同步，保持手动状态。关闭自动折叠时，超大推理会挂载完整 DOM（这是尊重明确意图所接受的代价）；流式对话保持上限并跟随底部。流式思考会自动展开且不污染展开缓存，因此思考结束后自动折叠开启时已完成视图会收起（含智能体会话）；同一次挂载中的手动切换优先于自动行为。
 
 ## 验证
 
-- Regression — `pnpm vitest run src/renderer/components/chat/messages/blocks/__tests__/ThinkingBlock.test.tsx src/renderer/components/chat/messages/blocks/__tests__/MessageProcessGroup.test.tsx src/renderer/components/chat/messages/blocks/__tests__/MessagePartsRenderer.test.tsx src/renderer/components/chat/messages/hooks/__tests__/useMessageDisclosureState.test.tsx`：118 项通过，包括新增的外层分组同步、挂载中切换和超大推理用例。
+- Regression — `pnpm vitest run src/renderer/components/chat/messages/blocks/__tests__/ThinkingBlock.test.tsx src/renderer/components/chat/messages/blocks/__tests__/MessageProcessGroup.test.tsx src/renderer/components/chat/messages/blocks/__tests__/MessagePartsRenderer.test.tsx src/renderer/components/chat/messages/hooks/__tests__/useMessageDisclosureState.test.tsx`：130 项通过，包括新增的流式自动展开/自动收起、流式中手动收起，以及既有的外层分组同步、挂载中切换和超大推理用例。
 - Regression — `pnpm vitest run src/renderer/components/chat/messages/__tests__/MessageGroup.test.tsx src/renderer/pages/agents/messages/__tests__/agentMessageListAdapter.test.tsx src/renderer/components/chat/settings/__tests__/ChatPreferenceSections.test.tsx`：74 项通过。
 - Regression — 对所有改动的源码和测试文件执行 `pnpm exec oxlint`：干净；同一集合执行 `pnpm exec oxfmt --check`：格式化后干净。

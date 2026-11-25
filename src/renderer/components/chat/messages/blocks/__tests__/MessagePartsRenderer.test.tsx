@@ -3111,6 +3111,7 @@ describe('MessagePartsRenderer', () => {
 
       expect(screen.getByText('final answer')).toBeInTheDocument()
       const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).not.toHaveTextContent('Deep thought')
       expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
 
       fireEvent.click(historyTrigger)
