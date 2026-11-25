@@ -57,6 +57,7 @@ function useFileBatch<Route extends FileBatchRoute>(route: Route, batches: FileE
   }, [error, route])
 
   const records = useMemo(
+    // SAFETY: Every page is fetched under the same route-bearing key; merging restores that route's dictionary output association, including the empty result.
     () => Object.assign({}, ...(batches.length > 0 ? (data ?? []) : [])) as OutputFor<Route>,
     [batches.length, data]
   )

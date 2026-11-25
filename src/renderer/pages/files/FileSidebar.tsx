@@ -13,24 +13,33 @@ export type SidebarFilter =
   | { kind: 'type'; value: 'image' | 'video' | 'audio' | 'text' | 'document' | 'other' }
 
 type SidebarEntry = {
-  kind: string
-  value: string
+  filter: SidebarFilter
   label: (t: TFunction) => string
   icon: FC<{ size?: number; strokeWidth?: number; className?: string }>
   countKey: keyof FileCounts
 }
 
 const TYPE_ENTRIES: SidebarEntry[] = [
-  { kind: 'type', value: 'image', label: (t) => t('files.image'), icon: ImageIcon, countKey: 'type_image' },
-  { kind: 'type', value: 'video', label: (t) => t('files.video'), icon: Video, countKey: 'type_video' },
-  { kind: 'type', value: 'audio', label: (t) => t('files.audio'), icon: Music, countKey: 'type_audio' },
-  { kind: 'type', value: 'text', label: (t) => t('files.text'), icon: FileCode, countKey: 'type_text' },
-  { kind: 'type', value: 'document', label: (t) => t('files.document'), icon: FileText, countKey: 'type_document' },
-  { kind: 'type', value: 'other', label: (t) => t('files.other'), icon: FileQuestion, countKey: 'type_other' }
+  { filter: { kind: 'type', value: 'image' }, label: (t) => t('files.image'), icon: ImageIcon, countKey: 'type_image' },
+  { filter: { kind: 'type', value: 'video' }, label: (t) => t('files.video'), icon: Video, countKey: 'type_video' },
+  { filter: { kind: 'type', value: 'audio' }, label: (t) => t('files.audio'), icon: Music, countKey: 'type_audio' },
+  { filter: { kind: 'type', value: 'text' }, label: (t) => t('files.text'), icon: FileCode, countKey: 'type_text' },
+  {
+    filter: { kind: 'type', value: 'document' },
+    label: (t) => t('files.document'),
+    icon: FileText,
+    countKey: 'type_document'
+  },
+  {
+    filter: { kind: 'type', value: 'other' },
+    label: (t) => t('files.other'),
+    icon: FileQuestion,
+    countKey: 'type_other'
+  }
 ]
 
 const LIBRARY_ENTRIES: SidebarEntry[] = [
-  { kind: 'library', value: 'all', label: (t) => t('files.all'), icon: Files, countKey: 'all' }
+  { filter: { kind: 'library', value: 'all' }, label: (t) => t('files.all'), icon: Files, countKey: 'all' }
 ]
 
 export function FileSidebar({
@@ -46,20 +55,20 @@ export function FileSidebar({
   const isActive = (kind: string, value: string) => filter.kind === kind && filter.value === value
 
   const renderEntry = (entry: SidebarEntry) => {
-    const active = isActive(entry.kind, entry.value)
+    const active = isActive(entry.filter.kind, entry.filter.value)
     const Icon = entry.icon
     const count = fileCounts[entry.countKey]
 
     return (
       <MenuItem
-        key={`${entry.kind}-${entry.value}`}
+        key={`${entry.filter.kind}-${entry.filter.value}`}
         icon={<Icon />}
         label={entry.label(t)}
         suffix={
           count !== undefined && count > 0 ? <span className="text-xs text-muted-foreground">{count}</span> : null
         }
         active={active}
-        onClick={() => onFilterChange({ kind: entry.kind, value: entry.value } as SidebarFilter)}
+        onClick={() => onFilterChange({ ...entry.filter })}
         labelClassName="group-data-[active=true]:font-medium"
         className="h-8 rounded-[10px] border-transparent px-2.5 text-sm font-normal text-foreground hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!font-medium data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground"
       />
