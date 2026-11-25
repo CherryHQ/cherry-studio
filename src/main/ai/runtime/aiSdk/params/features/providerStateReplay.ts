@@ -6,7 +6,7 @@ type AssistantPart = Extract<LanguageModelV3Message, { role: 'assistant' }>['con
 interface ProviderStateReplay {
   routeId: string
   hasState: (metadata: SharedV3ProviderMetadata | undefined) => boolean
-  omitState: (part: AssistantPart) => AssistantPart | undefined
+  omitState?: (part: Exclude<AssistantPart, { type: 'reasoning' }>) => AssistantPart
   isLegacyForeign?: (part: AssistantPart) => boolean
 }
 
@@ -49,11 +49,11 @@ export function createProviderStateReplayMiddleware({
       const prompt = params.prompt.map((message, index) => {
         if (index >= currentTurn || message.role !== 'assistant') return message
         const content = message.content.flatMap((part) => {
-          if (!hasState(part.providerOptions)) return [part]
           const source = part.providerOptions?.cherry?.replayRouteId
           const foreign = typeof source === 'string' ? source !== routeId : isLegacyForeign?.(part)
-          const replayable = foreign ? omitState(part) : part
-          return replayable ? [replayable] : []
+          if (!foreign) return [part]
+          if (part.type === 'reasoning') return []
+          return [omitState && hasState(part.providerOptions) ? omitState(part) : part]
         })
         // Preserve a valid assistant turn when its only content was opaque state.
         return content.length

@@ -75,11 +75,12 @@ their own tools.
 
 Chat records the serving route with replayable state from Gemini Generate
 Content, Anthropic Messages, and the OpenRouter chat adapter. The route includes
-the provider connection, protocol, SDK adapter, wire model, and Base URL. Replay
-on a different route within those adapters omits state from completed turns and
-retains ordinary text and client tool history. The original history remains
-available on the serving route. Gemini 3 and 4 use the stored provider and model
-identity for older text and tool calls when available. The Google adapter
+the provider connection, protocol, SDK adapter, wire model, and Base URL. When
+one of these adapters receives completed history from a different route, it
+omits tagged thinking blocks and keeps ordinary text and client tool history.
+The original state remains available on the serving route. Gemini 3 and 4 use
+the stored provider and model identity for older text and tool calls when
+available. The Google adapter
 suppresses signature backfill for marked tool calls.
 
 ## RequestFeature

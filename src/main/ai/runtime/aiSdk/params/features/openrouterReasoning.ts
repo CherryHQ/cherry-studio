@@ -96,7 +96,6 @@ export const openrouterReasoningFeature: RequestFeature = {
               routeId: getReplayRouteId(provider.id, endpointType, sdkConfig),
               hasState: (metadata) => getReasoningDetails(metadata) !== undefined,
               omitState: (part) => {
-                if (part.type === 'reasoning') return undefined
                 const openrouter = { ...part.providerOptions?.openrouter }
                 delete openrouter.reasoning_details
                 return { ...part, providerOptions: { ...part.providerOptions, openrouter } }

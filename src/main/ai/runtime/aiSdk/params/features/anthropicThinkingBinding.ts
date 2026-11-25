@@ -23,8 +23,7 @@ export const anthropicThinkingReplayFeature: RequestFeature = {
         context.middlewares.push(
           createProviderStateReplayMiddleware({
             routeId: getReplayRouteId(provider.id, ENDPOINT_TYPE.ANTHROPIC_MESSAGES, sdkConfig),
-            hasState: hasAnthropicThinkingCredential,
-            omitState: (part) => (part.type === 'reasoning' ? undefined : part)
+            hasState: hasAnthropicThinkingCredential
           })
         )
       }

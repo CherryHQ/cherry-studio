@@ -1,6 +1,6 @@
 import { createAnthropic } from '@ai-sdk/anthropic'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
-import { generateText, wrapLanguageModel } from 'ai'
+import { generateText, type ModelMessage, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { type AiRequestContext, fromAISDK, toAISDK } from '@cherrystudio/ai-core'
@@ -8,6 +8,7 @@ import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
+import { makeModel } from '../../../../__tests__/fixtures'
 import { omitCompactedAnthropicThinking } from '../../../../messages/anthropicThinking'
 import { toModelMessages } from '../../../../messages/messageRules'
 import {
@@ -15,6 +16,7 @@ import {
   anthropicThinkingReplayFeature
 } from '../../../../runtime/aiSdk/params/features/anthropicThinkingBinding'
 import { buildContextOptions } from '../../../../runtime/aiSdk/params/features/contextBuild'
+import { geminiHistorySignatureReplayFeature } from '../../../../runtime/aiSdk/params/features/geminiHistorySignatureReplay'
 import type { RequestScope } from '../../../../runtime/aiSdk/params/scope'
 import { dropEmptyContentParts } from '../../../../streamManager/persistence/PersistenceBackend'
 import { createAihubmix } from '../../aihubmix/aihubmixProvider'
@@ -83,26 +85,35 @@ async function send({
 }
 
 describe('Anthropic Messages thinking binding', () => {
-  it('keeps signed and redacted state on the AiHubMix Messages route that returned it', async () => {
+  it('keeps Anthropic state on its AiHubMix route across URL and protocol changes', async () => {
     const originalUrl = 'https://fixture.invalid/anthropic/v1'
     const anotherUrl = 'https://fixture.invalid/other/v1'
     const signed = { type: 'thinking', thinking: '', signature: 'signed-original' }
     const redacted = { type: 'redacted_thinking', data: 'opaque-original' }
+    const thought = { type: 'thinking', thinking: 'Private thinking', signature: 'signed-thinking' }
+    const state = [signed, redacted, thought]
     const answer = { type: 'text', text: 'Visible reply' }
     const requests: Array<{ url: string; body: unknown }> = []
-    const modelAt = async (baseURL: string) => {
+    const modelAt = async (baseURL: string, isAnthropic = true) => {
+      const endpointType = isAnthropic ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      const wireModel = isAnthropic ? modelId : 'gemini-3-flash-preview'
       const providerSettings = {
         apiKey: 'fixture',
         baseURL: 'https://fixture.invalid/v1',
-        endpointBaseURLs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: baseURL },
+        endpointBaseURLs: { [endpointType]: baseURL },
         fetch: async (url, init) => {
           requests.push({ url: String(url), body: JSON.parse(String(init?.body)) })
+          if (!isAnthropic) {
+            return Response.json({
+              candidates: [{ content: { role: 'model', parts: [{ text: 'Gemini answer' }] }, finishReason: 'STOP' }]
+            })
+          }
           return Response.json({
             id: 'message',
             type: 'message',
             role: 'assistant',
             model: modelId,
-            content: [signed, redacted, answer],
+            content: [...state, answer],
             stop_reason: 'end_turn',
             usage: { input_tokens: 10, output_tokens: 5 }
           })
@@ -111,30 +122,41 @@ describe('Anthropic Messages thinking binding', () => {
       const scope = {
         request: {},
         provider: { id: 'aihubmix' },
-        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-        sdkConfig: { modelId, providerId: 'aihubmix', providerSettings }
+        model: makeModel({ id: `aihubmix::${wireModel}`, apiModelId: wireModel, providerId: 'aihubmix' }),
+        endpointType,
+        sdkConfig: { modelId: wireModel, providerId: 'aihubmix', providerSettings }
       } as RequestScope
       const context = { middlewares: [] } as unknown as AiRequestContext
-      if (anthropicThinkingReplayFeature.applies?.(scope)) {
-        for (const plugin of anthropicThinkingReplayFeature.contributeModelAdapters?.(scope) ?? []) {
+      const feature = isAnthropic ? anthropicThinkingReplayFeature : geminiHistorySignatureReplayFeature
+      if (feature.applies?.(scope)) {
+        for (const plugin of feature.contributeModelAdapters?.(scope) ?? []) {
           await plugin.configureContext?.(context)
         }
       }
       return wrapLanguageModel({
-        model: createAihubmix(providerSettings)(modelId),
+        model: createAihubmix(providerSettings)(wireModel),
         middleware: context.middlewares ?? []
       })
     }
 
     const first = await generateText({ model: await modelAt(originalUrl), prompt: 'Question', maxRetries: 0 })
+    const messages: ModelMessage[] = [
+      { role: 'user', content: 'Question' },
+      ...first.response.messages,
+      { role: 'user', content: 'Follow-up' }
+    ]
+    await generateText({
+      model: await modelAt('https://fixture.invalid/gemini/v1beta', false),
+      messages,
+      maxRetries: 0
+    })
+    expect(requests.at(-1)?.body).toMatchObject({
+      contents: [{}, { role: 'model', parts: [{ text: answer.text }] }, {}]
+    })
     for (const baseURL of [anotherUrl, originalUrl]) {
       await generateText({
         model: await modelAt(baseURL),
-        messages: [
-          { role: 'user', content: 'Question' },
-          ...first.response.messages,
-          { role: 'user', content: 'Follow-up' }
-        ],
+        messages,
         maxRetries: 0
       })
       expect(requests.at(-1)).toMatchObject({
@@ -142,7 +164,7 @@ describe('Anthropic Messages thinking binding', () => {
         body: {
           messages: [
             { role: 'user' },
-            { role: 'assistant', content: baseURL === originalUrl ? [signed, redacted, answer] : [answer] },
+            { role: 'assistant', content: baseURL === originalUrl ? [...state, answer] : [answer] },
             { role: 'user' }
           ]
         }

@@ -60,7 +60,6 @@ export const geminiHistorySignatureReplayFeature: RequestFeature = {
         return part.type === 'tool-call' && foreign?.get(`tool:${part.toolCallId}`) === true
       },
       omitState: (part) => {
-        if (part.type === 'reasoning') return undefined
         if (part.type === 'text' || part.type === 'file') {
           const providerOptions = { ...part.providerOptions }
           for (const [namespace] of geminiSignatures(part.providerOptions)) {
