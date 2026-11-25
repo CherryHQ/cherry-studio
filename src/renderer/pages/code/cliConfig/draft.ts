@@ -1,8 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets, isFileConfiguredCli } from '@shared/utils/cliConfig'
@@ -54,14 +53,11 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
   // provider key is never fetched, so it can't land in the CLI config file. Model metadata is still
   // read by the real model id (for contextWindow etc.); a failed read degrades to the raw model id.
   if (args.gateway) {
-    const modelRecord = await dataApiService
-      .get(`/models/${args.modelId}`)
-      .then((record) => record as Model | null)
-      .catch((error) => {
-        logger.warn(`Failed to load model record for ${args.modelId}`, error)
+    const modelRecord = await dataApiService.get(`/models/${args.modelId}`).catch((error) => {
+      logger.warn(`Failed to load model record for ${args.modelId}`, error)
 
-        return null
-      })
+      return null
+    })
 
     return {
       provider: args.gateway.provider,
@@ -78,8 +74,8 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
   // The three reads are independent; run them concurrently (this resolver reruns
   // on every advanced-field keystroke in the edit panel).
   const [provider, apiKeysRes, modelRecord] = await Promise.all([
-    dataApiService.get(`/providers/${providerId}`) as Promise<Provider | undefined>,
-    dataApiService.get(`/providers/${providerId}/api-keys`) as Promise<{ keys?: ApiKeyEntry[] } | undefined>,
+    dataApiService.get(`/providers/${providerId}`),
+    dataApiService.get(`/providers/${providerId}/api-keys`),
     // Model metadata only tunes optional fields (endpoint pick, context window),
     // so a fetch failure degrades the config quietly — leave a breadcrumb.
     dataApiService.get(`/models/${args.modelId}`).catch((error) => {
