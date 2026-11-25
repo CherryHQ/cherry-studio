@@ -42,6 +42,7 @@ import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@m
 import { classifyDatabaseFailure } from '@main/data/failureFacts'
 import { classifyFileFailure } from '@main/services/file'
 import { classifyStorageFailure } from '@main/services/remoteStorage/failureFacts'
+import { getErrorCode } from '@main/utils/error'
 import { type AtomicWriteStream, createAtomicWriteStream, ensureDir, isOutsidePath } from '@main/utils/file'
 import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { resolveAndValidatePath } from '@main/utils/legacyFile'
@@ -82,12 +83,13 @@ const WINDOWS_UV_EBUSY_ERRNO = -4082
 const BACKUP_ARCHIVE_FILE_MODE = 0o600
 const BACKUP_TEMP_DIR_MODE = 0o700
 
-const isSkippableLevelDbLockError = (sourcePath: string, error: unknown): error is NodeJS.ErrnoException => {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Filesystem copy failures can reject arbitrary values; only LevelDB lock Error codes qualify for this exception.
+const isSkippableLevelDbLockError = (sourcePath: string, error: unknown): boolean => {
   const parentDirectory = path.basename(path.dirname(sourcePath)).toLowerCase()
   const isLevelDbDirectory = parentDirectory === 'leveldb' || parentDirectory.endsWith('.leveldb')
 
   if (path.basename(sourcePath) !== 'LOCK' || !isLevelDbDirectory || !(error instanceof Error)) return false
-  const nodeError = error as NodeJS.ErrnoException
+  const nodeError: Error & { code?: unknown; errno?: unknown } = error
 
   return nodeError.code === 'EBUSY' || nodeError.errno === WINDOWS_UV_EBUSY_ERRNO
 }
@@ -1107,16 +1109,17 @@ class BackupManager {
   private async readDirectBackupMetadata(
     extractionDir: string
   ): Promise<Pick<DirectBackupMetadata, 'resources'> & { platform?: unknown; appVersion?: unknown }> {
-    const raw = (await fs.readJson(path.join(extractionDir, 'metadata.json'))) as {
-      appName?: unknown
-      version?: unknown
-      resources?: unknown
-      platform?: unknown
-      appVersion?: unknown
+    const json: unknown = await fs.readJson(path.join(extractionDir, 'metadata.json'))
+
+    if (!json || typeof json !== 'object' || !('appName' in json) || json.appName !== 'Cherry Studio') {
+      throw new BackupInputError('This backup file is not from Cherry Studio and cannot be restored')
     }
 
-    if (!raw || typeof raw !== 'object' || raw.appName !== 'Cherry Studio') {
-      throw new BackupInputError('This backup file is not from Cherry Studio and cannot be restored')
+    const raw = {
+      version: 'version' in json ? json.version : undefined,
+      resources: 'resources' in json ? json.resources : undefined,
+      platform: 'platform' in json ? json.platform : undefined,
+      appVersion: 'appVersion' in json ? json.appVersion : undefined
     }
 
     if (typeof raw.version === 'number' && raw.version > DIRECT_BACKUP_VERSION) {
@@ -1131,16 +1134,18 @@ class BackupManager {
       )
     }
 
-    const resources = raw.resources as
-      | {
-          cache?: unknown
-          indexedDB?: unknown
-          localStorage?: unknown
-          data?: unknown
-          database?: unknown
-          appClaude?: unknown
-        }
-      | undefined
+    const resourceData = raw.resources
+    const resources =
+      resourceData && typeof resourceData === 'object'
+        ? {
+            cache: 'cache' in resourceData ? resourceData.cache : undefined,
+            indexedDB: 'indexedDB' in resourceData ? resourceData.indexedDB : undefined,
+            localStorage: 'localStorage' in resourceData ? resourceData.localStorage : undefined,
+            data: 'data' in resourceData ? resourceData.data : undefined,
+            database: 'database' in resourceData ? resourceData.database : undefined,
+            appClaude: 'appClaude' in resourceData ? resourceData.appClaude : undefined
+          }
+        : undefined
 
     const hasCommonResources =
       resources?.cache === true &&
@@ -1162,7 +1167,11 @@ class BackupManager {
     }
 
     // SAFETY: Resource flags are checked above; opaque platform/appVersion values are only used in diagnostics.
-    return raw as typeof raw & Pick<DirectBackupMetadata, 'resources'>
+    return {
+      resources: resources as DirectBackupMetadata['resources'],
+      platform: raw.platform,
+      appVersion: raw.appVersion
+    }
   }
 
   private async assertArchiveFile(filePath: string, label: string): Promise<void> {
@@ -1555,7 +1564,7 @@ class BackupManager {
   /** Boot-time variant: opportunistic, must never block startup (ENOENT silent). */
   private async hardenStagingRootBestEffort(dir: string): Promise<void> {
     await fs.chmod(dir, BACKUP_TEMP_DIR_MODE).catch((error) => {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      if (getErrorCode(error) !== 'ENOENT') {
         logger.warn('[cleanupStaleTempArtifacts] Failed to restrict backup staging dir permissions', { dir, error })
       }
     })
@@ -1578,12 +1587,14 @@ class BackupManager {
   }
 
   private async withAvailableDiskSpace<TError>(error: TError, fallbackDirectory: string): Promise<TError | Error> {
-    if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== 'ENOSPC') {
+    if (!(error instanceof Error) || getErrorCode(error) !== 'ENOSPC') {
       return error
     }
 
-    const fileError = error as NodeJS.ErrnoException & { dest?: string }
+    const fileError: Error & { dest?: unknown; path?: unknown } = error
     const failedPath = fileError.dest ?? fileError.path
+
+    if (failedPath != null && typeof failedPath !== 'string') return error
     const probePath = failedPath ? path.dirname(failedPath) : fallbackDirectory
 
     try {
