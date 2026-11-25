@@ -217,6 +217,7 @@ export interface RemoveMessageErrorPartInput {
 }
 
 export interface MessageListItem {
+  partIds?: readonly string[]
   id: string
   role: CherryUIMessage['role']
   assistantId?: string

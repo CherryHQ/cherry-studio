@@ -4,7 +4,7 @@ import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
-import type { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import type { useTopicCompletion } from '@renderer/hooks/useTopicCompletion'
 import type * as RendererIpc from '@renderer/ipc'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -38,8 +38,8 @@ const mockUseTopicMessages = vi.fn()
 const mockMessageListValue = vi.hoisted(() => ({ current: null as any }))
 const mockChatWriteValue = vi.hoisted(() => ({ current: null as any }))
 const mockEventEmit = vi.hoisted(() => vi.fn())
-const mockExecutionOverlay = vi.hoisted(() => ({ current: null as any }))
-const mockUseExecutionOverlay = vi.hoisted(() => vi.fn<typeof useExecutionOverlay>(() => mockExecutionOverlay.current))
+const mockLiveReplies = vi.hoisted(() => ({ current: [] as CherryUIMessage[] }))
+const mockCompletion = vi.hoisted(() => vi.fn<typeof useTopicCompletion>())
 type ToolApprovalOverridesModuleType = typeof ToolApprovalOverridesModule
 type ToolApprovalOverridesOptions = Parameters<ToolApprovalOverridesModuleType['useToolApprovalComposerOverrides']>[0]
 const mockToolApprovalOverridesOptions = vi.hoisted(() => ({
@@ -77,9 +77,9 @@ vi.mock('@renderer/services/EventService', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: mockUseExecutionOverlay
-}))
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({ useHistoryReplies: () => mockLiveReplies.current }))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({ useTopicSpeech: () => {} }))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({ useTopicCompletion: mockCompletion }))
 
 vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', async (importOriginal) => {
   const actual = await importOriginal<ToolApprovalOverridesModuleType>()
@@ -210,8 +210,7 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
 }))
 
 vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
-  PartsProvider: ({ children }: { children: ReactNode }) => children,
-  RefreshProvider: ({ children }: { children: ReactNode }) => children
+  PartsProvider: ({ children }: { children: ReactNode }) => children
 }))
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
@@ -320,13 +319,7 @@ describe('ChatContent', () => {
       setMessages: vi.fn(),
       activeExecutions: []
     })
-    mockExecutionOverlay.current = {
-      overlay: {},
-      liveAssistants: [],
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
-    mockUseExecutionOverlay.mockImplementation(() => mockExecutionOverlay.current)
+    mockLiveReplies.current = []
     mockToolApprovalOverridesOptions.current = undefined
 
     ;(window as any).api = { ...originalApi }
@@ -339,7 +332,6 @@ describe('ChatContent', () => {
     mockMessageListValue.current = null
     mockChatWriteValue.current = null
     mockEventEmit.mockReset()
-    mockUseExecutionOverlay.mockReset()
   })
 
   it('opens a stream against the active branch node', async () => {
@@ -633,12 +625,7 @@ describe('ChatContent', () => {
       setMessages: vi.fn(),
       activeExecutions
     })
-    mockExecutionOverlay.current = {
-      overlay: { [pendingMessage.id]: firstLiveAssistant.parts as CherryMessagePart[] },
-      liveAssistants: [firstLiveAssistant],
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
+    mockLiveReplies.current = [firstLiveAssistant]
 
     const view = render(<ChatContent topic={topic} />)
 
@@ -657,12 +644,7 @@ describe('ChatContent', () => {
       ...pendingMessage,
       parts: [{ type: 'text', text: 'stream frame 2' }]
     } as CherryUIMessage
-    mockExecutionOverlay.current = {
-      overlay: { [pendingMessage.id]: secondLiveAssistant.parts as CherryMessagePart[] },
-      liveAssistants: [secondLiveAssistant],
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
+    mockLiveReplies.current = [secondLiveAssistant]
     view.rerender(<ChatContent topic={topic} />)
 
     await waitFor(() => {
@@ -727,13 +709,7 @@ describe('ChatContent', () => {
       )
     })
 
-    mockExecutionOverlay.current = {
-      overlay: { 'reserved-assistant': liveAssistant.parts as CherryMessagePart[] },
-      liveAssistants: [liveAssistant],
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
-    mockUseExecutionOverlay.mockImplementation(() => mockExecutionOverlay.current)
+    mockLiveReplies.current = [liveAssistant]
     view.rerender(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
 
     await waitFor(() => {
@@ -776,12 +752,7 @@ describe('ChatContent', () => {
       setMessages: vi.fn(),
       activeExecutions: [{ executionId: 'provider::model', anchorMessageId: 'reserved-assistant' }]
     })
-    mockExecutionOverlay.current = {
-      overlay: {},
-      liveAssistants: [liveAssistant],
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
+    mockLiveReplies.current = [liveAssistant]
 
     const view = render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
 
@@ -809,12 +780,7 @@ describe('ChatContent', () => {
       setMessages: vi.fn(),
       activeExecutions: []
     })
-    mockExecutionOverlay.current = {
-      overlay: {},
-      liveAssistants: [],
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
+    mockLiveReplies.current = []
 
     view.rerender(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
 
@@ -958,7 +924,7 @@ describe('ChatContent', () => {
       )
     })
 
-    const finish = mockUseExecutionOverlay.mock.lastCall?.[2]?.onFinish
+    const finish = mockCompletion.mock.lastCall?.[2]
     expect(finish).toBeDefined()
 
     act(() => {
@@ -1359,9 +1325,8 @@ describe('ChatContent', () => {
       )
     })
 
-    const finish = mockUseExecutionOverlay.mock.lastCall?.[2]?.onFinish
+    const finish = mockCompletion.mock.lastCall?.[2]
     expect(finish).toBeDefined()
-    const disposeOverlay = mockExecutionOverlay.current.disposeOverlay
     refresh.mockClear()
 
     act(() => {
@@ -1374,8 +1339,6 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
-      expect(refresh).toHaveBeenCalledTimes(1)
-      expect(disposeOverlay).toHaveBeenCalledWith('reserved-assistant-a')
       expect(onBranchLiveStateChange).not.toHaveBeenLastCalledWith(null)
     })
 

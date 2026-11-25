@@ -72,18 +72,21 @@ import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloat
 import { FilePreviewNavigationProvider, hasRenderedFilePreview } from '@renderer/components/FilePreview'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { ProjectionReaderProvider } from '@renderer/hooks/agent/ProjectionReaderProvider'
 import { useAgentChildProjection } from '@renderer/hooks/agent/useAgentChildProjection'
 import { useAgentDesktopControls } from '@renderer/hooks/agent/useAgentDesktopControls'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
+import { useAgentToolParts } from '@renderer/hooks/agent/useAgentToolParts'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { useToolResult } from '@renderer/hooks/useToolResult'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
@@ -119,6 +122,9 @@ import {
   buildAgentToolFlowProjection,
   findAgentPreviewUrlCandidates,
   getAgentPreviewUrlFrontier,
+  isAgentFlowPart,
+  isAgentPreviewPart,
+  isAgentStatusPart,
   isAgentPreviewUrlSourceAfterFrontier
 } from './agentRightPaneProjection'
 import {
@@ -657,16 +663,14 @@ function AgentRightPaneStateProvider({
   const goBackFlow = useCallback(() => {
     setFlowTabState((state) => ({ ...state, tabs: state.tabs.slice(0, -1) }))
   }, [])
-  const previewUrlFrontier = useMemo(
-    () => getAgentPreviewUrlFrontier(messages, partsByMessageId),
-    [messages, partsByMessageId]
-  )
-  const previewSourceRef = useRef({ messages, partsByMessageId })
+  const previewParts = useAgentToolParts(sessionId, partsByMessageId, isAgentPreviewPart)
+  const previewUrlFrontier = useMemo(() => getAgentPreviewUrlFrontier(messages, previewParts), [messages, previewParts])
+  const previewSourceRef = useRef({ messages, partsByMessageId: previewParts })
   const previewUrlFrontierRef = useRef(previewUrlFrontier)
   useLayoutEffect(() => {
     previewUrlFrontierRef.current = previewUrlFrontier
-    previewSourceRef.current = { messages, partsByMessageId }
-  }, [previewUrlFrontier, messages, partsByMessageId])
+    previewSourceRef.current = { messages, partsByMessageId: previewParts }
+  }, [previewUrlFrontier, messages, previewParts])
   useLayoutEffect(() => {
     if (explicitBrowserBaselineRef.current?.sessionId !== sessionId) explicitBrowserBaselineRef.current = null
   }, [sessionId])
@@ -676,7 +680,7 @@ function AgentRightPaneStateProvider({
     const historicalKeys = new Set(
       findAgentPreviewUrlCandidates(messages, streamingLayers.historyPartsByMessageId).map((candidate) => candidate.key)
     )
-    for (const candidate of findAgentPreviewUrlCandidates(messages, partsByMessageId)) {
+    for (const candidate of findAgentPreviewUrlCandidates(messages, previewParts)) {
       if (
         streamingLayers.liveMessageIds.includes(candidate.messageId) &&
         !historicalKeys.has(candidate.key) &&
@@ -684,7 +688,7 @@ function AgentRightPaneStateProvider({
       )
         baseline.liveCandidateKeys.add(candidate.key)
     }
-  }, [messages, partsByMessageId, streamingLayers])
+  }, [messages, previewParts, streamingLayers])
   // Holds whatever the browser pane last showed: the detected dev-server URL or an opened HTML artifact.
   const browserUrl = browserUrlState.sessionId === sessionId ? browserUrlState.url : null
   useLayoutEffect(() => {
@@ -717,7 +721,7 @@ function AgentRightPaneStateProvider({
         baseline &&
         baseline.sessionId === sessionId &&
         browserUrl === baseline.url &&
-        !isAgentPreviewUrlSourceAfterFrontier(source, baseline.frontier, messages, partsByMessageId)
+        !isAgentPreviewUrlSourceAfterFrontier(source, baseline.frontier, messages, previewParts)
       ) {
         return
       }
@@ -733,7 +737,7 @@ function AgentRightPaneStateProvider({
         setBrowserUrlState({ sessionId, url, profile: WebviewSecurityProfile.AgentDevPreview })
       }
     },
-    [browserUrl, messages, partsByMessageId, sessionId]
+    [browserUrl, messages, previewParts, sessionId]
   )
   const openBrowserUrl = useCallback(
     (url: string) => {
@@ -1193,7 +1197,8 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
   const runtime = useAgentRightPaneRuntime()
   const { acceptDetectedBrowserUrl } = runtime
   const sessionId = scope.meta.sessionId
-  const detectedPreview = useAgentPreviewUrl(active, sessionId, runtime.messages, runtime.partsByMessageId)
+  const previewParts = useAgentToolParts(active ? sessionId : undefined, runtime.partsByMessageId, isAgentPreviewPart)
+  const detectedPreview = useAgentPreviewUrl(active, sessionId, runtime.messages, previewParts)
 
   useEffect(() => {
     if (active) acceptDetectedBrowserUrl(detectedPreview.url, detectedPreview.source)
@@ -1247,13 +1252,19 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
 }
 
 const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
+  archiveSessionId,
   childActive,
+  hasOlder = false,
+  loadOlder,
   messages,
   partsByMessageId,
   title,
   toolCallId
 }: {
+  archiveSessionId?: string
   childActive?: boolean
+  hasOlder?: boolean
+  loadOlder?: () => void
   toolCallId: string
   title: string
   messages: CherryUIMessage[]
@@ -1269,9 +1280,10 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     store.update([], [], childActive ? 'streaming' : 'done')
     return store
   }, [childActive])
+  const sessionId = archiveSessionId ?? meta.sessionId
   const topic = useMemo<Topic>(
     () => ({
-      id: meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : 'agent-session:tool-flow',
+      id: sessionId ? buildAgentSessionTopicId(sessionId) : 'agent-session:tool-flow',
       type: TopicType.Session,
       assistantId: meta.agentId,
       name: meta.sessionName ?? meta.sessionId ?? 'agent-tool-flow',
@@ -1280,7 +1292,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
       updatedAt: FALLBACK_TIMESTAMP,
       messages: []
     }),
-    [meta.agentId, meta.sessionId, meta.sessionName]
+    [meta.agentId, meta.sessionId, meta.sessionName, sessionId]
   )
   const openNestedFlow = useCallback(
     (input: AgentToolFlowOpenInput) => actions.openAgentToolFlow(input, true),
@@ -1293,7 +1305,8 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     assistantProfile: { name: title },
     assistantId: meta.agentId,
     isLoading: false,
-    hasOlder: false,
+    hasOlder,
+    loadOlder,
     openAgentToolFlow: openNestedFlow,
     isAgentToolFlowActive: actions.isAgentToolFlowActive,
     openArtifactFile: actions.canOpenArtifactFile ? actions.openArtifactFile : undefined,
@@ -1327,12 +1340,21 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     [childActivity, providerValue, t]
   )
 
+  const partReader = useMemo(
+    () =>
+      meta.sessionId && archiveSessionId
+        ? messageProjectionService.partsFor({ kind: 'child', sessionId: meta.sessionId, toolCallId })
+        : messageProjectionService.partsFor({ kind: 'topic', topicId: topic.id }),
+    [archiveSessionId, meta.sessionId, toolCallId, topic.id]
+  )
   return (
-    <MessageListProvider value={flowProviderValue}>
-      <div className="h-full min-h-0 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden [&_.message-header-info-wrap]:hidden [&_.message-user_.message-content-container]:rounded-lg [&_.message-user_.message-content-container]:bg-background-subtle [&_.message-user_.message-content-container]:text-muted-foreground [&_.message-user>div>div]:max-w-full [&_.narrow-mode]:px-4!">
-        <MessageList scrollPositionKey={`${topic.id}:flow:${toolCallId}`} />
-      </div>
-    </MessageListProvider>
+    <ProjectionReaderProvider reader={partReader}>
+      <MessageListProvider value={flowProviderValue}>
+        <div className="h-full min-h-0 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden [&_.message-header-info-wrap]:hidden [&_.message-user_.message-content-container]:rounded-lg [&_.message-user_.message-content-container]:bg-background-subtle [&_.message-user_.message-content-container]:text-muted-foreground [&_.message-user>div>div]:max-w-full [&_.narrow-mode]:px-4!">
+          <MessageList scrollPositionKey={`${topic.id}:flow:${toolCallId}`} />
+        </div>
+      </MessageListProvider>
+    </ProjectionReaderProvider>
   )
 })
 
@@ -1344,9 +1366,14 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   const tab = scope.flowTab && getFlowTabValue(scope.flowTab.toolCallId) === panelId ? scope.flowTab : null
   const child = useAgentChildProjection(meta.sessionId ?? '', tab?.toolCallId, active && !!meta.sessionId)
   const contextUsage = useAgentSessionContextUsage(child?.view?.sessionId)
+  const flowParts = useAgentToolParts(
+    active && !child?.view ? meta.sessionId : undefined,
+    runtime.partsByMessageId,
+    isAgentFlowPart
+  )
   const deferredToolResult = useMemo(
-    () => findDeferredToolResult(runtime.partsByMessageId, tab?.toolCallId),
-    [runtime.partsByMessageId, tab?.toolCallId]
+    () => findDeferredToolResult(flowParts, tab?.toolCallId),
+    [flowParts, tab?.toolCallId]
   )
   const { output: selectedToolOutput } = useToolResult(active ? deferredToolResult : undefined, 'preview')
   const retainedFlowRef = useRef<ReturnType<typeof buildAgentToolFlowProjection> | null>(null)
@@ -1361,13 +1388,8 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
           }
         : !active && retainedFlowRef.current
           ? retainedFlowRef.current
-          : buildAgentToolFlowProjection(
-              runtime.messages,
-              runtime.partsByMessageId,
-              tab?.toolCallId,
-              selectedToolOutput
-            ),
-    [active, runtime.messages, runtime.partsByMessageId, selectedToolOutput, tab?.toolCallId, child?.view]
+          : buildAgentToolFlowProjection(runtime.messages, flowParts, tab?.toolCallId, selectedToolOutput),
+    [active, runtime.messages, flowParts, selectedToolOutput, tab?.toolCallId, child?.view]
   )
   useLayoutEffect(() => {
     if (active) retainedFlowRef.current = flow
@@ -1441,7 +1463,10 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
       )}
       <div className="min-h-0 flex-1">
         <AgentToolFlowMessageList
+          archiveSessionId={child?.view?.sessionId}
           childActive={child?.view?.active}
+          hasOlder={child?.hasOlder}
+          loadOlder={child?.loadOlder}
           toolCallId={tab.toolCallId}
           title={tab.title}
           messages={flow.messages}
@@ -1520,12 +1545,17 @@ function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
   const lateTaskEvents = useAgentSessionTaskEvents(meta.sessionId)
   const liveness = useAgentRunLiveness(runtime.messages, backgroundTasks)
   const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
+  const statusParts = useAgentToolParts(
+    active ? meta.sessionId : undefined,
+    runtime.partsByMessageId,
+    isAgentStatusPart
+  )
   const status = useMemo(
     () =>
       !active && retainedStatusRef.current
         ? retainedStatusRef.current
-        : buildAgentRightPaneStatus(runtime.messages, runtime.partsByMessageId, lateTaskEvents, liveness),
-    [active, runtime.messages, runtime.partsByMessageId, lateTaskEvents, liveness]
+        : buildAgentRightPaneStatus(runtime.messages, statusParts, lateTaskEvents, liveness),
+    [active, runtime.messages, statusParts, lateTaskEvents, liveness]
   )
   useLayoutEffect(() => {
     if (active) retainedStatusRef.current = status

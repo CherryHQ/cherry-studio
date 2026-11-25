@@ -96,3 +96,29 @@ describe('native context migrate-forward', () => {
     ).not.toContain('submission')
   })
 })
+
+describe('agent backend recovery migrate-forward', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0045_agent_session_reply_and_recovery' })
+
+  it('marks only previously bound Pi Durable backends and preserves a completed recovery on restart', () => {
+    const insert = dbh.sqlite.prepare(
+      'INSERT INTO agent_runtime_backend (id, locator, state, created_at, updated_at) VALUES (?, ?, ?, 1, 1)'
+    )
+    insert.run('bound', JSON.stringify({ version: 1, kind: 'pi-durable', fileName: 'existing' }), 'bound')
+    insert.run('creating', JSON.stringify({ version: 1, kind: 'pi-durable', fileName: 'new' }), 'creating')
+    insert.run('claude', JSON.stringify({ version: 1, kind: 'claude-code', configDir: 'config' }), 'bound')
+    insert.run('pi', JSON.stringify({ version: 1, kind: 'pi' }), 'bound')
+
+    applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
+    expect(dbh.sqlite.prepare('SELECT id, needs_recovery_check FROM agent_runtime_backend ORDER BY id').all()).toEqual([
+      { id: 'bound', needs_recovery_check: 1 },
+      { id: 'claude', needs_recovery_check: 0 },
+      { id: 'creating', needs_recovery_check: 0 },
+      { id: 'pi', needs_recovery_check: 0 }
+    ])
+
+    dbh.sqlite.prepare("UPDATE agent_runtime_backend SET needs_recovery_check = 0 WHERE id = 'bound'").run()
+    applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
+    expect(dbh.sqlite.prepare('SELECT id FROM agent_runtime_backend WHERE needs_recovery_check = 1').all()).toEqual([])
+  })
+})

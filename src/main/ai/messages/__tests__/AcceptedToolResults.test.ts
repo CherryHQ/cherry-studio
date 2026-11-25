@@ -37,11 +37,17 @@ describe('accepted tool results', () => {
     })
     expect(owner.project('message', part)).toBe(compact)
     expect(owner.project('message', part)).toBe(compact)
-    const result = owner.get('message', 'call')
-    if (!result.found) throw Error('Accepted result missing')
-    expect(JSON.parse(result.serializedBytes.toString('utf8'))).toEqual({ text: 'a'.repeat(64 * 1024) })
-    const again = owner.get('message', 'call')
-    if (!again.found) throw Error('Accepted result missing')
-    expect(again.serializedBytes).toBe(result.serializedBytes)
+    expect(owner.get('message', 'call')).toEqual({ found: true, output: { text: 'a'.repeat(64 * 1024) } })
+  })
+
+  it('hands detail reads to the archive when the current part comes from committed storage', () => {
+    const owner = new AcceptedToolResults('topic')
+    const live = tool('unfinished'.repeat(8192))
+    owner.accept('message', live, 'part')
+    const output = {
+      $deferredToolResult: { topicId: 'topic', messageId: 'message', toolCallId: 'call', partId: 'part' }
+    }
+    expect(owner.project('message', tool(output), undefined, 'part')).toEqual(tool(output))
+    expect(owner.get('message', 'call')).toEqual({ found: false })
   })
 })

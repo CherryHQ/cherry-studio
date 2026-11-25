@@ -31,8 +31,9 @@ import { withDurableShellTimeout } from './durableShellTimeout'
 export async function prepareDurableDesktop(
   input: AgentRuntimeConnectInput,
   emit: (event: AgentRuntimeEvent) => void,
-  namespace?: string
+  root?: { contextId: string; namespace: string }
 ) {
+  const namespace = root?.namespace
   const discovery = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
@@ -240,7 +241,8 @@ export async function prepareDurableDesktop(
         workspacePath: cwd,
         agentDataPath,
         emit,
-        getInteractionState: () => application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId),
+        getInteractionState: () =>
+          application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId, root?.contextId),
         getPermissionMode: () => permissionMode,
         builtinRole: agent.configuration?.builtin_role,
         isDisabled,

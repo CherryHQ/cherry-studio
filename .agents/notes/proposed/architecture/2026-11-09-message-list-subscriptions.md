@@ -37,7 +37,7 @@ A Home message or an Agent run is a container, a part is the content/update/pers
 | `RootMessageProjection` and existing source projections | Native-to-product mapping, stable part IDs, in-memory bodies and source checkpoint |
 | Existing message/context data services | Persist containers, independent parts, existing split tool outputs and required source metadata |
 | Main `MessageProjection` / `ProjectionSubscriptions` | Publish consistent snapshots/patches and manage window leases; no SQL or execution control |
-| Renderer transport / topic facade | Existing attach, attempt filtering, live source retention and history/live selection |
+| Renderer transport / history handoff | Existing attach, attempt filtering, live source retention and history/live selection |
 | Scoped message-list projection | Group stable parts into rows and expose keyed immutable reads; no canonical body accumulator |
 | Existing viewport runtime | Navigation intent, measurements, following/reading and position restoration |
 
@@ -127,7 +127,7 @@ These are conceptual target signatures, not shipped APIs. A row descriptor holds
 | --- | --- |
 | History hooks/SWR | Persisted pages, cursors, loading/errors and existing lazy reads |
 | `MessageProjectionService` | One shared IPC baseline/patch stream per target/window, gap recovery and refcounted detach |
-| `ExecutionStreamOverlayService` | Existing attempt filtering, live parts and one history/live selection path; immutable page references, not another history cache |
+| `useHistoryReplies` | Existing attempt filtering, live parts and one history/live selection path; immutable page references, not another history cache |
 | Scoped list view | Row/group descriptors, part references and reverse indexes for one selected view/branch |
 | UI state | Selection, editing, disclosure and viewport state under existing bounded owners |
 
@@ -139,7 +139,7 @@ Keep Virtua, Streamdown, stable renderer/plugin configuration and existing viewp
 
 ### 5. Simple completion, cleanup and history reads
 
-Main publishes successful completion after commit. Renderer incorporates the committed history through the scoped cursor, then releases the corresponding settled live content. Save or refresh failure retains readable live output and reports the existing recoverable error. Keep newer active parts and enforce attempt, topic and publication guards. Use the existing publish revision for live reattach, and the Agent timeline contract for persisted history recovery.
+After a durable write, Main includes the stored message ID in the terminal state of the owning attempt. Home and Agent Chat read that row into its existing position on the selected branch and release the settled live content. Membership and order changes use the branch query. The desktop handoff requires no stored revision. Save or refresh failure retains readable live output and reports the existing recoverable error. Keep newer active parts and enforce attempt, topic and publication guards. Use the existing publish revision for live reattach, and the Agent timeline contract for persisted history recovery.
 
 Deletion/fork use the existing session operation and native checkpoint boundaries; completion guards prevent late writes from recreating deleted content. Partial storage is not automatic tool-resume authority. Do not introduce another lock/queue manager for hypothetical races; test actual affected interleavings.
 
@@ -179,7 +179,7 @@ Use explicit test files and `setupTestDatabase()` for SQLite. Synthetic replay p
 
 T3 references use `c6ca6056309904f89b90b6055d797973be0a0939`: [ID allocation](https://github.com/pingdotgg/t3code/blob/c6ca6056309904f89b90b6055d797973be0a0939/packages/provider-core/src/server/IdAllocator.ts), [item-level steer grouping](https://github.com/pingdotgg/t3code/blob/c6ca6056309904f89b90b6055d797973be0a0939/apps/web/src/components/chat/MessagesTimeline.logic.ts#L1033), [quiet structure and keyed text](https://github.com/pingdotgg/t3code/blob/c6ca6056309904f89b90b6055d797973be0a0939/packages/client-runtime/src/state/threadDetail.ts#L354), [transaction/publication](https://github.com/pingdotgg/t3code/blob/c6ca6056309904f89b90b6055d797973be0a0939/apps/server/src/orchestration-v2/EventSink.ts) and [search-index gating](https://github.com/pingdotgg/t3code/blob/c6ca6056309904f89b90b6055d797973be0a0939/apps/server/src/orchestration-v2/messageSearchIndex.ts). The earlier renderer exploration used `d5290e9167ccbd8d2c7043eab8e311fd21a14464`; neither source snapshot is Cherry runtime proof.
 
-The [message-list rules](../../../../src/renderer/components/chat/messages/README.md), [projection transport](../../../../src/renderer/services/aiTransport/MessageProjectionService.ts), [topic facade](../../../../src/renderer/services/aiTransport/ExecutionStreamOverlayService.ts), [persistence listener](../../../../src/main/ai/streamManager/listeners/PersistenceListener.ts) and [viewport runtime](../../../../src/renderer/components/chat/messages/list/chatVirtualizerRuntime.tsx) remain implementation owners. Existing steer videos/tests and the tool-result dependency's report prove their own heads only. This proposal has not run a schema migration, new runtime acceptance or benchmark.
+The [message-list rules](../../../../src/renderer/components/chat/messages/README.md), [projection transport](../../../../src/renderer/services/aiTransport/MessageProjectionService.ts), [history handoff](../../../../src/renderer/hooks/useHistoryReplies.ts), [persistence listener](../../../../src/main/ai/streamManager/listeners/PersistenceListener.ts) and [viewport runtime](../../../../src/renderer/components/chat/messages/list/chatVirtualizerRuntime.tsx) remain implementation owners. Existing steer videos/tests and the tool-result dependency's report prove their own heads only. This proposal has not run a schema migration, new runtime acceptance or benchmark.
 
 ## Alternatives considered
 
@@ -199,7 +199,7 @@ The [message-list rules](../../../../src/renderer/components/chat/messages/READM
 - AC3 — Ack and native handoff preserve input and part keys and compatible tool subtrees without duplicates (verification: mount/focus assertions and real Electron — renderer owner)
 - AC4 — Part replacement/removal preserves provenance and updates the item addressed by its ID (verification: source projection replay — projection owner)
 - AC5 — Committed item positions reconstruct after reload/two-window observation; unknown/rejected input never auto-replays (verification: persisted-part and Electron reattach tests — Main/renderer owners)
-- AC6 — Save/refresh failure retains readable output; successful save and refresh precede settled live cleanup (verification: failure-injection and history/overlay tests — Main/renderer owners)
+- AC6 — Save/read failure retains readable output; the committed row takes over from its attempt without fetching other history pages (verification: failure-injection and history/overlay tests — Main/renderer owners)
 - AC7 — Copy/capture use selected part order, full export preserves content, deletes deduplicate source IDs and fork uses real checkpoints (verification: existing affected action/read tests — integration owner)
 - AC8 — Existing follow/read anchors survive prepend, disclosure, async media, resizing and competing navigation (verification: real browser/Electron geometry — viewport owner)
 - AC9 — Compaction stays at its source anchor; interruption is a centered separator and actual output is retained (verification: focused frame/projection and native compact/Stop — renderer owner)

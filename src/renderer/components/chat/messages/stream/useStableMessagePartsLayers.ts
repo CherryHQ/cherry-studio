@@ -42,6 +42,7 @@
 
 import { useMemo, useRef } from 'react'
 
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 export interface StableMessagePartsLayers {
@@ -106,12 +107,13 @@ export function useStableMessagePartsLayers(
       historyChanged ||= historyParts !== previousHistoryParts
 
       const executionParts = overlay[message.id]
-      const usesExecutionOverlay = executionParts !== undefined && executionParts.length > 0
+      const addressed = executionParts !== undefined && messageProjectionService.ownsRowParts(executionParts)
+      const usesExecutionOverlay = executionParts !== undefined && (executionParts.length > 0 || addressed)
       hasExecutionOverlay ||= usesExecutionOverlay
       const currentCandidate = usesExecutionOverlay ? executionParts : historyParts
       const previousCurrentParts = previousCurrent[message.id]
       const currentParts =
-        previousCurrentParts && partsContentEqual(previousCurrentParts, currentCandidate)
+        !addressed && previousCurrentParts && partsContentEqual(previousCurrentParts, currentCandidate)
           ? previousCurrentParts
           : currentCandidate
       nextCurrent[message.id] = currentParts
@@ -119,11 +121,13 @@ export function useStableMessagePartsLayers(
     }
 
     for (const [messageId, executionParts] of Object.entries(overlay)) {
-      if (messageId in nextCurrent || executionParts.length === 0) continue
+      if (messageId in nextCurrent) continue
+      const addressed = messageProjectionService.ownsRowParts(executionParts)
+      if (!addressed && executionParts.length === 0) continue
       hasExecutionOverlay = true
       const previousCurrentParts = previousCurrent[messageId]
       const currentParts =
-        previousCurrentParts && partsContentEqual(previousCurrentParts, executionParts)
+        !addressed && previousCurrentParts && partsContentEqual(previousCurrentParts, executionParts)
           ? previousCurrentParts
           : executionParts
       nextCurrent[messageId] = currentParts
@@ -159,11 +163,4 @@ export function useStableMessagePartsLayers(
     cacheRef.current = { messageCount: messages.length, value }
     return value
   }, [messages, overlay])
-}
-
-export function useStablePartsByMessageId(
-  messages: CherryUIMessage[],
-  overlay: Record<string, CherryMessagePart[]>
-): Record<string, CherryMessagePart[]> {
-  return useStableMessagePartsLayers(messages, overlay).partsByMessageId
 }

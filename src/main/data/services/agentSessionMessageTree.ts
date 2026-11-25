@@ -1,6 +1,7 @@
 import { isToolUIPart } from 'ai'
 import { and, asc, eq, inArray, lt, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
+import * as z from 'zod'
 
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import {
@@ -87,30 +88,47 @@ export function readAgentSessionMessagePartIdsTx(db: DbOrTx, messageId: string):
     .map((row) => row.id)
 }
 
+export function advanceAgentSessionPositionTx(db: DbOrTx, sessionId: string, pos: number): void {
+  db.update(sessions)
+    .set({ lastPos: pos, updatedAt: sessions.updatedAt })
+    .where(and(eq(sessions.id, sessionId), lt(sessions.lastPos, pos)))
+    .run()
+}
+
 /**
- * Makes `order` the message's part list: drops parts outside it, re-sequences the rest and writes
- * `parts` by ID. Rows whose payload and position are unchanged are not rewritten.
+ * Writes changed parts by ID. Reconciliation supplies the full order; a positioned completion
+ * extends the currently stored order without removing any parts.
  */
 export function writeAgentSessionMessagePartsTx(
   db: DbOrTx,
   input: {
     sessionId: string
     messageId: string
-    order: readonly string[]
+    order: readonly string[] | { partId: string; pos: number }
     parts: ReadonlyMap<string, CherryMessagePart>
     positions?: ReadonlyMap<string, number>
     timestampMs: number
   }
 ): void {
   const { sessionId, messageId, order, parts, positions, timestampMs } = input
-  const seqById = new Map(order.map((id, seq) => [id, seq]))
-  if (seqById.size !== order.length) throw new Error('Agent session message part IDs must be unique')
   const existing = db
     .select({ id: messageParts.id, seq: messageParts.seq, type: messageParts.type, pos: messageParts.pos })
     .from(messageParts)
     .where(eq(messageParts.messageId, messageId))
+    .orderBy(asc(messageParts.seq))
     .all()
   const existingById = new Map(existing.map((row) => [row.id, row]))
+  let ids: readonly string[]
+  if ('partId' in order) {
+    const stored = existing.map((row) => row.id)
+    if (!existingById.has(order.partId)) {
+      const after = existing.findIndex((row) => row.pos != null && row.pos > order.pos)
+      stored.splice(after < 0 ? stored.length : after, 0, order.partId)
+    }
+    ids = stored
+  } else ids = order
+  const seqById = new Map(ids.map((id, seq) => [id, seq]))
+  if (seqById.size !== ids.length) throw new Error('Agent session message part IDs must be unique')
   let textChanged = [...parts.values()].some((part) => part.type === 'text')
   const removed = existing.filter((row) => !seqById.has(row.id))
   const moved = existing.filter((row) => seqById.has(row.id) && seqById.get(row.id) !== row.seq)
@@ -171,11 +189,7 @@ export function writeAgentSessionMessagePartsTx(
       .run()
     if (!result.changes && !stored) throw new Error('Agent session message part ID belongs to a different message')
   }
-  if (lastPos > 0)
-    db.update(sessions)
-      .set({ lastPos, updatedAt: sessions.updatedAt })
-      .where(and(eq(sessions.id, sessionId), lt(sessions.lastPos, lastPos)))
-      .run()
+  if (lastPos > 0) advanceAgentSessionPositionTx(db, sessionId, lastPos)
   if (!textChanged) return
   const text = db
     .select({ text: sql<string | null>`json_extract(${messageParts.payload}, '$.text')` })
@@ -205,6 +219,7 @@ export function replaceAgentSessionMessagePartsTx(
     messageId: string
     parts: readonly CherryMessagePart[]
     partIds?: readonly string[]
+    positions?: ReadonlyMap<string, number>
     timestampMs: number
   }
 ): void {
@@ -217,6 +232,39 @@ export function replaceAgentSessionMessagePartsTx(
   })
 }
 
+type TerminalTool = Extract<CherryMessagePart, { state: 'output-error' | 'output-available' }>
+function hasDeferredResult(part: CherryMessagePart): part is TerminalTool {
+  return (
+    isToolUIPart(part) &&
+    ((part.state === 'output-available' && isDeferredToolOutput(part.output)) ||
+      (part.state === 'output-error' && isDeferredToolOutput(part.resultProviderMetadata?.cherry?.deferredToolOutput)))
+  )
+}
+
+const resultMetadata = z.record(z.string(), z.record(z.string(), z.json()))
+const archivedSuccess = z.object({ output: z.unknown(), resultProviderMetadata: resultMetadata })
+const archivedFailure = z.object({
+  isError: z.literal(true),
+  content: z.tuple([z.object({ type: z.literal('text'), text: z.string() })]),
+  resultProviderMetadata: resultMetadata.optional()
+})
+
+function hydrateResult(part: TerminalTool, output: unknown): CherryMessagePart {
+  if (part.state === 'output-available') {
+    if (isDeferredToolOutput(part.output) && part.output.archivedProviderMetadata) {
+      const stored = archivedSuccess.parse(output)
+      return { ...part, ...stored }
+    }
+    return { ...part, output }
+  }
+  const failure = archivedFailure.safeParse(output)
+  if (!failure.success) return part
+  const restored = { ...part, errorText: failure.data.content[0].text }
+  if (failure.data.resultProviderMetadata) restored.resultProviderMetadata = failure.data.resultProviderMetadata
+  else delete restored.resultProviderMetadata
+  return restored
+}
+
 export function hydrateAgentSessionMessageDataTx<T extends AgentSessionMessageData>(
   db: DbOrTx,
   messageId: string,
@@ -224,9 +272,7 @@ export function hydrateAgentSessionMessageDataTx<T extends AgentSessionMessageDa
 ): T {
   const parts = data.parts
   if (!parts?.length) return data
-  if (
-    !parts.some((part) => isToolUIPart(part) && part.state === 'output-available' && isDeferredToolOutput(part.output))
-  ) {
+  if (!parts.some(hasDeferredResult)) {
     return data
   }
   const stored = db
@@ -242,10 +288,10 @@ export function hydrateAgentSessionMessageDataTx<T extends AgentSessionMessageDa
   let hydratedParts: typeof parts | undefined
   for (let index = 0; index < parts.length; index += 1) {
     const part = parts[index]
-    if (!isToolUIPart(part) || part.state !== 'output-available' || !isDeferredToolOutput(part.output)) continue
+    if (!hasDeferredResult(part)) continue
     if (!outputsByCallId.has(part.toolCallId)) continue
     hydratedParts ??= [...parts]
-    hydratedParts[index] = { ...part, output: outputsByCallId.get(part.toolCallId) }
+    hydratedParts[index] = hydrateResult(part, outputsByCallId.get(part.toolCallId))
   }
   return hydratedParts ? { ...data, parts: hydratedParts } : data
 }
@@ -257,9 +303,7 @@ export function hydrateAgentSessionMessageRowsTx<
   for (const row of rows) {
     const parts = row.data.parts
     if (!parts?.length) continue
-    if (
-      parts.some((part) => isToolUIPart(part) && part.state === 'output-available' && isDeferredToolOutput(part.output))
-    ) {
+    if (parts.some(hasDeferredResult)) {
       deferredMessageIds.push(row.id)
     }
   }
@@ -288,11 +332,11 @@ export function hydrateAgentSessionMessageRowsTx<
     let hydratedParts: typeof parts | undefined
     for (let index = 0; index < parts.length; index += 1) {
       const part = parts[index]
-      if (!isToolUIPart(part) || part.state !== 'output-available' || !isDeferredToolOutput(part.output)) continue
+      if (!hasDeferredResult(part)) continue
       const key = `${row.id}\0${part.toolCallId}`
       if (!outputsByKey.has(key)) continue
       hydratedParts ??= [...parts]
-      hydratedParts[index] = { ...part, output: outputsByKey.get(key) }
+      hydratedParts[index] = hydrateResult(part, outputsByKey.get(key))
     }
     return hydratedParts ? { ...row, data: { ...row.data, parts: hydratedParts } } : row
   })
@@ -347,7 +391,7 @@ export function agentSessionDescendantIds(sessionId: string, messageId: string) 
   ) select id from descendants)`
 }
 
-export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: string | null) {
+export function readStoredAgentSessionPath(db: DbOrTx, sessionId: string, head?: string | null) {
   const selected = head ?? getAgentSessionHead(db, sessionId)
   if (!selected) return []
   const rows = db
@@ -355,13 +399,14 @@ export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: strin
     .from(messages)
     .where(and(eq(messages.sessionId, sessionId), inArray(messages.id, agentSessionPathIds(sessionId, selected))))
     .all()
-  return hydrateAgentSessionMessageRowsTx(
+  return attachAgentSessionMessagePartsTx(
     db,
-    attachAgentSessionMessagePartsTx(
-      db,
-      orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root')
-    )
+    orderAgentSessionPath(rows, selected).filter((row) => row.role !== 'root')
   )
+}
+
+export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: string | null) {
+  return hydrateAgentSessionMessageRowsTx(db, readStoredAgentSessionPath(db, sessionId, head))
 }
 
 export function readAgentSessionAncestry(db: DbOrTx, sessionId: string, head: string) {

@@ -90,8 +90,8 @@ const toolPart = (toolCallId: string, output: unknown) => ({
 
 const fileManager = { read: vi.fn(), readChunk: vi.fn() }
 
-const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
-const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn(), forkSession: vi.fn() }
+const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn() }
+const agentSessionRuntimeService = { listSessionCommands: vi.fn(), forkSession: vi.fn() }
 const agentLifecycleService = {
   archiveSessions: vi.fn(),
   restoreSession: vi.fn(),
@@ -564,14 +564,17 @@ describe('aiHandlers — streaming', () => {
   it('get_tool_result falls back to the stored agent-session message', async () => {
     const output = { content: 'large stored output' }
     aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
-    agentSessionMessageService.getSessionToolOutput.mockReturnValue({ found: true, output })
+    agentSessionMessageService.getSessionToolOutput.mockImplementation((sessionId, messageId, toolCallId) =>
+      sessionId === 'session-1' && messageId === 'assistant-1' && toolCallId === 'call-1'
+        ? { found: true, output }
+        : { found: false }
+    )
 
     const result = await aiHandlers['ai.tool.get_result'](
       { topicId: 'agent-session:session-1', messageId: 'assistant-1', toolCallId: 'call-1', purpose: 'full' },
       { senderId: null }
     )
 
-    expect(agentSessionMessageService.getSessionToolOutput).toHaveBeenCalledWith('session-1', 'assistant-1', 'call-1')
     expect(result).toEqual({ status: 'ready', purpose: 'full', output })
   })
 
@@ -772,27 +775,6 @@ describe('aiHandlers — agent sessions & tasks', () => {
 
     await expect(aiHandlers['ai.agent.create'](request, ctx)).resolves.toBe(agent)
     expect(createAgent).toHaveBeenCalledWith(request, ctx)
-  })
-
-  it('prewarm_agent_session acquires a warm lease keyed to the sender window', async () => {
-    await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.acquireWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
-  })
-
-  // Trace mode used to skip this, inherited from the warm-query era. A primed connection carries the
-  // session's traceparent like any other, so skipping only cost developer mode its eager catalog.
-  it('prewarm_agent_session acquires the lease in trace mode too', async () => {
-    claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(true)
-    await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.acquireWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
-  })
-
-  // The actual teardown (warm-query park + primed connection) is owned by the runtime service,
-  // which starts it only once no window holds the session.
-  it('close_agent_session_warm releases only the sender window lease', async () => {
-    await aiHandlers['ai.agent.session.close_warm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.releaseWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
-    expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).not.toHaveBeenCalled()
   })
 
   // Relative paths reported by a session's tools are resolved against that session's workspace,

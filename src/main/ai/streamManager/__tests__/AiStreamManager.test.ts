@@ -6,8 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiService } from '@main/ai/AiService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { Emitter } from '@main/core/lifecycle/event'
 import { diagnose } from '@main/services/diagnostics/scan/engine'
-import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
+import {
+  applyMessageProjectionUpdate,
+  type MessageProjectionUpdate,
+  type MessageProjectionView
+} from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -18,7 +23,13 @@ import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
 import type * as DispatchModule from '../context/dispatch'
 import type { PersistAssistantInput } from '../persistence/PersistenceBackend'
-import type { AiStreamSource, MessageStreamEvent } from '../types'
+import type {
+  AgentPartChange,
+  AgentMessageStreamSource,
+  AiStreamSource,
+  ExecutionPart,
+  MessageStreamEvent
+} from '../types'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -114,6 +125,34 @@ function pendingStream(signal?: AbortSignal): ReadableStream<UIMessageChunk> {
 }
 
 /** A stream whose feed is driven from the test body (enqueue / close). */
+function controlledMessageSource() {
+  const content = new Emitter<AgentPartChange>()
+  const reconciled = new Emitter<readonly ExecutionPart[]>()
+  let entries: readonly ExecutionPart[] = []
+  let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+  const source: AgentMessageStreamSource = {
+    kind: 'messages',
+    onPart: content.event,
+    onMessageReconciled: reconciled.event,
+    readParts: () => entries,
+    stream: new ReadableStream({ start: (value) => (controller = value) })
+  }
+  return {
+    source,
+    enqueue(
+      event: AgentPartChange | { type: 'message'; entries: readonly ExecutionPart[] } | MessageStreamEvent,
+      accepted?: readonly ExecutionPart[]
+    ) {
+      if (event.type === 'message') entries = event.entries
+      else if (accepted) entries = accepted
+      if (event.type === 'control' || event.type === 'error') controller.enqueue(event)
+      else if (event.type === 'message') reconciled.fire(event.entries)
+      else content.fire(event)
+    },
+    close: () => controller.close()
+  }
+}
+
 function controlledStream(): {
   stream: ReadableStream<UIMessageChunk>
   enqueue: (chunk: UIMessageChunk) => void
@@ -316,7 +355,7 @@ describe('AiStreamManager', () => {
     const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
     let view: MessageProjectionView | null = null
     view = await mgr.attachProjection(sender, 'projection-topic', 'subscription', (update) => {
-      if (view) view = applyMessageProjectionUpdate(view, update)!
+      if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
     })
     let release!: () => void
     let entered = false
@@ -324,13 +363,14 @@ describe('AiStreamManager', () => {
       topicId: 'projection-topic',
       modelId: 'p::m',
       backend: {
-        kind: 'test',
+        kind: 'sqlite',
         persistAssistant: async () => {
           entered = true
           await new Promise<void>((resolve) => {
             release = resolve
           })
           if (failWrite) throw new Error('archive write failed')
+          return { messageId: 'committed-row' }
         }
       },
       onPersistFailed: (error) => mgr.broadcastTopicError('projection-topic', 'p::m', error)
@@ -355,7 +395,9 @@ describe('AiStreamManager', () => {
       expect(view).toMatchObject({ kind: 'topic', executions: [{ status: failWrite ? 'unresolved' : 'done' }] })
     )
     expect(view?.messages[0].parts[0]).toMatchObject({ text: 'visible before completion' })
-    if (failWrite) expect(view?.messages[0].parts.at(-1)).toMatchObject({ type: 'data-error' })
+    if (view?.kind !== 'topic') throw new Error('Topic projection required')
+    expect(view.executions[0].savedMessageId).toBe(failWrite ? undefined : 'committed-row')
+    if (failWrite) expect(view.messages[0].parts.at(-1)).toMatchObject({ type: 'data-error' })
     mgr.detachProjection(sender, 'subscription')
     sender.emit('destroyed')
   })
@@ -367,7 +409,7 @@ describe('AiStreamManager', () => {
     const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
     let view: MessageProjectionView | null = null
     view = await mgr.attachProjection(sender, 'denied-projection', 'subscription', (update) => {
-      if (view) view = applyMessageProjectionUpdate(view, update)!
+      if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
     })
     startSingle(mgr, {
       topicId: 'denied-projection',
@@ -396,39 +438,78 @@ describe('AiStreamManager', () => {
 
   // A replacement must reach subscribers and terminal persistence without reintroducing withdrawn text.
   it('publishes authoritative replacements and drains the final update before completion', async () => {
-    let controller!: ReadableStreamDefaultController<MessageStreamEvent>
-    mockStreamText.mockResolvedValueOnce({
-      kind: 'messages',
-      stream: new ReadableStream({
-        start: (value) => {
-          controller = value
-        }
-      })
-    })
+    const controller = controlledMessageSource()
+    mockStreamText.mockResolvedValueOnce(controller.source)
     const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
     let view: MessageProjectionView | null = null
     view = await mgr.attachProjection(sender, 'native-topic', 'native-subscription', (update) => {
-      if (view) view = applyMessageProjectionUpdate(view, update)!
+      if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
     })
     const listener = new FakeListener('native-result')
     startSingle(mgr, { topicId: 'native-topic', modelId: 'p::m', request: req('native-topic'), listeners: [listener] })
     controller.enqueue({ type: 'control', chunk: { type: 'start' } })
-    controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Withdrawn body' }] })
+    controller.enqueue({
+      type: 'message',
+      entries: [{ partId: 'withdrawn', pos: 1, payload: { type: 'text', text: 'Withdrawn body' } }]
+    })
     await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'Withdrawn body' }))
     const replay: CherryUIMessage[] = []
     const late = Object.assign(new FakeListener('late-reader'), {
-      onMessage: (message: CherryUIMessage) => replay.push(message)
+      content: { snapshot: (message: CherryUIMessage) => replay.push(message), part: () => {} }
     })
     expect(mgr.addListener('native-topic', late)).toBe(true)
     expect(replay.at(-1)?.parts).toEqual([{ type: 'text', text: 'Withdrawn body' }])
     const replacement: CherryUIMessage['parts'] = [{ type: 'text', text: 'Replacement', state: 'done' }]
-    controller.enqueue({ type: 'message', parts: replacement })
+    controller.enqueue({ type: 'message', entries: [{ partId: 'replacement', pos: 1, payload: replacement[0] }] })
     controller.close()
     await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
     expect(listener.doneResults[0].finalMessage?.parts).toEqual(replacement)
     expect(replay.at(-1)?.parts).toEqual(replacement)
     expect(view?.messages[0].parts).toEqual(replacement)
     mgr.detachProjection(sender, 'native-subscription')
+    sender.emit('destroyed')
+  })
+
+  it('delivers a part suffix and gives late readers the same accumulated content', async () => {
+    const topicId = 'part-append-topic'
+    const controller = controlledMessageSource()
+    mockStreamText.mockResolvedValueOnce(controller.source)
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    const frames: MessageProjectionUpdate[] = []
+    await mgr.attachProjection(sender, topicId, 'part-subscription', (update) => frames.push(update))
+    const received: AgentPartChange[] = []
+    const listener = Object.assign(new FakeListener('part-terminal'), {
+      content: { snapshot: () => {}, part: (change: AgentPartChange) => received.push(change) }
+    })
+    startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [listener] })
+    controller.enqueue({
+      type: 'message',
+      entries: [{ partId: 'stable-part', pos: 1, payload: { type: 'text', text: 'First', state: 'streaming' } }]
+    })
+    await vi.waitFor(() => expect(frames.at(-1)?.patches[0]?.type).toBe('message'))
+    const read = vi.spyOn(controller.source, 'readParts')
+    controller.enqueue({ type: 'part-append', partId: 'stable-part', text: ' suffix' }, [
+      { partId: 'stable-part', pos: 1, payload: { type: 'text', text: 'First suffix', state: 'streaming' } }
+    ])
+    await vi.waitFor(() =>
+      expect(frames.at(-1)?.patches).toEqual([{ type: 'part-append', partId: 'stable-part', text: ' suffix' }])
+    )
+    expect(received).toEqual([{ type: 'part-append', partId: 'stable-part', text: ' suffix' }])
+    expect(read).not.toHaveBeenCalled()
+    const replay: CherryUIMessage[] = []
+    expect(
+      mgr.addListener(
+        topicId,
+        Object.assign(new FakeListener('late-reader'), {
+          content: { snapshot: (value: CherryUIMessage) => replay.push(value), part: () => {} }
+        })
+      )
+    ).toBe(true)
+    expect(replay.at(-1)?.parts[0]).toMatchObject({ text: 'First suffix' })
+    controller.close()
+    await vi.waitFor(() =>
+      expect(listener.doneResults[0]?.finalMessage?.parts[0]).toMatchObject({ text: 'First suffix' })
+    )
     sender.emit('destroyed')
   })
 
@@ -439,7 +520,7 @@ describe('AiStreamManager', () => {
     const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
     let view: MessageProjectionView | null = null
     view = await mgr.attachProjection(sender, 'approval-projection', 'subscription', (update) => {
-      if (view) view = applyMessageProjectionUpdate(view, update)!
+      if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
     })
     startSingle(mgr, {
       topicId: 'approval-projection',
@@ -462,6 +543,44 @@ describe('AiStreamManager', () => {
     feed.close()
     await vi.advanceTimersByTimeAsync(0)
     mgr.detachProjection(sender, 'subscription')
+    sender.emit('destroyed')
+  })
+
+  it('publishes an Agent approval decision while its native tool is still waiting', async () => {
+    const topicId = 'native-approval'
+    const feed = controlledMessageSource()
+    mockStreamText.mockResolvedValueOnce(feed.source)
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, topicId, 'native-approval-subscription', (update) => {
+      if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
+    })
+    startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [] })
+    feed.enqueue({
+      type: 'control',
+      chunk: { type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' }
+    })
+    feed.enqueue({
+      type: 'message',
+      entries: [
+        {
+          partId: 'tool',
+          pos: 1,
+          payload: {
+            type: 'dynamic-tool',
+            toolName: 'Read',
+            toolCallId: 'call',
+            input: {},
+            state: 'approval-requested',
+            approval: { id: 'approval' }
+          }
+        }
+      ]
+    })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-requested' }))
+    expect(mgr.resolveToolApproval(topicId, 'call', true)).toBe(true)
+    expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-responded', approval: { approved: true } })
+    feed.close()
     sender.emit('destroyed')
   })
 
@@ -685,7 +804,6 @@ describe('AiStreamManager', () => {
         abortController: turnAbortController
       })
 
-      expect(mockAbortPendingTurn).toHaveBeenCalledWith('session-1', 'user-requested')
       expect(snap.status).toBe('aborted')
 
       await vi.advanceTimersByTimeAsync(0)
@@ -2385,15 +2503,8 @@ describe('AiStreamManager', () => {
 
   describe('deferred tool output lookup', () => {
     it.each([false, true])('hands off prepared output only after a successful save (failure: %s)', async (fail) => {
-      let controller!: ReadableStreamDefaultController<MessageStreamEvent>
-      mockStreamText.mockResolvedValueOnce({
-        kind: 'messages',
-        stream: new ReadableStream({
-          start: (value) => {
-            controller = value
-          }
-        })
-      })
+      const controller = controlledMessageSource()
+      mockStreamText.mockResolvedValueOnce(controller.source)
       const topicId = 'prepared-tools'
       const gate = Promise.withResolvers<void>()
       const prepared: CherryUIMessage = {
@@ -2415,17 +2526,20 @@ describe('AiStreamManager', () => {
         topicId,
         prepareMessage: () => prepared,
         backend: {
-          kind: 'test',
+          kind: 'sqlite',
           persistAssistant: async () => {
             await gate.promise
             if (fail) throw new Error('Write failed')
-            return { messageId: 'answer', messageRevision: '1', historyRevision: '1' }
+            return { messageId: 'answer' }
           }
         },
         onPersistFailed: (error) => mgr.broadcastTopicError(topicId, 'p::m', error)
       })
       startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [persistence, listener] })
-      controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Before preparation' }] })
+      controller.enqueue({
+        type: 'message',
+        entries: [{ partId: 'body', pos: 1, payload: { type: 'text', text: 'Before preparation' } }]
+      })
       controller.close()
       await vi.waitFor(() => expect(mgr.inspect(topicId)?.executions[0].finalMessage).toMatchObject(prepared))
       expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject({
@@ -2441,15 +2555,8 @@ describe('AiStreamManager', () => {
     })
 
     it('reads large native outputs from the current message and respects replacement and removal', async () => {
-      let controller!: ReadableStreamDefaultController<MessageStreamEvent>
-      mockStreamText.mockResolvedValueOnce({
-        kind: 'messages',
-        stream: new ReadableStream({
-          start: (value) => {
-            controller = value
-          }
-        })
-      })
+      const controller = controlledMessageSource()
+      mockStreamText.mockResolvedValueOnce(controller.source)
       const topicId = 'native-tools'
       const listener = new FakeListener('native-tools')
       startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [listener] })
@@ -2467,13 +2574,16 @@ describe('AiStreamManager', () => {
         input: {},
         output
       }
-      controller.enqueue({ type: 'message', parts: [tool] })
+      controller.enqueue({ type: 'message', entries: [{ partId: 'tool-part', pos: 1, payload: tool }] })
       await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject({ found: true, output }))
-      controller.enqueue({ type: 'message', parts: [{ ...tool, output: 'replacement' }] })
+      controller.enqueue({
+        type: 'message',
+        entries: [{ partId: 'tool-part', pos: 1, payload: { ...tool, output: 'replacement' } }]
+      })
       await vi.waitFor(() =>
         expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject({ found: true, output: 'replacement' })
       )
-      controller.enqueue({ type: 'message', parts: [] })
+      controller.enqueue({ type: 'message', entries: [] })
       await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject({ found: false }))
       controller.close()
       await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
@@ -4063,7 +4173,7 @@ describe('AiStreamManager', () => {
         const persistence = new PersistenceListener({
           topicId: 'a',
           backend: {
-            kind: 'test',
+            kind: 'temp',
             persistAssistant: (input) => {
               writes.push(input)
             }
@@ -4077,7 +4187,7 @@ describe('AiStreamManager', () => {
         }) as unknown as Electron.WebContents
         let view: MessageProjectionView | null = null
         view = await mgr.attachProjection(sender, 'a', 'subscription', (update) => {
-          if (view) view = applyMessageProjectionUpdate(view, update)!
+          if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
         })
         const started = startSingle(mgr, {
           topicId: 'a',
@@ -4190,7 +4300,7 @@ describe('AiStreamManager', () => {
         const persistence = new PersistenceListener({
           topicId: 'a',
           backend: {
-            kind: 'test',
+            kind: 'temp',
             persistAssistant: (input) => {
               writes.push(input)
             }

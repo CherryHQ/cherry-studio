@@ -5,7 +5,7 @@ import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
 import { agentImportSnapshotSchema, type AgentImportSnapshot } from '@shared/ai/agentImport'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
-import type { MessageProjectionUpdate, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
+import type { ProjectionNotification, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -371,7 +371,12 @@ export const aiRequestSchemas = {
   // the subtree groups by domain, not by service.
   'ai.tool.get_result': defineRoute({
     input: z.intersection(
-      z.object({ topicId: z.string().min(1), messageId: z.string().min(1), toolCallId: z.string().min(1) }),
+      z.object({
+        topicId: z.string().min(1),
+        messageId: z.string().min(1),
+        toolCallId: z.string().min(1),
+        partId: z.string().min(1).optional()
+      }),
       z.discriminatedUnion('purpose', [
         z.object({ purpose: z.literal('preview') }),
         z.object({ purpose: z.literal('text-range'), cursor: z.number().int().nonnegative().optional() }),
@@ -434,7 +439,7 @@ export const aiRequestSchemas = {
     input: z.strictObject({ skillId: z.string().min(1) }),
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
-  'ai.agent.session.prewarm': defineRoute({
+  'ai.agent.session.commands': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
   }),
@@ -463,10 +468,6 @@ export const aiRequestSchemas = {
       fastMode: z.boolean().optional()
     }),
     output: z.custom<AiStreamOpenResponse>()
-  }),
-  'ai.agent.session.close_warm': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1) }),
-    output: z.void()
   }),
   'ai.agent.session.delete': defineRoute({
     input: z.strictObject({
@@ -575,7 +576,7 @@ export const aiRequestSchemas = {
  */
 export type AiEventSchemas = {
   'ai.agent.import.progress': AgentImportSnapshot
-  'ai.projection.changed': { subscriptionId: string; update: MessageProjectionUpdate }
+  'ai.projection.changed': { subscriptionId: string; update: ProjectionNotification }
   'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
   'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload

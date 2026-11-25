@@ -1,6 +1,5 @@
-import { memo, useEffect, useMemo } from 'react'
+import { memo, useMemo } from 'react'
 
-import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
@@ -11,9 +10,10 @@ import type {
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { ProjectionReaderProvider } from '@renderer/hooks/agent/ProjectionReaderProvider'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
-import { ipcApi } from '@renderer/ipc'
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
@@ -24,8 +24,6 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { type NavigateToForkSource, useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
 import { AgentPendingAttachments } from '../messages/AgentPendingAttachments'
 import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
-
-const logger = loggerService.withContext('AgentSessionMessages')
 
 type Props = {
   agentId?: string
@@ -93,6 +91,10 @@ const AgentSessionMessages = ({
 }: Props) => {
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
+  const partReader = useMemo(
+    () => messageProjectionService.partsFor({ kind: 'topic', topicId: sessionTopicId }),
+    [sessionTopicId]
+  )
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
 
   const sessionAssistantId = session?.agentId ?? agentId
@@ -116,7 +118,7 @@ const AgentSessionMessages = ({
       const message = messages[index]
       if (message?.role !== 'assistant') continue
       const parts = partsByMessageId[message.id] ?? message.parts ?? []
-      if (parts.length > 0) return message.id
+      if (parts.length > 0 || message.metadata?.status === 'pending') return message.id
     }
     return undefined
   }, [messages, partsByMessageId])
@@ -186,25 +188,13 @@ const AgentSessionMessages = ({
     afterMessages
   })
 
-  // Main owns the warm lease per (session × window) and debounces the real teardown, so the
-  // <Activity> hide/show of a tab switch costs two cheap IPC messages, not a connection cycle —
-  // and a lease held by another window keeps the shared connection alive.
-  useEffect(() => {
-    void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
-      logger.warn('Failed to acquire agent session warm lease', error as Error)
-    })
-    return () => {
-      void ipcApi.request('ai.agent.session.close_warm', { sessionId }).catch((error) => {
-        logger.warn('Failed to release agent session warm lease', error as Error)
-      })
-    }
-  }, [sessionId])
-
   return (
     <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>
-      <MessageListProvider value={messageList}>
-        <MessageList enableSearch />
-      </MessageListProvider>
+      <ProjectionReaderProvider reader={partReader}>
+        <MessageListProvider value={messageList}>
+          <MessageList enableSearch />
+        </MessageListProvider>
+      </ProjectionReaderProvider>
     </AskUserQuestionOptimisticInputProvider>
   )
 }

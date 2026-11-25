@@ -17,7 +17,6 @@ import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } fro
 import type { Disposable } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
-import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
@@ -715,8 +714,13 @@ export class ChannelMessageHandler {
     const sessionId = this.peekSessionId(agentId, channelId, conversationId)
     if (!sessionId) return merged
 
-    const sessionCommands =
-      application.get('CacheService').getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId)) ?? []
+    const sessionCommands = await application
+      .get('AgentSessionRuntimeService')
+      .listSessionCommands(sessionId)
+      .catch((error) => {
+        logger.warn('Could not load channel session commands', { sessionId, error })
+        return []
+      })
     const controlNames = new Set(merged.map((cmd) => cmd.name))
     for (const cmd of sessionCommands) {
       if (controlNames.has(cmd.name)) continue

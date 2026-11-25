@@ -17,8 +17,6 @@ import { useStableMessagePartsLayers } from './useStableMessagePartsLayers'
 
 interface MessageStreamingLayersParams {
   messages: CherryUIMessage[]
-  /** messageId -> latest streamed parts from the execution overlay. */
-  overlay: Record<string, CherryMessagePart[]>
   /** Executions whose anchor rows mark the mutable streaming tail. */
   executions: readonly ActiveExecution[]
   /** Latest assistant snapshot per execution. */
@@ -31,27 +29,18 @@ interface MessageStreamingLayersResult {
   streamingLayers: MessageStreamingLayers
 }
 
-/**
- * Canonical `onHandoff` callback for `useTopicOverlayHandoffOnTerminal`:
- * refresh the DB rows first so dropping the live overlay never flashes stale
- * base parts, and drop the overlay even when the refresh fails.
- */
-export function createOverlayRefreshHandoff(refresh: () => Promise<unknown>, resetOverlay: () => void) {
-  return async () => {
-    try {
-      await refresh()
-    } finally {
-      resetOverlay()
-    }
-  }
-}
-
 export function useMessageStreamingLayers({
   messages,
-  overlay,
   executions,
   liveAssistants
 }: MessageStreamingLayersParams): MessageStreamingLayersResult {
+  const overlay = useMemo(
+    () =>
+      Object.fromEntries(
+        liveAssistants.filter((row) => row.parts.length || row.partIds).map((row) => [row.id, row.parts])
+      ),
+    [liveAssistants]
+  )
   const { historyPartsByMessageId, partsByMessageId } = useStableMessagePartsLayers(messages, overlay)
   const liveMessageIdCandidates = useMemo(
     () =>

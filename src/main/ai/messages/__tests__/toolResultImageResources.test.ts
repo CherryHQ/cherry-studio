@@ -42,6 +42,9 @@ describe('tool result image resource projection', () => {
       ...ref,
       imageIndex: 0
     })
+    expect(
+      parseToolResultImageUrl(new URL('cherry-media://tool-result/topic%3A1/message%2F1/call%201/0?part=stable-part'))
+    ).toEqual({ ...ref, partId: 'stable-part', imageIndex: 0 })
     for (const suffix of [
       'topic/message/call/-1',
       'topic/message/call/',

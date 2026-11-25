@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
-import { RefreshProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { MessageListActions, MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
@@ -70,6 +69,7 @@ const ChatContent: FC<Props> = ({
   const {
     uiMessages,
     siblingsMap,
+    replyHistory,
     isLoading: isHistoryLoading,
     isStale: isHistoryStale,
     refresh,
@@ -99,6 +99,7 @@ const ChatContent: FC<Props> = ({
       initialMessages={uiMessages}
       uiMessages={uiMessages}
       siblingsMap={siblingsMap}
+      replyHistory={replyHistory}
       refresh={refresh}
       activeNodeId={activeNodeId}
       loadOlder={loadOlder}
@@ -122,6 +123,7 @@ interface InnerProps extends Props {
   /** Live DB-backed message list; reactive to SWR refreshes. */
   uiMessages: CherryUIMessage[]
   siblingsMap: ReturnType<typeof useTopicMessages>['siblingsMap']
+  replyHistory: ReturnType<typeof useTopicMessages>['replyHistory']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
   loadOlder: () => void
@@ -148,6 +150,7 @@ const ChatContentInner: FC<InnerProps> = ({
   initialMessages,
   uiMessages,
   siblingsMap,
+  replyHistory,
   refresh,
   activeNodeId,
   loadOlder,
@@ -164,6 +167,7 @@ const ChatContentInner: FC<InnerProps> = ({
     topic,
     isHistoryLoading,
     initialMessages,
+    replyHistory,
     uiMessages,
     refresh,
     activeNodeId,
@@ -297,11 +301,9 @@ const ChatContentInner: FC<InnerProps> = ({
   return (
     <ChatWriteProvider value={runtime.chatWriteActions}>
       <SiblingsProvider value={siblingsContextValue}>
-        <RefreshProvider value={refresh}>
-          <MessageEditingProvider>
-            <ConversationStageCenter placement={placement} main={main} composer={composer} />
-          </MessageEditingProvider>
-        </RefreshProvider>
+        <MessageEditingProvider>
+          <ConversationStageCenter placement={placement} main={main} composer={composer} />
+        </MessageEditingProvider>
       </SiblingsProvider>
     </ChatWriteProvider>
   )

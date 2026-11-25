@@ -21,77 +21,69 @@ export class ClaudeCodeResultError extends Error {
   }
 }
 
-export function claudeControlEvents(control: ClaudeControl): AgentRuntimeEvent[] {
+export function toAgentRuntimeEvent(control: ClaudeControl): AgentRuntimeEvent | undefined {
   switch (control.type) {
     case 'result': {
       const usage = convertClaudeCodeUsage(control.usage)
       usage.outputTokens.reasoning = control.reasoningTokens
-      return [{ type: 'chunk', chunk: { type: 'message-metadata', messageMetadata: { stats: v3UsageToStats(usage) } } }]
+      return { type: 'message-metadata', messageMetadata: { stats: v3UsageToStats(usage) } }
     }
     case 'autonomous-turn-state':
-      return [
-        control.state === 'started'
-          ? { ...control, origin: { kind: 'background-work' } }
-          : { type: 'autonomous-turn-state', state: 'finished' }
-      ]
+      return control.state === 'started'
+        ? { ...control, origin: { kind: 'background-work' } }
+        : { type: 'autonomous-turn-state', state: 'finished' }
     case 'compaction-complete':
-      return [
-        {
-          type: 'compaction-complete',
-          ...(control.anchor && {
-            anchor: {
-              status: 'done',
-              phase: 'agent-session',
-              trigger: control.anchor.trigger,
-              completedAt: control.anchor.completedAt,
-              preTokens: control.anchor.pre_tokens,
-              postTokens: control.anchor.post_tokens,
-              durationMs: control.anchor.duration_ms
-            }
-          })
-        }
-      ]
-    case 'background-tasks':
-      return [
-        {
-          type: 'background-tasks',
-          tasks: control.tasks.map((task) => ({
-            id: task.task_id,
-            type: task.task_type,
-            description: task.description,
-            ...(task.toolCallId && { toolCallId: task.toolCallId })
-          }))
-        }
-      ]
-    case 'background-task-event':
-      return [{ type: 'background-task-event', data: taskEventData(control.data) }]
-    case 'api-retry':
-      return [
-        {
-          type: 'api-retry',
-          retry: {
-            attempt: control.retry.attempt,
-            maxRetries: control.retry.max_retries,
-            retryDelayMs: control.retry.retry_delay_ms,
-            errorStatus: control.retry.error_status,
-            errorCategory: 'error' in control.retry ? control.retry.error : control.retry.error_category,
-            ...(control.subagentType && { subagentType: control.subagentType })
+      return {
+        type: 'compaction-complete',
+        ...(control.anchor && {
+          anchor: {
+            status: 'done',
+            phase: 'agent-session',
+            trigger: control.anchor.trigger,
+            completedAt: control.anchor.completedAt,
+            preTokens: control.anchor.pre_tokens,
+            postTokens: control.anchor.post_tokens,
+            durationMs: control.anchor.duration_ms
           }
+        })
+      }
+    case 'background-tasks':
+      return {
+        type: 'background-tasks',
+        tasks: control.tasks.map((task) => ({
+          id: task.task_id,
+          type: task.task_type,
+          description: task.description,
+          ...(task.toolCallId && { toolCallId: task.toolCallId })
+        }))
+      }
+    case 'background-task-event':
+      return { type: 'background-task-event', data: taskEventData(control.data) }
+    case 'api-retry':
+      return {
+        type: 'api-retry',
+        retry: {
+          attempt: control.retry.attempt,
+          maxRetries: control.retry.max_retries,
+          retryDelayMs: control.retry.retry_delay_ms,
+          errorStatus: control.retry.error_status,
+          errorCategory: 'error' in control.retry ? control.retry.error : control.retry.error_category,
+          ...(control.subagentType && { subagentType: control.subagentType })
         }
-      ]
+      }
     case 'supported-commands':
     case 'background-work-state':
     case 'background-results':
     case 'compaction-start':
     case 'compaction-error':
     case 'response-start':
-      return [control]
+      return control
     case 'input-boundary':
     case 'session':
     case 'diagnostic':
-    case 'archive-changed':
-      return []
+      return undefined
   }
+  control satisfies never
 }
 
 function taskEventData({ message, status }: ClaudeTaskFact): AgentTaskEventPartData {

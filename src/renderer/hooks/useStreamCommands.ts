@@ -120,6 +120,7 @@ export function useStreamCommands(
     if (topicId) await ipcApi.request('ai.stream.abort', { topicId })
   }, [topicId])
   return {
+    projection: projection.view?.kind === 'topic' ? projection.view : null,
     messages: local.topicId === topicId ? local.messages : initialMessages,
     setMessages,
     sendMessage,

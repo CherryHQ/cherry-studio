@@ -25,8 +25,6 @@ import { type DeferredToolResultRef, isDeferredToolOutput } from '@shared/ai/tra
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
-export type AgentRightPaneTab = 'browser' | 'files' | 'status' | `flow:${string}`
-
 export interface AgentToolFlowOpenInput {
   toolCallId: string
   toolName?: string
@@ -300,6 +298,27 @@ export function findAgentPreviewUrlInOutput(output: unknown): string | null {
   return text ? extractLatestLocalPreviewUrl(text) : null
 }
 
+export function isAgentPreviewPart(part: CherryMessagePart): boolean {
+  return isToolUIPart(part) && PREVIEW_URL_TOOL_NAMES.has(getToolName(part))
+}
+
+export function isAgentFlowPart(part: CherryMessagePart): boolean {
+  return isToolUIPart(part) || part.type === 'data-agent-task-event' || hasPartParentToolCallId(part)
+}
+
+export function isAgentStatusPart(part: CherryMessagePart): boolean {
+  if (part.type === 'data-agent-task-event') return true
+  if (!isToolUIPart(part)) return false
+  const name = getToolNameFromPart(part)
+  return (
+    name === AgentToolsType.TaskCreate ||
+    name === AgentToolsType.TaskUpdate ||
+    name === AgentToolsType.TaskList ||
+    getCanonicalToolName(part) === AgentToolsType.TodoWrite ||
+    isReportArtifactsTool(name)
+  )
+}
+
 /** Builds newest-first candidates, stopping once an inline or excerpt URL makes older output irrelevant. */
 export function findAgentPreviewUrlCandidates(
   messages: CherryUIMessage[],
@@ -396,15 +415,6 @@ export function isAgentPreviewUrlSourceAfterFrontier(
   }
   if (sourceIndex !== frontierIndex) return sourceIndex > frontierIndex
   return source.partIndex >= frontier.partsLength
-}
-
-/** Finds a browser-ready URL only from concrete shell/task output, never from prompt text. */
-export function findLatestAgentPreviewUrl(
-  messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>
-): string | null {
-  const candidate = findAgentPreviewUrlCandidates(messages, partsByMessageId)[0]
-  return candidate?.type === 'url' ? candidate.url : null
 }
 
 function isTerminalToolState(state: string | undefined): boolean {

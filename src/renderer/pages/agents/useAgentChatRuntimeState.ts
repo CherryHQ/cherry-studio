@@ -3,10 +3,7 @@ import { type ComponentType, useCallback, useEffect, useLayoutEffect, useMemo, u
 import { useTranslation } from 'react-i18next'
 
 import type { ToastConfig } from '@cherrystudio/ui'
-import {
-  createOverlayRefreshHandoff,
-  useMessageStreamingLayers
-} from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
+import { useMessageStreamingLayers } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
 import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
@@ -24,6 +21,7 @@ import { cacheService } from '@renderer/data/CacheService'
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
+import { useAgentToolParts } from '@renderer/hooks/agent/useAgentToolParts'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import { useConversationErrorToasts } from '@renderer/hooks/useConversationErrorToasts'
@@ -31,14 +29,17 @@ import {
   type ConversationHistoryAdapter,
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
-import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { useHistoryReplies } from '@renderer/hooks/useHistoryReplies'
+import { useTopicCompletion } from '@renderer/hooks/useTopicCompletion'
+import { useTopicSpeech } from '@renderer/hooks/useTopicSpeech'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { handOffAgentDraft } from '@renderer/services/agentDraftHandoff'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { autoReadService } from '@renderer/services/voice'
+import type { ExecutionFinishEvent } from '@renderer/types/message'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
@@ -127,6 +128,10 @@ function hasAskUserQuestionAnswers(part: AskUserQuestionApprovalPart): boolean {
     getAskUserQuestionAnswers(part.output) ??
     getAskUserQuestionAnswers(outputContent)
   )
+}
+
+function isAskUserQuestionPart(part: CherryMessagePart): boolean {
+  return isToolUIPart(part) && isAskUserQuestionToolName(getToolNameFromPart(part))
 }
 
 function findAskUserQuestionPartByCallId(
@@ -264,6 +269,7 @@ export function useAgentChatRuntimeState({
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const {
     messages: uiMessages,
+    replyHistory,
     historyActions,
     getMessageSiblings,
     setActiveBranch,
@@ -288,7 +294,7 @@ export function useAgentChatRuntimeState({
     void seedReservedMessages(reservedMessages)
   }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
 
-  const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const { activeExecutions, setMessages, stop, projection } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
@@ -330,7 +336,6 @@ export function useAgentChatRuntimeState({
         fastMode: request.fastMode
       })
       if (ack.mode !== 'blocked' && currentSessionRef.current === sessionId) {
-        resetOverlay()
         setMessages([])
         await replaceMessageTail(input.editTarget.messageId, ack.reservedMessages ?? [])
       }
@@ -370,37 +375,32 @@ export function useAgentChatRuntimeState({
     },
     [autoReadEnabled, sessionId]
   )
-  const {
-    overlay,
-    liveAssistants,
-    reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, activeExecutions, {
-    onUpdate: (_executionId, event) => {
-      const projected = latestUiMessagesRef.current.find((message) => message.id === event.message.id)
-      const turnOrigin =
-        cacheService.getShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, event.message.id)) ??
-        projected?.metadata?.turnOrigin ??
-        event.message.metadata?.turnOrigin
-      autoReadService.update({ ...event, enabled: autoReadEnabled, scope: sessionTopicId, eligible: !turnOrigin })
-    },
-    onLeave: () => autoReadService.cancelScope(sessionTopicId),
-    onFinish: (executionId, event) => {
-      errorToastsRef.current?.onFinish(executionId, event)
-      handleExecutionFinish(executionId, event)
-    }
+  const { status, isPending } = useTopicStreamStatus(sessionTopicId)
+  const liveAssistants = useHistoryReplies(
+    projection,
+    activeExecutions,
+    replyHistory,
+    sessionMessagesEnabled ? status : undefined
+  )
+  useTopicSpeech(sessionTopicId, activeExecutions, autoReadEnabled, (_executionId, event) => {
+    const messageId = event.type === 'snapshot' ? event.message.id : event.messageId
+    const turnOrigin =
+      cacheService.getShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, messageId)) ??
+      (event.type === 'snapshot' ? event.message.metadata?.turnOrigin : event.turnOrigin)
+    autoReadService.update({ ...event, enabled: autoReadEnabled, scope: sessionTopicId, eligible: !turnOrigin })
+  })
+  useTopicCompletion(sessionTopicId, activeExecutions, (executionId, event) => {
+    errorToastsRef.current?.onFinish(executionId, event)
+    handleExecutionFinish(executionId, event)
   })
   const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
     messages: optimisticMessages ?? uiMessages,
-    overlay,
     executions: activeExecutions,
     liveAssistants
   })
   const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
     Record<string, unknown>
   >({})
-
-  // Deterministic overlay→DB handoff at terminal (see hook docs).
-  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay), liveAssistants)
 
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
   // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
@@ -412,12 +412,17 @@ export function useAgentChatRuntimeState({
     setOptimisticAskUserQuestionInputsByToolCallId({})
   }, [sessionTopicId])
 
+  const approvalParts = useAgentToolParts(
+    Object.keys(optimisticAskUserQuestionInputsByToolCallId).length ? sessionId : undefined,
+    partsByMessageId,
+    isAskUserQuestionPart
+  )
   useEffect(() => {
     setOptimisticAskUserQuestionInputsByToolCallId((current) => {
       let next = current
       let changed = false
       for (const toolCallId of Object.keys(current)) {
-        const sourcePart = findAskUserQuestionPartByCallId(partsByMessageId, toolCallId)
+        const sourcePart = findAskUserQuestionPartByCallId(approvalParts, toolCallId)
         if (!sourcePart || !hasAskUserQuestionAnswers(sourcePart)) continue
         if (!changed) {
           next = { ...current }
@@ -427,7 +432,7 @@ export function useAgentChatRuntimeState({
       }
       return changed ? next : current
     })
-  }, [partsByMessageId])
+  }, [approvalParts])
 
   const removeOptimisticAskUserQuestionInput = useCallback((toolCallId: string) => {
     setOptimisticAskUserQuestionInputsByToolCallId((current) => {
@@ -506,7 +511,7 @@ export function useAgentChatRuntimeState({
     agentName,
     permissionRequestComponent
   })
-  const { isPending } = useTopicStreamStatus(sessionTopicId)
+
   const sessionClosing = useSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)) === true
   const editBusy = isPending || sessionClosing || editPending || toolApprovalComposerOverrides.length > 0
   const cancelEditing = useCallback(() => {

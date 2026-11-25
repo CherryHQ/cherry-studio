@@ -3,9 +3,9 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
 import type { VoiceTargetRegistration } from '@renderer/services/voice'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
+import type { ExecutionFinishEvent, ExecutionContentUpdate } from '@renderer/types/message'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -37,20 +37,15 @@ const state = vi.hoisted(() => ({
   messages: [] as never[],
   activeExecutions: [] as ActiveExecution[],
   isPending: false,
-  liveAssistants: [] as never[],
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
   setMessages: vi.fn(),
-  resetExecutionMessages: vi.fn(),
-  clearExecutionMessages: vi.fn(),
   resetTemporaryTopic: vi.fn(),
   temporaryTopicId: 'temp-topic',
   bindVoiceTarget: vi.fn(),
   unbindVoiceTarget: vi.fn(),
   voiceTargetRegistration: null as VoiceTargetRegistration | null,
-  overlayOnUpdate: null as
-    | ((executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void)
-    | null,
+  overlayOnUpdate: null as ((executionId: string, event: ExecutionContentUpdate) => void) | null,
   autoReadUpdate: vi.fn(),
   overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
   autoReadEnabled: false,
@@ -61,7 +56,7 @@ const state = vi.hoisted(() => ({
   windowStyle: 'default'
 }))
 
-import HomeWindow, { finalizeLiveMessages } from '../HomeWindow'
+import HomeWindow, { finalizeReply } from '../HomeWindow'
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn(), on: vi.fn(() => () => {}) },
@@ -120,22 +115,14 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ activeExecutions: state.activeExecutions, isPending: state.isPending })
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: (
-    _topicId: string,
-    _executions: unknown[],
-    options?: {
-      onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
-      onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
-    }
-  ) => {
-    state.overlayOnUpdate = options?.onUpdate ?? null
-    state.overlayOnFinish = options?.onFinish ?? null
-    return {
-      liveAssistants: state.liveAssistants,
-      reset: state.resetExecutionMessages,
-      clear: state.clearExecutionMessages
-    }
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({
+  useTopicSpeech: (_topicId: string, _expected: unknown, enabled: boolean, cb: typeof state.overlayOnUpdate) => {
+    state.overlayOnUpdate = enabled ? cb : null
+  }
+}))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({
+  useTopicCompletion: (_topicId: string, _expected: unknown, cb: typeof state.overlayOnFinish) => {
+    state.overlayOnFinish = cb
   }
 }))
 
@@ -244,14 +231,20 @@ vi.mock('../components/ClipboardPreview', () => ({
 }))
 
 vi.mock('../../chat/ChatWindow', () => ({
-  default: () => <div data-testid="chat-window" />
+  default: ({ messages }: { messages: CherryUIMessage[] }) => (
+    <div data-testid="chat-window">
+      {messages.map((message) => (
+        <p key={message.id}>{message.parts.map((part) => (part.type === 'text' ? part.text : '')).join('')}</p>
+      ))}
+    </div>
+  )
 }))
 
 vi.mock('../../translate/TranslateWindow', () => ({
   default: () => <div data-testid="translate-window" />
 }))
 
-describe('finalizeLiveMessages', () => {
+describe('finalizeReply', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -277,7 +270,7 @@ describe('finalizeLiveMessages', () => {
       parts: [{ type: 'text', text: 'done', state: 'done' }]
     } as CherryUIMessage
 
-    const result = finalizeLiveMessages([liveMessage, unchangedMessage])
+    const result = [finalizeReply(liveMessage), finalizeReply(unchangedMessage)]
 
     expect(result[0].parts[0]).toMatchObject({ type: 'text', state: 'done' })
     expect(result[0].parts[1]).toMatchObject({ type: 'reasoning', state: 'done' })
@@ -302,12 +295,9 @@ describe('HomeWindow', () => {
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
     state.setMessages.mockClear()
-    state.resetExecutionMessages.mockClear()
-    state.clearExecutionMessages.mockClear()
     state.resetTemporaryTopic.mockClear()
     state.temporaryTopicId = 'temp-topic'
     state.activeExecutions = []
-    state.liveAssistants = []
     state.messages = []
     state.isPending = false
     state.bindVoiceTarget.mockReset()
@@ -432,6 +422,7 @@ describe('HomeWindow', () => {
     view.rerender(<HomeWindow draggable={false} />)
     await act(async () => {
       state.overlayOnUpdate?.('provider::model', {
+        type: 'snapshot',
         attemptId: 7,
         message: {
           id: 'active-assistant',
@@ -538,6 +529,29 @@ describe('HomeWindow', () => {
     expect(state.autoReadConsume).toHaveBeenCalledWith(expect.objectContaining({ message, eligible: false }))
     expect(screen.queryByRole('button', { name: 'Read result aloud' })).not.toBeInTheDocument()
     expect(state.readMessageAloud).not.toHaveBeenCalled()
+  })
+
+  it('replaces a finished temporary reply at the same anchor and ignores an older replay', async () => {
+    const window = render(<HomeWindow draggable={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Chat route' }))
+    const finish = (attemptId: number, text: string) =>
+      act(() =>
+        state.overlayOnFinish?.('provider::model', {
+          attemptId,
+          isAbort: false,
+          isError: false,
+          message: { id: 'same-anchor', role: 'assistant', parts: [{ type: 'text', text }] }
+        })
+      )
+    finish(1, 'old reply')
+    expect(await screen.findByText('old reply')).toBeInTheDocument()
+    finish(2, 'new reply')
+    finish(1, 'old reply')
+    expect(screen.queryByText('old reply')).not.toBeInTheDocument()
+    expect(screen.getAllByText('new reply')).toHaveLength(1)
+    state.temporaryTopicId = 'another-topic'
+    window.rerender(<HomeWindow draggable={false} />)
+    expect(screen.queryByText('new reply')).not.toBeInTheDocument()
   })
 
   it('rejects a stale completion after the temporary topic is reset', () => {

@@ -204,13 +204,10 @@ describe('agent session timeline position migration', () => {
     expect(
       dbh.sqlite.prepare('SELECT last_pos, active_node_id FROM agent_session WHERE id = ?').get(sessionId)
     ).toEqual({ last_pos: 4, active_node_id: runId })
-    expect(agentSessionMessageService.getSessionMessageBody(sessionId, runId)).toEqual({
-      parts: [
-        { type: 'text', text: 'First' },
-        { type: 'text', text: 'Second' }
-      ],
-      ids: [firstId, secondId]
-    })
+    expect(agentSessionMessageService.getStoredMessageParts(sessionId, runId)).toEqual([
+      { partId: firstId, pos: 2, payload: { type: 'text', text: 'First' } },
+      { partId: secondId, pos: 3, payload: { type: 'text', text: 'Second' } }
+    ])
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
   })
 })

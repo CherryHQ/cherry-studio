@@ -8,6 +8,7 @@ import { extractOutputMetadata, isToolType, type ToolMetadata, type ToolType } f
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
+import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { isMetaToolName } from './meta/metaToolNames'
@@ -16,7 +17,6 @@ import { AgentToolsType } from './shared/agentToolTypes'
 /** AI-SDK-v6 ToolUIPart approval-state string literals. */
 export const APPROVAL_REQUESTED = 'approval-requested'
 export const APPROVAL_RESPONDED = 'approval-responded'
-export const CLAUDE_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
 export const PI_AGENT_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
 const CHERRY_AGENT_TRANSPORTS = new Set<string>([
   ...Object.values(AGENT_RUNTIME_CAPABILITIES).map((caps) => caps.transport),
@@ -211,7 +211,8 @@ export function normalizeToolErrorResponse(errorText: string): unknown {
 
 function normalizeErrorOutput(part: ToolResponsePart): unknown {
   if (part.state !== 'output-error') return undefined
-  return normalizeToolErrorResponse(part.errorText)
+  const deferred = part.resultProviderMetadata?.cherry?.deferredToolOutput
+  return isDeferredToolOutput(deferred) ? deferred : normalizeToolErrorResponse(part.errorText)
 }
 
 function normalizeToolInput(part: ToolResponsePart): unknown {
@@ -303,12 +304,6 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
     ...(partialArguments ? { partialArguments } : {})
   }
   return normalResponse
-}
-
-export function buildToolRenderItemFromPart(part: CherryMessagePart, id: string): ToolRenderItem | null {
-  const toolResponse = buildToolResponseFromPart(part, id)
-  if (!toolResponse) return null
-  return { id, part, toolResponse }
 }
 
 /** Matched `ToolUIPart` plus decoded approval fields. */

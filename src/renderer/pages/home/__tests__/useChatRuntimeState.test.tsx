@@ -2,8 +2,8 @@ import { act, render } from '@testing-library/react'
 import { Activity, useMemo } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
+import type { ExecutionFinishEvent, ExecutionContentUpdate } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -18,9 +18,7 @@ const mocks = vi.hoisted(() => ({
   overlayExecutions: [] as ActiveExecution[],
   liveMessageIds: [] as string[],
   liveAssistants: [] as CherryUIMessage[],
-  overlayOnUpdate: null as
-    | ((executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void)
-    | null,
+  overlayOnUpdate: null as ((executionId: string, event: ExecutionContentUpdate) => void) | null,
   autoReadUpdate: vi.fn(),
   overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
   sendTurn: vi.fn(),
@@ -79,7 +77,6 @@ vi.mock('@renderer/components/chat/flow/topicMessageFlowLiveTree', () => ({
 }))
 
 vi.mock('@renderer/components/chat/messages/stream/useMessageStreamingLayers', () => ({
-  createOverlayRefreshHandoff: () => vi.fn(),
   useMessageStreamingLayers: () => ({
     partsByMessageId: {},
     liveMessageIds: mocks.liveMessageIds,
@@ -111,24 +108,20 @@ vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: (
-    _topicId: string,
-    executions: ActiveExecution[],
-    options?: {
-      onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
-      onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
-    }
-  ) => {
-    mocks.overlayExecutions = executions
-    mocks.overlayOnUpdate = options?.onUpdate ?? null
-    mocks.overlayOnFinish = options?.onFinish ?? null
-    return {
-      overlay: {},
-      liveAssistants: mocks.liveAssistants,
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({
+  useHistoryReplies: (_view: unknown, expected: ActiveExecution[]) => {
+    mocks.overlayExecutions = expected
+    return mocks.liveAssistants
+  }
+}))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({
+  useTopicSpeech: (_topicId: string, _expected: unknown, enabled: boolean, cb: typeof mocks.overlayOnUpdate) => {
+    mocks.overlayOnUpdate = enabled ? cb : null
+  }
+}))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({
+  useTopicCompletion: (_topicId: string, _expected: unknown, cb: typeof mocks.overlayOnFinish) => {
+    mocks.overlayOnFinish = cb
   }
 }))
 
@@ -138,8 +131,7 @@ vi.mock('../hooks/useToolApprovalBridge', () => ({
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicAwaitingApproval: () => false,
-  useTopicOverlayHandoffOnTerminal: vi.fn()
+  useTopicAwaitingApproval: () => false
 }))
 
 vi.mock('../hooks/useChatWriteActions', () => ({
@@ -194,6 +186,7 @@ function RuntimeHost({
     initialMessages: messages,
     uiMessages: messages,
     refresh: mocks.refresh,
+    replyHistory: { loaded: true, has: () => false, get: () => undefined, refreshRow: async () => {} },
     activeNodeId,
     messagesCacheMutate: vi.fn(),
     onBranchLiveStateChange: mocks.onBranchLiveStateChange
@@ -248,6 +241,7 @@ describe('useChatRuntimeState', () => {
     render(<RuntimeHost topicId="topic-1" activeNodeId="active-assistant" />)
     await act(async () => {
       mocks.overlayOnUpdate?.('provider::model', {
+        type: 'snapshot',
         attemptId: 7,
         message: {
           id: 'active-assistant',

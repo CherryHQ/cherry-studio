@@ -37,7 +37,7 @@ Home message 或 Agent run 是容器，part 是内容／更新／持久化单位
 | `RootMessageProjection` 及现有来源投影 | 原生到产品映射、稳定 part IDs、内存正文及来源 checkpoint |
 | 既有消息／context 数据服务 | 保存容器、独立 parts、既有拆分工具结果及必要来源元数据 |
 | Main `MessageProjection`／`ProjectionSubscriptions` | 发布一致 snapshot／patch、管理窗口 lease，不处理 SQL 或执行控制 |
-| Renderer transport／topic facade | 既有 attach、attempt 过滤、实时来源留存及历史／实时选择 |
+| 渲染进程传输／历史交接 | 既有 attach、attempt 过滤、实时来源留存及历史／实时选择 |
 | 按视图限定的消息列表投影 | 将稳定 parts 分组为行，公开按键不可变读取，不持有权威正文累加器 |
 | 现有视口 runtime | 导航意图、测量、跟随／阅读及位置恢复 |
 
@@ -127,7 +127,7 @@ interface MessageListProjection {
 | --- | --- |
 | History hooks／SWR | 持久页、游标、加载／错误及既有延迟读取 |
 | `MessageProjectionService` | 每目标／窗口一份共享 IPC 基线／patch 流、缺口恢复及引用计数 detach |
-| `ExecutionStreamOverlayService` | 既有 attempt 过滤、实时 parts 和唯一历史／实时选择路径；保留不可变页引用，不再建历史缓存 |
+| `useHistoryReplies` | 既有 attempt 过滤、实时 parts 和唯一历史／实时选择路径；保留不可变页引用，不再建历史缓存 |
 | 限定列表视图 | 一个选中视图／分支的行／分组描述、part 引用及反向索引 |
 | UI 状态 | 既有有界所有者中的选择、编辑、展开和视口状态 |
 
@@ -139,7 +139,7 @@ interface MessageListProjection {
 
 ### 5. 简单完成、清理和历史读取
 
-Main 提交成功后发布完成。Renderer 通过有作用域的游标读取已提交历史，然后释放对应已结束的实时内容。保存或刷新失败时保留可读实时内容并报告既有可恢复错误。保留更新的活跃 parts，遵循 attempt、话题和发布 guards。实时 reattach 沿用发布 revision，持久历史恢复遵循 Agent timeline 契约。
+写库成功后，Main 在对应执行的终态中携带已保存的消息 ID。普通聊天和 Agent 聊天读取该行，更新它在所选分支上的已有位置，再释放本次执行的流式正文。分支成员或顺序发生变化时通过分支查询刷新。桌面交接无需额外存储版本号。保存或刷新失败时保留可读实时内容并报告既有可恢复错误。保留更新的活跃 parts，遵循 attempt、话题和发布 guards。实时 reattach 沿用发布 revision，持久历史恢复遵循 Agent timeline 契约。
 
 删除／fork 使用既有会话操作及原生 checkpoint 边界，完成 guards 防止迟到写入重建已删除内容。部分存储不构成自动恢复工具执行的授权。不为假设竞争另建锁／队列 manager，验证实际受影响交错即可。
 
@@ -179,7 +179,7 @@ Main 提交成功后发布完成。Renderer 通过有作用域的游标读取已
 
 T3 参考使用 `c6ca6056309904f89b90b6055d797973be0a0939`：[ID 分配](https://github.com/pingdotgg/t3code/blob/c6ca6056309904f89b90b6055d797973be0a0939/packages/provider-core/src/server/IdAllocator.ts)、[item 级 steer 分组](https://github.com/pingdotgg/t3code/blob/c6ca6056309904f89b90b6055d797973be0a0939/apps/web/src/components/chat/MessagesTimeline.logic.ts#L1033)、[低频结构与按键文本](https://github.com/pingdotgg/t3code/blob/c6ca6056309904f89b90b6055d797973be0a0939/packages/client-runtime/src/state/threadDetail.ts#L354)、[事务／发布](https://github.com/pingdotgg/t3code/blob/c6ca6056309904f89b90b6055d797973be0a0939/apps/server/src/orchestration-v2/EventSink.ts)及[搜索索引门控](https://github.com/pingdotgg/t3code/blob/c6ca6056309904f89b90b6055d797973be0a0939/apps/server/src/orchestration-v2/messageSearchIndex.ts)。早期 renderer 探索使用 `d5290e9167ccbd8d2c7043eab8e311fd21a14464`，两份源码快照都不是 Cherry 运行时证明。
 
-[消息列表规则](../../../../src/renderer/components/chat/messages/README.md)、[投影传输](../../../../src/renderer/services/aiTransport/MessageProjectionService.ts)、[topic facade](../../../../src/renderer/services/aiTransport/ExecutionStreamOverlayService.ts)、[持久化 listener](../../../../src/main/ai/streamManager/listeners/PersistenceListener.ts)和[视口 runtime](../../../../src/renderer/components/chat/messages/list/chatVirtualizerRuntime.tsx)仍为实现所有者。既有 steer 录像／测试和工具结果依赖的报告只证明其各自 head。本方案尚未执行 schema 迁移、新运行时验收或基准。
+[消息列表规则](../../../../src/renderer/components/chat/messages/README.md)、[投影传输](../../../../src/renderer/services/aiTransport/MessageProjectionService.ts)、[历史交接](../../../../src/renderer/hooks/useHistoryReplies.ts)、[持久化 listener](../../../../src/main/ai/streamManager/listeners/PersistenceListener.ts)和[视口 runtime](../../../../src/renderer/components/chat/messages/list/chatVirtualizerRuntime.tsx)仍为实现所有者。既有 steer 录像／测试和工具结果依赖的报告只证明其各自 head。本方案尚未执行 schema 迁移、新运行时验收或基准。
 
 ## 考虑过的替代方案
 
@@ -199,7 +199,7 @@ T3 参考使用 `c6ca6056309904f89b90b6055d797973be0a0939`：[ID 分配](https:/
 - AC3 — Ack 与原生交接保留输入和 part 的 key 及兼容的工具子树，不重复（verification: 挂载／焦点断言及真实 Electron — 渲染负责人）
 - AC4 — 替换或移除 part 时保留来源，按 ID 更新对应条目（verification: 来源投影重放 — 投影负责人）
 - AC5 — 提交的条目位置可在重载及双窗口观察时重建，未知或被拒绝的输入不会自动重放（verification: 持久化 part 和 Electron reattach 测试 — Main／渲染负责人）
-- AC6 — 保存／刷新失败保留可读输出，成功保存及刷新先于已结束实时清理 (verification: 失败注入和历史／overlay 测试 — Main／renderer 负责人)
+- AC6 — 保存或读取失败保留可读输出，已提交的消息行接管对应执行的流式正文，交接期间无需读取其他历史页 (verification: 失败注入和历史／overlay 测试 — Main／renderer 负责人)
 - AC7 — 复制／截图按所选 part 顺序，全文导出保留内容，删除按来源 ID 去重，fork 使用真实 checkpoints (verification: 既有受影响操作／读取测试 — 集成负责人)
 - AC8 — 既有跟随／阅读锚点在前插、展开、异步媒体、resize 和竞争导航中保持 (verification: 真实浏览器／Electron 几何 — 视口负责人)
 - AC9 — 压缩留在来源锚点，中断为居中分隔符，实际输出保留 (verification: 聚焦 frame／projection 及原生 compact／Stop — renderer 负责人)

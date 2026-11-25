@@ -18,17 +18,32 @@ import {
   WEB_SEARCH_TOOL_NAME,
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
+import type { LivePartPatch, NonTextPartWrite, PartPlacement } from '@shared/ai/messageProjection'
 import {
   type DeferredToolOutput,
   type DeferredToolResultRef,
   envelopeDisplayExcerpt,
   isDeferredToolOutput,
-  isPersistedToolOutput
+  isPersistedToolOutput,
+  toolResultValue
 } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 /** Serialized UTF-8 size at or below which a result travels inline. */
 export const DEFER_TOOL_OUTPUT_BYTES = 32 * 1024
+
+type ToolResultPatch<P extends PartPlacement = PartPlacement> = Extract<
+  LivePartPatch<P>,
+  { type: 'part-add' | 'part-put' }
+>
+const rendererToolResult = Symbol('rendererToolResult')
+type ToolResult = Extract<ToolResultPatch['part'], { type: 'dynamic-tool'; state: 'output-available' | 'output-error' }>
+export type PublishedPartPatch<P extends PartPlacement = PartPlacement> =
+  | Exclude<LivePartPatch<P>, { type: 'part-put' | 'part-add' }>
+  | (NonTextPartWrite<P> & { partId: string } & (
+        | { readonly part: Exclude<ToolResultPatch['part'], ToolResult> }
+        | { readonly part: ToolResult; readonly [rendererToolResult]: true }
+      ))
 
 const CHERRY_TOOLS_MCP_SERVER = 'cherry-tools'
 const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
@@ -200,11 +215,6 @@ function exceedsToolOutputTransportLimit(output: unknown): boolean {
   return serializeOversizedToolOutput(output) !== undefined
 }
 
-export function shouldDeferToolOutput(output: unknown): boolean {
-  if (output === undefined || output === null || isDeferredToolOutput(output)) return false
-  return exceedsToolOutputTransportLimit(output)
-}
-
 function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): DeferredToolOutput {
   const skeleton = toCitationSkeleton(output)
   if (skeleton === undefined) return deferred
@@ -245,7 +255,16 @@ function projectToolOutputForRenderer(
   ref: DeferredToolResultRef,
   acceptedSerialized?: string
 ): unknown {
-  if (isDeferredToolOutput(output)) return output
+  if (isDeferredToolOutput(output)) {
+    const stored = output.$deferredToolResult
+    return ref.partId &&
+      (stored.topicId !== ref.topicId ||
+        stored.messageId !== ref.messageId ||
+        stored.partId !== ref.partId ||
+        stored.toolCallId !== ref.toolCallId)
+      ? { ...output, $deferredToolResult: ref }
+      : output
+  }
   if (isPersistedToolOutput(output)) {
     const persisted = output.$persistedToolOutput
     const deferred = {
@@ -255,14 +274,76 @@ function projectToolOutputForRenderer(
     return persisted.shape === 'entities' ? withCitationSkeleton(deferred, persisted.skeleton) : deferred
   }
 
-  const serialized =
+  const oversized =
     acceptedSerialized === undefined
-      ? serializeOversizedToolOutput(output)
+      ? exceedsToolOutputTransportLimit(output)
       : Buffer.byteLength(acceptedSerialized) > DEFER_TOOL_OUTPUT_BYTES
-        ? acceptedSerialized
-        : undefined
-  if (serialized === undefined) return output
+  if (!oversized) return output
   return withCitationSkeleton({ $deferredToolResult: ref }, output)
+}
+
+export function isAgentToolResult(part: CherryMessagePart): part is ToolResult {
+  return part.type === 'dynamic-tool' && (part.state === 'output-available' || part.state === 'output-error')
+}
+
+export function projectAgentNonTextPart<P extends PartPlacement>(
+  topicId: string,
+  change: NonTextPartWrite<P> & { partId: string; archiveMessageId: string; part: ToolResultPatch['part'] }
+): { patch: PublishedPartPatch<P>; ref?: DeferredToolResultRef } {
+  const { partId, part, archiveMessageId } = change
+  const operation: NonTextPartWrite<P> =
+    change.type === 'part-add' ? { type: 'part-add', placement: change.placement } : { type: 'part-put' }
+  if (!isAgentToolResult(part)) return { patch: { ...operation, partId, part } }
+  const ref = { topicId, messageId: archiveMessageId, partId, toolCallId: part.toolCallId }
+  return { patch: { ...operation, partId, part: projectResult(part, ref), [rendererToolResult]: true }, ref }
+}
+
+function projectResult<T extends Extract<CherryMessagePart, { state: 'output-error' | 'output-available' }>>(
+  part: T,
+  ref: DeferredToolResultRef,
+  serialized?: string
+): T {
+  if (part.state === 'output-available') {
+    const output = projectToolOutputForRenderer(part.output, ref, serialized)
+    if (
+      part.resultProviderMetadata &&
+      ref.topicId.startsWith('agent-session:') &&
+      exceedsToolOutputTransportLimit({ output, resultProviderMetadata: part.resultProviderMetadata })
+    ) {
+      return {
+        ...part,
+        resultProviderMetadata: undefined,
+        output: {
+          ...(isDeferredToolOutput(output) ? output : withCitationSkeleton({ $deferredToolResult: ref }, output)),
+          archivedProviderMetadata: true
+        }
+      }
+    }
+    return output === part.output ? part : { ...part, output }
+  }
+  const body = toolResultValue(part)
+  if (
+    !isDeferredToolOutput(body) &&
+    !(serialized === undefined
+      ? exceedsToolOutputTransportLimit(body)
+      : Buffer.byteLength(serialized) > DEFER_TOOL_OUTPUT_BYTES)
+  )
+    return part
+  if (
+    isDeferredToolOutput(body) &&
+    body.$deferredToolResult.messageId === ref.messageId &&
+    body.$deferredToolResult.topicId === ref.topicId &&
+    body.$deferredToolResult.partId === ref.partId &&
+    body.$deferredToolResult.toolCallId === ref.toolCallId
+  )
+    return part
+  const summary =
+    part.errorText.length > 512 ? part.errorText.slice(0, 511).replace(/[\uD800-\uDBFF]$/, '') + '…' : part.errorText
+  return {
+    ...part,
+    errorText: summary,
+    resultProviderMetadata: { cherry: { deferredToolOutput: { $deferredToolResult: { ...ref } } } }
+  }
 }
 
 /** Projects a stored or finalized message part. Returns the same object when nothing changed. */
@@ -270,32 +351,28 @@ export function projectMessagePartForRenderer(
   part: CherryMessagePart,
   topicId: string,
   messageId: string,
-  acceptedSerialized?: string
+  acceptedSerialized?: string,
+  partId?: string
 ): CherryMessagePart {
-  if (!isToolUIPart(part) || part.state !== 'output-available') return part
-
-  const output = projectToolOutputForRenderer(
-    part.output,
-    {
-      topicId,
-      messageId,
-      toolCallId: part.toolCallId
-    },
+  if (!isToolUIPart(part) || (part.state !== 'output-available' && part.state !== 'output-error')) return part
+  if (part.state === 'output-error' && !topicId.startsWith('agent-session:')) return part
+  return projectResult(
+    part,
+    { topicId, messageId, toolCallId: part.toolCallId, ...(partId && { partId }) },
     acceptedSerialized
   )
-  if (output === part.output) return part
-  return { ...part, output }
 }
 
 /** Projects every part of a message. Returns the same array when nothing changed. */
 export function projectMessagePartsForRenderer(
   parts: CherryMessagePart[],
   topicId: string,
-  messageId: string
+  messageId: string,
+  partIds?: readonly string[]
 ): CherryMessagePart[] {
   let projected: CherryMessagePart[] | undefined
   for (let index = 0; index < parts.length; index += 1) {
-    const part = projectMessagePartForRenderer(parts[index], topicId, messageId)
+    const part = projectMessagePartForRenderer(parts[index], topicId, messageId, undefined, partIds?.[index])
     if (part === parts[index]) continue
     projected ??= [...parts]
     projected[index] = part

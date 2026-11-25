@@ -19,9 +19,10 @@ it('updates the same tool identity after invalidation and drops it when the card
     if (route !== 'ai.tool.get_result') throw new Error(`Unexpected route: ${route}`)
     const request = aiRequestSchemas['ai.tool.get_result'].input.parse(input)
     expect(request.purpose).toBe('preview')
+    expect(request.partId).toBe('tool-part')
     return { ok: true, data: { status: 'ready', purpose: 'preview', output, truncated: true } }
   })
-  const ref: DeferredToolResultRef = { topicId: 'topic', messageId: 'reply', toolCallId: 'tool' }
+  const ref: DeferredToolResultRef = { topicId: 'topic', messageId: 'reply', toolCallId: 'tool', partId: 'tool-part' }
   const initialProps: { ref: DeferredToolResultRef | undefined } = { ref }
   const { result, rerender } = renderHook(({ ref }: { ref: DeferredToolResultRef | undefined }) => useToolResult(ref), {
     initialProps

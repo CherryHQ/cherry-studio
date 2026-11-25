@@ -22,6 +22,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime, type AgentRuntimeEvent, type PiRuntimeOptions } from '../src'
+import { observationReplay } from './observationReplay'
 import { createTestBehavior } from './sessionSupport'
 
 function gate() {
@@ -91,8 +92,8 @@ it('shares streamed item identities across handles while releasing only one obse
   })
   const messages = (events: ObservationPayload[]) =>
     events.filter(
-      (event): event is Extract<ObservationPayload, { type: 'message.upsert' }> =>
-        event.type === 'message.upsert' && event.message.role === 'assistant'
+      (event): event is Extract<ObservationPayload, { type: 'message.reconcile' }> =>
+        event.type === 'message.reconcile' && event.message.role === 'assistant'
     )
   await expect.poll(() => messages(right).length).toBeGreaterThan(0)
   expect(messages(left).map((event) => event.message.id)).toEqual(messages(right).map((event) => event.message.id))
@@ -460,7 +461,7 @@ it.each(['stop', 'error'] as const)(
     })
     if (terminal[0].type !== 'input.changed') throw new Error('Missing input outcome')
     expect(
-      events.findLast((event) => event.type === 'message.upsert' && event.message.role === 'assistant')
+      events.findLast((event) => event.type === 'message.reconcile' && event.message.role === 'assistant')
     ).toMatchObject({
       message: { parts: [{ type: 'text', text: 'final response' }] }
     })
@@ -495,7 +496,7 @@ it.each(['error', 'length', 'toolUse'] as const)(
     expect(events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          type: 'message.upsert',
+          type: 'message.reconcile',
           message: expect.objectContaining({
             role: 'assistant',
             parts: [expect.objectContaining({ type: 'text', text: 'partial output' })]
@@ -635,7 +636,7 @@ it('continues an observed child through its owner, keeps one relationship, and r
     .poll(() =>
       childEvents.some(
         (event) =>
-          event.type === 'message.upsert' &&
+          event.type === 'message.reconcile' &&
           event.message.metadata?.completeness === 'complete' &&
           event.message.parts.find((part) => part.type === 'text')?.text === 'continued child answer'
       )
@@ -648,7 +649,7 @@ it('continues an observed child through its owner, keeps one relationship, and r
       () =>
         after.some(
           (event) =>
-            event.type === 'message.upsert' &&
+            event.type === 'message.reconcile' &&
             event.message.parts.find((part) => part.type === 'text')?.text === 'parent received the result' &&
             event.message.metadata?.completeness === 'complete'
         ) ||
@@ -731,8 +732,7 @@ it('streams interleaved content and preliminary tool output in the same native m
   await handle.input.submit(input('stream content'))
   const latest = () =>
     events
-      .filter((event) => event.type === 'message.upsert')
-      .map((event) => event.message)
+      .flatMap(observationReplay())
       .findLast((message) => message.parts.some((part) => part.type === 'dynamic-tool'))!
   await expect
     .poll(() => latest()?.parts[2])
@@ -768,10 +768,10 @@ it('reads native context without submitting work and rejects released access', a
   expect(before.contextWindow).toBe(options.model.contextWindow)
   expect(before.used?.precision).toBe('estimated')
   expect(before.breakdown?.categories.map((row) => row.key)).toContain('messages')
-  const messages = events.filter((event) => event.type === 'message.upsert')
+  const messages = events.filter((event) => event.type === 'message.reconcile')
   expect(confirmed(await handle.contextUsage())).toEqual(before)
   await Promise.resolve()
-  expect(events.filter((event) => event.type === 'message.upsert')).toEqual(messages)
+  expect(events.filter((event) => event.type === 'message.reconcile')).toEqual(messages)
   expect(events.filter((event) => event.type === 'activity.changed' && event.activity.state === 'active')).toEqual([])
   await handle.release()
   expect(await handle.contextUsage()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
@@ -983,7 +983,7 @@ it.each([false, true])('retains nested results across outer failure and reopen (
   expect(
     events.some(
       (event) =>
-        event.type === 'message.upsert' &&
+        event.type === 'message.reconcile' &&
         event.message.parts.some(
           (part) =>
             part.type === 'dynamic-tool' &&
@@ -1114,7 +1114,7 @@ it.each([false, true])(
           ? part.resultProviderMetadata?.pi?.result
           : undefined
     }
-    const live = partOf(events.flatMap((event) => (event.type === 'message.upsert' ? [event.message] : [])).reverse())
+    const live = partOf(events.flatMap(observationReplay()).reverse())
     expect(resultOf(live)).toMatchObject({
       nestedCalls: { complete: true, calls: [{ name: 'declare', status: 'ok', arguments: declaration }] }
     })

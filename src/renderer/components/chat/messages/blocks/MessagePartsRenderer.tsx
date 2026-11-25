@@ -24,13 +24,16 @@ import { loggerService } from '@logger'
 import type { ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { ProjectionLayoutContext } from '@renderer/hooks/agent/ProjectionReaderProvider'
+import { ProjectionPartContext } from '@renderer/hooks/agent/useProjectionPart'
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import {
   getCachedMessageUiState,
   subscribeCachedMessageUiState,
   updateCachedMessageUiState
 } from '@renderer/services/messageUiStateCache'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
-import type { Citation } from '@renderer/types/message'
+import type { Citation, ProjectionRowReader, ProjectionPartReader } from '@renderer/types/message'
 import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import {
   isCitationSourcePart,
@@ -41,6 +44,7 @@ import {
 } from '@renderer/utils/message/citations'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
+import { collect, single } from '@renderer/utils/message/projectionRange'
 import {
   type CitationReferenceView,
   convertReferencesToCitationReferences,
@@ -75,6 +79,15 @@ import { AgentToolsType, isAskUserQuestionToolName } from '../tools/shared/agent
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
 import type { MessageListItem } from '../types'
+import {
+  EMPTY_LAYOUT,
+  projectAddressedLayout,
+  layoutPart,
+  type AddressedEntry,
+  type HistoryRun,
+  type PartLayout,
+  type ToolFold
+} from './addressedPartLayout'
 import AgentSessionForkBlock from './AgentSessionForkBlock'
 import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
@@ -88,6 +101,7 @@ import MessageImageBlock, { type MessageImageSource } from './MessageImageBlock'
 import {
   findOpenTextTailIndex,
   isHiddenPart,
+  isProcessToolPart,
   isReasoningMessagePart,
   isResultPart,
   isSubstantiveAnswerPart,
@@ -98,10 +112,17 @@ import {
 } from './messagePartLayouts'
 import { ToolPartScopeProvider, useMessageParts, useMessagePartsScopeId } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
+import { PartRange, PartRuns } from './PartRange'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import RetryStatusBlock from './RetryStatusBlock'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
-import { hasToolIntent, ToolBlockGroup, ToolBlockGroupContent } from './ToolBlockGroup'
+import {
+  getToolFoldTitle,
+  hasToolIntent,
+  ToolBlockGroup,
+  ToolBlockGroupContent,
+  ToolBlockGroupRow
+} from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
 
 const logger = loggerService.withContext('MessagePartsRenderer')
@@ -690,8 +711,11 @@ function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): Placehol
 
 function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean {
   const { part } = entry
-  const partType = part.type as string
+  return visiblePart(part, entry.partId ?? `${messageId}-part-${entry.index}`)
+}
 
+function visiblePart(part: CherryMessagePart, id: string): boolean {
+  const partType = part.type as string
   if (isHiddenPart(part)) return false
   if (partType === 'reasoning') return isReasoningMessagePart(part)
   if (
@@ -703,7 +727,7 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
     return isSubstantiveAnswerPart(part)
   }
   if (isToolUIPart(part)) {
-    const toolResponse = getCachedToolProjection(part, `${messageId}-part-${entry.index}`).toolResponse
+    const toolResponse = getCachedToolProjection(part, id).toolResponse
     return !!toolResponse && (canRenderMessageTool(toolResponse) || isReportArtifactsToolResponse(toolResponse))
   }
   if (partType === 'file') return !!(part as { url?: string }).url
@@ -804,12 +828,19 @@ function renderPart(
             key={partId}
             id={partId}
             content={reasoningPart.text || ''}
+            livePart={isReasoningStreaming ? reasoningPart : undefined}
             isStreaming={isReasoningStreaming}
           />
         )
       }
       return (
-        <ThinkingBlock key={partId} id={partId} content={reasoningPart.text || ''} isStreaming={isReasoningStreaming} />
+        <ThinkingBlock
+          key={partId}
+          id={partId}
+          content={reasoningPart.text || ''}
+          livePart={isReasoningStreaming ? reasoningPart : undefined}
+          isStreaming={isReasoningStreaming}
+        />
       )
     }
 
@@ -863,6 +894,7 @@ function renderPart(
           key={partId}
           id={partId}
           content={part.text || ''}
+          livePart={isStreaming && message.role === 'assistant' ? part : undefined}
           isStreaming={isStreaming}
           citations={converted?.citations}
           citationReferences={converted?.citationReferences}
@@ -1041,7 +1073,7 @@ function buildToolRenderItems(
   settleActiveTools = false
 ): ToolRenderItem[] {
   return entries.flatMap((e): ToolRenderItem[] => {
-    const id = `${messageId}-part-${e.index}`
+    const id = e.partId ?? `${messageId}-part-${e.index}`
     const renderItem = getCachedToolProjection(e.part, id).renderItem
     return renderItem ? [settleActiveTools ? settleToolRenderItem(renderItem) : renderItem] : []
   })
@@ -1049,13 +1081,19 @@ function buildToolRenderItems(
 
 function getReportArtifactToolResponses(entries: readonly PartEntry[], messageId: string) {
   return entries.flatMap((entry) => {
-    const toolResponse = getCachedToolProjection(entry.part, `${messageId}-part-${entry.index}`).toolResponse
+    const toolResponse = getCachedToolProjection(
+      entry.part,
+      entry.partId ?? `${messageId}-part-${entry.index}`
+    ).toolResponse
     return toolResponse && isReportArtifactsToolResponse(toolResponse) ? [toolResponse] : []
   })
 }
 
 function isReportArtifactEntry(entry: PartEntry, messageId: string): boolean {
-  const toolResponse = getCachedToolProjection(entry.part, `${messageId}-part-${entry.index}`).toolResponse
+  const toolResponse = getCachedToolProjection(
+    entry.part,
+    entry.partId ?? `${messageId}-part-${entry.index}`
+  ).toolResponse
   return !!toolResponse && isReportArtifactsToolResponse(toolResponse)
 }
 
@@ -1106,7 +1144,7 @@ function renderGroupedEntry(
   const enableAnimation = options?.enableAnimation ?? isStreaming
 
   if (Array.isArray(entry)) {
-    const groupKey = entry.map((e) => `${message.id}-part-${e.index}`).join('-')
+    const groupKey = entry.map((e) => e.partId ?? `${message.id}-part-${e.index}`).join('-')
     const firstPart = entry[0].part
 
     if (isImageFilePart(firstPart)) {
@@ -1132,7 +1170,7 @@ function renderGroupedEntry(
       const toolItems = buildToolRenderItems(entry, message.id, options?.settleActiveTools)
       if (toolItems.length === 0) return null
 
-      const stableGroupKey = `tool-group-${message.id}-part-${entry[0].index}`
+      const stableGroupKey = `tool-group-${message.id}-part-${entry[0].partId ?? entry[0].index}`
       return (
         <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={enableAnimation} animation="fade">
           {options?.toolDisplay === 'disclosure' ? (
@@ -1146,7 +1184,7 @@ function renderGroupedEntry(
 
     if (isDataUIPart(firstPart) && firstPart.type === 'data-video') {
       const firstEntry = entry[0]
-      const partId = `${message.id}-part-${firstEntry.index}`
+      const partId = firstEntry.partId ?? `${message.id}-part-${firstEntry.index}`
       return (
         <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
           {renderPart(firstEntry.part, partId, message, isStreaming)}
@@ -1157,23 +1195,29 @@ function renderGroupedEntry(
     return null
   }
 
-  const partId = `${message.id}-part-${entry.index}`
-  const rendered = renderPart(entry.part, partId, message, isStreaming, options)
+  const partId = entry.partId ?? `${message.id}-part-${entry.index}`
+  return renderSingleEntry(entry.part, partId, message, isStreaming, { ...options, enableAnimation })
+}
+
+function renderSingleEntry(
+  part: CherryMessagePart,
+  partId: string,
+  message: MessageListItem,
+  isStreaming: boolean,
+  options: RenderGroupedEntryOptions
+): React.ReactNode {
+  const rendered = renderPart(part, partId, message, isStreaming, options)
   if (!rendered) return null
 
   const wrapperClassName =
-    entry.part.type === 'text'
-      ? 'text-foreground'
-      : isReasoningMessagePart(entry.part)
-        ? 'message-thought-wrapper'
-        : undefined
+    part.type === 'text' ? 'text-foreground' : isReasoningMessagePart(part) ? 'message-thought-wrapper' : undefined
 
   return (
     <AnimatedBlockWrapper
       key={partId}
-      enableAnimation={enableAnimation}
+      enableAnimation={options.enableAnimation ?? isStreaming}
       className={wrapperClassName}
-      messagePartId={entry.part.type === 'text' ? partId : undefined}>
+      messagePartId={part.type === 'text' ? partId : undefined}>
       {rendered}
     </AnimatedBlockWrapper>
   )
@@ -1187,8 +1231,8 @@ function findLastLiveProcessBoundaryIndex(items: readonly LiveMessagePartLayoutI
 }
 
 type NestedHistoryItem =
-  | { kind: 'process'; key: number; entries: PartEntry[] }
-  | { kind: 'content'; key: number; entry: GroupedEntry }
+  | { kind: 'process'; key: string | number; entries: PartEntry[] }
+  | { kind: 'content'; key: string | number; entry: GroupedEntry }
 
 function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistoryItem[] {
   const result: NestedHistoryItem[] = []
@@ -1198,14 +1242,18 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
   const flushContent = () => {
     for (const entry of groupPartEntries(contentEntries)) {
       const firstEntry = Array.isArray(entry) ? entry[0] : entry
-      result.push({ kind: 'content', key: firstEntry.index, entry })
+      result.push({ kind: 'content', key: firstEntry.partId ?? firstEntry.index, entry })
     }
     contentEntries = []
   }
 
   const flushProcess = () => {
     if (processEntries.length > 0) {
-      result.push({ kind: 'process', key: processEntries[0].index, entries: processEntries })
+      result.push({
+        kind: 'process',
+        key: processEntries[0].partId ?? processEntries[0].index,
+        entries: processEntries
+      })
     }
     processEntries = []
   }
@@ -1216,7 +1264,7 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
     if (isToolUIPart(entry.part) && isAskUserQuestionToolName(getToolName(entry.part))) {
       flushProcess()
       flushContent()
-      result.push({ kind: 'content', key: entry.index, entry })
+      result.push({ kind: 'content', key: entry.partId ?? entry.index, entry })
       continue
     }
 
@@ -1283,11 +1331,7 @@ function renderNestedHistory(
     const isLiveProgress =
       liveProcessMode === 'settled' ? false : liveProcessMode === 'last' ? isCurrentProcess : undefined
     const lastProcessEntry = item.entries.at(-1)
-    const isThinking =
-      isCurrentProcess &&
-      lastProcessEntry !== undefined &&
-      (lastProcessEntry.part.type as string) === 'reasoning' &&
-      (lastProcessEntry.part as ReasoningUIPart).state === 'streaming'
+    const thinkingPart = isCurrentProcess && lastProcessEntry?.part.type === 'reasoning' ? lastProcessEntry : undefined
 
     // Stated intents already say what each step is for, so thinking blocks between them only add noise.
     const showsReasoning = !toolItems.some(hasToolIntent)
@@ -1301,7 +1345,7 @@ function renderNestedHistory(
           items={toolItems}
           defaultExpanded={options.expandToolGroups}
           isLiveProgress={isLiveProgress}
-          isThinking={isThinking}>
+          thinkingPart={thinkingPart}>
           <div className="flex w-full flex-col gap-1 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
             {visibleEntries.map((entry) =>
               renderGroupedEntry(entry, message, false, {
@@ -1579,7 +1623,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
     const firstEntry = Array.isArray(entry) ? entry[0] : entry
     return (
       <MessageContentEntryView
-        key={`message-content-${message.id}-${firstEntry.index}`}
+        key={`message-content-${message.id}-${firstEntry.partId ?? firstEntry.index}`}
         enableAnimation={false}
         entry={entry}
         isStreaming={false}
@@ -1609,7 +1653,10 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
       if ((entry.part.type as string) === 'data-error') return true
       if (!isToolUIPart(entry.part)) return false
 
-      const toolResponse = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse
+      const toolResponse = getCachedToolProjection(
+        entry.part,
+        entry.partId ?? `${message.id}-part-${entry.index}`
+      ).toolResponse
       return toolResponse?.status === 'error' || toolResponse?.response?.isError === true
     })
     const projectedIndexes = new Set(
@@ -1623,7 +1670,10 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
       if ((entry.part.type as string) === 'data-error') return true
       if (!isToolUIPart(entry.part)) return false
 
-      const toolResponse = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse
+      const toolResponse = getCachedToolProjection(
+        entry.part,
+        entry.partId ?? `${message.id}-part-${entry.index}`
+      ).toolResponse
       return toolResponse?.status === 'error' || toolResponse?.response?.isError === true
     }
 
@@ -1661,11 +1711,45 @@ interface MessagePartsRendererContentProps extends Props {
   keepIntermediateAssistantText: boolean
   messageParts: CherryMessagePart[]
   priorCitationParts: readonly CherryMessagePart[]
+  auxiliary?: readonly AddressedEntry[]
+  liveLayout?: PartLayout
 }
 
 const ActiveTurnStatusView = ({ fallback }: { fallback: React.ReactNode }) => {
   const activeTurnStatus = useMessageListActiveTurnStatus()
   return activeTurnStatus ? activeTurnStatus(fallback) : fallback
+}
+
+function PendingPartContent({
+  ids,
+  placeholder,
+  children
+}: {
+  ids: readonly string[]
+  placeholder: React.ReactNode
+  children: React.ReactNode
+}) {
+  const reader = React.use(ProjectionPartContext)
+  const visible = React.useSyncExternalStore(
+    useCallback(
+      (listener) => {
+        const subscriptions = ids.map((id) => reader?.subscribe(id, listener))
+        return () => {
+          for (const unsubscribe of subscriptions) unsubscribe?.()
+        }
+      },
+      [ids, reader]
+    ),
+    useCallback(
+      () =>
+        ids.some((id) => {
+          const part = reader?.read(id)
+          return (part?.type === 'text' || part?.type === 'reasoning') && !!part.text.trim()
+        }),
+      [ids, reader]
+    )
+  )
+  return visible ? children : placeholder
 }
 
 const MessagePartsRendererContent = React.memo(function MessagePartsRendererContent({
@@ -1676,7 +1760,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   keepIntermediateAssistantText,
   message,
   messageParts,
-  priorCitationParts
+  priorCitationParts,
+  auxiliary,
+  liveLayout
 }: MessagePartsRendererContentProps) {
   const { expandToolSteps, subagentListTitle, userMessageDefaultExpanded } = useMessageRenderConfig()
   const { openAgentToolFlow, isAgentToolFlowActive, openFile, previewFile, previewInputFile } = useMessageListActions()
@@ -1734,10 +1820,19 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         if (shownErrors.has(errorKey)) return []
         shownErrors.add(errorKey)
       }
-      return [{ part, index }]
+      return [
+        {
+          part,
+          index,
+          partId: auxiliary?.[index]?.key ?? messageProjectionService.getPartId(part) ?? message.partIds?.[index]
+        }
+      ]
     })
-  }, [messageParts])
-  const placeholderStatus = useMemo(() => getProcessingPlaceholderStatus(partEntries), [partEntries])
+  }, [auxiliary, messageParts, message.partIds])
+  const placeholderStatus = useMemo(
+    () => liveLayout?.status ?? getProcessingPlaceholderStatus(partEntries),
+    [liveLayout?.status, partEntries]
+  )
   const nextReportArtifactToolResponses = useMemo(
     () => getReportArtifactToolResponses(partEntries, message.id),
     [partEntries, message.id]
@@ -1792,15 +1887,15 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       openAgentToolFlow
         ? displayProjection.entries.filter((entry) => {
             if (!isToolUIPart(entry.part)) return false
-            const name = getCachedToolProjection(entry.part, `${message.id}-part-${entry.index}`).toolResponse?.tool
-              .name
+            const name = getCachedToolProjection(entry.part, entry.partId ?? `${message.id}-part-${entry.index}`)
+              .toolResponse?.tool.name
             return name === AgentToolsType.Agent || name === AgentToolsType.Task
           })
         : [],
     [displayProjection.entries, message.id, openAgentToolFlow]
   )
-  const subagentStatuses = subagentEntries.map(({ part, index }) => {
-    const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
+  const subagentStatuses = subagentEntries.map(({ part, partId, index }) => {
+    const response = getCachedToolProjection(part, partId ?? `${message.id}-part-${index}`).toolResponse
     return response
       ? (getSubagentTaskStatus(messageParts, response.toolCallId, response.status) ?? response.status)
       : undefined
@@ -1809,8 +1904,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const failedSubagents = subagentStatuses.filter((status) => status === 'error').length
   const stoppedSubagents = subagentStatuses.filter((status) => status === 'cancelled').length
   const allSubagentsCompleted = subagentEntries.length > 0 && completedSubagents === subagentEntries.length
-  const viewingSubagent = subagentEntries.some(({ part, index }) => {
-    const response = getCachedToolProjection(part, `${message.id}-part-${index}`).toolResponse
+  const viewingSubagent = subagentEntries.some(({ part, partId, index }) => {
+    const response = getCachedToolProjection(part, partId ?? `${message.id}-part-${index}`).toolResponse
     return response?.toolCallId && isAgentToolFlowActive?.(response.toolCallId)
   })
   const [showSubagents, setSubagentsExpanded] = useMessageDisclosureState(
@@ -1885,29 +1980,39 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const canRenderReportArtifacts =
     !isActiveTurnProcessing && unsettledTextPlayoutPartIds.size === 0 && reportArtifactToolResponses.length > 0
 
-  // No parts to render — normal for user messages (content is in message text, not parts)
-  // But if the message is processing (pending/streaming), show the loading placeholder.
-  // Report-artifact entries don't count as renderable here: the live layout filters
-  // them out and the card itself is gated on canRenderReportArtifacts, so a message
-  // whose only content is report_artifacts must keep its placeholder until the card can show.
-  if (
-    partEntries.length === 0 ||
-    (!hasVisibleNonArtifactEntry && !canRenderReportArtifacts && subagentEntries.length === 0)
-  ) {
-    if (isActiveTurnProcessing) {
-      const placeholder = (
-        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
-        </AnimatedBlockWrapper>
-      )
-      // The status renderer replaces the placeholder while active (e.g. an api-retry line) and falls
-      // back to it otherwise.
-      return (
-        <AnimatePresence mode="sync">
-          <MessageCompactionStatus messageId={message.id} fallback={<ActiveTurnStatusView fallback={placeholder} />} />
-        </AnimatePresence>
-      )
-    }
+  const empty =
+    !liveLayout?.visible && !hasVisibleNonArtifactEntry && !canRenderReportArtifacts && !subagentEntries.length
+  const pendingIds = useMemo(
+    () =>
+      !empty || !isActiveTurnProcessing
+        ? []
+        : liveLayout
+          ? collect(liveLayout.pending)
+          : displayEntries.flatMap(({ part, partId }) =>
+              partId && (part.type === 'text' || part.type === 'reasoning') && part.state === 'streaming'
+                ? [partId]
+                : []
+            ),
+    [displayEntries, empty, isActiveTurnProcessing, liveLayout]
+  )
+  const placeholder = empty && isActiveTurnProcessing && (
+    <AnimatePresence mode="sync">
+      <MessageCompactionStatus
+        messageId={message.id}
+        fallback={
+          <ActiveTurnStatusView
+            fallback={
+              <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
+                <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
+              </AnimatedBlockWrapper>
+            }
+          />
+        }
+      />
+    </AnimatePresence>
+  )
+  if (empty && !pendingIds.length) {
+    if (isActiveTurnProcessing) return placeholder
     return (
       <MessageCompactionStatus
         messageId={message.id}
@@ -1920,18 +2025,27 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     )
   }
 
-  return (
+  const content = (
     <AnimatePresence mode="sync">
-      <MessageProcessLayout
-        key={`process-layout-${message.id}`}
-        collapseHistory={collapseCompletedToolHistory}
-        entries={displayEntries}
-        isActive={isActiveTurnProcessing}
-        isStreamLive={isStreamLive}
-        keepIntermediateAssistantText={keepIntermediateAssistantText}
-        message={message}
-        renderOptions={renderOptions}
-      />
+      {liveLayout ? (
+        <AddressedProcessLayout
+          layout={liveLayout}
+          isStreamLive={isStreamLive}
+          message={message}
+          options={renderOptions}
+        />
+      ) : (
+        <MessageProcessLayout
+          key={`process-layout-${message.id}`}
+          collapseHistory={collapseCompletedToolHistory}
+          entries={displayEntries}
+          isActive={isActiveTurnProcessing}
+          isStreamLive={isStreamLive}
+          keepIntermediateAssistantText={keepIntermediateAssistantText}
+          message={message}
+          renderOptions={renderOptions}
+        />
+      )}
       <MessageCompactionStatus
         messageId={message.id}
         fallback={isActiveTurnProcessing ? <ActiveTurnStatusView fallback={null} /> : null}
@@ -1996,8 +2110,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
             </Button>
             {showSubagents && (
               <div id={subagentContentId} className="mt-1 flex flex-col gap-1">
-                {subagentEntries.map(({ part, index }) =>
-                  renderToolPart(part, `${message.id}-part-${index}`, !isActiveTurnProcessing)
+                {subagentEntries.map(({ part, partId, index }) =>
+                  renderToolPart(part, partId ?? `${message.id}-part-${index}`, !isActiveTurnProcessing)
                 )}
               </div>
             )}
@@ -2006,7 +2120,216 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       )}
     </AnimatePresence>
   )
+  return pendingIds.length ? (
+    <PendingPartContent ids={pendingIds} placeholder={placeholder}>
+      {content}
+    </PendingPartContent>
+  ) : (
+    content
+  )
 })
+
+const NO_TOOLS: ToolRenderItem[] = []
+const renderToolRow = (item: ToolRenderItem) => <ToolBlockGroupRow key={item.id} item={item} />
+const renderFold = (fold: ToolFold) =>
+  fold.first === fold.last ? (
+    renderToolRow(fold.first)
+  ) : (
+    <ToolBlockGroup header={{ candidates: [fold.first, fold.last], count: fold.items.size }} title={fold.title}>
+      <div className="flex w-full flex-col gap-2">
+        <PartRange range={fold.items} render={renderToolRow} />
+      </div>
+    </ToolBlockGroup>
+  )
+
+const AddressedHistoryRun = React.memo(function AddressedHistoryRun({
+  run,
+  last,
+  message,
+  options
+}: {
+  run: HistoryRun
+  last: boolean
+  message: MessageListItem
+  options: RenderGroupedEntryOptions
+}) {
+  const renderEntry = useCallback(
+    ({ key, part }: AddressedEntry) => {
+      if (isToolUIPart(part) && run.kind === 'process') {
+        const item = getCachedToolProjection(part, key).renderItem
+        return item ? renderToolRow(item) : null
+      }
+      return renderSingleEntry(part, key, message, false, options)
+    },
+    [message, options, run.kind]
+  )
+  if (run.kind === 'barrier') return null
+  if (run.kind === 'images') {
+    const sources = collect(run.entries)
+      .map(({ part }) => toImageSource(part))
+      .filter((source) => source !== undefined)
+    return (
+      sources.length > 0 && (
+        <AnimatedBlockWrapper enableAnimation={false}>
+          <MessageImageBlock sources={sources} isSingle={sources.length === 1} thumbnail={false} />
+        </AnimatedBlockWrapper>
+      )
+    )
+  }
+  if (run.kind === 'video' || run.kind === 'content') return renderEntry(run.end)
+  if (!run.firstTool || !run.lastTool) return <PartRange range={run.entries} render={renderEntry} />
+  const items = [
+    ...new Set([run.firstTool, run.running, run.waiting, run.lastTool].filter((item) => item !== undefined))
+  ]
+  const thinking = last && run.end.part.type === 'reasoning' ? { partId: run.end.key, part: run.end.part } : undefined
+  return (
+    <AnimatedBlockWrapper enableAnimation={false} animation="fade">
+      <ToolBlockGroup
+        header={{ candidates: items, count: run.toolCount! }}
+        defaultExpanded={options.expandToolGroups}
+        isLiveProgress={last}
+        thinkingPart={thinking}>
+        <div className="flex w-full flex-col gap-1 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
+          {run.hasIntent && run.folds ? (
+            <PartRuns runs={run.folds} render={renderFold} />
+          ) : (
+            <PartRange range={run.entries} render={renderEntry} />
+          )}
+        </div>
+      </ToolBlockGroup>
+    </AnimatedBlockWrapper>
+  )
+})
+
+function AddressedProcessLayout({
+  layout,
+  message,
+  isStreamLive,
+  options
+}: {
+  layout: PartLayout
+  message: MessageListItem
+  isStreamLive: boolean
+  options: RenderGroupedEntryOptions
+}) {
+  const historyOptions = useMemo(
+    () => ({ ...options, enableAnimation: false, settleStreamingReasoning: !isStreamLive }),
+    [options, isStreamLive]
+  )
+  const resultOptions = useMemo(
+    () => ({ ...options, enableAnimation: isStreamLive, inlineHtmlPreviewMode: 'generating' as const }),
+    [options, isStreamLive]
+  )
+  const renderHistory = useCallback(
+    (run: HistoryRun, last: boolean) => (
+      <AddressedHistoryRun run={run} last={last} message={message} options={historyOptions} />
+    ),
+    [message, historyOptions]
+  )
+  const renderResult = useCallback(
+    ({ key, part }: AddressedEntry, last: boolean) =>
+      renderSingleEntry(
+        part,
+        key,
+        message,
+        isStreamLive && last && (part.type === 'data-code' || (part.type === 'text' && part.state === 'streaming')),
+        resultOptions
+      ),
+    [isStreamLive, message, resultOptions]
+  )
+  return (
+    <>
+      {layout.history && (
+        <MessageProcessGroup phase="active" message={message} toolItems={NO_TOOLS}>
+          {() => <PartRuns runs={layout.history!} render={renderHistory} last={!layout.tail && !layout.kept} />}
+        </MessageProcessGroup>
+      )}
+      <PartRange range={layout.kept} render={renderResult} />
+      <PartRange range={layout.tail} render={renderResult} last={layout.openTail !== undefined} />
+    </>
+  )
+}
+
+function AddressedMessageParts({
+  row,
+  reader,
+  ...props
+}: Omit<MessagePartsRendererContentProps, 'messageParts'> & {
+  row: ProjectionRowReader
+  reader: ProjectionPartReader
+}) {
+  const { openAgentToolFlow, openFile, previewInputFile, previewFile } = useMessageListActions()
+  const { t } = useTranslation()
+  const { hoistAttachments, keepIntermediateAssistantText } = props
+  const hoistFiles = !!(openFile || previewInputFile || previewFile)
+  const hasTaskList = !!openAgentToolFlow
+  const project = useMemo(
+    () =>
+      projectAddressedLayout((partId) => {
+        const part = reader.read(partId)
+        if (!part || hasPartParentToolCallId(part)) return { layout: EMPTY_LAYOUT }
+        const entry: AddressedEntry = { key: partId, part }
+        const source = isCitationSourcePart(part)
+        if (isHiddenPart(part))
+          return {
+            layout: source || part.type === 'data-agent-task-event' ? { side: single(partId, entry) } : EMPTY_LAYOUT
+          }
+        const cached = isToolUIPart(part) ? getCachedToolProjection(part, partId) : undefined
+        const tool = cached?.renderItem
+        const response = cached?.toolResponse
+        const name = response?.tool.name
+        if (hasTaskList && (name === AgentToolsType.Agent || name === AgentToolsType.Task))
+          return { layout: { side: single(partId, entry), visible: true } }
+        if (hoistAttachments && isHoistableFilePart(part, hoistFiles))
+          return { layout: { side: single(partId, entry) } }
+        const text = part.type === 'text' || part.type === 'reasoning'
+        const blank = text && !part.text.trim() && !isSubstantiveAnswerPart(part)
+        if (blank && part.state !== 'streaming') return { layout: { lastBody: partId } }
+        const report = !!response && isReportArtifactsToolResponse(response)
+        const kind: HistoryRun['kind'] = report
+          ? 'barrier'
+          : part.type === 'reasoning' || isProcessToolPart(part)
+            ? 'process'
+            : isImageFilePart(part)
+              ? 'images'
+              : part.type === 'data-video'
+                ? 'video'
+                : 'content'
+        const result = layoutPart(
+          entry,
+          kind,
+          keepIntermediateAssistantText && part.type === 'text',
+          tool,
+          tool && hasToolIntent(tool) ? getToolFoldTitle(tool, t) : undefined
+        )
+        if (source || report || (part.type === 'text' && (part.text.includes('[') || part.text.includes('【'))))
+          result.side = single(partId, entry)
+        result.status = cached
+          ? 'usingTools'
+          : part.type === 'reasoning'
+            ? 'thinking'
+            : isResultPart(part) || text
+              ? 'generating'
+              : undefined
+        if (blank) result.pending = single(partId, partId)
+        else result.visible = !report && visiblePart(part, partId)
+        const ellipsis = part.type === 'text' && /^(?:\.{3}|…)$/.test(part.text.trim())
+        if (ellipsis || blank)
+          return {
+            layout: result,
+            beforeProcess: ellipsis && part.state !== 'streaming' ? { lastBody: partId } : undefined
+          }
+        const meaningful = part.type === 'reasoning' || isToolUIPart(part) ? 'process' : 'content'
+        return { layout: result, first: meaningful, last: meaningful }
+      }),
+    [hasTaskList, hoistAttachments, hoistFiles, keepIntermediateAssistantText, reader, t]
+  )
+  const tree = React.useSyncExternalStore(row.subscribe, row.getSnapshot)
+  const layout = project(tree)
+  const auxiliary = useMemo(() => collect(layout.side), [layout.side])
+  const sideParts = useMemo(() => auxiliary.map((entry) => entry.part), [auxiliary])
+  return <MessagePartsRendererContent {...props} messageParts={sideParts} auxiliary={auxiliary} liveLayout={layout} />
+}
 
 const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) => {
   const messageParts = useMessageParts(message.id)
@@ -2014,6 +2337,23 @@ const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) =>
   const priorCitationParts = useMessagePriorCitationParts(message.id)
   const { collapseCompletedToolHistory, keepIntermediateAssistantText } = useMessageRenderConfig()
 
+  const reader = React.use(ProjectionPartContext)
+  const layouts = React.use(ProjectionLayoutContext)
+  const row = isActiveTurnProcessing && message.role === 'assistant' ? layouts?.row(message.id) : undefined
+  if (reader && row)
+    return (
+      <AddressedMessageParts
+        row={row}
+        reader={reader}
+        message={message}
+        hoistAttachments={hoistAttachments}
+        isActiveTurnProcessing={isActiveTurnProcessing}
+        isStreamLive={isStreamLive}
+        keepIntermediateAssistantText={keepIntermediateAssistantText}
+        collapseCompletedToolHistory={collapseCompletedToolHistory}
+        priorCitationParts={priorCitationParts}
+      />
+    )
   return (
     <MessagePartsRendererContent
       collapseCompletedToolHistory={collapseCompletedToolHistory}

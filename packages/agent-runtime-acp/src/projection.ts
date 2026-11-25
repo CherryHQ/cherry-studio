@@ -3,6 +3,9 @@ import { randomUUID } from 'node:crypto'
 import type { ContentBlock, PromptResponse, SessionUpdate, ToolCallUpdate, UsageUpdate } from '@agentclientprotocol/sdk'
 
 import {
+  isLivePartInput,
+  messageObservation,
+  runtimeId,
   RuntimeMessageStream,
   ThreadFeed,
   type Completeness,
@@ -10,6 +13,7 @@ import {
   type ObservationPayload,
   type OperationResult,
   type RuntimeMessage,
+  type Thread,
   type ThreadContextUsage
 } from '@cherrystudio/agent-runtime'
 
@@ -40,6 +44,7 @@ export class Projection {
 
   constructor(
     readonly sessionId: string,
+    private readonly thread: Thread,
     report: (error: unknown) => void
   ) {
     this.feed = new ThreadFeed({ type: 'snapshot', messages: [], inputs: [], activity: { state: 'unknown' } }, report)
@@ -90,7 +95,16 @@ export class Projection {
 
   publish(event: ObservationPayload): void {
     this.revision++
-    this.feed.publish(event)
+    if (isLivePartInput(event)) this.feed.publishPart(event)
+    else this.feed.publish(event)
+  }
+
+  private observeMessage(message: RuntimeMessage): ObservationPayload {
+    return messageObservation(
+      { session: this.thread, id: runtimeId(message.id) },
+      this.feed.message(message.id),
+      message
+    )
   }
 
   rememberPrompt(inputId: InputId, response: PromptResponse): void {
@@ -107,13 +121,13 @@ export class Projection {
       const value = this.streams.get(id)
       if (value) {
         const end: Chunk[] = value.part ? [{ type: `${value.part.kind}-end`, id: value.part.id }] : []
-        this.publish({ type: 'message.upsert', message: await value.stream.append(end, completeness) })
+        this.publish(this.observeMessage(await value.stream.append(end, completeness)))
         value.part = undefined
       }
       const user = this.users.get(id)
       if (user) {
         user.metadata = { completeness }
-        this.publish({ type: 'message.upsert', message: user })
+        this.publish(this.observeMessage(user))
       }
     }
     this.activeMessages.clear()
@@ -151,7 +165,7 @@ export class Projection {
           if (file) message.parts.push(file)
         }
         this.users.set(id, message)
-        event = { type: 'message.upsert', message }
+        event = this.observeMessage(message)
       } else {
         const value = this.stream(id)
         const content = update.content
@@ -169,7 +183,7 @@ export class Projection {
           if (file) chunks.push(file)
           value.part = undefined
         }
-        event = { type: 'message.upsert', message: await value.stream.append(chunks, 'partial') }
+        event = this.observeMessage(await value.stream.append(chunks, 'partial'))
       }
     } else if (update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') {
       const tool = { ...this.tools.get(update.toolCallId), ...update }
@@ -203,7 +217,7 @@ export class Projection {
               : JSON.stringify(tool.rawOutput ?? tool.content ?? tool.title ?? 'Tool failed'),
           dynamic: true
         })
-      event = { type: 'message.upsert', message: await this.stream(id).stream.append(chunks, 'partial') }
+      event = this.observeMessage(await this.stream(id).stream.append(chunks, 'partial'))
     } else {
       this.metadata.set(update.sessionUpdate, update)
       if (update.sessionUpdate === 'config_option_update')

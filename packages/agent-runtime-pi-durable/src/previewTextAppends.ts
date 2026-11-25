@@ -23,7 +23,7 @@ export function previewTextAppends(
       generation !== 'generation' ||
       message !== 'message' ||
       content !== 'content' ||
-      leaf !== 'text' ||
+      (leaf !== 'text' && leaf !== 'thinking') ||
       !text
     )
       return
@@ -32,4 +32,38 @@ export function previewTextAppends(
     appends.push({ part, text })
   }
   return appends
+}
+
+/** Only tail insertions preserve existing native block addresses. */
+export function previewContentIndices(
+  ops: readonly Op[],
+  length: number,
+  root: 'view' | 'live-document' = 'view'
+): Set<number> | undefined {
+  if (!ops.length) return
+  const indices = new Set<number>()
+  for (const op of ops) {
+    const [kind, path] = op
+    if (kind === 'r' || (root === 'view' && (path[0] !== 'docs' || path[1] !== 'pi.live'))) return
+    const offset = root === 'view' ? 2 : 0
+    if (path[offset] !== 'generation' || path[offset + 1] !== 'message' || path[offset + 2] !== 'content') return
+    if (path.length === offset + 3) {
+      if (op[0] !== 'p' || op[2] !== length || op[3] !== 0) return
+      const end = length + op[4].length
+      while (length < end) indices.add(length++)
+    } else {
+      const key = path[offset + 3]
+      const index = typeof key === 'string' && /^(0|[1-9][0-9]*)$/.test(key) ? Number(key) : key
+      if (
+        typeof index !== 'number' ||
+        !Number.isSafeInteger(index) ||
+        index < 0 ||
+        index >= length ||
+        (path.length === offset + 4 && kind !== 's')
+      )
+        return
+      indices.add(index)
+    }
+  }
+  return indices
 }

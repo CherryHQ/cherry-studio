@@ -21,6 +21,7 @@ import { matchPiSubagentModel } from './piSubagentModelMatch'
 
 type Binding = Awaited<ReturnType<typeof createPiGatewayModelBinding>>
 type HostOptions = {
+  contextId?: string
   input: AgentRuntimeConnectInput
   root(): ThreadId
   binding: Binding
@@ -165,7 +166,7 @@ export async function createPiBehaviorHost(options: HostOptions): Promise<{
 }
 
 export function createPiInteractionPorts(
-  options: Pick<HostOptions, 'input' | 'approval' | 'emit' | 'toolCallIdentity'>
+  options: Pick<HostOptions, 'input' | 'approval' | 'emit' | 'toolCallIdentity' | 'contextId'>
 ): Pick<HostPorts, 'approvals' | 'questions'> {
   const { input, approval } = options
   async function ask(
@@ -185,6 +186,7 @@ export function createPiInteractionPorts(
       const pending = toolApprovalRegistry.register({
         approvalId: id,
         sessionId: input.sessionId,
+        contextId: options.contextId,
         toolCallId,
         toolName: name,
         originalInput: args,

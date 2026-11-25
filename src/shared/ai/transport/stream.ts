@@ -280,6 +280,7 @@ export type AiToolResultRequest = {
   topicId: string
   messageId: string
   toolCallId: string
+  partId?: string
 } & AiToolResultReadOptions
 
 export type AiToolResultResponse =
@@ -288,16 +289,6 @@ export type AiToolResultResponse =
   | { status: 'ready'; purpose: 'full'; output: unknown }
   | { status: 'pending' }
   | { status: 'unavailable' }
-
-/** Prewarm the next Claude Agent SDK query for an agent session. */
-export interface AiAgentSessionWarmRequest {
-  sessionId: string
-}
-
-/** Close any unused warm query for an agent session. */
-export interface AiAgentSessionWarmCloseRequest {
-  sessionId: string
-}
 
 /** Result of an attach attempt.
  *

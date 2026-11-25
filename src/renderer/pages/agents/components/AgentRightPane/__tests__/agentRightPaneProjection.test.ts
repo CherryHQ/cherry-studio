@@ -7,7 +7,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import {
   buildAgentRightPaneStatus,
   buildAgentToolFlowProjection,
-  findLatestAgentPreviewUrl
+  findAgentPreviewUrlCandidates
 } from '../agentRightPaneProjection'
 
 const message = (id: string, parts: CherryMessagePart[]): CherryUIMessage =>
@@ -148,11 +148,11 @@ describe('agent right pane projections', () => {
       ]
 
       expect(
-        findLatestAgentPreviewUrl([message('m1', firstParts), message('m2', latestParts)], {
+        findAgentPreviewUrlCandidates([message('m1', firstParts), message('m2', latestParts)], {
           m1: firstParts,
           m2: latestParts
-        })
-      ).toBe('http://127.0.0.1:4173/dashboard')
+        })[0]
+      ).toMatchObject({ type: 'url', url: 'http://127.0.0.1:4173/dashboard' })
     })
 
     it('normalizes wildcard hosts to a browser-reachable loopback address', () => {
@@ -167,7 +167,9 @@ describe('agent right pane projections', () => {
         )
       ]
 
-      expect(findLatestAgentPreviewUrl([message('m1', parts)], { m1: parts })).toBe('http://localhost:8000/')
+      expect(findAgentPreviewUrlCandidates([message('m1', parts)], { m1: parts })).toMatchObject([
+        { type: 'url', url: 'http://localhost:8000/' }
+      ])
     })
 
     it('ignores user text, remote URLs, and URLs from unrelated tool output', () => {
@@ -177,7 +179,7 @@ describe('agent right pane projections', () => {
         toolPart('bash-1', 'Bash', undefined, 'output-available', undefined, 'Docs: https://example.com')
       ]
 
-      expect(findLatestAgentPreviewUrl([message('m1', parts)], { m1: parts })).toBeNull()
+      expect(findAgentPreviewUrlCandidates([message('m1', parts)], { m1: parts })).toEqual([])
     })
   })
 

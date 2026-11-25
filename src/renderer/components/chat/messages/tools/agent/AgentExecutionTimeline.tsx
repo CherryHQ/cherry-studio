@@ -95,7 +95,3 @@ export function AgentExecutionTimeline({ toolResponse: originalResponse }: { too
     </>
   )
 }
-
-export function AgentToolRenderer(props: { toolResponse: NormalToolResponse }) {
-  return <AgentExecutionTimeline {...props} />
-}

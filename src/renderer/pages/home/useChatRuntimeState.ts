@@ -7,10 +7,7 @@ import {
   buildTopicMessageFlowLiveState,
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
-import {
-  createOverlayRefreshHandoff,
-  useMessageStreamingLayers
-} from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
+import { useMessageStreamingLayers } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
 import type { MessageListRuntime } from '@renderer/components/chat/messages/types'
 import { dispatchLocateMessage } from '@renderer/components/chat/messages/utils/dispatchLocateMessage'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
@@ -23,14 +20,14 @@ import {
   type ReservedMessageSeedOptions,
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
-import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import {
-  useTopicAwaitingApproval,
-  useTopicOverlayHandoffOnTerminal,
-  useTopicStreamStatus
-} from '@renderer/hooks/useTopicStreamStatus'
+import { useHistoryReplies } from '@renderer/hooks/useHistoryReplies'
+import type { ReplyHistory } from '@renderer/hooks/useHistoryRowUpdates'
+import { useTopicCompletion } from '@renderer/hooks/useTopicCompletion'
+import { useTopicSpeech } from '@renderer/hooks/useTopicSpeech'
+import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { autoReadService } from '@renderer/services/voice'
 import type { Assistant } from '@renderer/types/assistant'
+import type { ExecutionFinishEvent } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
@@ -62,6 +59,7 @@ interface UseChatRuntimeStateParams {
   topic: Topic
   isHistoryLoading: boolean
   initialMessages: CherryUIMessage[]
+  replyHistory: ReplyHistory
   uiMessages: CherryUIMessage[]
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
@@ -111,6 +109,7 @@ export function useChatRuntimeState({
   topic,
   isHistoryLoading,
   initialMessages,
+  replyHistory,
   uiMessages,
   refresh,
   activeNodeId,
@@ -121,8 +120,12 @@ export function useChatRuntimeState({
 }: UseChatRuntimeStateParams) {
   const [scrollToBottomOnSend] = usePreference('chat.message.scroll_to_bottom_on_send')
   const [autoReadEnabled] = usePreference('feature.voice.auto_read.enabled')
-  const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
-  const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
+  const { regenerate, stop, setMessages, activeExecutions, projection } = useChatWithHistory(
+    topic.id,
+    initialMessages,
+    refresh
+  )
+  const { status: streamStatus, isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
   const isTopicAwaitingApproval = useTopicAwaitingApproval(topic.id)
   const messages = uiMessages
   const invalidateCache = useInvalidateCache()
@@ -193,33 +196,22 @@ export function useChatRuntimeState({
   }, [branchActiveExecutions])
 
   const finishRef = useRef<((executionId: string, event: ExecutionFinishEvent) => void) | undefined>(undefined)
-  const {
-    overlay,
-    liveAssistants,
-    disposeOverlay,
-    reset: resetOverlay
-  } = useExecutionOverlay(topic.id, branchActiveExecutions, {
-    onUpdate: (_executionId, event) =>
-      autoReadService.update({
-        ...event,
-        enabled: autoReadEnabled,
-        scope: topic.id,
-        eligible: event.message.id === branchFlowActiveNodeIdRef.current
-      }),
-    onLeave: () => autoReadService.cancelScope(topic.id),
-    onFinish: (executionId, event) => {
-      errorToastsRef.current?.onFinish(executionId, event)
-      finishRef.current?.(executionId, event)
-    }
+  const liveAssistants = useHistoryReplies(projection, branchActiveExecutions, replyHistory, streamStatus)
+  useTopicSpeech(topic.id, branchActiveExecutions, autoReadEnabled, (_executionId, event) =>
+    autoReadService.update({
+      ...event,
+      enabled: autoReadEnabled,
+      scope: topic.id,
+      eligible: (event.type === 'snapshot' ? event.message.id : event.messageId) === branchFlowActiveNodeIdRef.current
+    })
+  )
+  useTopicCompletion(topic.id, branchActiveExecutions, (executionId, event) => {
+    errorToastsRef.current?.onFinish(executionId, event)
+    finishRef.current?.(executionId, event)
   })
-
-  // Deterministic overlay→DB handoff at terminal (see hook docs); branch
-  // bookkeeping stays in `handleExecutionFinish`.
-  useTopicOverlayHandoffOnTerminal(topic.id, createOverlayRefreshHandoff(refresh, resetOverlay), liveAssistants)
 
   const { partsByMessageId, liveMessageIds, streamingLayers } = useMessageStreamingLayers({
     messages,
-    overlay,
     executions: branchActiveExecutions,
     liveAssistants
   })
@@ -433,9 +425,6 @@ export function useChatRuntimeState({
       const treeCachePath = `/topics/${topic.id}/tree`
       void (async () => {
         try {
-          if (isError || !message.parts?.length) {
-            await cache.rollbackBranch()
-          }
           await invalidateCache(treeCachePath)
         } catch (err) {
           logger.warn('failed to reconcile topic branch flow after execution finish', err as Error)
@@ -455,14 +444,6 @@ export function useChatRuntimeState({
               (execution) => !finishedBranchExecutionKeysRef.current.has(executionAttemptKey(execution))
             )
             if (hasRemainingExecutions) {
-              if (!isError && message.parts?.length) {
-                try {
-                  await refresh()
-                } catch (err) {
-                  logger.warn('failed to refresh messages after branch execution finish', err as Error)
-                }
-              }
-              disposeOverlay(message.id)
               setBranchLiveMessages((current) => current.filter((item) => item.id !== message.id))
             } else {
               setBranchLiveMessages([])
@@ -474,7 +455,7 @@ export function useChatRuntimeState({
         }
       })()
     },
-    [autoReadEnabled, cache, disposeOverlay, invalidateCache, onBranchLiveStateChange, refresh, topic.id]
+    [autoReadEnabled, invalidateCache, onBranchLiveStateChange, topic.id]
   )
   finishRef.current = handleExecutionFinish
 

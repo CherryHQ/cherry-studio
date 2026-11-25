@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
-import { useStableMessagePartsLayers, useStablePartsByMessageId } from '../useStableMessagePartsLayers'
+import { useStableMessagePartsLayers } from '../useStableMessagePartsLayers'
 
 function makeMessage(id: string, parts: CherryMessagePart[]): CherryUIMessage {
   return { id, role: 'assistant', parts } as unknown as CherryUIMessage
@@ -11,7 +11,7 @@ function makeMessage(id: string, parts: CherryMessagePart[]): CherryUIMessage {
 
 const textPart = (text: string): CherryMessagePart => ({ type: 'text', text })
 
-describe('useStablePartsByMessageId', () => {
+describe('current message parts', () => {
   it('preserves per-id array ref when only one message has new parts (streaming case)', () => {
     const partsA = [textPart('a')]
     const partsBOriginal = [textPart('b1')]
@@ -20,7 +20,7 @@ describe('useStablePartsByMessageId', () => {
     const messagesT1 = [makeMessage('m1', partsA), makeMessage('m2', partsBOriginal)]
     const messagesT2 = [makeMessage('m1', partsA), makeMessage('m2', partsBAppended)]
 
-    const { result, rerender } = renderHook(({ msgs }) => useStablePartsByMessageId(msgs, {}), {
+    const { result, rerender } = renderHook(({ msgs }) => useStableMessagePartsLayers(msgs, {}).partsByMessageId, {
       initialProps: { msgs: messagesT1 }
     })
 
@@ -43,7 +43,7 @@ describe('useStablePartsByMessageId', () => {
     const msgsT1 = [makeMessage('m1', partsA), makeMessage('m2', partsB)]
     const msgsT2 = [makeMessage('m1', partsA)]
 
-    const { result, rerender } = renderHook(({ msgs }) => useStablePartsByMessageId(msgs, {}), {
+    const { result, rerender } = renderHook(({ msgs }) => useStableMessagePartsLayers(msgs, {}).partsByMessageId, {
       initialProps: { msgs: msgsT1 }
     })
 
@@ -59,7 +59,8 @@ describe('useStablePartsByMessageId', () => {
     const initialOverlay: Record<string, CherryMessagePart[]> = { m1: overlayParts }
 
     const { result, rerender } = renderHook(
-      ({ ov }: { ov: Record<string, CherryMessagePart[]> }) => useStablePartsByMessageId(messages, ov),
+      ({ ov }: { ov: Record<string, CherryMessagePart[]> }) =>
+        useStableMessagePartsLayers(messages, ov).partsByMessageId,
       { initialProps: { ov: initialOverlay } }
     )
 

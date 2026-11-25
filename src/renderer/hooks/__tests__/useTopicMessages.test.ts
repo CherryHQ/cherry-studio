@@ -1,3 +1,4 @@
+import { mockDataApiService } from '@test-mocks/renderer/DataApiService'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
@@ -29,7 +30,7 @@ describe('useTopicMessages', () => {
     MockUseDataApiUtils.resetMocks()
   })
 
-  it('revalidates when a loaded message read model changes', () => {
+  it('reads only the changed message on a loaded older page', async () => {
     const mutate = vi.fn().mockResolvedValue(undefined)
     const anchorMessage = {
       id: 'anchor-1',
@@ -46,7 +47,7 @@ describe('useTopicMessages', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }
-    mockUseInfiniteQuery.mockReturnValueOnce({
+    mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
           items: [
@@ -79,6 +80,7 @@ describe('useTopicMessages', () => {
       mutate
     })
 
+    mockDataApiService.get.mockResolvedValueOnce({ ...anchorMessage, status: 'paused' })
     renderHook(() => useTopicMessages('topic-1'))
 
     act(() => {
@@ -93,7 +95,9 @@ describe('useTopicMessages', () => {
         { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: ['anchor-1'] }
       ])
     })
-    expect(mutate).toHaveBeenCalledWith()
+    await act(async () => {})
+    expect(mockDataApiService.get).toHaveBeenCalledWith('/messages/anchor-1')
+    expect(mutate).not.toHaveBeenCalled()
   })
 
   it('revalidates on a same-topic membership change whose entity ids are not loaded yet', () => {

@@ -11,7 +11,7 @@ import {
   type AiToolResultResponse
 } from '@shared/ai/transport'
 
-import { findPersistedToolOutput, resolvePersistedToolOutput } from './persistedToolOutput'
+import { findPersistedToolOutput, resolvePersistedToolOutput, resolveToolResultRead } from './persistedToolOutput'
 import { projectToolResultImageResources } from './toolResultImageResources'
 
 export const TOOL_RESULT_PREVIEW_BYTES = 32 * 1024
@@ -110,32 +110,33 @@ async function readPersistedRange(output: PersistedToolOutput, cursor: number): 
 }
 
 export async function readToolResult(request: AiToolResultRequest): Promise<AiToolResultResponse> {
-  const { topicId, messageId, toolCallId } = request
-  const live = application.get('AiStreamManager').getDeferredToolOutput(topicId, toolCallId, messageId)
+  const { topicId, toolCallId } = request
+  const resolved = resolveToolResultRead(request)
+  if (!resolved) return { status: 'unavailable' }
+  const { live, messageId } = resolved
   if (!live.found && request.purpose === 'text-range' && isAgentSessionTopic(topicId)) {
     const range = agentSessionMessageService.getSessionToolOutputRange(
       extractAgentSessionId(topicId),
       messageId,
       toolCallId,
-      request.cursor ?? 0
+      request.cursor ?? 0,
+      request.partId
     )
     if (range === null) return { status: 'unavailable' }
     if (range) return toolResultTextRange(range.bytes, request.cursor ?? 0, range.hasMore)
   }
   const result = live.found
     ? live
-    : await findPersistedToolOutput(topicId, messageId, toolCallId, request.purpose !== 'text-range')
+    : await findPersistedToolOutput(topicId, messageId, toolCallId, request.purpose !== 'text-range', request.partId)
   if (!result.found) return { status: 'unavailable' }
   if (isPersistedToolOutput(result.output)) {
     if (request.purpose === 'text-range') return readPersistedRange(result.output, request.cursor ?? 0)
     result.output = await resolvePersistedToolOutput(result.output)
   }
   if (request.purpose === 'full') return { status: 'ready', purpose: 'full', output: result.output }
-  if (request.purpose === 'preview') return toolResultPreview(projectToolResultImageResources(result.output, request))
-  const serialized =
-    live.found && live.serializedBytes !== undefined
-      ? live.serializedBytes
-      : Buffer.from(JSON.stringify(result.output) ?? 'null')
+  if (request.purpose === 'preview')
+    return toolResultPreview(projectToolResultImageResources(result.output, { ...request, messageId }))
+  const serialized = Buffer.from(JSON.stringify(result.output) ?? 'null')
   const cursor = request.cursor ?? 0
   if (cursor > serialized.length || (cursor < serialized.length && (serialized[cursor] & 0xc0) === 0x80))
     return { status: 'unavailable' }

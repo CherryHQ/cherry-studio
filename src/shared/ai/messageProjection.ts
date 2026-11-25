@@ -15,17 +15,20 @@ export interface ChildProjectionState {
   active: boolean
   available: boolean
   canSubmit: boolean
+  olderCursor?: string
   diagnostic?: string
 }
 
-export interface ProjectedExecution {
+export type ProjectedExecution = {
   executionId: UniqueModelId
   attemptId: number
   userMessageId?: string
   anchorMessageId?: string
   messageId?: string
-  status: 'active' | 'done' | 'paused' | 'error' | 'unresolved'
-}
+} & (
+  | { status: 'active' | 'unresolved'; savedMessageId?: never }
+  | { status: 'done' | 'paused' | 'error'; savedMessageId?: string }
+)
 
 export interface TopicProjectionState {
   kind: 'topic'
@@ -39,21 +42,118 @@ export type MessageProjectionView<S extends ProjectionState = ProjectionState> =
   messages: readonly CherryUIMessage[]
 }
 
-export type MessageProjectionPatch =
+export type MessageViewPatch =
   | { type: 'message'; message: CherryUIMessage }
   | { type: 'append'; messageId: string; part: number; text: string }
   | { type: 'tool-result'; ref: DeferredToolResultRef }
 
-export type MessageProjectionUpdate<S extends ProjectionState = ProjectionState> = S & {
-  revision: number
-  patches: MessageProjectionPatch[]
-  order?: string[]
+export type TimelinePlacement = { readonly messageId: string; readonly pos: number; afterPartId?: never }
+export type ChildPartPlacement = { messageId: string; afterPartId?: string; pos?: never }
+type PlacementByKind = { topic: TimelinePlacement; child: ChildPartPlacement }
+export type PlacementFor<S extends ProjectionState> = PlacementByKind[S['kind']]
+export type PartPlacement = PlacementFor<ProjectionState>
+export type NonTextPartWrite<P extends PartPlacement = PartPlacement> = {
+  messageId?: never
+  pos?: never
+  afterPartId?: never
+} & ({ type: 'part-add'; placement: P } | { type: 'part-put'; placement?: never })
+
+export type LivePartPatch<P extends PartPlacement = PartPlacement> = {
+  partId: string
+  entries?: never
+  parts?: never
+  message?: never
+  partIds?: never
+  value?: never
+} & (
+  | (P & {
+      type: 'part-open'
+      placement?: never
+      kind: 'text' | 'reasoning'
+      providerMetadata?: Extract<CherryUIMessage['parts'][number], { type: 'text' }>['providerMetadata']
+      text?: never
+      part?: never
+    })
+  | ({ messageId?: never; pos?: never; afterPartId?: never; placement?: never } & (
+      | { type: 'part-append'; text: string; part?: never }
+      | {
+          type: 'part-finish'
+          providerMetadata?: Extract<CherryUIMessage['parts'][number], { type: 'text' }>['providerMetadata']
+          text?: never
+          part?: never
+        }
+      | {
+          type: 'part-correct'
+          part: Extract<CherryUIMessage['parts'][number], { type: 'text' | 'reasoning' }>
+          text?: never
+        }
+    ))
+  | (NonTextPartWrite<P> & {
+      text?: never
+      part: Exclude<CherryUIMessage['parts'][number], { type: 'text' | 'reasoning' }>
+    })
+)
+
+type Part = CherryUIMessage['parts'][number]
+
+export function updatedPartValue(before: Part | undefined, patch: LivePartPatch): Part | undefined {
+  if (patch.type === 'part-open')
+    return before
+      ? undefined
+      : {
+          type: patch.kind,
+          state: 'streaming',
+          text: '',
+          ...(patch.providerMetadata && { providerMetadata: patch.providerMetadata })
+        }
+  if (patch.type === 'part-add') return before ? undefined : patch.part
+  if (!before) return
+  if (patch.type === 'part-correct' || patch.type === 'part-put') {
+    if (
+      before.type !== patch.part.type ||
+      (before.type === 'dynamic-tool' &&
+        patch.part.type === 'dynamic-tool' &&
+        before.toolCallId !== patch.part.toolCallId)
+    )
+      return
+    return patch.part
+  }
+  if ((before.type !== 'text' && before.type !== 'reasoning') || before.state !== 'streaming') return
+  return patch.type === 'part-append'
+    ? { ...before, text: before.text + patch.text }
+    : {
+        ...before,
+        state: 'done',
+        ...(patch.providerMetadata && { providerMetadata: { ...before.providerMetadata, ...patch.providerMetadata } })
+      }
 }
+
+export type StructuralProjectionUpdate<S extends ProjectionState = ProjectionState> = S & {
+  type?: never
+  revision: number
+  patches: readonly MessageViewPatch[]
+  order?: readonly string[]
+}
+
+export type MessageProjectionUpdate<S extends ProjectionState = ProjectionState> =
+  | ({
+      [K in S['kind']]: {
+        type: 'parts'
+        kind: K
+        messages?: never
+        revision: number
+        patches: readonly LivePartPatch<PlacementByKind[K]>[]
+        order?: never
+      }
+    }[S['kind']] & { [K in Exclude<keyof TopicProjectionState | keyof ChildProjectionState, 'kind'>]?: never })
+  | StructuralProjectionUpdate<S>
+
+export type ProjectionNotification = MessageProjectionUpdate | { kind: 'source-changed' }
 
 /** A missing revision or invalid patch requires a new baseline, never a partial application. */
 export function applyMessageProjectionUpdate<S extends ProjectionState>(
   view: MessageProjectionView<S>,
-  update: MessageProjectionUpdate<S>
+  update: StructuralProjectionUpdate<S>
 ): MessageProjectionView<S> | undefined {
   if (update.revision <= view.revision) return view
   if (update.kind !== view.kind || update.revision !== view.revision + 1) return undefined
@@ -69,14 +169,14 @@ export function applyMessageProjectionUpdate<S extends ProjectionState>(
         isEqual(before?.parts[index], part) ? before!.parts[index] : part
       )
       messages.set(patch.message.id, { ...patch.message, parts })
-    } else {
+    } else if (patch.type === 'append') {
       const message = messages.get(patch.messageId)
       const part = message?.parts[patch.part]
       if (!message || !part || (part.type !== 'text' && part.type !== 'reasoning')) return undefined
       const parts = message.parts.slice()
       parts[patch.part] = { ...part, text: part.text + patch.text }
       messages.set(message.id, { ...message, parts })
-    }
+    } else return patch satisfies never
   }
   if (
     update.order &&

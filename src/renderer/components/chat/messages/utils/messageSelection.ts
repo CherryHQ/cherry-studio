@@ -1,3 +1,4 @@
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { buildCitationPartsRegistry, getPriorCitationParts } from '@renderer/utils/message/citations'
 import type { ComposerRichClipboardContent } from '@renderer/utils/message/composerClipboard'
@@ -39,7 +40,7 @@ export function createSelectedMessageExportViews(
       if (!message) return null
       return createMessageExportView(
         message,
-        partsByMessageId[messageId] ?? [],
+        messageProjectionService.readParts(partsByMessageId[messageId] ?? []),
         getPriorCitationParts(citationRegistry, messageId)
       )
     })
@@ -52,7 +53,7 @@ export function getSelectedMessagesPlainText(
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): string {
   return getOrderedSelectedMessageIds(messageIds, orderedMessages)
-    .map((messageId) => getComposerTextFromParts(partsByMessageId[messageId] ?? []))
+    .map((messageId) => getComposerTextFromParts(messageProjectionService.readParts(partsByMessageId[messageId] ?? [])))
     .filter(Boolean)
     .join('\n\n---\n\n')
 }
@@ -62,8 +63,8 @@ export function getSelectedMessagesRichClipboardContent(
   orderedMessages: readonly MessageListItem[],
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): ComposerRichClipboardContent | null {
-  const partGroups = getOrderedSelectedMessageIds(messageIds, orderedMessages).map(
-    (messageId) => partsByMessageId[messageId] ?? []
+  const partGroups = getOrderedSelectedMessageIds(messageIds, orderedMessages).map((messageId) =>
+    messageProjectionService.readParts(partsByMessageId[messageId] ?? [])
   )
 
   return createComposerRichClipboardContentFromPartGroups(partGroups, '\n\n---\n\n')

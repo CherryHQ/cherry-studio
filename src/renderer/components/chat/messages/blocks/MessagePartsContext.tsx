@@ -10,20 +10,6 @@ import { createContext, use, useMemo } from 'react'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
 
-// ============================================================================
-// Refresh Context — allows deep components to trigger data refresh
-// ============================================================================
-
-export const RefreshContext = createContext<(() => void) | null>(null)
-export const RefreshProvider = RefreshContext.Provider
-
-/** Get the refresh callback from context. Returns no-op if not provided. */
-export function useRefresh(): () => void {
-  const refresh = use(RefreshContext)
-  return refresh ?? (() => {})
-}
-
-// ============================================================================
 // Parts Context — primary message rendering data source
 // ============================================================================
 
@@ -108,11 +94,6 @@ export function useScopedPartsMap(): PartsMap {
   if (toolScope) return toolScope
   const scope = use(MessagePartsScopeContext)
   return scope?.partsMap ?? use(PartsContext)
-}
-
-/** Check if parts data is provided. */
-export function useHasMessageParts(): boolean {
-  return use(PartsContext) !== null
 }
 
 /** Read the current message ID without subscribing to the complete parts map. */

@@ -1,76 +1,19 @@
 import { isToolUIPart } from 'ai'
 
+import { snapshotToolPart } from './acceptedToolPart'
 import type {
   InputId,
+  LivePartInput,
   Observation,
   ObservationPayload,
   ObservationSink,
+  ProjectionEvents,
   RuntimeMessage,
   ThreadSnapshot
 } from './contracts'
 import { immutable } from './immutable'
-
-const immutableOutputs = new WeakSet<object>()
-const acceptedToolParts = new WeakSet<object>()
-
-export function isAcceptedToolOutput(value: unknown): boolean {
-  return typeof value === 'object' && value !== null && immutableOutputs.has(value)
-}
-
-export function isAcceptedToolPart(value: unknown): boolean {
-  return typeof value === 'object' && value !== null && acceptedToolParts.has(value)
-}
-
-/** Establishes immutable part ownership after adapter decoration, including primitive result values. */
-export function snapshotToolPart<T extends RuntimeMessage['parts'][number]>(part: T): T {
-  if (isAcceptedToolPart(part)) return part
-  const accepted = immutable(part)
-  if (freezeOutput(accepted)) acceptedToolParts.add(accepted)
-  return accepted
-}
-
-function freezeOutput(value: unknown, seen = new WeakSet<object>()): boolean {
-  if (typeof value !== 'object' || value === null || immutableOutputs.has(value) || seen.has(value)) return true
-  if (
-    !Array.isArray(value) &&
-    Object.getPrototypeOf(value) !== Object.prototype &&
-    Object.getPrototypeOf(value) !== null
-  )
-    return false
-  seen.add(value)
-  const children = Object.values(value).map((item) => freezeOutput(item, seen))
-  if (!children.every(Boolean)) return false
-  Object.freeze(value)
-  immutableOutputs.add(value)
-  return true
-}
-
-/** Copies delivery containers while sharing only deeply frozen, accepted JSON tool payloads. */
-export function cloneObservationValue<T>(value: T): T {
-  const copies = new WeakMap<object, object>()
-  const clone = (item: unknown): unknown => {
-    // oxlint-disable-next-line no-restricted-globals -- Preserve native rejection of unsupported values at acceptance.
-    if (typeof item === 'function' || typeof item === 'symbol') return structuredClone(item)
-    if (typeof item !== 'object' || item === null || immutableOutputs.has(item)) return item
-    const known = copies.get(item)
-    if (known) return known
-    if (Array.isArray(item)) {
-      const result: unknown[] = []
-      copies.set(item, result)
-      for (const child of item) result.push(clone(child))
-      return result
-    }
-    if (Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null)
-      // oxlint-disable-next-line no-restricted-globals -- Non-JSON native payloads require the platform clone at acceptance.
-      return structuredClone(item)
-    const result: Record<string, unknown> = {}
-    copies.set(item, result)
-    for (const [key, child] of Object.entries(item))
-      Object.defineProperty(result, key, { value: clone(child), enumerable: true, writable: true, configurable: true })
-    return result
-  }
-  return clone(value) as T
-}
+import { stagePartUpdate } from './stagePartUpdate'
+import { projectionEvents } from './textPartUpdates'
 
 /** Reuses accepted parts when the producer identifies the changed positions. */
 export function snapshotRuntimeMessage(
@@ -93,27 +36,30 @@ export class ThreadFeed {
     stop(): void
   }>()
   private ended = false
-  private value: ThreadSnapshot
+  private value: Omit<ThreadSnapshot, 'messages'> & { messages: RuntimeMessage[] }
+  private cachedSnapshot?: ThreadSnapshot
   private readonly messageIndices = new Map<string, number>()
-  private readonly textAppends = new Map<string, Map<number, string>>()
+  private readonly partChanges = new Map<string, Map<number, RuntimeMessage['parts'][number]>>()
 
   constructor(
     value: ThreadSnapshot,
     private readonly report: (error: unknown) => void
   ) {
-    this.value = immutable({ ...value, messages: value.messages.map((message) => snapshotRuntimeMessage(message)) })
+    this.cachedSnapshot = immutable({
+      ...value,
+      messages: value.messages.map((message) => snapshotRuntimeMessage(message))
+    })
+    this.value = { ...this.cachedSnapshot, messages: this.cachedSnapshot.messages.slice() }
     this.indexMessages()
   }
 
   /** The current frozen snapshot, shared with observers rather than copied. */
   get snapshot(): ThreadSnapshot {
-    if (this.textAppends.size) {
-      const messages = this.value.messages.slice()
-      for (const id of this.textAppends.keys()) messages[this.messageIndices.get(id)!] = this.message(id)!
-      this.textAppends.clear()
-      this.value = immutable({ ...this.value, messages })
+    if (this.partChanges.size) {
+      for (const id of this.partChanges.keys()) this.value.messages[this.messageIndices.get(id)!] = this.message(id)!
+      this.partChanges.clear()
     }
-    return this.value
+    return (this.cachedSnapshot ??= immutable(this.value))
   }
 
   get state(): Omit<ThreadSnapshot, 'messages'> {
@@ -135,13 +81,10 @@ export class ThreadFeed {
     const index = this.messageIndices.get(id)
     if (index === undefined) return
     const message = this.value.messages[index]
-    const appends = this.textAppends.get(id)
-    if (!appends) return message
+    const changes = this.partChanges.get(id)
+    if (!changes) return message
     const parts = message.parts.slice()
-    for (const [partIndex, text] of appends) {
-      const part = parts[partIndex]
-      if (part.type === 'text') parts[partIndex] = { ...part, text: part.text + text }
-    }
+    for (const [partIndex, part] of changes) parts[partIndex] = part
     return immutable({ ...message, parts })
   }
 
@@ -151,41 +94,57 @@ export class ThreadFeed {
   }
 
   hasStreamingText(id: string, part: number): boolean {
-    const index = this.messageIndices.get(id)
-    const current = index === undefined ? undefined : this.value.messages[index].parts[part]
-    return current?.type === 'text' && current.state === 'streaming'
+    const current = this.part(id, part)
+    return (current?.type === 'text' || current?.type === 'reasoning') && current.state === 'streaming'
   }
 
-  publish(event: ObservationPayload): ObservationPayload | undefined {
+  part(id: string, part: number): RuntimeMessage['parts'][number] | undefined {
+    const index = this.messageIndices.get(id)
+    return index === undefined
+      ? undefined
+      : (this.partChanges.get(id)?.get(part) ?? this.value.messages[index].parts[part])
+  }
+
+  publishPart(input: LivePartInput): LivePartInput | undefined {
+    const id = input.ref.id
+    if (this.ended || !this.messageIndices.has(id)) return
+    const staged = stagePartUpdate(input, (index) => this.part(id, index))
+    if (!staged) return
+    const current = this.partChanges.get(id)
+    if (current) for (const [index, part] of staged.parts) current.set(index, part)
+    else if (staged.parts.size) this.partChanges.set(id, staged.parts)
+    this.cachedSnapshot = undefined
+    for (const observer of this.observers) observer.send(staged.event)
+    return staged.event
+  }
+
+  publish(event: Exclude<ObservationPayload, LivePartInput>): Exclude<ObservationPayload, LivePartInput> | undefined {
     if (this.ended) return
-    if (event.type === 'message.text-append') {
-      if (!event.text || !this.hasStreamingText(event.ref.id, event.part)) return
-      const appends = this.textAppends.get(event.ref.id) ?? new Map<number, string>()
-      appends.set(event.part, (appends.get(event.part) ?? '') + event.text)
-      this.textAppends.set(event.ref.id, appends)
-      const next = immutable(event)
-      for (const observer of this.observers) observer.send(next)
-      return next
-    }
     let next = event
-    if (event.type === 'message.upsert')
+    if (event.type === 'message.reconcile')
       next = {
         ...event,
-        message: snapshotRuntimeMessage(event.message, this.message(event.message.id), event.changedParts)
+        message: snapshotRuntimeMessage(event.message)
       }
     else if (event.type === 'snapshot')
       next = { ...event, messages: event.messages.map((message) => snapshotRuntimeMessage(message)) }
     next = immutable(next)
     switch (next.type) {
       case 'snapshot':
-        this.textAppends.clear()
-        this.value = next
+        this.partChanges.clear()
+        this.value = { ...next, messages: next.messages.slice() }
         this.indexMessages()
         break
-      case 'message.upsert': {
-        const replaced = new Set([next.message.id, ...(next.replaces ?? []).map((ref) => ref.id)])
-        this.textAppends.delete(next.message.id)
-        for (const ref of next.replaces ?? []) this.textAppends.delete(ref.id)
+      case 'message.reconcile': {
+        this.partChanges.delete(next.message.id)
+        if (!next.replaces?.length) {
+          const at = this.messageIndices.get(next.message.id) ?? this.value.messages.length
+          this.value.messages[at] = next.message
+          this.messageIndices.set(next.message.id, at)
+          break
+        }
+        const replaced = new Set([next.message.id, ...next.replaces.map((ref) => ref.id)])
+        for (const ref of next.replaces) this.partChanges.delete(ref.id)
         const messages = this.value.messages.filter((item) => !replaced.has(item.id))
         const at = this.value.messages.findIndex((item) => replaced.has(item.id))
         messages.splice(at < 0 ? messages.length : at, 0, next.message)
@@ -194,7 +153,7 @@ export class ThreadFeed {
         break
       }
       case 'message.remove':
-        this.textAppends.delete(next.ref.id)
+        this.partChanges.delete(next.ref.id)
         this.value = { ...this.value, messages: this.value.messages.filter((item) => item.id !== next.ref.id) }
         this.indexMessages()
         break
@@ -225,13 +184,30 @@ export class ThreadFeed {
         }
         break
     }
-    this.value = immutable(this.value)
+    this.cachedSnapshot = next.type === 'snapshot' ? next : undefined
     for (const observer of this.observers) observer.send(next)
     return next
   }
 
   observe(sink: ObservationSink): Observation {
     return this.observeCaptured(sink, (event) => ({ value: event }))
+  }
+
+  /** The feed selects content. Runtime facets can attach only their own metadata to each revision. */
+  observeProjection<M extends object>(
+    sink: (frame: M & { readonly events: ProjectionEvents }) => void | Promise<void>,
+    capture: (
+      event: ObservationPayload,
+      delivery: 'baseline' | 'update' | 'recovery'
+    ) => {
+      value: M & { events?: never }
+      retain?: boolean
+    }
+  ): Observation {
+    return this.observeCaptured(sink, (event, delivery) => {
+      const { value, retain } = capture(event, delivery)
+      return { value: { ...value, events: projectionEvents(event) }, retain }
+    })
   }
 
   /**

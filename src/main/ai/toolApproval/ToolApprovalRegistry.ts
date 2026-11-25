@@ -19,6 +19,7 @@ export type DispatchDecision = {
 }
 
 type PendingApproval = {
+  contextId?: string
   approvalId: string
   sessionId: string
   toolCallId: string
@@ -114,9 +115,9 @@ class ToolApprovalRegistry {
     }
   }
 
-  abort(sessionId: string, reason = 'session-aborted'): number {
+  abort(sessionId: string, reason = 'session-aborted', contextId?: string): number {
     const approvalIds = [...this.pending.values()]
-      .filter((entry) => entry.sessionId === sessionId)
+      .filter((entry) => entry.sessionId === sessionId && (contextId === undefined || entry.contextId === contextId))
       .map((entry) => entry.approvalId)
     const count = this.cancel(approvalIds, reason)
     if (count > 0) logger.info('Aborted pending approvals', { sessionId, count, reason })

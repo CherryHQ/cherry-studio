@@ -635,6 +635,16 @@ const AgentComposerInner = ({
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
+  const requestCommands = useCallback(() => {
+    if (agent?.type === 'claude-code' && sessionId)
+      void ipcApi
+        .request('ai.agent.session.commands', { sessionId })
+        .catch((error) => logger.warn('Could not load session commands', { error }))
+  }, [agent?.type, sessionId])
+  const usingSlash = text.startsWith('/')
+  useEffect(() => {
+    if (usingSlash) requestCommands()
+  }, [usingSlash, requestCommands])
   const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
   const nativeFollowUp = !!agent && AGENT_RUNTIME_CAPABILITIES[agent.type].nativeFollowUp
   const [isDirectSending, setIsDirectSending] = useState(false)
@@ -1585,7 +1595,10 @@ const AgentComposerInner = ({
         id: 'slash-commands',
         label: slashCommandsLabel,
         icon: <Terminal size={18} aria-hidden />,
-        onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+        onSelect: ({ unifiedPanelControl }) => {
+          requestCommands()
+          unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+        }
       },
       {
         id: ComposerPanelSymbol.McpStatus,
@@ -1596,7 +1609,15 @@ const AgentComposerInner = ({
           unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }
     ]
-  }, [handleCreateEmptySession, hasNewSessionAction, mcpToolbarActive, screenshotEnabled, startScreenshot, t])
+  }, [
+    handleCreateEmptySession,
+    hasNewSessionAction,
+    mcpToolbarActive,
+    requestCommands,
+    screenshotEnabled,
+    startScreenshot,
+    t
+  ])
 
   const renderQuickPanelShortcuts = useCallback(
     ({

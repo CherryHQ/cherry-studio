@@ -7,10 +7,12 @@ import type {
   SDKUserMessage,
   SessionMessage
 } from '@anthropic-ai/claude-agent-sdk'
+import { parsePartialJson } from 'ai'
 
 import {
+  messageObservation,
   runtimeId,
-  RuntimeMessageStream,
+  type RuntimePartEdit,
   type RuntimeMessage,
   type InputId,
   type ItemRef,
@@ -35,6 +37,18 @@ import type { ClaudeArchive, ClaudeNativeMessage } from './types'
 
 type Part = RuntimeMessage['parts'][number]
 type ToolPart = Extract<Part, { type: 'dynamic-tool' }>
+function deniedTool(part: ToolPart): ToolPart {
+  return {
+    type: 'dynamic-tool',
+    toolName: part.toolName,
+    toolCallId: part.toolCallId,
+    input: part.input,
+    callProviderMetadata: part.callProviderMetadata,
+    state: 'output-denied',
+    approval: { id: part.toolCallId, approved: false }
+  }
+}
+
 export class ClaudeProjection {
   readonly feed: ClaudeFeed
   private readonly invocations = new ClaudeInvocations()
@@ -45,18 +59,20 @@ export class ClaudeProjection {
   private readonly legacy: Record<string, { messageId: string; parts: number[] }> = {}
   private legacyChanged = false
   private readonly messages = new Map<string, RuntimeMessage>()
-  private readonly calls = new Map<string, { id: string; part: ToolPart }>()
+  private readonly calls = new Map<string, { id: string; index: number; part: ToolPart }>()
   private readonly results = new Map<string, Set<string>>()
   private readonly aborted = new Set<string>()
   private readonly denied = new Set<string>()
+  private opening?: { toolCallId: string } | { nativeId: string }
   private stream?: {
     apiId: string
     id: string
-    reader: RuntimeMessageStream
     blocks: Map<
       number,
       {
         part: number
+        value: Part
+        json?: string
         type: NativeBlock['type']
         callId?: string
         bound?: string
@@ -64,21 +80,20 @@ export class ClaudeProjection {
         citations?: NonNullable<Extract<NativeBlock, { type: 'text' }>['citations']>
       }
     >
-    message?: RuntimeMessage
   }
 
   constructor(
     readonly thread: Thread,
     report: (error: unknown) => void
   ) {
-    this.feed = new ClaudeFeed(report)
+    this.feed = new ClaudeFeed(report, this.control)
   }
 
   ref(uuid: string): ItemRef {
     return { session: this.thread, id: runtimeId(uuid) }
   }
 
-  private upsert(
+  private updateSource(
     message: RuntimeMessage,
     replaces?: readonly ItemRef[],
     changedParts?: readonly number[]
@@ -86,38 +101,68 @@ export class ClaudeProjection {
     message = {
       ...message,
       parts: message.parts.map((part) =>
-        part.type === 'dynamic-tool' && this.denied.has(part.toolCallId)
-          ? {
-              type: 'dynamic-tool',
-              toolName: part.toolName,
-              toolCallId: part.toolCallId,
-              input: part.input,
-              callProviderMetadata: part.callProviderMetadata,
-              state: 'output-denied',
-              approval: { id: part.toolCallId, approved: false }
-            }
-          : part
+        part.type === 'dynamic-tool' && this.denied.has(part.toolCallId) ? deniedTool(part) : part
       )
     }
+    const previous = this.messages.get(message.id)
+    if (
+      this.opening &&
+      'nativeId' in this.opening &&
+      this.opening.nativeId === message.id &&
+      this.sources.delete(this.thread.id)
+    )
+      replaces = [this.ref(this.thread.id)]
     for (const ref of replaces ?? []) this.messages.delete(ref.id)
-    this.messages.set(message.id, message)
-    return { type: 'message.upsert', message, replaces, changedParts }
+    this.messages.set(message.id, { ...message, parts: message.parts.slice() })
+    return messageObservation(this.ref(message.id), previous, message, replaces, changedParts)
   }
 
   deny(toolCallId: string): ObservationPayload[] {
     this.denied.add(toolCallId)
-    return [...this.messages.values()]
-      .filter((message) => message.parts.some((part) => part.type === 'dynamic-tool' && part.toolCallId === toolCallId))
-      .map((message) => this.upsert(message))
+    const call = this.calls.get(toolCallId)
+    const owner = call && this.messages.get(call.id)
+    const part = call && owner?.parts[call.index]
+    if (
+      !owner ||
+      !call ||
+      part?.type !== 'dynamic-tool' ||
+      part.toolCallId !== toolCallId ||
+      part.state === 'output-denied'
+    )
+      return []
+    const value = deniedTool(part)
+    owner.parts[call.index] = value
+    return [{ type: 'message.parts', ref: this.ref(call.id), changes: [{ type: 'put', part: call.index, value }] }]
   }
 
-  committed(archive: ClaudeArchive): ClaudeArchive {
-    const content = this.feed.snapshot.messages.filter(
-      (message) => this.sources.has(message.id) && !this.retracted.has(message.id)
-    )
+  spawnCall(toolCallId: string): ToolPart | undefined {
+    const call = this.calls.get(toolCallId)
+    const part = call && this.messages.get(call.id)?.parts[call.index]
+    return part?.type === 'dynamic-tool' && part.toolCallId === toolCallId && ['Agent', 'Task'].includes(part.toolName)
+      ? part
+      : undefined
+  }
+
+  startBackgroundTask(toolCallId: string, prompt: string): ObservationPayload[] {
+    if (this.opening) return []
+    this.opening = { toolCallId }
+    this.sources.add(this.thread.id)
+    return [
+      this.updateSource({
+        id: this.thread.id,
+        role: 'user',
+        parts: [{ type: 'text', text: prompt, state: 'done' }],
+        metadata: { completeness: 'complete' }
+      })
+    ]
+  }
+
+  committed(): ClaudeArchive {
     return {
-      ...archive,
-      content,
+      content: this.feed.snapshot.messages.filter(
+        (message) => this.sources.has(message.id) && !this.retracted.has(message.id)
+      ),
+      ...(this.opening && 'nativeId' in this.opening && { aliases: { [this.opening.nativeId]: this.thread.id } }),
       legacy: { ...this.legacy },
       retracted: [...this.retracted]
     }
@@ -125,21 +170,27 @@ export class ClaudeProjection {
 
   remove(uuids: readonly string[]): ObservationPayload[] {
     const events: ObservationPayload[] = []
+    if (
+      this.opening &&
+      'nativeId' in this.opening &&
+      uuids.includes(this.opening.nativeId) &&
+      this.sources.delete(this.thread.id)
+    )
+      uuids = [...uuids, this.thread.id]
     for (const uuid of uuids) {
       this.retracted.add(uuid)
       this.feed.forget(uuid)
       for (const callId of this.results.get(uuid) ?? []) {
         const call = this.calls.get(callId)
         const owner = call && this.messages.get(call.id)
-        if (owner && call)
-          events.push(
-            this.upsert({
-              ...owner,
-              parts: owner.parts.map((part) =>
-                part.type === 'dynamic-tool' && part.toolCallId === callId ? call.part : part
-              )
-            })
-          )
+        if (owner && call && !this.denied.has(callId)) {
+          owner.parts[call.index] = call.part
+          events.push({
+            type: 'message.parts',
+            ref: this.ref(call.id),
+            changes: [{ type: 'put', part: call.index, value: call.part }]
+          })
+        }
       }
       this.results.delete(uuid)
       if (this.messages.delete(uuid)) events.push({ type: 'message.remove', ref: this.ref(uuid) })
@@ -155,7 +206,16 @@ export class ClaudeProjection {
     if (options.aborted) this.aborted.add(message.uuid)
     const partial = this.aborted.has(message.uuid)
     const content = message.message.content
-    return this.upsertContent(
+    if (
+      this.opening &&
+      'toolCallId' in this.opening &&
+      message.type === 'user' &&
+      message.parent_tool_use_id === this.opening.toolCallId &&
+      this.sources.size === 1 &&
+      (typeof content === 'string' || content.some((block) => block.type === 'text'))
+    )
+      this.opening = { nativeId: message.uuid }
+    return this.updateContent(
       message.uuid,
       message.type,
       typeof content === 'string'
@@ -166,7 +226,7 @@ export class ClaudeProjection {
     )
   }
 
-  private upsertContent(
+  private updateContent(
     uuid: string,
     role: RuntimeMessage['role'],
     content: (ProjectedBlock | undefined)[],
@@ -213,10 +273,9 @@ export class ClaudeProjection {
       }
       if (part.type === 'dynamic-tool') {
         const callId = part.toolCallId
-        const previous = this.messages
-          .get(uuid)
-          ?.parts.find((item) => item.type === 'dynamic-tool' && item.toolCallId === callId)
-        this.calls.set(part.toolCallId, { id: uuid, part })
+        const prior = this.calls.get(callId)
+        const previous = prior?.id === uuid ? this.messages.get(uuid)?.parts[prior.index] : undefined
+        this.calls.set(part.toolCallId, { id: uuid, index: value.parts.length, part })
         if (previous?.type === 'dynamic-tool' && previous.state.startsWith('output-')) part = previous
       }
       const key = `${uuid}:${index}`
@@ -229,7 +288,7 @@ export class ClaudeProjection {
     this.sources.add(uuid)
     if (value.parts.length || content.length === 0) {
       const replaces = bound.length && this.stream ? [this.ref(this.stream.id)] : undefined
-      events.push(this.upsert(value, replaces))
+      events.push(this.updateSource(value, replaces))
       if (bound.length && this.stream) {
         this.stream.id = `live:${randomUUID()}`
         events.push(...this.preview())
@@ -261,200 +320,145 @@ export class ClaudeProjection {
     const calls = this.results.get(uuid) ?? new Set<string>()
     calls.add(result.toolUseId)
     this.results.set(uuid, calls)
-    return [
-      this.upsert(
-        {
-          ...owner,
-          parts: owner.parts.map((previous) =>
-            previous.type === 'dynamic-tool' && previous.toolCallId === result.toolUseId ? part : previous
-          )
-        },
-        undefined,
-        owner.parts.flatMap((part, index) =>
-          part.type === 'dynamic-tool' && part.toolCallId === result.toolUseId ? [index] : []
-        )
-      )
-    ]
+    if (this.denied.has(result.toolUseId)) return []
+    owner.parts[call.index] = part
+    return [{ type: 'message.tool-output', ref: this.ref(owner.id), part: call.index, tool: part }]
   }
 
   result(message: SDKResultMessage): ObservationPayload[] {
     if (message.subtype !== 'success' || message.structured_output === undefined) return []
-    return this.upsertContent(message.uuid, 'assistant', [
+    return this.updateContent(message.uuid, 'assistant', [
       projectBlock({ type: 'text', text: JSON.stringify(message.structured_output) }, false)
     ])
   }
 
-  private preview(changedPart?: number): ObservationPayload[] {
-    if (!this.stream?.message) return []
-    const indices = new Set([...this.stream.blocks.values()].filter((block) => !block.bound).map((block) => block.part))
-    const parts = this.stream.message.parts.filter((_, index) => indices.has(index))
-    if (!parts.length) return []
-    const message = { ...this.stream.message, id: this.stream.id, parts }
-    for (const part of parts)
-      if (part.type === 'dynamic-tool') this.calls.set(part.toolCallId, { id: message.id, part })
-    const changedParts =
-      changedPart === undefined ? undefined : [...indices].flatMap((index, at) => (index === changedPart ? [at] : []))
-    return [this.upsert(message, undefined, changedParts)]
+  private preview(): ObservationPayload[] {
+    const stream = this.stream
+    if (!stream) return []
+    const parts: Part[] = []
+    for (const block of stream.blocks.values()) {
+      if (block.bound) continue
+      block.part = parts.length
+      parts.push(block.value)
+      if (block.value.type === 'dynamic-tool')
+        this.calls.set(block.value.toolCallId, { id: stream.id, index: block.part, part: block.value })
+    }
+    return parts.length
+      ? [this.updateSource({ id: stream.id, role: 'assistant', parts, metadata: { completeness: 'partial' } })]
+      : []
   }
 
   async partial(message: SDKPartialAssistantMessage): Promise<ObservationPayload[]> {
     const event = message.event
-    switch (event.type) {
-      case 'message_start': {
-        await this.stream?.reader.close()
-        const id = `live:${randomUUID()}`
-        this.stream = { apiId: event.message.id, id, reader: new RuntimeMessageStream(id), blocks: new Map() }
-        return [{ type: 'activity.changed', activity: { state: 'active' } }]
-      }
-      // Turn usage/outcome comes from SDK result; message_stop also occurs on interrupted input.
-      case 'message_delta':
-      case 'message_stop':
-        return []
-      case 'content_block_start':
-      case 'content_block_delta':
-      case 'content_block_stop':
-        break
-      default: {
-        const exhaustive: never = event
-        void exhaustive
-        return []
-      }
+    if (event.type === 'message_start') {
+      this.stream = { apiId: event.message.id, id: `live:${randomUUID()}`, blocks: new Map() }
+      return [{ type: 'activity.changed', activity: { state: 'active' } }]
     }
     const stream = this.stream
-    if (!stream) return []
-    type Chunk = Parameters<RuntimeMessageStream['append']>[0][number]
-    const chunks: Chunk[] = []
-    const key = String(event.index)
+    if (!stream || !('index' in event)) return []
+    const ref = this.ref(stream.id)
     if (event.type === 'content_block_start') {
       const block = event.content_block
       const projected = projectBlock(block, true)
-      if (!projected) return []
-      // Results commit with the transcript UUID that subsequent retractions address.
-      if ('result' in projected) return []
-      const part = projected.part
+      if (!projected || !('part' in projected) || stream.blocks.has(event.index)) return []
+      const value =
+        projected.part.type === 'dynamic-tool' && this.denied.has(projected.part.toolCallId)
+          ? deniedTool(projected.part)
+          : projected.part
+      const events: ObservationPayload[] = []
+      let owner = this.messages.get(stream.id)
+      if (!owner) {
+        owner = { id: stream.id, role: 'assistant', metadata: { completeness: 'partial' }, parts: [] }
+        this.messages.set(stream.id, owner)
+        events.push({ type: 'message.reconcile', message: { ...owner, parts: [] } })
+      }
+      const part = owner.parts.push(value) - 1
       stream.blocks.set(event.index, {
-        part: stream.message?.parts.length ?? 0,
         type: block.type,
-        callId: part.type === 'dynamic-tool' ? part.toolCallId : undefined,
+        part,
+        value,
         stopped: false,
+        callId: value.type === 'dynamic-tool' ? value.toolCallId : undefined,
         citations: block.type === 'text' ? (block.citations ?? []) : undefined
       })
-      if (part.type === 'dynamic-tool')
-        chunks.push({
-          type: 'tool-input-start',
-          toolCallId: part.toolCallId,
-          toolName: part.toolName,
-          dynamic: true,
-          providerMetadata: part.callProviderMetadata
+      if (value.type === 'text' || value.type === 'reasoning') {
+        events.push({
+          type: 'message.text-open',
+          ref,
+          part,
+          kind: value.type,
+          ...(value.providerMetadata && { providerMetadata: value.providerMetadata })
         })
-      else if (part.type === 'text') {
-        chunks.push({
-          type: 'text-start',
-          id: key,
-          providerMetadata: part.providerMetadata
-        })
-        if (part.text) chunks.push({ type: 'text-delta', id: key, delta: part.text })
-      } else if (part.type === 'reasoning') {
-        chunks.push({
-          type: 'reasoning-start',
-          id: key,
-          providerMetadata: part.providerMetadata
-        })
-        if (part.text) chunks.push({ type: 'reasoning-delta', id: key, delta: part.text })
+        if (value.text) events.push({ type: 'message.text-append', ref, part, text: value.text })
+      } else {
+        if (value.type === 'dynamic-tool') this.calls.set(value.toolCallId, { id: stream.id, index: part, part: value })
+        events.push({ type: 'message.parts', ref, changes: [{ type: 'put', part, value }] })
       }
+      return events
     }
     const block = stream.blocks.get(event.index)
-    if (!block) return []
-    if (event.type === 'content_block_delta') {
-      const delta = event.delta
-      switch (delta.type) {
-        case 'text_delta':
-          chunks.push({ type: 'text-delta', id: key, delta: delta.text })
-          break
-        case 'thinking_delta':
-          chunks.push({ type: 'reasoning-delta', id: key, delta: delta.thinking })
-          break
-        case 'signature_delta':
-          chunks.push({
-            type: 'reasoning-delta',
-            id: key,
-            delta: '',
-            providerMetadata: { anthropic: { signature: delta.signature } }
-          })
-          break
-        case 'citations_delta':
-          block.citations = [...(block.citations ?? []), delta.citation]
-          chunks.push({
-            type: 'text-delta',
-            id: key,
-            delta: '',
-            providerMetadata: { anthropic: { citations: json(block.citations) } }
-          })
-          break
-        case 'input_json_delta':
-          if (block.callId)
-            chunks.push({ type: 'tool-input-delta', toolCallId: block.callId, inputTextDelta: delta.partial_json })
-          break
-        case 'compaction_delta':
-          break
-        default: {
-          const exhaustive: never = delta
-          void exhaustive
-        }
-      }
-    }
+    if (!block || block.stopped || (block.callId && this.denied.has(block.callId))) return []
+    const value = block.value
+    const owner = this.messages.get(block.bound ?? stream.id)
+    if (!owner) return []
+    const part = block.bound && block.callId ? this.calls.get(block.callId)?.index : block.part
+    if (part === undefined) return []
+    const address = this.ref(owner.id)
     if (event.type === 'content_block_stop') {
       block.stopped = true
-      if (block.type === 'text') chunks.push({ type: 'text-end', id: key })
-      if (block.type === 'thinking' || block.type === 'redacted_thinking')
-        chunks.push({ type: 'reasoning-end', id: key })
-      if (block.callId) {
-        const part = stream.message?.parts.find(
-          (part) => part.type === 'dynamic-tool' && part.toolCallId === block.callId
-        )
-        if (part?.type === 'dynamic-tool')
-          chunks.push({
-            type: 'tool-input-available',
-            toolCallId: block.callId,
-            toolName: part.toolName,
-            input: part.input,
-            providerMetadata: part.callProviderMetadata,
-            dynamic: true
-          })
+      delete block.json
+      if (block.bound && (!block.callId || this.aborted.has(block.bound))) return []
+      const before = owner.parts[part]
+      if (before?.type === 'dynamic-tool' && before.state === 'input-streaming') {
+        const next = { ...before, state: 'input-available' as const }
+        owner.parts[part] = block.value = next
+        this.calls.set(next.toolCallId, { id: owner.id, index: part, part: next })
+        return [{ type: 'message.parts', ref: address, changes: [{ type: 'put', part, value: next }] }]
       }
+      if (before?.type !== 'text' && before?.type !== 'reasoning') return []
+      owner.parts[part] = block.value = { ...before, state: 'done' }
+      return [{ type: 'message.text-finish', ref: address, part }]
     }
-    if (!chunks.length) return []
-    stream.message = await stream.reader.append(chunks, 'partial')
-    if (block.bound) {
-      const owner = this.messages.get(block.bound)
-      if (owner && block.callId && block.stopped && !this.aborted.has(block.bound)) {
-        const call = this.calls.get(block.callId)
-        if (call?.part.state === 'input-streaming') call.part = { ...call.part, state: 'input-available' }
-        const value = {
-          ...owner,
-          parts: owner.parts.map(
-            (part): Part =>
-              part.type === 'dynamic-tool' && part.toolCallId === block.callId && part.state === 'input-streaming'
-                ? { ...part, state: 'input-available' }
-                : part
-          )
-        }
-        return [
-          this.upsert(
-            value,
-            undefined,
-            owner.parts.flatMap((part, index) =>
-              part.type === 'dynamic-tool' && part.toolCallId === block.callId ? [index] : []
-            )
-          )
-        ]
-      }
+    if (block.bound || event.type !== 'content_block_delta') return []
+    const delta = event.delta
+    if (delta.type === 'input_json_delta' && value.type === 'dynamic-tool' && value.state === 'input-streaming') {
+      block.json = (block.json ?? '') + delta.partial_json
+      const next = { ...value, input: (await parsePartialJson(block.json)).value }
+      owner.parts[part] = block.value = next
+      this.calls.set(next.toolCallId, { id: owner.id, index: part, part: next })
+      return [{ type: 'message.parts', ref, changes: [{ type: 'put', part, value: next }] }]
     }
-    return this.preview(block.part)
+    if (value.type !== 'text' && value.type !== 'reasoning') return []
+    if (delta.type === 'text_delta' || delta.type === 'thinking_delta') {
+      const text = delta.type === 'text_delta' ? delta.text : delta.thinking
+      if (!text) return []
+      owner.parts[part] = block.value = { ...value, text: value.text + text }
+      return [{ type: 'message.text-append', ref, part, text }]
+    }
+    if (delta.type !== 'citations_delta' && delta.type !== 'signature_delta') return []
+    if (delta.type === 'citations_delta') block.citations = [...(block.citations ?? []), delta.citation]
+    const anthropic =
+      delta.type === 'signature_delta' ? { signature: delta.signature } : { citations: json(block.citations) }
+    const providerMetadata = {
+      ...value.providerMetadata,
+      anthropic: { ...value.providerMetadata?.anthropic, ...anthropic }
+    }
+    owner.parts[part] = block.value = { ...value, providerMetadata }
+    const change: RuntimePartEdit = {
+      type: 'correct',
+      part,
+      kind: value.type,
+      state: value.state,
+      text: value.text,
+      providerMetadata
+    }
+    return [{ type: 'message.parts', ref, changes: [change] }]
   }
 
   restore(messages: readonly SessionMessage[], entries: readonly NativeArchiveEntry[]): ClaudeArchive {
     const before = this.feed.snapshot
+    const opening = entries.find((entry) => entry.childOpening)?.uuid
+    if (opening) this.opening = { nativeId: opening }
     const metadata = new Map(entries.filter((entry) => entry.uuid).map((entry) => [entry.uuid!, entry]))
     const removals = entries.flatMap((entry) => {
       const ids = entry.supersedes ?? entry.retracted_message_uuids
@@ -469,7 +473,7 @@ export class ClaudeProjection {
       const decoded = decodeArchiveContent(message.message, this.aborted.has(message.uuid))
       if (decoded)
         events.push(
-          ...this.upsertContent(message.uuid, message.type, decoded.blocks, decoded.id, {
+          ...this.updateContent(message.uuid, message.type, decoded.blocks, decoded.id, {
             inputId: inputs.get(runtimeId<'native-input'>(message.uuid))
           })
         )
@@ -510,13 +514,14 @@ export class ClaudeProjection {
     ])
     return {
       content,
+      ...(opening && { aliases: { [opening]: this.thread.id } }),
       legacy: { ...this.legacy },
       retracted: [...this.retracted]
     }
   }
 
   async close(): Promise<void> {
-    await this.stream?.reader.close()
+    this.stream = undefined
     this.feed.publish([], [], this.legacy, this.invocations.close())
   }
 
@@ -531,14 +536,10 @@ export class ClaudeProjection {
         : []
     if (controls.some((control) => control.type === 'input-boundary')) this.control.beginTurn()
     if (message?.source === 'live' && message.message.type !== 'command_lifecycle') this.control.accept(message.message)
-    this.feed.publish(
-      events,
-      message ? [message] : [],
-      this.legacyChanged ? this.legacy : undefined,
-      invocations,
-      [...controls, ...this.pendingControls.splice(0)],
-      this.control.snapshot
-    )
+    this.feed.publish(events, message ? [message] : [], this.legacyChanged ? this.legacy : undefined, invocations, [
+      ...controls,
+      ...this.pendingControls.splice(0)
+    ])
     this.legacyChanged = false
   }
 }

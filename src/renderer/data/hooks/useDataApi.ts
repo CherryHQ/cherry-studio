@@ -38,6 +38,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
 import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
+import { createCacheHelper } from 'swr/_internal'
 import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infinite'
 import useSWRInfinite, { unstable_serialize as unstable_serialize_infinite } from 'swr/infinite'
 import type { SWRMutationConfiguration } from 'swr/mutation'
@@ -241,7 +242,7 @@ export interface UseInfiniteQueryResult<TResponse> {
   error?: Error
   hasNext: boolean
   loadNext: () => void
-  refresh: () => Promise<unknown>
+  refresh: (options?: { throwOnError?: boolean }) => Promise<TResponse[] | undefined>
   reset: () => void
   mutate: SWRInfiniteKeyedMutator<TResponse[]>
 }
@@ -279,6 +280,14 @@ function createInfiniteQueryKeyGetter(
       }
     ]
   }
+}
+
+function useInfiniteCacheKeys(resolvedPath: string, query: unknown, limit = 10) {
+  const getKey = createInfiniteQueryKeyGetter(resolvedPath, query, limit)
+  const infiniteCacheKey = unstable_serialize_infinite(getKey)
+  // Equivalent inline query objects must address the same cache after a rerender.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => ({ getKey, infiniteCacheKey }), [infiniteCacheKey])
 }
 
 /**
@@ -918,7 +927,21 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     if (hasNext) void setSize((s) => s + 1)
   }, [hasNext, setSize])
 
-  const refresh = useCallback(() => mutate(), [mutate])
+  const { cache } = useSWRConfig()
+  const cacheKey = unstable_serialize_infinite(getKey)
+  const refresh = useCallback(
+    async (options?: { throwOnError?: boolean }) => {
+      const pages = await mutate()
+      if (options?.throwOnError) {
+        // SWR resolves revalidation with cached pages even when its fetcher failed.
+        const error = cache.get(cacheKey)?.error
+        if (error) throw error
+        if (!pages) throw new Error('No pages available after revalidation')
+      }
+      return pages as ResponseForPath<TPath, 'GET'>[] | undefined
+    },
+    [cache, cacheKey, mutate]
+  )
   const reset = useCallback(() => setSize(1), [setSize])
 
   return {
@@ -946,15 +969,10 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
   options?: Omit<InfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>
 ) {
   const { cache, mutate } = useSWRConfig()
-  const limit = options?.limit ?? 10
-  const resolvedPath = resolveTemplate(path, options?.params)
-  const nextGetKey = createInfiniteQueryKeyGetter(resolvedPath, options?.query, limit)
-  const nextInfiniteCacheKey = unstable_serialize_infinite(nextGetKey)
-  const { getKey, infiniteCacheKey } = useMemo(
-    () => ({ getKey: nextGetKey, infiniteCacheKey: nextInfiniteCacheKey }),
-    // The serialized SWR key is the semantic identity; equivalent inline options must reuse this state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [nextInfiniteCacheKey]
+  const { getKey, infiniteCacheKey } = useInfiniteCacheKeys(
+    resolveTemplate(path, options?.params),
+    options?.query,
+    options?.limit
   )
 
   return useCallback(
@@ -1032,6 +1050,51 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
         cache.set(infiniteCacheKey, aggregateState)
       }
       return pages
+    },
+    [cache, getKey, infiniteCacheKey, mutate]
+  )
+}
+
+/** Updates the items on a loaded page, preserving the cursor chain and every other page's cache. */
+export function useWriteInfinitePage<TPath extends ApiPath>(
+  path: CursorPaginatedPath<TPath>,
+  options?: Omit<InfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>
+) {
+  type Page = Extract<ResponseForPath<TPath, 'GET'>, CursorPaginationResponse<unknown>>
+  const { cache, mutate } = useSWRConfig()
+  const { getKey, infiniteCacheKey } = useInfiniteCacheKeys(
+    resolveTemplate(path, options?.params),
+    options?.query,
+    options?.limit
+  )
+
+  return useCallback(
+    async (index: number, update: (page: Page) => Page['items']): Promise<void> => {
+      const [get, , subscribe] = createCacheHelper<Page[]>(cache, infiniteCacheKey)
+      // Mutating a validating SWR key discards its pending response, including a branch switch.
+      while (get().isValidating) {
+        const settled = Promise.withResolvers<void>()
+        const unsubscribe = subscribe(infiniteCacheKey, (state) => {
+          if (!state.isValidating) settled.resolve()
+        })
+        await settled.promise
+        unsubscribe()
+      }
+      const pages = get().data
+      const page = pages?.[index]
+      if (!pages || !page) return
+      const items = update(page)
+      if (items === page.items) return
+      const key = getKey(index, index === 0 ? null : pages[index - 1])
+      if (!key) return
+      const nextPage = { ...page, items }
+      const nextPages = pages.slice()
+      nextPages[index] = nextPage
+      // Publish both cache entries before yielding; a sibling write must see the new aggregate.
+      await Promise.all([
+        mutate(key, nextPage, { revalidate: false }),
+        mutate(infiniteCacheKey, nextPages, { revalidate: false })
+      ])
     },
     [cache, getKey, infiniteCacheKey, mutate]
   )

@@ -255,9 +255,9 @@ describe('useAgentSessionParts', () => {
         error: undefined,
         hasNext: false,
         loadNext: vi.fn(),
-        refresh: vi.fn(),
+        refresh: isSessionOne ? sessionOneMutate : sessionTwoMutate,
         reset: vi.fn(),
-        mutate: isSessionOne ? sessionOneMutate : sessionTwoMutate
+        mutate: vi.fn()
       }
     })
 

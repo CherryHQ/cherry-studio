@@ -314,10 +314,9 @@ Before dispatch, Main stores each pending steer's original message, snapshot and
 policy on the session entry. Drivers receive the native command and return input IDs. Pi and
 Durable placement callbacks reserve the reply synchronously before the next provider request.
 The later boundary transfers the complete input context once. Unknown admission survives
-disconnect on this entry; its successor looks up the recorded native context/binding without
-resending. Connection generations fence stale callbacks, not the lifetime of unresolved input.
+disconnect on this entry. Its successor looks up the original context and product input ID. Connection generations fence stale callbacks, not the lifetime of unresolved input.
 Unavailable native evidence keeps the context unresolved. This retention covers a living
-process; the persisted native binding alone cannot recreate snapshot/headless attributes.
+process. Snapshot and headless attributes belong to the in-process pending steer.
 
 Background notification generations whose native source calls belong to an unfinished reply resume
 that reply and keep its assistant message ID. Main records intermediate native success but holds
@@ -691,12 +690,14 @@ the shared prefix's original context. Confirmed native progress marks the
 binding as `bound`; the product message tree owns the published branch head.
 
 For Pi, root execution uses the common Runtime's `create/open/observe/input.submit` path.
-Main keeps three private identities on the user message: the captured `inputContextId`, the
-evidenced `nativeInputId` and `replyId`, the reply Main opened for it. Queued inputs are saved
-before their replies, so row ancestry cannot stand in for `replyId`. Connections consume native receipts and outcomes; response projection
-persists content and its source mapping. Explicit non-admission releases an unconfirmed binding,
-while an unknown result retains it without automatic resubmission. Observation snapshots establish the live
-projection baseline and never replace or replay the product archive. Lost observations fail closed.
+The user row ID identifies the input. Main records the dispatch target in `inputContextId` and
+the reply it opened in `replyId`. A steer can be saved before its reply. Native `placed` evidence
+assigns its timeline position once. Pi Durable accepts the product ID as its request key.
+For child commands, the original parent records which child submission key it selected.
+Stop and recovery query that submission on its original conversation. Older rows may supply
+a saved `nativeInputId` for lookup on the same conversation. Explicit non-admission releases
+the attempted target. Uncertain inputs retain their target. Native snapshots establish the content
+baseline. Only pending product replies need their native outcomes at attachment.
 A bound or previously submitted context requires exactly one existing native file with the expected
 ID. A missing or ambiguous file is an error, not permission to recreate from display history.
 Only a never-submitted intent can stay unflushed; local commands persist their native state before
@@ -774,10 +775,9 @@ settings does not invalidate a warm Query's gateway identity. Explicit external
 CLI subscription login retains native authentication. See the gateway's
 [internal endpoint policy](../api-gateway/README.md#internal-listener-for-cherry-consumers).
 
-Root content passes through `ThreadMessageProjection` and `RootMessageProjection`.
-Observation values are frozen and shared, so a repeated snapshot reuses the previous view of every
-message whose source object is unchanged without decorating it again; an explicit refresh still
-re-decorates its messages.
+`RootMessageProjection` resolves sources to parts and applies live changes. Pi and Pi Durable
+root observers capture a single native source when reconciling structure. Their Main adapter
+keeps weak identities for repeated sources and decorates changed snapshots at the boundary.
 Native replacements retain product ownership across steer boundaries; explicit
 retractions persist with the context checkpoint. The runtime adapter preserves ordered
 AI SDK message parts, including tool output, reasoning signatures, files and citations.
@@ -794,26 +794,31 @@ deltas write nothing. Terminal persistence reuses those IDs, so it adds the rema
 container status/statistics without rewriting parts already saved. A settled or deleted reply
 rejects late part saves.
 All Agent drivers use the `messages` source for the entire execution. `RootMessageProjection`
-owns host approval and data-part display; `pipeMessageStream` forwards its body with
-execution metadata and never accumulates a second text/tool body. Publishing, listeners and persistence receive the same
-`CherryUIMessage`. The package's `ClaudeControlState` owns native lifecycle interpretation;
+owns host approval and data-part display. The host opens the stream and produces
+approval, compaction and task display controls from runtime events. A runtime failure
+reaches the stream as a typed error. A statistics update can reach the stream before
+any body exists. Only a content-bearing control needs access to the root projection.
+The content callback publishes accepted body changes. Legacy listeners and terminal
+persistence can read a message view from the root owner. The package's
+`ClaudeControlState` owns native lifecycle interpretation;
 Main's `ClaudeRuntimeState` only maps typed facts to product events. `ClaudeMessageMetadata`
 decorates normalized SDK messages without retaining content or constructing an archive. No Claude chunk adapter remains.
-Child attachment reads the native archive once to recover its actual prompt, which the live SDK
-feed omits. Subsequent content follows the observer; there is no transcript polling loop.
+A foreground child publishes its opening user message on the live SDK stream. A background
+child publishes the original `task_started.prompt` as its first input, keyed by its thread ID.
+Both appear before the child answers. When native history is restored, its opening message UUID
+resolves to the same product row and parts. Attaching to a live child reads only its observed content.
 
 Each child uses its own `ChildThreadProjection`, context and archive, including
 nested children under their immediate parent. Parent completion and window detach
 do not stop child persistence. Its committed projection persists across archive reads, so a read
-redecorates only changed messages, and it writes the checkpoint, input bindings and response owners only
-when they change. It saves a message only when it differs from its stored row as that row reads back from
+redecorates only changed messages. It persists changes to the checkpoint and response owners. A live
+product input change records placement directly on that input’s captured context. It saves a message only when it differs from its stored row as that row reads back from
 JSON, where undefined fields are absent, so reopening a child rewrites nothing. Claude no longer writes child bodies into the
 parent's background-flow parts; saved historical flows remain readable.
-After a failed cold attachment, Claude retries the saved session-scoped native binding
-when it belongs to the current backend. The root's native creation lookup need not retain
-a nested or historical child's origin; retrying that existing access never resubmits its task.
+Claude execution restores a nested child through its saved native binding. The product
+archive stays readable if native attachment fails.
 Root and child views both use `ai.projection.*`, without a renderer runtime allowlist.
-The child view's `canSubmit` comes from native `ThreadHandle.input` availability.
+The archived child view derives `canSubmit` from the bound native identity and backend kind.
 Claude children remain observation-only; parent Agent/SendMessage tools own their continuation.
 Root projection also retains compact task lifecycle state on the spawning tool's
 message, so completion can update a settled parent without copying the child report.
@@ -1054,19 +1059,22 @@ that needs approval waits for the root session's responder, or is blocked when
 nobody can respond. Command approvals refresh the effective tool input and policy evidence even when a native
 part already exists in the root reply, so the composer shows the operation awaiting consent.
 
-Runtime content uses whole native SDK messages. Pi and Claude decode deltas once at
+Runtime baselines use whole native SDK messages. Pi and Claude decode deltas once at
 the adapter source; Durable materializes committed native view revisions directly.
 Tool results and preliminary progress update the originating tool part, while activity
 and input outcomes remain separate facts within the same captured delivery. Concrete observations
 include aliases and live/history provenance with their content. Delivery modes and Durable commit
 revisions stay internal; consumers receive the captured body, input outcomes and completion facts.
 
-Pi Durable publishes proven native preview suffixes as `message.text-append`. The Main consumer applies the suffix to the targeted streaming part before projecting it. The attach and recovery baselines contain the accumulated text.
+Pi Durable publishes text and reasoning blocks as `message.text-open`, `message.text-append`, and `message.text-finish` when the native preview and committed block establish the change. Root and child owners resolve the native source to a stable part ID. The root saves a positioned block on completion. Attach and recovery baselines include the accumulated text and part IDs.
 
-Native `message.upsert` observations may carry `changedParts` indexes. The owner captures those changed parts and preserves accepted untouched parts; without a hint it captures the complete message. Metadata decorators retain those identities, so unrelated text growth does not revisit an accepted tool output. Tool replacements still pass through acceptance even when their stable tool-call identity is unchanged. The resulting compact renderer publication and detail invalidation follow [Execution Overlay](./execution-overlay.md#publication).
+Pi Durable publishes output-only previews and matching single-tool result receipts as `message.tool-output`. Root and child owners can forward the changed tool by `partId` using `part-put`. The child owner builds detail references and calculates result invalidation on the archive rows before grouping their parts into replies. The live owner serves the latest result until the archive accepts it.
 
-Input facts retain native input bindings without duplicating product reply identity. Initial baselines do not replay
-completion or charges; overflow recovery retains unseen control facts after their matching body.
+Adapters that receive cumulative native messages publish ordered `message.parts` edits for the affected source. Text and reasoning use `open`, `append` and `finish`. `put` carries a changed non-text part. Main preserves the accepted parts outside those positions. A source first appears through a baseline or `message.reconcile`, which also carries authoritative corrections, metadata changes and source aliases. Tool replacements pass through acceptance even when the stable tool-call identity is unchanged. The compact renderer publication and detail invalidation follow [Execution Overlay](./execution-overlay.md#publication).
+
+Pi and Pi Durable route text-only edit batches as ordered native part operations for roots and children. Opening a block carries its provider metadata. Their root facets capture runtime facts alongside the events selected by the feed. A generic batch containing a non-text replacement can reconcile the affected source. Before saving a continuation, the child owner drains the observations already published so the preceding answer keeps its place in the archive.
+
+Product input changes carry the submitted ID. Autonomous native work uses its native reference. The first baseline establishes the current view. Overflow recovery retains unseen control facts after their matching body.
 Main never fetches mutable alias state later or guesses whether a snapshot is live. Claude's
 package also owns permission denial, native archives and SDK invocation aggregation; its Main
 decorator retains only display metadata. Main still freezes pricing and owns usage attribution.
@@ -1086,16 +1094,11 @@ renderer. Parent parts retain task metadata and the navigation entry; they no lo
 carry child output. Foreground completion can continue the same child in the background.
 User stop still observes the shared ownership rules; closing a panel only detaches its subscriber.
 
-Child attachment waits for the shared root connection, then calls the concrete
-`openChild(toolCallId, signal?)`. The package owns pending creation and returns its stable creation
-origin, actual parent and access together. Main joins concurrent attachment through one child
-resource record. Failed creation or owner closure ends the wait; parent reply completion does not
-close independently running children. Failed attachment releases its lease and can retry, while
-failed final persistence retains the resource and its unflushed output. A finished child (idle
-with a run result and no input without an outcome) that no viewer subscribes to is flushed and
-released, keeping only its origin and context ID; opening its panel, messaging it or a native
-resume attaches it again. A detached or
-destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
+Opening a child panel reads a page of its product archive and subscribes to the active
+writer. A panel opened before creation receives a new baseline when the writer appears.
+A finished Durable child flushes and releases its native handle once its commands have
+drained, even with an open panel. Explicit input reopens its original context. Detached
+windows release their subscriptions. Archive reconciliation preserves product IDs
 and orders evidenced rows by committed native history followed by live content, correcting saved
 parent links when necessary; rows outside current native/live coverage remain retained in place.
 
@@ -1179,10 +1182,11 @@ Closing a connection emits `session_shutdown` before disposing the SDK session.
 
 ## Managed workspace relocation
 
-At startup, `AgentSessionRuntimeService` registers runtime drivers, repairs relocated
-system workspaces, then performs fork, crash-message, delivery, and native-session
-recovery. BeforeReady database initialization already precedes this WhenReady hook;
-relocation does not add a second lifecycle service or cross-phase dependencies.
+During initialization, `AgentSessionRuntimeService` registers the drivers, repairs relocated
+workspaces and fork operations, and settles interrupted Pi runs. The delivery service owns
+startup reconciliation of its queue. Once all services are ready, Main reads unresolved
+Durable replies from their original native stores and commits verified outcomes. Each
+marked backend with runnable work installs its writers before resuming its scheduler.
 
 `relocateSystemWorkspaces` owns the workspace repair and file publication journal.
 Each driver's `workspaceRelocation` capability owns its artifact allowlist, native
