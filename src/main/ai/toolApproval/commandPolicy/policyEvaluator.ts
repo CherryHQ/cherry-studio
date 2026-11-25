@@ -144,15 +144,12 @@ function appendSource(
 
     if (command.incomplete) analysis.diagnostics.push({ reason: 'incomplete-command', range: node.range })
 
-    if (command.inline?.code !== undefined && ['bash', 'powershell'].includes(command.inline.language))
+    if (
+      command.inline?.code !== undefined &&
+      (command.inline.language === 'bash' || command.inline.language === 'powershell')
+    )
       commands.push(
-        ...appendSource(
-          analysis,
-          command.inline.code,
-          command.inline.language as CommandDialect,
-          depth + 1,
-          command.inline.word.range
-        )
+        ...appendSource(analysis, command.inline.code, command.inline.language, depth + 1, command.inline.word.range)
       )
 
     // `find -exec` runs an argv of its own; give it a separate pipeline so it is not read as stdin.
@@ -344,7 +341,7 @@ function matchesDetector(
 }
 
 function applies(rule: CommandPolicyRule, role: string | undefined): boolean {
-  return !rule.appliesTo || (role !== undefined && (rule.appliesTo.builtinRoles as readonly string[]).includes(role))
+  return !rule.appliesTo || (role !== undefined && rule.appliesTo.builtinRoles.some((candidate) => candidate === role))
 }
 
 /** An unknown option before the subcommand matters only when a rule could select a word after it. */

@@ -34,7 +34,7 @@ const nativePopupMenuLocations = new Set([
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 const isCommandId = (value: unknown): value is CommandId =>
-  typeof value === 'string' && findCommandDefinition(value as CommandId) !== undefined
+  typeof value === 'string' && findCommandDefinition(value) !== undefined
 
 const isMenuAnchor = (value: unknown): value is MenuAnchor => {
   if (value === undefined) return true
