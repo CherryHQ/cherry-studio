@@ -119,6 +119,9 @@ vi.mock('electron', async () => {
       setFeedURL: vi.fn()
     }),
     BrowserWindow: vi.fn(),
+    nativeImage: {
+      createFromPath: vi.fn(() => ({}))
+    },
     dialog: {
       showErrorBox: vi.fn(),
       showMessageBox: vi.fn(),
