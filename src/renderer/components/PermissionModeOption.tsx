@@ -106,7 +106,7 @@ export function PermissionModeSelectItem({
     <SelectItem
       value={card.mode}
       className={cn(
-        'py-2 data-[state=checked]:bg-accent! data-[state=checked]:text-accent-foreground! [&_.lucide-check]:text-muted-foreground!',
+        '[&_.lucide-check]:text-muted-foreground! py-2 data-[state=checked]:bg-accent! data-[state=checked]:text-accent-foreground!',
         warning && 'pr-14 [&>span:first-child]:right-8!'
       )}>
       <div className="flex w-full min-w-0 items-center gap-2">
@@ -128,7 +128,7 @@ export function PermissionModeSelectItem({
       content={warning}
       side="right"
       sideOffset={8}
-      contentProps={{ portalContainer: portalContainer ?? undefined }}>
+      contentProps={{ portalContainer: portalContainer ?? undefined, className: 'data-[state=closed]:hidden' }}>
       {option}
     </NormalTooltip>
   ) : (
@@ -201,6 +201,9 @@ export function PermissionModeSelect({
   ariaLabel,
   scopeName,
   scopeKind = 'agent',
+  standalone = false,
+  compact = false,
+  triggerClassName,
   t
 }: {
   cards: PermissionModeCard[]
@@ -210,9 +213,26 @@ export function PermissionModeSelect({
   ariaLabel: string
   scopeName?: string
   scopeKind?: FullAccessScopeKind
+  /** Rendered outside a react-hook-form field, so the trigger skips the `FormControl` wiring. */
+  standalone?: boolean
+  /** Single-line options without descriptions, for a pill in a settings list. */
+  compact?: boolean
+  triggerClassName?: string
   t: TFunction
 }) {
   const selectedCard = cards.find((card) => card.mode === value)
+  const trigger = (
+    <SelectTrigger className={cn('h-9 w-full rounded-md', triggerClassName)} aria-label={ariaLabel}>
+      <SelectValue>
+        {selectedCard ? (
+          <span className={cn('flex min-w-0 items-center gap-2', selectedCard.dangerous && 'text-destructive')}>
+            <PermissionModeIcon mode={selectedCard.mode} size={16} />
+            <span className="truncate">{t(selectedCard.titleKey, selectedCard.titleFallback)}</span>
+          </span>
+        ) : null}
+      </SelectValue>
+    </SelectTrigger>
+  )
   const [fullAccessPending, setFullAccessPending] = useState(false)
 
   // Any newer mode (local or from another window) wins; confirming must never apply a stale dialog.
@@ -234,21 +254,16 @@ export function PermissionModeSelect({
           setFullAccessPending(false)
           onValueChange(next as PermissionMode)
         }}>
-        <FormControl>
-          <SelectTrigger className="h-9 w-full rounded-md" aria-label={ariaLabel}>
-            <SelectValue>
-              {selectedCard ? (
-                <span className={cn('flex min-w-0 items-center gap-2', selectedCard.dangerous && 'text-destructive')}>
-                  <PermissionModeIcon mode={selectedCard.mode} size={16} />
-                  <span className="truncate">{t(selectedCard.titleKey, selectedCard.titleFallback)}</span>
-                </span>
-              ) : null}
-            </SelectValue>
-          </SelectTrigger>
-        </FormControl>
-        <SelectContent portalContainer={portalContainer} className="min-w-[360px]">
+        {standalone ? trigger : <FormControl>{trigger}</FormControl>}
+        <SelectContent portalContainer={portalContainer} className={compact ? undefined : 'min-w-[360px]'}>
           {cards.map((card) => (
-            <PermissionModeSelectItem key={card.mode} card={card} portalContainer={portalContainer} t={t} />
+            <PermissionModeSelectItem
+              key={card.mode}
+              card={card}
+              compact={compact}
+              portalContainer={portalContainer}
+              t={t}
+            />
           ))}
         </SelectContent>
       </Select>
@@ -282,7 +297,7 @@ export function PermissionModeOptionLabel({
       <span
         className={cn(
           'truncate text-foreground',
-          withDescription ? 'font-medium text-sm' : 'font-normal text-[13px] leading-4',
+          withDescription ? 'text-sm font-medium' : 'text-[13px] leading-4 font-normal',
           card.dangerous && 'text-destructive'
         )}>
         {t(card.titleKey, card.titleFallback)}

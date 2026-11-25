@@ -9,6 +9,7 @@ import { getPiTraceContext } from '@main/ai/observability'
 import { isPiCompatibleModel, mapEndpointToPiApi } from '@shared/ai/piModelCompatibility'
 import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
 
@@ -25,7 +26,8 @@ export async function createPiGatewayModelBinding(
   provider: Provider,
   model: Model,
   onUsage?: (usage: Usage, nativeSessionId: string | undefined, responseId?: string) => void,
-  sharedModels?: ModelRuntime
+  sharedModels?: ModelRuntime,
+  onRetry?: (event: RetryPartData, nativeSessionId: string) => void
 ) {
   if (!isPiCompatibleModel(provider, model)) {
     throw new Error(`Provider "${provider.id}" cannot be routed through the internal gateway for pi agents`)
@@ -80,7 +82,6 @@ export async function createPiGatewayModelBinding(
         ...(provider.id === 'cherryin' && api === 'anthropic-messages' ? { compat: { allowEmptySignature: true } } : {})
       }
     ],
-    // Pi's session retry policy owns retries; neither gateway nor HTTP client retries a step.
     streamSimple: (model, context, options) => {
       // Native reasoning can enlarge per-call output caps before the gateway receives them.
       const stream = streamSimple(model, context, {
@@ -88,7 +89,10 @@ export async function createPiGatewayModelBinding(
         objectTransports: gateway.createAgentObjectTransports({
           ...input,
           headers: options?.headers,
-          traceContext: getPiTraceContext(options?.telemetry)
+          traceContext: getPiTraceContext(options?.telemetry),
+          onRetryEvent: (event) => {
+            if (options?.sessionId && !options.readOnlyFork) onRetry?.(event, options.sessionId)
+          }
         }),
         disableContinuation: true,
         reasoning: undefined,
@@ -108,5 +112,5 @@ export async function createPiGatewayModelBinding(
   await modelRuntime.setRuntimeApiKey(providerName, OBJECT_TRANSPORT_API_KEY)
   const registered = modelRuntime.getModel(providerName, modelId)
   if (!registered) throw new Error(`Pi gateway model ${modelId} was not registered`)
-  return { modelRuntime, model: registered }
+  return { modelRuntime, model: registered, ...(onRetry && { onRetry }) }
 }
