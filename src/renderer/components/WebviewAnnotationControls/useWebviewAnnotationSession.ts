@@ -119,17 +119,18 @@ interface ProvisionalNavigation {
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Guest webview messages are raw cross-context values; match snapshot-ready session and request strings before accepting the signal.
 const snapshotEnvelope = (value: unknown) => {
   if (!value || typeof value !== 'object') return null
-  const envelope = value as { type?: unknown; sessionId?: unknown; requestId?: unknown }
-
   if (
-    envelope.type !== 'snapshot_ready' ||
-    typeof envelope.sessionId !== 'string' ||
-    typeof envelope.requestId !== 'string'
+    !('type' in value) ||
+    value.type !== 'snapshot_ready' ||
+    !('sessionId' in value) ||
+    typeof value.sessionId !== 'string' ||
+    !('requestId' in value) ||
+    typeof value.requestId !== 'string'
   ) {
     return null
   }
 
-  return { sessionId: envelope.sessionId, requestId: envelope.requestId }
+  return { sessionId: value.sessionId, requestId: value.requestId }
 }
 
 export function useWebviewAnnotationSession({
