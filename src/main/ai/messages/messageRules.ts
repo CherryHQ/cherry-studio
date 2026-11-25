@@ -351,6 +351,7 @@ export async function toModelMessages(
   // blank-reasoning filter for other adapters, which can reject those blocks.
   const replayable = shaped.map((message) => {
     const parts = message.parts.filter((part) => {
+      if (message.role === 'assistant' && part.type === 'text') return part.text.trim().length > 0
       if (part.type !== 'reasoning' || part.text.trim().length > 0) return true
       return preserveEmptyAnthropicThinking || typeof part.providerMetadata?.anthropic?.signature !== 'string'
     })

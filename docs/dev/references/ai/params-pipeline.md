@@ -265,6 +265,10 @@ installed with the filtered body parameters; capturing them earlier would let
 body passthrough bypass the final capability check. Service tier values override
 custom body values, and SDK-produced fields override both.
 
+On Responses requests, a flat assistant custom parameter named
+`reasoning_effort` uses the SDK reasoning option. The SDK serializes it as
+`reasoning.effort`. Chat Completions retains its top-level request field.
+
 For an eligible HTTP Fast request, the final builder removes conflicting tier
 options from the selected SDK namespace and sends the provider-declared
 `service_tier` through the same body-passthrough path. This avoids adapter

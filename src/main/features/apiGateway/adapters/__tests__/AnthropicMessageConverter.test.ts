@@ -1,12 +1,12 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { asSchema } from 'ai'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { appendInternalAgentContinuation } from '../../utils/agentContinuation'
-import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
+import { AnthropicMessageConverter } from '../converters/AnthropicMessageConverter'
 
 const converter = new AnthropicMessageConverter()
 
@@ -300,7 +300,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
   it.each(['gemini:models/gemini-flash-latest', 'cherryin:gemini-flash-latest', 'gemini:gemini-3-pro-preview'])(
     'restores the cached thought signature for %s',
     (model) => {
-      const googleReasoningCache: ReasoningCache = { get: vi.fn(() => 'sig-abc'), set: vi.fn() }
+      const googleReasoningCache = new Map([['google-c4', 'sig-abc']])
       const c = new AnthropicMessageConverter({ googleReasoningCache })
       const msgs = c.toUIMessages(
         params({
@@ -310,7 +310,6 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
           ] as MessageCreateParams['messages']
         })
       )
-      expect(googleReasoningCache.get).toHaveBeenCalledWith('google-c4')
       expect((msgs[0].parts[0] as { callProviderMetadata?: unknown }).callProviderMetadata).toMatchObject({
         google: { thoughtSignature: 'sig-abc' }
       })
@@ -318,7 +317,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
   )
 
   it('leaves the google thought signature off a non-Gemini target', () => {
-    const googleReasoningCache: ReasoningCache = { get: vi.fn(() => 'sig-abc'), set: vi.fn() }
+    const googleReasoningCache = new Map([['google-c5', 'sig-abc']])
     const c = new AnthropicMessageConverter({ googleReasoningCache })
     const msgs = c.toUIMessages(
       params({
@@ -333,7 +332,7 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
 
   it('reconstructs OpenRouter reasoning_details onto the tool call from the cache', () => {
     const details = [{ type: 'reasoning.text', text: 'because' }]
-    const openRouterReasoningCache: ReasoningCache = { get: vi.fn(() => details), set: vi.fn() }
+    const openRouterReasoningCache = new Map([['openrouter-c3', details]])
     const c = new AnthropicMessageConverter({ openRouterReasoningCache })
     const msgs = c.toUIMessages(
       params({
@@ -342,7 +341,6 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
         ] as MessageCreateParams['messages']
       })
     )
-    expect(openRouterReasoningCache.get).toHaveBeenCalledWith('openrouter-c3')
     expect((msgs[0].parts[0] as { callProviderMetadata?: unknown }).callProviderMetadata).toMatchObject({
       openrouter: { reasoning_details: details }
     })

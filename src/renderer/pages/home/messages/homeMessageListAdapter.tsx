@@ -51,9 +51,10 @@ import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { isNonChatModel, isVisionModel } from '@shared/utils/model'
@@ -77,7 +78,7 @@ interface HomeMessageListParams {
   topic: Topic
   assistant?: Assistant
   messages: CherryUIMessage[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers?: MessageStreamingLayers
   isInitialLoading?: boolean
   isMessagesStale?: boolean
@@ -281,7 +282,7 @@ export function useHomeMessageListProviderValue({
     () => {
       const lastMessage = messageItems.findLast((message) => !message.isContextBoundary)
       if (lastMessage) {
-        const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
+        const parts = messagePartsAt(partsByMessageIdRef.current, lastMessage.id) ?? []
         const richContent = leafCapabilities.copyRichContent ? createComposerRichClipboardContentFromParts(parts) : null
         const text = getComposerTextFromParts(parts)
         const copyTask = richContent
@@ -465,7 +466,7 @@ export function useHomeMessageListProviderValue({
             toast.error(t('code_block.edit.save.failed.label'))
             return
           }
-          const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
+          const allParts = [...(messagePartsAt(partsByMessageIdRef.current, resolved.messageId) || [])]
           allParts[resolved.index] = {
             ...resolved.part,
             text: updatedText
@@ -537,7 +538,7 @@ export function useHomeMessageListProviderValue({
       const write = requireChatWrite('translateMessage')
       const isCurrentTranslation = () => translationAbortControllersRef.current.get(messageId) === controller
 
-      const currentParts = partsByMessageIdRef.current[messageId]
+      const currentParts = messagePartsAt(partsByMessageIdRef.current, messageId)
       if (!currentParts) {
         logger.error(`[createTranslationUpdater] cannot find parts for message: ${messageId}`)
         return null
@@ -621,7 +622,7 @@ export function useHomeMessageListProviderValue({
         // a superseding call will have set a new controller by now and
         // owns the current data-translation part.
         if (translationAbortControllersRef.current.get(messageId) === controller) {
-          const currentParts = partsByMessageIdRef.current[messageId]
+          const currentParts = messagePartsAt(partsByMessageIdRef.current, messageId)
           if (currentParts) {
             const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
             if (baseParts.length !== currentParts.length) {
@@ -652,7 +653,7 @@ export function useHomeMessageListProviderValue({
 
   const removeMessageTranslation = useCallback<NonNullable<MessageListActions['removeMessageTranslation']>>(
     async (messageId) => {
-      const currentParts = partsByMessageIdRef.current[messageId]
+      const currentParts = messagePartsAt(partsByMessageIdRef.current, messageId)
       if (!currentParts) return
       const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
       if (baseParts.length === currentParts.length) return
@@ -858,6 +859,11 @@ export function useHomeMessageListProviderValue({
     ]
   )
 
+  const openMcpApp = useCallback<NonNullable<MessageListActions['openMcpApp']>>(
+    (messageId, toolCallId, requestId) => ipcApi.request('mcp.app.open', { topicId, messageId, toolCallId, requestId }),
+    [topicId]
+  )
+
   const actions = useMemo<MessageListActions>(
     () => ({
       loadOlder,
@@ -877,6 +883,7 @@ export function useHomeMessageListProviderValue({
       openPath,
       openCitationsPanel,
       abortTool,
+      openMcpApp: normalInteractionsEnabled ? openMcpApp : undefined,
       ...selectionController.actions,
       updateMessageUiState: messageUiStateCache.updateMessageUiState,
       updateRenderConfig,
@@ -899,6 +906,7 @@ export function useHomeMessageListProviderValue({
       renderRegenerateModelPicker
     }),
     [
+      openMcpApp,
       abortTool,
       abortMessageTranslation,
       bindMessageGroupRuntime,

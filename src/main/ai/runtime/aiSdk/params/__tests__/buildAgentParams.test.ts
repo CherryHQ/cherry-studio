@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createOpenResponses } from '@ai-sdk/open-responses'
 import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
@@ -578,6 +579,55 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.options.providerOptions).not.toHaveProperty('google')
   })
 
+  it('sends a legacy assistant reasoning effort in the Responses request shape', async () => {
+    const url = 'https://api.test/v1/responses'
+    const requests: { url: string; body: Record<string, unknown> }[] = []
+    const fetchResponse: typeof globalThis.fetch = async (input, init) => {
+      requests.push({ url: String(input), body: JSON.parse(String(init?.body)) })
+      return new Response('data: [DONE]\n\n', { headers: { 'content-type': 'text/event-stream' } })
+    }
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'open-responses',
+        providerSettings: { url, name: 'openai', apiKey: 'sk-test', fetch: fetchResponse }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    })
+    const provider = makeProvider({
+      id: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'open-responses' } }
+    })
+    const model = makeModel({
+      id: 'openai::gpt-6.1-sol',
+      providerId: 'openai',
+      apiModelId: 'gpt-6.1-sol',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+    })
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant: makeAssistant({
+        settings: {
+          customParameters: [{ name: 'reasoning_effort', type: 'json', value: '"high"' }]
+        }
+      })
+    })
+    const { stream } = await createOpenResponses(
+      result.sdkConfig.providerSettings as Parameters<typeof createOpenResponses>[0]
+    )(result.sdkConfig.modelId).doStream({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+      providerOptions: result.options.providerOptions
+    })
+    await stream.cancel()
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({ url, body: { reasoning: { effort: 'high' } } })
+    expect(requests[0].body).not.toHaveProperty('reasoning_effort')
+  })
+
   it.each([
     { value: 'auto', withTools: false, expected: undefined },
     { value: 'auto', withTools: true, expected: { type: 'auto' } },
@@ -789,6 +839,7 @@ describe('buildAgentParams provider resolution', () => {
 
   it('preserves assistant custom parameters unchanged in the final provider request body', async () => {
     const firstCustomParameters = [
+      { name: 'reasoning_effort', type: 'json' as const, value: '"high"' },
       { name: 'tool_choice', type: 'json' as const, value: '"auto"' },
       { name: 'enable_search', type: 'json' as const, value: 'true' },
       {
