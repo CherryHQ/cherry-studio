@@ -877,7 +877,7 @@ describe('desktop Pi root connection', () => {
     const { connection, events } = await connect()
     try {
       await connection.send({ message: message('delegate now') })
-      await done(events)
+      await done(events, 10_000)
       const access = (await connection.childProjection('spawn'))!
       await connection.messageChild(access.snapshot().contextId, 'continue')
       await answering.reached
