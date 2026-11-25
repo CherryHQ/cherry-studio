@@ -52,6 +52,7 @@ import {
   parseScheduleDate,
   parseTimes,
   preserveCompatibleTriggerMetadata,
+  SCHEDULE_KINDS,
   scheduleForKind,
   scheduleInputsEqual,
   type ScheduleFormState,
@@ -94,19 +95,16 @@ export type ChannelInfo = {
 }
 
 export function toChannelInfo(channel: AgentChannelEntity): ChannelInfo {
-  // Config keys are snake_case in the channel config schemas; only some channel
-  // types carry allowed_channel_ids, hence the narrow local view of the union.
-  const config = channel.config as { allowed_chat_ids?: string[]; allowed_channel_ids?: string[] } | undefined
+  const config = channel.config
+  const chatCount = 'allowed_chat_ids' in config ? (config.allowed_chat_ids?.length ?? 0) : 0
+  const channelCount = 'allowed_channel_ids' in config ? (config.allowed_channel_ids?.length ?? 0) : 0
 
   return {
     id: channel.id,
     agentId: channel.agentId ?? null,
     name: channel.name || channel.type,
     isActive: channel.isActive,
-    hasActiveChatIds:
-      (config?.allowed_chat_ids?.length ?? 0) > 0 ||
-      (config?.allowed_channel_ids?.length ?? 0) > 0 ||
-      (channel.activeChatIds?.length ?? 0) > 0
+    hasActiveChatIds: chatCount > 0 || channelCount > 0 || (channel.activeChatIds?.length ?? 0) > 0
   }
 }
 
@@ -301,7 +299,14 @@ const TaskScheduleControls: FC<{
       <Field data-invalid={invalid || undefined}>
         <FieldLabel htmlFor={`${id}-kind`}>{t('agent.tasks.frequency.label')}</FieldLabel>
         <RowFlex className="flex-wrap items-center gap-3">
-          <Select value={value.kind} disabled={disabled} onValueChange={(kind) => updateKind(kind as ScheduleKind)}>
+          <Select
+            value={value.kind}
+            disabled={disabled}
+            onValueChange={(next) => {
+              const kind = SCHEDULE_KINDS.find((candidate) => candidate === next)
+
+              if (kind !== undefined) updateKind(kind)
+            }}>
             <SelectTrigger id={`${id}-kind`} aria-invalid={invalid || undefined}>
               <SelectValue />
             </SelectTrigger>

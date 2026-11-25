@@ -5,7 +5,8 @@ import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 
-export type ScheduleKind = 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'interval' | 'once' | 'cron'
+export const SCHEDULE_KINDS = ['hourly', 'daily', 'weekdays', 'weekly', 'interval', 'once', 'cron'] as const
+export type ScheduleKind = (typeof SCHEDULE_KINDS)[number]
 
 export type ScheduleFormState = {
   kind: ScheduleKind
