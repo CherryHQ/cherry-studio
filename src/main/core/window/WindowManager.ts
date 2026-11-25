@@ -196,23 +196,26 @@ export class WindowManager extends BaseService {
    */
   protected override onAllReady(): void {
     for (const [type, metadata] of Object.entries(WINDOW_TYPE_REGISTRY)) {
+      // SAFETY: This module-owned registry is keyed by WindowType; Object.entries widens its keys to string.
+      const windowType = type as WindowType
+
       if (metadata.lifecycle === 'pooled') {
-        this.validatePoolConfig(type as WindowType, metadata.poolConfig)
+        this.validatePoolConfig(windowType, metadata.poolConfig)
         const warmup = metadata.poolConfig.warmup ?? defaultWarmup(metadata.poolConfig)
 
         if (warmup !== 'eager') continue
-        const state = this.warmupStates.get(type as WindowType)
+        const state = this.warmupStates.get(windowType)
 
         if (state?.suspended) continue
-        this.warmPool(type as WindowType, metadata.poolConfig)
+        this.warmPool(windowType, metadata.poolConfig)
         continue
       }
 
       if (metadata.lifecycle === 'singleton' && metadata.singletonConfig) {
-        const validated = this.validateSingletonConfig(type as WindowType, metadata.singletonConfig)
+        const validated = this.validateSingletonConfig(windowType, metadata.singletonConfig)
 
         if (validated.warmup === 'eager') {
-          this.warmSingleton(type as WindowType, validated)
+          this.warmSingleton(windowType, validated)
         }
       }
     }
