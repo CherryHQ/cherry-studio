@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from 'node:util'
 
 import { isDataUIPart, isToolUIPart, type UIMessageChunk } from 'ai'
 import { omit } from 'es-toolkit'
+import { v7 as uuidv7 } from 'uuid'
 
 import {
   agentSessionContextService as contexts,
@@ -13,7 +14,21 @@ import { dropEmptyContentParts, finalizeInterruptedParts, stripTransientStatusPa
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
-type Source = { messageId: string; parts: CherryUIMessage['parts'] }
+type Part = CherryUIMessage['parts'][number]
+/** `ids` parallels `parts`: a native source carries no part IDs, so its position maps to one. */
+type Source = { messageId: string; parts: CherryUIMessage['parts']; ids: string[] }
+type Entry = { id: string; part: Part }
+
+const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', 'output-error', 'output-denied'])
+
+/** A part reaches its own semantic completion independently of the reply that contains it. */
+function isPartDone(part: Part): boolean {
+  if (part.type === 'text' || part.type === 'reasoning') return part.state !== 'streaming' && part.text.trim() !== ''
+  if (isToolUIPart(part))
+    return TERMINAL_TOOL_STATES.has(part.state) && !(part.state === 'output-available' && part.preliminary)
+  if (part.type === 'data-agent-task-event') return part.data.status !== 'in_progress'
+  return part.type !== 'data-retry'
+}
 
 /** Groups native sources into product replies; selected model context never deletes retained sources. */
 export class RootMessageProjection {
@@ -22,7 +37,9 @@ export class RootMessageProjection {
   private readonly sources = new Map<string, Source>()
   private readonly replySources = new Map<string, Set<string>>()
   private readonly removed = new Set<string>()
-  private readonly extras = new Map<string, CherryUIMessage['parts']>()
+  private readonly extras = new Map<string, Entry[]>()
+  private readonly toolIds = new Map<string, string>()
+  private readonly saved = new Map<string, Part>()
   private readonly pendingTools = new Map<
     string,
     { messageId: string; input?: Extract<UIMessageChunk, { type: 'tool-input-available' }>; approvalId?: string }
@@ -39,7 +56,7 @@ export class RootMessageProjection {
     const context = contexts.context(contextId)
     const saved = context.checkpointMapping?.root
     for (const id of saved?.removed ?? []) this.removed.add(id)
-    const bodies = new Map<string, CherryUIMessage['parts']>()
+    const bodies = new Map<string, { parts: CherryUIMessage['parts']; ids: string[] }>()
     const missing = new Set<string>()
     const ranges = new Map<string, { offset: number; count: number }[]>()
     for (const [id, range] of Object.entries(saved?.sources ?? {})) {
@@ -47,16 +64,16 @@ export class RootMessageProjection {
         this.removed.add(id)
         continue
       }
-      let parts = bodies.get(range.messageId)
-      if (!parts) {
+      let body = bodies.get(range.messageId)
+      if (!body) {
         if (!messages.hasSessionMessage(context.sessionId, range.messageId)) {
           missing.add(range.messageId)
           this.removed.add(id)
           continue
         }
-        parts = messages.getSessionMessage(context.sessionId, range.messageId).data.parts ?? []
-        bodies.set(range.messageId, parts)
-        for (const part of parts) {
+        body = messages.getSessionMessageBody(context.sessionId, range.messageId)
+        bodies.set(range.messageId, body)
+        for (const part of body.parts) {
           if (
             part.type === 'data-agent-task-event' &&
             part.data.toolUseId &&
@@ -69,18 +86,28 @@ export class RootMessageProjection {
             this.approvals.set(part.toolCallId, part.approval)
         }
       }
-      this.sources.set(id, { messageId: range.messageId, parts: parts.slice(range.offset, range.offset + range.count) })
+      const end = range.offset + range.count
+      this.sources.set(id, {
+        messageId: range.messageId,
+        parts: body.parts.slice(range.offset, end),
+        ids: body.ids.slice(range.offset, end)
+      })
       const owned = ranges.get(range.messageId) ?? []
       owned.push(range)
       ranges.set(range.messageId, owned)
     }
     this.indexSources()
-    for (const [messageId, parts] of bodies) {
+    for (const [messageId, body] of bodies) {
+      body.parts.forEach((part, index) => {
+        if (isToolUIPart(part)) this.toolIds.set(part.toolCallId, body.ids[index])
+        this.saved.set(body.ids[index], part)
+      })
       this.extras.set(
         messageId,
-        parts.filter(
-          (_, index) =>
-            !ranges.get(messageId)!.some((range) => index >= range.offset && index < range.offset + range.count)
+        body.parts.flatMap((part, index) =>
+          ranges.get(messageId)!.some((range) => index >= range.offset && index < range.offset + range.count)
+            ? []
+            : [{ id: body.ids[index], part }]
         )
       )
     }
@@ -102,12 +129,13 @@ export class RootMessageProjection {
       if (owners.size !== 1 || !message) continue
       const owner = owners.values().next().value!
       const first = old[0]
+      const previous = {
+        parts: old.flatMap((key) => this.sources.get(key)!.parts),
+        ids: old.flatMap((key) => this.sources.get(key)!.ids)
+      }
+      const merged = { messageId: owner, parts: message.parts, ids: this.sourceIds(previous, message.parts) }
       const ordered = [...this.sources].flatMap(([key, value]) =>
-        key === first
-          ? [[id, { messageId: owner, parts: message.parts }] as const]
-          : old.includes(key)
-            ? []
-            : [[key, value] as const]
+        key === first ? [[id, merged] as const] : old.includes(key) ? [] : [[key, value] as const]
       )
       this.sources.clear()
       for (const [key, value] of ordered) this.sources.set(key, value)
@@ -154,13 +182,19 @@ export class RootMessageProjection {
         message.parts.some((part, index) => part !== previous.parts[index])
       )
         changed.add(owner)
-      this.sources.set(message.id, { messageId: owner, parts: message.parts.slice() })
+      this.sources.set(message.id, {
+        messageId: owner,
+        parts: message.parts.slice(),
+        ids: this.sourceIds(previous, message.parts)
+      })
       for (const part of message.parts) {
         if (!isToolUIPart(part)) continue
         if (part.state.startsWith('output-')) this.pendingTools.delete(part.toolCallId)
         this.extras.set(
           owner,
-          this.extras.get(owner)!.filter((extra) => !isToolUIPart(extra) || extra.toolCallId !== part.toolCallId)
+          this.extras
+            .get(owner)!
+            .filter(({ part: extra }) => !isToolUIPart(extra) || extra.toolCallId !== part.toolCallId)
         )
       }
       const sources = this.replySources.get(owner) ?? new Set<string>()
@@ -171,11 +205,7 @@ export class RootMessageProjection {
   }
 
   parts(messageId: string): CherryUIMessage['parts'] | undefined {
-    const sources = [...(this.replySources.get(messageId) ?? [])].map((id) => this.sources.get(id)!)
-    if (!sources.length && !this.extras.has(messageId)) return undefined
-    const parts = sources.flatMap((source) => source.parts).map((part) => this.decorate(part))
-    const extras = (this.extras.get(messageId) ?? []).map((part) => this.decorateExtra(part))
-    return [...parts, ...this.pendingParts(messageId, [...parts, ...extras]), ...extras]
+    return this.entries(messageId)?.map((entry) => entry.part)
   }
 
   private decorateExtra(part: CherryUIMessage['parts'][number]): CherryUIMessage['parts'][number] {
@@ -196,7 +226,7 @@ export class RootMessageProjection {
       )?.messageId ??
       this.pendingTools.get(toolCallId)?.messageId ??
       [...this.extras].find(([, parts]) =>
-        parts.some((part) => isToolUIPart(part) && part.toolCallId === toolCallId)
+        parts.some(({ part }) => isToolUIPart(part) && part.toolCallId === toolCallId)
       )?.[0]
     )
   }
@@ -206,8 +236,75 @@ export class RootMessageProjection {
     return [...this.sources.values()].at(-1)?.messageId
   }
 
-  private pendingParts(messageId: string, sources: CherryUIMessage['parts']): CherryUIMessage['parts'] {
-    const parts: CherryUIMessage['parts'] = []
+  /** Stable part IDs parallel to `parts(messageId)`. */
+  partIds(messageId: string): string[] | undefined {
+    return this.entries(messageId)?.map((entry) => entry.id)
+  }
+
+  /** Completed parts whose content differs from their last save, with the reply's current part order. */
+  completions(messageId: string): { order: string[]; parts: Map<string, Part> } | undefined {
+    const entries = this.entries(messageId)
+    if (!entries) return undefined
+    const parts = new Map<string, Part>()
+    for (const { id, part } of entries) {
+      const saved = this.saved.get(id)
+      if (isPartDone(part) && saved !== part && !isDeepStrictEqual(saved, part)) parts.set(id, part)
+    }
+    return { order: entries.map((entry) => entry.id), parts }
+  }
+
+  /** Records parts committed by a completion save so unchanged parts are not written again. */
+  committed(parts: ReadonlyMap<string, Part>): void {
+    for (const [id, part] of parts) this.saved.set(id, part)
+  }
+
+  private entries(messageId: string): Entry[] | undefined {
+    this.syncRemoved()
+    const sources = [...(this.replySources.get(messageId) ?? [])].map((id) => this.sources.get(id)!)
+    if (!sources.length && !this.extras.has(messageId)) return undefined
+    const entries = sources.flatMap((source) =>
+      source.parts.map((part, index) => ({ id: source.ids[index], part: this.decorate(part) }))
+    )
+    const extras = (this.extras.get(messageId) ?? []).map((entry) => ({
+      ...entry,
+      part: this.decorateExtra(entry.part)
+    }))
+    return [...entries, ...this.pendingParts(messageId, [...entries, ...extras]), ...extras]
+  }
+
+  private sourceIds(previous: Pick<Source, 'parts' | 'ids'> | undefined, parts: CherryUIMessage['parts']): string[] {
+    let dataIds: Map<string, string> | undefined
+    return parts.map((part, index) => {
+      if (isToolUIPart(part)) return this.toolId(part.toolCallId)
+      if (isDataUIPart(part) && part.id !== undefined) {
+        if (!dataIds) {
+          const previousDataIds = new Map<string, string>()
+          previous?.parts.forEach((before, at) => {
+            if (isDataUIPart(before) && before.id !== undefined)
+              previousDataIds.set(JSON.stringify([before.type, before.id]), previous.ids[at])
+          })
+          dataIds = previousDataIds
+        }
+        return dataIds.get(JSON.stringify([part.type, part.id])) ?? uuidv7()
+      }
+      const before = previous?.parts[index]
+      return before &&
+        !isToolUIPart(before) &&
+        before.type === part.type &&
+        (!isDataUIPart(before) || before.id === undefined)
+        ? previous.ids[index]
+        : uuidv7()
+    })
+  }
+
+  private toolId(toolCallId: string): string {
+    let id = this.toolIds.get(toolCallId)
+    if (!id) this.toolIds.set(toolCallId, (id = uuidv7()))
+    return id
+  }
+
+  private pendingParts(messageId: string, sources: readonly Entry[]): Entry[] {
+    const entries: Entry[] = []
     for (const [toolCallId, pending] of this.pendingTools) {
       if (
         pending.messageId !== messageId ||
@@ -215,9 +312,10 @@ export class RootMessageProjection {
         (!pending.approvalId && !this.retiredToolApprovals.has(toolCallId))
       )
         continue
-      if (sources.some((part) => isToolUIPart(part) && part.toolCallId === toolCallId)) continue
-      parts.push(
-        this.decorate({
+      if (sources.some(({ part }) => isToolUIPart(part) && part.toolCallId === toolCallId)) continue
+      entries.push({
+        id: this.toolId(toolCallId),
+        part: this.decorate({
           type: 'dynamic-tool',
           toolCallId,
           toolName: pending.input.toolName,
@@ -228,9 +326,9 @@ export class RootMessageProjection {
             ? { state: 'approval-requested' as const, approval: { id: pending.approvalId } }
             : { state: 'input-available' as const })
         })
-      )
+      })
     }
-    return parts
+    return entries
   }
 
   control(messageId: string, control: UIMessageChunk): void {
@@ -243,14 +341,14 @@ export class RootMessageProjection {
           messageId,
           this.extras
             .get(messageId)!
-            .map((part) =>
-              isToolUIPart(part) &&
-              part.toolCallId === chunk.toolCallId &&
-              part.state !== 'output-available' &&
-              part.state !== 'output-error' &&
-              part.state !== 'output-denied'
-                ? { ...part, state: 'approval-requested', approval: { id: chunk.approvalId } }
-                : part
+            .map((entry) =>
+              isToolUIPart(entry.part) &&
+              entry.part.toolCallId === chunk.toolCallId &&
+              entry.part.state !== 'output-available' &&
+              entry.part.state !== 'output-error' &&
+              entry.part.state !== 'output-denied'
+                ? { ...entry, part: { ...entry.part, state: 'approval-requested', approval: { id: chunk.approvalId } } }
+                : entry
             )
         )
       }
@@ -263,11 +361,10 @@ export class RootMessageProjection {
       const part = chunk as Extract<CherryUIMessageChunk, { type: `data-${string}` }>
       if (part.transient) return
       const extras = this.extras.get(messageId)!
+      const same = (previous: Part) => isDataUIPart(previous) && previous.type === part.type && previous.id === part.id
       this.extras.set(messageId, [
-        ...extras.filter(
-          (previous) => !isDataUIPart(previous) || previous.type !== part.type || previous.id !== part.id
-        ),
-        part
+        ...extras.filter((previous) => !same(previous.part)),
+        { id: extras.find((previous) => same(previous.part))?.id ?? uuidv7(), part }
       ])
     }
   }
@@ -336,11 +433,12 @@ export class RootMessageProjection {
       id: `task-${data.taskId}`,
       data: omit(data, ['summary', 'prompt', 'outputFile'])
     }
-    const previous = extras.find((part) => part.type === next.type && part.data.taskId === data.taskId)
-    if (isDeepStrictEqual(previous, next)) return undefined
+    const same = ({ part }: Entry) => part.type === next.type && part.data.taskId === data.taskId
+    const previous = extras.find(same)
+    if (isDeepStrictEqual(previous?.part, next)) return undefined
     this.extras.set(messageId, [
-      ...extras.filter((part) => part.type !== next.type || part.data.taskId !== data.taskId),
-      next
+      ...extras.filter((entry) => !same(entry)),
+      { id: previous?.id ?? uuidv7(), part: next }
     ])
     return { messageId, parts: this.parts(messageId)! }
   }
@@ -350,14 +448,30 @@ export class RootMessageProjection {
     for (const part of message.parts) {
       if (part.type === 'data-error') this.control(message.id, part)
     }
-    const normalize = (parts: CherryUIMessage['parts']) =>
-      finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(parts)), status)
-    const sourceParts = [...(this.replySources.get(message.id) ?? [])].flatMap((id) => this.sources.get(id)!.parts)
-    const extras = (this.extras.get(message.id) ?? []).map((part) => this.decorateExtra(part))
-    const pending = this.pendingParts(message.id, [...sourceParts, ...extras])
+    // Each normalizer keeps, drops or rewrites one part at a time, so IDs follow their own part.
+    const normalize = (entries: readonly Entry[]) =>
+      entries.flatMap(({ id, part }) =>
+        finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts([part])), status).map((next) => ({
+          id,
+          part: next
+        }))
+      )
+    const sourceEntries = [...(this.replySources.get(message.id) ?? [])].flatMap((id) => {
+      const source = this.sources.get(id)!
+      return source.parts.map((part, index) => ({ id: source.ids[index], part }))
+    })
+    const extras = (this.extras.get(message.id) ?? []).map((entry) => ({
+      ...entry,
+      part: this.decorateExtra(entry.part)
+    }))
+    const pending = this.pendingParts(message.id, [...sourceEntries, ...extras])
     for (const id of this.replySources.get(message.id) ?? []) {
       const source = this.sources.get(id)!
-      source.parts = normalize(source.parts.map((part) => this.decorate(part)))
+      const entries = normalize(
+        source.parts.map((part, index) => ({ id: source.ids[index], part: this.decorate(part) }))
+      )
+      source.parts = entries.map((entry) => entry.part)
+      source.ids = entries.map((entry) => entry.id)
     }
     this.extras.set(message.id, normalize([...pending, ...extras]))
     for (const [id, tool] of this.pendingTools) if (tool.messageId === message.id) this.pendingTools.delete(id)
