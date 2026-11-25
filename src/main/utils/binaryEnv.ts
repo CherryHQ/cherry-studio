@@ -49,7 +49,8 @@ export function dedupePathSegments(segments: string[]): string[] {
  * drive root, and on POSIX an empty result would mean `/`.
  */
 function canonicalPathSegment(segment: string): string {
-  const normalized = isWin ? path.normalize(segment).toLowerCase() : path.normalize(segment)
+  const unquoted = isWin ? segment.trim().replace(/^"(.*)"$/u, '$1') : segment.trim()
+  const normalized = isWin ? path.normalize(unquoted).toLowerCase() : path.normalize(unquoted)
   // Strip only the platform's own trailing separator. On POSIX a backslash is an
   // ordinary filename character, so `/usr/bin\` must stay distinct from `/usr/bin`
   // rather than being collapsed into it by the trailing-separator rule.
@@ -156,11 +157,7 @@ function mergePathEntries(
   // shadow the merged value when the child process spawns.
   const pathLikeKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
-  const normalize = (value: string) => {
-    const normalized = path.normalize(value)
-    return isWin ? normalized.toLowerCase() : normalized
-  }
-  const excluded = new Set(excludedEntries.map(normalize))
+  const excluded = new Set(excludedEntries.map(canonicalPathSegment))
   // Prefixes, retained caller PATH, then suffixes — deduped with first occurrence
   // winning. Explicit exclusions are removed from the caller PATH as well as from
   // either injected side.
@@ -169,7 +166,7 @@ function mergePathEntries(
     ...pathLikeKeys.flatMap((key) => (env[key] || '').split(pathSeparator)),
     ...suffixes
   ])
-    .filter((entry) => !excluded.has(normalize(entry)))
+    .filter((entry) => !excluded.has(canonicalPathSegment(entry)))
     .join(pathSeparator)
   const merged = { ...env }
   for (const key of pathLikeKeys) delete merged[key]

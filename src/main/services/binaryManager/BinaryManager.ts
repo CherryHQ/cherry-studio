@@ -23,7 +23,7 @@ import {
 } from '@main/utils/binaryEnv'
 import { getBinaryName, isManagedBinaryPath } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
-import { isOutsidePath } from '@main/utils/file'
+import { isOutsidePath, isSameOrInside } from '@main/utils/file'
 import { CHINA_PIP_INDEXES, OFFICIAL_PIP_INDEX, CHINA_NPM_REGISTRY } from '@main/utils/packageRegistry'
 import { getInteractiveShellEnv, getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import { LOCAL_AGENT_PRESETS } from '@shared/ai/localAgent'
@@ -497,10 +497,14 @@ export class BinaryManager extends BaseService {
       application.getPath('cherry.bin'),
       application.getPath('feature.binary.data')
     ]
+    const stripPathQuotes = (value: string) => (isWin ? value.trim().replace(/^"(.*)"$/u, '$1') : value.trim())
     const excluded = Object.entries(rawShellEnv)
       .filter(([key]) => key.toLowerCase() === 'path')
       .flatMap(([, value]) => value.split(isWin ? ';' : path.delimiter))
-      .filter((entry) => entry && cherryDirs.some((root) => !isOutsidePath(path.relative(root, entry))))
+      .filter((entry) => {
+        const candidate = stripPathQuotes(entry)
+        return candidate && cherryDirs.some((root) => isSameOrInside(candidate, root))
+      })
     const shellEnv = mergePathSuffixes(rawShellEnv, [], excluded)
 
     const entries = await Promise.all(
@@ -513,7 +517,7 @@ export class BinaryManager extends BaseService {
             : await findCommandInShellEnv(name, env)
           if (!resolved || skipped.has(resolved)) break
           if (!agentCommands.has(name)) {
-            return cherryDirs.some((dir) => !isOutsidePath(path.relative(dir, resolved))) ? null : [name, resolved]
+            return cherryDirs.some((dir) => isSameOrInside(resolved, dir)) ? null : [name, resolved]
           }
           if (!(await isManagedBinaryPath(resolved, cherryDirs))) return [name, resolved]
           skipped.add(resolved)

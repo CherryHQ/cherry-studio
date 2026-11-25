@@ -141,7 +141,7 @@ if (command === 'use') {
       fs.writeFileSync(path.join(systemDir, name), '', { mode: 0o755 })
       fs.symlinkSync(managed, path.join(aliasDir, name))
     }
-    shellEnvRef.current = { PATH: [aliasDir, systemDir].join(path.delimiter) }
+    shellEnvRef.current = { PATH: [`${aliasDir}${path.sep}`, systemDir].join(path.delimiter) }
     vi.mocked(application.getPath).mockImplementation((key, filename) =>
       path.join(key === 'feature.binary.data' ? legacy : path.join(tempDir, key), filename ?? '')
     )
