@@ -59,12 +59,16 @@ export function registerAgentMethods(
   hub: RemoteAgentHub,
   subscriptions: AgentSubscriptions
 ): void {
+  // oxlint-disable-next-line anti-slop/no-known-value-widening -- The mapped view checks every schema pair while preserving its method-key association for generic RPC registration.
+  const methodSchemas: {
+    [M in AgentMethod]: Parameters<typeof rpc.addMethod<AgentParams<M>, AgentResult<M>>>[1]
+  } = agentMethods
+
   const on = <M extends AgentMethod>(
     name: M,
     handler: (params: AgentParams<M>, auth: Auth) => AgentResult<M> | Promise<AgentResult<M>>
   ) => {
-    // SAFETY: The same method key selects the protocol schemas and handler; addMethod parses both params and results.
-    const schema = agentMethods[name] as Parameters<typeof rpc.addMethod<AgentParams<M>, AgentResult<M>>>[1]
+    const schema = methodSchemas[name]
 
     return rpc.addMethod<AgentParams<M>, AgentResult<M>>(name, schema, (params) =>
       Promise.resolve().then(() => handler(params, access.requireAgent()))
