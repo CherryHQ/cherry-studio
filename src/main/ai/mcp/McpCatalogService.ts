@@ -6,14 +6,13 @@ import { loggerService } from '@logger'
 import { withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
 import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
-const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}`
+const mcpToolsCacheKey = (serverId: string): `mcp.tools.${string}` => `mcp.tools.${serverId}`
 const failedToolsBackoffKey = (serverId: string) => `mcp:tools-failed-backoff:${serverId}`
 const PREWARM_CONCURRENCY = 3
 const FAILED_TOOLS_RETRY_MS = 30 * 1000
@@ -94,7 +93,7 @@ export class McpCatalogService extends BaseService {
     this.projectionRevisions.set(serverId, (this.projectionRevisions.get(serverId) ?? 0) + 1)
     const cacheService = application.get('CacheService')
     const cacheKey = mcpToolsCacheKey(serverId)
-    const previous = cacheService.getShared(cacheKey) as McpTool[] | undefined
+    const previous = cacheService.getShared(cacheKey)
     cacheService.setShared(cacheKey, tools)
 
     if (failureBackoffMs > 0) {
@@ -195,7 +194,7 @@ export class McpCatalogService extends BaseService {
    * the next one.
    */
   public listTools(serverId: string, options: ListToolsOptions = {}): McpTool[] {
-    const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId)) as McpTool[] | undefined
+    const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId))
 
     // `undefined` = never warmed (distinct from a warmed-but-empty/dead server that holds `[]`).
     // Kick a one-shot, non-blocking refresh so the next read is populated; dead servers keep
@@ -218,7 +217,7 @@ export class McpCatalogService extends BaseService {
 
   /** Fill an empty snapshot; list_changed keeps a populated one fresh, and failed reads back off. */
   public async warmToolsCache(serverId: string): Promise<void> {
-    const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId)) as McpTool[] | undefined
+    const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId))
 
     if (cached !== undefined && cached.length > 0) return
 
