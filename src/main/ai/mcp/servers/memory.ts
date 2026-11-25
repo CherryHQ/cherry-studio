@@ -103,7 +103,7 @@ class KnowledgeGraphManager {
       graph.entities.forEach((entity) => this.entities.set(entity.name, entity))
       graph.relations.forEach((relation) => this.relations.add(this._serializeRelation(relation)))
     } catch (error) {
-      if (error instanceof Error && 'code' in error && (error as any).code === 'ENOENT') {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         // File doesn't exist (should have been created by _ensureMemoryPathExists, but handle defensively)
         this.entities = new Map()
         this.relations = new Set()
@@ -148,6 +148,7 @@ class KnowledgeGraphManager {
 
   // Helper to deserialize relations from Set storage
   private _deserializeRelation(relationStr: string): Relation {
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Legacy disk graphs are not shape-decoded; serialized relation fields retain that historical compatibility boundary.
     return JSON.parse(relationStr) as Relation
   }
 
