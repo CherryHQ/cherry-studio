@@ -81,6 +81,9 @@ export function useMessageTurnFocus({ turns, getMessageParts, scrollToTurn, rese
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (!focusedTurnKey || event.nativeEvent.isComposing) return
+    // React bubbles events from portals (e.g. a Grid preview) through the React tree even though
+    // their DOM lives outside the list, so only handle keys whose target is inside the surface.
+    if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return
     if (event.target instanceof Element && event.target.closest(INTERACTIVE_TARGET_SELECTOR)) return
 
     if (event.key === 'Escape') {
@@ -91,7 +94,9 @@ export function useMessageTurnFocus({ turns, getMessageParts, scrollToTurn, rese
     }
   }
 
-  const handleFocus = useCallback(() => setSurfaceFocused(true), [])
+  const handleFocus = useCallback((event: FocusEvent<HTMLElement>) => {
+    if (event.target instanceof Node && event.currentTarget.contains(event.target)) setSurfaceFocused(true)
+  }, [])
   const handleBlur = useCallback((event: FocusEvent<HTMLElement>) => {
     if (!event.currentTarget.contains(event.relatedTarget)) setSurfaceFocused(false)
   }, [])
