@@ -26,7 +26,7 @@ import * as z from 'zod'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
-import type { KnowledgeBaseDiscoveryScope } from '@main/features/knowledge/types'
+import type { KnowledgeBaseDiscoveryScope } from '@main/features/knowledge'
 import type {
   KbGrepOutput,
   KbListInput,

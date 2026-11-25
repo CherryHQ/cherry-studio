@@ -1,5 +1,5 @@
 import { Document, FileReader, type Metadata } from '@vectorstores/core'
-import { z } from 'zod'
+import * as z from 'zod'
 
 export class DraftsExportReader extends FileReader<Document<Metadata>> {
   async loadDataAsContent(fileContent: Uint8Array): Promise<Document<Metadata>[]> {

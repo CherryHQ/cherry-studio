@@ -1,6 +1,6 @@
 /** Keyboard relay between a webview guest and its host window. */
 
-import { z } from 'zod'
+import * as z from 'zod'
 
 import {
   canonicalTriggerToken,

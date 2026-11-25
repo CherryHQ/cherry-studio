@@ -1,6 +1,6 @@
 import { net } from 'electron'
 import { valid as semverValid } from 'semver'
-import { z } from 'zod'
+import * as z from 'zod'
 
 const PACKAGE_NAME = '@anthropic-ai/claude-code-win32-arm64'
 

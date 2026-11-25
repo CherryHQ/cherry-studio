@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 
 import { app } from 'electron'
-import { z } from 'zod'
+import * as z from 'zod'
 
 import { application } from '@application'
 import type { AppEdition } from '@shared/types/appEdition'
