@@ -45,7 +45,12 @@ export function createColGroup(
     const { colspan, colwidth } = row.child(i).attrs
 
     for (let j = 0; j < colspan; j += 1, col += 1) {
-      const hasWidth = overrideCol === col ? overrideValue : colwidth && (colwidth[j] as number | undefined)
+      let hasWidth = overrideValue
+
+      if (overrideCol !== col) {
+        const storedWidth: unknown = Array.isArray(colwidth) ? colwidth[j] : undefined
+        hasWidth = typeof storedWidth === 'number' ? storedWidth : undefined
+      }
 
       totalWidth += hasWidth || cellMinWidth
 

@@ -284,7 +284,7 @@ export const Table = Node.create<TableOptions>({
           const tableCellExtension = this.editor.extensionManager.extensions.find((ext) => ext.name === 'tableCell')
 
           const allowNestedNodes: boolean = tableCellExtension
-            ? Boolean((tableCellExtension.options as { allowNestedNodes?: boolean }).allowNestedNodes)
+            ? Boolean(tableCellExtension.options.allowNestedNodes)
             : false
 
           if (!allowNestedNodes) {

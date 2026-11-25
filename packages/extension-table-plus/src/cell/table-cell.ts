@@ -23,9 +23,9 @@ export interface TableCellOptions {
 const cellSelectionPluginKey = new PluginKey('cellSelectionStyling')
 
 function isTableNode(node: ProseMirrorNode): boolean {
-  const spec = node.type.spec as { tableRole?: string } | undefined
+  const role: unknown = node.type.spec.tableRole
 
-  return node.type.name === 'table' || spec?.tableRole === 'table'
+  return node.type.name === 'table' || role === 'table'
 }
 
 function createCellSelectionDecorationSet(doc: ProseMirrorNode, selection: Selection): DecorationSet {

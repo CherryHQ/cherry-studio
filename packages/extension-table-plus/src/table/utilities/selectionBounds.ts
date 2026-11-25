@@ -29,7 +29,7 @@ export function getCellSelectionBounds(view: EditorView, tableNode: ProseMirrorN
 
   for (let d = $anchor.depth; d > 0; d--) {
     const n = $anchor.node(d)
-    const role = (n.type.spec as { tableRole?: string } | undefined)?.tableRole
+    const role: unknown = n.type.spec.tableRole
 
     if (n.type.name === 'table' || role === 'table') {
       tablePos = $anchor.before(d)

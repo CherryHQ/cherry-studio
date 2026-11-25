@@ -37,6 +37,7 @@ export function updateColumns(
           const storedWidth: unknown = Array.isArray(colwidth) ? colwidth[j] : undefined
           hasWidth = typeof storedWidth === 'number' ? storedWidth : undefined
         }
+
         const [propertyKey, propertyValue] = getColStyleDeclaration(cellMinWidth, hasWidth)
         const cssWidth = propertyKey === 'width' ? propertyValue : ''
 
