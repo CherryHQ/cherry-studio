@@ -286,7 +286,7 @@ export async function createExternalMcpConnection({
       throw new Error(
         t('settings.mcp.oauth.callback.listen_error', {
           port: authProvider.config.callbackPort,
-          reason: code ?? (error instanceof Error ? error.message : String(error))
+          reason: String(code ?? (error instanceof Error ? error.message : String(error)))
         }),
         { cause: error }
       )

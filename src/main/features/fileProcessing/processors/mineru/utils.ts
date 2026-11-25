@@ -74,7 +74,8 @@ export async function uploadFile(
     const options = {
       method: 'PUT',
       headers: uploadHeaders,
-      body: Readable.toWeb(fileStream),
+      // SAFETY: toWeb returns a native Web Stream; Node and Electron's DOM types disagree on the done-result value property.
+      body: Readable.toWeb(fileStream) as ReadableStream<Uint8Array>,
       duplex: 'half',
       redirect: 'error',
       signal
