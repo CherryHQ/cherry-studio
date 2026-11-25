@@ -120,7 +120,7 @@ describe('Model drawers', () => {
 
   it('renders the legacy add drawer without the inner panel shell and submits through the local drawer form', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
     const onClose = vi.fn()
     const onSuccess = vi.fn()
@@ -160,7 +160,7 @@ describe('Model drawers', () => {
 
   it('marks only the model ID as required and blocks empty submission', () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
 
     render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
@@ -273,7 +273,7 @@ describe('Model drawers', () => {
 
   it('saves independent model type, capability, and input-modality selections when adding', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
 
     render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
@@ -300,7 +300,7 @@ describe('Model drawers', () => {
 
   it('preserves an explicitly emptied input-modality selection when adding', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
 
     render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
@@ -321,7 +321,7 @@ describe('Model drawers', () => {
 
   it('keeps the add-model submit disabled while creating and shows one inline error on failure', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
     let rejectCreate!: (error: Error) => void
     createModelMock.mockReturnValue(
@@ -353,7 +353,7 @@ describe('Model drawers', () => {
 
   it('loads edit values, shows more settings, and auto-saves edits on the existing mutation path', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
 
     render(
@@ -522,7 +522,7 @@ describe('Model drawers', () => {
 
   it('keeps model type, capabilities, and input modalities independently editable', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
 
     render(
@@ -594,7 +594,7 @@ describe('Model drawers', () => {
 
   it('serializes edit auto-saves and keeps the latest form snapshot', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
     const firstSave = deferred<void>()
     updateModelMock.mockReturnValueOnce(firstSave.promise).mockResolvedValue(undefined)
@@ -660,7 +660,7 @@ describe('Model drawers', () => {
 
   it('does not save a new model edit into an older in-flight model', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
     const firstSave = deferred<void>()
     updateModelMock.mockReturnValueOnce(firstSave.promise).mockResolvedValue(undefined)
@@ -748,7 +748,7 @@ describe('Model drawers', () => {
 
   it('preserves pending auto-saves for the previous model when switching models', async () => {
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
     const firstSave = deferred<void>()
     updateModelMock.mockReturnValueOnce(firstSave.promise).mockResolvedValue(undefined)
@@ -973,7 +973,7 @@ describe('Model drawers', () => {
   it('persists a selected model setting and custom changes', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
 
     render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
@@ -1014,7 +1014,7 @@ describe('Model drawers', () => {
   it('submits the exact values selected from token limit presets', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
 
     render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
@@ -1048,7 +1048,7 @@ describe('Model drawers', () => {
   it('auto-saves preset and manually entered token limits from the edit drawer', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'openai', name: 'OpenAI' }
+      provider: { id: 'openai', presetProviderId: 'openai', name: 'OpenAI' }
     })
 
     render(
