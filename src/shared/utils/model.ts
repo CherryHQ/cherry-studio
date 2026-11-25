@@ -339,7 +339,7 @@ export const isClaude47SeriesModel = (model: Model): boolean => {
 
 /** Check if model rejects temperature/top_p/top_k: Claude Opus 4.7+, Claude 5.x, Fable and Mythos. */
 export const isClaudeFixedSamplingModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model), '/')
+  const id = getLowerBaseModelName(stripClaudeContextMarker(getRawModelId(model)).trimStart())
   return /(?:anthropic\.)?claude-(?:opus-4[.-](?:[7-9]|1\d)|(?:opus|sonnet|haiku|fable|mythos)-[5-9](?:[.-]\d+)?|(?:fable|mythos)-(?:latest|preview))(?:[@\-:][\w\-:]+|\[[^\]]+\])?$/i.test(
     id
   )
@@ -421,6 +421,11 @@ export const getModelSupportedVerbosity = (model: Model | undefined | null): (st
 // ---------------------------------------------------------------------------
 // Name extraction utilities
 // ---------------------------------------------------------------------------
+
+/** Drop trailing whitespace and a trailing Claude Code `[1m]` context marker (case-insensitive). */
+export function stripClaudeContextMarker(apiModelId: string): string {
+  return apiModelId.replace(/\s*\[1m\]\s*$/i, '').trimEnd()
+}
 
 /**
  * Extract the base model name from a model ID.

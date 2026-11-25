@@ -1581,7 +1581,7 @@ describe('desktop Pi Durable connection', () => {
       expect(existsSync(join(directory, 'after-switch.txt'))).toBe(false)
       toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
     }
-    await done(events)
+    await done(events, APPROVAL_WAIT.timeout)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     expect(approvals()).toHaveLength(asksForWrite ? 2 : 1)
     expect(readFileSync(join(directory, 'after-switch.txt'), 'utf8')).toBe('written')

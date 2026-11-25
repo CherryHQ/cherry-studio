@@ -1,17 +1,22 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import type { SerializedError } from '@renderer/types/error'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 
+import { useMessageErrorActions } from '../../hooks/useMessageErrorActions'
 import type { MessageListActions, MessageListItem } from '../../types'
 
 const mocks = vi.hoisted(() => ({
   actions: {} as MessageListActions,
   i18nKeys: new Set<string>(),
+  request: vi.fn(),
   language: 'en',
   translations: new Map<string, string>(),
   showErrorDetailPopup: vi.fn()
@@ -19,6 +24,13 @@ const mocks = vi.hoisted(() => ({
 
 const GO_TO_SETTINGS_LABEL = enUS['error.diagnosis.go_to_settings']
 const CUSTOM_PROVIDER = vi.hoisted(() => ({ id: 'my-gateway', name: 'My Gateway' }))
+const AI_DIAGNOSIS_LABEL = enUS['error.diagnosis.ai_button']
+const AI_DIAGNOSIS_UNAVAILABLE = enUS['error.diagnosis.default_model_unavailable']
+const unknownError = { name: 'UnknownError', message: 'unmapped provider failure', stack: null }
+const defaultModelId = 'custom-provider::custom-model'
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+vi.mock('@renderer/i18n/resolver', () => ({ default: { t: (key: keyof typeof enUS) => enUS[key] } }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({
@@ -80,7 +92,6 @@ vi.mock('@renderer/components/ErrorDetailModal', () => ({
   showErrorDetailPopup: mocks.showErrorDetailPopup
 }))
 
-import { useMessageErrorActions } from '../../hooks/useMessageErrorActions'
 import ErrorBlock from '../ErrorBlock'
 
 const message: MessageListItem = {
@@ -103,7 +114,67 @@ describe('ErrorBlock', () => {
     mocks.language = 'en'
     mocks.translations.clear()
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
+    mocks.translations.set('error.diagnosis.ai_button', AI_DIAGNOSIS_LABEL)
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
     vi.clearAllMocks()
+  })
+
+  it.each([false, true])('gates model requests on privacy and a user click (data collection: %s)', async (enabled) => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', enabled)
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', defaultModelId)
+    const error = { ...unknownError, message: `${unknownError.message} (${enabled})` }
+    const data = {
+      [`/models/${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`]: { id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID },
+      [`/models/${defaultModelId}`]: { id: defaultModelId, providerId: 'custom-provider', isEnabled: true },
+      '/providers/custom-provider': { isEnabled: true }
+    }
+    const get = vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => data[path as keyof typeof data])
+    mocks.request.mockResolvedValue({ text: 'Provider returned an incomplete response' })
+    const { result } = renderHook(() =>
+      useMessageErrorActions({ errorSource: 'chat', getDoctorSubject: () => undefined })
+    )
+    mocks.actions = { diagnoseMessageError: result.current.diagnoseMessageError }
+
+    try {
+      render(<ErrorBlock partId="part-1" error={error} message={{ ...message, status: 'error' }} />)
+      await act(() => vi.dynamicImportSettled())
+
+      expect(mocks.request).not.toHaveBeenCalled()
+      expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+      if (!enabled) {
+        expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
+        return
+      }
+
+      await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+      expect(await screen.findByText('Provider returned an incomplete response')).toBeInTheDocument()
+      expect(mocks.request).toHaveBeenCalledExactlyOnceWith(
+        'ai.text.generate',
+        expect.objectContaining({
+          uniqueModelId: defaultModelId,
+          prompt: `Error: UnknownError: ${error.message}`,
+          requestOptions: { maxRetries: 0 }
+        })
+      )
+    } finally {
+      get.mockRestore()
+    }
+  })
+
+  it('shows default-model recovery guidance after clicking AI diagnosis without a default model', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', null)
+    const { result } = renderHook(() =>
+      useMessageErrorActions({ errorSource: 'chat', getDoctorSubject: () => undefined })
+    )
+    mocks.actions = { diagnoseMessageError: result.current.diagnoseMessageError }
+
+    render(<ErrorBlock partId="part-1" error={unknownError} message={{ ...message, status: 'error' }} />)
+    await userEvent.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(AI_DIAGNOSIS_UNAVAILABLE)
+    expect(mocks.request).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -249,7 +320,7 @@ required service tier.`
     )
 
     expect(screen.getByText(`error.${i18nKey}`)).toBeInTheDocument()
-    expect(diagnoseMessageError).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
   })
 
   it('renders actionable Claude Code session-bus guidance without AI diagnosis', () => {
@@ -275,7 +346,7 @@ required service tier.`
 
     expect(container).toHaveTextContent(enUS['error.claude_code_session_bus_missing'])
     expect(container).toHaveTextContent(enUS['error.claude_code_session_bus_missing_detail'])
-    expect(diagnoseMessageError).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
   })
 
   it('hides mutation and detail affordances when capabilities are unavailable', () => {
@@ -573,15 +644,13 @@ required service tier.`
     expect(screen.getByText('error.notice.auth.title')).toBeInTheDocument()
     expect(screen.getByText('error.claude_code_exit.code')).toBeInTheDocument()
     expect(screen.queryByText(/stderr|api_key|sk-ant/i)).toBeNull()
-    expect(diagnoseMessageError).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
 
     fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
   it('does not treat an unknown exit category as a Claude Code diagnostic', async () => {
-    // A non-English UI, so the English provider text is sent for translation.
-    mocks.language = 'de-DE'
     const diagnoseMessageError = vi.fn().mockResolvedValue('diagnosed')
     mocks.actions = { diagnoseMessageError }
 
@@ -599,7 +668,8 @@ required service tier.`
     )
 
     expect(screen.queryByText('error.claude_code_exit.start')).toBeNull()
-    await waitFor(() => expect(diagnoseMessageError).toHaveBeenCalledOnce())
+    await userEvent.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+    expect(await screen.findByText('diagnosed')).toBeInTheDocument()
   })
 
   it('does not promise a diagnostic reference the payload never carried', () => {
@@ -746,6 +816,26 @@ required service tier.`
     expect(screen.queryByRole('button', { name: zhCN['error.diagnosis.go_to_settings'] })).not.toBeInTheDocument()
   })
 
+  it('shows an oMLX prefill memory rejection as localized guidance instead of the provider text', () => {
+    mocks.actions = { diagnoseMessageError: vi.fn() }
+    mocks.translations = new Map(Object.entries(enUS))
+    const providerMessage =
+      'API Error: 400 oMLX prefill memory guard rejected this prompt: Prefill would require ~31.59 GB peak'
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: providerMessage, stack: null, statusCode: 400 }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['settings.doctor.error_category.prefill_memory'])).toBeInTheDocument()
+    expect(screen.getByText(enUS['error.diagnosis.prefill_memory'])).toBeInTheDocument()
+    expect(screen.queryByText(providerMessage, { exact: false })).toBeNull()
+    expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
+  })
+
   it('shows a Claude SDK request failure as a localized conclusion with provider settings', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()
@@ -770,43 +860,11 @@ required service tier.`
     expect(screen.queryByText(/API Error: 400 Provider returned error/)).toBeNull()
     await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
-    expect(diagnoseMessageError).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
   })
 
-  it('uses injected diagnosis capability for unknown errors', async () => {
-    // A non-English UI, so the English provider text is sent for translation.
-    mocks.language = 'de-DE'
-    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
-    mocks.actions = {
-      diagnoseMessageError
-    }
-
-    render(
-      <ErrorBlock
-        partId="message-1-part-0"
-        error={{
-          name: 'UnknownError',
-          message: 'unmapped provider failure',
-          stack: null,
-          i18nKey: 'missing_app_error'
-        }}
-        message={message}
-      />
-    )
-
-    expect(await screen.findByText('AI summary')).toBeInTheDocument()
-    expect(diagnoseMessageError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message,
-        partId: 'message-1-part-0',
-        language: 'de-DE'
-      })
-    )
-  })
-
-  it('refreshes an AI summary when the app language changes', async () => {
-    // A non-English UI, so the English provider text is sent for translation.
-    mocks.language = 'de-DE'
+  it('requires another click to diagnose in a changed app language', async () => {
+    const user = userEvent.setup()
     const diagnoseMessageError = vi.fn().mockResolvedValueOnce('English summary').mockResolvedValueOnce('中文摘要')
     mocks.actions = { diagnoseMessageError }
     const error = {
@@ -817,18 +875,20 @@ required service tier.`
     }
 
     const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+    await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
     expect(await screen.findByText('English summary')).toBeInTheDocument()
 
     mocks.language = 'zh-CN'
     rerender(<ErrorBlock partId="message-1-part-0" error={{ ...error }} message={message} />)
 
+    expect(diagnoseMessageError).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
     expect(await screen.findByText('中文摘要')).toBeInTheDocument()
     expect(diagnoseMessageError).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'zh-CN' }))
   })
 
-  it('drops a visible translation when the fault identity changes', async () => {
-    // A non-English UI, so the English provider text is sent for translation.
-    mocks.language = 'de-DE'
+  it('keeps a diagnosis with the occurrence it was asked for', async () => {
+    const user = userEvent.setup()
     const resolvers: Array<(value: string) => void> = []
     const diagnoseMessageError = vi.fn(
       () =>
@@ -837,72 +897,44 @@ required service tier.`
         })
     )
     mocks.actions = { diagnoseMessageError }
-    const error = {
-      name: 'UnknownError',
-      message: 'unmapped provider failure',
-      stack: null
-    }
-    const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+    const retried = { ...message, persistedAt: '2026-02-01T00:00:00.000Z' }
+    const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={unknownError} message={message} />)
 
-    await waitFor(() => expect(resolvers).toHaveLength(1))
+    await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
     resolvers[0]?.('Visible conclusion.')
     expect(await screen.findByText('Visible conclusion.')).toBeInTheDocument()
 
-    rerender(
-      <ErrorBlock
-        partId="message-1-part-0"
-        error={error}
-        message={{ ...message, persistedAt: '2026-02-01T00:00:00.000Z' }}
-      />
-    )
+    rerender(<ErrorBlock partId="message-1-part-0" error={unknownError} message={retried} />)
     expect(screen.queryByText('Visible conclusion.')).not.toBeInTheDocument()
-    await waitFor(() => expect(resolvers).toHaveLength(2))
-    resolvers[0]?.('Late attempt summary.')
-    resolvers[1]?.('Current attempt summary.')
-    expect(await screen.findByText('Current attempt summary.')).toBeInTheDocument()
+    expect(screen.getByText(unknownError.message)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+    rerender(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ ...unknownError, message: 'a different failure' }}
+        message={retried}
+      />
+    )
+    resolvers[1]?.('Late attempt summary.')
+    await act(async () => {})
     expect(screen.queryByText('Late attempt summary.')).not.toBeInTheDocument()
-
-    mocks.language = 'zh-CN'
-    rerender(
-      <ErrorBlock
-        partId="message-1-part-0"
-        error={error}
-        message={{ ...message, persistedAt: '2026-02-01T00:00:00.000Z' }}
-      />
-    )
-    expect(screen.queryByText('Current attempt summary.')).not.toBeInTheDocument()
-    await waitFor(() => expect(resolvers).toHaveLength(3))
-    resolvers[1]?.('Late language summary.')
-    resolvers[2]?.('Current language summary.')
-    expect(await screen.findByText('Current language summary.')).toBeInTheDocument()
-    expect(screen.queryByText('Late language summary.')).not.toBeInTheDocument()
-
-    rerender(
-      <ErrorBlock
-        partId="message-1-part-0"
-        error={{ ...error, message: 'a different failure' }}
-        message={{ ...message, persistedAt: '2026-02-01T00:00:00.000Z' }}
-      />
-    )
-    expect(screen.queryByText('Current language summary.')).not.toBeInTheDocument()
-    await waitFor(() => expect(resolvers).toHaveLength(4))
-    resolvers[2]?.('Late error summary.')
-    expect(screen.queryByText('Late error summary.')).not.toBeInTheDocument()
-    expect(screen.queryByText('Current language summary.')).not.toBeInTheDocument()
+    expect(screen.getByText('a different failure')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeEnabled()
   })
 
-  it('never attaches a visible translation to the detail as an AI diagnosis', async () => {
-    mocks.language = 'de-DE'
+  it('never attaches an on-demand diagnosis to the detail', async () => {
+    const user = userEvent.setup()
     const { result } = renderHook(() =>
       useMessageErrorActions({ errorSource: 'chat', getDoctorSubject: () => undefined })
     )
     mocks.actions = {
       ...result.current,
-      diagnoseMessageError: vi.fn().mockResolvedValue('Übersetzter Fehler.')
+      diagnoseMessageError: vi.fn().mockResolvedValue('Diagnosed failure.')
     }
-    const error = { name: 'UnknownError', message: 'unmapped provider failure', stack: null }
-    render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
-    expect(await screen.findByText('Übersetzter Fehler.')).toBeInTheDocument()
+    render(<ErrorBlock partId="message-1-part-0" error={unknownError} message={message} />)
+    await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+    expect(await screen.findByText('Diagnosed failure.')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('common.detail'))
 
@@ -910,34 +942,70 @@ required service tier.`
     expect(mocks.showErrorDetailPopup.mock.calls[0]?.[0]).not.toHaveProperty('aiDiagnosis')
   })
 
-  it('hides a stored summary when the same text becomes classifiable', async () => {
-    // A non-English UI, so the English provider text is sent for translation.
-    mocks.language = 'de-DE'
+  it('hides a diagnosis and its button when the same text becomes classifiable', async () => {
+    const user = userEvent.setup()
     const diagnoseMessageError = vi.fn().mockResolvedValue('Visible conclusion.')
     mocks.actions = { diagnoseMessageError }
     mocks.translations.set('error.notice.auth.title', 'Not signed in')
-    const error = {
-      name: 'UnknownError',
-      message: 'unmapped provider failure',
-      stack: null
-    }
-    const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+    const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={unknownError} message={message} />)
+    await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
     expect(await screen.findByText('Visible conclusion.')).toBeInTheDocument()
 
-    rerender(<ErrorBlock partId="message-1-part-0" error={{ ...error, statusCode: 401 }} message={message} />)
+    rerender(<ErrorBlock partId="message-1-part-0" error={{ ...unknownError, statusCode: 401 }} message={message} />)
     expect(await screen.findByText('Not signed in')).toBeInTheDocument()
     expect(screen.queryByText('Visible conclusion.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
 
     mocks.i18nKeys.add('error.tool_call_limit_reached')
     rerender(
       <ErrorBlock
         partId="message-1-part-0"
-        error={{ ...error, i18nKey: 'tool_call_limit_reached' }}
+        error={{ ...unknownError, i18nKey: 'tool_call_limit_reached' }}
         message={message}
       />
     )
     expect(screen.getByText('error.tool_call_limit_reached')).toBeInTheDocument()
     expect(screen.queryByText('Visible conclusion.')).not.toBeInTheDocument()
+  })
+
+  it('hides the AI summary and the button when data collection is turned off after a diagnosis', async () => {
+    const user = userEvent.setup()
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { diagnoseMessageError }
+
+    const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={unknownError} message={message} />)
+    await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+    expect(await screen.findByText('AI summary')).toBeInTheDocument()
+
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
+    // The mocked preference hook has no subscription, so a new prop identity re-renders the memoized block.
+    rerender(<ErrorBlock partId="message-1-part-0" error={{ ...unknownError }} message={message} />)
+
+    expect(screen.queryByText('AI summary')).toBeNull()
+    expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
+    expect(diagnoseMessageError).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends a single diagnosis request for a double click', async () => {
+    const user = userEvent.setup()
+    let release!: (summary: string) => void
+    const diagnoseMessageError = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          release = resolve
+        })
+    )
+    mocks.actions = { diagnoseMessageError }
+
+    render(<ErrorBlock partId="message-1-part-0" error={unknownError} message={message} />)
+    const button = screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL })
+    await user.click(button)
+    expect(button).toBeDisabled()
+    await user.click(button)
+    release('AI summary')
+
+    expect(await screen.findByText('AI summary')).toBeInTheDocument()
+    expect(diagnoseMessageError).toHaveBeenCalledTimes(1)
   })
 
   it('offers network settings for a client-certificate authentication failure', async () => {
@@ -1018,9 +1086,9 @@ required service tier.`
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
-  it('shows a localized pending line for an unknown error until the AI summary arrives', async () => {
-    let resolveSummary: (value: string) => void = () => {}
-    const diagnoseMessageError = vi.fn(() => new Promise<string>((resolve) => (resolveSummary = resolve)))
+  it('marks provider text in another language as the original message and sends nothing until asked', async () => {
+    const user = userEvent.setup()
+    const diagnoseMessageError = vi.fn().mockResolvedValue('请求被服务商拦截，换个说法再试。')
     mocks.actions = { diagnoseMessageError }
     mocks.language = 'zh-CN'
     mocks.translations = new Map(Object.entries(zhCN))
@@ -1034,29 +1102,11 @@ required service tier.`
       />
     )
 
-    expect(screen.getByText(zhCN['error.notice.unknown.summarizing'])).toBeInTheDocument()
-    expect(screen.queryByText(rawMessage)).toBeNull()
-    resolveSummary('请求被服务商拦截，换个说法再试。')
+    expect(screen.getByText(`原文：${rawMessage}`)).toBeInTheDocument()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: zhCN['error.diagnosis.ai_button'] }))
     expect(await screen.findByText('请求被服务商拦截，换个说法再试。')).toBeInTheDocument()
-    expect(screen.queryByText(zhCN['error.notice.unknown.summarizing'])).toBeNull()
-  })
-
-  it('marks untranslated provider text as the original message once translation fails', async () => {
-    mocks.actions = { diagnoseMessageError: vi.fn().mockResolvedValue('') }
-    mocks.language = 'zh-CN'
-    mocks.translations = new Map(Object.entries(zhCN))
-    const rawMessage = 'unmapped provider failure'
-
-    render(
-      <ErrorBlock
-        partId="message-1-part-0"
-        error={{ name: 'Error', message: rawMessage, stack: null }}
-        message={message}
-      />
-    )
-
-    expect(await screen.findByText(`原文：${rawMessage}`)).toBeInTheDocument()
-    expect(screen.queryByText(zhCN['error.notice.unknown.summarizing'])).toBeNull()
+    expect(screen.queryByText(`原文：${rawMessage}`)).toBeNull()
   })
 
   it('shows text already in the UI language as is, without asking for a translation', () => {
@@ -1075,31 +1125,6 @@ required service tier.`
 
     expect(screen.getByText('unmapped provider failure')).toBeInTheDocument()
     expect(diagnoseMessageError).not.toHaveBeenCalled()
-  })
-
-  it('stops waiting for a summarizer that never answers', async () => {
-    vi.useFakeTimers()
-    try {
-      mocks.actions = { diagnoseMessageError: vi.fn(() => new Promise<string>(() => {})) }
-      mocks.language = 'zh-CN'
-      mocks.translations = new Map(Object.entries(zhCN))
-
-      render(
-        <ErrorBlock
-          partId="message-1-part-0"
-          error={{ name: 'Error', message: 'unmapped provider failure', stack: null }}
-          message={message}
-        />
-      )
-      expect(screen.getByText(zhCN['error.notice.unknown.summarizing'])).toBeInTheDocument()
-
-      await act(() => vi.advanceTimersByTimeAsync(8000))
-
-      expect(screen.getByText('原文：unmapped provider failure')).toBeInTheDocument()
-      expect(screen.queryByText(zhCN['error.notice.unknown.summarizing'])).toBeNull()
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it('retries a server failure through the regenerate capability', async () => {
