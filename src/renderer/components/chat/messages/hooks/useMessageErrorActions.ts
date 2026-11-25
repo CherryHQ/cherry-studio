@@ -5,7 +5,6 @@ import type { MessageListActions } from '@renderer/components/chat/messages/type
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
 import { contextFromUnknown } from '@renderer/services/AppErrorContextService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
-import { translateErrorMessage } from '@renderer/utils/errorLanguage'
 import type { AppErrorContext } from '@shared/types/appError'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 
@@ -78,7 +77,11 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
   const { diagnosticReport, errorSource, getDoctorSubject } = options
 
   const diagnoseMessageError = useCallback<NonNullable<MessageListActions['diagnoseMessageError']>>(
-    ({ error, language }) => translateErrorMessage(error.message ?? '', language),
+    async ({ error, language }) => {
+      if (!error.message) return null
+      const { classifyErrorByAI } = await import('@renderer/utils/errorDiagnosis')
+      return classifyErrorByAI(error, language)
+    },
     []
   )
 
