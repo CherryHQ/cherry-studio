@@ -1,36 +1,36 @@
 import { createContext, type ReactNode, use, useCallback, useMemo, useRef, useState } from 'react'
 
-export interface MessageCaptureLeaseContextValue {
-  acquireMessageCaptureLease: (messageId: string) => () => void
+interface MessageMountLeaseContextValue {
+  acquireMessageMountLease: (messageId: string) => () => void
   getRenderedMessageElement: (messageId: string) => HTMLElement | null
 }
 
-interface MessageCaptureLeaseManager {
+interface MessageMountLeaseManager {
   leasedMessageIds: readonly string[]
-  acquireMessageCaptureLease: (messageId: string) => () => void
+  acquireMessageMountLease: MessageMountLeaseContextValue['acquireMessageMountLease']
 }
 
-const MessageCaptureLeaseContext = createContext<MessageCaptureLeaseContextValue | null>(null)
+const MessageMountLeaseContext = createContext<MessageMountLeaseContextValue | null>(null)
 
-export function useOptionalMessageCaptureLease(): MessageCaptureLeaseContextValue | null {
-  return use(MessageCaptureLeaseContext)
+export function useOptionalMessageMountLease(): MessageMountLeaseContextValue | null {
+  return use(MessageMountLeaseContext)
 }
 
-export function MessageCaptureLeaseProvider({
+export function MessageMountLeaseProvider({
   children,
   value
 }: {
   children: ReactNode
-  value: MessageCaptureLeaseContextValue
+  value: MessageMountLeaseContextValue
 }) {
-  return <MessageCaptureLeaseContext value={value}>{children}</MessageCaptureLeaseContext>
+  return <MessageMountLeaseContext value={value}>{children}</MessageMountLeaseContext>
 }
 
-export function useMessageCaptureLeases(): MessageCaptureLeaseManager {
+export function useMessageMountLeases(): MessageMountLeaseManager {
   const [leasedMessageIds, setLeasedMessageIds] = useState<readonly string[]>([])
   const leaseCountsRef = useRef(new Map<string, number>())
 
-  const acquireMessageCaptureLease = useCallback((messageId: string) => {
+  const acquireMessageMountLease = useCallback((messageId: string) => {
     const leaseCounts = leaseCountsRef.current
     const nextCount = (leaseCounts.get(messageId) ?? 0) + 1
     leaseCounts.set(messageId, nextCount)
@@ -51,8 +51,5 @@ export function useMessageCaptureLeases(): MessageCaptureLeaseManager {
     }
   }, [])
 
-  return useMemo(
-    () => ({ leasedMessageIds, acquireMessageCaptureLease }),
-    [acquireMessageCaptureLease, leasedMessageIds]
-  )
+  return useMemo(() => ({ leasedMessageIds, acquireMessageMountLease }), [acquireMessageMountLease, leasedMessageIds])
 }

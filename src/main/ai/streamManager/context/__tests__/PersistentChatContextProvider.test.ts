@@ -239,6 +239,24 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(messageService.getChildrenByParentId(reservedBranch.id)).toEqual([])
   })
 
+  it('carries the persisted model of a completed assistant reply into the next request', async () => {
+    await dbh.db.update(messageTable).set({ status: 'success' }).where(eq(messageTable.id, 'a1'))
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        userMessageParts: [{ type: 'text', text: 'follow up' }]
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(prepared.models[0].request.messages?.find((message) => message.id === 'a1')).toMatchObject({
+      metadata: { modelId: MODEL_ID }
+    })
+  })
+
   it('sends only messages after the latest clear marker on the selected branch', async () => {
     await dbh.db.insert(messageTable).values([
       {
