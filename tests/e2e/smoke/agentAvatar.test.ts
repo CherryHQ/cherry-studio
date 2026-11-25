@@ -281,6 +281,10 @@ test('persists an uploaded agent avatar and updates past message avatars after r
   await testInfo.attach('avatar-fixture', { path: fixture, contentType: 'image/png' })
   const input = dialog.locator('input[type="file"]').and(page.getByLabel('Upload image', { exact: true }))
   await input.setInputFiles(fixture)
+  await page
+    .getByRole('dialog', { name: 'Crop avatar', exact: true })
+    .getByRole('button', { name: 'Confirm', exact: true })
+    .click()
   await expectDecodedImage(picker.locator('img'))
   const uploaded = await readAgent(page, agent.id)
   expect(uploaded.avatarFileId).toBeTruthy()
@@ -293,9 +297,10 @@ test('persists an uploaded agent avatar and updates past message avatars after r
   await screenshot(page, testInfo, 'agent-avatar-catalog')
   let view = await openSession(page, agent.name, 'Avatar session')
   const label = view.locator('[data-ui~="agent.composer.label"]').filter({ visible: true }).first()
-  await expectDecodedImage(label.locator('img'))
-  await expect(label.locator('img')).toHaveAttribute('src', uploaded.avatarSrc!)
-  await screenshot(page, testInfo, 'agent-avatar-label')
+  const profileAvatar = view.getByRole('button', { name: `View ${agent.name}'s profile`, exact: true }).locator('img')
+  await expectDecodedImage(profileAvatar)
+  await expect(profileAvatar).toHaveAttribute('src', uploaded.avatarSrc!)
+  await screenshot(page, testInfo, 'agent-avatar-profile')
   await label.click()
   const option = page.locator(`[data-option-row="${agent.id}"]`)
   await expectDecodedImage(option.locator('img'))
@@ -406,7 +411,7 @@ test('applies an image selected after the avatar menu is dismissed', async ({ ma
   await picker.click()
   const upload = page.getByRole('button', { name: 'Upload image', exact: true })
   await expect(upload).toBeVisible()
-  await dialog.getByRole('textbox', { name: 'Avatar and name', exact: true }).click()
+  await dialog.getByRole('textbox', { name: 'Name', exact: true }).click()
   await expect(upload).toBeHidden()
   // Before the fix, closing the popover removed its file input, silently dropping a late selection.
   // Re-resolving the locator after dismissal would fail because the input was gone.
@@ -414,6 +419,10 @@ test('applies an image selected after the avatar menu is dismissed', async ({ ma
     .locator('input[type="file"]')
     .and(page.getByLabel('Upload image', { exact: true }))
     .setInputFiles(fixture)
+  await page
+    .getByRole('dialog', { name: 'Crop avatar', exact: true })
+    .getByRole('button', { name: 'Confirm', exact: true })
+    .click()
   await expect
     .poll(
       async () => {

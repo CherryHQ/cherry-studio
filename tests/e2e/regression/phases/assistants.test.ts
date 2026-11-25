@@ -192,7 +192,7 @@ test(...caseDefinition('MP-22'), async ({ app, mainWindow }, testInfo) => {
       const editPrompt = editor.getByRole('button', { name: 'Edit', exact: true })
       if (await editPrompt.isVisible()) await editPrompt.click()
       await editor.locator('.cm-content[contenteditable="true"]').fill(prompt)
-      await page.keyboard.press('Escape')
+      await editor.getByRole('button', { name: 'Close', exact: true }).click()
       await expect(editor).toBeHidden()
       await expect(row(renamed)).toBeVisible()
       await expect
@@ -245,7 +245,7 @@ test(...caseDefinition('MP-22'), async ({ app, mainWindow }, testInfo) => {
       const editPrompt = editor.getByRole('button', { name: 'Edit', exact: true })
       if (await editPrompt.isVisible()) await editPrompt.click()
       await expect(editor.locator('.cm-content[contenteditable="true"]')).toHaveText(prompt)
-      await page.keyboard.press('Escape')
+      await editor.getByRole('button', { name: 'Close', exact: true }).click()
       await expect(editor).toBeHidden()
     })
 
@@ -639,7 +639,7 @@ test(...caseDefinition('MP-23'), async ({ app, mainWindow: page }, testInfo) => 
     if (await edit.isVisible()) await edit.click()
     await expect(dialog.locator('.cm-content[contenteditable="true"]')).toHaveText(prompt, { useInnerText: true })
     await screenshot('MP-23 imported assistant prompt and icon')
-    await page.keyboard.press('Escape')
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
     await expect(dialog).toBeHidden()
 
     await page.getByRole('button', { name: 'Import Assistant', exact: true }).click()

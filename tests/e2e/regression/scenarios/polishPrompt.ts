@@ -183,7 +183,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     await expect.poll(() => editor.innerText()).toBe(withVariable)
     await attachScreenshot('MP-16 failed polish retains final prompt')
 
-    await page.keyboard.press('Escape')
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
     await expect(dialog).toBeHidden()
     const readPrompt = async () => {
       const saved = await page.evaluate(
@@ -203,7 +203,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     await expect.poll(() => editor.innerText()).toBe(withVariable)
     await expect(editor).toHaveAttribute('contenteditable', 'true')
     await attachScreenshot('MP-16 saved prompt after reopening')
-    await page.keyboard.press('Escape')
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   } finally {
     await server.close()
     await page.evaluate(

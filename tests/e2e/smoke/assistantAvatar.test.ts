@@ -274,6 +274,10 @@ test('persists an uploaded assistant avatar and freezes past message avatars aft
     .toEqual(expect.arrayContaining(['image/png', 'image/jpeg', 'image/gif', 'image/webp']))
   await expect(input).toHaveAttribute('aria-label', 'Upload image')
   await input.setInputFiles(fixture)
+  await page
+    .getByRole('dialog', { name: 'Crop avatar', exact: true })
+    .getByRole('button', { name: 'Confirm', exact: true })
+    .click()
   await expectDecodedImage(picker.locator('img'))
   await expect(page.getByRole('button', { name: 'Remove image', exact: true })).toBeHidden()
   const uploaded = await readAssistant(page, assistant.name)
