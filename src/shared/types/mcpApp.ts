@@ -1,5 +1,7 @@
 import * as z from 'zod'
 
+import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
+
 export const McpAppReferenceSchema = z.strictObject({
   serverId: z.string().min(1),
   toolName: z.string().min(1),
@@ -9,11 +11,29 @@ export const McpAppReferenceSchema = z.strictObject({
 
 export type McpAppReference = z.infer<typeof McpAppReferenceSchema>
 
-export const McpAppResultMetadataSchema = z.object({
+const McpAppResultReferenceMetadataSchema = z.object({
   type: z.literal('mcp'),
-  app: McpAppReferenceSchema,
+  app: McpAppReferenceSchema
+})
+
+export const McpAppResultMetadataSchema = McpAppResultReferenceMetadataSchema.extend({
   appInput: z.record(z.string(), z.unknown())
 })
+
+export function hasMcpAppResult(output: unknown): boolean {
+  if (isDeferredToolOutput(output)) return output.hasMcpApp === true
+  if (isPersistedToolOutput(output)) {
+    const ref = output.$persistedToolOutput
+    if (ref.shape === 'mcp-content') return McpAppResultReferenceMetadataSchema.safeParse(ref.metadata).success
+    output = ref.shape === 'entities' ? ref.skeleton : undefined
+  }
+  return (
+    typeof output === 'object' &&
+    output !== null &&
+    'metadata' in output &&
+    McpAppResultReferenceMetadataSchema.safeParse(output.metadata).success
+  )
+}
 
 export const McpAppMessageReferenceSchema = z.object({
   topicId: z.string().min(1),

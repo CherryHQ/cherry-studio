@@ -95,6 +95,9 @@ Successful Assistant MCP tool results can carry a host-issued App reference.
 When the saved result enters view, the desktop host rechecks the topic's MCP
 selection and the server's tool declaration. The App renders inline after any
 declared external origins have been confirmed.
+Oversized results keep an App marker in the renderer projection. The host
+restores offloaded results before launching the App. If the topic or Assistant
+loses access to the source, the host releases both pending and mounted Apps.
 
 ### Tool catalog reads never block on MCP
 

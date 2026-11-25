@@ -1,10 +1,12 @@
 import type { Transport } from '@modelcontextprotocol/client'
 import { JSONRPCMessageSchema } from '@modelcontextprotocol/core'
 import { AppBridge } from '@modelcontextprotocol/ext-apps/app-bridge'
-import { nativeTheme, session, type WebContents, type WebPreferences } from 'electron'
+import { app, nativeTheme, session, webContents, type WebContents, type WebPreferences } from 'electron'
 
 import { application } from '@application'
+import { assistantDataService } from '@data/services/AssistantService'
 import { mcpServerService } from '@data/services/McpServerService'
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage } from '@main/i18n'
@@ -12,6 +14,7 @@ import type { InputFor, WindowId } from '@shared/ipc/types'
 import { mcpAppGuestMessage, mcpAppHostMessage } from '@shared/types/mcpApp'
 
 import { loadMcpApp } from './mcpAppLaunch'
+import { installMcpAppNetworkPolicy } from './mcpAppNetwork'
 import { MCP_APP_PARTITION_PREFIX, MCP_APP_SCHEME, MCP_APP_SHELL_URL, MCP_APP_VIEW_URL } from './mcpAppResource'
 
 const logger = loggerService.withContext('McpAppView')
@@ -29,6 +32,7 @@ type View = {
   transport?: Transport
   bridge?: AppBridge
   removeOwnerListeners: () => void
+  removeNetworkPolicy: () => void
   payload: Awaited<ReturnType<typeof loadMcpApp>>
 }
 
@@ -39,6 +43,21 @@ export class McpAppViewService extends BaseService {
   private readonly views = new Map<string, View>()
 
   protected onInit() {
+    this.registerAttachmentGate()
+    this.registerDisposable(
+      assistantDataService.onChanged((ids) => {
+        for (const [id, view] of this.views) {
+          if (ids.includes(view.payload.assistantId)) this.canUseView(id, view)
+        }
+      })
+    )
+    this.registerDisposable(
+      topicService.onChanged((ids) => {
+        for (const [id, view] of this.views) {
+          if (ids.includes(view.payload.topicId)) this.canUseView(id, view)
+        }
+      })
+    )
     this.registerDisposable(
       mcpServerService.onChanged((serverId) => {
         for (const [id, view] of this.views) {
@@ -69,6 +88,27 @@ export class McpAppViewService extends BaseService {
     await Promise.all([...this.views.keys()].map((id) => this.dispose(id, 'closed')))
   }
 
+  private registerAttachmentGate() {
+    const authorize = this.authorizeAttachment.bind(this)
+    function gate(
+      this: WebContents,
+      event: Electron.Event,
+      preferences: WebPreferences,
+      params: Record<string, string>
+    ) {
+      if (params.partition?.startsWith(MCP_APP_PARTITION_PREFIX) && !authorize(this, preferences, params)) {
+        event.preventDefault()
+      }
+    }
+    const onCreated = (_event: Electron.Event, owner: WebContents) => owner.on('will-attach-webview', gate)
+    for (const owner of webContents.getAllWebContents()) owner.on('will-attach-webview', gate)
+    app.on('web-contents-created', onCreated)
+    this.registerDisposable(() => {
+      app.removeListener('web-contents-created', onCreated)
+      for (const owner of webContents.getAllWebContents()) owner.removeListener('will-attach-webview', gate)
+    })
+  }
+
   async open(windowId: WindowId, input: InputFor<'mcp.app.open'>) {
     const owner = application.get('WindowManager').getWindow(windowId)?.webContents
     if (!owner || owner.isDestroyed()) throw new Error('MCP App requires an active conversation window')
@@ -79,15 +119,22 @@ export class McpAppViewService extends BaseService {
     const payload = await application
       .get('McpRuntimeService')
       .runDesktopRequest(windowId, id, (signal) => loadMcpApp(input, signal))
-    if (
-      owner.isDestroyed() ||
-      this.views.has(id) ||
-      [...this.views.values()].filter((view) => view.owner === owner).length >= 4
-    ) {
-      throw new Error('MCP App view is unavailable')
-    }
     const partition = `${MCP_APP_PARTITION_PREFIX}${id}`
     const guestSession = session.fromPartition(partition, { cache: false })
+    const removeNetworkPolicy = await installMcpAppNetworkPolicy(guestSession, payload.resource.origins)
+    try {
+      payload.verifySource()
+      if (
+        owner.isDestroyed() ||
+        this.views.has(id) ||
+        [...this.views.values()].filter((view) => view.owner === owner).length >= 4
+      ) {
+        throw new Error('MCP App view is unavailable')
+      }
+    } catch (error) {
+      removeNetworkPolicy()
+      throw error
+    }
     guestSession.setPermissionCheckHandler(() => false)
     guestSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
     guestSession.on('will-download', (event) => event.preventDefault())
@@ -131,6 +178,7 @@ export class McpAppViewService extends BaseService {
       attachmentAvailable: true,
       timer,
       payload,
+      removeNetworkPolicy,
       removeOwnerListeners
     })
     owner.once('destroyed', onOwnerDestroyed)
@@ -138,7 +186,7 @@ export class McpAppViewService extends BaseService {
     return { id, src: MCP_APP_SHELL_URL, partition, origins: payload.resource.origins }
   }
 
-  authorizeAttachment(owner: WebContents, prefs: WebPreferences, params: Record<string, string>) {
+  private authorizeAttachment(owner: WebContents, prefs: WebPreferences, params: Record<string, string>) {
     const id = params.partition?.slice(MCP_APP_PARTITION_PREFIX.length)
     const view = this.views.get(id)
     if (
@@ -149,7 +197,8 @@ export class McpAppViewService extends BaseService {
       params.webpreferences ||
       params.allowpopups ||
       params.blinkfeatures ||
-      params.disableblinkfeatures
+      params.disableblinkfeatures ||
+      !this.canUseView(id, view)
     )
       return false
     view.attachmentAvailable = false
@@ -220,8 +269,11 @@ export class McpAppViewService extends BaseService {
     }
     bridge.oninitialized = () => {
       void (async () => {
+        if (!this.canUseView(id, view)) return
         await bridge.sendToolInput({ arguments: view.payload.args })
+        if (!this.canUseView(id, view)) return
         await bridge.sendToolResult(view.payload.result)
+        if (this.views.get(id) !== view) return
         clearTimeout(view.timer)
         this.send(view, id, 'ready')
       })().catch((error) => {
@@ -243,12 +295,24 @@ export class McpAppViewService extends BaseService {
     application.get('IpcApiService').send(view.windowId, 'mcp.app.state_changed', { id, state, height })
   }
 
+  private canUseView(id: string, view: View): boolean {
+    if (this.views.get(id) !== view) return false
+    try {
+      view.payload.verifySource()
+      return true
+    } catch {
+      void this.dispose(id, 'closed')
+      return false
+    }
+  }
+
   private async dispose(id: string, state: 'closed' | 'error') {
     const view = this.views.get(id)
     if (!view) return
     this.views.delete(id)
     clearTimeout(view.timer)
     view.removeOwnerListeners()
+    view.removeNetworkPolicy()
     view.session.protocol.unhandle(MCP_APP_SCHEME)
     await view.bridge?.close().catch((error) => logger.debug('Unable to close MCP App bridge', { error }))
     if (view.guest && !view.guest.isDestroyed()) view.guest.close()

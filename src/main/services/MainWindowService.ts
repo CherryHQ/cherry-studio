@@ -467,12 +467,8 @@ export class MainWindowService extends BaseService {
     const agentArtifactSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
 
     mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
-      if (params.partition?.startsWith(MCP_APP_PARTITION_PREFIX)) {
-        if (!application.get('McpAppViewService').authorizeAttachment(mainWindow.webContents, webPreferences, params)) {
-          event.preventDefault()
-        }
-        return
-      }
+      // MCP App attachments are authorized by McpAppViewService for every host.
+      if (params.partition?.startsWith(MCP_APP_PARTITION_PREFIX)) return
       const securityProfile = getWebviewSecurityProfile(params.partition ?? '')
       // Mini app partitions carry their own gate (installMiniAppWebviewHost) and the
       // shared `persist:webview` lockdown lives in WebviewService.attachWebviewPreload.

@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { OutputFor } from '@shared/ipc/types'
-import { McpAppResultMetadataSchema } from '@shared/types/mcpApp'
+import { hasMcpAppResult } from '@shared/types/mcpApp'
 
 import { useOptionalMessageMountLease } from '../../list/MessageMountLeaseContext'
 import { useOptionalMessageListActions } from '../../MessageListProvider'
@@ -192,9 +192,7 @@ export function McpAppResultCards({ messageId, parts }: { messageId: string; par
     ) {
       return []
     }
-    const output = part.output
-    if (typeof output !== 'object' || !output || !('metadata' in output)) return []
-    if (!McpAppResultMetadataSchema.safeParse(output.metadata).success) return []
+    if (!hasMcpAppResult(part.output)) return []
     renderedCalls.add(part.toolCallId)
     return [<McpAppResultCard key={part.toolCallId} open={open} messageId={messageId} toolCallId={part.toolCallId} />]
   })

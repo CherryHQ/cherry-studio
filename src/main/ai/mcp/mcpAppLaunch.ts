@@ -7,11 +7,13 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
+import { resolvePersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import {
   isMcpResourceAccessDisabled,
   resolveServersForAssistant
 } from '@main/ai/tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import type { InputFor } from '@shared/ipc/types'
 import { McpAppResultMetadataSchema } from '@shared/types/mcpApp'
 import { getEffectiveMcpMode } from '@shared/utils/mcp'
@@ -22,6 +24,7 @@ import { buildMcpToolWireId } from './mcpToolId'
 
 const appToolOutputSchema = CallToolResultSchema.and(z.object({ metadata: McpAppResultMetadataSchema }))
 const appToolInputSchema = z.record(z.string(), z.unknown())
+const MAX_APP_RESULT_BYTES = 4 * 1024 * 1024
 
 export async function loadMcpApp({ topicId, messageId, toolCallId }: InputFor<'mcp.app.open'>, signal: AbortSignal) {
   const message = messageService.getById(messageId)
@@ -30,18 +33,25 @@ export async function loadMcpApp({ topicId, messageId, toolCallId }: InputFor<'m
   if (!part || !isToolUIPart(part) || part.state !== 'output-available' || part.preliminary) {
     throw new Error('MCP App result is unavailable')
   }
-  const { metadata, content, structuredContent, _meta, isError } = appToolOutputSchema.parse(part.output)
+  let output = part.output
+  if (isPersistedToolOutput(output)) {
+    const chars = blobRefsOf(output.$persistedToolOutput).reduce((sum, blob) => sum + blob.totalChars, 0)
+    if (chars > MAX_APP_RESULT_BYTES) throw new Error('MCP App result is unavailable')
+    output = await resolvePersistedToolOutput(output, { allowExcerpt: false })
+  }
+  const { metadata, content, structuredContent, _meta, isError } = appToolOutputSchema.parse(output)
   const args = metadata.appInput
-  if (isError || Buffer.byteLength(JSON.stringify([args, content, structuredContent, _meta])) > 4 * 1024 * 1024) {
+  if (isError || Buffer.byteLength(JSON.stringify([args, content, structuredContent, _meta])) > MAX_APP_RESULT_BYTES) {
     throw new Error('MCP App result is unavailable')
   }
 
   const app = metadata.app
+  const assistantId = topicService.getById(topicId).assistantId
+  if (!assistantId) throw new Error('MCP App source is unavailable')
   const runtime = application.get('McpRuntimeService')
   const verifySource = () => {
-    const topic = topicService.getById(topicId)
-    if (!topic.assistantId) throw new Error('MCP App source is unavailable')
-    const assistant = assistantDataService.getById(topic.assistantId)
+    if (topicService.getById(topicId).assistantId !== assistantId) throw new Error('MCP App source changed')
+    const assistant = assistantDataService.getById(assistantId)
     const mode = getEffectiveMcpMode(assistant)
     const server = mcpServerService.getById(app.serverId)
     if (
@@ -77,7 +87,10 @@ export async function loadMcpApp({ topicId, messageId, toolCallId }: InputFor<'m
   })
   verifySource()
   return {
+    assistantId,
+    topicId,
     serverId: app.serverId,
+    verifySource,
     resource: prepareMcpAppResource(contents, app.resourceUri),
     args,
     result: { content, structuredContent, _meta }
