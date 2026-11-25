@@ -119,7 +119,6 @@ import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import RetryStatusBlock from './RetryStatusBlock'
 import { SubagentStatusContext } from './SubagentStatusContext'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
-import { normalizeThinkingPreview } from './thinkingPreview'
 import {
   getToolFoldTitle,
   hasToolIntent,
@@ -1289,22 +1288,19 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
   return result
 }
 
-function getCompletedReasoningPreview(entries: readonly PartEntry[], messageId: string): string | undefined {
-  if (!entries.some((entry) => isReasoningMessagePart(entry.part))) return undefined
+function hasVisibleReasoningInCompletedHistory(entries: readonly PartEntry[], messageId: string): boolean {
+  // Follow the history disclosure so tool-intent-hidden reasoning does not change the outer fold state.
+  if (!entries.some((entry) => isReasoningMessagePart(entry.part))) return false
 
-  // Match the history disclosure: a tool intent hides reasoning in its own segment.
-  const previews: string[] = []
   for (const item of groupNestedHistoryEntries(entries)) {
-    if (item.kind !== 'process' || !item.entries.some((entry) => isReasoningMessagePart(entry.part))) continue
-    if (buildToolRenderItems(item.entries, messageId, true).some(hasToolIntent)) continue
-
-    for (const { part } of item.entries) {
-      if (part.type !== 'reasoning') continue
-      const preview = normalizeThinkingPreview(part.text || '')
-      if (preview) previews.push(preview)
-    }
+    if (item.kind !== 'process') continue
+    if (!item.entries.some((entry) => isReasoningMessagePart(entry.part))) continue
+    const toolItems = buildToolRenderItems(item.entries, messageId, true)
+    if (toolItems.length === 0) return true
+    if (!toolItems.some(hasToolIntent)) return true
   }
-  return previews.join(' ') || undefined
+
+  return false
 }
 
 function renderNestedHistory(
@@ -1653,9 +1649,9 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   if (!completedLayout) return null
 
   const completedHistoryEntries = completedLayout.historyEntries
-  const completedReasoningPreview = getCompletedReasoningPreview(completedHistoryEntries, message.id)
+  const completedHasVisibleReasoning = hasVisibleReasoningInCompletedHistory(completedHistoryEntries, message.id)
   // Tool-only histories keep their own disclosure state when the thinking setting changes.
-  const reasoningSyncTarget = completedReasoningPreview === undefined ? undefined : !thoughtAutoCollapse
+  const reasoningSyncTarget = completedHasVisibleReasoning ? !thoughtAutoCollapse : undefined
 
   const renderCompletedHistory = (isExpanded: boolean) =>
     isExpanded
@@ -1730,7 +1726,6 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         outcome={completedHasError ? 'error' : 'success'}
         defaultExpanded={reasoningSyncTarget === true || (!completedHistoryIsOversized && expandToolSteps)}
         syncExpanded={reasoningSyncTarget}
-        reasoningPreview={completedReasoningPreview}
         message={message}
         toolItems={completedToolItems}>
         {renderCompletedHistory}
