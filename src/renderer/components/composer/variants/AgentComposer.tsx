@@ -182,7 +182,6 @@ type AgentComposerSessionSnapshot = {
 }
 
 export interface AgentComposerSendBody {
-  followUp?: boolean
   agentId: string
   sessionId: string
   userMessageParts: ComposerQueuedMessagePayload['userMessageParts']

@@ -216,33 +216,6 @@ describe('useAgentChatRuntimeState', () => {
     vi.useRealTimers()
   })
 
-  it.each([true, false])('preserves the composer follow-up intent (%s) on the stream request', async (followUp) => {
-    const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
-      '@renderer/hooks/useConversationTurnController'
-    )
-    mocks.controllerOptions.mockImplementation(useConversationTurnController)
-    mocks.streamOpen.mockResolvedValue({ mode: 'injected', activeExecutions: [], reservedMessages: [] })
-    const { result } = renderHook(() =>
-      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
-    )
-    await act(async () => {
-      await result.current.sendMessage(
-        { text: 'Next input' },
-        {
-          body: {
-            agentId: 'agent-1',
-            sessionId: 'session-1',
-            userMessageParts: [],
-            ...(followUp && { followUp: true })
-          }
-        }
-      )
-    })
-    const request = mocks.streamOpen.mock.lastCall![0]
-    if (followUp) expect(request.followUp).toBe(true)
-    else expect(request).not.toHaveProperty('followUp')
-  })
-
   it('blocks edit entry while the session is closing even after the stream stops', async () => {
     MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_CLOSING_CACHE_KEY('session-1'), true)
     const { result } = renderHook(() =>
