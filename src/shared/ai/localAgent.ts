@@ -9,7 +9,7 @@ export type LocalAgentBrowserControlMode = z.infer<typeof LocalAgentBrowserContr
 
 export const LocalAgentConfigurationSchema = z.strictObject({
   presetId: z.string().min(1).optional(),
-  protocol: z.enum(['acp', 'claude', 'codex']),
+  protocol: z.enum(['acp', 'claude', 'codex', 'cursor']),
   enabled: z.boolean().default(false),
   executableOverride: z.string().trim().min(1).optional(),
   args: z.array(z.string()).default([]),
@@ -20,6 +20,31 @@ export const LocalAgentConfigurationSchema = z.strictObject({
   browserControl: LocalAgentBrowserControlModeSchema.optional()
 })
 export type LocalAgentConfiguration = z.infer<typeof LocalAgentConfigurationSchema>
+
+export const CURSOR_SDK_RESUME_PREFIX = 'cursor-sdk:'
+
+export function localAgentChatProtocol(
+  config: Pick<LocalAgentConfiguration, 'presetId' | 'protocol' | 'executableOverride' | 'args'>,
+  resume?: string
+): LocalAgentConfiguration['protocol'] {
+  if (config.presetId !== 'cursor' || (config.protocol !== 'cursor' && config.protocol !== 'acp'))
+    return config.protocol
+  if (resume) return resume.startsWith(CURSOR_SDK_RESUME_PREFIX) ? 'cursor' : 'acp'
+  return config.executableOverride ||
+    (config.args.length > 0 && !(config.args.length === 1 && config.args[0] === 'acp'))
+    ? 'acp'
+    : 'cursor'
+}
+
+export function matchesLocalAgentPreset(
+  preset: LocalAgentPreset,
+  config: Pick<LocalAgentConfiguration, 'presetId' | 'protocol'>
+) {
+  return (
+    preset.id === config.presetId &&
+    (preset.protocol === config.protocol || (preset.id === 'cursor' && config.protocol === 'acp'))
+  )
+}
 
 /** Custom third-party executables default to opt-in (`disabled`); built-in presets inherit Browser settings. */
 export function resolveLocalAgentBrowserControl(
@@ -104,11 +129,11 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     authStatusArgs: ['status'],
     terminalArgs: [],
     name: 'Cursor',
-    protocol: 'acp',
+    protocol: 'cursor',
     executable: 'cursor-agent',
     aliases: ['agent'],
     args: ['acp'],
-    helpUrl: 'https://cursor.com/docs/cli/acp'
+    helpUrl: 'https://cursor.com/docs/sdk/typescript'
   },
   {
     id: 'kimi',

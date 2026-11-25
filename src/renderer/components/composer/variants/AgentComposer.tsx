@@ -852,9 +852,11 @@ const AgentComposerInner = ({
   })
 
   const fileCapabilities = useComposerFileCapabilities(model)
-  const isAcpLocalAgent = agent?.type === 'local' && agent.configuration?.localRuntime?.protocol === 'acp'
+  const reportsLocalAudio =
+    agent?.type === 'local' &&
+    (agent.configuration?.localRuntime?.protocol === 'acp' || agent.configuration?.localRuntime?.protocol === 'cursor')
   const canAddImageFile = agent?.type === 'local' ? localInfo?.images !== false : fileCapabilities.canAddImageFile
-  const canAddAudioFile = !isAcpLocalAgent || localInfo?.audio === true
+  const canAddAudioFile = !reportsLocalAudio || localInfo?.audio === true
   const supportedExts = useMemo(
     () =>
       agent?.type === 'local'

@@ -3118,8 +3118,12 @@ export class AgentSessionRuntimeService extends BaseService {
       )
   }
 
-  private refreshContextUsage(entry: AgentSessionRuntimeEntry, connection = this.currentConnection(entry)): void {
-    if (!connection?.getContextUsage) return
+  private refreshContextUsage(
+    entry: AgentSessionRuntimeEntry,
+    connection = this.currentConnection(entry),
+    read = connection?.getContextUsage
+  ): void {
+    if (!connection || !read) return
     if (entry.contextUsageRefresh?.connection === connection) {
       entry.contextUsageRefresh.pending = true
       return
@@ -3131,7 +3135,7 @@ export class AgentSessionRuntimeService extends BaseService {
       do {
         refresh.pending = false
         const epoch = entry.contextUsageEpoch
-        const result = await connection.getContextUsage!()
+        const result = await read.call(connection)
         if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
         if (epoch === entry.contextUsageEpoch && !refresh.pending) this.persistContextUsage(entry, result)
         else refresh.pending = true
@@ -3177,13 +3181,14 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   refreshContextUsageOnDemand(sessionId: string): void {
     const entry = this.entries.get(sessionId)
-    if (!entry || !this.currentConnection(entry)) return
+    const connection = entry && this.currentConnection(entry)
+    if (!entry || !connection) return
     const now = Date.now()
     if (entry.lastContextUsageRefreshAt && now - entry.lastContextUsageRefreshAt < CONTEXT_USAGE_REFRESH_THROTTLE_MS) {
       return
     }
     entry.lastContextUsageRefreshAt = now
-    this.refreshContextUsage(entry)
+    this.refreshContextUsage(entry, connection, connection.inspectContextUsage ?? connection.getContextUsage)
   }
 
   private publishSupportedCommands(entry: AgentSessionRuntimeEntry, commands: AgentSessionSlashCommand[]): void {

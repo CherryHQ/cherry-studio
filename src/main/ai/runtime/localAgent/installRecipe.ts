@@ -56,10 +56,9 @@ export function resolveInstallRecipe(
   const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
   if (!preset) throw new Error('Unknown local agent preset')
   // Hermes is absent from the registry; Kimi's registry entry still ships the retired CLI.
-  const native =
-    preset.protocol !== 'acp' || ['kimi', 'hermes', 'deepseek-harness', 'openclaw'].includes(presetId)
-      ? CODE_CLI_TOOL_PRESETS.find((entry) => entry.executable === preset.executable)
-      : undefined
+  const native = ['claude', 'codex', 'kimi', 'hermes', 'deepseek-harness', 'openclaw'].includes(presetId)
+    ? CODE_CLI_TOOL_PRESETS.find((entry) => entry.executable === preset.executable)
+    : undefined
   if (native) return resolveCliInstallRecipe(native, undefined, platform)
   if (presetId === 'mistral-vibe')
     return { manager: 'uv', package: 'mistral-vibe', args: ['tool', 'install', '--upgrade', 'mistral-vibe'] }

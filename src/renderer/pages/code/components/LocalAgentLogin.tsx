@@ -37,6 +37,8 @@ import { toast } from '@renderer/services/toast'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import {
   LOCAL_AGENT_PRESETS,
+  localAgentChatProtocol,
+  matchesLocalAgentPreset,
   type LocalAgentAuthMethod,
   type LocalAgentConfiguration,
   type LocalAgentModelCatalog
@@ -170,7 +172,10 @@ export function LocalAgentLogin({
     env: config.env,
     enabled: true
   })
-  const methods = authMethods ?? (discovered?.signature === signature ? discovered.methods : undefined)
+  const sdk = localAgentChatProtocol(config) === 'cursor'
+  const methods = sdk
+    ? [{ id: 'cursor_login', type: 'agent', name: 'Cursor' }]
+    : (authMethods ?? (discovered?.signature === signature ? discovered.methods : undefined))
   const methodNames: Record<string, Record<string, string>> = {
     'antigravity-acp': {
       'oauth-personal': 'Google',
@@ -189,7 +194,7 @@ export function LocalAgentLogin({
     kilo: { 'kilo-login': `Kilo · ${t('local_agents.sign_in')}` },
     hermes: { custom: t('local_agents.auth_runtime_credentials') }
   }
-  const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId && entry.protocol === config.protocol)
+  const preset = LOCAL_AGENT_PRESETS.find((entry) => matchesLocalAgentPreset(entry, config))
   const usableMethods = methods
     ?.filter((method) => method.type === 'agent' && !preset?.externalCredentialMethods?.includes(method.id))
     .map((method) => ({ ...method, name: methodNames[config.presetId ?? '']?.[method.id] ?? method.name }))
@@ -413,7 +418,7 @@ export function LocalAgentLogin({
       request.current = undefined
       await onAuthenticated(nextConfig)
       if (generation.current !== current) return
-      if (sessionRequiresLogin) {
+      if (sessionRequiresLogin || sdk) {
         cachedAuthStatus.set(signature, 'signed-in')
         setAuthStatus({ signature, status: 'signed-in' })
       }

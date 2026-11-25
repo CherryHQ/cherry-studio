@@ -282,7 +282,7 @@ patchedDependencies:
   motion-dom@12.42.0: 5c9bfe486d8d0472ab803d31133ec3a7e34aa8cadde01fdd9923e2dbbc170014
   ollama-ai-provider-v2@3.3.1: cdb5584635d0af18825b289f32f904dd939cca73d2a799115ee5737e651e1ff2
   onnxruntime-node@1.25.1: 7a18bfdf39cbd83c60197c06e5f5c5b2b46d265d7483ed3d80ec3ad499d99cef
-  pi-acp@0.0.34: 2984c59df563c96a6b7d9c14fd7311791c73aec0410605de324a7114d008112d
+  pi-acp@0.0.34: 7bfde2faef85b3a97a83fe2adee277791078d17e1d15c7161ee1101b0242334c
   ppu-paddle-ocr@6.0.0: 462a2a1d24fd9bdf645bed35f34c90d24b40389443b802018f77b85911f08096
   rtf.js@3.0.9: 8f9a6825a5d8d1e4c4a5911165dc7e3398199e30ca7abc009df7bd0c612f3d24
   sherpa-onnx-node@1.13.6: 63432398c7e4f08be86944fdaf2b39cc5a8ce719db9ae38913d794d8bdcbcf0e
@@ -315,6 +315,9 @@ importers:
       '@cherrystudio/mlx-tts':
         specifier: github:CherryHQ/mlx-node#f4c21043f557965345b527bc04179ad26d08378f&path:distribution/tts
         version: https://codeload.github.com/CherryHQ/mlx-node/tar.gz/f4c21043f557965345b527bc04179ad26d08378f#path:distribution/tts
+      '@cursor/sdk':
+        specifier: 1.5.0
+        version: 1.5.0(zod@4.4.3)
       '@earendil-works/chord':
         specifier: 1.5.2
         version: 1.5.2(esbuild@0.25.12)(react@19.3.1)(ws@8.21.3)
@@ -526,6 +529,18 @@ importers:
       '@cherrystudio/agent-runtime':
         specifier: workspace:*
         version: link:packages/agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-acp
+      '@cherrystudio/agent-runtime-cursor':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-cursor
+      '@cherrystudio/agent-runtime-grok-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-grok-acp
+      '@cherrystudio/agent-runtime-pi-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-pi-acp
       '@cherrystudio/ai-core':
         specifier: workspace:*
         version: link:packages/aiCore
@@ -1300,9 +1315,6 @@ importers:
       pdfjs-dist:
         specifier: 5.4.296
         version: 5.4.296
-      pi-acp:
-        specifier: 0.0.34
-        version: 0.0.34(patch_hash=2984c59df563c96a6b7d9c14fd7311791c73aec0410605de324a7114d008112d)
       postcss:
         specifier: 8.5.6
         version: 8.5.6
@@ -1781,6 +1793,47 @@ importers:
         specifier: ^5.0.1
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
 
+  packages/agent-runtime-cursor:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      '@cursor/sdk':
+        specifier: 1.5.0
+        version: 1.5.0(zod@4.4.3)
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-grok-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
   packages/agent-runtime-pi:
     dependencies:
       '@cherrystudio/agent-behavior':
@@ -1814,6 +1867,37 @@ importers:
       typebox:
         specifier: 1.3.27
         version: 1.3.27
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+      vitest:
+        specifier: ^5.0.1
+        version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+
+  packages/agent-runtime-pi-acp:
+    dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: 2.4.0
+        version: 2.4.0(@modelcontextprotocol/server@2.4.0)(zod@4.4.3)
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      pi-acp:
+        specifier: 0.0.34
+        version: 0.0.34(patch_hash=7bfde2faef85b3a97a83fe2adee277791078d17e1d15c7161ee1101b0242334c)
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
       typescript:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
@@ -3063,6 +3147,9 @@ packages:
   '@braintree/sanitize-url@7.1.1':
     resolution: {integrity: sha512-i1L7noDNxtFyL5DmZafWy1wRVhGehQmzZaz1HiN5e7iylJMSZR7ekOV7NsIqa5qBldlLrsKv4HbgFUVlQrz8Mw==}
 
+  '@bufbuild/protobuf@1.10.0':
+    resolution: {integrity: sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==}
+
   '@buttercup/fetch@0.2.1':
     resolution: {integrity: sha512-sCgECOx8wiqY8NN1xN22BqqKzXYIG2AicNLlakOAI4f0WgyLVUbAigMf8CZhBtJxdudTcB1gD5lciqi44jwJvg==}
 
@@ -3332,6 +3419,17 @@ packages:
     resolution: {integrity: sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA==}
     engines: {node: '>=0.1.90'}
 
+  '@connectrpc/connect-web@1.7.0':
+    resolution: {integrity: sha512-qyP0YOnUPRWwCc/VfsoydMJvkb7EyUPr2q9sHgBuJzbADjiqck1gKH5V5ZPzPhTLBvmz5UvG+wiZ5sMRQHU1MQ==}
+    peerDependencies:
+      '@bufbuild/protobuf': ^1.10.0
+      '@connectrpc/connect': 1.7.0
+
+  '@connectrpc/connect@1.7.0':
+    resolution: {integrity: sha512-iNKdJRi69YP3mq6AePRT8F/HrxWCewrhxnLMNm0vpqXAR8biwzRtO6Hjx80C6UvtKJ5sFmffQT7I4Baecz389w==}
+    peerDependencies:
+      '@bufbuild/protobuf': ^1.10.0
+
   '@copilotkit/aimock@1.48.0':
     resolution: {integrity: sha512-i6gNetBqgelSi3+Lf+y7Z1vUivxWbioImnb/FuVkVHzh7HwVyO/vQ9UA/IBcqWtsL6QOLgrr1w7KHsyyuHTiCg==}
     engines: {node: '>=20.15.0'}
@@ -3378,6 +3476,42 @@ packages:
   '@csstools/css-tokenizer@3.0.4':
     resolution: {integrity: sha512-Vd/9EVDiu6PPJt9yAh6roZP6El1xHrdvIVGjyBsHR0RYwNHgL7FJPyIIW4fANJNG6FtyZfvlRPpFI4ZM/lubvw==}
     engines: {node: '>=18'}
+
+  '@cursor/sdk-darwin-arm64@1.5.0':
+    resolution: {integrity: sha512-BbNXAZNDnfSr2CVCxXO2MuKQx05tY8YqtMgy7wgfNEN4bl3K9q0ug3FvfWeeml8oj5namyNu+oHenYuzviT7sg==}
+    cpu: [arm64]
+    os: [darwin]
+    hasBin: true
+
+  '@cursor/sdk-darwin-x64@1.5.0':
+    resolution: {integrity: sha512-20ZOpKYaCFUxggUEmZsXmnsPDc3Qc7dSiBCKd94xvZ/dVhy1zpX8D7TyB2pQG5kLcQhOI72eKttoOzXiVpNr8Q==}
+    cpu: [x64]
+    os: [darwin]
+    hasBin: true
+
+  '@cursor/sdk-linux-arm64@1.5.0':
+    resolution: {integrity: sha512-96BZjj6S4zn4UeV9BCSz8ZvcH6jIGx+oon5+avhQeaTin8s1GI8vzk+/+XcQXCIUiO5CMaOvMB27/kCmN8Xcyg==}
+    cpu: [arm64]
+    os: [linux]
+    hasBin: true
+
+  '@cursor/sdk-linux-x64@1.5.0':
+    resolution: {integrity: sha512-nerO1mIGRqmF9N+u+YAwtjtFL5+5B/KS4bDLr2Npj8kOzMaB1G4t9EeZpZmM40Rs7kwb2IHmdpPZ/z9DyWJK6Q==}
+    cpu: [x64]
+    os: [linux]
+    hasBin: true
+
+  '@cursor/sdk-win32-x64@1.5.0':
+    resolution: {integrity: sha512-veeYScNOnpC7oEFkZCT96Dk3rLt/mGDeFQL/iqvvPPwYlEz3Kl0EbBd3Rjf2Q9THoUIWV5GlXsn9ZBwXwCcKww==}
+    cpu: [x64]
+    os: [win32]
+    hasBin: true
+
+  '@cursor/sdk@1.5.0':
+    resolution: {integrity: sha512-BebvKzDhzxblSDH4pslOjJQIgqBO/Z2bhaVMWAfbkfWEDy8Oz32BZhAEppFnGMcT/5PZRayReqAGteYB4XQSkw==}
+    engines: {node: '>=22.13'}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@dabh/diagnostics@2.0.8':
     resolution: {integrity: sha512-R4MSXTVnuMzGD7bzHdW2ZhhdPC/igELENcq5IjEverBvq5hn1SXCWcsi6eSsdWP0/Ur+SItRRjAktmdoX/8R/Q==}
@@ -7632,6 +7766,12 @@ packages:
 
   '@standard-schema/utils@0.3.0':
     resolution: {integrity: sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==}
+
+  '@statsig/client-core@3.31.0':
+    resolution: {integrity: sha512-SuxQD6TmVszPG7FoMKwTk/uyBuVFk7XnxI3T/E0uyb7PL7GNjONtfsoh+NqBBVUJVse0CUeSFfgJPoZy1ZOslQ==}
+
+  '@statsig/js-client@3.31.0':
+    resolution: {integrity: sha512-LFa5E0LjT6sTfZv3sNGoyRLSZ1078+agdgOA+Vm1ecjG+KbSOfBLTW7hMwimrJ29slRwbYDzbtKaPJo/R37N2g==}
 
   '@storybook/addon-docs@10.6.0':
     resolution: {integrity: sha512-Fk3rUQWeGyCfL170OkmRp6Ruyv7MHPb/xrKa6YNk7FlGmlVLi5tKzh2T/0J13vWEy8wiu2MV3IBu8iRsaUR+Cw==}
@@ -17248,6 +17388,8 @@ snapshots:
 
   '@braintree/sanitize-url@7.1.1': {}
 
+  '@bufbuild/protobuf@1.10.0': {}
+
   '@buttercup/fetch@0.2.1':
     optionalDependencies:
       node-fetch: 3.3.2
@@ -17674,6 +17816,15 @@ snapshots:
 
   '@colors/colors@1.6.0': {}
 
+  '@connectrpc/connect-web@1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
+      '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
+
+  '@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0)':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
+
   '@copilotkit/aimock@1.48.0(vitest@5.0.1)':
     optionalDependencies:
       vitest: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@8.1.1))(msw@2.12.7(@types/node@24.10.4)(typescript@5.9.3))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
@@ -17703,6 +17854,35 @@ snapshots:
       '@csstools/css-tokenizer': 3.0.4
 
   '@csstools/css-tokenizer@3.0.4': {}
+
+  '@cursor/sdk-darwin-arm64@1.5.0':
+    optional: true
+
+  '@cursor/sdk-darwin-x64@1.5.0':
+    optional: true
+
+  '@cursor/sdk-linux-arm64@1.5.0':
+    optional: true
+
+  '@cursor/sdk-linux-x64@1.5.0':
+    optional: true
+
+  '@cursor/sdk-win32-x64@1.5.0':
+    optional: true
+
+  '@cursor/sdk@1.5.0(zod@4.4.3)':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
+      '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
+      '@connectrpc/connect-web': 1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))
+      '@statsig/js-client': 3.31.0
+      zod: 4.4.3
+    optionalDependencies:
+      '@cursor/sdk-darwin-arm64': 1.5.0
+      '@cursor/sdk-darwin-x64': 1.5.0
+      '@cursor/sdk-linux-arm64': 1.5.0
+      '@cursor/sdk-linux-x64': 1.5.0
+      '@cursor/sdk-win32-x64': 1.5.0
 
   '@dabh/diagnostics@2.0.8':
     dependencies:
@@ -21817,6 +21997,12 @@ snapshots:
   '@standard-schema/spec@1.1.0': {}
 
   '@standard-schema/utils@0.3.0': {}
+
+  '@statsig/client-core@3.31.0': {}
+
+  '@statsig/js-client@3.31.0':
+    dependencies:
+      '@statsig/client-core': 3.31.0
 
   '@storybook/addon-docs@10.6.0(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(storybook@10.6.0(@types/react@19.2.7)(prettier@3.8.1)(react@19.3.1))':
     dependencies:
@@ -29151,7 +29337,7 @@ snapshots:
 
   pend@1.2.0: {}
 
-  pi-acp@0.0.34(patch_hash=2984c59df563c96a6b7d9c14fd7311791c73aec0410605de324a7114d008112d):
+  pi-acp@0.0.34(patch_hash=7bfde2faef85b3a97a83fe2adee277791078d17e1d15c7161ee1101b0242334c):
     dependencies:
       '@agentclientprotocol/sdk': 0.26.0(zod@3.25.76)
       cross-spawn: 7.0.6

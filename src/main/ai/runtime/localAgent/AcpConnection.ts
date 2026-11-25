@@ -26,6 +26,7 @@ import { app as electronApp } from 'electron'
 import * as z from 'zod'
 
 import { application } from '@application'
+import type { AcpHarnessSession } from '@cherrystudio/agent-runtime-acp/v1'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
@@ -49,6 +50,7 @@ import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
 import type { AgentRuntimeUserInput } from '../types'
 import { acpError } from './acpError'
+import { localAcpHarness } from './acpHarness'
 import {
   classifyAcpToolKind,
   createAcpSessionPermissionGrants,
@@ -65,7 +67,6 @@ import {
   isInjectedAcpAutomationTool,
   LOCAL_AGENT_AUTOMATION_SERVER_NAME
 } from './browserBridge'
-import { registerCursorExtension } from './cursorExtension'
 import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
 import type { LocalAgentBrowserLease } from './LocalAgentMcpBridgeService'
@@ -80,26 +81,6 @@ const HOST_ALLOW_SESSION_OPTION_ID = '__cherry_allow_session__'
 const LegacyModelsSchema = z.object({
   currentModelId: z.string(),
   availableModels: z.array(z.object({ modelId: z.string(), name: z.string() }))
-})
-const XaiSessionUpdateSchema = z.object({
-  sessionId: z.string(),
-  update: z
-    .object({
-      sessionUpdate: z.string(),
-      usage: z
-        .object({
-          inputTokens: z.number(),
-          outputTokens: z.number(),
-          totalTokens: z.number(),
-          cachedReadTokens: z.number().nullish(),
-          cachedWriteTokens: z.number().nullish(),
-          cacheCreationTokens: z.number().nullish(),
-          thoughtTokens: z.number().nullish(),
-          reasoningTokens: z.number().nullish()
-        })
-        .optional()
-    })
-    .passthrough()
 })
 type SessionResponse = (NewSessionResponse | LoadSessionResponse | ResumeSessionResponse) & { models?: unknown }
 
@@ -126,7 +107,8 @@ export class AcpConnection extends LocalConnection {
   private nativeId?: string
   private supportsClose = false
   private readonly terminals = new Map<string, Terminal>()
-  private piStartupBanner?: string
+  private readonly harness = localAcpHarness(this.config.presetId)
+  private harnessSession?: AcpHarnessSession
   private loading = false
   private modelConfigId?: string
   private legacyModels = false
@@ -141,6 +123,10 @@ export class AcpConnection extends LocalConnection {
   private readonly approvedWrites: Array<{ path: string; content: string }> = []
   private readonly permissionGrants = createAcpSessionPermissionGrants()
   private readonly toolInputs = new Map<string, LocalAcpTool>()
+
+  get inspectContextUsage() {
+    return this.harnessSession?.inspectContextUsage
+  }
 
   private effectivePermissionMode() {
     return resolveEffectiveLocalPermissionMode(this.localSessionInfo, this.config.presetId)
@@ -257,25 +243,10 @@ export class AcpConnection extends LocalConnection {
             params.update.sessionUpdate === 'session_info_update' ||
             params.update.sessionUpdate === 'notice' ||
             params.update.sessionUpdate === 'current_mode_update' ||
-            (this.config.presetId === 'pi-acp' && params.update.sessionUpdate === 'agent_message_chunk')
+            this.harness?.retainSetupUpdate?.(params.update)
           )
             this.pendingUpdates.push(params)
         } else if (params.sessionId === this.nativeId) this.update(params.update)
-      })
-      .onNotification('_x.ai/session/update', XaiSessionUpdateSchema, ({ params }) => {
-        if (this.loading || params.sessionId !== this.nativeId) return
-        if (params.update.sessionUpdate !== 'turn_completed' || !params.update.usage) return
-        const usage = params.update.usage
-        const cachedWriteTokens = usage.cachedWriteTokens ?? usage.cacheCreationTokens
-        const thoughtTokens = usage.thoughtTokens ?? usage.reasoningTokens
-        this.turnUsage = {
-          inputTokens: usage.inputTokens,
-          outputTokens: usage.outputTokens,
-          totalTokens: usage.totalTokens,
-          ...(usage.cachedReadTokens != null ? { cachedReadTokens: usage.cachedReadTokens } : {}),
-          ...(cachedWriteTokens != null ? { cachedWriteTokens } : {}),
-          ...(thoughtTokens != null ? { thoughtTokens } : {})
-        }
       })
       .onRequest('elicitation/create', async ({ params, signal: requestSignal }) => {
         if (params.mode !== 'form') throw RequestError.invalidParams('Unsupported elicitation mode')
@@ -617,7 +588,12 @@ export class AcpConnection extends LocalConnection {
         this.terminals.delete(params.terminalId)
         return {}
       })
-    registerCursorExtension(app, {
+    this.harness?.register?.(app, {
+      isActiveSession: (sessionId) =>
+        this.active && !this.loading && !this.abort.signal.aborted && this.nativeId === sessionId,
+      usage: (value) => {
+        this.turnUsage = value
+      },
       isActive: () => this.active && !this.abort.signal.aborted,
       signal: this.abort.signal,
       approve: (id, name, input, signal) => this.approve(id, name, input, signal),
@@ -689,6 +665,7 @@ export class AcpConnection extends LocalConnection {
     const mcpServers = this.buildBrowserMcpServers(response.agentCapabilities?.mcpCapabilities)
     this.loading = true
     try {
+      let newSessionMetadata: NewSessionResponse['_meta']
       if (resume) {
         if (!this.localSessionInfo.resume)
           throw new LocalAgentSessionRestoreError(
@@ -709,13 +686,17 @@ export class AcpConnection extends LocalConnection {
           cwd,
           mcpServers
         })
-        if (this.config.presetId === 'pi-acp') {
-          const metadata = z.object({ piAcp: z.object({ startupInfo: z.string() }) }).safeParse(session._meta)
-          this.piStartupBanner = metadata.success ? metadata.data.piAcp.startupInfo || undefined : undefined
-        }
+        newSessionMetadata = session._meta
         this.nativeId = session.sessionId
         this.readSessionModels(session)
       }
+      this.harnessSession = this.harness?.bind?.({
+        agent: this.connection.agent,
+        agentCapabilities: response.agentCapabilities,
+        sessionId: this.nativeId,
+        newSessionMetadata,
+        currentModel: () => this.localSessionInfo.activeModel?.id
+      })
       for (const pending of this.pendingUpdates.splice(0)) {
         if (pending.sessionId === this.nativeId) this.update(pending.update)
       }
@@ -938,16 +919,7 @@ export class AcpConnection extends LocalConnection {
     return terminal
   }
   private update(update: SessionUpdate) {
-    if (
-      this.piStartupBanner !== undefined &&
-      update.sessionUpdate === 'agent_message_chunk' &&
-      update.content.type === 'text' &&
-      update.content.text === this.piStartupBanner
-    ) {
-      // pi-acp repeats session/new startup metadata as an unmarked assistant chunk.
-      this.piStartupBanner = undefined
-      return
-    }
+    if (this.harnessSession?.consumeUpdate?.(update)) return
 
     if (update.sessionUpdate === 'compaction_update') {
       const { compactionId, status } = update
@@ -1108,8 +1080,10 @@ export class AcpConnection extends LocalConnection {
       const response = await this.connection.agent.request<PromptResponse>('session/prompt', {
         sessionId: this.nativeId,
         prompt,
-        ...(this.config.presetId === 'openclaw' ? { _meta: { prefixCwd: false } } : {})
+        _meta: this.config.presetId === 'openclaw' ? { prefixCwd: false } : this.harnessSession?.promptMeta
       })
+      const lastRequest = this.harnessSession?.contextAfterPrompt?.(response, input.message.id)
+      if (lastRequest) this.events.push({ type: 'context-usage', result: { status: 'confirmed', value: lastRequest } })
       const usage = response.usage ?? this.turnUsage
       this.turnUsage = undefined
       if (usage) {

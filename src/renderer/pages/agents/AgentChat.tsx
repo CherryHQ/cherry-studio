@@ -694,7 +694,8 @@ const AgentChatSessionCenter = ({
   const checkLocalRestore =
     !!onStartNewTaskConversation &&
     activeAgent?.type === 'local' &&
-    activeAgent.configuration?.localRuntime?.protocol === 'acp'
+    (activeAgent.configuration?.localRuntime?.protocol === 'acp' ||
+      activeAgent.configuration?.localRuntime?.protocol === 'cursor')
   const historyOnly = checkLocalRestore && localRestoreUnavailable === true
   const checkingRestore = checkLocalRestore && localRestoreUnavailable === undefined
   const composer = (

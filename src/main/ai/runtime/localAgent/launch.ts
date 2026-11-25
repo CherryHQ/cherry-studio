@@ -18,6 +18,7 @@ import { getEnvironmentValue, mergeEnvironment } from '@main/utils/env'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import {
   LOCAL_AGENT_PRESETS,
+  matchesLocalAgentPreset,
   type LocalAgentPreset,
   type LocalAgentConfiguration,
   type LocalAgentDetection
@@ -387,7 +388,8 @@ export async function resolveLocalAgentLaunch(
     terminal && definition?.terminalCli
       ? { ...definition, executable: definition.terminalCli.executable, aliases: undefined }
       : definition
-  if (config.presetId && (!preset || preset.protocol !== config.protocol)) throw new Error('Invalid local agent preset')
+  if (config.presetId && (!preset || !matchesLocalAgentPreset(preset, config)))
+    throw new Error('Invalid local agent preset')
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
   let shellEnv = await getRawShellEnv(signal)

@@ -219,6 +219,7 @@ export default defineConfig({
         ['agent-behavior', 'tests'],
         ['agent-runtime', 'tests'],
         ['agent-runtime-pi', 'tests'],
+        ['agent-runtime-pi-acp', 'tests'],
         ['agent-runtime-pi-durable', 'tests'],
         ['agent-runtime-acp', 'tests'],
         ['agent-runtime-claude-code', 'tests'],

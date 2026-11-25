@@ -1,98 +1,92 @@
 diff --git a/dist/index.js b/dist/index.js
-index 64758f0..12bfd2a 100755
+index 64758f0..45ce8f9 100755
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -808,6 +808,54 @@ var SessionManager = class {
+@@ -808,6 +808,28 @@ var SessionManager = class {
      return session;
    }
  };
-+function summarizeTurnUsage(messages) {
-+  if (!Array.isArray(messages)) return void 0;
-+  let inputTokens = 0;
-+  let outputTokens = 0;
-+  let totalTokens = 0;
-+  let cachedReadTokens = 0;
-+  let cachedWriteTokens = 0;
-+  let thoughtTokens = 0;
-+  let hasUsage = false;
-+  let hasCacheRead = false;
-+  let hasCacheWrite = false;
-+  let hasThought = false;
-+  for (const message of messages) {
-+    const u = message?.usage;
-+    if (!u || typeof u !== "object") continue;
-+    const uncached = typeof u.input === "number" ? u.input : 0;
-+    const cacheRead = typeof u.cacheRead === "number" ? u.cacheRead : 0;
-+    const cacheWrite = typeof u.cacheWrite === "number" ? u.cacheWrite : 0;
-+    const input = uncached + cacheRead + cacheWrite;
-+    const output = typeof u.output === "number" ? u.output : 0;
-+    const total = typeof u.totalTokens === "number" && u.totalTokens > 0 ? u.totalTokens : input + output;
-+    inputTokens += input;
-+    outputTokens += output;
-+    totalTokens += total;
-+    if (typeof u.cacheRead === "number") {
-+      cachedReadTokens += u.cacheRead;
-+      hasCacheRead = true;
-+    }
-+    if (typeof u.cacheWrite === "number") {
-+      cachedWriteTokens += u.cacheWrite;
-+      hasCacheWrite = true;
-+    }
-+    if (typeof u.reasoning === "number") {
-+      thoughtTokens += u.reasoning;
-+      hasThought = true;
-+    }
-+    hasUsage = true;
++function addTurnUsage(total, u) {
++  if (!u || typeof u !== "object") return total;
++  const input = (typeof u.input === "number" ? u.input : 0) + (typeof u.cacheRead === "number" ? u.cacheRead : 0) + (typeof u.cacheWrite === "number" ? u.cacheWrite : 0);
++  const output = typeof u.output === "number" ? u.output : 0;
++  total ??= { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
++  total.inputTokens += input;
++  total.outputTokens += output;
++  total.totalTokens += typeof u.totalTokens === "number" && u.totalTokens > 0 ? u.totalTokens : input + output;
++  if (typeof u.cacheRead === "number") total.cachedReadTokens = (total.cachedReadTokens ?? 0) + u.cacheRead;
++  if (typeof u.cacheWrite === "number") total.cachedWriteTokens = (total.cachedWriteTokens ?? 0) + u.cacheWrite;
++  if (typeof u.reasoning === "number") total.thoughtTokens = (total.thoughtTokens ?? 0) + u.reasoning;
++  return total;
++}
++function lastRequestContext(message, model) {
++  if (!model || model.id !== message.model || model.provider !== message.provider) return;
++  const usage = message.usage;
++  if (!usage || !Number.isSafeInteger(usage.input) || usage.input < 0) return;
++  const tokens = usage.input + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
++  if (Number.isSafeInteger(tokens) && tokens > 0 && Number.isSafeInteger(model.contextWindow) && model.contextWindow > 0) {
++    return { model: model.provider + "/" + model.id, tokens, contextWindow: model.contextWindow };
 +  }
-+  if (!hasUsage) return void 0;
-+  return {
-+    inputTokens,
-+    outputTokens,
-+    totalTokens,
-+    ...(hasCacheRead ? { cachedReadTokens } : {}),
-+    ...(hasCacheWrite ? { cachedWriteTokens } : {}),
-+    ...(hasThought ? { thoughtTokens } : {})
-+  };
 +}
  var PiAcpSession = class {
    sessionId;
    cwd;
-@@ -822,6 +870,8 @@ var PiAcpSession = class {
+@@ -822,6 +844,9 @@ var PiAcpSession = class {
    cancelRequested = false;
    // Current in-flight turn (if any). Additional prompts are queued.
    pendingTurn = null;
-+  lastAssistantMessage;
-+  turnAssistantMessages = [];
++  lastAssistantOutcome;
++  lastRequest;
++  turnUsage;
    turnQueue = [];
    // Track tool call statuses and ensure they are monotonic (pending -> in_progress -> completed).
    // Some pi events can arrive out of order (e.g. late toolcall_* deltas after execution starts),
-@@ -938,8 +988,14 @@ var PiAcpSession = class {
+@@ -867,10 +892,10 @@ var PiAcpSession = class {
+       content: { type: "text", text: this.startupInfo }
+     });
+   }
+-  async prompt(message, images = []) {
++  async prompt(message, images = [], reportLastRequest = false) {
+     const expandedMessage = expandSlashCommand(message, this.fileCommands);
+     const turnPromise = new Promise((resolve4, reject) => {
+-      const queued = { message: expandedMessage, images, resolve: resolve4, reject };
++      const queued = { message: expandedMessage, images, reportLastRequest, resolve: resolve4, reject };
+       if (this.pendingTurn) {
+         this.turnQueue.push(queued);
+         this.emit({
+@@ -937,9 +962,16 @@ var PiAcpSession = class {
+     await this.flushEmits();
    }
    async settleTurn() {
-     await this.publishContextUsage();
+-    await this.publishContextUsage();
 -    const reason = this.cancelRequested ? "cancelled" : "end_turn";
 -    this.pendingTurn?.resolve(reason);
-+    const message = this.lastAssistantMessage;
++    const lastRequest = this.pendingTurn?.reportLastRequest && !this.cancelRequested ? this.lastRequest : undefined;
++    if (lastRequest) await this.flushEmits();
++    else await this.publishContextUsage();
++    const message = this.lastAssistantOutcome;
 +    const reason = this.cancelRequested ? "cancelled" : message?.stopReason === "length" ? "max_tokens" : "end_turn";
 +    if (!this.cancelRequested && message?.stopReason === "error") {
 +      this.pendingTurn?.reject(RequestError2.internalError({}, message.errorMessage || "Pi model request failed"));
 +    } else {
-+      const usage = summarizeTurnUsage(this.turnAssistantMessages);
-+      this.pendingTurn?.resolve(usage ? { stopReason: reason, usage } : reason);
++      this.pendingTurn?.resolve({ stopReason: reason, usage: this.turnUsage, lastRequest });
 +    }
      this.pendingTurn = null;
      this.inAgentLoop = false;
      const next = this.turnQueue.shift();
-@@ -993,6 +1049,8 @@ var PiAcpSession = class {
+@@ -993,20 +1025,21 @@ var PiAcpSession = class {
    }
    startTurn(t) {
      this.cancelRequested = false;
-+    this.lastAssistantMessage = undefined;
-+    this.turnAssistantMessages = [];
++    this.lastAssistantOutcome = undefined;
++    this.lastRequest = undefined;
++    this.turnUsage = undefined;
      this.inAgentLoop = false;
-     this.pendingTurn = { resolve: t.resolve, reject: t.reject };
+-    this.pendingTurn = { resolve: t.resolve, reject: t.reject };
++    this.pendingTurn = { resolve: t.resolve, reject: t.reject, reportLastRequest: t.reportLastRequest };
      this.emit({
-@@ -1001,12 +1059,10 @@ var PiAcpSession = class {
+       sessionUpdate: "session_info_update",
+       _meta: { piAcp: { queueDepth: this.turnQueue.length, running: true } }
      });
      this.proc.prompt(t.message, t.images).catch((err) => {
        void this.flushEmits().finally(() => {
@@ -108,39 +102,98 @@ index 64758f0..12bfd2a 100755
          }
          this.pendingTurn = null;
          this.inAgentLoop = false;
-@@ -1281,6 +1337,14 @@ var PiAcpSession = class {
+@@ -1253,7 +1286,12 @@ var PiAcpSession = class {
+         });
+         break;
+       }
++      case "compaction_start":
++      case "compaction_end":
++        this.lastRequest = undefined;
++        break;
+       case "auto_compaction_start": {
++        this.lastRequest = undefined;
+         this.emit({
+           sessionUpdate: "agent_message_chunk",
+           content: {
+@@ -1264,6 +1302,7 @@ var PiAcpSession = class {
+         break;
+       }
+       case "auto_compaction_end": {
++        this.lastRequest = undefined;
+         this.emit({
+           sessionUpdate: "agent_message_chunk",
+           content: {
+@@ -1281,6 +1320,16 @@ var PiAcpSession = class {
          break;
        }
        case "agent_end": {
-+        this.lastAssistantMessage = Array.isArray(ev.messages) ? ev.messages.findLast((message) => message?.role === "assistant") : undefined;
-+        if (Array.isArray(ev.messages)) {
-+          for (const message of ev.messages) {
-+            if (message?.role === "assistant" && message?.stopReason !== "error" && message?.stopReason !== "aborted") {
-+              this.turnAssistantMessages.push(message);
-+            }
-+          }
++        this.lastAssistantOutcome = undefined;
++        this.lastRequest = undefined;
++        for (const message of Array.isArray(ev.messages) ? ev.messages : []) {
++          if (message?.role !== "assistant") continue;
++          this.lastAssistantOutcome = { stopReason: message.stopReason, errorMessage: message.errorMessage };
++          this.lastRequest = undefined;
++          if (message.stopReason === "error" || message.stopReason === "aborted") continue;
++          this.turnUsage = addTurnUsage(this.turnUsage, message.usage);
++          this.lastRequest = lastRequestContext(message, this.proc.usageModel);
 +        }
          this.inAgentLoop = false;
          break;
        }
-@@ -1887,7 +1951,7 @@ function mergeCommands(a, b) {
+@@ -1887,7 +1936,7 @@ function mergeCommands(a, b) {
    }
    return out;
  }
 -var pkg = readNearestPackageJson(import.meta.url);
-+var pkg = { name: "pi-acp", version: "0.0.34-cherry.1" };
++var pkg = { name: "pi-acp", version: "0.0.34-cherry.2" };
  var PiAcpAgent = class {
    conn;
    sessions = new SessionManager();
-@@ -2495,8 +2559,9 @@ ${JSON.stringify(stats, null, 2)}`;
+@@ -1973,6 +2022,13 @@ var PiAcpAgent = class {
+       this.restoringSessions.delete(sessionId);
+     }
+   }
++  async extMethod(method, params) {
++    if (method !== "_pi/context_usage") throw RequestError3.methodNotFound(method);
++    const session = this.sessions.maybeGet(params.sessionId);
++    if (!session) throw RequestError3.invalidParams("Session is not open");
++    const stats = await session.proc.getSessionStats(SESSION_STATS_TIMEOUT_MS);
++    return { contextUsage: stats.contextUsage ?? null };
++  }
+   async initialize(params) {
+     const supportedVersion = 1;
+     const requested = params.protocolVersion;
+@@ -1989,6 +2045,7 @@ var PiAcpAgent = class {
+         supportsTerminalAuthMeta: params?.clientCapabilities?._meta?.["terminal-auth"] === true
+       }),
+       agentCapabilities: {
++        _meta: { piAcp: { contextUsage: 1 } },
+         loadSession: true,
+         mcpCapabilities: { http: false, sse: false },
+         promptCapabilities: {
+@@ -2494,9 +2551,14 @@ ${JSON.stringify(stats, null, 2)}`;
+         return { stopReason: "end_turn" };
        }
      }
-     const result = await session.prompt(message, images);
+-    const result = await session.prompt(message, images);
 -    const stopReason = result === "error" ? session.wasCancelRequested() ? "cancelled" : "end_turn" : result;
 -    return { stopReason };
++    const result = await session.prompt(message, images, params._meta?.piAcp?.reportLastRequest === true);
 +    const outcome = typeof result === "string" ? { stopReason: result } : result;
 +    const stopReason = outcome.stopReason === "error" ? session.wasCancelRequested() ? "cancelled" : "end_turn" : outcome.stopReason;
-+    return outcome.usage ? { stopReason, usage: outcome.usage } : { stopReason };
++    return {
++      stopReason,
++      ...(outcome.usage ? { usage: outcome.usage } : {}),
++      ...(outcome.lastRequest ? { _meta: { piAcp: { lastRequest: outcome.lastRequest } } } : {})
++    };
    }
    async cancel(params) {
      const session = this.sessions.maybeGet(params.sessionId);
+@@ -2820,6 +2882,7 @@ async function getModelState(proc, pre) {
+     }
+   })();
+   const model = state?.model;
++  proc.usageModel = model ? { id: model.id, provider: model.provider, contextWindow: model.contextWindow } : undefined;
+   if (model && typeof model === "object") {
+     const provider = String(model.provider ?? "").trim();
+     const id = String(model.id ?? "").trim();

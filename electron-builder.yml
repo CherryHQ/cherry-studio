@@ -85,6 +85,7 @@ asarUnpack:
   - resources/**
   - "!resources/devtools/**"
   - "**/*.{metal,exp,lib}"
+  - "node_modules/@cursor/sdk-*/**" # Cursor locates platform executables by package path.
   - "node_modules/@img/sharp-*/**"
   - "node_modules/sharp/**"
   - "node_modules/@img/colour/**"

@@ -2,7 +2,7 @@
 
 `@cherrystudio/agent-runtime-acp/v1` adapts stable ACP v1 to the [common runtime](../agent-runtime/README.md). The SDK owns protocol framing; the host supplies an exclusive transport lease, native session configuration, credentials, and supported callbacks. The adapter does not launch agents, approve tools, fetch resources, or delete history.
 
-Implementation follows the [ACP Spec](../../.agents/notes/implemented/architecture/2026-11-09-agent-runtime-acp-v1.md). Desktop adoption is separate.
+Implementation follows the [ACP Spec](../../.agents/notes/implemented/architecture/2026-11-09-agent-runtime-acp-v1.md). Desktop protocol extensions share the `AcpHarnessAdapter` contract. The installed Pi and Grok packages implement provider-specific updates. Cursor uses its native SDK for new chats and keeps its legacy ACP callbacks for existing threads and explicit commands.
 
 ## Ownership
 

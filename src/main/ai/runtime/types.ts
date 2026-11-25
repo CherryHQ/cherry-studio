@@ -335,9 +335,11 @@ export interface AgentRuntimeConnection {
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read passive, thread-scoped context usage from the harness. Unknown and unsupported
-   * results remain explicit; omitting this operation means the connection cannot report usage.
+   * results remain explicit. The host may call this after each turn.
    */
   getContextUsage?(): Promise<OperationResult<ThreadContextUsage>>
+  /** Explicit inspection for connections that push live readings and need native history for an exact refresh. */
+  inspectContextUsage?(): Promise<OperationResult<ThreadContextUsage>>
   /**
    * Read this session's available slash command catalog (`query.supportedCommands()`), including
    * any custom project/user commands the SDK discovered. Returns null when the runtime can't report

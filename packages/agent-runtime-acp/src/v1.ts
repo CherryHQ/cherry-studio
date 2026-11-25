@@ -1,3 +1,4 @@
+export type { AcpHarnessAdapter, AcpHarnessSession } from './harness'
 export { createAcpRuntime } from './runtime'
 export type {
   AcpHostCallbacks,

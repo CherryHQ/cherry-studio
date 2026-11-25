@@ -1,7 +1,13 @@
 import { stripVTControlCharacters } from 'node:util'
 
 import { CommandFailedError, executeCommand } from '@main/utils/processRunner'
-import { LOCAL_AGENT_PRESETS, type LocalAgentConfiguration } from '@shared/ai/localAgent'
+import { getShellEnv } from '@main/utils/shellEnv'
+import {
+  LOCAL_AGENT_PRESETS,
+  localAgentChatProtocol,
+  matchesLocalAgentPreset,
+  type LocalAgentConfiguration
+} from '@shared/ai/localAgent'
 import type { OutputFor } from '@shared/ipc/types'
 
 import { resolveLocalAgentLaunch } from './launch'
@@ -50,8 +56,16 @@ function parseNativeStatus(presetId: string, output: string): AuthStatus {
 }
 
 export async function getLocalAgentAuthStatus(config: LocalAgentConfiguration): Promise<AuthStatus> {
-  const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId)
-  if (!preset?.authStatusArgs || preset.protocol !== config.protocol) return 'unsupported'
+  if (localAgentChatProtocol(config) === 'cursor') {
+    try {
+      const { cursorAuthStatus } = await import('@cherrystudio/agent-runtime-cursor')
+      return await cursorAuthStatus(config.env.CURSOR_API_KEY ?? (await getShellEnv()).CURSOR_API_KEY)
+    } catch {
+      return 'unknown'
+    }
+  }
+  const preset = LOCAL_AGENT_PRESETS.find((entry) => matchesLocalAgentPreset(entry, config))
+  if (!preset?.authStatusArgs) return 'unsupported'
   if (
     config.args.length &&
     (config.args.length !== preset.args.length || config.args.some((arg, i) => arg !== preset.args[i]))

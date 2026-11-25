@@ -5,7 +5,7 @@ import { shell } from 'electron'
 import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
-import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+import { localAgentChatProtocol, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { isSensitiveKey, redactLiteral } from '@shared/utils/redaction'
 
 import { AcpConnection } from './AcpConnection'
@@ -37,12 +37,29 @@ export class LocalAgentAuthService extends BaseService {
     options?: CliAuthOptions
   ): Promise<void> {
     if (this.pending.has(requestId)) throw new Error('Authentication is already in progress')
+    if (localAgentChatProtocol(config) === 'cursor') {
+      if (methodId !== 'cursor_login') throw new Error('Unknown Cursor authentication method')
+      const controller = new AbortController()
+      const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(AUTH_TIMEOUT_MS)])
+      this.pending.set(requestId, async () => controller.abort())
+      try {
+        const { cursorLogin } = await import('@cherrystudio/agent-runtime-cursor')
+        await cursorLogin(signal, async (url) => {
+          signal.throwIfAborted()
+          if (new URL(url).protocol !== 'https:') throw new Error('Invalid Cursor login URL')
+          await shell.openExternal(url)
+        })
+      } finally {
+        this.pending.delete(requestId)
+      }
+      return
+    }
     const cliSpec = resolveCliAuthCommand(config.presetId, methodId, options)
     if (cliSpec) {
       await this.authenticateViaCli(requestId, config, cliSpec, options?.secret)
       return
     }
-    if (config.protocol !== 'acp') throw new Error('ACP authentication is unavailable')
+    if (localAgentChatProtocol(config) !== 'acp') throw new Error('ACP authentication is unavailable')
 
     const live = new AcpConnection(`local-agent-auth:${requestId}`, '', config)
     this.pending.set(requestId, () => live.close())

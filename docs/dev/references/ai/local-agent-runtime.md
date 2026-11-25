@@ -47,14 +47,23 @@ are preserved.
   transaction. Omitted fields retain their latest values and explicit `undefined`
   clears an optional field. Discovery, checks and session capability reads use IpcApi.
 - `AgentSessionRuntimeService` owns scheduling, approvals, persistence and disposal.
-  The local driver translates events from ACP, Claude Agent SDK and Codex App Server
+  The local driver translates events from ACP, Cursor SDK, Claude Agent SDK and Codex App Server
   into the shared runtime contract. Each turn establishes a source in its session
   context before publishing addressed text, reasoning, plan and tool updates.
   Opening history reads known session capabilities. A command request or send can
   acquire a connection.
 - Streams use `runtime:<agent-id>` as execution identity. It belongs to the stream.
   Persisted messages retain author and native model attribution when available.
-- The CLI owns authentication, project settings, MCP and Skills. Local turns use
+- Cursor uses the local TypeScript SDK for new chats. Its SDK credential store
+  and model catalog are separate from CLI login. The CLI is optional for SDK chat.
+  Cherry passes an empty virtual filesystem, no ambient settings, and the MCP-only
+  tool list on both create and resume. Per-turn host tools read the selected
+  workspace. Writes, edits and commands require approval of the individual call.
+  Plan mode blocks those operations after a mode change as well as before approval.
+  The optional browser endpoint keeps its session-scoped lease. SDK resume tokens
+  carry a `cursor-sdk:` prefix. Older unprefixed Cursor tokens and explicit ACP
+  executables retain the CLI route. [Cursor SDK documentation](https://cursor.com/docs/sdk/typescript)
+- For CLI-backed routes the CLI owns authentication, project settings, MCP and Skills. Local turns use
   native resources and controls. Main rejects Cherry knowledge scopes for these turns.
 - When host browser control is enabled, interactive sessions expose Cherry Studio's
   session-scoped built-in browser `automation` MCP (`LocalAgentMcpBridgeService`) over
@@ -182,6 +191,7 @@ recovery link.
 | Driver | Resume identity | Model control | Approval protocol |
 | --- | --- | --- | --- |
 | Claude Code | SDK session ID | SDK model catalog or CLI default | SDK `canUseTool` |
+| Cursor SDK | Prefixed local SDK agent ID | SDK model catalog or Auto | Cherry approves workspace edits and program execution |
 | Codex | App Server thread ID | `model/list` or CLI default | Native decisions and permission requests |
 | ACP | ACP session ID | Model config option or legacy `session/set_model` | Original option IDs and scopes |
 
@@ -244,7 +254,11 @@ wait leaves the terminal running. Interactive ACP turns expose output/request
 limits and refusal as stream finish reasons. Scheduled runs fail on those stop
 reasons and retain any partial reply.
 
-ACP usage comes from prompt responses and session usage updates. Codex measures
+ACP usage comes from prompt responses and session usage updates. For a normal Pi
+reply, the bundled bridge reports the last model request’s input tokens and model
+window. Tool-loop billing still sums all successful calls. Inspecting the meter
+queries the live Pi session for current occupancy. Compaction or missing request
+evidence falls back to Pi’s native reading at settlement. Codex measures
 per-turn usage from thread totals relative to a pre-turn baseline so repeated
 notifications do not add usage again. Missing usage or cost is left unknown.
 See [AI Usage Records](./ai-usage-records.md#local-agent-observations) for storage,
@@ -257,7 +271,7 @@ must match the active connection and turn. URL mode is unsupported and requests
 outside a conversation return `cancel`. Flat fields keep native IDs and types.
 Users can review defaults and explicitly submit, decline or cancel. Renderer and
 Main validate against the schema. Cancellation and shutdown release pending
-questions. Cursor's question extension also uses the composer.
+questions. Cursor’s legacy ACP question extension also uses the composer.
 
 See [Adding a Runtime](./adding-a-runtime.md) and
 [Agent Session Runtime](./agent-session-runtime.md) for the host contract.

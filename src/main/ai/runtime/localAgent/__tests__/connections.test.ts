@@ -852,7 +852,7 @@ describe('local protocol processes', () => {
   })
 
   it('captures _x.ai/session/update turn_completed usage when prompt response omits usage and resets between turns', async () => {
-    const { connection, events, closeAndDrain } = create('acp', 'xai-usage')
+    const { connection, events, closeAndDrain } = create('acp', 'xai-usage', undefined, 'grok-build')
     await connection.start(cwd)
     await connection.send(input)
     await connection.send(input)
@@ -869,6 +869,14 @@ describe('local protocol processes', () => {
       cacheWriteTokens: 10
     })
     expect(events.filter((event) => event.type === 'usage')).toEqual([])
+  })
+
+  it('ignores Grok billing notifications on another named ACP harness', async () => {
+    const { connection, events, closeAndDrain } = create('acp', 'xai-usage', undefined, 'cursor')
+    await connection.start(cwd)
+    await connection.send(input)
+    await closeAndDrain()
+    expect(events.some((event) => event.type === 'local-turn-usage')).toBe(false)
   })
 
   it('keeps Codex usage scoped to the turn without counting history or duplicate notifications', async () => {
@@ -1029,7 +1037,7 @@ describe('local protocol processes', () => {
   )
 
   it('returns Cursor option IDs without conflating duplicate labels or splitting commas', async () => {
-    const { connection, events, text } = create('acp', 'cursor-question')
+    const { connection, events, text } = create('acp', 'cursor-question', undefined, 'cursor')
     await connection.start(cwd)
     const sending = connection.send(input)
     const approval = await waitForApproval(events)
@@ -1056,7 +1064,7 @@ describe('local protocol processes', () => {
   })
 
   it.each([true, false])('returns the explicit Cursor plan decision: %s', async (approved) => {
-    const { connection, events, text } = create('acp', 'cursor-plan')
+    const { connection, events, text } = create('acp', 'cursor-plan', undefined, 'cursor')
     await connection.start(cwd)
     const sending = connection.send(input)
     const approval = await waitForApproval(events)

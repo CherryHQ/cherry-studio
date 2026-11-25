@@ -4,13 +4,14 @@ import { resolve } from 'node:path'
 import { defineConfig } from 'electron-vite'
 
 const require = createRequire(import.meta.url)
+const requirePi = createRequire(require.resolve('@cherrystudio/agent-runtime-pi-acp/package.json'))
 
 export default defineConfig({
   main: {
     build: {
       externalizeDeps: false,
       outDir: resolve('out/pi-acp'),
-      lib: { entry: require.resolve('pi-acp') },
+      lib: { entry: requirePi.resolve('pi-acp') },
       rolldownOptions: { output: { format: 'es', entryFileNames: 'index.mjs' } }
     },
     plugins: [
@@ -21,7 +22,7 @@ export default defineConfig({
           this.emitFile({
             type: 'asset',
             fileName: 'LICENSE',
-            source: await readFile(require.resolve('pi-acp/LICENSE'), 'utf8')
+            source: await readFile(requirePi.resolve('pi-acp/LICENSE'), 'utf8')
           })
         }
       }

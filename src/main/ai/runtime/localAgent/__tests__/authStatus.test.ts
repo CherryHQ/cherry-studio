@@ -9,6 +9,7 @@ vi.mock('../launch', () => ({ resolveLocalAgentLaunch: vi.fn() }))
 vi.mock(import('@main/utils/processRunner'), async (original) => ({ ...(await original()), executeCommand: vi.fn() }))
 
 const config = { protocol: 'acp' as const, presetId: 'cursor', enabled: true, args: [], env: {} }
+const explicitCursorCli = { ...config, executableOverride: '/system/cursor-agent' }
 
 describe('native authentication status', () => {
   it.each([
@@ -30,14 +31,14 @@ describe('native authentication status', () => {
       env: { PATH: '/system' }
     })
     vi.mocked(executeCommand).mockResolvedValue('✓ Logged in as user@example.com')
-    expect(await getLocalAgentAuthStatus({ ...config, args: ['acp'] })).toBe('signed-in')
+    expect(await getLocalAgentAuthStatus({ ...explicitCursorCli, args: ['acp'] })).toBe('signed-in')
     expect(executeCommand).toHaveBeenCalledWith(
       '/system/cursor-agent',
       ['status'],
       expect.objectContaining({ env: { PATH: '/system' }, timeout: 10000, maxOutputBytes: 16384 })
     )
     vi.mocked(executeCommand).mockRejectedValue(new Error('network unavailable'))
-    expect(await getLocalAgentAuthStatus(config)).toBe('unknown')
+    expect(await getLocalAgentAuthStatus(explicitCursorCli)).toBe('unknown')
   })
 
   it.each([
@@ -104,7 +105,7 @@ describe('native authentication status', () => {
       args: ['acp'],
       env: { CURSOR_API_KEY: 'key' }
     })
-    expect(await getLocalAgentAuthStatus(config)).toBe('unsupported')
+    expect(await getLocalAgentAuthStatus(explicitCursorCli)).toBe('unsupported')
     expect(executeCommand).not.toHaveBeenCalled()
   })
 

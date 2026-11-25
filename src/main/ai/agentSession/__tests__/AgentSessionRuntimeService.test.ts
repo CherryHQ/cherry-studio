@@ -4927,6 +4927,23 @@ describe('AgentSessionRuntimeService', () => {
       expect(getContextUsage).toHaveBeenCalledTimes(1)
     })
 
+    it('reads a push-driven connection only when the user inspects its context', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const reading = usageAt(42)
+      entry.connection = { inspectContextUsage: async () => reading }
+      ;(service as any).refreshContextUsage(entry)
+      expect(entry.contextUsageRefresh).toBeUndefined()
+      service.refreshContextUsageOnDemand('session-1')
+      await vi.waitFor(() =>
+        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
+          modelId: entry.modelId,
+          result: reading
+        })
+      )
+    })
+
     it('coalesces concurrent refreshes and runs one trailing semantic invalidation', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
