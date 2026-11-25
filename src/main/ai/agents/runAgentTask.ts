@@ -207,13 +207,17 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         agentDataPath,
         error
       })
-      const liveTemplate = scheduleSnapshot?.jobInputTemplate as { agentId?: unknown; prompt?: unknown } | null
+      const liveTemplate = scheduleSnapshot?.jobInputTemplate
 
       if (
         scheduleId &&
         scheduleSnapshot?.type === 'agent.task' &&
-        liveTemplate?.agentId === agentId &&
-        liveTemplate?.prompt === HEARTBEAT_PROMPT_SENTINEL
+        typeof liveTemplate === 'object' &&
+        liveTemplate !== null &&
+        'agentId' in liveTemplate &&
+        liveTemplate.agentId === agentId &&
+        'prompt' in liveTemplate &&
+        liveTemplate.prompt === HEARTBEAT_PROMPT_SENTINEL
       ) {
         pauseHeartbeatSchedule(
           agentId,

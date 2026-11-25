@@ -1,3 +1,4 @@
+import type * as FsPromises from 'node:fs/promises'
 import { lstat } from 'node:fs/promises'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -5,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { workspaceStat } from '../agentWorkspaceStorage'
 
 vi.mock('node:fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  const actual = await importOriginal<typeof FsPromises>()
   return { ...actual, lstat: vi.fn(actual.lstat) }
 })
 

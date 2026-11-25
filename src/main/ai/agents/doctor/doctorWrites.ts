@@ -12,7 +12,7 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import type { DataResponse } from '@shared/data/api/types'
-import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import type { UnifiedPreferenceKeyType, UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
 import type { DoctorFixResult } from '@shared/types/doctor'
 import type { DoctorAgentWrite } from '@shared/types/doctorAgent'
 import type { Serializable } from '@shared/types/serializable'
@@ -305,7 +305,8 @@ export async function undoWrite(write: DoctorAgentWrite, before: unknown, after:
         throw new Error(`"${key}" changed since the doctor wrote it; nothing was restored`)
       }
 
-      await preferences.set(key, before as never)
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Restore the same-key value captured by preferences.get in this run's ledger, including historical values rejected by today's write schema.
+      await preferences.set(key, before as UnifiedPreferenceType[DoctorWritablePreferenceKey])
 
       return
     }

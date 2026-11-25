@@ -421,6 +421,22 @@ describe('applyWrite / undoWrite guards', () => {
     )
   })
 
+  it.each([
+    { key: 'chat.default_model_id', before: '', value: 'provider::model' },
+    { key: 'app.proxy.url', before: 'legacy-proxy-address', value: 'http://proxy:8080' }
+  ] as const)(
+    'restores the original $key even when its historical value fails the new-write schema',
+    async ({ key, before, value }) => {
+      MockMainPreferenceServiceUtils.setPreferenceValue(key, before)
+      const write = { kind: 'preference_set', key, value } as const
+      const applied = await applyWrite(write)
+      expect(application.get('PreferenceService').get(key)).toBe(value)
+
+      await undoWrite(write, applied.before, applied.after)
+      expect(application.get('PreferenceService').get(key)).toBe(before)
+    }
+  )
+
   it('refuses a preference write when its undo snapshot would contain credentials', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://user:secret@proxy:8080')
     await expect(

@@ -5,14 +5,16 @@ import { t } from '@main/i18n'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { TaskResultNotificationInput } from '@shared/data/types/notification'
 
-import type { AgentTaskOutput } from './runAgentTask'
-
 export async function publishScheduledTaskResult(jobId: string): Promise<boolean> {
   const job = jobService.getById(jobId)
 
   if (!job?.scheduleId || !job.finishedAt || !['completed', 'failed', 'cancelled'].includes(job.status)) return false
 
-  if (job.status === 'completed' && (job.output as AgentTaskOutput | null)?.kind !== 'executed') return false
+  if (job.status === 'completed') {
+    const output = job.output
+
+    if (typeof output !== 'object' || output === null || !('kind' in output) || output.kind !== 'executed') return false
+  }
   const schedule = jobScheduleService.getById(job.scheduleId)
 
   if (!schedule) return false
