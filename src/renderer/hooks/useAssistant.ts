@@ -29,7 +29,7 @@ import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@r
 import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { Model } from '@shared/data/types/model'
-import { type UniqueModelId } from '@shared/data/types/model'
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('useAssistant')
 
@@ -241,8 +241,9 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   patchAssistantRef.current = patchAssistant
   providersRef.current = providers
 
-  const modelId =
-    assistant?.modelId ?? (!id && shouldLoadDefaultModel ? (defaultModelId as UniqueModelId | null) : undefined)
+  const parsedDefaultModelId =
+    !assistant?.modelId && !id && shouldLoadDefaultModel ? UniqueModelIdSchema.safeParse(defaultModelId) : undefined
+  const modelId = assistant?.modelId ?? (parsedDefaultModelId?.success ? parsedDefaultModelId.data : undefined)
 
   const { model, isLoading: isModelLoading } = useModelById(modelId)
   const isModelPending = (!!id && isLoading) || (!!modelId && isModelLoading)

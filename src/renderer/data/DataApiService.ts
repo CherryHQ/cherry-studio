@@ -181,6 +181,7 @@ export class DataApiService implements ApiClient {
         hasData: !!response.data
       })
 
+      // SAFETY: Shared method/path handlers own T; preload erases the response payload type across IPC.
       return response.data as T
     } catch (error) {
       // Ensure we have a DataApiError for consistent handling

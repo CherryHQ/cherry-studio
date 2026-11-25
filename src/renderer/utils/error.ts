@@ -11,9 +11,10 @@ import type {
   SerializedAiSdkError,
   SerializedAiSdkInvalidToolInputError,
   SerializedAiSdkNoSuchToolError,
+  SerializedAiSdkRetryError,
   SerializedError
 } from '@renderer/types/error'
-import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
+import { isSerializedAiSdkApiCallError } from '@renderer/types/error'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
@@ -327,13 +328,18 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
   return text.trim()
 }
 
-function retryProviderText(error: SerializedError): string {
-  if (!isSerializedAiSdkRetryError(error)) return ''
+type ProviderErrorSource = SerializedError | SerializedAiSdkRetryError['lastError']
+
+function retryProviderText(error: ProviderErrorSource): string {
+  if (!error || typeof error !== 'object' || Array.isArray(error)) return ''
+
+  if (!('cause' in error && 'reason' in error && 'lastError' in error && 'errors' in error)) return ''
+
   const attempts = Array.isArray(error.errors) ? [...error.errors].reverse() : []
 
   for (const nested of [error.lastError, ...attempts]) {
     if (!nested || typeof nested !== 'object' || Array.isArray(nested)) continue
-    const text = providerErrorText(nested as SerializedError)
+    const text = providerErrorText(nested)
 
     if (text) return text
   }
@@ -343,11 +349,19 @@ function retryProviderText(error: SerializedError): string {
 
 /** The provider's own error text. `message` degrades to the HTTP statusText ("Forbidden")
  *  whenever the body misses the SDK's error schema, so `responseBody` wins. */
-export function providerErrorText(error: SerializedError | undefined): string {
-  if (!error) return ''
-  const payload = getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data })
+export function providerErrorText(error: ProviderErrorSource | undefined): string {
+  if (!error || typeof error !== 'object' || Array.isArray(error)) return ''
 
-  return payload || retryProviderText(error) || getSafeProviderErrorMessage({ message: error.message })
+  const payload = getSafeProviderErrorMessage({
+    responseBody: 'responseBody' in error ? error.responseBody : undefined,
+    data: 'data' in error ? error.data : undefined
+  })
+
+  return (
+    payload ||
+    retryProviderText(error) ||
+    getSafeProviderErrorMessage({ message: 'message' in error ? error.message : undefined })
+  )
 }
 
 export const formatAgentServerError = (error: AgentServerError) =>

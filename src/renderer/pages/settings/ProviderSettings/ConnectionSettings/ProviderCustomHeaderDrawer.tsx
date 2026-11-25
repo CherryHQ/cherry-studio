@@ -141,7 +141,7 @@ function parseHeadersJsonDraft(raw: string): { ok: true; headers: Record<string,
   let parsed: unknown
 
   try {
-    parsed = JSON.parse(t) as unknown
+    parsed = JSON.parse(t)
   } catch {
     return { ok: false }
   }
@@ -174,6 +174,7 @@ export function resolveEndpointTypes(
   provider: { endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>> } | null | undefined,
   primary: EndpointType
 ): EndpointType[] {
+  // SAFETY: Shared provider schemas key endpointConfigs by EndpointType; Object.keys erases that key union.
   const configured = Object.keys(provider?.endpointConfigs ?? {}) as EndpointType[]
   const others = configured.filter((type) => type !== primary && !IMAGE_ENDPOINT_TYPES.has(type)).sort()
 
@@ -192,11 +193,15 @@ export interface EndpointDraft {
  */
 export function mergeEndpointConfigs(
   existing: Partial<Record<EndpointType, EndpointConfig>> | undefined,
-  drafts: Record<string, EndpointDraft>
+  drafts: Partial<Record<EndpointType, EndpointDraft>>
 ): Partial<Record<EndpointType, EndpointConfig>> {
   const out: Partial<Record<EndpointType, EndpointConfig>> = { ...existing }
 
-  for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
+  for (const [key, draft] of Object.entries(drafts)) {
+    if (!draft) continue
+
+    // SAFETY: Drafts are keyed by EndpointType and written from endpoint selections; entries erases only the key union.
+    const type = key as EndpointType
     const next: EndpointConfig = { ...out[type] }
     const value = trim(draft.baseUrl)
 
@@ -222,10 +227,14 @@ export function mergeEndpointConfigs(
  * validated separately (it has its own required-ness rules).
  */
 export function findInvalidSecondaryEndpointUrl(
-  drafts: Record<string, EndpointDraft>,
+  drafts: Partial<Record<EndpointType, EndpointDraft>>,
   primary: EndpointType
 ): EndpointType | null {
-  for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
+  for (const [key, draft] of Object.entries(drafts)) {
+    if (!draft) continue
+
+    // SAFETY: Drafts are keyed by EndpointType and written from endpoint selections; entries erases only the key union.
+    const type = key as EndpointType
     if (type === primary) continue
     const value = trim(draft.baseUrl)
 
@@ -252,7 +261,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   )
 
   const [rows, setRows] = useState<HeaderRow[]>([])
-  const [endpointDrafts, setEndpointDrafts] = useState<Record<string, EndpointDraft>>({})
+  const [endpointDrafts, setEndpointDrafts] = useState<Partial<Record<EndpointType, EndpointDraft>>>({})
   const [defaultChatEndpoint, setDefaultChatEndpoint] = useState<EndpointType>(primaryEndpoint)
 
   const [imageEndpointDraft, setImageEndpointDraft] = useState<ProviderImageEndpointDraft>(() =>
@@ -277,7 +286,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    const drafts: Record<string, EndpointDraft> = {}
+    const drafts: Partial<Record<EndpointType, EndpointDraft>> = {}
 
     for (const type of endpointTypes) {
       drafts[type] = {
@@ -454,6 +463,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       : t('settings.provider.copilot.toggle_headers_editor_list')
 
   /** Endpoint types not yet shown that the user can still add. */
+  // SAFETY: These are own keys of the private EndpointType label literal, in its declared menu order.
   const addableEndpointTypes = (Object.keys(ENDPOINT_TYPE_LABEL_KEYS) as EndpointType[]).filter(
     (type) => !visibleEndpointTypes.includes(type)
   )
