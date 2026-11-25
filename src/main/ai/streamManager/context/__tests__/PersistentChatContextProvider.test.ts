@@ -168,6 +168,130 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(messageService.getChildrenByParentId('a1')).toEqual(childrenBefore)
   })
 
+  it('persists an explicitly anchored follow-up on its original path when a sibling branch is active', async () => {
+    const submit = (text: string, parentAnchorId: string) =>
+      provider.prepareDispatch(
+        makeSubscriber(),
+        { trigger: 'submit-message', topicId: 'topic-1', parentAnchorId, userMessageParts: [{ type: 'text', text }] },
+        { hasLiveStream: false }
+      )
+
+    const queued = await submit('first queued question', 'a1')
+    const queuedReply = queued.reservedMessages!.find((message) => message.role === 'assistant')!
+    messageService.update(queuedReply.id, {
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'first queued answer' }] }
+    })
+
+    const branch = await submit('other branch question', 'a1')
+    const otherReply = branch.reservedMessages!.find((message) => message.role === 'assistant')!
+    messageService.update(otherReply.id, {
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'other branch answer' }] }
+    })
+
+    const next = await submit('second queued question', queuedReply.id)
+
+    expect(flatten(next.models[0].request.messages!)).toEqual([
+      { role: 'user', text: 'first question' },
+      { role: 'assistant', text: PARTIAL },
+      { role: 'user', text: 'first queued question' },
+      { role: 'assistant', text: 'first queued answer' },
+      { role: 'user', text: 'second queued question' }
+    ])
+    expect(messageService.getChildrenByParentId(queuedReply.id).map((message) => message.id)).toEqual([
+      next.reservedMessages!.find((message) => message.role === 'user')!.id
+    ])
+    expect(messageService.getChildrenByParentId(otherReply.id)).toHaveLength(0)
+  })
+
+  it('continues from the surviving queued question after its reply is deleted, even on another active branch', async () => {
+    const submit = (text: string, parentAnchorId: string, fallbackParentAnchorId?: string) =>
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'submit-message',
+          topicId: 'topic-1',
+          parentAnchorId,
+          fallbackParentAnchorId,
+          targetMode: 'active-path',
+          userMessageParts: [{ type: 'text', text }]
+        },
+        { hasLiveStream: false }
+      )
+
+    const queued = await submit('surviving queued question', 'a1')
+    const question = queued.reservedMessages!.find((message) => message.role === 'user')!
+    const reply = queued.reservedMessages!.find((message) => message.role === 'assistant')!
+    expect(queued.submittedAssistantAnchorId).toBe(reply.id)
+    messageService.update(reply.id, {
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'deleted queued answer' }] }
+    })
+    const sibling = await submit('other branch question', 'a1')
+    const otherReply = sibling.reservedMessages!.find((message) => message.role === 'assistant')!
+    messageService.delete(reply.id)
+
+    const next = await submit('next queued question', reply.id, question.id)
+    const context = flatten(next.models[0].request.messages!)
+      .map((message) => message.text)
+      .join('\n')
+    expect(context).toContain('surviving queued question')
+    expect(context).toContain('next queued question')
+    expect(context).not.toContain('deleted queued answer')
+    expect(context).not.toContain('other branch question')
+    expect(messageService.getChildrenByParentId(question.id).map((message) => message.id)).toEqual([
+      next.reservedMessages!.find((message) => message.role === 'user')!.id
+    ])
+    expect(messageService.getChildrenByParentId(otherReply.id)).toHaveLength(0)
+
+    messageService.delete(question.id)
+    await expect(submit('should stay queued', reply.id, question.id)).rejects.toThrow('not found')
+    expect(messageService.getChildrenByParentId(otherReply.id)).toHaveLength(0)
+  })
+
+  it('reserves a live steer on its surviving question instead of the active unrelated branch', async () => {
+    const other = messageService.create('topic-1', {
+      role: 'user',
+      parentId: 'u1',
+      data: { parts: [{ type: 'text', text: 'unrelated branch' }] }
+    })
+    messageService.delete('a1')
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        fallbackParentAnchorId: 'u1',
+        targetMode: 'active-path',
+        userMessageParts: [{ type: 'text', text: 'steered question' }]
+      },
+      { hasLiveStream: true }
+    )
+    expect(messageService.getById(prepared.pendingSteerUserMessageId!).parentId).toBe('u1')
+    const replyId = '019606a0-0000-7000-8000-00000000aa09'
+    const continuation = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'steer-continuation',
+        topicId: 'topic-1',
+        userMessageId: prepared.pendingSteerUserMessageId!,
+        assistantMessageId: replyId,
+        fastMode: false
+      },
+      { hasLiveStream: false }
+    )
+    expect(messageService.getById(replyId).parentId).toBe(prepared.pendingSteerUserMessageId)
+    const history = flatten(continuation.models[0].request.messages!)
+      .map((message) => message.text)
+      .join(' ')
+    expect(history).toContain('first question')
+    expect(history).toContain('steered question')
+    expect(history).not.toContain('unrelated branch')
+    expect(messageService.getById(other.id)).toMatchObject({ role: 'user' })
+  })
+
   it('fills a reserved branch and creates its assistant placeholder when the topic is idle', async () => {
     const reservedBranch = messageService.reserveBranch('a1', false)
 
@@ -410,6 +534,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
         trigger: 'steer-continuation',
         topicId: 'topic-1',
         userMessageId: 'u2',
+        assistantMessageId: '019606a0-0000-7000-8000-00000000aa08',
         serviceTier: 'flex',
         fastMode: false
       } satisfies MainSteerContinuationRequest,
@@ -570,7 +695,13 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       vi.mocked(resolveAssistantModelId).mockReturnValueOnce({ assistantId: assistant.id, defaultModelId: MODEL_ID })
       const request =
         trigger === 'steer-continuation'
-          ? { topicId: 'topic-1', trigger, userMessageId: 'u1', fastMode: false }
+          ? {
+              topicId: 'topic-1',
+              trigger,
+              userMessageId: 'u1',
+              assistantMessageId: '019606a0-0000-7000-8000-00000000aa07',
+              fastMode: false
+            }
           : { topicId: 'topic-1', trigger, userMessageParts: [{ type: 'text' as const, text: 'question' }] }
       const result = await provider.prepareDispatch(makeSubscriber(), request, { hasLiveStream: false })
       const placeholder = messageService.getById(result.models[0].request.messageId!)

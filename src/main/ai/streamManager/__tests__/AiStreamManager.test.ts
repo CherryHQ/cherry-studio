@@ -2958,10 +2958,11 @@ describe('AiStreamManager', () => {
     const flush = async () => {
       for (let i = 0; i < 6; i++) await Promise.resolve()
     }
-    const steerReq = (topicId: string, userMessageId: string) => ({
+    const steerReq = (topicId: string, userMessageId: string, assistantMessageId: unknown = expect.any(String)) => ({
       trigger: 'steer-continuation',
       topicId,
       userMessageId,
+      assistantMessageId,
       fastMode: false
     })
 
@@ -3191,12 +3192,13 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('a', 'provider-a::model-a')
       dispatchSpy.mockClear()
 
-      mgr.enqueuePendingSteer('a', 'u1')
+      const replyId = mgr.enqueuePendingSteer('a', 'u1')
+      expect(replyId).toBeTruthy()
       expect(mgr.hasPendingSteer('a')).toBe(true)
 
       await flush()
       expect(dispatchSpy).toHaveBeenCalledTimes(1)
-      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u1'))
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u1', replyId))
       expect(mgr.hasPendingSteer('a')).toBe(false)
     })
 
@@ -3472,10 +3474,11 @@ describe('AiStreamManager', () => {
     const flush = async () => {
       for (let i = 0; i < 6; i++) await Promise.resolve()
     }
-    const steerReq = (topicId: string, userMessageId: string) => ({
+    const steerReq = (topicId: string, userMessageId: string, assistantMessageId: unknown = expect.any(String)) => ({
       trigger: 'steer-continuation',
       topicId,
       userMessageId,
+      assistantMessageId,
       fastMode: false
     })
 

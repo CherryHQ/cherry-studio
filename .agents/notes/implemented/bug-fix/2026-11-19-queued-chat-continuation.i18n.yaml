@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-19-queued-chat-continuation.md
+2026-11-19-queued-chat-continuation.md: e6eeb49e08e9db9ac419836ec5886f98f454fe37
+2026-11-19-queued-chat-continuation.zh.md: 028bd751d72eec8d1407e67e8db8d98748d19527

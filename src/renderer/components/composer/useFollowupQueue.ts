@@ -40,14 +40,16 @@ function loadPaused(scopeKey: string): boolean {
   return cacheService.getCasual<boolean>(pausedKeyFor(scopeKey)) === true
 }
 
+type UpdatePendingPayload = (payload: ComposerQueuedMessagePayload) => ComposerQueuedMessagePayload
+
 interface UseFollowupQueueParams {
   /** Per-conversation key — same `${topicId}:${assistantId}` scope as the draft cache. */
   scopeKey: string
   /** Stream completion is independent of the conversation list read receipt. */
   status: TopicStreamStatus | undefined
   lastCompletedAt: number | null
-  /** Resolves to whether the submission was accepted; execution completes separately. */
-  onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
+  /** An updater accepts the submission and transforms the remaining payloads. Execution completes separately. */
+  onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean | UpdatePendingPayload>
   /** Called when a send fails and leaves the queued draft paused for retry. */
   onDrainFailed?: () => void
 }
@@ -216,6 +218,28 @@ export function useFollowupQueue({
     [releaseEdit, removeId, scopeKey, takeForEdit]
   )
 
+  const acceptSentItem = useCallback(
+    (sent: FollowupQueueItem, updatePayload?: UpdatePendingPayload) => {
+      if (!updatePayload) {
+        removeId(sent.id)
+        return
+      }
+
+      const advance = (pending: FollowupQueueItem): FollowupQueueItem => {
+        const payload = updatePayload(pending.payload)
+        return payload === pending.payload ? pending : { ...pending, payload }
+      }
+      const taken = takenRef.current
+      if (taken?.scopeKey === scopeKey) taken.item = advance(taken.item)
+      persist(
+        loadQueue(scopeKey)
+          .filter((item) => item.id !== sent.id)
+          .map(advance)
+      )
+    },
+    [persist, removeId, scopeKey]
+  )
+
   const sendItem = useCallback(
     async (id: string, completedAt?: number): Promise<boolean> => {
       const item = loadQueue(scopeKey).find((entry) => entry.id === id)
@@ -231,14 +255,17 @@ export function useFollowupQueue({
       })
       const reportFailure = onDrainFailedRef.current
       let sent = false
+      let updatePayload: UpdatePendingPayload | undefined
       try {
         try {
-          sent = await onDrainRef.current(item.payload)
+          const result = await onDrainRef.current(item.payload)
+          sent = Boolean(result)
+          if (typeof result === 'function') updatePayload = result
         } catch {
           // Both rejected sends and explicit failures retain the draft for retry.
         }
         if (sent) {
-          removeId(id)
+          acceptSentItem(item, updatePayload)
         } else {
           setPaused(true)
           reportFailure?.()
@@ -260,7 +287,7 @@ export function useFollowupQueue({
         )
       }
     },
-    [scopeKey, removeId, setPaused]
+    [acceptSentItem, scopeKey, setPaused]
   )
   const sendId = useCallback(
     (id: string) => sendItem(id, status === 'done' ? (lastCompletedAt ?? undefined) : undefined),

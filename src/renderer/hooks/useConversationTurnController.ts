@@ -57,7 +57,13 @@ export function useConversationTurnController<TInput, TConversation>({
   }, [scopeKey])
 
   const send = useCallback(
-    async (input: TInput, options: { throwOnError?: boolean } = {}): Promise<boolean> => {
+    async (
+      input: TInput,
+      options: {
+        throwOnError?: boolean
+        onAccepted?: (ack: Exclude<AiStreamOpenResponse, { mode: 'blocked' }>) => void
+      } = {}
+    ): Promise<boolean> => {
       const callbacks = callbacksRef.current
       const scopeEpoch = scopeEpochRef.current
       const isCurrentScope = () => scopeEpochRef.current === scopeEpoch
@@ -79,6 +85,8 @@ export function useConversationTurnController<TInput, TConversation>({
         void Promise.resolve(refreshMetadata?.(conversation, ack)).catch((err) => {
           logger.warn('Failed to refresh conversation metadata after stream open', err as Error)
         })
+        // A send may outlive its view; its acceptance still belongs to the original caller.
+        if (ack.mode !== 'blocked') options.onAccepted?.(ack)
         if (!isCurrentScope()) return ack.mode !== 'blocked'
 
         if (ack.mode === 'blocked') {

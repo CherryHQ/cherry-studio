@@ -64,7 +64,10 @@ function makeManager(live: boolean): AiStreamManager {
   return {
     hasLiveStream: vi.fn(() => live),
     inspect: vi.fn(() => undefined),
-    enqueuePendingSteer: vi.fn(() => order.push('enqueuePendingSteer')),
+    enqueuePendingSteer: vi.fn(() => {
+      order.push('enqueuePendingSteer')
+      return 'reserved-steer-reply'
+    }),
     send: vi.fn(() => {
       order.push('send')
       return { mode: live ? ('injected' as const) : ('started' as const), activeExecutions: [] }
@@ -123,12 +126,13 @@ describe('dispatchStreamRequest — steer', () => {
     })
     const manager = makeManager(true)
 
-    await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-1'))
+    const result = await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-1'))
 
     // No abort/evict — prepareDispatch observes the still-live stream and takes its inject branch,
     // and the persisted user row is enqueued as a pending steer before send (which just attaches).
     expect(preparedWithCtx).toEqual({ hasLiveStream: true })
     expect(order).toEqual(['prepareDispatch', 'enqueuePendingSteer', 'send'])
+    expect(result).toMatchObject({ mode: 'injected', submittedAssistantAnchorId: 'reserved-steer-reply' })
     expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-1', 'u1', 'high', 'flex', false)
   })
 
@@ -144,6 +148,16 @@ describe('dispatchStreamRequest — steer', () => {
     await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-fast'))
 
     expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-fast', 'u1', 'high', undefined, true)
+  })
+
+  it('does not present a continuation reply when a steer is dropped at a terminal boundary', async () => {
+    wirePrepare(mocks.persistentPrepare, 'topic-1', { inject: true, steer: true })
+    const manager = makeManager(true)
+    vi.mocked(manager.enqueuePendingSteer).mockReturnValue(undefined)
+
+    const result = await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-1'))
+
+    expect(result).not.toHaveProperty('submittedAssistantAnchorId')
   })
 
   it('does not enqueue a steer for a non-live chat submit (normal turn opens models)', async () => {
