@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url'
 import { defangSystemReminderTags } from '@main/ai/untrustedContent'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 
+type AgentContentSource = Pick<AgentSessionMessageEntity, 'id' | 'data' | 'delivery'>
+
 /**
  * Build the user-turn content sent to an agent runtime. Agent runtimes are
  * filesystem agents (they have no native multimodal channel here), so attached
@@ -11,7 +13,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
  * to the text — the agent reads them with its own tools. Driver-neutral: shared
  * by the agent drivers to keep attachment handling consistent.
  */
-export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
+export function buildAgentUserContent(message: AgentContentSource): string {
   const text = extractMessageText(message)
   const content = appendAgentAttachmentPaths(text, extractAttachments(message))
 
@@ -35,7 +37,7 @@ export function appendAgentAttachmentPaths(
 }
 
 /** Preserve trusted routing metadata while isolating model-authored cross-Session content. */
-export function wrapAgentSessionDeliveryContent(message: AgentSessionMessageEntity, content: string): string {
+export function wrapAgentSessionDeliveryContent(message: AgentContentSource, content: string): string {
   if (!message.delivery) return content
 
   const boundary = randomUUID().replaceAll('-', '')
@@ -62,7 +64,7 @@ export function wrapAgentSessionDeliveryContent(message: AgentSessionMessageEnti
   ].join('\n')
 }
 
-function extractMessageText(message: AgentSessionMessageEntity): string {
+function extractMessageText(message: Pick<AgentContentSource, 'data'>): string {
   return (
     message.data?.parts
       ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text' && 'text' in part)
@@ -72,7 +74,7 @@ function extractMessageText(message: AgentSessionMessageEntity): string {
 }
 
 /** Original names and absolute local paths of composer attachments. */
-function extractAttachments(message: AgentSessionMessageEntity): Array<{ filename?: string; path: string }> {
+function extractAttachments(message: Pick<AgentContentSource, 'data'>): Array<{ filename?: string; path: string }> {
   const attachments: Array<{ filename?: string; path: string }> = []
 
   for (const part of message.data?.parts ?? []) {

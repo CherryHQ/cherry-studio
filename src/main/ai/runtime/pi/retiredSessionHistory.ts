@@ -108,9 +108,8 @@ async function importHistory(sessionId: string): Promise<void> {
     }
 
     const content = buildAgentUserContent({
-      ...row,
-      role: row.role,
-      status: row.status,
+      id: row.id,
+      data: row.data,
       delivery:
         row.delivery && row.deliveryStatus
           ? {
@@ -119,9 +118,7 @@ async function importHistory(sessionId: string): Promise<void> {
               inReplyTo: row.deliveryInReplyTo,
               turnRef: row.deliveryTurnRef
             }
-          : null,
-      createdAt: new Date(row.createdAt).toISOString(),
-      updatedAt: new Date(row.updatedAt).toISOString()
+          : null
     })
 
     const tools = (row.data.parts ?? []).flatMap((part) => {
