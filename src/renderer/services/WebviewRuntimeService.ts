@@ -127,6 +127,7 @@ export class WebviewRuntimeService {
     const current = this.get(key)
 
     if (!current || current.instance !== instance) return
+
     // SAFETY: Only bind/reportLoaded call this private updater; their patches contain WebviewResource element/loaded keys.
     if (Object.entries(patch).every(([key, value]) => current[key as keyof WebviewResource] === value)) return
     this.publish(this.resources.map((item) => (item === current ? { ...item, ...patch } : item)))

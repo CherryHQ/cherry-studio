@@ -34,19 +34,22 @@ async function readTaskRunSession(task: ScheduledTaskEntity, runId: string, sign
     throw DataApiErrorFactory.notFound('Task run', runId)
   }
 
-  const output = job.output as { sessionId?: unknown; result?: unknown } | null
+  const output = job.output
+  const outputResult = output !== null && typeof output === 'object' && 'result' in output ? output.result : undefined
+  const legacySessionId =
+    output !== null && typeof output === 'object' && 'sessionId' in output ? output.sessionId : undefined
 
   const selectedRun: SelectedTaskRun = {
     id: job.id,
     startedAt: job.startedAt ?? job.scheduledAt,
     status: job.status,
     // Match AgentTaskService.toTaskRunLogEntity's stored-result projection.
-    result: typeof output?.result === 'string' ? output.result : job.output != null ? JSON.stringify(job.output) : null,
+    result: typeof outputResult === 'string' ? outputResult : job.output != null ? JSON.stringify(job.output) : null,
     error: job.error?.message ?? null
   }
 
   const facts = { selectedRun, runId: job.id, startedAt: selectedRun.startedAt }
-  const sessionId = job.metadata.sessionId ?? output?.sessionId
+  const sessionId = job.metadata.sessionId ?? legacySessionId
   signal?.throwIfAborted()
 
   if (typeof sessionId !== 'string' || !sessionId.trim()) return { ...facts, session: null }
