@@ -192,7 +192,8 @@ export class AppUpdaterService extends BaseService {
     if (isWin) {
       // SAFETY: electron-updater's autoUpdater factory constructs NsisUpdater on win32;
       // isWin uses that same process.platform discriminator.
-      ;(autoUpdater as NsisUpdater).installDirectory = application.getPath('app.install')
+      const nsisUpdater = autoUpdater as NsisUpdater
+      nsisUpdater.installDirectory = application.getPath('app.install')
     }
 
     // Cancel an in-flight download when the test plan or channel changes — the
