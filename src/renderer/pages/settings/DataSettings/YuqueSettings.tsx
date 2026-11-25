@@ -20,10 +20,12 @@ import { formatErrorMessage } from '@renderer/utils/error'
 const logger = loggerService.withContext('YuqueSettings')
 
 const isYuqueRepoResponse = (value: unknown): value is { data: { id: string | number } } => {
-  if (!value || typeof value !== 'object') return false
-  const data = (value as { data?: unknown }).data
+  if (!value || typeof value !== 'object' || !('data' in value)) return false
+  const data = value.data
 
-  return Boolean(data && typeof data === 'object' && 'id' in data)
+  return Boolean(
+    data && typeof data === 'object' && 'id' in data && (typeof data.id === 'string' || typeof data.id === 'number')
+  )
 }
 
 const YuqueSettings: FC = () => {
@@ -82,7 +84,7 @@ const YuqueSettings: FC = () => {
         return
       }
 
-      const data = (await repoIDResponse.json()) as unknown
+      const data: unknown = await repoIDResponse.json()
 
       if (!isYuqueRepoResponse(data)) {
         logger.error('Invalid Yuque repo response')
