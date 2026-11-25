@@ -1135,6 +1135,7 @@ class BackupManager {
     }
 
     const resourceData = raw.resources
+
     const resources =
       resourceData && typeof resourceData === 'object'
         ? {

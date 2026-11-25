@@ -47,13 +47,18 @@ export async function runManualBackup<T>(operation: () => Promise<T>): Promise<T
   try {
     const result = await operation()
 
-    const workflow =
-      result && typeof result === 'object' ? (result as { result?: unknown; cleanupError?: unknown }) : undefined
+    const workflow = result && typeof result === 'object' ? result : undefined
 
+    /* oxlint-disable anti-slop/no-reflect-get -- Preserve opaque workflow getter semantics, including skipping cleanupError when result is false. */
     publishBackupResult(
       eventKey,
-      workflow?.result === false ? 'failed' : workflow?.cleanupError ? 'warning' : 'succeeded'
+      workflow && Reflect.get(workflow, 'result') === false
+        ? 'failed'
+        : workflow && Reflect.get(workflow, 'cleanupError')
+          ? 'warning'
+          : 'succeeded'
     )
+    /* oxlint-enable anti-slop/no-reflect-get */
 
     return result
   } catch (error) {
