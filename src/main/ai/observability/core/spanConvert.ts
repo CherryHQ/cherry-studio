@@ -26,7 +26,7 @@ export function convertSpanToSpanEntity(span: TraceSpanSnapshot): SpanEntity {
     parentId: span.parentSpanContext?.spanId || '',
     name: span.name,
     startTime: span.startTime[0] * 1e3 + Math.floor(span.startTime[1] / 1e6),
-    endTime: span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null,
+    endTime: span.ended && span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null,
     // In-flight spans must stay non-evictable until SDK completion.
     isEnd: span.ended,
     attributes: { ...span.attributes },

@@ -223,7 +223,7 @@ describe('TraceStorageService', () => {
 
       expect(entity.modelName).toBeUndefined()
       expect(entity.attributes).toEqual(attributes)
-      expect(entity.endTime).toBe(0)
+      expect(entity.endTime).toBeNull()
     }
   )
 
