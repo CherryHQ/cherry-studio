@@ -13,6 +13,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { classNames } from '@renderer/utils/style'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -35,7 +36,7 @@ interface MessageLineProps {
   /** Parts for every message outside the mutable streaming tail. Passing this
    * snapshot instead of reading PartsContext here keeps the rail out of the
    * streaming render path — only the live preview leaf subscribes to chunks. */
-  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId: MessagePartRows
   /** Messages that must read their current parts from PartsContext. */
   liveMessageIds: readonly string[]
   scrollToMessageId?: (messageId: string) => void
@@ -463,7 +464,7 @@ const MessageAnchorLine = memo(function MessageAnchorLine({
 })
 
 interface AnchorPreviewProps {
-  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId: MessagePartRows
   liveMessageIdSet: ReadonlySet<string>
 }
 
@@ -502,7 +503,12 @@ const AnchorPreviewLine: FC<AnchorPreviewLineProps> = ({
 }) => {
   if (!messageId) return null
   if (liveMessageIdSet.has(messageId)) return <LiveMessagePreview messageId={messageId} className={className} />
-  return <MessagePreview parts={historyPartsByMessageId[messageId] ?? EMPTY_MESSAGE_PARTS} className={className} />
+  return (
+    <MessagePreview
+      parts={messagePartsAt(historyPartsByMessageId, messageId) ?? EMPTY_MESSAGE_PARTS}
+      className={className}
+    />
+  )
 }
 
 const LiveMessagePreview: FC<{ messageId: string; className: string }> = ({ messageId, className }) => {
