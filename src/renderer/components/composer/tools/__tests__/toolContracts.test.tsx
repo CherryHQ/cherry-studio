@@ -75,7 +75,7 @@ describe('composer tool dependency contracts', () => {
     expectTypeOf<{ key: string; label: string }>().not.toExtend<ComposerToolRegistration>()
   })
 
-  it('projects heterogeneous tools without leaking provider internals or losing references', () => {
+  it('projects frozen heterogeneous definitions without leaking provider internals or losing references', () => {
     const source: ToolContextSource = {
       scope: TopicType.Session,
       session: { sessionId: 'session-1', agentId: 'agent-1' },
@@ -98,39 +98,44 @@ describe('composer tool dependency contracts', () => {
       t: i18next.t
     }
     const received: ToolRenderContext<readonly ['files'], readonly ['setFiles']>[] = []
-    const filesTool = defineTool({
-      key: 'files',
-      label: 'Files',
-      dependencies: { state: ['files'], actions: ['setFiles'] },
-      composer: {
-        menuItems: {
-          createItems: (context) => {
+    const filesTool = defineTool(
+      Object.freeze<ToolDefinition<readonly ['files'], readonly ['setFiles']>>({
+        key: 'files',
+        label: 'Files',
+        dependencies: { state: ['files'], actions: ['setFiles'] },
+        composer: {
+          menuItems: {
+            createItems: (context) => {
+              received.push(context)
+              return []
+            }
+          },
+          tokens: { reconcile: (_draft, { actions }) => actions.setFiles([]) },
+          runtime: ({ context }) => {
             received.push(context)
-            return []
+            return <output aria-label="File count">{context.state.files.length}</output>
           }
-        },
-        runtime: ({ context }) => {
-          received.push(context)
-          return <output aria-label="File count">{context.state.files.length}</output>
         }
-      }
-    })
+      })
+    )
     const extensions: string[][] = []
-    const extensionsTool = defineTool({
-      key: 'extensions',
-      label: 'Extensions',
-      dependencies: { state: ['extensions'] },
-      composer: {
-        menuItems: {
-          createItems: ({ state, actions }) => {
-            expect(Object.keys(state)).toEqual(['extensions'])
-            expect(Object.keys(actions)).toEqual([])
-            extensions.push(state.extensions)
-            return []
+    const extensionsTool = defineTool(
+      Object.freeze<ToolDefinition<readonly ['extensions']>>({
+        key: 'extensions',
+        label: 'Extensions',
+        dependencies: { state: ['extensions'] },
+        composer: {
+          menuItems: {
+            createItems: ({ state, actions }) => {
+              expect(Object.keys(state)).toEqual(['extensions'])
+              expect(Object.keys(actions)).toEqual([])
+              extensions.push(state.extensions)
+              return []
+            }
           }
         }
-      }
-    })
+      })
+    )
     const registrations: ComposerToolRegistration[] = [filesTool, extensionsTool]
     for (const tool of registrations) {
       const prepared = tool.prepareRuntime(source)
@@ -153,5 +158,7 @@ describe('composer tool dependency contracts', () => {
       expect(context.t).toBe(source.t)
     }
     expect(extensions[0]).toBe(source.state.extensions)
+    filesTool.reconcileTokens?.([], source)
+    expect(source.actions.setFiles).toHaveBeenCalledWith([])
   })
 })

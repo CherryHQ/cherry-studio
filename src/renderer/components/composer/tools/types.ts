@@ -168,8 +168,8 @@ const EMPTY_KEYS: readonly [] = []
 
 function buildToolContext<S extends readonly ToolStateKey[], A extends readonly ToolActionKey[]>(
   source: ToolContextSource,
-  stateKeys: S,
-  actionKeys: A
+  stateKeys: readonly S[number][],
+  actionKeys: readonly A[number][]
 ): ToolRenderContext<S, A> {
   return {
     scope: source.scope,
@@ -191,33 +191,40 @@ export const defineTool = <
 ): ToolDefinition<S, A> & ComposerToolRegistration => {
   const bridge = {
     prepareRuntime(source: ToolContextSource): PreparedToolRuntime {
-      const context = buildToolContext(
+      const context = buildToolContext<S, A>(
         source,
         tool.dependencies?.state ?? EMPTY_KEYS,
         tool.dependencies?.actions ?? EMPTY_KEYS
       )
+
       const prepared: PreparedToolRuntime = {}
       const menu = tool.composer?.menuItems
       const Runtime = tool.composer?.runtime
 
       if (menu) prepared.createItems = () => menu.createItems(context)
+
       if (Runtime) prepared.render = () => React.createElement(Runtime, { context })
 
       return prepared
     }
   }
+
   const tokens = tool.composer?.tokens
 
   if (tokens) {
-    return Object.assign(tool, bridge, {
+    return Object.assign({}, tool, bridge, {
       reconcileTokens(draft: readonly ComposerSerializedToken[], source: ToolContextSource) {
         tokens.reconcile(
           draft,
-          buildToolContext(source, tool.dependencies?.state ?? EMPTY_KEYS, tool.dependencies?.actions ?? EMPTY_KEYS)
+          buildToolContext<S, A>(
+            source,
+            tool.dependencies?.state ?? EMPTY_KEYS,
+            tool.dependencies?.actions ?? EMPTY_KEYS
+          )
         )
       }
     })
   }
 
-  return Object.assign(tool, bridge)
+  return Object.assign({}, tool, bridge)
 }

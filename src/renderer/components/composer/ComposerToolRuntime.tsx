@@ -276,6 +276,7 @@ export function useComposerTokenReconcile(
       launcher: NOOP_LAUNCHER,
       t: current.t
     }
+
     for (const tool of tokenTools) tool.reconcileTokens?.(draftTokens, source)
   }, [])
 }
