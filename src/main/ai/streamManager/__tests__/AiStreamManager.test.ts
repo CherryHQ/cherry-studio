@@ -5,6 +5,8 @@ import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiService } from '@main/ai/AiService'
+import { RuntimeActivityService } from '@main/core/application/RuntimeActivityService'
+import type { Disposable } from '@main/core/lifecycle'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { diagnose } from '@main/services/diagnostics/scan/engine'
 import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
@@ -92,6 +94,7 @@ function rendererSender() {
 
 const mockAbortPendingTurn = vi.fn<(sessionId: string, reason: string) => boolean>(() => false)
 const mockGetMessageById = vi.hoisted(() => vi.fn())
+const mockBeginActivity = vi.hoisted(() => vi.fn<(reason: string) => Disposable>(() => ({ dispose: vi.fn() })))
 
 // Real by default (steer continuations reach it through `dispatch()`); a test swaps it to observe admission.
 const mockDispatchStreamRequest = vi.hoisted(() => vi.fn())
@@ -168,7 +171,7 @@ const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
 const mockCloseSession = vi.fn<(sessionId: string, interrupt?: boolean) => Promise<void>>(async () => undefined)
 
 vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const { defaultServiceInstances, mockApplicationFactory } = await import('@test-mocks/main/application')
   // `AiService` is not in the shared `ServiceOverrides` union (which only
   // enumerates the minimal set of mocked core services). Cast to widen —
   // AiStreamManager reaches for `application.get('AiService')` at runtime,
@@ -182,6 +185,7 @@ vi.mock('@application', async () => {
       }
     },
     CacheService: fakeCacheService,
+    RuntimeActivityService: { ...defaultServiceInstances.RuntimeActivityService, begin: mockBeginActivity },
     TraceStorageService: { saveSpans: mockSaveSpans },
     AgentSessionRuntimeService: {
       willContinueTopic: mockWillContinueTopic,
@@ -310,6 +314,7 @@ describe('AiStreamManager', () => {
     mockSaveSpans.mockResolvedValue(undefined)
     mockWillContinueTopic.mockReturnValue(false)
     mockAbortPendingTurn.mockReturnValue(false)
+    mockBeginActivity.mockReset().mockImplementation(() => ({ dispose: vi.fn() }))
     mockGetMessageById.mockReset()
     sharedCacheStore.clear()
   })
@@ -474,6 +479,40 @@ describe('AiStreamManager', () => {
   })
 
   describe('streamPrompt', () => {
+    it.each(['done', 'error'] as const)('releases the runtime activity after a %s stream', async (outcome) => {
+      vi.useRealTimers()
+      const activity = new RuntimeActivityService()
+      mockBeginActivity.mockImplementation((reason) => activity.begin(reason))
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('activity-listener')
+
+      mgr.streamPrompt({
+        streamId: 'activity-stream',
+        uniqueModelId: 'provider-a::model-a',
+        prompt: 'hello',
+        listener
+      })
+
+      expect(activity.hasActiveTasks()).toBe(true)
+      if (outcome === 'done') {
+        feed.enqueue({ type: 'start', messageId: 'activity-response' })
+        feed.enqueue({ type: 'text-start', id: 'reply' })
+        feed.enqueue({ type: 'text-delta', id: 'reply', delta: 'answer' })
+        feed.enqueue({ type: 'text-end', id: 'reply' })
+        feed.enqueue({ type: 'finish' })
+        feed.close()
+      } else {
+        feed.error(new Error('Upstream activity test failure'))
+      }
+
+      await vi.waitFor(() => {
+        if (outcome === 'done') expect(listener.doneResults).toHaveLength(1)
+        else expect(listener.errorResults).toHaveLength(1)
+        expect(activity.hasActiveTasks()).toBe(false)
+      })
+    })
+
     it.each([true, false])('keeps the original exception restricted to prompt streams (%s)', async (prompt) => {
       vi.useRealTimers()
       const original = new APICallError({
