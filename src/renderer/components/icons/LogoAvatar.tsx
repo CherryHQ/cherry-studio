@@ -4,7 +4,7 @@ import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarImage } from '@cherrystudio/ui'
 
 interface Props {
-  logo: string | object | undefined
+  logo: string | CompoundIcon | undefined
   size?: number
   shape?: 'circle' | 'rounded'
   className?: string
@@ -22,7 +22,7 @@ const LogoAvatar: FC<Props> = ({ logo, size = 32, shape = 'rounded', className, 
   const borderClass = 'border border-border'
 
   if (typeof logo !== 'string') {
-    const Icon = logo as CompoundIcon
+    const Icon = logo
 
     return <Icon.Avatar size={size} shape={shape} className={className} />
   }

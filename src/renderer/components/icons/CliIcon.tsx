@@ -37,10 +37,12 @@ export const CLI_TOOLS = [
 
 type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>
 
-const CLI_ICONS: Record<string, SvgIcon> = Object.fromEntries(CLI_TOOLS.map((tool) => [tool.value, tool.icon]))
+const CLI_ICONS: Readonly<Partial<Record<string, SvgIcon>>> = Object.fromEntries(
+  CLI_TOOLS.map((tool): [string, SvgIcon] => [tool.value, tool.icon])
+)
 
 // Crop transparent source-canvas padding so the artwork shares a consistent optical size.
-const OPTICAL_VIEWBOXES: Partial<Record<CodeCli, string>> = {
+const OPTICAL_VIEWBOXES: Readonly<Partial<Record<string, string>>> = {
   [CodeCli.OPEN_CODE]: '16 16 88 88',
   [CodeCli.HERMES]: '26 26 68 68',
   [CodeCli.OPENCLAW]: '26 26 68 68',
@@ -55,7 +57,7 @@ interface CliIconProps {
 }
 
 export const CliIcon: FC<CliIconProps> = ({ id, size = 28, className }) => {
-  const Icon = CLI_ICONS[id]
+  const Icon = Object.hasOwn(CLI_ICONS, id) ? CLI_ICONS[id] : undefined
 
   if (!Icon) {
     return (
@@ -70,7 +72,7 @@ export const CliIcon: FC<CliIconProps> = ({ id, size = 28, className }) => {
     )
   }
 
-  const opticalViewBox = OPTICAL_VIEWBOXES[id as CodeCli]
+  const opticalViewBox = OPTICAL_VIEWBOXES[id]
 
   if (opticalViewBox) {
     return <Icon width={size} height={size} viewBox={opticalViewBox} className={className} />
