@@ -1,5 +1,5 @@
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { render, screen, cleanup, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, cleanup, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,7 +35,7 @@ afterAll(() => {
   }
 })
 
-function agents(items: { id: string; name: string; type: 'pi' | 'claude-code' }[]) {
+function agents(items: { id: string; name: string; type: AgentEntity['type'] }[]) {
   MockUseDataApiUtils.mockQueryData('/agents', { items: items as AgentEntity[], total: items.length, page: 1 })
 }
 beforeEach(() => {
@@ -116,20 +116,13 @@ describe('local history import dialog', () => {
     expect(screen.queryByText(enUS['history_import.problems.unsupported'])).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: enUS['common.retry'] })).not.toBeInTheDocument()
   })
-  it('explains unsupported targets and does not expose a preview button', async () => {
-    agents([{ id: 'claude', name: 'Cherry assistant', type: 'claude-code' }])
+  it('offers the durable agent as an import target', async () => {
+    agents([{ id: 'durable', name: 'Alpha', type: 'pi-durable' }])
     const user = userEvent.setup()
     render(<LocalHistoryImportDialog open source="codex" resolve={() => {}} />)
-    await screen.findByText('Original task')
-    expect(screen.queryByRole('button', { name: enUS['history_import.preview'] })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: enUS['history_import.confirm'] })).toBeDisabled()
-    await waitFor(() => expect(screen.getByRole('combobox')).toBeEnabled())
-    await user.click(screen.getByRole('combobox'))
-    const option = screen.getByRole('option', {
-      name: 'Cherry assistant · ' + enUS['history_import.unsupported_target']
-    })
-    expect(option).toHaveAttribute('aria-disabled', 'true')
-    expect(option).not.toHaveTextContent('claude-code')
+    await chooseAgent(user)
+    await user.click(screen.getByRole('checkbox', { name: /Original task/ }))
+    expect(screen.getByRole('button', { name: enUS['history_import.confirm'] })).toBeEnabled()
   })
   it('enables Codex import on selection and validates before committing in one action', async () => {
     agents([{ id: 'a', name: 'Alpha', type: 'pi' }])
@@ -367,7 +360,7 @@ describe('local history import dialog', () => {
     expect(await screen.findByText('Original task')).toBeInTheDocument()
     expect(request).toHaveBeenLastCalledWith('conversation_import.discover', { source: 'claude-code', root: '/custom' })
   })
-  it('limits select-all to the visible batch of 100 conversations', async () => {
+  it('selects unloaded conversations, reveals them on scroll and imports in bounded batches', async () => {
     agents([{ id: 'a', name: 'Alpha', type: 'pi' }])
     const original = request.getMockImplementation()!
     request.mockImplementation(async (...args) => {
@@ -378,6 +371,10 @@ describe('local history import dialog', () => {
           title: i ? 'Task ' + i : 'Original task',
           sourcePath: '/source/' + i
         }))
+      if (args[0] === 'conversation_import.preview')
+        result.items = args[1].selections.map(({ ref }: { ref: string }) => ({ ...result.items[0], ref }))
+      if (args[0] === 'conversation_import.commit')
+        return args[1].refs.map((ref: string) => ({ ref, status: 'existing' }))
       return result
     })
     const user = userEvent.setup()
@@ -385,7 +382,16 @@ describe('local history import dialog', () => {
     await chooseAgent(user)
     await user.click(screen.getByRole('checkbox', { name: enUS['common.select_all'] }))
     expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(101)
-    expect(screen.getByText(/Selected 100 of 101 conversations/)).toBeInTheDocument()
+    expect(screen.getByText('Selected 101 / 101')).toBeVisible()
+    expect(screen.queryByText('Task 100')).toBeNull()
+    fireEvent.scroll(screen.getByText('Original task').closest('.overflow-y-auto')!)
+    expect(screen.getByRole('checkbox', { name: /Task 100/ })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: enUS['history_import.confirm'] }))
+    await waitFor(() =>
+      expect(
+        request.mock.calls.filter(([route]) => route === 'conversation_import.commit').map(([, input]) => input.refs)
+      ).toEqual([Array.from({ length: 100 }, (_, i) => String(i)), ['100']])
+    )
   })
   it('explains an all-filtered scan without selectable records or an error dialog', async () => {
     request.mockResolvedValue({

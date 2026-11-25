@@ -1,4 +1,8 @@
-import type { MessageProvenance, HistorySource } from '@shared/data/types/conversationImport'
+import {
+  HISTORY_IMPORT_BATCH_SIZE,
+  type MessageProvenance,
+  type HistorySource
+} from '@shared/data/types/conversationImport'
 import type { MessageData, MessageSnapshot } from '@shared/data/types/message'
 import type { ImportDiagnostic, ImportFilterReason } from '@shared/ipc/schemas/conversationImport'
 
@@ -6,7 +10,7 @@ export const IMPORT_LIMITS = {
   line: 4 * 1024 * 1024,
   session: 32 * 1024 * 1024,
   batch: 128 * 1024 * 1024,
-  sessions: 100,
+  sessions: HISTORY_IMPORT_BATCH_SIZE,
   previewMs: 15 * 60 * 1000
 } as const
 

@@ -365,7 +365,7 @@ export const claudeCodeAdapter: HistorySourceAdapter = {
     if (!result.messages.length) diagnose('empty_session', undefined, 'error')
     for (let i = 1; i < result.messages.length; i++)
       if (result.messages[i].timestamp < result.messages[i - 1].timestamp) {
-        diagnose('timestamp_order', undefined, 'error')
+        diagnose('timestamp_order')
         break
       }
     if (Buffer.byteLength(JSON.stringify(result)) > IMPORT_LIMITS.session) throw new Error('session_limit')
