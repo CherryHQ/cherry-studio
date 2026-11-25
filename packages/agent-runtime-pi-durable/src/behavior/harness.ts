@@ -295,6 +295,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
             // SAFETY: The caller's stable Memory key identifies the same JSON producer type in this conversation-owned memo.
             return known as Awaited<ReturnType<typeof produce>>
           }
+
           const value = await produce()
 
           return harness.commit(async (tx) => {

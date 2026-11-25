@@ -145,6 +145,7 @@ export class DurableProjection {
       if (!input.outcome && !input.facts.includes('locally-handled'))
         this.cycle.add(input.nativeInput?.id ?? input.inputId!)
     const unfinished = inputs.some((input) => !input.outcome && !input.facts.includes('locally-handled'))
+    // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Native ConversationView mounts LiveDoc in this captured revision; its docs dictionary erases the token/value association, not a guarantee of full payload validation.
     const live = view.docs['pi.live'] as LiveState | undefined
     const content = new ContentProjection()
 

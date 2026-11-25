@@ -147,6 +147,7 @@ const nativeId = (id: string): number | undefined =>
 
 function nativeTaskId(key: string): TaskId | undefined {
   const id = nativeId(key)
+
   // SAFETY: The SDK has no public numeric TaskId constructor; canonical safe integers identify task lookups, not verified task contents.
   return id === undefined ? undefined : (id as TaskId)
 }
@@ -806,6 +807,7 @@ export async function createPiDurableRuntime(
         async behaviorToolCallId(call) {
           if (unavailable() || call.thread !== entry.ref.id) return undefined
           const taskId = nativeTaskId(call.key)
+
           if (taskId === undefined) return undefined
           const task = await native.getTask(taskId, context)
 

@@ -20,6 +20,7 @@ export function meteredModels(models: Models, behavior: PiDurableBehavior): Mode
         for await (const event of input) output.push(event)
         output.end(await input.result())
       } catch (cause) {
+        const reason = options?.signal?.aborted ? 'aborted' : 'error'
         const error: AssistantMessage = {
           role: 'assistant',
           content: [],
@@ -35,11 +36,11 @@ export function meteredModels(models: Models, behavior: PiDurableBehavior): Mode
             cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
           },
           timestamp: Date.now(),
-          stopReason: options?.signal?.aborted ? 'aborted' : 'error',
+          stopReason: reason,
           errorMessage: cause instanceof Error ? cause.message : String(cause)
         }
 
-        output.push({ type: 'error', reason: error.stopReason as 'error' | 'aborted', error })
+        output.push({ type: 'error', reason, error })
         output.end(error)
       }
     })()

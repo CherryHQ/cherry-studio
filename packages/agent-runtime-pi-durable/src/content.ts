@@ -8,6 +8,7 @@ export const entryMessageId = (entry: EntryRecord, index: number): string => `en
 
 export function logicalInputId(data: EntryRecord['data']): InputId | undefined {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return undefined
+
   return typeof data.cherryInputId === 'string' && data.cherryInputId ? runtimeId(data.cherryInputId) : undefined
 }
 

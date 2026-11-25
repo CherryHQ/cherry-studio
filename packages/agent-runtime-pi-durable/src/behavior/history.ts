@@ -29,9 +29,11 @@ import { runtimeId, type ItemId, type JsonValue, type ThreadId } from '@cherryst
 
 export function toolCallIdentity(task: Pick<TaskRecord<JsonValue, JsonValue, JsonValue>, 'version' | 'input'>) {
   const input = task.input
+
   if (typeof input !== 'object' || input === null || Array.isArray(input)) return undefined
   const kind = 'kind' in input ? input.kind : undefined
   const assistant = 'assistant' in input ? input.assistant : undefined
+
   if (kind === 'model' || (task.version === 1 && kind === undefined))
     return 'callId' in input && typeof input.callId === 'string'
       ? {
@@ -41,8 +43,10 @@ export function toolCallIdentity(task: Pick<TaskRecord<JsonValue, JsonValue, Jso
             typeof assistant === 'number' && Number.isSafeInteger(assistant) && assistant >= 0 ? assistant : undefined
         }
       : undefined
+
   if (kind !== 'nested') return undefined
   const call = 'call' in input ? input.call : undefined
+
   return typeof call === 'object' &&
     call !== null &&
     !Array.isArray(call) &&
@@ -77,7 +81,9 @@ export function conversationId(thread: ThreadId): ConversationId {
 
 export function entryId(item: ItemId): EntryId {
   const id = Number(item)
+
   if (!Number.isSafeInteger(id) || id < 0 || String(id) !== item) throw new Error(`Invalid Durable entry ${item}`)
+
   // SAFETY: The SDK has no public numeric brand constructor; the canonical entry ID is resolved by the native history lookup.
   return id as EntryId
 }
@@ -319,6 +325,7 @@ export async function readFacts(
   for (const task of tasks) {
     if (task.conversationId !== id) continue
     const input = task.input
+
     if (typeof input !== 'object' || input === null || Array.isArray(input)) continue
 
     if (
