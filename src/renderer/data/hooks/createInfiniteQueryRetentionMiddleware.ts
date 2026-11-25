@@ -14,7 +14,8 @@ export function createInfiniteQueryRetentionMiddleware(options: InfiniteQueryRet
   return (useSWRNext) => {
     return function useInfiniteQueryRetention(key, fetcher, config) {
       const { cache } = useSWRConfig()
-      const getKey: SWRInfiniteKeyLoader<unknown> | undefined = typeof key === 'function' ? key : undefined
+      // SAFETY: useConversationHistoryQuery installs this middleware on SWR infinite, whose loader signature is erased by Middleware.
+      const getKey = typeof key === 'function' ? (key as SWRInfiniteKeyLoader<unknown>) : undefined
       const getKeyRef = useRef(getKey)
       getKeyRef.current = getKey
       let enabled = false

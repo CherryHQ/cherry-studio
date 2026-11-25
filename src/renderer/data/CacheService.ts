@@ -735,6 +735,7 @@ export class CacheService {
     key: K,
     value: CacheSetStateAction<RendererPersistCacheSchema[K]>
   ): void {
+    // SAFETY: getPersist returns this same K's value; the conditional type adds only a shallow readonly view of that reference.
     const nextValue =
       typeof value === 'function' ? value(this.getPersist(key) as ReadonlyValue<RendererPersistCacheSchema[K]>) : value
 
@@ -1132,9 +1133,12 @@ export class CacheService {
    * Load persist cache from localStorage with default value initialization
    */
   private loadPersistCache(): void {
+    // SAFETY: These own keys come from the complete local default object; no stored value validation is implied.
+    const schemaKeys = Object.keys(DefaultRendererPersistCache) as RendererPersistCacheKey[]
+
     // First, initialize with default values
-    for (const [key, defaultValue] of Object.entries(DefaultRendererPersistCache)) {
-      this.persistCache.set(key as RendererPersistCacheKey, defaultValue)
+    for (const key of schemaKeys) {
+      this.persistCache.set(key, DefaultRendererPersistCache[key])
     }
 
     try {
@@ -1151,8 +1155,6 @@ export class CacheService {
       const data = JSON.parse(stored)
 
       // Only load keys that exist in schema, overriding defaults
-      const schemaKeys = Object.keys(DefaultRendererPersistCache) as RendererPersistCacheKey[]
-
       for (const key of schemaKeys) {
         if (key in data) {
           this.persistCache.set(key, data[key])
@@ -1279,9 +1281,9 @@ export class CacheService {
         this.sharedCache.set(message.key, entry)
         this.notifySubscribers(message.key)
       } else if (message.type === 'persist') {
-        if (isEqual(this.persistCache.get(message.key as RendererPersistCacheKey), message.value)) return
+        if (isEqual(this.persistCache.get(message.key), message.value)) return
         // Update persist cache (other windows only update memory, not localStorage)
-        this.persistCache.set(message.key as RendererPersistCacheKey, message.value)
+        this.persistCache.set(message.key, message.value)
         this.notifySubscribers(message.key)
       }
     })

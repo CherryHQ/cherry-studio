@@ -204,7 +204,10 @@ export function upsertGlobalSearchRecentEntry<T extends readonly GlobalSearchRec
  * short-circuit drops the no-op write.
  */
 export function recordGlobalSearchRecentEntry(entry: GlobalSearchRecentEntry): void {
-  cacheService.setPersist('ui.global_search.recent_items', (prev) => upsertGlobalSearchRecentEntry(prev, entry))
+  cacheService.setPersist('ui.global_search.recent_items', (prev) => {
+    // SAFETY: The helper returns a new mutable array or this same cache-owned array's readonly updater view.
+    return upsertGlobalSearchRecentEntry(prev, entry) as GlobalSearchRecentEntry[]
+  })
 }
 
 export function getDisplayGlobalSearchRecentEntries(

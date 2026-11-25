@@ -1,3 +1,5 @@
+import type { RendererPersistCacheKey } from './cacheSchemas'
+
 /**
  * Cache types and interfaces for CacheService
  *
@@ -18,12 +20,10 @@ export interface CacheEntry<T = any> {
 /**
  * Cache synchronization message for IPC communication
  */
-export interface CacheSyncMessage {
-  type: 'shared' | 'persist'
-  key: string
+export type CacheSyncMessage = {
   value: any
   expireAt?: number // Absolute Unix timestamp for precise cross-window sync
-}
+} & ({ type: 'shared'; key: string } | { type: 'persist'; key: RendererPersistCacheKey })
 
 /**
  * Batch cache synchronization message

@@ -356,7 +356,7 @@ export function useMultiplePreferences<T extends Record<string, UnifiedPreferenc
         const entries: [UnifiedPreferenceKeyType, PreferenceValue | undefined][] = []
 
         for (const [localKey, value] of Object.entries<PreferenceValue | undefined>(updates)) {
-          const prefKey = stableKeys[localKey as keyof T]
+          const prefKey = stableKeys[localKey]
 
           if (prefKey) {
             entries.push([prefKey, value])
