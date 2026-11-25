@@ -59,8 +59,10 @@ selects a declared `openai-image-generation` endpoint configured with the `newap
 adapter; requests with edit inputs select `openai-image-edit` under the same rule.
 The matching operation wins even when a different image endpoint is listed first.
 If no matching endpoint qualifies, the listed primary is the fallback. A blank
-image URL inherits the model's primary host before considering the saved chat
-default, so a separate Gemini chat host cannot redirect that inheritance.
+image URL inherits the model's primary host when the primary endpoint has a URL,
+before considering the saved chat default. If both the matching operation and
+primary endpoint URLs are blank, normal provider URL resolution applies and can
+fall back to the saved chat default.
 Single-host relay presets still inherit their configured host.
 
 OpenAI-compatible requests keep
