@@ -74,7 +74,6 @@ export function formatCodexTool(item: Record<string, unknown>): string {
 }
 
 export function isCodexContextText(text: string): boolean {
-  if (/^\[Historical (environment|plugin context|project instructions|app context)\]\n/.test(text)) return true
   const remainder = text
     .replace(/<(recommended_plugins|environment_context|external_codex_apps_open_page)>[\s\S]*?<\/\1>/g, '')
     .replace(/^\s*# AGENTS\.md instructions(?: for [^\r\n]+)?\r?\n\s*<INSTRUCTIONS>[\s\S]*?<\/INSTRUCTIONS>/, '')
@@ -82,7 +81,13 @@ export function isCodexContextText(text: string): boolean {
 }
 
 export function isCodexContextMessage(data: MessageData): boolean {
-  return !!data.parts?.length && data.parts.every((part) => part.type === 'text' && isCodexContextText(part.text))
+  // Older imports can store the formatted environment as user text. Require the complete field list.
+  const environment =
+    /^\[Historical environment\]\r?\n(?:\r?\n)?(?:(?:cwd|shell|current_date|timezone): [^\r\n]+(?:\r?\n|$))+$/
+  return (
+    !!data.parts?.length &&
+    data.parts.every((part) => part.type === 'text' && (isCodexContextText(part.text) || environment.test(part.text)))
+  )
 }
 
 export function formatCodexHistoryText(text: string): string {

@@ -138,7 +138,8 @@ async function readCodexSession(
       }
       rows.push({ row: row.data, line: entry.line })
     } catch {
-      diagnose('invalid_json', entry.line)
+      // An unfinished append can become valid on retry. Do not reserve the thread ID for its prefix.
+      diagnose('invalid_json', entry.line, entry.line === input.unterminatedLine ? 'error' : 'warning')
       result.skippedRecords++
     }
   }

@@ -33,7 +33,11 @@ describe('Codex imported text presentation', () => {
       { type: 'text' as const, text: '[Historical environment]\n\ncwd: D:/project' }
     ]
     expect(isCodexContextMessage({ parts })).toBe(true)
-    expect(isCodexContextMessage(presentCodexHistory({ parts }))).toBe(true)
+    expect(isCodexContextMessage(presentCodexHistory({ parts }))).toBe(false)
+    for (const label of ['environment', 'project instructions', 'plugin context', 'app context']) {
+      const text = '[Historical ' + label + ']\n\ncwd: D:/project\nWhat is the charging power?'
+      expect(isCodexContextMessage({ parts: [{ type: 'text', text }] })).toBe(false)
+    }
     expect(isCodexContextMessage({ parts: [...parts, { type: 'text', text: 'What is the charging power?' }] })).toBe(
       false
     )

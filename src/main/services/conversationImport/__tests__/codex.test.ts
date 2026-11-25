@@ -117,7 +117,9 @@ describe('Codex raw rollout contract', () => {
     expect(
       result.messages.slice(1).every((m) => m.role === 'system' && m.data.parts?.every((p) => p.type === 'text'))
     ).toBe(true)
-    expect(result.diagnostics.map((d) => d.code)).toEqual(expect.arrayContaining(['invalid_json', 'inferred_time']))
+    expect(result.diagnostics.filter((d) => d.severity === 'warning').map((d) => d.code)).toEqual(
+      expect.arrayContaining(['invalid_json', 'inferred_time'])
+    )
   })
   it('shows the first user sentence when the title index has no entry', async () => {
     await file('rollout-untitled.jsonl', [meta(), message('Explain this project'), message('answer', 'assistant')])
