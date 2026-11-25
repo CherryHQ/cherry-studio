@@ -8,6 +8,7 @@ import type { AiRequestContext } from '@cherrystudio/ai-core'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
+import { makeModel } from '../../../../../__tests__/fixtures'
 import { toModelMessages } from '../../../../../messages/messageRules'
 import { dropEmptyContentParts } from '../../../../../streamManager/persistence/PersistenceBackend'
 import { withReasoningTimingMetadata } from '../../../../../streamManager/withReasoningTimingMetadata'
@@ -22,6 +23,7 @@ async function middleware(endpointType: EndpointType, providerId: string, modelI
     replayRouteId: baseURL,
     request: {},
     provider: { id: providerId },
+    model: makeModel({ apiModelId: modelId }),
     endpointType,
     sdkConfig: { providerId, providerOptionsKey: providerId, modelId, providerSettings: { baseURL } }
   } as RequestScope

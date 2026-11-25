@@ -16,7 +16,7 @@ import {
   anthropicThinkingReplayFeature
 } from '../../../../runtime/aiSdk/params/features/anthropicThinkingBinding'
 import { buildContextOptions } from '../../../../runtime/aiSdk/params/features/contextBuild'
-import { geminiHistorySignatureReplayFeature } from '../../../../runtime/aiSdk/params/features/geminiHistorySignatureReplay'
+import { conversationStateReplayFeature } from '../../../../runtime/aiSdk/params/features/conversationStateReplay'
 import type { RequestScope } from '../../../../runtime/aiSdk/params/scope'
 import { dropEmptyContentParts } from '../../../../streamManager/persistence/PersistenceBackend'
 import { createAihubmix } from '../../aihubmix/aihubmixProvider'
@@ -128,7 +128,7 @@ describe('Anthropic Messages thinking binding', () => {
         sdkConfig: { modelId: wireModel, providerId: 'aihubmix', providerSettings }
       } as RequestScope
       const context = { middlewares: [] } as unknown as AiRequestContext
-      const feature = isAnthropic ? anthropicThinkingReplayFeature : geminiHistorySignatureReplayFeature
+      const feature = isAnthropic ? anthropicThinkingReplayFeature : conversationStateReplayFeature
       if (feature.applies?.(scope)) {
         for (const plugin of feature.contributeModelAdapters?.(scope) ?? []) {
           await plugin.configureContext?.(context)

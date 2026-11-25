@@ -1,7 +1,7 @@
 import type { LanguageModelV3Message, LanguageModelV3StreamPart, SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
 
-type AssistantPart = Extract<LanguageModelV3Message, { role: 'assistant' }>['content'][number]
+export type AssistantPart = Extract<LanguageModelV3Message, { role: 'assistant' }>['content'][number]
 
 interface ProviderStateReplay {
   routeId: string
@@ -78,7 +78,7 @@ export function createProviderStateReplayMiddleware({
             params.providerOptions?.[responsesOptionsKey]?.store !== false
           if (!foreign && !unaddressable) return [part]
           if (part.type === 'reasoning') return []
-          return [omitState && hasState(part.providerOptions) ? omitState(part) : part]
+          return [omitState?.(part) ?? part]
         })
         // Preserve a valid assistant turn when its only content was opaque state.
         return content.length

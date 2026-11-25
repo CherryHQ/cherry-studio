@@ -32,7 +32,7 @@ async function geminiMiddleware(target: UniqueModelId, baseURL: string, history:
     endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
     sdkConfig: { providerId: 'cherryin', modelId, providerSettings: { geminiBaseURL: baseURL } }
   } as RequestScope
-  const features = INTERNAL_FEATURES.filter((feature) => feature.name === 'gemini-history-signature-replay')
+  const features = INTERNAL_FEATURES.filter((feature) => feature.name === 'conversation-state-replay')
   const { modelAdapters } = collectFromFeatures(scope, features)
   const middlewares: LanguageModelMiddleware[] = []
   for (const adapter of modelAdapters) {

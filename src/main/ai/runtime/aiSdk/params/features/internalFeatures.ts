@@ -22,7 +22,6 @@ import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
 import { gatewayAnthropicCacheFeature, gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
-import { geminiHistorySignatureReplayFeature } from './geminiHistorySignatureReplay'
 import { grokReasoningReplayFeature } from './grokReasoningReplay'
 import { inLoopCompactionFeature } from './inLoopCompaction'
 import { noThinkFeature } from './noThink'
@@ -34,7 +33,6 @@ import { qwenEnableThinkingFeature } from './qwenEnableThinking'
 import { qwenThinkingFeature } from './qwenThinking'
 import { reasoningExtractionFeature } from './reasoningExtraction'
 import { simulateStreamingFeature } from './simulateStreaming'
-import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
 import { steerYieldFeature } from './steerYield'
 import { stripReasoningReplayFeature } from './stripReasoningReplay'
 import { terminalToolFailureFeature } from './terminalToolFailure'
@@ -70,8 +68,6 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   noThinkFeature,
   qwenThinkingFeature,
   qwenEnableThinkingFeature,
-  geminiHistorySignatureReplayFeature,
-  skipGeminiThoughtSignatureFeature,
   // The HuggingFace router rejects reasoning input items — strip them on replay.
   stripReasoningReplayFeature,
   providerWebSearchFeature,
