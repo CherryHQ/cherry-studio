@@ -27,6 +27,7 @@ export const MEDIA_ANALYSIS_WARNING_CODES = [
   'ocr_failed',
   'vision_model_unavailable',
   'vision_failed',
+  'vision_incomplete',
   'visual_analysis_failed',
   'no_visual_content'
 ] as const

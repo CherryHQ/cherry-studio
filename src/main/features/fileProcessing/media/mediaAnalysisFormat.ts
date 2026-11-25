@@ -17,6 +17,7 @@ const WARNING_TEXT: Record<MediaAnalysisWarningCode, string> = {
   ocr_failed: 'Some on-screen text could not be extracted.',
   vision_model_unavailable: 'No video vision model is configured.',
   vision_failed: 'Some video frames could not be summarized.',
+  vision_incomplete: 'The vision model did not describe some video frames.',
   visual_analysis_failed: 'Visual analysis failed.',
   no_visual_content: 'No visual summaries or on-screen text could be extracted.'
 }

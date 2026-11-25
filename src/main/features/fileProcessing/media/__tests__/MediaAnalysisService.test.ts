@@ -980,9 +980,12 @@ describe('MediaAnalysisService', () => {
       }))
 
       const first = await service.analyze(file)
-      await service.analyze(file)
+      const second = await service.analyze(file)
 
+      expect(first.warnings).toContain('vision_incomplete')
       expect(first.warnings).not.toContain('vision_failed')
+      expect(second).toEqual(first)
+      expect(runtime.extractFrames).toHaveBeenCalledTimes(1)
       expect(runtime.generateText).toHaveBeenCalledTimes(1)
     })
 

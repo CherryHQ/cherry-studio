@@ -339,6 +339,8 @@ export class MediaAnalysisService extends BaseService {
           if (summary) frames.set(frame.timestampMs, { ...frames.get(frame.timestampMs)!, summary })
         }
         if (distinctFrames.some((frame) => !answered.has(frame.timestampMs))) warnings.add('vision_failed')
+        // A skipped frame is never resent, so its gap is reported without making the analysis retryable.
+        else if (distinctFrames.some((frame) => !answered.get(frame.timestampMs))) warnings.add('vision_incomplete')
       } else {
         warnings.add('vision_model_unavailable')
       }
