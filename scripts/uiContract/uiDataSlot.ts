@@ -1,7 +1,6 @@
 import {
   Children,
   cloneElement,
-  type CSSProperties,
   Fragment,
   isValidElement,
   type ReactElement,
@@ -28,7 +27,6 @@ type SlotProps<Result> = AnyProps & {
   [Name in `on${Capitalize<string>}`]?: SlotHandler<Result>
 } & {
   ref?: RefTarget
-  style?: CSSProperties
 }
 
 type UiDataSlotProps<Result> = SlotProps<Result> & {
@@ -53,11 +51,6 @@ function mergeSlotProps<Result>(slotProps: SlotProps<Result>, childProps: SlotPr
   const overrideProps: SlotProps<Result> = { ...childProps }
 
   for (const propName in childProps) {
-    if (propName === 'style') {
-      overrideProps.style = { ...slotProps.style, ...childProps.style }
-      continue
-    }
-
     const slotPropValue = slotProps[propName]
     const childPropValue = childProps[propName]
 
@@ -75,6 +68,8 @@ function mergeSlotProps<Result>(slotProps: SlotProps<Result>, childProps: SlotPr
       } else if (slotPropValue) {
         overrideProps[propName] = slotPropValue
       }
+    } else if (propName === 'style') {
+      overrideProps[propName] = { ...Object(slotPropValue), ...Object(childPropValue) }
     } else if (propName === 'className') {
       overrideProps[propName] = [slotPropValue, childPropValue].filter(Boolean).join(' ')
     }
