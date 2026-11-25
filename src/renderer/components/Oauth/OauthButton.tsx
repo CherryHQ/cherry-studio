@@ -47,7 +47,8 @@ const OauthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
       }
     }
 
-    API_KEY_OAUTH_LAUNCHERS[provider.id as (typeof API_KEY_OAUTH_PROVIDER_IDS)[number]]?.(handleSuccess)
+    const launcher = Object.entries(API_KEY_OAUTH_LAUNCHERS).find(([id]) => id === provider.id)?.[1]
+    launcher?.(handleSuccess)
   }
 
   return (
