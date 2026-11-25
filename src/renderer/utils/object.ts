@@ -21,8 +21,8 @@ export function objectKeys(obj: object): string[] {
  * const obj = { a: 1, b: 2 } as const
  * const values = objectValues(obj) // (1 | 2)[]
  */
-export function objectValues<T extends Record<string, unknown>>(obj: T): T[keyof T][] {
-  return Object.values<T[keyof T]>(obj)
+export function objectValues<T>(obj: Readonly<Record<string, T>>): T[] {
+  return Object.values(obj)
 }
 
 /**

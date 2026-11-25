@@ -114,7 +114,8 @@ function normalizeWebResult(result: unknown): Citation | null {
   }
 
   if (!result || typeof result !== 'object') return null
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- SAFETY: The object container is checked; each URL, title, content and citation number is validated before use.
+  // SAFETY: The object container is checked; each URL, title, content and citation number is narrowed before use.
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Provider payload fields remain unknown until their individual scalar checks.
   const entry = result as Record<string, unknown>
 
   const openAiUrlCitation =

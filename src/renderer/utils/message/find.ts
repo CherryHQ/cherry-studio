@@ -145,7 +145,7 @@ export const getCitationContent = (message: ExportableMessage): string => {
   for (const part of getParts(message)) {
     const parsedPart = exportPartFieldsSchema.safeParse(part)
 
-    if (!parsedPart.success || parsedPart.data.type !== 'text') continue
+    if (!parsedPart.success || parsedPart.data.type !== 'text' || part.type !== 'text') continue
 
     const refs = readCherryMeta(part)?.references ?? []
 
@@ -193,7 +193,7 @@ export const getToolCitationExport = (message: ExportableMessage, content: strin
   const rendersLegacyCitations = getParts(message).some((part) => {
     const parsed = exportPartFieldsSchema.safeParse(part)
 
-    if (!parsed.success || parsed.data.type !== 'text') return false
+    if (!parsed.success || parsed.data.type !== 'text' || part.type !== 'text') return false
     const references = readCherryMeta(part)?.references
 
     return !!references?.length && convertReferencesToCitations(references).length > 0
