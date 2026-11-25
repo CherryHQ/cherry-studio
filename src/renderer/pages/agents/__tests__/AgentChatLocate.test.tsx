@@ -293,8 +293,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
-    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`
 }))
 
 vi.mock('../messages/agentMessageListAdapter', () => ({

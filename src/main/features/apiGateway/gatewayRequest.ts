@@ -5,6 +5,7 @@ import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { ENDPOINT_TYPE, type ServiceTierSelection, ServiceTierSelectionSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { RetryPartData } from '@shared/data/types/uiParts'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
 import type { InputFormat, InputParamsMap, OutputFormat } from './adapters'
@@ -21,6 +22,7 @@ export interface AgentGatewayContext {
   reasoningEffort: ReasoningEffortOption
   serviceTier?: ServiceTierSelection
   fastMode: boolean
+  onRetryEvent?: (event: RetryPartData) => void
   resolveUsage(responseId: string): InProcessUsageContext | undefined
 }
 

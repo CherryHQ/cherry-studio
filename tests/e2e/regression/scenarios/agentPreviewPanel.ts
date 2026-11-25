@@ -190,7 +190,10 @@ export async function agentPreviewPanel(app: RegressionApp, page: Page, testInfo
     await editor.click()
     await editor.press('ControlOrMeta+v')
     await expect(composer.locator('[data-composer-token-kind="file"]')).toHaveCount(1)
+    await editor.press('End')
+    await editor.pressSequentially(' Reply with only MP19_RECEIVED; do not use tools.')
     await composer.getByRole('button', { name: 'Send', exact: true }).click()
+    await expect(messages.last().getByText('MP19_RECEIVED', { exact: true })).toBeVisible()
     await messages.getByRole('button', { name: /Pasted Text/, exact: true }).click()
     await expect(overlay.getByText(/^MP19 pasted line \d+: text preserved in preview\.$/)).toHaveText(
       pasted.split('\n')

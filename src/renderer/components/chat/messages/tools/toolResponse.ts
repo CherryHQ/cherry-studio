@@ -265,10 +265,14 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
 
   if (toolType === 'mcp') {
     const piResult = toolPart.state === 'output-error' ? toolPart.resultProviderMetadata?.pi?.result : toolPart.output
+    const isPi = toolPart.callProviderMetadata?.cherry?.transport === PI_AGENT_TRANSPORT
+    // Pi keeps a result with non-text blocks (a QR image, say) as its bare content array.
     const mcpResult = CallToolResultSchema.safeParse(
-      toolPart.callProviderMetadata?.cherry?.transport === PI_AGENT_TRANSPORT && isRecord(piResult)
+      isPi && isRecord(piResult)
         ? piResult.structuredContent
-        : undefined
+        : isPi && Array.isArray(piResult)
+          ? { content: piResult }
+          : undefined
     )
     const tool = buildMcpToolDescriptor(toolName, metadata)
     const mcpResponse: McpToolResponse = {

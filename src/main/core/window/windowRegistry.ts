@@ -61,8 +61,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     // Persist & restore position/size across launches (maximize re-applied by the service).
     rememberBounds: true,
     windowOptions: {
-      width: MIN_WINDOW_WIDTH,
-      height: MIN_WINDOW_HEIGHT,
+      width: 1440,
+      height: 900,
       minWidth: MIN_WINDOW_WIDTH,
       minHeight: MIN_WINDOW_HEIGHT,
       autoHideMenuBar: true,

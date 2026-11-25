@@ -193,7 +193,8 @@ export default defineConfig({
         extends: true,
         resolve: {
           alias: {
-            '@cherrystudio/ui': resolve(__dirname, 'packages/ui/src')
+            '@cherrystudio/ui': resolve(__dirname, 'packages/ui/src'),
+            '@test-mocks': resolve(__dirname, 'tests/__mocks__')
           }
         },
         test: {

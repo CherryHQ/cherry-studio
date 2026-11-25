@@ -1,6 +1,10 @@
 ---
 description: 原生文件观察的归属、失效订阅、目录租约和 renderer 恢复
 sources:
+  - src/main/services/file/watcher.ts
+  - src/main/services/file/nativeWatcher.ts
+  - src/main/services/file/watcherWorker.ts
+  - src/main/services/file/watcherProtocol.ts
   - src/main/services/file/observation
   - src/main/ipc/handlers/fileObservation.ts
   - src/shared/ipc/schemas/fileObservation.ts
@@ -14,11 +18,13 @@ sources:
 
 ## 所有权
 
-Main `FileObservationService` 是 `WhenReady` 生命周期服务，依赖 `WindowManager` 和 `PowerService`，持有原生 scope 与文件订阅。私有 `WatchScope` 封装现有 chokidar 适配器及就绪 Promise。目录 builder 显式接收服务并消费租约；释放投影时只释放其租约。
+Main `FileObservationService` 是 `WhenReady` 生命周期服务，依赖 `WindowManager` 和 `PowerService`，持有原生 scope 与文件订阅。私有 `WatchScope` 封装观察适配器及就绪 Promise。一个按需创建的 `DirectoryWatcherHost` 持有所有 scope 共用的 Node Worker；`NativeWatcher` 在该线程上创建、恢复和关闭 chokidar 句柄。Main 保留租约所有权、路径校验及 dangling cache 更新。目录 builder 显式接收服务并消费租约；释放投影时只释放其租约。
+
+chokidar 6 对 macOS 和 Windows 中不限深度的目录树选择原生递归观察。有限深度的 scope 采用逐目录观察；其他平台保留其支持的后端。逻辑排除规则继续过滤发布的事件，但递归原生订阅可能收到被排除后代的原始通知。减少原生句柄会降低关闭工作量；关闭仍等待 Worker 的原生回执。
 
 相同 scope key 共享原生资源。树的 key 包含根路径、深度与过滤策略；只影响投影的扩展名和 stats 选项不需要独立原生 scope。显式文件的 key 包含请求文件及用于监听的现存父目录。文件 scope 剪除无关路径，并观察父子关系，使替换、删除和重建仍可见。解析后的目标与符号链接绑定使用独立 scope；绑定变化使覆盖失效并要求重新绑定。原生监听就绪后再次解析绑定，避免把建立期间已经改向的旧覆盖视为有效。首次发现绑定本身不表示改向。新目录扫描会包含已经创建的目标项，覆盖目录和文件在同一批操作中创建的情况。它们不继承树对隐藏文件或 gitignore 的排除。共享不会把观察扩大到整个未使用工作区。
 
-最后一个租约释放后关闭 scope。窗口销毁时释放该窗口的文件订阅；目录消费者有各自的清理。服务退出时停止接收新请求，并等待原生资源关闭。观察不持有文件字节、草稿、持久化记录或写入租约。
+最后一个租约释放后关闭 scope。窗口销毁时释放该窗口的文件订阅；目录消费者有各自的清理。每个 scope 关闭时立即停止 Main 事件投递，等待 Worker 确认原生资源已关闭，包括切换 polling 时退役的句柄。服务退出时停止接收新请求，关闭全部 scope，并等待 Worker 退出。Worker 崩溃会把所属 scope 标为不可用；后续获取会启动替代线程。树的过滤条件传递与扫描相同的已加载 gitignore 规则、隐藏策略和缺失根目录边界；显式文件过滤仍只保留目标及其祖先。观察不持有文件字节、草稿、持久化记录或写入租约。
 
 ## 文件协议
 

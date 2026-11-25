@@ -108,6 +108,46 @@ describe('SkillCatalogPicker', () => {
     expect(onSelectedIdsChange).toHaveBeenCalledWith(['enabled-skill'])
   })
 
+  it('allows a saved builtin opt-out to be restored with the keyboard', async () => {
+    const user = userEvent.setup()
+    const builtinSkill = {
+      id: 'builtin',
+      name: 'Builtin Skill',
+      source: 'builtin',
+      isGlobalEnabled: true,
+      isEnabled: false
+    } as InstalledSkill
+
+    function ExistingAgentSkills() {
+      const [selectedIds, setSelectedIds] = useState<string[]>([])
+      return (
+        <SkillCatalogPicker
+          mode="edit"
+          skills={[builtinSkill]}
+          loading={false}
+          selectedIds={selectedIds}
+          onSelectedIdsChange={setSelectedIds}
+          emptyLabel="No skills"
+          portalContainer={null}
+        />
+      )
+    }
+
+    render(<ExistingAgentSkills />)
+    const toggle = screen.getByRole('switch', { name: 'Builtin Skill' })
+    expect(toggle).not.toBeChecked()
+    expect(toggle).toBeEnabled()
+    await user.tab()
+    await user.tab()
+    await user.tab()
+    await user.tab()
+    expect(toggle).toHaveFocus()
+    await user.keyboard(' ')
+
+    expect(toggle).toBeChecked()
+    expect(toggle).toBeDisabled()
+  })
+
   it('preserves selected globally disabled skills when toggling all visible skills', async () => {
     const user = userEvent.setup()
     const onSelectedIdsChange = vi.fn()
