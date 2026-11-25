@@ -127,10 +127,6 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }
 }))
 
-vi.mock('@renderer/utils/model', () => ({
-  isVisionModel: vi.fn(() => false)
-}))
-
 vi.mock('@renderer/components/chat/editing/MessageEditingContext', () => ({
   useMessageEditing: () => messageEditingMock
 }))

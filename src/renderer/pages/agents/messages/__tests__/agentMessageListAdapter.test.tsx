@@ -210,6 +210,26 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
+  it('keys Agent lists by session topic while preserving expanded tool steps', () => {
+    const topic = { id: 'agent-session:first', assistantId: 'agent-1', name: 'First', messages: [] } as unknown as Topic
+    const { result, rerender } = renderHook(
+      ({ activeTopic }) =>
+        useAgentMessageListProviderValue({
+          topic: activeTopic,
+          messages: [],
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'none'
+        }),
+      { initialProps: { activeTopic: topic } }
+    )
+    expect(result.current.state.listKey).toBe('agent-session:first')
+    expect(result.current.state.renderConfig.expandToolSteps).toBe(true)
+    rerender({ activeTopic: { ...topic, id: 'agent-session:second' } })
+    expect(result.current.state.listKey).toBe('agent-session:second')
+    expect(result.current.state.renderConfig.expandToolSteps).toBe(true)
+  })
+
   it('keeps historical avatars current until their agent is deleted', () => {
     const messages: CherryUIMessage[] = [
       {
@@ -421,7 +441,7 @@ describe('useAgentMessageListProviderValue', () => {
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', async () => {
     const topic = {
-      id: 'agent-session-topic',
+      id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
       lastActivityAt: '2026-01-01T00:00:00.000Z',
@@ -500,7 +520,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     void value?.actions.openPath?.('dist/report.md')
     expect(ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.open_path', {
-      sessionId: 'agent-session-topic',
+      sessionId: 'session-1',
       path: 'dist/report.md'
     })
 
@@ -861,7 +881,7 @@ describe('useAgentMessageListProviderValue', () => {
 
   it('does not expose selected delete action without delete capability', () => {
     const topic = {
-      id: 'agent-session-topic',
+      id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
       lastActivityAt: '2026-01-01T00:00:00.000Z',
@@ -899,7 +919,7 @@ describe('useAgentMessageListProviderValue', () => {
 
   it('does not show a toast when selected-message save is canceled', async () => {
     const topic = {
-      id: 'agent-session-topic',
+      id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
       lastActivityAt: '2026-01-01T00:00:00.000Z',

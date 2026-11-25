@@ -35,7 +35,20 @@ No internal HTTP listener, request JSON codec or SSE formatter is used. Restarti
 does not retire these connections. The same context carries reasoning, tier and Fast settings
 to the same Cherry parameter builder used by other requests.
 
-The behavior adapter disables native retries; the object transport and gateway do not add retries.
+The behavior adapter, native provider and AI SDK built-in retries remain disabled. Internal object
+requests reuse `AiService`'s `createRetryableWrap` (`ai-retry`), with three retries after the first
+attempt on the same provider, model and request. The wrapper is applied after provider middleware,
+so every attempt retains request transforms, tracing and usage capture.
+Retryable failures before the first content chunk can retry, including errors delivered after the
+upstream stream opens. Once text, reasoning or tool-input content has been forwarded, the stream
+is not replayed. Cancellation stops pending backoff; exhaustion reports the last upstream error.
+The explicit request count enables retries independently of the chat retry toggle and count;
+backoff follows `chat.retry.backoff_enabled` and honors `Retry-After`. API-key and model fallback
+remain disabled. HTTP gateway requests retain their existing no-retry policy.
+Caller retry events travel through a typed gateway callback, outside native protocol events.
+The binding identifies the native call owner so root and child replies reuse the chat
+`data-retry` status independently. Settlement or cancellation clears the status; child
+projections apply it only to their live view, never to native history or the product archive.
 Native usage is for context and display; it must not create another billing record. Only root model
 calls emit native usage updates on the root stream; child, summary and verifier calls still contribute
 to gateway billing. Desktop-owned summaries freeze their initiating owner before the gateway hop. Product message totals use the gateway's aggregated provider calls.
@@ -136,10 +149,10 @@ committed child history while its access remains readable, and releases access a
 Native session, goal and subagent tests live in `packages/agent-runtime-pi/tests/`. They use Pi
 providers directly, including scripted native streams with fixed usage for budget assertions.
 `gatewayIntegration.test.ts` exercises real gateway
-execution, provider selection, request options, cancellation, bounded object delivery and SQLite billing against a loopback upstream.
+execution, provider selection, request options, cancellation, object delivery and SQLite billing against a loopback upstream.
 It also rejects internal request JSON encoding and SSE formatting for all four native protocols.
 `PiRuntimeConnection.test.ts` covers desktop connection ownership and native context associations
 with a native test provider substituted at the model-binding boundary.
 The integration uses the real `ApiGatewayService` object-call and capture methods. Native request
-timeouts, hook-failure cleanup and capacity waits are covered separately from upstream idle detection.
+timeouts and hook-failure cleanup are covered separately from upstream idle detection.
 Live-provider and Electron acceptance remain separate checks.

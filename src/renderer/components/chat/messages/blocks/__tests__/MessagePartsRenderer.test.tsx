@@ -15,6 +15,7 @@ import { KeyedMessageActivityStore } from '../../hooks/useMessageActivityState'
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
 import { PartsProvider } from '../MessagePartsContext'
+import type * as PlaceholderBlockModule from '../PlaceholderBlock'
 import type * as ToolBlockGroupModule from '../ToolBlockGroup'
 
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
@@ -67,8 +68,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', async () => {
   }
 })
 vi.mock('@renderer/types/file', () => ({
-  COMPOSER_FILE_KIND: { PASTED_TEXT: 'pasted-text' },
-  FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
+  COMPOSER_FILE_KIND: { PASTED_TEXT: 'pasted-text' }
 }))
 
 vi.mock('motion/react', () => {
@@ -333,11 +333,8 @@ vi.mock('../TranslationBlock', () => ({
 }))
 
 vi.mock('../BlockErrorFallback', () => ({ __esModule: true, default: () => null }))
-vi.mock('../PlaceholderBlock', () => ({
-  __esModule: true,
-  default: ({ createdAt, status }: any) => (
-    <div data-testid="mock-placeholder" data-created-at={createdAt} data-status={status} />
-  ),
+vi.mock('../PlaceholderBlock', async (importOriginal) => ({
+  ...(await importOriginal<typeof PlaceholderBlockModule>()),
   formatPlaceholderElapsed: () => '1 second',
   usePlaceholderElapsedMs: mockUsePlaceholderElapsedMs
 }))
@@ -571,20 +568,75 @@ describe('MessagePartsRenderer', () => {
       finishTurn('done')
       const idle = render(treeWith(() => <div data-testid="active-turn-status">Retrying 3/10</div>))
       expect(screen.queryByTestId('active-turn-status')).toBeNull()
-      expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+      expect(screen.queryByRole('status')).toBeNull()
       idle.unmount()
 
       // Active + renderer returns its own node → it replaces the placeholder.
       activateTurn()
       const replaced = render(treeWith(() => <div data-testid="active-turn-status">Retrying 3/10</div>))
       expect(screen.getByTestId('active-turn-status')).toBeInTheDocument()
-      expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+      expect(screen.queryByRole('status')).toBeNull()
       replaced.unmount()
 
       // Active + renderer falls back to the placeholder → the placeholder shows.
       render(treeWith((placeholder) => <>{placeholder}</>))
-      expect(screen.getByTestId('mock-placeholder')).toBeInTheDocument()
+      expect(screen.getByRole('status')).toBeInTheDocument()
     })
+
+    it('keeps the loading indicator below streamed content until the reply stops streaming', () => {
+      activateTurn('streaming')
+      renderParts([{ type: 'text', text: 'Partial reply', state: 'streaming' }], msg({ status: 'pending' }))
+
+      expectNodeBefore(screen.getByText('Partial reply'), screen.getByRole('status'))
+
+      activateTurn('awaiting-approval')
+      expect(screen.queryByRole('status')).toBeNull()
+
+      activateTurn('streaming')
+      expect(screen.getByRole('status')).toBeInTheDocument()
+
+      finishTurn('done')
+      expect(screen.queryByRole('status')).toBeNull()
+    })
+
+    it.each([false, true])(
+      'hands off the reply placeholder with intermediate prose set to %s',
+      (keepIntermediateAssistantText) => {
+        activateTurn('streaming')
+        const message = msg({ status: 'pending' })
+        const config = { ...defaultMessageRenderConfig, keepIntermediateAssistantText }
+        const reasoning: CherryMessagePart = { type: 'reasoning', text: 'Checking options', state: 'streaming' }
+        const prose: CherryMessagePart = { type: 'text', text: 'I will check the result.', state: 'done' }
+        const tool: CherryMessagePart = {
+          type: 'dynamic-tool',
+          toolName: 'Read',
+          toolCallId: 'read',
+          state: 'input-streaming',
+          input: undefined
+        }
+        const { rerender } = renderParts([reasoning], message, {}, config)
+        expect(screen.getByText('Checking options')).toBeInTheDocument()
+        expect(screen.queryByRole('status')).toBeNull()
+
+        const settledReasoning = { ...reasoning, state: 'done' } satisfies CherryMessagePart
+        rerender(renderPartsTree([settledReasoning, prose], message, {}, config))
+        expectNodeBefore(screen.getByText(prose.text), screen.getByRole('status'))
+
+        const process = [settledReasoning, prose, tool]
+        rerender(renderPartsTree([...process, { type: 'text', text: '', state: 'streaming' }], message, {}, config))
+        expect(screen.queryByRole('status')).toBeNull()
+
+        rerender(
+          renderPartsTree(
+            [...process, { type: 'text', text: 'Here is the result.', state: 'streaming' }],
+            message,
+            {},
+            config
+          )
+        )
+        expectNodeBefore(screen.getByText('Here is the result.'), screen.getByRole('status'))
+      }
+    )
 
     it('renders text and data-code through markdown', () => {
       renderParts([
@@ -2468,6 +2520,71 @@ describe('MessagePartsRenderer', () => {
 
       fireEvent.click(historyTrigger)
       expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('starts a long completed history collapsed even when tool steps expand', () => {
+      const parts = Array.from({ length: 81 }, (_, index) => toolPart(`read-${index}`))
+      renderParts(
+        parts as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        {
+          ...defaultMessageRenderConfig,
+          expandToolSteps: true
+        }
+      )
+
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryAllByTestId('mock-message-tools')).toHaveLength(0)
+
+      fireEvent.click(historyTrigger)
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.queryAllByTestId('mock-message-tools').length).toBeGreaterThan(0)
+    })
+
+    it('starts a text-heavy completed history collapsed even when tool steps expand', () => {
+      renderParts(
+        [{ ...toolPart('read'), output: { content: 'x'.repeat(120_000) } }] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        { ...defaultMessageRenderConfig, expandToolSteps: true }
+      )
+
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryAllByTestId('mock-message-tools')).toHaveLength(0)
+
+      fireEvent.click(historyTrigger)
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it('stops walking a wide payload once the budget is exhausted', () => {
+      let reads = 0
+      const wide: Record<string, unknown> = {}
+      Object.defineProperty(wide, 'content', { enumerable: true, get: () => 'x'.repeat(120_000) })
+      for (let index = 0; index < 500; index += 1) {
+        Object.defineProperty(wide, `rest-${index}`, {
+          enumerable: true,
+          get: () => {
+            reads += 1
+            return 'y'
+          }
+        })
+      }
+
+      renderParts(
+        [{ ...toolPart('read'), output: wide }] as unknown as CherryMessagePart[],
+        msg(),
+        {},
+        {
+          ...defaultMessageRenderConfig,
+          expandToolSteps: true
+        }
+      )
+
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+      expect(reads).toBe(0)
     })
 
     it('reveals completed thinking behind the process summary for a reasoning-and-answer message', () => {
