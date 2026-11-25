@@ -256,3 +256,12 @@ it('enables Durable edits at first inputs and committed predecessor boundaries',
   expect((await runtime.getEditTarget(sessionId, first.id)).parts).toEqual(first.data.parts)
   expect((await runtime.getEditTarget(sessionId, later.id)).parts).toEqual(later.data.parts)
 })
+
+it('rejects editing an input that joined the Run represented by its parent checkpoint', async () => {
+  user('Initial')
+  const run = answer({ runtime: 'pi', runtimeSessionId: randomUUID(), leafId: randomUUID() })
+  const steer = user('Steer inside that Run')
+  messages.linkReply(sessionId, [steer.id], run.id)
+  expect(readHistoryActions(sessionId, [steer.id]).get(steer.id)?.edit).toBe('checkpoint_unsupported')
+  await expect(runtime.getEditTarget(sessionId, steer.id)).rejects.toMatchObject({ reason: 'checkpoint_unsupported' })
+})

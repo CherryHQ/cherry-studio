@@ -2,6 +2,7 @@
 description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
 sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/renderer/pages/agents/messages
   - src/main/ai/agentSession/sessionHistory.ts
   - src/main/ai/agentSession/import
   - src/main/ai/agentSession/relocateSystemWorkspaces.ts
@@ -357,6 +358,23 @@ The `run-handoff` state applies only to that next native execution. Its precedin
 terminal is still marked `row-roll`; delivery consumers wait for Durable's actual input outcomes.
 Run ownership does not create synthetic continuation assistant records. The durable input and part
 positions retain their order independently of the canonical assistant row.
+
+Renderer derives display segments from placed input positions and each part's immutable position.
+The first segment retains the Run's message ID; later keys combine the Run ID with the segment's
+first part ID. `sourceMessageId` retains the durable owner for approvals, usage and fork. Only the
+last segment exposes the completed Run's fork boundary and statistics. Existing open text and tools
+stay in their original segment; a steer never cuts a string or moves a tool into a new parent.
+The segment layout selects stable part IDs from the shared projection reader. Text and tool progress
+continue through keyed part subscriptions; only new membership or a baseline changes the list projection.
+
+A message page whose input references an older Run expands through that Run and its intervening
+inputs. Its cursor follows the expanded boundary. The requested limit bounds the initial window;
+a Run crossing the seam can make the returned page larger. This preserves the same source order
+without a second dependency cache or losing later output owned by an older assistant record.
+
+Forking the completed Run copies its placed steer inputs, remaps their `replyId` to the copied Run,
+and preserves timeline positions with new part IDs. The fork marker belongs to the selected Run.
+An input accepted inside that Run cannot be edited against the Run's final native checkpoint.
 
 ## Cross-Session delivery
 

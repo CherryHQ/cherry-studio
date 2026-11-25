@@ -219,6 +219,9 @@ export interface RemoveMessageErrorPartInput {
 }
 
 export interface MessageListItem {
+  /** Durable owner when this row is a segment of an execution. */
+  sourceMessageId?: string
+  isRunBoundary?: boolean
   partIds?: readonly string[]
   id: string
   role: CherryUIMessage['role']

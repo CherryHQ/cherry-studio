@@ -28,7 +28,7 @@ history through the selected turn and a native runtime resume reference.
 It does not start or interrupt the source connection. The source can continue
 appending later turns, and deleting it does not invalidate a published child.
 
-The last copied message carries a `data-agent-session-fork` part containing only
+The selected assistant Run carries a `data-agent-session-fork` part containing only
 `sourceSessionId`. Its link opens the direct parent after checking it still exists;
 missing or trashed parents produce a frontend error. Forking again replaces inherited
 markers. The link stays at the copied boundary, with no backfill for existing forks.
@@ -37,6 +37,9 @@ The new name uses the next available suffix for the Agent, such as `Session (1)`
 Forking a numbered session advances that suffix instead of nesting it. Queued
 deliveries, live tasks, approval authority, and usage statistics are not inherited.
 Copied unfinished tool calls become terminal errors; they do not resume execution.
+Placed steer inputs belonging to the selected Run are included even when their rows follow
+the assistant row. Copied inputs reference the new Run ID; copied parts receive new IDs
+and retain their timeline positions. Only the final display segment offers the Run fork action.
 
 User workspaces remain shared. System workspaces copy their **current** files into
 the child's workspace; selecting an earlier turn does not restore historical file
@@ -61,7 +64,8 @@ that binding and do not overwrite the original prefix rows.
 For the first input, an empty prefix records a fresh intended native identity;
 Pi creates that context on dispatch. A nonempty prefix requires a valid native
 checkpoint immediately before the edited input. Editing is rejected while the session has unsettled work,
-including outgoing cross-session deliveries. Failed preparation or publication preserves the original tree.
+including outgoing cross-session deliveries. Inputs accepted inside a Run cannot use its final
+checkpoint as their preceding edit boundary. Failed preparation or publication preserves the original tree.
 Pi Durable noninitial edits publish the native fork's allocated product context identity and remapped checkpoints in the replacement input transaction. First-input edits reserve a fresh empty backend/context and create native storage only on dispatch. Native numeric IDs are local to a store, so publication and recovery check the exact context rather than matching an unrelated backend's token.
 Neither edit/resend nor branch selection restores workspace files.
 
@@ -98,7 +102,9 @@ be recovered.
 Message pages select IDs before loading payloads. With `deferToolOutputs`, each
 assistant message is projected as it is loaded, so raw oversized outputs do not
 accumulate across the page. Default reads retain the complete stored payload,
-and cursor ordering and the 50/200 default/maximum limits are unchanged.
+and cursor ordering is unchanged. The initial window uses the 50/200 default/maximum
+limits; a page expands through an older Run referenced by its inputs, with the cursor
+following that expanded boundary.
 
 ## Ownership and dependencies
 

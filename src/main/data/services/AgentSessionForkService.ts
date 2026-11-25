@@ -68,6 +68,7 @@ export class AgentSessionForkService {
       .select({
         id: agentSessionMessageTable.id,
         role: agentSessionMessageTable.role,
+        replyId: agentSessionMessageTable.replyId,
         status: agentSessionMessageTable.status,
         delivery: agentSessionMessageTable.delivery,
         anchor: anchor(agentSessionMessageTable.data),
