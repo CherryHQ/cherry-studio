@@ -25,8 +25,10 @@ const qqTokenSchema = z.object({
     .transform(Number)
     .pipe(z.number().positive())
 })
+
 const qqGatewaySchema = z.object({ url: z.string().min(1) })
 const qqHelloSchema = z.object({ heartbeat_interval: z.number().positive() })
+
 const qqGatewayPayloadSchema = z.object({
   op: z.number(),
   s: z.number().nullish(),

@@ -75,6 +75,48 @@ afterEach(async () => {
 })
 
 describe('WeCom channel contract', () => {
+  it('rejects malformed identity before deduplication, allowing a valid delivery with the same id', async () => {
+    const { instance, client } = await adapter()
+    const messages: unknown[] = []
+    instance.on('message', (event) => messages.push(event))
+    client.emit('message', frame('identity', { from: { userid: 42 } }))
+    client.emit('message', frame('identity'))
+    await tick()
+    expect(messages).toMatchObject([{ messageId: 'identity', userId: 'alice', chatId: 'dm:alice', text: 'hello' }])
+    expect(messages).toHaveLength(1)
+  })
+
+  it.each([
+    { text: '/new', command: 'new', args: undefined },
+    { text: ' /compact   context\nnext  ', command: 'compact', args: 'context\nnext' },
+    { text: '/help?', command: undefined, args: undefined }
+  ])('preserves exact slash-command boundaries and arguments for $text', async (sample) => {
+    const { instance, client } = await adapter()
+    const commands: unknown[] = []
+    const messages: unknown[] = []
+    instance.on('command', (event) => commands.push(event))
+    instance.on('message', (event) => messages.push(event))
+    client.emit('message', frame('command', { text: { content: sample.text } }))
+    await tick()
+    if (sample.command) {
+      expect(commands).toMatchObject([{ command: sample.command, args: sample.args }])
+      expect(messages).toEqual([])
+    } else {
+      expect(commands).toEqual([])
+      expect(messages).toMatchObject([{ text: sample.text }])
+    }
+  })
+
+  it('rejects malformed text through the existing inbound-failure response', async () => {
+    const { instance, client } = await adapter()
+    const messages: unknown[] = []
+    instance.on('message', (event) => messages.push(event))
+    client.emit('message', frame('text-shape', { text: { content: 42 } }))
+    await tick()
+    expect(messages).toEqual([])
+    expect(client.replyStreamNonBlocking.mock.calls.at(-1)?.[2]).toBe(t('common.wecom_attachment_failed'))
+  })
+
   it.each(['Summarize the meeting', '/new'])('forwards voice transcription %j as user text once', async (text) => {
     const { instance, client } = await adapter()
     const messages: unknown[] = []

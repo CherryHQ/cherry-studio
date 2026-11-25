@@ -117,19 +117,16 @@ export abstract class ChannelAdapter extends EventEmitter {
     const fileLogger = loggerService.withContext(`Channel:${config.channelType}`)
     const baseMeta = { agentId: config.agentId, channelId: config.channelId }
 
-    this.log = (['debug', 'info', 'warn', 'error'] as const).reduce(
-      (acc, level) => {
-        acc[level] = (message, meta) => {
-          fileLogger[level](message, { ...baseMeta, ...meta })
-          // Append error detail from meta so the UI log shows the reason
-          const errorDetail = meta?.error ? `: ${typeof meta.error === 'string' ? meta.error : String(meta.error)}` : ''
-          this.emitLog(level, `${message}${errorDetail}`)
-        }
+    const makeLog =
+      (level: ChannelLogLevel): ChannelAdapter['log'][ChannelLogLevel] =>
+      (message, meta) => {
+        fileLogger[level](message, { ...baseMeta, ...meta })
+        // Append error detail from meta so the UI log shows the reason
+        const errorDetail = meta?.error ? `: ${typeof meta.error === 'string' ? meta.error : String(meta.error)}` : ''
+        this.emitLog(level, `${message}${errorDetail}`)
+      }
 
-        return acc
-      },
-      {} as ChannelAdapter['log']
-    )
+    this.log = { debug: makeLog('debug'), info: makeLog('info'), warn: makeLog('warn'), error: makeLog('error') }
   }
 
   /** Whether the adapter has completed performConnect successfully and not since disconnected. */

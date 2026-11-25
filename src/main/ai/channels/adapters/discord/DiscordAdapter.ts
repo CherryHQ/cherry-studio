@@ -29,6 +29,7 @@ const USER_AGENT = 'DiscordBot (https://github.com/CherryHQ/cherry-studio, 1.0.0
 const discordCreatedMessageSchema = z.object({ id: z.string().min(1) })
 const discordGatewaySchema = z.object({ url: z.string().min(1) })
 const discordHelloSchema = z.object({ heartbeat_interval: z.number().positive() })
+
 const discordGatewayPayloadSchema = z.object({
   op: z.number(),
   s: z.number().nullish(),

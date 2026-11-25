@@ -8,21 +8,13 @@ import {
   WSClient,
   WSReconnectExhaustedError,
   type BaseMessage,
-  type FileContent,
-  type FileMessage,
-  type ImageContent,
-  type ImageMessage,
-  type MixedMessage,
-  type TextMessage,
-  type VideoContent,
-  type VideoMessage,
-  type VoiceMessage,
   type WsFrame
 } from '@wecom/aibot-node-sdk'
 import { delay } from 'es-toolkit'
 import { fileTypeFromBuffer } from 'file-type'
 import { LRUCache } from 'lru-cache'
 import PQueue from 'p-queue'
+import * as z from 'zod'
 
 import { t } from '@main/i18n'
 import { filenameFromContentDisposition, type FileAttachment, type ImageAttachment } from '@main/utils/downloadAsBase64'
@@ -36,6 +28,7 @@ import {
   type ChannelStreamOutcome,
   type SendMessageOptions
 } from '../../ChannelAdapter'
+import { parseSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
 
 // Conservative limits until the deployed bot's stream/markdown limits are verified.
@@ -47,7 +40,31 @@ const MIN_UPLOAD_FILE_BYTES = 5
 const FILE_BYTES = 20 * 1024 * 1024
 const MESSAGE_BYTES = 40 * 1024 * 1024
 
-type IncomingMessage = TextMessage | ImageMessage | MixedMessage | VoiceMessage | FileMessage | VideoMessage
+const IncomingEnvelopeSchema = z.object({
+  headers: z.object({ req_id: z.string().min(1) }),
+  body: z.object({
+    msgid: z.string().min(1),
+    aibotid: z.string(),
+    from: z.object({ userid: z.string().min(1) }),
+    chattype: z.unknown().optional(),
+    chatid: z.unknown().optional(),
+    msgtype: z.unknown().optional(),
+    text: z.unknown().optional(),
+    voice: z.unknown().optional(),
+    image: z.unknown().optional(),
+    file: z.unknown().optional(),
+    video: z.unknown().optional(),
+    mixed: z.unknown().optional()
+  })
+})
+const IncomingTextSchema = z.object({ content: z.string() })
+const IncomingMediaSchema = z.object({ url: z.string(), aeskey: z.string().nullish() })
+const IncomingMixedSchema = z.object({ msg_item: z.array(z.unknown()).max(20) })
+const IncomingMixedItemSchema = z.object({
+  msgtype: z.unknown().optional(),
+  text: z.unknown().optional(),
+  image: z.unknown().optional()
+})
 
 type ResponseContext = {
   chatId: string
@@ -259,22 +276,18 @@ export class WeComAdapter extends ChannelAdapter {
   }
 
   private async receive(frame: WsFrame<BaseMessage>): Promise<void> {
-    const body = frame.body as IncomingMessage | undefined
+    if (!this.alive) return
+    const envelope = IncomingEnvelopeSchema.safeParse(frame)
 
-    if (
-      !this.alive ||
-      !body ||
-      !body.msgid ||
-      !frame.headers.req_id ||
-      !body.from?.userid ||
-      body.aibotid !== this.cfg.bot_id
-    )
-      return
+    if (!envelope.success) return
+    const { body, headers } = envelope.data
+
+    if (body.aibotid !== this.cfg.bot_id) return
 
     const chatId =
       body.chattype === 'single'
         ? `dm:${body.from.userid}`
-        : body.chattype === 'group' && body.chatid
+        : body.chattype === 'group' && typeof body.chatid === 'string' && body.chatid
           ? `group:${body.chatid}`
           : ''
 
@@ -285,7 +298,7 @@ export class WeComAdapter extends ChannelAdapter {
       this.log.warn('WeCom response capacity reached')
       await this.sendToChat(chatId, () =>
         this.client!.replyStreamNonBlocking(
-          { headers: { req_id: frame.headers.req_id } },
+          { headers: { req_id: headers.req_id } },
           randomUUID(),
           t('common.channel_message_dropped'),
           true
@@ -299,7 +312,7 @@ export class WeComAdapter extends ChannelAdapter {
 
     const context: ResponseContext = {
       chatId,
-      reqId: frame.headers.req_id,
+      reqId: headers.req_id,
       streamId: randomUUID(),
       expiresAt: Date.now() + STREAM_WINDOW_MS,
       text: '',
@@ -329,7 +342,7 @@ export class WeComAdapter extends ChannelAdapter {
     const signal = AbortSignal.any([this.lifetime.signal, controller.signal])
 
     const download = async (
-      media: ImageContent | FileContent | VideoContent,
+      media: z.infer<typeof IncomingMediaSchema>,
       kind: MessageType.Image | MessageType.File | MessageType.Video,
       index = 0
     ) => {
@@ -373,34 +386,39 @@ export class WeComAdapter extends ChannelAdapter {
     try {
       switch (body.msgtype) {
         case MessageType.Text:
-          text = body.text.content
+          text = IncomingTextSchema.parse(body.text).content
           break
-        case MessageType.Voice:
-          if (typeof body.voice?.content !== 'string' || !body.voice.content.trim()) {
+        case MessageType.Voice: {
+          const voice = IncomingTextSchema.safeParse(body.voice)
+
+          if (!voice.success || !voice.data.content.trim()) {
             await this.sendMessage(chatId, t('common.channel_voice_transcription_missing'), opts)
 
             return
           }
 
-          text = body.voice.content
+          text = voice.data.content
           break
+        }
         case MessageType.Image:
-          await download(body.image, MessageType.Image)
+          await download(IncomingMediaSchema.parse(body.image), MessageType.Image)
           break
         case MessageType.File:
-          await download(body.file, MessageType.File)
+          await download(IncomingMediaSchema.parse(body.file), MessageType.File)
           break
         case MessageType.Video:
-          await download(body.video, MessageType.Video)
+          await download(IncomingMediaSchema.parse(body.video), MessageType.Video)
           break
         case MessageType.Mixed: {
-          if (body.mixed.msg_item.length > 20) throw new Error('Too many attachments')
+          const mixed = IncomingMixedSchema.parse(body.mixed)
           let imageIndex = 0
           await Promise.all(
-            body.mixed.msg_item.map(async (item) => {
-              if (item.msgtype === MessageType.Text && item.text) text += item.text.content
+            mixed.msg_item.map(async (rawItem) => {
+              const item = IncomingMixedItemSchema.parse(rawItem)
+
+              if (item.msgtype === MessageType.Text && item.text) text += IncomingTextSchema.parse(item.text).content
               else if (item.msgtype === MessageType.Image && item.image)
-                await download(item.image, MessageType.Image, imageIndex++)
+                await download(IncomingMediaSchema.parse(item.image), MessageType.Image, imageIndex++)
               else throw new Error('Unsupported mixed message')
             })
           )
@@ -430,13 +448,14 @@ export class WeComAdapter extends ChannelAdapter {
       messageId: body.msgid
     }
 
-    const command = /^\/(new|compact|help|whoami)(?:\s+(.*))?$/s.exec(text.trim())
+    const commandMatch = /^\/(new|compact|help|whoami)(?:\s+(.*))?$/s.exec(text.trim())
+    const command = commandMatch ? parseSlashCommand(text.trim()) : undefined
 
     if (command && body.msgtype !== MessageType.Voice && !images.length && !files.length) {
-      if (command[1] === 'whoami') {
+      if (command === 'whoami') {
         await this.sendMessage(chatId, t('common.wecom_identity', { chatId, userId: body.from.userid }), opts)
       } else {
-        this.emit('command', { ...identity, command: command[1] as 'new' | 'compact' | 'help', args: command[2] })
+        this.emit('command', { ...identity, command, args: commandMatch?.[2] })
       }
     } else if (text.trim() || images.length || files.length) {
       this.emit('message', { ...identity, text, images, files })

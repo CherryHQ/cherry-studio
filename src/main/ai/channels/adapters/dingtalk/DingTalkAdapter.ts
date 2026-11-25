@@ -19,6 +19,7 @@ import {
   type ChannelStreamOutcome,
   type SendMessageOptions
 } from '../../ChannelAdapter'
+import { parseSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { DINGTALK_FILE_BYTES, DingTalkApi, type DingTalkWebhook } from './DingTalkApi'
 
@@ -377,7 +378,8 @@ export class DingTalkAdapter extends ChannelAdapter {
       messageId: message.msgId
     }
 
-    const command = /^\/(new|compact|help|whoami)(?:\s+(.*))?$/s.exec(text)
+    const commandMatch = /^\/(new|compact|help|whoami)(?:\s+(.*))?$/s.exec(text)
+    const command = commandMatch ? parseSlashCommand(text) : undefined
 
     if (command && message.msgtype !== 'audio' && !media.length) {
       const context = this.replies.get(this.key(chatId, message.msgId))
@@ -385,8 +387,8 @@ export class DingTalkAdapter extends ChannelAdapter {
       if (context) this.closeContext(context)
       this.emit('command', {
         ...identity,
-        command: command[1] as 'new' | 'compact' | 'help' | 'whoami',
-        args: command[2]
+        command,
+        args: commandMatch?.[2]
       })
     } else if (text || media.length) this.emit('message', { ...identity, text, images, files })
   }

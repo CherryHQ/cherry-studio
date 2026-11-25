@@ -124,6 +124,7 @@ export function createFeishuHttpInstance(): Lark.HttpInstance {
           statusText: res.statusText
         }
       })
+
       throw error
     }
 

@@ -123,25 +123,31 @@ const InboundCdnMediaSchema = z.looseObject({
   aes_key: z.string().nullish(),
   full_url: z.string().nullish()
 })
+
 const InboundImageItemSchema = z.looseObject({ media: InboundCdnMediaSchema.nullish(), aeskey: z.string().nullish() })
+
 const InboundVoiceItemSchema = z.looseObject({
   media: InboundCdnMediaSchema.nullish(),
   aeskey: z.string().nullish(),
   text: z.string().nullish(),
   encode_type: z.number().nullish()
 })
+
 const InboundFileItemSchema = z.looseObject({
   media: InboundCdnMediaSchema.nullish(),
   aeskey: z.string().nullish(),
   file_name: z.string().nullish()
 })
+
 const InboundVideoItemSchema = z.looseObject({ media: InboundCdnMediaSchema.nullish(), aeskey: z.string().nullish() })
+
 const InboundRefMessageSchema = z.looseObject({
   title: z.string().nullish(),
   get message_item(): z.ZodOptional<z.ZodNullable<typeof InboundMessageItemSchema>> {
     return InboundMessageItemSchema.nullish()
   }
 })
+
 const InboundMessageItemSchema = z.looseObject({
   type: z.number().nullish(),
   text_item: z.looseObject({ text: z.string().nullish() }).nullish(),
@@ -208,12 +214,17 @@ type GetConfigResp = z.infer<typeof GetConfigRespSchema>
 type Credentials = z.infer<typeof CredentialsSchema>
 
 type WeixinMessage = z.output<typeof WeixinMessageSchema>
+
 type InboundCdnMedia = z.output<typeof InboundCdnMediaSchema>
+
 type InboundImageItem = z.output<typeof InboundImageItemSchema>
+
 type InboundVoiceItem = z.output<typeof InboundVoiceItemSchema>
+
 type DownloadableFileItem = z.output<
   typeof InboundFileItemSchema | typeof InboundVoiceItemSchema | typeof InboundVideoItemSchema
 >
+
 type InboundMessageItem = z.output<typeof InboundMessageItemSchema>
 
 interface SendTypingReq {
