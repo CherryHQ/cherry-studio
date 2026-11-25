@@ -1,6 +1,9 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
+import { getI18n } from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
@@ -231,12 +234,16 @@ vi.mock('../messages/homeMessageListAdapter', () => ({
     }
     onBindRuntime?: (runtime: unknown) => void | (() => void)
     isInitialLoading?: boolean
+    messageHead?: { content: ReactNode }
+    afterMessages?: ReactNode
   }) => ({
     state: {
       messages: params.messages,
       partsByMessageId: params.partsByMessageId,
       streamingLayers: params.streamingLayers,
-      isInitialLoading: params.isInitialLoading
+      isInitialLoading: params.isInitialLoading,
+      messageHead: params.messageHead,
+      afterMessages: params.afterMessages
     },
     actions: { bindRuntime: params.onBindRuntime },
     meta: {}
@@ -249,7 +256,9 @@ vi.mock('@renderer/components/chat/messages/MessageList', () => ({
       <div data-testid="message-list-loading" />
     ) : (
       <div data-testid="messages">
+        {mockMessageListValue.current?.state.messageHead?.content}
         {mockMessageListValue.current?.state.messages.map((message: CherryUIMessage) => message.id).join(',')}
+        {mockMessageListValue.current?.state.afterMessages}
       </div>
     )
 }))
@@ -340,6 +349,37 @@ describe('ChatContent', () => {
     mockChatWriteValue.current = null
     mockEventEmit.mockReset()
     mockUseExecutionOverlay.mockReset()
+    MockUseCacheUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
+  })
+
+  it('only previews the next new turn with resolved assistant settings and an idle topic', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.context_settings.max_messages', 1)
+    mockUseTopicMessages.mockReturnValue({
+      ...mockUseTopicMessages(),
+      pathMessages: [
+        { id: 'history-user', role: 'user', data: {} },
+        { id: 'history-assistant', role: 'assistant', data: {} }
+      ]
+    })
+    const dividerLabel = getI18n().t('chat.message.context_window_excluded', { limit: 1 })
+    const { rerender } = render(<ChatContent topic={topic} />)
+    expect(screen.queryByText(dividerLabel)).toBeNull()
+
+    const assistantContext = {
+      assistant: { id: topic.assistantId, settings: {} }
+    } as NonNullable<Parameters<typeof ChatContent>[0]['assistantContext']>
+    rerender(<ChatContent topic={topic} assistantContext={assistantContext} />)
+    expect(screen.getByText(dividerLabel)).toBeInTheDocument()
+    expect(screen.queryByRole('separator')).toBeNull()
+
+    MockUseCacheUtils.setSharedCacheValue('topic.stream.statuses.topic-1', {
+      status: 'streaming',
+      activeExecutions: [],
+      awaitingApprovalAnchors: []
+    })
+    rerender(<ChatContent topic={topic} assistantContext={assistantContext} />)
+    expect(screen.queryByText(dividerLabel)).toBeNull()
   })
 
   it('opens a stream against the active branch node', async () => {
@@ -1498,6 +1538,7 @@ describe('ChatContent', () => {
     const onLocateMessageHandled = vi.fn()
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [createUiMessage('history-user', 'user')],
+      pathMessages: [],
       siblingsMap: {},
       isLoading: true,
       refresh: vi.fn().mockResolvedValue([]),
@@ -1521,6 +1562,7 @@ describe('ChatContent', () => {
     const onLocateMessageHandled = vi.fn()
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [createUiMessage('history-user', 'user')],
+      pathMessages: [],
       siblingsMap: {},
       isLoading: false,
       refresh: vi.fn().mockResolvedValue([]),

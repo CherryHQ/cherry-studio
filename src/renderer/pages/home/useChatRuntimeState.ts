@@ -479,6 +479,8 @@ export function useChatRuntimeState({
   finishRef.current = handleExecutionFinish
 
   const shouldRenderHomeComposer = false
+  const isTurnBusy =
+    isTopicStreamPending || isTopicAwaitingApproval || turnPhase === 'persisting' || turnPhase === 'opening'
 
   const { actions: chatWriteActions, retryFailedMessage } = useChatWriteActions({
     topic,
@@ -491,12 +493,7 @@ export function useChatRuntimeState({
     cache,
     seedReservedMessages,
     scrollToBottom,
-    startNewContextBlocked:
-      isHistoryLoading ||
-      isTopicStreamPending ||
-      isTopicAwaitingApproval ||
-      turnPhase === 'persisting' ||
-      turnPhase === 'opening',
+    startNewContextBlocked: isHistoryLoading || isTurnBusy,
     assistant,
     composerModelId
   })
@@ -530,6 +527,7 @@ export function useChatRuntimeState({
     messages: displayMessages,
     partsByMessageId,
     streamingLayers,
+    isTurnBusy,
     shouldRenderHomeComposer,
     chatWriteActions,
     bindMessageListRuntime,

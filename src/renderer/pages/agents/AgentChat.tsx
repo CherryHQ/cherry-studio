@@ -699,6 +699,7 @@ const AgentChatSessionCenter = ({
         editing={runtime.editing}
         cancelEditing={runtime.cancelEditing}
         resendEditedMessage={runtime.resendEditedMessage}
+        providerQuotaExhausted={runtime.providerQuotaExhausted}
       />
     </div>
   )
