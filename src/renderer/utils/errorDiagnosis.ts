@@ -346,18 +346,10 @@ export async function classifyErrorByAI(error: SerializedError, language: string
   return generateDiagnosis(prompt, content)
 }
 
-/** Faithful translation of an error's own text into `language`; '' when the free model is unavailable. */
+/** Faithful translation of an error's own text into `language`; '' when diagnosis is not allowed or unavailable. */
 export async function translateErrorByAI(text: string, language: string): Promise<string> {
   const prompt = `Translate this error message from an AI chat app into ${language}. Keep error codes, HTTP statuses, model and provider names, ports, URLs and other identifiers exactly as written. If it is long, keep only the sentences that state the cause and what to do. If it is already in ${language}, return it unchanged. Return only the translated text, with no quotes or markdown.`
-
-  try {
-    const model = await getCherryAiDefaultFreeModel()
-    // Key-name redaction would blank provider explanations such as `max_tokens: 100000 > 64000`.
-    const content = redactHomeDirectories(redactSecretTokens(redactCredentialSchemes(text)))
-    const response = await fetchGenerate({ prompt, content, model, throwOnError: true })
-    return response?.trim() || ''
-  } catch (error) {
-    logger.warn('Free model unavailable for error translation', error as Error)
-    return ''
-  }
+  // Key-name redaction would blank provider explanations such as `max_tokens: 100000 > 64000`.
+  const content = redactHomeDirectories(redactSecretTokens(redactCredentialSchemes(text)))
+  return generateDiagnosis(prompt, content).catch(() => '')
 }
