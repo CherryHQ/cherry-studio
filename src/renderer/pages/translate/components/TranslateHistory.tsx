@@ -51,7 +51,7 @@ type Props = {
 }
 
 const ITEM_HEIGHT = 104
-const UNKNOWN_LANGUAGE = { value: 'Unknown', langCode: 'unknown' as TranslateLangCode, emoji: '🏳️' }
+const UNKNOWN_LANGUAGE = { value: 'Unknown', langCode: 'unknown' as const, emoji: '🏳️' }
 
 type DisplayLanguage = TranslateLanguage | typeof UNKNOWN_LANGUAGE
 

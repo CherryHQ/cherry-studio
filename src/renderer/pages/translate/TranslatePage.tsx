@@ -823,7 +823,7 @@ const TranslatePage: FC = () => {
   }, [clearFiles, isOcrRunning, isTranslationRunning, onSelectFile, processFile, selecting, t])
 
   const getSingleFile = useCallback(
-    (files: FileMetadata[] | FileList): FileMetadata | File | null => {
+    <TFile extends FileMetadata | File>(files: ArrayLike<TFile>): TFile | null => {
       if (files.length === 0) return null
 
       if (files.length > 1) {
@@ -864,7 +864,7 @@ const TranslatePage: FC = () => {
         })
 
         if (droppedFiles) {
-          const file = getSingleFile(droppedFiles) as FileMetadata
+          const file = getSingleFile(droppedFiles)
 
           if (file) {
             await processFile(file)
@@ -896,7 +896,7 @@ const TranslatePage: FC = () => {
         }
 
         event.preventDefault()
-        const file = getSingleFile(event.clipboardData.files) as File
+        const file = getSingleFile(event.clipboardData.files)
 
         if (!file) return
 
