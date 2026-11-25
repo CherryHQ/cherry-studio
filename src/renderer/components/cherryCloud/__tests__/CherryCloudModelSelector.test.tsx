@@ -207,3 +207,42 @@ describe('AMD free models', () => {
     }
   })
 })
+
+describe('Built-in CherryAI models', () => {
+  // Main refuses Qwen while signed out; the row must say so instead of looking freely usable.
+  it.each([
+    ['signed-out', true],
+    ['signed-in', false]
+  ] as const)('marks Qwen as needing sign-in when %s: %s', (phase, marked) => {
+    plans.phase = phase
+    availability.hidesEveryModel = false
+    const providers = [
+      { id: 'cherryai', name: 'CherryAI', apiKeys: [], authType: 'api-key', settings: {}, isEnabled: true }
+    ]
+    const models = [
+      { id: 'cherryai::qwen', providerId: 'cherryai', name: 'Qwen', capabilities: [], isEnabled: true, isHidden: false }
+    ]
+    mockUseQuery.mockImplementation((path: string) => ({
+      data: path === '/models' ? models : path === '/providers' ? providers : [],
+      isLoading: false,
+      isRefreshing: false,
+      refetch: vi.fn(async () => undefined),
+      mutate: vi.fn(async () => undefined)
+    }))
+    try {
+      render(
+        <CherryCloudModelSelector
+          multiple={false}
+          open
+          onSelect={vi.fn()}
+          trigger={<button type="button">Models</button>}
+        />
+      )
+      const row = screen.getByTestId('model-selector-item-cherryai::qwen')
+      expect(within(row).queryByText('settings.subscription.sign_in') !== null).toBe(marked)
+      expect(row.getAttribute('aria-describedby') !== null).toBe(marked)
+    } finally {
+      availability.hidesEveryModel = true
+    }
+  })
+})

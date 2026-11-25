@@ -195,6 +195,7 @@ function useTextOverflow<T extends HTMLElement>() {
 function ModelRow({
   item,
   disabled,
+  badge,
   description,
   tags,
   optionId,
@@ -210,6 +211,7 @@ function ModelRow({
 }: {
   item: ModelSelectorModelItem
   disabled: boolean
+  badge?: ReactNode
   description?: ReactNode
   tags: readonly ModelSelectorTag[]
   optionId: string
@@ -256,8 +258,9 @@ function ModelRow({
   ) : null
 
   const trailing =
-    tags.length > 0 ? (
+    badge || tags.length > 0 ? (
       <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+        {badge}
         {tags.map((tag) => (
           <ModelTag
             key={`${item.key}-${tag}`}
@@ -993,6 +996,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           <ModelRow
             item={item}
             disabled={isSelectionDisabled(item.model, item.provider)}
+            badge={presentation.badge}
             description={presentation.description}
             tags={presentation.tags}
             optionId={getModelSelectorOptionDomId(listboxId, item.key)}

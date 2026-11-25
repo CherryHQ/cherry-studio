@@ -117,6 +117,8 @@ export interface ModelSelectorActionItem {
 
 export interface ModelSelectorPresentation {
   tags: readonly ModelSelectorTag[]
+  /** Rendered ahead of the tags, e.g. what the user must do before the model works. */
+  badge?: ReactNode
   description?: ReactNode
   disabled?: boolean
   priority?: number
