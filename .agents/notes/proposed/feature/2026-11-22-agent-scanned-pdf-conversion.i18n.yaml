@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-22-agent-scanned-pdf-conversion.md
+2026-11-22-agent-scanned-pdf-conversion.md: a931791cecd64c4c4aa49a7d5ffa75b36c8e0580
+2026-11-22-agent-scanned-pdf-conversion.zh.md: 14cfe2e5965b15cd6949281c8e3873de83c36048

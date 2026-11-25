@@ -305,8 +305,15 @@
     {
       "idx": 43,
       "version": "6",
-      "when": 1795280853298,
-      "tag": "0043_tense_puppet_master",
+      "when": 1795485564466,
+      "tag": "0043_artifact",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1795595169667,
+      "tag": "0044_allowed_tools",
       "breakpoints": true
     }
   ],

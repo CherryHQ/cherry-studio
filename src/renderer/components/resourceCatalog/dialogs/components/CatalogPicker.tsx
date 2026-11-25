@@ -1,13 +1,11 @@
 import { Plus } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   Badge,
   Button,
   type ButtonVariant,
-  Checkbox,
   Command,
   CommandGroup,
   CommandInput,
@@ -15,9 +13,7 @@ import {
   CommandList,
   Popover,
   PopoverContent,
-  PopoverTrigger,
-  Switch,
-  Tooltip
+  PopoverTrigger
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
@@ -30,17 +26,6 @@ export interface CatalogItem {
   pickable?: boolean
   statusBadge?: ReactNode
   statusBadgeClassName?: string
-  disableToggle?: boolean
-  disabledReason?: ReactNode
-  action?: ReactNode
-  /**
-   * When defined, the Auto Approve switch is locked to this value because the tool's effective
-   * approval policy (not the user's persisted preference) decides it: true = always auto-approved,
-   * false = always prompts.
-   */
-  autoApproveEffective?: boolean
-  /** Tooltip explaining a locked Auto Approve switch. */
-  autoApproveLockedReason?: string
 }
 
 function CatalogBadges({ item }: { item: CatalogItem }) {
@@ -62,184 +47,6 @@ function CatalogBadges({ item }: { item: CatalogItem }) {
         </Badge>
       ) : null}
     </span>
-  )
-}
-
-export const CatalogToggleGrid: FC<{
-  items: CatalogItem[]
-  enabledIds: ReadonlySet<string>
-  onToggle: (id: string, enabled: boolean) => void
-  autoApproveIds?: ReadonlySet<string>
-  onAutoApproveToggle?: (id: string, enabled: boolean) => void
-  loading?: boolean
-  disabled?: boolean
-  emptyLabel: ReactNode
-  portalContainer?: HTMLElement | null
-  trailingItem?: ReactNode
-  /** Toggle control style. `switch` (default) suits the edit dialog; `checkbox` suits the multi-select create wizard. */
-  variant?: 'switch' | 'checkbox'
-  /** `list` presents switch items as one compact, divided surface. */
-  layout?: 'grid' | 'list'
-}> = ({
-  items,
-  enabledIds,
-  onToggle,
-  autoApproveIds,
-  onAutoApproveToggle,
-  loading,
-  disabled,
-  emptyLabel,
-  portalContainer,
-  trailingItem,
-  variant = 'switch',
-  layout = 'grid'
-}) => {
-  const { t } = useTranslation()
-  const showAutoApprove = autoApproveIds !== undefined && onAutoApproveToggle !== undefined
-
-  if (loading) {
-    return <CatalogEmptyPlaceholder>{t('common.loading')}</CatalogEmptyPlaceholder>
-  }
-  if (items.length === 0 && !trailingItem) {
-    return <CatalogEmptyPlaceholder>{emptyLabel}</CatalogEmptyPlaceholder>
-  }
-
-  return (
-    <div
-      className={cn(
-        layout === 'list'
-          ? 'divide-y divide-border-subtle overflow-hidden rounded-lg border border-border-subtle'
-          : 'grid grid-cols-1 sm:grid-cols-2',
-        layout === 'grid' && (variant === 'checkbox' ? 'gap-3' : 'gap-x-8 gap-y-3')
-      )}>
-      {items.map((item) => {
-        const checked = enabledIds.has(item.id)
-        const toggleDisabled = Boolean(disabled || item.disableToggle || (item.pickable === false && !checked))
-        const disabledReason =
-          item.disabledReason ?? (toggleDisabled && item.inactiveBadge ? item.inactiveBadge : undefined)
-
-        const info = (
-          <div className="min-w-0">
-            <div
-              className={cn(
-                'flex min-w-0 items-center gap-1.5',
-                variant === 'checkbox' ? 'text-sm' : 'text-[13px]',
-                toggleDisabled && 'text-muted-foreground'
-              )}>
-              <span className="truncate" title={item.name}>
-                {item.name}
-              </span>
-              <CatalogBadges item={item} />
-            </div>
-            {item.description ? (
-              <div className="mt-0.5 truncate text-xs text-muted-foreground" title={item.description}>
-                {item.description}
-              </div>
-            ) : null}
-          </div>
-        )
-
-        if (variant === 'checkbox') {
-          return (
-            <div
-              key={item.id}
-              className={cn(
-                'flex min-w-0 items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
-                checked ? 'border-primary/40 bg-accent/30' : 'border-border-subtle hover:bg-accent/20',
-                toggleDisabled && 'opacity-50'
-              )}>
-              <label
-                className={cn(
-                  'flex min-w-0 flex-1 items-center gap-3',
-                  toggleDisabled ? 'cursor-not-allowed' : 'cursor-pointer'
-                )}>
-                <Checkbox
-                  size="sm"
-                  checked={checked}
-                  disabled={toggleDisabled}
-                  onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked === true)}
-                  aria-label={item.name}
-                  className="shrink-0"
-                />
-                {info}
-              </label>
-              {item.action}
-            </div>
-          )
-        }
-
-        return (
-          <div
-            key={item.id}
-            className={cn(
-              'grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3',
-              layout === 'list' ? 'px-3 py-2' : 'rounded-lg border border-border-subtle px-2.5 py-1.5'
-            )}>
-            {info}
-            {showAutoApprove ? (
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-muted-foreground">{t('library.action.enable')}</span>
-                  <Tooltip
-                    content={disabledReason}
-                    isDisabled={!disabledReason}
-                    portalContainer={portalContainer ?? undefined}>
-                    <Switch
-                      size="xs"
-                      checked={checked}
-                      disabled={toggleDisabled}
-                      onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked)}
-                      aria-label={`${t('library.action.enable')} ${item.name}`}
-                    />
-                  </Tooltip>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] text-muted-foreground">{t('settings.mcp.tools.autoApprove.label')}</span>
-                  <Tooltip
-                    content={
-                      item.autoApproveEffective !== undefined
-                        ? item.autoApproveLockedReason
-                        : toggleDisabled
-                          ? disabledReason
-                          : checked
-                            ? undefined
-                            : t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
-                    }
-                    isDisabled={
-                      item.autoApproveEffective !== undefined
-                        ? !item.autoApproveLockedReason
-                        : !toggleDisabled && checked
-                    }
-                    portalContainer={portalContainer ?? undefined}>
-                    <Switch
-                      size="xs"
-                      checked={item.autoApproveEffective ?? (checked && (autoApproveIds?.has(item.id) ?? false))}
-                      disabled={item.autoApproveEffective !== undefined || toggleDisabled || !checked}
-                      onCheckedChange={(nextChecked) => onAutoApproveToggle?.(item.id, nextChecked)}
-                      aria-label={`${t('settings.mcp.tools.autoApprove.label')} ${item.name}`}
-                    />
-                  </Tooltip>
-                </div>
-              </div>
-            ) : (
-              <Tooltip
-                content={disabledReason}
-                isDisabled={!disabledReason}
-                portalContainer={portalContainer ?? undefined}>
-                <Switch
-                  size={layout === 'list' ? 'xs' : 'sm'}
-                  checked={checked}
-                  disabled={toggleDisabled}
-                  onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked)}
-                  aria-label={item.name}
-                />
-              </Tooltip>
-            )}
-          </div>
-        )
-      })}
-      {trailingItem}
-    </div>
   )
 }
 
