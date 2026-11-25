@@ -80,7 +80,9 @@ describe('available generic anti-slop rules', () => {
     [
       'no-reduce-accumulator-copy',
       'export const result = [1, 2].reduce((acc, item) => acc.concat([item]), [] as number[])'
-    ]
+    ],
+    ['no-known-value-widening', 'export const result: unknown = "value"'],
+    ['require-safety-comment-for-type-assertion', 'export const value = "value" as string']
   ])('enforces %s in the repository gate after its cleanup', (rule, source) => {
     const result = lint(source)
     expect(result.status).toBe(1)
