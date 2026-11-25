@@ -29,7 +29,7 @@ describe('decisions', () => {
     }
     const input = withoutEnvironment(() => turnInput(marker, 'Round 1'))
     const key = keys.goalRound('g', 1, 1, 1)
-    const data = { ...(input.data as { readonly [field: string]: JsonValue }), key }
+    const data = { ...input.data, key }
     expect(decodeEntry({ id: 'item-1' as ItemId, kind: input.kind, data, text: input.text })).toEqual({
       kind: 'marker',
       id: 'item-1',

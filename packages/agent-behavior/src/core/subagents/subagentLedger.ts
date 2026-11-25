@@ -92,6 +92,7 @@ export function pendingResults(history: readonly HistoryEntry[]): PendingResult[
     if (record?.status === 'finished' && record.background && !record.modelStopped) {
       const key = `${record.sessionId}:${record.run}`
       ended.delete(key)
+      // SAFETY: The branch checked status === 'finished'; other fields retain their existing typed history contract.
       ended.set(key, record as PendingResult)
     }
   }

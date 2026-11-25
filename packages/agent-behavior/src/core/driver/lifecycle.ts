@@ -90,10 +90,10 @@ export function decideOnOpen(
     })
   }
 
-  // The id is never read: pending results depend on order and content only.
   const history: HistoryEntry[] = [
     ...facts.history,
     ...ended.map(
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- This unpersisted fold placeholder is not a valid native ID; pending-result/delivery readers consume only record order and content.
       (value): HistoryEntry => ({ kind: 'record', id: '' as ItemId, record: { type: 'subagent-run', value } })
     )
   ]

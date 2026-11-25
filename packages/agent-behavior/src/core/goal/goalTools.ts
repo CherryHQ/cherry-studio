@@ -25,8 +25,6 @@ type Facts = ConversationFacts
 
 const ACTIONS = ['edit', 'pause', 'resume', 'complete', 'blocked'] as const
 
-type Action = (typeof ACTIONS)[number]
-
 const hasText = (value: string | undefined): value is string => value !== undefined && value.trim().length > 0
 
 // 0 counts as omitted (weak models fill optional fields with it); negatives reach the limit checks.
@@ -151,10 +149,10 @@ export const decideUpdateGoal = (facts: Facts, inputs: CallInputs, call: CallKey
     requireMainAgent(facts)
     const args = fieldsOf(inputs.args)
     const goal = requireRevision(facts, stringField(args, 'goal_id'), numberField(args, 'revision'))
-    const action = stringField(args, 'action') as Action | undefined
+    const rawAction = stringField(args, 'action')
+    const action = ACTIONS.find((candidate) => candidate === rawAction)
 
-    if (!action || !ACTIONS.includes(action))
-      throw new GoalError('action must be one of edit, pause, resume, complete, blocked')
+    if (!action) throw new GoalError('action must be one of edit, pause, resume, complete, blocked')
     const objective = stringField(args, 'objective')
     const max = numberField(args, 'max_goal_rounds')
     const budget = budgetFrom(inputs.args)

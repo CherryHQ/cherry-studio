@@ -24,12 +24,12 @@ export function decideTodos(args: JsonValue | undefined): ToolResultFact {
   for (const item of list) {
     const fields = fieldsOf(item)
     const content = (stringField(fields, 'content') ?? '').trim()
-    const status = stringField(fields, 'status') as TodoStatus | undefined
+    const rawStatus = stringField(fields, 'status')
+    const status = STATUSES.find((candidate) => candidate === rawStatus)
 
     if (!content) return invalid('Invalid todo: `content` must be a non-empty string.')
 
-    if (!status || !STATUSES.includes(status))
-      return invalid('Invalid todo: `status` must be pending, in_progress or completed.')
+    if (!status) return invalid('Invalid todo: `status` must be pending, in_progress or completed.')
 
     if (seen.has(content)) return invalid(`Invalid todos: duplicate content ${JSON.stringify(content)}.`)
     seen.add(content)

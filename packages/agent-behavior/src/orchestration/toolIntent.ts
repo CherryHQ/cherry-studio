@@ -43,16 +43,16 @@ type Schema = Record<string, unknown>
 const isRecord = (value: unknown): value is Schema =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** The schema's properties when it could take `intent`, or `undefined` when it cannot or must not. */
+/** The schema and properties when they could take `intent`, or `undefined` when they cannot or must not. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Native tools supply heterogeneous schema objects; inspect object type and properties before adding the shared intent argument.
-function intentFreeProperties(parameters: unknown): Schema | undefined {
+function intentFreeProperties(parameters: unknown) {
   if (!isRecord(parameters) || parameters.type !== 'object') return undefined
   const properties = parameters.properties ?? {}
 
   // A tool that already declares the name owns its meaning, and its calls must keep the argument.
   if (!isRecord(properties) || TOOL_INTENT_ARG in properties) return undefined
 
-  return properties
+  return { parameters, properties }
 }
 
 /** `args` without `intent`; the same object when it has none, and never a mutation of the caller's object. */
@@ -90,18 +90,19 @@ export function createToolIntent(): <T extends IntentTool<Prepared>, Prepared = 
     const wrapped = offer ? offered : stripped
     const known = wrapped.get(tool)
 
-    // SAFETY: Entries hold the wrapper constructed for this exact tool identity.
+    // SAFETY: Each selected offer-state cache holds the wrapper constructed for this exact tool identity and prepareArguments.
     if (known) return known as PreparedTool<T, Prepared>
-    const properties = intentFreeProperties(tool.parameters)
+    const schema = intentFreeProperties(tool.parameters)
 
-    if (!properties) return tool
+    if (!schema) return tool
+    const { parameters, properties } = schema
     const prepare = tool.prepareArguments
 
     const result = {
       ...tool,
       ...(offer && {
         parameters: {
-          ...(tool.parameters as Schema),
+          ...parameters,
           properties: { ...properties, [TOOL_INTENT_ARG]: INTENT_PROPERTY }
         }
       }),

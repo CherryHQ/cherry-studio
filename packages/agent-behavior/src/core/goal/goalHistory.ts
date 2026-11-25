@@ -361,9 +361,9 @@ export function goalCounts(
   return { usage: goalUsage({ history, children: facts.children }, goalId), progress: goalProgress(history, goalId) }
 }
 
-// The id is never read: counts depend on order and content only.
 const goalEntry = (value: GoalSnapshot): HistoryEntry => ({
   kind: 'record',
+  // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- This local goalCounts projection never persists or exposes entry IDs; usage/progress folds consume only record order and content.
   id: '' as ItemId,
   record: { type: 'goal', value }
 })

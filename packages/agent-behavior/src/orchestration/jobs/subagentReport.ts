@@ -14,7 +14,7 @@ import { runChild } from '../childRuns'
  */
 export function subagentReport(host: HostPorts): JobHandler {
   return async (ports, job) => {
-    // `ensureReport` is the only writer of this job kind.
+    // SAFETY: Production jobs of this reserved kind come from ensureReport's ReportInput writer; harness resume retains that input.
     const input = job.input as ReportInput
     const parent = job.scope
     const facts = await ports.ledger.read(parent)

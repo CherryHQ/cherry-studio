@@ -7,6 +7,7 @@ export type CallKey = string & { readonly __callKey: true }
 export function callKeyOf(raw: string): CallKey {
   if (!raw.trim()) throw new TypeError('Call keys must not be empty')
 
+  // SAFETY: The nonblank check establishes the CallKey brand while preserving the original string bytes.
   return raw as CallKey
 }
 

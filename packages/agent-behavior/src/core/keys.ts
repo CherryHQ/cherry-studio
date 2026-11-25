@@ -6,7 +6,7 @@ import type { CallKey, HistoryEntry, SubagentStopper } from './facts'
 /** The only key type ports accept; this module is the only place one is minted (design §11.8). */
 export type Key = string & { readonly __key: true }
 
-// The single sanctioned cast that mints a Key.
+// SAFETY: Only this module's format builders call mint; Key marks their idempotency role.
 const mint = (value: string): Key => value as Key // eslint-disable-line no-restricted-syntax
 
 export const nativeSummaryKey = (compactionKey: string): Key => mint(`cherry.summary-usage:${compactionKey}`)

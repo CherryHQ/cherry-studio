@@ -20,6 +20,7 @@ function utf8(text: string): number[] {
   const bytes: number[] = []
 
   for (const char of text) {
+    // SAFETY: String iteration yields a nonempty code-point string, so index zero is present.
     const point = char.codePointAt(0) as number
     // A lone surrogate has no UTF-8 form; encode U+FFFD as TextEncoder does.
     const code = point >= 0xd800 && point <= 0xdfff ? 0xfffd : point
