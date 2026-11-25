@@ -42,6 +42,7 @@ import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { getEventTargetElement } from '@renderer/utils/dom'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { stripMetaRefresh } from '@renderer/utils/htmlArtifact'
@@ -87,10 +88,7 @@ interface HtmlArtifactViewProps {
 }
 
 function isWheelConsumedByEmbeddedDocument(event: WheelEvent): boolean {
-  const targetNode = event.target as Node | null
-
-  const element =
-    targetNode?.nodeType === Node.ELEMENT_NODE ? (targetNode as Element) : (targetNode?.parentElement ?? null)
+  const element = getEventTargetElement(event.target)
 
   const frameDocument = element?.ownerDocument
 
@@ -324,9 +322,7 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
       onHeightChange(nextHeight)
     }
 
-    const forwardWheelIntent = (event: Event) => {
-      const wheelEvent = event as WheelEvent
-
+    const forwardWheelIntent = (wheelEvent: WheelEvent) => {
       if (!isScrollActiveRef.current) {
         wheelEvent.preventDefault()
         routeWheelScroll(viewport, scrollRuntime, wheelEvent.deltaY)
