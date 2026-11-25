@@ -84,6 +84,7 @@ export class SystemSpeechNativeClient {
             throw new SystemSpeechError('native_helper_failed')
           }
 
+          // SAFETY: nativeResponseSchema validates the payload; the operation check above ties this success branch to Request['operation'].
           resolve(response.value as Extract<NativeSuccess, { operation: Request['operation'] }>)
         } catch (error) {
           reject(error instanceof SystemSpeechError ? error : new SystemSpeechError('native_helper_failed'))
