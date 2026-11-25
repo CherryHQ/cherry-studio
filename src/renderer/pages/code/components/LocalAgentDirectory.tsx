@@ -17,7 +17,7 @@ import {
   Search,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState, type ComponentProps, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -182,9 +182,6 @@ export function LocalAgentDirectory({
       })
     }
   }, [])
-  useEffect(() => {
-    if (requestedId) setPendingSelection(requestedId)
-  }, [requestedId])
   const navigateToSelection = useCallback(() => {
     if (pendingSelection) {
       setSelected(pendingSelection)
@@ -251,6 +248,12 @@ export function LocalAgentDirectory({
   const dragName = (id: string | number) => entries.find((entry) => entry.id === id)?.name ?? String(id)
   const entry = entries.find((e) => e.id === selected || e.agent?.id === selected)
   const cliTool = entry?.preset ? codeCliForLocalAgent(entry.preset.id) : undefined
+  const syncRequestedSelection = useEffectEvent((id: string) => {
+    if (id !== selected && id !== entry?.id && id !== entry?.agent?.id) setPendingSelection(id)
+  })
+  useEffect(() => {
+    if (requestedId) syncRequestedSelection(requestedId)
+  }, [requestedId])
   useEffect(() => {
     if (pendingSelection && entry?.id.startsWith('cli:')) navigateToSelection()
   }, [pendingSelection, entry?.id, navigateToSelection])
@@ -485,6 +488,7 @@ export function LocalAgentDirectory({
               detection: detections.find((d) => d.presetId === entry?.preset?.id),
               onSaved: async (id, refreshInstallations = true) => {
                 await Promise.all([refetch(), refetchArchivedAgents()])
+                setPendingSelection(undefined)
                 setSelected(id)
                 void navigate({ to: '/settings/local-agents', search: { id }, replace: true })
                 if (refreshInstallations) await refresh()

@@ -957,4 +957,41 @@ describe('local agent settings navigation', () => {
       )
     )
   })
+
+  it('closes the creation drawer and selects the new custom ACP agent after saving from custom-new', async () => {
+    const user = userEvent.setup()
+    const created = localAgent(
+      'My Custom ACP',
+      { enabled: false, executableOverride: '/test/custom-acp', args: ['acp'] },
+      'created-custom-id'
+    )
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [] as never
+      if (route === 'ai.local_agents.check') return { ok: true, status: 'ready' } as never
+      if (route === 'ai.agent.create') {
+        publishAgent(created)
+        return created as never
+      }
+      return { models: [] } as never
+    })
+
+    const { rerender } = render(<LocalAgentDirectory />)
+    await user.click(await screen.findByRole('button', { name: '自定义 ACP' }))
+
+    // Simulate TanStack Router re-rendering with the updated ?id=custom-new search param.
+    expect(navigation.search).toEqual({ id: 'custom-new' })
+    rerender(<LocalAgentDirectory />)
+
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText('名称'), 'My Custom ACP')
+    await user.type(within(dialog).getByLabelText('自定义可执行程序路径'), '/test/custom-acp')
+    fireEvent.change(within(dialog).getByLabelText('启动参数（JSON 数组）'), { target: { value: '["acp"]' } })
+    await user.click(within(dialog).getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(navigation.search).toEqual({ id: created.id }))
+    rerender(<LocalAgentDirectory />)
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(await screen.findByRole('heading', { name: 'My Custom ACP' })).toBeVisible()
+  })
 })
