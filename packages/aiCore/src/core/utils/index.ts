@@ -4,7 +4,7 @@ export const isPlainObject = (value: unknown): value is PlainObject => {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-export function deepMergeObjects<T extends PlainObject>(target: T, source: PlainObject): T {
+export function deepMergeObjects(target: PlainObject, source: PlainObject): PlainObject {
   const result: PlainObject = { ...target }
   Object.entries(source).forEach(([key, value]) => {
     const previous = Object.prototype.hasOwnProperty.call(result, key) ? result[key] : undefined
@@ -12,5 +12,5 @@ export function deepMergeObjects<T extends PlainObject>(target: T, source: Plain
     Object.defineProperty(result, key, { value: merged, enumerable: true, writable: true, configurable: true })
   })
 
-  return result as T
+  return result
 }

@@ -13,7 +13,7 @@ describe('provider settings merge', () => {
     expect(Object.getOwnPropertyDescriptor(result, '__proto__')?.value).toEqual({ root: 'value' })
     expect(Object.getPrototypeOf(result.nested)).toBe(Object.prototype)
     expect(Object.getOwnPropertyDescriptor(result.nested, '__proto__')?.value).toEqual({ leaf: 'value' })
-    expect(result.nested.retained).toBe(true)
+    expect(result.nested).toMatchObject({ retained: true })
     expect(Object.getOwnPropertyDescriptor(target.nested, '__proto__')).toBeUndefined()
   })
 
@@ -32,7 +32,7 @@ describe('provider settings merge', () => {
     const result = deepMergeObjects(target, source)
 
     expect(result.fetch).toBe(nextFetch)
-    expect(result[metadata]).toBe(nativeMetadata)
+    expect(Object.getOwnPropertyDescriptor(result, metadata)?.value).toBe(nativeMetadata)
     expect(result.nested).toEqual({ retained: true, added: true })
     expect(target.fetch).toBe(previousFetch)
     expect(target.nested).toEqual({ retained: true })

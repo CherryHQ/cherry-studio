@@ -10,6 +10,7 @@ import type {
   LanguageModelV3ToolResultPart,
   SharedV3ProviderOptions
 } from '@ai-sdk/provider'
+import type { ToolResultPart } from 'ai'
 
 import { ensureValidHistory } from './ensureValidHistory'
 import type { Attachment, ContextMessage, ToolCall } from './types'
@@ -357,7 +358,7 @@ export function toAISDK(messages: ContextMessage[]): LanguageModelV3Prompt {
   return prompt
 }
 
-export function stringifyToolOutput(output: LanguageModelV3ToolResultOutput): string {
+export function stringifyToolOutput(output: LanguageModelV3ToolResultOutput | ToolResultPart['output']): string {
   switch (output.type) {
     case 'text':
     case 'error-text':

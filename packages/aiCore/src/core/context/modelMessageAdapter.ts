@@ -4,7 +4,6 @@
  *
  * Vendored from @context-chef/ai-sdk-middleware 1.6.0 (MIT, same author).
  */
-import type { LanguageModelV3ToolResultOutput } from '@ai-sdk/provider'
 import type { ModelMessage } from 'ai'
 
 import { stringifyToolOutput } from './adapter'
@@ -204,9 +203,7 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
         if (part.type === 'tool-result') {
           const toolName = toolCallNames.get(part.toolCallId) ?? part.toolName
           const toolResult = toolName === part.toolName ? part : { ...part, toolName }
-          // ModelMessage's ToolResultOutput is a structural superset of V3's (extra content[] members);
-          // stringifyToolOutput only reads .type/.value, so the cast is safe and matches the V3 adapter's projection.
-          const text = stringifyToolOutput(toolResult.output as LanguageModelV3ToolResultOutput)
+          const text = stringifyToolOutput(toolResult.output)
           anchor = {
             role: 'tool',
             content: text,

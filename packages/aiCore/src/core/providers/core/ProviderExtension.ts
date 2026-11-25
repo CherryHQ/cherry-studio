@@ -282,6 +282,7 @@ export class ProviderExtension<
       baseProvider = await Promise.resolve(this.config.create(mergedSettings))
     } else if (this.config.import && this.config.creatorFunctionName) {
       const module = await this.config.import()
+
       const creatorFn = Object.hasOwn(module, this.config.creatorFunctionName)
         ? module[this.config.creatorFunctionName]
         : undefined
@@ -346,7 +347,8 @@ export class ProviderExtension<
   configure(settings: Partial<TSettings>): ProviderExtension<TSettings, TProvider> {
     return new ProviderExtension({
       ...this.config,
-      defaultOptions: deepMergeObjects(this.config.defaultOptions || {}, settings)
+      // oxlint-disable-next-line anti-slop/require-safety-comment-for-type-assertion -- Preserve the existing unvalidated partial-settings merge; only the SDK creator can accept or reject the resulting configuration.
+      defaultOptions: deepMergeObjects(this.config.defaultOptions || {}, settings) as Partial<TSettings>
     })
   }
 

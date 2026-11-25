@@ -130,6 +130,7 @@ export async function truncateToolResults(
       if (toolPolicy?.codec && part.output.type === 'json') {
         const trimmed = await truncateEntities(
           part,
+          part.output,
           toolPolicy.codec,
           { threshold: effThreshold, headChars: effHeadChars, tailChars: effTailChars },
           offloader,
@@ -228,12 +229,12 @@ type ToolPolicy =
  */
 async function truncateEntities(
   part: LanguageModelV3ToolResultPart,
+  output: Extract<LanguageModelV3ToolResultOutput, { type: 'json' }>,
   codec: EntityToolOutputCodec,
   budget: { threshold: number; headChars: number; tailChars: number },
   offloader: Offloader | null,
   logger: ContextLogger
 ): Promise<LanguageModelV3ToolResultPart | null> {
-  const output = part.output as Extract<LanguageModelV3ToolResultOutput, { type: 'json' }>
   const deflated = codec.deflate(output.value)
 
   if (deflated === null) return null
