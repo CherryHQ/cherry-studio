@@ -5,6 +5,7 @@ sources:
   - src/main/ai/runtime/aiSdk/params/buildAgentParams.ts
   - src/main/ai/runtime/aiSdk/params/feature.ts
   - src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts
+  - src/main/ai/runtime/aiSdk/params/features/geminiHistorySignatureReplay.ts
   - src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts
   - src/main/ai/runtime/aiSdk/params/features/toolSchemaCompatibility.ts
 ---
@@ -68,11 +69,14 @@ unrecognized. Normalization can relax the constraints sent to the provider. MCP
 tools still validate against the original schema, and gateway callers validate
 their own tools.
 
-On `google-generate-content`, Gemini 3 and 4 requests omit Google signatures
-from historical assistant text and client tool calls when the stored source
-model identity differs from the target. The identity includes the provider
-connection. The request retains the text, tool call, and tool result. The
-Google adapter suppresses signature backfill for marked tool calls.
+Chat requests to Gemini 3 and 4 on `google-generate-content` record the serving
+route with signed response parts. The route includes the provider connection,
+protocol, SDK adapter, wire model, and Base URL. When a completed turn comes
+from a different route, replay omits its signed thinking and drops signatures
+from assistant text and client tool calls. The original history remains
+available on the serving route. For older text and tool calls without a route,
+replay uses the stored provider and model identity when available. The Google
+adapter suppresses signature backfill for marked tool calls.
 
 ## RequestFeature
 

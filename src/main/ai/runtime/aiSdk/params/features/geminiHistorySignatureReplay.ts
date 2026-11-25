@@ -1,10 +1,11 @@
-import type { SharedV3ProviderOptions } from '@ai-sdk/provider'
+import type { LanguageModelV3StreamPart, SharedV3ProviderOptions } from '@ai-sdk/provider'
 import { isToolUIPart, type LanguageModelMiddleware, type UIMessage } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
 import { ENDPOINT_TYPE, UniqueModelIdSchema } from '@shared/data/types/model'
 import { isGemini3Model, isGemini4Model } from '@shared/utils/model'
 
+import { getReplayRouteId } from '../../../../provider/replayRoute'
 import type { RequestFeature } from '../feature'
 
 function geminiSignatures(options: SharedV3ProviderOptions | undefined): Array<[string, string]> {
@@ -47,12 +48,35 @@ export const geminiHistorySignatureReplayFeature: RequestFeature = {
     request.contextOwner !== 'caller' &&
     endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT &&
     (isGemini3Model(model) || isGemini4Model(model)),
-  contributeModelAdapters: ({ request, model }) => {
+  contributeModelAdapters: ({ request, model, endpointType, sdkConfig }) => {
+    const routeId = getReplayRouteId(model.providerId, endpointType, sdkConfig)
     const foreign = indexForeignHistory(request.messages ?? [], model.id)
-    if (![...foreign.values()].includes(true)) return []
+
+    const stamp = <T extends { providerMetadata?: SharedV3ProviderOptions }>(part: T): T => {
+      const metadata = part.providerMetadata
+      if (geminiSignatures(metadata).length === 0) return part
+      return { ...part, providerMetadata: { ...metadata, cherry: { ...metadata?.cherry, replayRouteId: routeId } } }
+    }
 
     const middleware: LanguageModelMiddleware = {
       specificationVersion: 'v3',
+      wrapGenerate: async ({ doGenerate }) => {
+        const result = await doGenerate()
+        return { ...result, content: result.content.map((part) => ('providerMetadata' in part ? stamp(part) : part)) }
+      },
+      wrapStream: async ({ doStream }) => {
+        const result = await doStream()
+        return {
+          ...result,
+          stream: result.stream.pipeThrough(
+            new TransformStream<LanguageModelV3StreamPart, LanguageModelV3StreamPart>({
+              transform(part, controller) {
+                controller.enqueue('providerMetadata' in part ? stamp(part) : part)
+              }
+            })
+          )
+        }
+      },
       transformParams: async ({ params }) => {
         const currentTurn = params.prompt.findLastIndex(
           (message) =>
@@ -63,38 +87,38 @@ export const geminiHistorySignatureReplayFeature: RequestFeature = {
           ...params,
           prompt: params.prompt.map((message, index) => {
             if (index >= currentTurn || message.role !== 'assistant') return message
-            return {
-              ...message,
-              content: message.content.map((part) => {
-                if (part.type === 'text') {
-                  const signatures = geminiSignatures(part.providerOptions).filter(([, signature]) =>
-                    foreign.get(`text:${signature}`)
-                  )
-                  if (signatures.length === 0) return part
-                  const providerOptions = { ...part.providerOptions }
-                  for (const [namespace] of signatures) {
-                    const options = { ...providerOptions[namespace] }
-                    delete options.thoughtSignature
-                    providerOptions[namespace] = options
-                  }
-                  return { ...part, providerOptions }
+            const content = message.content.flatMap((part): typeof message.content => {
+              const sourceRoute = part.providerOptions?.cherry?.replayRouteId
+              const signatures = geminiSignatures(part.providerOptions).filter(([, signature]) => {
+                if (typeof sourceRoute === 'string') return sourceRoute !== routeId
+                if (part.type === 'text') return foreign.get(`text:${signature}`)
+                if (part.type === 'tool-call') return foreign.get(`tool:${part.toolCallId}`)
+                return false
+              })
+              if (signatures.length === 0) return [part]
+              if (part.type === 'reasoning') return []
+              if (part.type === 'text' || part.type === 'file') {
+                const providerOptions = { ...part.providerOptions }
+                for (const [namespace] of signatures) {
+                  const options = { ...providerOptions[namespace] }
+                  delete options.thoughtSignature
+                  providerOptions[namespace] = options
                 }
-                if (
-                  part.type !== 'tool-call' ||
-                  part.providerExecuted ||
-                  !foreign.get(`tool:${part.toolCallId}`) ||
-                  geminiSignatures(part.providerOptions).length === 0
-                )
-                  return part
-                return {
+                return [{ ...part, providerOptions }]
+              }
+              if (part.type !== 'tool-call' || part.providerExecuted) return [part]
+              return [
+                {
                   ...part,
                   providerOptions: {
                     ...part.providerOptions,
                     cherry: { ...part.providerOptions?.cherry, omitGeminiThoughtSignature: true }
                   }
                 }
-              })
-            }
+              ]
+            })
+            // Generate Content rejects empty assistant turns after the history filter.
+            return { ...message, content: content.length ? content : [{ type: 'text', text: '...' }] }
           })
         }
       }
