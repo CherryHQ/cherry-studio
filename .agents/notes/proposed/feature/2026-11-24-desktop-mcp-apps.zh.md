@@ -16,15 +16,15 @@ Status: proposed
 
 同一个宿主支持按 [OpenAI 插件 UI 指南](https://developers.openai.com/plugins/build/chatgpt-ui)和 [Claude MCP Apps Quickstart](https://claude.com/docs/connectors/building/mcp-apps/quickstart)使用标准桥接协议的 App。OpenAI Todo 直接使用 JSON-RPC。Claude Dice 使用 `ext-apps` 1.x 界面 SDK，与宿主所用的 2.x SDK 共享同一桥接协议。通过现有 MCP 连接识别旧版服务提供的有效标准元数据。先发送完整工具输入，再发送结果，其中包含 `structuredContent` 和供界面使用的 `_meta`。沿用现有的模型输出路径，供界面使用的 `_meta` 不进入模型上下文。
 
-声明了有效 App 的工具成功执行后，其结果显示**打开 App**。用户可直接在对话内打开，重启后也可以从新记录的结果打开。主进程将 App 绑定到原始对话、工具调用、服务身份、连接配置和资源 URI。在宿主写入的工具消息片段元数据中记录绑定，并保留界面所需、大小受限的输入和结果。绑定来自实际调用和目录，包括展示结果可能经过投影的原生智能体运行时。工具返回的 JSON 无法声明打开入口或提供绑定。缺少这类证据的已有结果沿用普通展示。
+声明了有效 App 的工具成功执行后，已保存的结果进入视口时会准备 App，重启后的历史结果也一样。未声明外部来源的 App 自动在对话内渲染，声明了外部来源的 App 在结果区等待确认后运行。主进程将 App 绑定到原始对话、工具调用、服务身份、连接配置和资源 URI。在宿主写入的工具消息片段元数据中记录绑定，并保留界面所需、大小受限的输入和结果。绑定来自实际调用和目录，包括展示结果可能经过投影的原生智能体运行时。工具返回的 JSON 无法声明 App 或提供绑定。缺少这类证据的已有结果沿用普通展示。
 
-主进程读取指定结果，重新检查当前来源和该对话的策略，再通过原 MCP 服务读取声明的 UI。加载前校验 URI、MCP Apps HTML MIME 类型和响应大小。打开入口展示加载和失败状态，普通工具结果仍可查看。打开和重新打开时读取 UI 资源，原工具调用不会重复执行。
+主进程读取指定结果，重新检查当前来源和该对话的策略，再通过原 MCP 服务读取声明的 UI。加载前校验 URI、MCP Apps HTML MIME 类型和响应大小。App 卡片展示加载和失败状态，普通工具结果仍可查看。打开和重新打开时读取 UI 资源，原工具调用不会重复执行。
 
 ### Renderer 与界面生命周期
 
-在 `buildToolResponseFromPart` 中从宿主写入的工具消息片段元数据投影 App 引用。助手和智能体共用 `MessagePartsRenderer` 的消息结果区，每个符合条件的调用以消息 ID 和真实工具调用 ID 为键，挂载一个打开按钮和界面位置。工具分组折叠、流式消息转入已完成历史时，结果区保持挂载。普通工具详情继续由 `MessageMcpTool` 展示。页面适配器通过消息列表 Provider 提供所属对话和输入框操作。没有打开操作的只读界面保持普通工具结果。
+从宿主写入的工具消息片段元数据投影 App 引用。助手和智能体共用 `MessagePartsRenderer` 的消息结果区，每个符合条件的调用以消息 ID 和真实工具调用 ID 为键，挂载一个 App 卡片。工具分组折叠、流式消息转入已完成历史时，结果区保持挂载。普通工具详情继续由 `MessageMcpTool` 展示。页面适配器通过消息列表 Provider 提供所属对话和输入框操作。没有打开操作的只读界面保持普通工具结果。
 
-对话 Renderer 向主进程提交对话、消息和工具调用标识，收到用于挂载本地宿主页面的单次引用。React 卡片负责按钮、加载和失败状态、尺寸及关闭操作。Guest 随消息行滚动和裁剪。尺寸变化时调整预留高度，保留运行中的实例。关闭界面、虚拟列表回收消息行、切换对话或卸载界面时，释放 Guest 并取消待处理操作。回到消息行后可以从按钮重新打开新的界面实例。
+对话 Renderer 向主进程提交对话、消息和工具调用标识，收到用于挂载本地宿主页面的单次引用。React 卡片负责确认、加载和失败状态、尺寸及关闭和重新打开操作。Guest 随消息行滚动和裁剪。尺寸变化时调整预留高度，保留运行中的实例。App 打开期间，即使滚出视口，消息列表也保留所在消息行。关闭 App、切换对话或卸载界面时，释放 Guest 并取消待处理操作。
 
 ### 宿主与授权
 
@@ -49,7 +49,7 @@ App 完成握手后，发送该次调用的输入和结果，以及语言、尺�
 ### 交付顺序
 
 1. 在 `McpCatalogService`、助手适配器及智能体 MCP 转发和投影链路接通工具发现和来源记录。验证发现和调用阶段的可见性，以及持久化来源绑定。宿主可用时再宣告支持 Apps。
-2. 实现共用的桌面打开入口、隔离的 Electron 界面和 `AppBridge`。验证资源校验、CSP、原始输入和结果传递、尺寸调整、关闭和重新打开。
+2. 实现共用的桌面 App 卡片、隔离的 Electron 界面和 `AppBridge`。验证资源校验、CSP、原始输入和结果传递、尺寸调整、关闭和重新打开。
 3. 将 App 调用、链接和草稿接入桌面审批及对话记录。在 Electron 中运行未经修改的 Todo 和 Dice 示例。使用真实 MCP 测试服务验证确认、撤销和取消，再在打包后的构建中验证隔离。
 
 ## Alternatives considered
@@ -70,7 +70,7 @@ App 完成握手后，发送该次调用的输入和结果，以及语言、尺�
 - AC7 — stdio、Streamable HTTP 和 SSE 均支持相同的 App 打开行为。未经修改的上游示例 App 可在 Electron 中完成受支持的交互。 (verification: unit | Electron)
 - AC8 — 未经修改的 [OpenAI Todo Quickstart](https://developers.openai.com/plugins/build/app-quickstart)能展示初始数据，并通过获批的 MCP 工具调用新增和完成待办。浏览器原生表单提交不会发出网络请求。 (verification: Electron)
 - AC9 — 未经修改的 [Claude Dice Quickstart](https://claude.com/docs/connectors/building/mcp-apps/quickstart)加载声明的模块，展示第一次掷骰结果，经批准后按原骰子面数和数量再掷一次。静态资源来源未放行时，模块被拦截，普通工具结果仍可查看。 (verification: Electron)
-- AC10 — 折叠工具详情后打开按钮仍然可见。工具分组折叠、对话轮次完成和尺寸变化时，已打开的界面保持运行。虚拟列表回收消息行时关闭 Guest 并清除待处理操作。回到消息行可见打开按钮。 (verification: renderer | Electron)
+- AC10 — 视口内已保存的结果自动渲染未声明外部来源的 App，工具详情折叠时也一样。声明了外部来源的 App 等待确认。工具分组折叠、尺寸变化或滚出视口再回来时，已打开的界面保留状态。 (verification: renderer | Electron)
 - AC11 — 仅使用旧版 ChatGPT 协议的组件显示普通工具结果，不提供打开按钮，标准 App 界面没有注入的 `window.openai`。 (verification: renderer | Electron)
 
 ## Risks

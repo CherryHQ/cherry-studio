@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-24-desktop-mcp-apps.md
-2026-11-24-desktop-mcp-apps.md: 702079251954e9eed045a8611eb044abfb3cc4a3
-2026-11-24-desktop-mcp-apps.zh.md: 7a0799fc43904a0f28cf6cc05a186a0723b6ba9d
+2026-11-24-desktop-mcp-apps.md: bc104b49c5f5e9b2e3f80fd59a5c3b84dec40bdf
+2026-11-24-desktop-mcp-apps.zh.md: 0e20fd6c4c90aecdf449871ce3c1b6007863d149
