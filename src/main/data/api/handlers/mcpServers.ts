@@ -12,6 +12,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import type { McpServerSchemas } from '@shared/data/api/schemas/mcpServers'
 import {
   CreateMcpServerSchema,
+  InstallMcpServerPresetSchema,
   ListMcpServersQuerySchema,
   ReorderMcpServersSchema,
   UpdateMcpServerSchema
@@ -35,6 +36,10 @@ export const mcpServerHandlers: HandlersFor<McpServerSchemas> = {
       mcpServerService.reorder(parsed.orderedIds)
       return undefined
     }
+  },
+
+  '/mcp-servers/install-preset': {
+    POST: async ({ body }) => mcpServerService.installPreset(InstallMcpServerPresetSchema.parse(body))
   },
 
   '/mcp-servers/:id': {

@@ -6,10 +6,10 @@ import { exportMarkdownContentAsFile, messagesToMarkdown } from '@renderer/servi
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { messagesToPlainText } from '@renderer/utils/export'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 import { withPriorCitationParts } from '@renderer/utils/message/exportView'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import {
   AGENT_SESSION_MESSAGES_MAX_LIMIT,
   type AgentSessionMessageEntity

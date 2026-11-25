@@ -72,7 +72,7 @@ export class FileProcessingService extends BaseService {
    * data_id) is a content-version identity, so neither deduplicates a task. If we
    * add reuse later, scope it to a contentHash plus processor/config/version.
    */
-  async startTask(input: StartFileProcessingTaskInput): Promise<StartedFileProcessingTask> {
+  async startTask(input: StartFileProcessingTaskInput, signal?: AbortSignal): Promise<StartedFileProcessingTask> {
     const { feature, file, output, context, processorId } = input
     // `document_to_markdown` always produces a markdown/zip artifact that needs a
     // path output target. Reject the illegal state here, before enqueueing (and
@@ -84,6 +84,7 @@ export class FileProcessingService extends BaseService {
     const handler = getCapabilityHandler(config.id, feature)
     const fileInfo = await resolveFileProcessingFileInfo(file)
     assertFileTypeSupported(fileInfo, feature, config)
+    signal?.throwIfAborted()
 
     const payload: FileProcessingJobPayload = {
       feature,
