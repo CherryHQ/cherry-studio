@@ -1,3 +1,4 @@
+import { mockUseSharedCacheSelector } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
@@ -138,6 +139,7 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
       ? [modelSwitchConfirmationCacheMock.value, modelSwitchConfirmationCacheMock.set]
       : [null, vi.fn()],
   useSharedCacheValue: () => undefined,
+  useSharedCacheSelector: mockUseSharedCacheSelector,
   usePersistCache: () => [undefined, vi.fn()]
 }))
 

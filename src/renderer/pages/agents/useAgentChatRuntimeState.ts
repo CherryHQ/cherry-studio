@@ -113,10 +113,13 @@ export function formatAskUserQuestionAnswerMessage(value: unknown): string | und
   if (!parsed?.answers) return undefined
 
   const { answers, annotations } = parsed
+
   const lines = parsed.questions.flatMap((question) => {
     const answer = Object.hasOwn(answers, question.question) ? answers[question.question]?.trim() : undefined
+
     const notes =
       annotations && Object.hasOwn(annotations, question.question) ? annotations[question.question]?.notes : undefined
+
     const body = [answer, typeof notes === 'string' ? notes.trim() : ''].filter(Boolean).join('\n')
 
     return body ? [`${question.question}\n${body}`] : []
@@ -571,10 +574,12 @@ export function useAgentChatRuntimeState({
   })
 
   const { isPending } = useTopicStreamStatus(sessionTopicId)
+
   const sessionClosing = useSharedCacheSelector(
     sessionId ? [AGENT_SESSION_CLOSING_CACHE_KEY(sessionId)] : [],
     ([value]) => value === true
   )
+
   const editBusy = isPending || sessionClosing || editPending || toolApprovalComposerOverrides.length > 0
 
   const cancelEditing = useCallback(() => {
