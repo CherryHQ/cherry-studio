@@ -46,7 +46,7 @@ const OvmsSettings: FC = () => {
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : String(error)
 
-      const errCodeMsg: Readonly<Partial<Record<string, string>>> = {
+      const errCodeMsg = {
         '100': t('ovms.failed.install_code_100'),
         '101': t('ovms.failed.install_code_101'),
         '102': t('ovms.failed.install_code_102'),
@@ -59,7 +59,7 @@ const OvmsSettings: FC = () => {
 
       const match = errMsg.match(/code (\d+)/)
       const code = match ? match[1] : 'unknown'
-      const errorMsg = code in errCodeMsg ? (errCodeMsg[code] ?? errMsg) : errMsg
+      const errorMsg = Object.entries(errCodeMsg).find(([errorCode]) => errorCode === code)?.[1] ?? errMsg
 
       toast.error(t('ovms.failed.install') + errorMsg)
       setIsInstallingOvms(false)

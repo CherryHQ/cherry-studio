@@ -42,13 +42,13 @@ const CLI_ICONS: Readonly<Partial<Record<string, SvgIcon>>> = Object.fromEntries
 )
 
 // Crop transparent source-canvas padding so the artwork shares a consistent optical size.
-const OPTICAL_VIEWBOXES: Readonly<Partial<Record<string, string>>> = {
+const OPTICAL_VIEWBOXES = {
   [CodeCli.OPEN_CODE]: '16 16 88 88',
   [CodeCli.HERMES]: '26 26 68 68',
   [CodeCli.OPENCLAW]: '26 26 68 68',
   [CodeCli.DEEPSEEK_HARNESS]: '26 26 68 68',
   [CodeCli.MINIMAX_CODE]: '26 26 68 68'
-}
+} satisfies Partial<Record<CodeCli, string>>
 
 interface CliIconProps {
   id: string
@@ -72,7 +72,7 @@ export const CliIcon: FC<CliIconProps> = ({ id, size = 28, className }) => {
     )
   }
 
-  const opticalViewBox = OPTICAL_VIEWBOXES[id]
+  const opticalViewBox = Object.entries(OPTICAL_VIEWBOXES).find(([toolId]) => toolId === id)?.[1]
 
   if (opticalViewBox) {
     return <Icon width={size} height={size} viewBox={opticalViewBox} className={className} />
