@@ -15,7 +15,7 @@ import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssistantSession'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
+import { readToolResult } from '@main/ai/messages/toolResultRead'
 import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
@@ -211,12 +211,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──
-  'ai.tool.get_result': async ({ topicId, messageId, toolCallId }) => {
-    // Active stream first: it is the only source holding the value before the message persists.
-    const live = application.get('AiStreamManager').getDeferredToolOutput(topicId, toolCallId)
-    if (live.found) return live
-    return findPersistedToolOutput(topicId, messageId, toolCallId)
-  },
+  'ai.tool.get_result': readToolResult,
   // The continuation dispatch streams to the caller window, so it needs that window's WebContents.
   'ai.tool.respond_approval': (payload, { senderId }) =>
     application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),

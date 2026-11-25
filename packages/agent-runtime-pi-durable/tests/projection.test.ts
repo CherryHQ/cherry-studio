@@ -158,6 +158,89 @@ it('copies only messages that live progress or a later result changes, and rebui
 })
 
 describe('Durable preview identity', () => {
+  it('replaces a live answer without publishing a retraction of its identity', async () => {
+    const { projection, update, events } = setup(view([], live()))
+    const preview = projection.feed.snapshot.messages[0].id
+    update(view([entry(10, 'committed answer')]))
+    await expect.poll(() => events.some((event) => event.type === 'message.upsert')).toBe(true)
+    expect(events.filter((event) => event.type === 'message.remove')).toEqual([])
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'message.upsert',
+        replaces: [{ session: { backendId: runtimeId('backend'), id: runtimeId('1') }, id: preview }]
+      })
+    )
+    expect(projection.feed.snapshot.messages).toMatchObject([
+      { id: 'entry:10:0', parts: [{ text: 'committed answer' }] }
+    ])
+    expect(projection.feed.snapshot.messages).toHaveLength(1)
+  })
+
+  it('keeps one nested call across repeated live views without parent progress', () => {
+    const parent = {
+      ...entry(10, ''),
+      model: [fauxAssistantMessage(fauxToolCall('echo', {}, { id: 'parent' }), { stopReason: 'toolUse' })]
+    }
+    const active: LiveState = {
+      run: { taskId, inputs: [], turns: 0 },
+      nestedTools: [
+        {
+          parentCallId: 'parent',
+          parentTaskId: taskId,
+          taskId: 8 as TaskId,
+          callId: 'child',
+          name: 'read',
+          status: 'running',
+          arguments: {},
+          output: 'first'
+        }
+      ]
+    }
+    const { projection, update } = setup(view([parent], active))
+    for (const output of ['second', 'third', 'final']) {
+      update(view([parent], { ...active, nestedTools: [{ ...active.nestedTools![0], output }] }))
+      const parts = projection.feed.snapshot.messages[0].parts
+      expect(parts).toHaveLength(2)
+      expect(parts[1]).toMatchObject({ toolCallId: 'child', output: { content: [{ text: output }] } })
+    }
+  })
+
+  it('reuses immutable committed results while publishing only the growing live message', async () => {
+    const assistant = {
+      ...entry(10, ''),
+      model: [fauxAssistantMessage(fauxToolCall('echo', {}, { id: 'call' }), { stopReason: 'toolUse' })]
+    }
+    const block = { type: 'text' as const, text: 'accepted result' }
+    const result: EntryRecord = {
+      ...entry(11, ''),
+      model: [
+        { role: 'toolResult', toolCallId: 'call', toolName: 'echo', content: [block], isError: false, timestamp: 0 }
+      ]
+    }
+    const entries = [assistant, result]
+    const { projection, update, events } = setup(view(entries, live()))
+    const before = projection.feed.snapshot.messages[0].parts[0]
+    Object.defineProperty(block, 'text', {
+      get: () => {
+        throw new Error('Text publication revisited a committed result')
+      }
+    })
+    const active = live()
+    if (!active.generation?.message) throw new Error('Missing live generation')
+    update(
+      view(entries, {
+        ...active,
+        generation: {
+          ...active.generation,
+          message: { ...active.generation.message, content: [{ type: 'text', text: 'new streamed text' }] }
+        }
+      })
+    )
+    await expect.poll(() => events.some((event) => event.type === 'message.upsert')).toBe(true)
+    expect(events.filter((event) => event.type === 'snapshot')).toHaveLength(1)
+    expect(projection.feed.snapshot.messages[0].parts[0]).toBe(before)
+    expect(projection.feed.snapshot.messages.at(-1)?.parts).toMatchObject([{ text: 'new streamed text' }])
+  })
   it('keeps a preview stable when unrelated entries arrive and associates only its producing task', () => {
     const { projection, update } = setup(view([], live()))
     const preview = projection.feed.snapshot.messages[0].id

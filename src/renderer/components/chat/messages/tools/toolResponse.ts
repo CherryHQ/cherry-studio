@@ -45,6 +45,7 @@ type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 export type ToolResponseLike = McpToolResponse | NormalToolResponse
 
 export interface ToolRenderItem {
+  part?: CherryMessagePart
   id: string
   toolResponse: ToolResponseLike
 }
@@ -307,7 +308,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
 export function buildToolRenderItemFromPart(part: CherryMessagePart, id: string): ToolRenderItem | null {
   const toolResponse = buildToolResponseFromPart(part, id)
   if (!toolResponse) return null
-  return { id, toolResponse }
+  return { id, part, toolResponse }
 }
 
 /** Matched `ToolUIPart` plus decoded approval fields. */

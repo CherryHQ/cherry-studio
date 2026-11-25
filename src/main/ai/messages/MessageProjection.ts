@@ -1,5 +1,7 @@
 import { isDeepStrictEqual } from 'node:util'
 
+import { omit } from 'es-toolkit'
+
 import { cloneHistoryData } from '@cherrystudio/agent-runtime'
 import { loggerService } from '@logger'
 import type {
@@ -8,6 +10,7 @@ import type {
   MessageProjectionView,
   ProjectionState
 } from '@shared/ai/messageProjection'
+import type { DeferredToolResultRef } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 const logger = loggerService.withContext('MessageProjection')
@@ -38,6 +41,7 @@ function captureMessage(message: CherryUIMessage, before?: CherryUIMessage): Che
 export class MessageProjection<S extends ProjectionState> {
   private view: MessageProjectionView<S>
   private pending?: ProjectionInput<S>
+  private readonly changedResults = new Map<string, DeferredToolResultRef>()
   private timer?: ReturnType<typeof setTimeout>
   private readonly listeners = new Set<(update: MessageProjectionUpdate<S>) => void>()
 
@@ -68,9 +72,34 @@ export class MessageProjection<S extends ProjectionState> {
     return this.listeners.size > 0
   }
 
-  /** A function `next` is resolved only when the coalesced batch is flushed. */
-  update(next: ProjectionInput<S>, immediate = false): void {
+  /** Mutable inputs are snapshotted at acceptance; lazy inputs are snapshotted when resolved. */
+  update(next: ProjectionInput<S>, immediate = false, changedResults: readonly DeferredToolResultRef[] = []): void {
+    const capture = (source: ProjectionView<S>): ProjectionView<S> => {
+      const previous = new Map(this.view.messages.map((message) => [message.id, message]))
+      const { messages, ...state } = source
+      return {
+        ...source,
+        // oxlint-disable-next-line no-restricted-globals -- Isolate producer metadata once at acceptance; parts reuse captured values.
+        ...structuredClone(state),
+        messages: messages.map((message) => captureMessage(message, previous.get(message.id)))
+      }
+    }
+    this.updateAccepted(typeof next === 'function' ? () => capture(next()) : capture(next), immediate, changedResults)
+  }
+
+  /** The owner must snapshot native values before accepting them and preserve untouched part identities. */
+  updateAccepted(
+    next: ProjectionInput<S>,
+    immediate = false,
+    changedResults: readonly DeferredToolResultRef[] = []
+  ): void {
     this.pending = next
+    this.invalidateToolResults(changedResults, immediate)
+  }
+
+  invalidateToolResults(refs: readonly DeferredToolResultRef[], immediate = false): void {
+    for (const ref of refs)
+      this.changedResults.set(JSON.stringify([ref.topicId, ref.messageId, ref.toolCallId]), { ...ref })
     if (immediate) this.flush()
     // Unobserved batches wait for snapshot(), which is how a new subscriber reads its baseline.
     else if (this.observed) {
@@ -82,23 +111,20 @@ export class MessageProjection<S extends ProjectionState> {
   flush(): void {
     if (this.timer) clearTimeout(this.timer)
     this.timer = undefined
-    if (!this.pending) return
+    if (!this.pending && !this.changedResults.size) return
     const pending = this.pending
     this.pending = undefined
+    const next = pending ? (typeof pending === 'function' ? pending() : pending) : this.view
+    const beforeState = omit(this.view, ['messages', 'revision'])
+    const nextState = omit({ ...next, revision: this.view.revision }, ['messages', 'revision'])
+    const orderChanged =
+      next.messages.length !== this.view.messages.length ||
+      next.messages.some((message, index) => message.id !== this.view.messages[index]?.id)
     const previous = new Map(this.view.messages.map((message) => [message.id, message]))
-    const source = typeof pending === 'function' ? pending() : pending
-    const { messages: incoming, ...state } = source
-    const next = {
-      ...source,
-      // oxlint-disable-next-line no-restricted-globals -- Capture non-message state per flush; reuse isolated unchanged message payloads.
-      ...structuredClone(state),
-      messages: incoming.map((message) => captureMessage(message, previous.get(message.id)))
-    }
-    if (isDeepStrictEqual({ ...next, revision: this.view.revision }, this.view)) return
     const patches: MessageProjectionPatch[] = []
     for (const message of next.messages) {
       const before = previous.get(message.id)
-      if (isDeepStrictEqual(before, message)) continue
+      if (before === message) continue
       const appended: MessageProjectionPatch[] = []
       const appendOnly =
         before &&
@@ -107,7 +133,7 @@ export class MessageProjection<S extends ProjectionState> {
         isDeepStrictEqual(before.metadata, message.metadata) &&
         message.parts.every((part, index) => {
           const old = before.parts[index]
-          if (isDeepStrictEqual(old, part)) return true
+          if (old === part) return true
           if (
             (part.type !== 'text' && part.type !== 'reasoning') ||
             old.type !== part.type ||
@@ -116,14 +142,27 @@ export class MessageProjection<S extends ProjectionState> {
             !isDeepStrictEqual({ ...old, text: '' }, { ...part, text: '' })
           )
             return false
-          appended.push({ type: 'append', messageId: message.id, part: index, text: part.text.slice(old.text.length) })
+          if (part.text.length !== old.text.length)
+            appended.push({
+              type: 'append',
+              messageId: message.id,
+              part: index,
+              text: part.text.slice(old.text.length)
+            })
           return true
         })
       patches.push(...(appendOnly ? appended : [{ type: 'message' as const, message }]))
     }
+    for (const ref of this.changedResults.values()) patches.push({ type: 'tool-result', ref })
+    this.changedResults.clear()
+    if (!patches.length && !orderChanged && isDeepStrictEqual(beforeState, nextState)) return
     this.view = { ...next, revision: this.view.revision + 1 }
     const { messages, ...published } = this.view
-    const update = { ...published, patches, order: messages.map((message) => message.id) } as MessageProjectionUpdate<S>
+    const update = {
+      ...published,
+      patches,
+      ...(orderChanged ? { order: messages.map((message) => message.id) } : {})
+    } as MessageProjectionUpdate<S>
     for (const listener of this.listeners) {
       try {
         listener(update)
@@ -138,6 +177,7 @@ export class MessageProjection<S extends ProjectionState> {
     if (this.timer) clearTimeout(this.timer)
     this.timer = undefined
     this.pending = undefined
+    this.changedResults.clear()
     this.listeners.clear()
   }
 }

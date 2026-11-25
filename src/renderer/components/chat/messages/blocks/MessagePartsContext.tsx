@@ -38,9 +38,11 @@ const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
 interface MessagePartsScopeValue {
   messageId: string
   parts: CherryMessagePart[]
+  partsMap: Record<string, CherryMessagePart[]>
 }
 
 const MessagePartsScopeContext = createContext<MessagePartsScopeValue | null>(null)
+const ToolPartScopeContext = createContext<PartsMap>(null)
 const MessageIdContext = createContext<string | undefined>(undefined)
 
 /**
@@ -51,7 +53,9 @@ const MessageIdContext = createContext<string | undefined>(undefined)
 export function PartsProvider({ value, children }: { value: PartsMap; children: ReactNode }) {
   return (
     <PartsContext value={value}>
-      <MessagePartsScopeContext value={null}>{children}</MessagePartsScopeContext>
+      <ToolPartScopeContext value={null}>
+        <MessagePartsScopeContext value={null}>{children}</MessagePartsScopeContext>
+      </ToolPartScopeContext>
     </PartsContext>
   )
 }
@@ -66,12 +70,28 @@ export function MessagePartsScopeProvider({
   parts: CherryMessagePart[]
   children: ReactNode
 }) {
-  const value = useMemo(() => ({ messageId, parts }), [messageId, parts])
+  const value = useMemo(() => ({ messageId, parts, partsMap: { [messageId]: parts } }), [messageId, parts])
   return (
     <MessageIdContext value={messageId}>
-      <MessagePartsScopeContext value={value}>{children}</MessagePartsScopeContext>
+      <ToolPartScopeContext value={null}>
+        <MessagePartsScopeContext value={value}>{children}</MessagePartsScopeContext>
+      </ToolPartScopeContext>
     </MessageIdContext>
   )
+}
+
+/** Keep one tool's approval and result consumers independent of sibling text updates. */
+export function ToolPartScopeProvider({
+  messageId,
+  part,
+  children
+}: {
+  messageId: string | undefined
+  part: CherryMessagePart | undefined
+  children: ReactNode
+}) {
+  const value = useMemo(() => (messageId && part ? { [messageId]: [part] } : null), [messageId, part])
+  return <ToolPartScopeContext value={value}>{children}</ToolPartScopeContext>
 }
 
 /** Read the parts map from context (null when no provider is present). */
@@ -84,9 +104,10 @@ export function usePartsMap() {
  * scope, else the complete map. Scoped consumers skip other messages' chunks.
  */
 export function useScopedPartsMap(): PartsMap {
+  const toolScope = use(ToolPartScopeContext)
+  if (toolScope) return toolScope
   const scope = use(MessagePartsScopeContext)
-  const scopedMap = useMemo(() => (scope ? { [scope.messageId]: scope.parts } : null), [scope])
-  return scopedMap ?? use(PartsContext)
+  return scope?.partsMap ?? use(PartsContext)
 }
 
 /** Check if parts data is provided. */

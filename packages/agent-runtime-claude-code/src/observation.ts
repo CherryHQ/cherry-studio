@@ -72,7 +72,7 @@ export class ClaudeFeed {
     if (legacy) this.legacy = immutable(legacy)
     const replaces: Record<string, string> = {}
     // Freeze once; the state feed, the retained native map and every observer share these values.
-    events = immutable(events)
+    events = immutable(events.map((event) => this.state.publish(event) ?? event))
     native = immutable(
       native
         .filter((value) => !value.message.uuid || !this.retracted.has(value.message.uuid))
@@ -83,7 +83,6 @@ export class ClaudeFeed {
         )
     )
     for (const event of events) {
-      this.state.publish(event)
       if (event.type === 'message.upsert') {
         if (native.some((entry) => entry.source === 'live')) this.live.add(event.message.id)
         for (const ref of event.replaces ?? []) {

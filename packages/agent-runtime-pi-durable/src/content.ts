@@ -1,7 +1,13 @@
 import type { Message } from '@earendil-works/pi-ai'
 import type { EntryRecord } from '@earendil-works/pi-durable'
 
-import { immutable, projectNestedTool, runtimeId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
+import {
+  immutable,
+  projectNestedTool,
+  runtimeId,
+  snapshotToolPart,
+  type RuntimeMessage
+} from '@cherrystudio/agent-runtime'
 
 /** Stable committed identities; consumers never decode native entry IDs from these keys. */
 export const entryMessageId = (entry: EntryRecord, index: number): string => `entry:${entry.id}:${index}`
@@ -156,7 +162,7 @@ export class ContentProjection {
           errorText: this.errorText(output),
           resultProviderMetadata: { pi: { result: JSON.parse(JSON.stringify(output)) } }
         }
-      : { ...base, state: 'output-available', output, preliminary }
+      : snapshotToolPart({ ...base, state: 'output-available', output, preliminary })
   }
 
   private errorText(output: unknown): string {

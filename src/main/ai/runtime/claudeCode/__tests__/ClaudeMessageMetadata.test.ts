@@ -239,7 +239,11 @@ it('refreshes a replaced MCP catalog and preserves completed reasoning timing', 
   })
   expect(projection.snapshot().messages[0].parts[1]).toMatchObject({ title: 'Before: read' })
   catalog.mcp__server__read.serverName = 'After'
-  const update: ClaudeObservation = { events: [], native: [], retracted: [] }
+  const update: ClaudeObservation = {
+    events: [{ type: 'message.upsert', message: source, changedParts: [0] }],
+    native: [],
+    retracted: []
+  }
   const changed = await projection.accept(update.events, metadata.accept(update) ? true : [])
   expect(changed[0].parts[1]).toMatchObject({ title: 'After: read', state: 'output-available' })
   expect(changed[0].parts[0]).toEqual(reasoning)

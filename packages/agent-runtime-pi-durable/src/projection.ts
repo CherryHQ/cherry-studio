@@ -222,6 +222,7 @@ export class DurableProjection {
     }
     if (reset) this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
     this.preview = preview
+    content.seal()
     const activity = { state: live?.run ? ('active' as const) : ('idle' as const) }
     // A run start sends a snapshot so observers see its inputs and activity in one frame; so do the first
     // publication and a reset. Other updates carry only changes.
@@ -299,7 +300,10 @@ function messageChanges(
     } else if (!known) {
       events.push({ type: 'message.upsert', message })
       order.push(message.id)
-    } else if (known !== message && !isDeepStrictEqual(known, message)) events.push({ type: 'message.upsert', message })
+    } else if (known !== message && !isDeepStrictEqual(known, message)) {
+      const changedParts = message.parts.flatMap((part, index) => (part === known.parts[index] ? [] : [index]))
+      events.push({ type: 'message.upsert', message, changedParts })
+    }
   }
   return isDeepStrictEqual(order, [...after]) ? events : undefined
 }

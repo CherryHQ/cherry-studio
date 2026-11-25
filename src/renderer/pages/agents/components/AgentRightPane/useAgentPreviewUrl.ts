@@ -32,7 +32,7 @@ export function useAgentPreviewUrl(
   const index = cursor.searchKey === searchKey ? cursor.index : 0
   const candidate = candidates[index]
   const deferredRef = candidate?.type === 'deferred' ? candidate.ref : undefined
-  const { output, isLoading } = useToolResult(deferredRef)
+  const { output, isLoading } = useToolResult(deferredRef, 'preview')
   const resolvedUrl =
     candidate?.type === 'url'
       ? candidate.url

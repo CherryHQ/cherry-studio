@@ -273,7 +273,11 @@ export async function nativeFixture(harness: NativeHarness, executable: string) 
 
 export async function observeNative(handle: AcpThreadHandle) {
   const feed = new ThreadFeed({ type: 'snapshot', messages: [], inputs: [], activity: { state: 'unknown' } }, () => {})
-  const observation = confirmed(await handle.observe((event) => feed.publish(event)))
+  const observation = confirmed(
+    await handle.observe((event) => {
+      feed.publish(event)
+    })
+  )
   await observation.drain()
   return {
     observation,

@@ -1,5 +1,6 @@
 import { isEqual, omit } from 'es-toolkit'
 
+import type { DeferredToolResultRef } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -41,11 +42,12 @@ export type MessageProjectionView<S extends ProjectionState = ProjectionState> =
 export type MessageProjectionPatch =
   | { type: 'message'; message: CherryUIMessage }
   | { type: 'append'; messageId: string; part: number; text: string }
+  | { type: 'tool-result'; ref: DeferredToolResultRef }
 
 export type MessageProjectionUpdate<S extends ProjectionState = ProjectionState> = S & {
   revision: number
   patches: MessageProjectionPatch[]
-  order: string[]
+  order?: string[]
 }
 
 /** A missing revision or invalid patch requires a new baseline, never a partial application. */
@@ -56,9 +58,13 @@ export function applyMessageProjectionUpdate<S extends ProjectionState>(
   if (update.revision <= view.revision) return view
   if (update.kind !== view.kind || update.revision !== view.revision + 1) return undefined
   const messages = new Map(view.messages.map((message) => [message.id, message]))
+  let changed = false
   for (const patch of update.patches) {
+    if (patch.type === 'tool-result') continue
+    changed = true
     if (patch.type === 'message') {
       const before = messages.get(patch.message.id)
+      if (!before && !update.order) return undefined
       const parts = patch.message.parts.map((part, index) =>
         isEqual(before?.parts[index], part) ? before!.parts[index] : part
       )
@@ -72,8 +78,18 @@ export function applyMessageProjectionUpdate<S extends ProjectionState>(
       messages.set(message.id, { ...message, parts })
     }
   }
-  if (new Set(update.order).size !== update.order.length || update.order.some((id) => !messages.has(id)))
+  if (
+    update.order &&
+    (new Set(update.order).size !== update.order.length || update.order.some((id) => !messages.has(id)))
+  )
     return undefined
   const state = omit(update, ['patches', 'order'])
-  return { ...state, messages: update.order.map((id) => messages.get(id)!) } as MessageProjectionView<S>
+  return {
+    ...state,
+    messages: update.order
+      ? update.order.map((id) => messages.get(id)!)
+      : changed
+        ? view.messages.map((message) => messages.get(message.id)!)
+        : view.messages
+  } as MessageProjectionView<S>
 }

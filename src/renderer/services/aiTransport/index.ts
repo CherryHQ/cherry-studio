@@ -5,3 +5,4 @@ export { type ExecutionFinishEvent, executionStreamOverlayService } from './Exec
 export { getStreamBlockedMessage } from './getStreamBlockedMessage'
 export { messageProjectionService } from './MessageProjectionService'
 export { streamDispatchService } from './StreamDispatchService'
+export { type ToolResultSnapshot, toolResultService } from './ToolResultService'
