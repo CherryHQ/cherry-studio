@@ -265,6 +265,51 @@ describe('extra custom-endpoint local agent adapters', () => {
     expect(cleared).toContain('dark')
   })
 
+  it.each([
+    [
+      'cline',
+      'cline-providers',
+      {
+        lastUsedProvider: 'local',
+        providers: {
+          local: { settings: { model: 'original' } },
+          'openai-compatible': { settings: { apiKey: 'native', baseUrl: 'https://local.test', model: 'original' } }
+        }
+      }
+    ],
+    [
+      'snow',
+      'snow-config',
+      { snowcfg: { apiKey: 'native', baseUrlMode: 'custom', advancedModel: 'original', theme: 'dark' } }
+    ],
+    [
+      'glm-acp-agent',
+      'glm-credentials',
+      { z_ai_api_key: 'native', base_url: 'https://local.test', model_name: 'original' }
+    ]
+  ] as const)(
+    'restores the original %s connection after two managed model selections',
+    async (tool, target, original) => {
+      const adapter = getAdapter(tool)!
+      let files = makeInitialFiles(tool).map((file) =>
+        file.target === target ? { ...file, content: JSON.stringify(original) } : file
+      )
+      for (const model of ['first', 'second']) {
+        const draft = await adapter.buildDraft(
+          { cliTool: tool, modelId: `test::${model}`, files },
+          { ...context, model }
+        )
+        files = files.map((file) => draft.find((next) => next.target === file.target) ?? file)
+      }
+      vi.spyOn(ipcApi, 'request').mockResolvedValue({ files })
+      const cleared = (await adapter.buildClearFiles()).find((file) => file.target === target)
+      const restored = JSON.parse(cleared!.content!)
+      if (tool === 'cline') expect(restored).toMatchObject(original)
+      else expect(restored).toEqual(original)
+      expect(cleared!.content).not.toContain('gateway-key')
+    }
+  )
+
   it('writes CLI-native schemas for glm-acp-agent, snow, zcode, and cline', async () => {
     const glmDraft = await getAdapter('glm-acp-agent')!.buildDraft(
       { cliTool: 'glm-acp-agent', modelId: 'test::model', files: makeInitialFiles('glm-acp-agent') },

@@ -61,12 +61,10 @@ function canonicalPathForContainment(candidatePath: string): string | undefined 
 }
 
 export function isPathWithinWorkspace(targetPath: string, cwd: string): boolean {
-  const trimmedTarget = targetPath.trim()
-  const trimmedCwd = cwd.trim()
-  if (!trimmedTarget || !trimmedCwd) return false
+  if (!targetPath || !cwd) return false
 
-  const resolvedCwd = path.resolve(trimmedCwd)
-  const resolvedTarget = path.isAbsolute(trimmedTarget) ? trimmedTarget : path.resolve(resolvedCwd, trimmedTarget)
+  const resolvedCwd = path.resolve(cwd)
+  const resolvedTarget = path.resolve(resolvedCwd, targetPath)
   const canonicalCwd = canonicalPathForContainment(resolvedCwd)
   const canonicalTarget = canonicalPathForContainment(resolvedTarget)
   if (!canonicalCwd || !canonicalTarget) return false
@@ -115,13 +113,11 @@ export function extractAcpToolPaths(tool: AcpPermissionToolLike): string[] {
   return paths
 }
 
-/** Prefer `allow_once` for host-initiated auto-approval so external CLIs do not persist session/global rules. */
+/** Automatic approval must not persist a new permission in the external CLI. */
 export function selectAutoAllowPermissionOption<T extends { optionId: string; kind: string }>(
   options: readonly T[]
 ): T | undefined {
-  return (
-    options.find((option) => option.kind === 'allow_once') ?? options.find((option) => option.kind.startsWith('allow_'))
-  )
+  return options.find((option) => option.kind === 'allow_once')
 }
 
 export function evaluateAcpPermissionRequest({
@@ -137,7 +133,7 @@ export function evaluateAcpPermissionRequest({
 }): 'allow' | 'ask' {
   if (mode === 'bypassPermissions') return 'allow'
   // Native Auto uses the agent's own safety classifier and escalates only risky actions.
-  if (mode === 'auto') return 'ask'
+  if (mode === 'auto' || mode === 'plan') return 'ask'
 
   const kind = classifyAcpToolKind(tool)
   const paths = extractAcpToolPaths(tool)
@@ -147,7 +143,7 @@ export function evaluateAcpPermissionRequest({
   }
 
   if (kind === 'mutation' && grants.allowWrite) {
-    return paths.every((targetPath) => isPathWithinWorkspace(targetPath, cwd)) ? 'allow' : 'ask'
+    return paths.length > 0 && paths.every((targetPath) => isPathWithinWorkspace(targetPath, cwd)) ? 'allow' : 'ask'
   }
 
   if (kind === 'execute' && grants.allowExecute) {
@@ -190,19 +186,18 @@ export function evaluateAcpClientWrite({
   grants: AcpSessionPermissionGrants
 }): 'allow' | 'ask' {
   if (hasExactApprovedWrite || mode === 'bypassPermissions') return 'allow'
+  if (mode === 'plan') return 'ask'
   if ((mode === 'acceptEdits' || grants.allowWrite) && isPathWithinWorkspace(targetPath, cwd)) return 'allow'
   return 'ask'
 }
 
 export function evaluateAcpClientTerminal({
   mode,
-  grants,
-  turnApprovedExecute
+  grants
 }: {
   mode?: LocalCanonicalPermissionMode
   grants: AcpSessionPermissionGrants
-  turnApprovedExecute: boolean
 }): 'allow' | 'ask' {
-  if (mode === 'bypassPermissions' || grants.allowExecute || turnApprovedExecute) return 'allow'
+  if (mode === 'bypassPermissions' || (mode !== 'plan' && grants.allowExecute)) return 'allow'
   return 'ask'
 }

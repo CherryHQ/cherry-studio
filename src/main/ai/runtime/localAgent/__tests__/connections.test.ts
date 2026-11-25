@@ -69,11 +69,11 @@ describe('local protocol processes', () => {
       .map((line) => JSON.parse(line))
   }
 
-  function waitForApproval(events: AgentRuntimeEvent[]) {
+  function waitForApproval(events: AgentRuntimeEvent[], index = 0) {
     return vi.waitFor(() => {
-      const approval = events.find((event) => event.type === 'tool-approval-request')
+      const approval = events.filter((event) => event.type === 'tool-approval-request')[index]
       expect(approval).toBeDefined()
-      return approval!
+      return approval
     })
   }
 
@@ -2071,23 +2071,22 @@ describe('local protocol processes', () => {
     await closeAndDrain()
   })
 
-  it('suppresses duplicate ACP: Terminal in a turn approved for execute and honors allow_always across turns while still prompting outside workspace', async () => {
+  it('authorizes each delegated terminal separately and honors explicitly granted session permissions', async () => {
     const { connection, events, text, closeAndDrain } = create('acp', 'acp-policy-session-grants')
     await connection.start(cwd)
 
-    // Turn 1: allow_once on execute authorizes terminal/create in the same turn without a second prompt.
     const turn1 = connection.send(input)
     const execApproval = await waitForApproval(events)
     toolApprovalRegistry.dispatch(execApproval.request.approvalId, {
       approved: true,
       updatedInput: { localPermissionOption: 'once' }
     })
+    const terminal = await waitForApproval(events, 1)
+    expect(terminal.request.toolName).toBe('ACP: Terminal')
+    toolApprovalRegistry.dispatch(terminal.request.approvalId, { approved: true })
     await turn1
-    expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(1)
     expect(text()).toBe('turn1-done')
 
-    // Turn 2: turnApprovedExecute reset -> terminal/create prompts again (select allow_always),
-    // edit allows always -> in-workspace fs/write_text_file auto-approves, out-of-workspace still prompts.
     events.length = 0
     const turn2 = connection.send(input)
     const termApproval = await waitForApproval(events)
@@ -2187,7 +2186,7 @@ describe('local protocol processes', () => {
     expect(await readWire()).not.toContainEqual(expect.objectContaining({ method: 'turn/start' }))
   })
 
-  it('supports allow_session on Codex item/permissions/requestApproval and skips subsequent permission prompts', async () => {
+  it('asks before granting a different Codex permission after a session grant', async () => {
     const { connection, events, text, closeAndDrain } = create('codex', 'codex-item-permissions')
     await connection.start(cwd)
     await connection.send(input)
@@ -2202,11 +2201,13 @@ describe('local protocol processes', () => {
       updatedInput: { localPermissionOption: 'acceptForSession' }
     })
 
+    const network = await waitForApproval(events, 1)
+    expect(network.request.input.permissions).toEqual({ network: { allowedHosts: ['example.com'] } })
+    toolApprovalRegistry.dispatch(network.request.approvalId, { approved: false })
     await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({ type: 'turn-complete' })))
-    expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(1)
     expect(JSON.parse(text())).toEqual([
       { permissions: { fileSystem: { write: [cwd] } }, scope: 'session' },
-      { permissions: { network: { allowedHosts: ['example.com'] } }, scope: 'session' }
+      { permissions: {}, scope: 'turn' }
     ])
     await closeAndDrain()
   })

@@ -109,7 +109,7 @@ export function useManagedLocalAgentDetails(selectedCliTool: CodeCli.OPENCLAW | 
 
   const providerById = new Map(providers.map((p) => [p.id, p]))
   const modelOptions = supportedProviders
-    .filter((provider) => isApiGatewayProviderId(provider.id))
+    .filter((provider) => !isDeepSeekHarnessTool || isApiGatewayProviderId(provider.id))
     .flatMap((provider) =>
       [...modelById.values()].filter(makeModelFilter(provider.id)).map((model) => {
         const sourceProvider = providerById.get(model.providerId)

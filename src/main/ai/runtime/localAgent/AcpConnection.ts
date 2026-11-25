@@ -140,7 +140,6 @@ export class AcpConnection extends LocalConnection {
   private pendingUpdates: Array<{ sessionId: string; update: SessionUpdate }> = []
   private readonly approvedWrites: Array<{ path: string; content: string }> = []
   private readonly permissionGrants = createAcpSessionPermissionGrants()
-  private turnApprovedExecute = false
   private readonly toolInputs = new Map<string, LocalAcpTool>()
 
   private effectivePermissionMode() {
@@ -415,7 +414,6 @@ export class AcpConnection extends LocalConnection {
           ? { outcome: 'selected' as const, optionId: selected.optionId }
           : { outcome: 'cancelled' as const }
         if (selected?.kind.startsWith('allow_')) {
-          if (classifyAcpToolKind(tool) === 'execute') this.turnApprovedExecute = true
           if (!autoSelected && (grantedSession || selected.kind === 'allow_always')) {
             recordAcpAlwaysAllowGrant(this.permissionGrants, tool)
           }
@@ -508,8 +506,7 @@ export class AcpConnection extends LocalConnection {
         const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
         const decision = evaluateAcpClientTerminal({
           mode: this.effectivePermissionMode(),
-          grants: this.permissionGrants,
-          turnApprovedExecute: this.turnApprovedExecute
+          grants: this.permissionGrants
         })
         const needsPrompt = decision === 'ask'
         if (needsPrompt) {
@@ -534,7 +531,6 @@ export class AcpConnection extends LocalConnection {
             if (signal.aborted) throw RequestError.requestCancelled()
             throw new Error('Terminal execution denied')
           }
-          this.turnApprovedExecute = true
           if (answer.updatedInput?.localPermissionOption === 'allow_session') {
             this.permissionGrants.allowExecute = true
           }
@@ -1170,7 +1166,6 @@ export class AcpConnection extends LocalConnection {
   }
   protected override finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop') {
     this.approvedWrites.length = 0
-    this.turnApprovedExecute = false
     if (this.active) {
       for (const [id, tool] of this.toolInputs) {
         if (tool.status !== 'completed' && tool.status !== 'failed') {

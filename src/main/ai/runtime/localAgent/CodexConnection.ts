@@ -164,7 +164,6 @@ export class CodexConnection extends LocalConnection {
   private browserLease?: LocalAgentBrowserLease
   private modeOverride?: CodexModeValue
   private thoughtLevelOverride?: string
-  private sessionPermissionsGranted = false
   private readonly turnHistory: string[] = []
   private usageBaseline?: z.infer<typeof TokenUsageSchema>
   private lastTokenUsage?: z.infer<typeof TokenUsageSchema>
@@ -558,7 +557,7 @@ export class CodexConnection extends LocalConnection {
               : 'decline'
         this.write({ id: message.id, result: { decision } })
       } else if (message.method === 'item/permissions/requestApproval') {
-        if (this.isFullAccess() || this.sessionPermissionsGranted) {
+        if (this.isFullAccess()) {
           this.write({
             id: message.id,
             result: {
@@ -583,9 +582,6 @@ export class CodexConnection extends LocalConnection {
           localPermissionOptions
         })
         const allowForSession = answer.approved && answer.updatedInput?.localPermissionOption === 'acceptForSession'
-        if (allowForSession && !this.abort.signal.aborted) {
-          this.sessionPermissionsGranted = true
-        }
         this.write({
           id: message.id,
           result: {

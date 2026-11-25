@@ -66,7 +66,7 @@ describe('acpPermissionPolicy', () => {
         { optionId: 'always', kind: 'allow_always' },
         { optionId: 'deny', kind: 'reject_once' }
       ])?.optionId
-    ).toBe('always')
+    ).toBeUndefined()
 
     expect(selectAutoAllowPermissionOption([{ optionId: 'deny', kind: 'reject_once' }])).toBeUndefined()
   })
@@ -194,10 +194,8 @@ describe('acpPermissionPolicy', () => {
       })
     ).toBe('ask')
 
-    // Terminal execution respects turnApprovedExecute (single execute turn) and session grant
-    expect(evaluateAcpClientTerminal({ mode: 'default', grants, turnApprovedExecute: false })).toBe('ask')
-    expect(evaluateAcpClientTerminal({ mode: 'default', grants, turnApprovedExecute: true })).toBe('allow')
+    expect(evaluateAcpClientTerminal({ mode: 'default', grants })).toBe('ask')
     recordAcpAlwaysAllowGrant(grants, { kind: 'execute', title: 'Bash' })
-    expect(evaluateAcpClientTerminal({ mode: 'default', grants, turnApprovedExecute: false })).toBe('allow')
+    expect(evaluateAcpClientTerminal({ mode: 'default', grants })).toBe('allow')
   })
 })

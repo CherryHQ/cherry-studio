@@ -1,3 +1,4 @@
+import { omit, pick } from 'es-toolkit'
 import { t } from 'i18next'
 import { stringify as stringifyToml } from 'smol-toml'
 import { type Document, stringify as stringifyYaml } from 'yaml'
@@ -40,6 +41,15 @@ const ANTHROPIC_OR_OPENAI_ENDPOINTS: readonly EndpointType[] = [
 ]
 const ZCODE_ENDPOINTS: readonly EndpointType[] = ['anthropic-messages', 'openai-chat-completions']
 const OPENAI_CHAT_ENDPOINTS: readonly EndpointType[] = ['openai-chat-completions']
+const SNOW_CONNECTION_FIELDS = [
+  'baseUrl',
+  'baseUrlMode',
+  'apiKey',
+  'requestMethod',
+  'advancedModel',
+  'basicModel'
+] as const
+const GLM_CONNECTION_FIELDS = ['z_ai_api_key', 'base_url', 'model', 'model_name'] as const
 
 function resolveAnthropicOrOpenAiBaseUrl(provider: Provider, endpoint: EndpointType): string {
   return endpoint === 'anthropic-messages'
@@ -353,8 +363,15 @@ export const clineAdapter: CliConfigAdapter = {
       readAndParseDraftFile('cline-providers', parseJsonOrThrow, args.files, read)
     )
     const providers = omitKeysByPrefix(asRecord(registry.providers), CHERRY_PROVIDER_PREFIX)
+    const current = asRecord(providers['openai-compatible'])
+    const previous =
+      current.cherryManaged === true
+        ? current.cherryPrevious
+        : { provider: providers['openai-compatible'], lastUsedProvider: registry.lastUsedProvider }
     providers['openai-compatible'] = {
+      ...current,
       settings: {
+        ...asRecord(current.settings),
         provider: 'openai-compatible',
         apiKey,
         model,
@@ -362,7 +379,8 @@ export const clineAdapter: CliConfigAdapter = {
       },
       updatedAt: new Date().toISOString(),
       tokenSource: 'manual',
-      cherryManaged: true
+      cherryManaged: true,
+      cherryPrevious: previous
     }
     const drafts: CliConfigFileDraft[] = [
       makeDraftFile(
@@ -399,17 +417,20 @@ export const clineAdapter: CliConfigAdapter = {
     const registry = readValidatedJsonOrNull('cline-providers', read, 'Cline providers')
     if (registry) {
       const providers = omitKeysByPrefix(asRecord(registry.providers), CHERRY_PROVIDER_PREFIX)
-      if (asRecord(providers['openai-compatible']).cherryManaged === true) {
-        delete providers['openai-compatible']
+      const compat = asRecord(providers['openai-compatible'])
+      const previous = asRecord(compat.cherryPrevious)
+      if (compat.cherryManaged === true) {
+        if (Object.hasOwn(previous, 'provider')) providers['openai-compatible'] = previous.provider
+        else delete providers['openai-compatible']
       }
       const next = { ...registry }
       if (Object.keys(providers).length > 0) next.providers = providers
       else delete next.providers
       if (
-        next.lastUsedProvider === 'openai-compatible' ||
+        (compat.cherryManaged === true && next.lastUsedProvider === 'openai-compatible') ||
         (typeof next.lastUsedProvider === 'string' && next.lastUsedProvider.startsWith(CHERRY_PROVIDER_PREFIX))
       ) {
-        const fallback = Object.keys(providers)[0]
+        const fallback = compat.cherryPrevious ? previous.lastUsedProvider : Object.keys(providers)[0]
         if (fallback) next.lastUsedProvider = fallback
         else delete next.lastUsedProvider
       }
@@ -570,7 +591,11 @@ export const snowAdapter: CliConfigAdapter = {
       advancedModel: model,
       basicModel: model
     }
-    return [makeDraftFile('snow-config', renderJsonFile({ ...primary, snowcfg, cherryManaged: true }), read)]
+    const cherryPrevious =
+      primary.cherryManaged === true ? primary.cherryPrevious : pick(asRecord(primary.snowcfg), SNOW_CONNECTION_FIELDS)
+    return [
+      makeDraftFile('snow-config', renderJsonFile({ ...primary, snowcfg, cherryManaged: true, cherryPrevious }), read)
+    ]
   },
   assertCredentials(context) {
     if (!context.apiKey || !this.providerBaseUrls(context.provider).length) {
@@ -584,16 +609,14 @@ export const snowAdapter: CliConfigAdapter = {
     if (!config) return []
     const next = stripLegacyCherryJsonFields(config)
     if (next.cherryManaged === true) {
-      const snowcfg = { ...asRecord(next.snowcfg) }
-      delete snowcfg.apiKey
-      delete snowcfg.baseUrl
-      delete snowcfg.baseUrlMode
-      delete snowcfg.requestMethod
-      delete snowcfg.advancedModel
-      delete snowcfg.basicModel
+      const snowcfg = {
+        ...omit(asRecord(next.snowcfg), SNOW_CONNECTION_FIELDS),
+        ...pick(asRecord(next.cherryPrevious), SNOW_CONNECTION_FIELDS)
+      }
       if (Object.keys(snowcfg).length > 0) next.snowcfg = snowcfg
       else delete next.snowcfg
       delete next.cherryManaged
+      delete next.cherryPrevious
     }
     return [{ target: 'snow-config', content: renderJsonFile(next) }]
   },
@@ -637,7 +660,9 @@ export const glmAcpAgentAdapter: CliConfigAdapter = {
           base_url: baseUrl,
           model,
           model_name: modelLabel ?? model,
-          cherry_managed: true
+          cherry_managed: true,
+          cherry_previous:
+            primary.cherry_managed === true ? primary.cherry_previous : pick(primary, GLM_CONNECTION_FIELDS)
         }),
         read
       )
@@ -653,14 +678,14 @@ export const glmAcpAgentAdapter: CliConfigAdapter = {
     const read = await readConfigFiles(this.targets)
     const config = readValidatedJsonOrNull('glm-credentials', read, 'GLM ACP Agent')
     if (!config) return []
-    const next = stripLegacyCherryJsonFields(config)
-    if (next.cherry_managed === true) {
-      delete next.z_ai_api_key
-      delete next.base_url
-      delete next.model
-      delete next.model_name
-      delete next.cherry_managed
-    }
+    const cleaned = stripLegacyCherryJsonFields(config)
+    const next =
+      cleaned.cherry_managed === true
+        ? {
+            ...omit(cleaned, [...GLM_CONNECTION_FIELDS, 'cherry_managed', 'cherry_previous']),
+            ...pick(asRecord(cleaned.cherry_previous), GLM_CONNECTION_FIELDS)
+          }
+        : cleaned
     return [{ target: 'glm-credentials', content: renderJsonFile(next) }]
   },
   extractConnection(files) {
