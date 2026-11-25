@@ -196,7 +196,6 @@ describe('TraceStorageService', () => {
 
     // 1. In-flight span from createSpan must not be ended.
     const started = spanSnapshot({ spanId: 'live', traceId: 'trace-live', ended: false })
-    delete started.endTime
     service.createSpan(started)
     expect(service['store'].getSpan('live')).toMatchObject({ isEnd: false, startTime: 1000, endTime: null })
 

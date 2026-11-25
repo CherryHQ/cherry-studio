@@ -1,4 +1,3 @@
-import fs from 'fs'
 import type * as Fs from 'fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
@@ -8,12 +7,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { findCommandInShellEnv } from '../commandResolver'
 
+const fsFailures = vi.hoisted(() => new Map<'statSync' | 'accessSync', () => never>())
+
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof Fs>()
 
   return {
     ...actual,
-    default: { ...actual, statSync: vi.fn(actual.statSync), accessSync: vi.fn(actual.accessSync) }
+    default: {
+      ...actual,
+      statSync: (...args: Parameters<typeof Fs.statSync>) => {
+        fsFailures.get('statSync')?.()
+        return actual.statSync(...args)
+      },
+      accessSync: (...args: Parameters<typeof Fs.accessSync>) => {
+        fsFailures.get('accessSync')?.()
+        return actual.accessSync(...args)
+      }
+    }
   }
 })
 
@@ -66,7 +77,7 @@ describe('absolute executable lookup', () => {
       'preserves the original %s failure rather than claiming the executable is missing',
       async (_label, createFailure) => {
         const failure = createFailure()
-        vi.mocked(fs[operation]).mockImplementationOnce(() => {
+        fsFailures.set(operation, () => {
           throw failure
         })
         let rejected = false
@@ -77,7 +88,7 @@ describe('absolute executable lookup', () => {
           rejected = true
           expect(Object.is(error, failure)).toBe(true)
         } finally {
-          vi.mocked(fs[operation]).mockReset()
+          fsFailures.delete(operation)
         }
 
         expect(rejected).toBe(true)

@@ -152,7 +152,7 @@ describe('MessageMetaTool', () => {
     )
     await expandCard(/tool_search/)
 
-    expect(screen.getByText('lookup', { exact: true })).toBeVisible()
+    expect(await screen.findByText('lookup', { exact: true })).toBeVisible()
     expect(screen.queryByText('没有匹配的工具。')).not.toBeInTheDocument()
   })
 
@@ -164,7 +164,7 @@ describe('MessageMetaTool', () => {
     render(<MessageMetaTool toolName="tool_search" toolResponse={createMetaToolResponse({ response })} />)
     await expandCard(/tool_search/)
 
-    expect(screen.getByText(/catalog unavailable/)).toBeVisible()
+    expect(await screen.findByText(/catalog unavailable/)).toBeVisible()
     expect(screen.queryByText('没有匹配的工具。')).not.toBeInTheDocument()
   })
 

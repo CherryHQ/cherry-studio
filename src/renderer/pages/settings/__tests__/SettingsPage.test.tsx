@@ -12,7 +12,7 @@ import SettingsPage from '../SettingsPage'
 const { isMacTransparentWindowMock, navigateMock, locationMock } = vi.hoisted(() => ({
   isMacTransparentWindowMock: vi.fn(),
   navigateMock: vi.fn(),
-  locationMock: { pathname: '/settings/provider' }
+  locationMock: { pathname: '/settings/provider', state: {} }
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(undefined) } }))

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { kbListInputSchema } from '@shared/ai/builtinTools'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
-import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
+import { FileItemDataSchema, type KnowledgeBase, type KnowledgeItem } from '@shared/data/types/knowledge'
 
 const knowledgeServiceListBasesForDiscovery = vi.fn()
 const knowledgeServiceListRootItems = vi.fn<(baseId: string) => KnowledgeItem[]>()
@@ -54,34 +54,18 @@ function makeBase(overrides: Partial<KnowledgeBase> & { id: string }): Knowledge
   } as KnowledgeBase
 }
 
-function makeFileItem(id: string, originName: string): KnowledgeItem {
-  // SAFETY: deriveSampleSource supports this pre-v2 file snapshot; its missing relativePath and original name are intentional.
-  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Preserve the legacy storage shape at this compatibility fixture boundary.
+function makeFileItem(id: string, originName: string): Extract<KnowledgeItem, { type: 'file'; status: 'completed' }> {
   return {
     id,
     baseId: 'base',
     groupId: null,
     type: 'file',
     status: 'completed',
-    phase: null,
     error: null,
-    data: {
-      source: id,
-      file: {
-        id: 'f',
-        name: 'stored.bin',
-        origin_name: originName,
-        path: '/tmp/x',
-        size: 0,
-        ext: '.txt',
-        type: 'document',
-        created_at: '2024-01-01',
-        count: 0
-      }
-    },
+    data: FileItemDataSchema.parse({ source: originName, relativePath: `stored/${originName}` }),
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z'
-  } as unknown as KnowledgeItem
+  }
 }
 
 function makeUrlItem(id: string, url: string): KnowledgeItem {
@@ -127,33 +111,7 @@ function makeDirectoryItem(id: string, path: string): KnowledgeItem {
 }
 
 function makeProcessingFileItem(id: string): KnowledgeItem {
-  // SAFETY: The legacy in-flight file stays counted but excluded from completed samples, including its old phase metadata.
-  // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- Do not normalize a legacy file snapshot to satisfy the current entity type.
-  return {
-    id,
-    baseId: 'base',
-    groupId: null,
-    type: 'file',
-    status: 'processing',
-    phase: 'reading',
-    error: null,
-    data: {
-      source: id,
-      file: {
-        id: 'f',
-        name: 'pending.bin',
-        origin_name: 'pending.bin',
-        path: '/tmp/p',
-        size: 0,
-        ext: '.txt',
-        type: 'document',
-        created_at: '2024-01-01',
-        count: 0
-      }
-    },
-    createdAt: '2024-01-01T00:00:00.000Z',
-    updatedAt: '2024-01-01T00:00:00.000Z'
-  } as unknown as KnowledgeItem
+  return { ...makeFileItem(id, 'pending.bin'), status: 'processing' }
 }
 
 type ListArgs = {

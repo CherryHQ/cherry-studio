@@ -261,10 +261,10 @@ describe('RuntimeExecutor.generateImage', () => {
     })
 
     it('should handle model resolution through plugins', async () => {
-      const customImageModel = {
+      const customImageModel = createMockImageModel({
         modelId: 'custom-model',
         provider: 'openai'
-      } as ImageModelV3
+      })
 
       let modelAtResolution: unknown
       const modelResolutionPlugin: AiPlugin = {

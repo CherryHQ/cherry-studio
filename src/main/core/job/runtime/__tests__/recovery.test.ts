@@ -204,7 +204,7 @@ describe('startup recovery — per-job recovery', () => {
       const now = Date.now()
       const row = {
         type,
-        status: 'running',
+        status: 'running' as const,
         queue: type,
         scheduledAt: now - 1000,
         startedAt: now - 800,

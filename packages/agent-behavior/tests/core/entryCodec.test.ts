@@ -100,7 +100,8 @@ describe('entry codec', () => {
       record: { type: 'plan', value: { active: true, at: 7 } }
     })
     expect(decoded).toHaveProperty('record.value.extension', extension)
-    expect(decoded).toHaveProperty('record.value.__proto__', { source: 'native' })
+    if (decoded?.kind !== 'record' || decoded.record.type !== 'plan') throw new Error('Expected a decoded plan record')
+    expect(Object.getOwnPropertyDescriptor(decoded.record.value, '__proto__')?.value).toEqual({ source: 'native' })
   })
 
   it.each([null, undefined])('keeps a data-less status marker when native details are %s', (data: unknown) => {

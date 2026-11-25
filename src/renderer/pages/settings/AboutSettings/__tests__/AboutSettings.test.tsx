@@ -28,6 +28,7 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@tanstack/react-router', () => ({
   useLocation: () => ({ pathname: '/settings/about' }),
   useNavigate: () => mocks.navigate,
+  getRouteApi: () => ({ useSearch: () => mocks.search }),
   useSearch: () => mocks.search
 }))
 

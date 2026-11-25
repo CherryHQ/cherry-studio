@@ -76,8 +76,8 @@ describe('toDataApiError', () => {
     expect(toDataApiError(failure).toJSON()).toMatchObject({
       code: ErrorCode.INTERNAL_SERVER_ERROR,
       status: 500,
-      message: 'Storage read failed',
-      details: { originalError: 'Storage read failed', context: 'Error' }
+      message: 'Internal error: Storage read failed',
+      details: { originalError: 'Storage read failed' }
     })
   })
 

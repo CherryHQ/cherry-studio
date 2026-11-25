@@ -33,8 +33,8 @@ import {
   resolveEndpointTypes
 } from '../ProviderCustomHeaderDrawer'
 
-const PRIMARY = 'openai-chat-completions' as any
-const SECONDARY = 'anthropic-messages' as any
+const PRIMARY = 'openai-chat-completions' as const
+const SECONDARY = 'anthropic-messages' as const
 
 describe('mergeEndpointConfigs', () => {
   it('writes a non-primary baseUrl from a non-empty draft', () => {
@@ -89,7 +89,7 @@ describe('findInvalidSecondaryEndpointUrl', () => {
         {
           [PRIMARY]: { baseUrl: 'garbage://primary' },
           [SECONDARY]: { baseUrl: '   ' },
-          'gemini-generate-content': { baseUrl: 'https://ok.example.com' }
+          'google-generate-content': { baseUrl: 'https://ok.example.com' }
         },
         PRIMARY
       )
