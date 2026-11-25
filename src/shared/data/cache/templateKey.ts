@@ -90,15 +90,18 @@ function findMatchingUseCacheSchemaKey(key: string): keyof UseCacheSchema | unde
 
   // SAFETY: DefaultUseCache is declared as UseCacheSchema; its own enumerable keys are schema keys.
   const schemaKeys = Object.keys(DefaultUseCache) as Array<keyof UseCacheSchema>
+
   for (const schemaKey of schemaKeys) {
     if (isTemplateKey(schemaKey) && templateToRegex(schemaKey).test(key)) return schemaKey
   }
+
   return undefined
 }
 
 /** Resolve a schema default, rejecting unregistered keys and malformed template instances. */
 export function getUseCacheDefaultValue<K extends UseCacheKey>(key: K): InferUseCacheValue<K> {
   const schemaKey = findMatchingUseCacheSchemaKey(key)
+
   if (schemaKey === undefined) throw new Error(`Invalid memory cache key "${key}"`)
 
   // SAFETY: Exact/template matching selects a registered schema entry whose value type is included in InferUseCacheValue<K>.
@@ -108,6 +111,7 @@ export function getUseCacheDefaultValue<K extends UseCacheKey>(key: K): InferUse
 /** Resolve a schema default, rejecting unregistered keys and malformed template instances. */
 export function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> {
   const schemaKey = findMatchingSharedCacheSchemaKey(key)
+
   if (schemaKey === undefined) throw new Error(`Invalid shared cache key "${key}"`)
 
   // SAFETY: Exact/template matching selects a registered schema entry whose value type is included in InferSharedCacheValue<K>.

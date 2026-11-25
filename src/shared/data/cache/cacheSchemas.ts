@@ -1,5 +1,6 @@
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
 import type { ChannelStatus } from '@shared/data/types/channel'
 import type { FileProcessingTask } from '@shared/data/types/fileProcessing'
@@ -211,7 +212,7 @@ export type UseCacheSchema = {
   'message.ui.${messageId}': {
     foldSelected?: boolean
     foldSelectedBranchId?: string | null
-    multiModelMessageStyle?: string
+    multiModelMessageStyle?: MultiModelMessageStyle
     useful?: boolean
     disclosures?: Record<string, boolean>
   }
