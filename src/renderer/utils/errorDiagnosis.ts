@@ -13,7 +13,6 @@ import {
   isProxyErrorMessage,
   isQuotaErrorMessage
 } from '@shared/utils/errorCategory'
-import { redactCredentialSchemes, redactHomeDirectories, redactSecretTokens } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('errorDiagnosis')
 
@@ -344,12 +343,4 @@ export async function classifyErrorByAI(error: SerializedError, language: string
   const content = `Error: ${error.name}: ${error.message}`
 
   return generateDiagnosis(prompt, content)
-}
-
-/** Faithful translation of an error's own text into `language`; '' when diagnosis is not allowed or unavailable. */
-export async function translateErrorByAI(text: string, language: string): Promise<string> {
-  const prompt = `Translate this error message from an AI chat app into ${language}. Keep error codes, HTTP statuses, model and provider names, ports, URLs and other identifiers exactly as written. If it is long, keep only the sentences that state the cause and what to do. If it is already in ${language}, return it unchanged. Return only the translated text, with no quotes or markdown.`
-  // Key-name redaction would blank provider explanations such as `max_tokens: 100000 > 64000`.
-  const content = redactHomeDirectories(redactSecretTokens(redactCredentialSchemes(text)))
-  return generateDiagnosis(prompt, content).catch(() => '')
 }
