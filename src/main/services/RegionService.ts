@@ -13,6 +13,14 @@ const CACHE_TTL = 10 * 60 * 1000
 const REQUEST_TIMEOUT = 5000
 const DEFAULT_COUNTRY = 'CN'
 
+type CountrySource = { url: string; readCountry: (data: any) => string | undefined }
+
+// Tried in order: InternetData is asked only when ipinfo fails, before getCountry() falls back to DEFAULT_COUNTRY.
+const COUNTRY_SOURCES: CountrySource[] = [
+  { url: 'https://api.ipinfo.io/lite/me?token=5aa4105b40adbc', readCountry: (data) => data.country_code },
+  { url: 'https://api.internetdata.io/myip', readCountry: (data) => data.location?.country }
+]
+
 type CachedEgressRegion = {
   country: string
   /** ProxyService's applied-config key in effect when this country was detected. */
@@ -107,11 +115,25 @@ class RegionService {
   }
 
   private async fetchCountry(signal?: AbortSignal): Promise<string> {
+    let firstError: unknown
+    for (const source of COUNTRY_SOURCES) {
+      try {
+        return await this.fetchCountryFrom(source, signal)
+      } catch (error) {
+        signal?.throwIfAborted()
+        firstError ??= error
+        logger.warn(`IP country lookup via ${new URL(source.url).hostname} failed:`, error as Error)
+      }
+    }
+    throw firstError
+  }
+
+  private async fetchCountryFrom(source: CountrySource, signal?: AbortSignal): Promise<string> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
 
     try {
-      const response = await net.fetch('https://api.ipinfo.io/lite/me?token=5aa4105b40adbc', {
+      const response = await net.fetch(source.url, {
         signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
       })
 
@@ -120,9 +142,9 @@ class RegionService {
       }
 
       const data = await response.json()
-      const country = data.country_code
+      const country = source.readCountry(data)
       if (!country) {
-        throw new Error('IP info response missing country_code')
+        throw new Error('IP info response missing country code')
       }
 
       logger.info(`Detected user IP address country: ${country}`)
