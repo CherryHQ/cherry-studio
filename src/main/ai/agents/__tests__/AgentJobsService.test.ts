@@ -188,6 +188,8 @@ describe('AgentJobsService', () => {
           return { reconcileAgent: () => {} }
         case 'RuntimeActivityService':
           return { begin: () => ({ dispose: () => {} }) }
+        case 'NotificationService':
+          return { dropUnreadConversations: () => {} }
       }
       throw new Error(`Unexpected application.get('${name}')`)
     })

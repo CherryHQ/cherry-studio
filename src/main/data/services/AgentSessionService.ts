@@ -233,6 +233,7 @@ export class AgentSessionService {
 
   notifyPurged(sessionIds: readonly string[]): void {
     if (sessionIds.length === 0) return
+    application.get('NotificationService').dropUnreadConversations('agent', sessionIds)
     this.notifyReadModelChange(sessionIds, 'membership')
     notifyDataApiDataChange([
       { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership' },
@@ -1199,6 +1200,8 @@ export class AgentSessionService {
       publishTaskReadModelChanges(taskScheduleIds)
       getDataService('AgentSessionMessageService').publishDeliveryChanges(deliveryResults)
       this.notifyReadModelChange(trashedIds, 'membership')
+      // Trashed sessions can no longer be viewed, so they must not keep counting as unread.
+      application.get('NotificationService').dropUnreadConversations('agent', trashedIds)
       if (trashedIds.length > 0) pinService.notifyPurged()
       return { deletedIds: trashedIds, taskScheduleIds, deliveryResults }
     }
@@ -1217,6 +1220,7 @@ export class AgentSessionService {
     publishTaskReadModelChanges(result.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
+    application.get('NotificationService').dropUnreadConversations('agent', result.deletedIds)
     if (result.deletedIds.length > 0) pinService.notifyPurged()
     return result
   }
@@ -1298,6 +1302,7 @@ export class AgentSessionService {
     publishTaskReadModelChanges(result.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
+    application.get('NotificationService').dropUnreadConversations('agent', result.deletedIds)
     if (result.deletedIds.length > 0) pinService.notifyPurged()
     logger.info(options.permanent === true ? 'Permanently deleted sessions' : 'Moved sessions to Recycle Bin', {
       count: result.deletedIds.length
@@ -1541,6 +1546,7 @@ export class AgentSessionService {
     publishTaskReadModelChanges(result.taskScheduleIds)
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
+    application.get('NotificationService').dropUnreadConversations('agent', result.deletedIds)
     if (result.deletedIds.length > 0) pinService.notifyPurged()
     logger.info(
       options.permanent === true ? 'Permanently deleted agent sessions' : 'Moved agent sessions to Recycle Bin',
