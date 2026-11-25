@@ -26,9 +26,11 @@ describe('getModelDrawerMode', () => {
     [{ id: 'cherryin', presetProviderId: 'cherryin' }, 'endpoint-types'],
     [{ id: 'custom-cherryin', presetProviderId: 'cherryin' }, 'endpoint-types'],
     [{ id: 'aionly', presetProviderId: 'aionly' }, 'endpoint-types'],
-    [{ id: 'openai', presetProviderId: undefined }, 'legacy'],
+    [{ id: 'openai', presetProviderId: undefined }, 'purpose'],
     [{ id: 'openai', presetProviderId: 'openai' }, 'legacy'],
-    [{ id: 'custom-anthropic', presetProviderId: 'anthropic' }, 'legacy']
+    [{ id: 'custom-anthropic', presetProviderId: 'anthropic' }, 'legacy'],
+    [{ id: 'modelrush', presetProviderId: undefined }, 'purpose'],
+    [{ id: 'modelrush', presetProviderId: 'modelrush' }, 'legacy']
   ] as const)('returns %s for %o', (provider, expected) => {
     expect(getModelDrawerMode(provider)).toBe(expected)
   })
