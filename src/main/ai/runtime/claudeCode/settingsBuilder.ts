@@ -439,7 +439,8 @@ export async function buildClaudeCodeSessionSettings(
           slot.provider ?? null,
           window,
           slot.model ?? null,
-          slot.trusted
+          slot.trusted,
+          Number(env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE ?? options?.compactionPercent ?? AUTO_COMPACT_TRIGGER_PCT)
         ),
         declared: slot.contextWindow
       }

@@ -1205,7 +1205,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   // A cap that fits the derated room can still outrun the emitted non-floor budget
   // (137_984 trigger + 64_000 = 201_984 > 172_480), so the trigger-point request
   // fits the emitted window instead: 172_480 - 137_984 = 34_496.
-  it('shrinks an output cap that outruns the emitted non-floor window', async () => {
+  it.each([40, 80])('fits an output cap against the emitted %s percent trigger', async (compactionPercent) => {
     const untrustedProvider = {
       id: 'openrouter',
       presetProviderId: 'openrouter',
@@ -1218,12 +1218,12 @@ describe('buildClaudeCodeSessionSettings', () => {
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       untrustedProvider,
-      { contextWindow: 400_000, maxOutputTokens: 64_000 }
+      { contextWindow: 400_000, maxOutputTokens: 64_000, compactionPercent }
     )
 
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(172_480)
     expect(settings.env).toMatchObject({
-      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '34496',
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: compactionPercent === 40 ? '64000' : '34496',
       CLAUDE_CODE_MAX_CONTEXT_TOKENS: '400000'
     })
   })

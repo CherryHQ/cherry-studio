@@ -261,7 +261,8 @@ export function resolveClaudeOutputCap(
   provider: Provider | null | undefined,
   autoCompactWindow: number | undefined,
   model?: Model | null,
-  trustedOverride?: boolean
+  trustedOverride?: boolean,
+  triggerPercent: number = AUTO_COMPACT_TRIGGER_PCT
 ): number {
   if (
     typeof contextWindow !== 'number' ||
@@ -272,7 +273,7 @@ export function resolveClaudeOutputCap(
   ) {
     return requestedOutput
   }
-  const triggerRoom = Math.floor((autoCompactWindow * AUTO_COMPACT_TRIGGER_PCT) / 100)
+  const triggerRoom = Math.floor((autoCompactWindow * triggerPercent) / 100)
   // The emitted window is the tighter proxy for the unknown real limit in every
   // branch: a cap that fits only the derated room can still outrun the budget the
   // CLI compacts off (e.g. an 80K trigger plus a mid-size cap on a non-floor
