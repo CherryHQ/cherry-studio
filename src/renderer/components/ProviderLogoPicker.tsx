@@ -41,6 +41,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
   }, [])
 
   const filteredProviders = useMemo(() => {
+    // SAFETY: ProviderIconKey is the generated catalog's own key union; enumeration preserves its exact IDs and order.
     const providers = (Object.keys(PROVIDER_ICON_META_CATALOG) as ProviderIconKey[]).map((id) => ({
       id,
       icon: iconCatalog?.[id],
