@@ -235,7 +235,10 @@ export interface CherryUIMessageMetadata {
 }
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
-export type CherryUIMessage = UIMessage<CherryUIMessageMetadata, CherryDataPartTypes>
+export type CherryUIMessage = UIMessage<CherryUIMessageMetadata, CherryDataPartTypes> & {
+  /** Stable IDs parallel to parts, for live Agent projection packets. */
+  partIds?: readonly string[]
+}
 
 /** Cherry Studio's UIMessageChunk — inferred from CherryUIMessage. */
 export type CherryUIMessageChunk = InferUIMessageChunk<CherryUIMessage>

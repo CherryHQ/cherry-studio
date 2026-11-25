@@ -6,6 +6,7 @@ import { AutoReadService } from '../AutoReadService'
 import type { SpeechPlaybackStartInput } from '../SpeechPlaybackService'
 
 const snapshot = (text: string, enabled = true, attemptId = 1) => ({
+  type: 'snapshot' as const,
   enabled,
   attemptId,
   scope: 'topic',
@@ -56,6 +57,64 @@ function harness(streaming = true) {
 }
 
 describe('incremental automatic reading', () => {
+  it('reads text opened during an initially empty reply in display order and ignores duplicate delivery', async () => {
+    const h = harness()
+    const initial = snapshot('')
+    initial.message.parts = []
+    initial.message.partIds = []
+    h.service.update(initial)
+    const address = { messageId: 'answer', attemptId: 1, eligible: true, enabled: true }
+    const open = (partId: string, afterTextPartId?: string) =>
+      h.service.update({ ...address, partId, type: 'text-open', afterTextPartId })
+    const write = (partId: string, text: string) =>
+      h.service.update({ ...address, partId, type: 'text-append', text, offset: 0 })
+    open('first')
+    open('last', 'first')
+    open('middle', 'first')
+    open('middle', 'first')
+    write('first', 'First.')
+    write('middle', 'Middle.')
+    write('middle', 'Middle.')
+    write('last', 'Last. ')
+    await vi.waitFor(() => expect(h.spoken.join(' ')).toMatch(/First\.\s+Middle\.\s+Last\./))
+    expect(h.spoken.join(' ').match(/Middle\./g)).toHaveLength(1)
+    h.service.cancelScope('topic')
+    await h.drained.promise
+  })
+
+  it('reads addressed text suffixes in display order and keeps a reasoning block silent', async () => {
+    const h = harness()
+    const initial = snapshot('')
+    initial.message.partIds = ['hidden', 'first', 'last']
+    initial.message.parts = [
+      { type: 'reasoning', text: 'Private.' },
+      { type: 'text', text: 'First' },
+      { type: 'text', text: ' ' }
+    ]
+    h.service.update(initial)
+    const append = (partId: string, offset: number, text: string) =>
+      h.service.update({
+        type: 'text-append',
+        messageId: 'answer',
+        attemptId: 1,
+        partId,
+        offset,
+        text,
+        eligible: true,
+        enabled: true
+      })
+    append('hidden', 8, ' Secret.')
+    append('first', 5, ' sentence.')
+    append('last', 1, 'Second sentence. ')
+    append('last', 1, 'Second sentence. ')
+    await vi.waitFor(() => expect(h.spoken.join(' ')).toContain('Second sentence.'))
+    expect(h.spoken.join(' ')).toMatch(/First sentence\.\s+Second sentence\./)
+    expect(h.spoken.join(' ')).not.toContain('Secret')
+    expect(h.spoken.join(' ').match(/Second sentence/g)).toHaveLength(1)
+    h.service.cancelScope('topic')
+    await h.drained.promise
+  })
+
   it('starts before completion, excludes reasoning and never repeats the completion callback', async () => {
     const h = harness()
     h.service.update(snapshot('Hello. unfinished'))
