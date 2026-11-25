@@ -28,7 +28,7 @@ import type {
   MessageStatus,
   ModelSnapshot
 } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { FileUrlString } from '@shared/types/file'
 
@@ -418,6 +418,8 @@ export interface MessageListActions {
   openExternalUrl?: (url: string) => void | Promise<void>
   navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void | Promise<void>
   openUserProfile?: () => void | Promise<void>
+  /** Opens or closes the profile of the conversation's current Assistant or Agent. */
+  toggleAuthorProfile?: () => void
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>
   copyRichContent?: (
     content: { plainText: string; html: string; customFormats?: Record<string, string> },
@@ -455,6 +457,8 @@ export interface MessageListActions {
     target: MessageExportTarget
   ) => void | Promise<void>
   deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
+  /** Deletes every loaded, selectable message older than `messageId`, after confirmation. */
+  deleteMessagesBefore?: (messageId: string) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
   canEditMessage?: (message: MessageListItem) => boolean
@@ -481,6 +485,8 @@ export interface MessageListActions {
   deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>
   deleteMessageGroupWithConfirm?: (messageIds: readonly string[]) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
+  /** Regenerate a specific reply with an explicit model (per-reply retry identity). */
+  regenerateMessageUsingModel?: (messageId: string, modelId: UniqueModelId) => void | Promise<void>
 }
 
 export interface MessageListMeta {
