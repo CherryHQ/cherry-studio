@@ -1304,7 +1304,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       planModel: 'disabled::plan',
       configuration: { env_vars: { CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: 'workflow:task-api' } }
     })
-    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({ CLAUDE_CODE_SUBAGENT_MODEL: 'child:task-api' })
+    mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
     mocks.getProviderByProviderId.mockImplementation((id: string) => ({ id, isEnabled: id !== 'disabled' }))
     mocks.getModelByKey.mockImplementation((providerId: string, modelId: string) => ({
       id: `${providerId}::${modelId}`,
@@ -1316,17 +1316,20 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => [
       mocks.getModelByKey(providerId, providerId === 'primary' ? 'main' : 'task')
     ])
-    let capturedOptions: { gatewayModelSlots?: unknown[]; gatewayPinBudgetSlots?: unknown[] } | undefined
+    let capturedOptions:
+      | { gatewayModelSlots?: unknown[]; onGatewayPinsResolved?: (slots: unknown[]) => void }
+      | undefined
     mocks.buildSessionSettings.mockImplementation(async (_session, _provider, options) => {
       capturedOptions = options
-      return { env: {} }
+      mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({ CLAUDE_CODE_SUBAGENT_MODEL: 'child:task-api' })
+      const { resolveGatewayBudgetSlots } = await import('../gatewayBudget')
+      options.onGatewayPinsResolved(resolveGatewayBudgetSlots(['child:task-api', 'workflow:task-api']))
+      return {
+        env: { CLAUDE_CODE_SUBAGENT_MODEL: 'child:task-api', CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: 'workflow:task-api' }
+      }
     })
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
     expect(capturedOptions?.gatewayModelSlots).toEqual([expect.objectContaining({ providerId: 'primary' })])
-    expect(capturedOptions?.gatewayPinBudgetSlots).toEqual([
-      expect.objectContaining({ providerId: 'child', contextWindow: 64_000 }),
-      expect.objectContaining({ providerId: 'workflow', contextWindow: 64_000 })
-    ])
     const derived = await deriveConnectionConfig('session-1', undefined, 'default', false, [])
     expect(derived.ok && derived.config.rebuildSignature).toBe(request?.connectionConfig.rebuildSignature)
   })

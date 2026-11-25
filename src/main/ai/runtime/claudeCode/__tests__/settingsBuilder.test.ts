@@ -854,7 +854,8 @@ describe('buildClaudeCodeSessionSettings', () => {
   it.each(['CLAUDE_CODE_SUBAGENT_MODEL', 'CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL'])(
     'includes an admitted inherited %s pin in the shared gateway budget',
     async (pin) => {
-      mocks.getShellEnv.mockResolvedValue({ [pin]: 'relay:task-api' })
+      mocks.getShellEnv.mockResolvedValueOnce({ [pin]: 'relay:task-api' }).mockResolvedValue({})
+      const capturedPins = vi.fn()
       mocks.getByProviderId.mockReturnValue({ id: 'relay', isEnabled: true })
       mocks.listModels.mockReturnValue([
         {
@@ -869,8 +870,17 @@ describe('buildClaudeCodeSessionSettings', () => {
       const settings = await buildClaudeCodeSessionSettings(
         { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
         { id: 'anthropic', presetProviderId: 'anthropic', defaultChatEndpoint: 'anthropic-messages' } as never,
-        { contextWindow: 256_000, maxOutputTokens: 32_000, primaryTrusted: true, gatewayModelSlots: [] }
+        {
+          contextWindow: 256_000,
+          maxOutputTokens: 32_000,
+          primaryTrusted: true,
+          gatewayModelSlots: [],
+          onGatewayPinsResolved: capturedPins
+        }
       )
+      expect(capturedPins).toHaveBeenCalledWith([
+        expect.objectContaining({ providerId: 'relay', contextWindow: 64_000 })
+      ])
       expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
       expect(settings.env?.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE).toBe('32')
       expect(settings.env?.[pin]).toBe('relay:task-api')

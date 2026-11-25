@@ -167,8 +167,8 @@ export interface ClaudeCodeSessionOptions {
    * Covered by route facts for staleness (branch + per-slot providers/windows).
    */
   gatewayModelSlots?: ClaudeCodeGatewayModelSlot[]
-  /** Admitted explicit pins captured with the connection baseline. */
-  gatewayPinBudgetSlots?: ClaudeCodeGatewayModelSlot[]
+  /** Capture the pins budgeted from the exact environment this subprocess receives. */
+  onGatewayPinsResolved?: (slots: ClaudeCodeGatewayModelSlot[]) => void
   /**
    * Primary model id (`providerId::modelId`) for model-aware trust: the budget follows
    * the endpoint that actually serves the primary model rather than the provider-wide
@@ -374,11 +374,10 @@ export async function buildClaudeCodeSessionSettings(
   } catch {
     primaryModel = null
   }
-  const gatewaySlots = [
-    ...(options?.gatewayModelSlots ?? []),
-    ...(options?.gatewayPinBudgetSlots ??
-      (options?.gatewayModelSlots !== undefined ? resolveGatewayBudgetSlots(gatewayPinAddresses(env)) : []))
-  ]
+  const gatewayPins =
+    options?.gatewayModelSlots !== undefined ? resolveGatewayBudgetSlots(gatewayPinAddresses(env)) : []
+  options?.onGatewayPinsResolved?.(gatewayPins)
+  const gatewaySlots = [...(options?.gatewayModelSlots ?? []), ...gatewayPins]
   const hasGatewaySlots = options?.gatewayModelSlots !== undefined
   const budgetSlots: Array<{
     contextWindow?: number

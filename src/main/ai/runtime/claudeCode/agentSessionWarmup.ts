@@ -615,15 +615,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       : effectiveResume) ?? undefined
   const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const promptModelName = resolvePromptModelName(uniqueModelId, agent)
-  const gatewayPins =
-    route.branch === 'gateway'
-      ? resolveGatewayBudgetSlots(
-          gatewayPinAddresses({
-            ...(await getClaudeCodeLoginShellEnvironment(getProxyEnvironment(process.env))),
-            ...agent.configuration?.env_vars
-          })
-        )
-      : []
+  let gatewayPins: ClaudeCodeGatewayModelSlot[] = []
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -647,7 +639,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         primaryModelId: uniqueModelId,
         primaryTrusted: route.primaryTrusted,
         gatewayModelSlots: route.branch === 'gateway' ? route.budgetSlots : undefined,
-        gatewayPinBudgetSlots: gatewayPins
+        onGatewayPinsResolved: (slots) => {
+          gatewayPins = slots
+        }
       },
       agent
     ),
