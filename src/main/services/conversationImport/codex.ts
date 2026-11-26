@@ -4,8 +4,10 @@ import path from 'node:path'
 import * as z from 'zod'
 
 import { formatCodexHistoryText, formatCodexTool, isCodexContextText } from '@data/services/importedCodexText'
+import { loggerService } from '@logger'
 import type { MessageData } from '@shared/data/types/message'
 
+import { CODEX_HISTORY_DB, databaseCandidates, readDatabaseSession } from './codexDatabase'
 import { discoverJsonl, readJsonl } from './files'
 import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession, type SessionRef } from './types'
 
@@ -88,8 +90,18 @@ export const codexAdapter: HistorySourceAdapter = {
       }
       yield ref
     }
+    try {
+      yield* await databaseCandidates(root, new Set(sessions.keys()), signal)
+    } catch (error) {
+      signal.throwIfAborted()
+      if (!sessions.size || (error instanceof Error && error.message === 'scan_limit')) throw error
+      loggerService
+        .withContext('CodexHistoryImport')
+        .warn('Could not discover SQLite history alongside rollouts', { error })
+    }
   },
-  read: (ref, signal) => readCodexSession(ref, signal)
+  read: (ref, signal) =>
+    path.basename(ref.path) === CODEX_HISTORY_DB ? readDatabaseSession(ref, signal) : readCodexSession(ref, signal)
 }
 
 async function readCodexSession(
@@ -220,7 +232,7 @@ async function readCodexSession(
           continue
         }
         if (['input_text', 'output_text'].includes(block.type) && typeof block.text === 'string')
-          parts.push({ type: 'text', text: formatCodexHistoryText(block.text) })
+          parts.push({ type: 'text', text: formatCodexHistoryText(block.text, role) })
         else {
           const reference =
             typeof block.file_id === 'string'
