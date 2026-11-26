@@ -4,7 +4,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { logger, relativeToRoot, replaceWithFuzzyMatch, validatePath } from '../types'
+import { logger, replaceWithFuzzyMatch, validatePathWithRoot } from '../types'
 
 // Schema definition
 export const EditToolSchema = z.object({
@@ -28,7 +28,7 @@ export async function handleEditTool(
   const { file_path: filePath, old_string: oldString, new_string: newString, replace_all: replaceAll } = args
 
   // Validate path
-  const validPath = await validatePath(filePath, baseDir)
+  const { validPath, root } = await validatePathWithRoot(filePath, baseDir)
 
   // Check if file exists
   try {
@@ -49,7 +49,7 @@ export async function handleEditTool(
 
         logger.info('File created', { path: validPath })
 
-        const relativePath = relativeToRoot(validPath, baseDir)
+        const relativePath = path.relative(root, validPath)
         return {
           content: [
             {
@@ -73,7 +73,7 @@ export async function handleEditTool(
 
     logger.info('File overwritten', { path: validPath })
 
-    const relativePath = relativeToRoot(validPath, baseDir)
+    const relativePath = path.relative(root, validPath)
     return {
       content: [
         {
@@ -100,7 +100,7 @@ export async function handleEditTool(
   const newLines = newContent.split('\n').length
   const lineDiff = newLines - oldLines
 
-  const relativePath = relativeToRoot(validPath, baseDir)
+  const relativePath = path.relative(root, validPath)
   let diffSummary = `Edited: ${relativePath}`
   if (lineDiff > 0) {
     diffSummary += `\n+${lineDiff} lines`

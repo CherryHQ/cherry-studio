@@ -8,7 +8,15 @@ import { isTextByContent } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import type { GrepMatch } from '../types'
-import { logger, MAX_GREP_MATCHES, MAX_LINE_LENGTH, runRipgrep, validatePath } from '../types'
+import {
+  expandHome,
+  logger,
+  MAX_GREP_MATCHES,
+  MAX_LINE_LENGTH,
+  runRipgrep,
+  validatePath,
+  validatePathWithRoot
+} from '../types'
 
 // Schema definition
 export const GrepToolSchema = z.object({
@@ -76,8 +84,9 @@ export async function handleGrepTool(
     throw new Error('Pattern is required for grep')
   }
 
-  const searchPath = data.path || (Array.isArray(baseDir) ? baseDir[0] : baseDir)
-  const validPath = await validatePath(searchPath, baseDir)
+  const searchPath = data.path || '.'
+  const { validPath, root } = await validatePathWithRoot(searchPath, baseDir)
+  const discoveryRoots = path.isAbsolute(expandHome(searchPath)) ? baseDir : root
 
   const matches: GrepMatch[] = []
   let truncated = false
@@ -177,7 +186,7 @@ export async function handleGrepTool(
 
         // Validate path to prevent symlink escapes
         try {
-          await validatePath(fullPath, baseDir)
+          await validatePath(fullPath, discoveryRoots)
         } catch {
           logger.debug('Skipping path outside workspace root', { path: fullPath })
           continue
@@ -240,7 +249,7 @@ export async function handleGrepTool(
 
           // Re-validate each result to filter out symlink escapes
           try {
-            await validatePath(absoluteFilePath, baseDir)
+            await validatePath(absoluteFilePath, discoveryRoots)
           } catch {
             logger.debug('Skipping grep match outside workspace root', { file: absoluteFilePath })
             continue

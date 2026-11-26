@@ -2397,7 +2397,7 @@
   "marketplace.instructions": "指令",
   "marketplace.load_failed": "市场加载失败，请重试",
   "marketplace.manage_mcp": "管理 MCP",
-  "marketplace.mcp.configuration.filesystem": "添加后进入服务器设置，在“{{arguments}}”第一行填写一个允许访问的目录绝对路径。也可以在“{{environment}}”中将 WORKSPACE_ROOT 设为该路径，其优先级高于“{{arguments}}”。两者都留空时使用内置 MCP 工作目录。保存并启用服务器后，再在智能体的 MCP 设置中选用该服务器。不能访问指定目录之外的文件。",
+  "marketplace.mcp.configuration.filesystem": "添加服务器后，打开其设置，在{{arguments}}中每行填写一个目录的绝对路径。每个非空行都会授予对该目录的访问权限，包括后续行中已保存的路径。工具的相对路径使用第一个目录，绝对路径可访问任意已配置目录。也可以在{{environment}}中将 WORKSPACE_ROOT 设为单个路径，它会覆盖全部{{arguments}}。两者均未设置时使用内置 MCP 工作区。保存并启用服务器，然后在智能体的 MCP 设置中选择它。无法访问已配置目录之外的文件。",
   "marketplace.mcp.configuration.title": "配置说明",
   "marketplace.more_sources": "更多来源",
   "marketplace.no_results": "未找到资源",

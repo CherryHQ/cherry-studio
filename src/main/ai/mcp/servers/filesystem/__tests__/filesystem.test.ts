@@ -115,6 +115,123 @@ describe('filesystem MCP preset root', () => {
 })
 
 describe('filesystem MCP security', () => {
+  it('keeps relative reads and mutations in the first root while allowing absolute secondary-root access', async () => {
+    const firstRoot = await createTempDir('filesystem-relative-first-')
+    const secondRoot = await createTempDir('filesystem-relative-second-')
+    const target = path.join(secondRoot, 'note.txt')
+    await fs.writeFile(target, 'original')
+    const relativePath = `../${path.basename(secondRoot)}/./note.txt`
+    const roots = [firstRoot, secondRoot]
+
+    for (const name of ['ls', 'glob', 'grep']) {
+      await expect(
+        callFsTool(name, { path: `../${path.basename(secondRoot)}/.`, pattern: 'original' }, roots)
+      ).rejects.toThrow('outside the configured workspace root')
+    }
+    await expect(readTool({ file_path: relativePath }, roots)).rejects.toThrow('outside the configured workspace root')
+    await expect(writeTool({ file_path: relativePath, content: 'changed' }, roots)).rejects.toThrow(
+      'outside the configured workspace root'
+    )
+    await expect(fs.readFile(target, 'utf-8')).resolves.toBe('original')
+    await expect(
+      editTool({ file_path: relativePath, old_string: 'original', new_string: 'changed' }, roots)
+    ).rejects.toThrow('outside the configured workspace root')
+    await expect(fs.readFile(target, 'utf-8')).resolves.toBe('original')
+    await expect(deleteTool({ path: relativePath }, roots)).rejects.toThrow('outside the configured workspace root')
+    await expect(fs.readFile(target, 'utf-8')).resolves.toBe('original')
+
+    expect(toolText(await readTool({ file_path: target }, roots))).toContain('File: note.txt\n')
+    await writeTool({ file_path: target, content: 'authorized' }, roots)
+    await expect(fs.readFile(target, 'utf-8')).resolves.toBe('authorized')
+  })
+
+  it('rejects a relative symlink into another configured root', async () => {
+    const firstRoot = await createTempDir('filesystem-link-first-')
+    const secondRoot = await createTempDir('filesystem-link-second-')
+    const target = path.join(secondRoot, 'note.txt')
+    await fs.writeFile(target, 'original')
+    await fs.symlink(secondRoot, path.join(firstRoot, 'other-root'), process.platform === 'win32' ? 'junction' : 'dir')
+
+    await expect(readTool({ file_path: 'other-root/note.txt' }, [firstRoot, secondRoot])).rejects.toThrow(
+      'outside the configured workspace root'
+    )
+    await expect(
+      writeTool({ file_path: 'other-root/note.txt', content: 'changed' }, [firstRoot, secondRoot])
+    ).rejects.toThrow('outside the configured workspace root')
+    await expect(fs.readFile(target, 'utf-8')).resolves.toBe('original')
+  })
+
+  it('keeps relative and default glob discovery in the first root with real ripgrep', async ({ skip }) => {
+    const available = await types.runRipgrep(['--version'])
+    if (!available.ok || available.exitCode !== 0) skip()
+
+    const firstRoot = await createTempDir('filesystem-discovery-first-')
+    const secondRoot = await createTempDir('filesystem-discovery-second-')
+    await fs.writeFile(path.join(firstRoot, 'local.txt'), 'local')
+    await fs.writeFile(path.join(secondRoot, 'secondary.txt'), 'secondary')
+    await fs.symlink(secondRoot, path.join(firstRoot, 'other-root'), process.platform === 'win32' ? 'junction' : 'dir')
+    const roots = [firstRoot, secondRoot]
+
+    for (const search of [{ pattern: '*.txt' }, { pattern: '*.txt', path: '.' }]) {
+      const output = toolText(await globTool(search, roots))
+      expect(output).toContain('local.txt')
+      expect(output).not.toContain('secondary.txt')
+    }
+    expect(toolText(await globTool({ pattern: '*.txt', path: secondRoot }, roots))).toContain('secondary.txt')
+    expect(toolText(await globTool({ pattern: '*.txt', path: firstRoot }, roots))).toContain('secondary.txt')
+  })
+
+  it('filters cross-root discoveries from relative and default glob with a ripgrep output fixture', async () => {
+    const firstRoot = await createTempDir('filesystem-discovery-fixture-first-')
+    const secondRoot = await createTempDir('filesystem-discovery-fixture-second-')
+    const localFile = path.join(firstRoot, 'local.txt')
+    const linkedFile = path.join(firstRoot, 'other-root', 'secondary.txt')
+    await fs.writeFile(localFile, 'local')
+    await fs.writeFile(path.join(secondRoot, 'secondary.txt'), 'secondary')
+    await fs.symlink(secondRoot, path.join(firstRoot, 'other-root'), process.platform === 'win32' ? 'junction' : 'dir')
+    vi.spyOn(types, 'runRipgrep').mockResolvedValue({
+      ok: true,
+      stdout: [localFile, linkedFile].join('\n'),
+      stderr: '',
+      exitCode: 0
+    })
+
+    for (const search of [{ pattern: '*.txt' }, { pattern: '*.txt', path: '.' }]) {
+      const output = toolText(await globTool(search, [firstRoot, secondRoot]))
+      expect(output).toContain('local.txt')
+      expect(output).not.toContain('secondary.txt')
+    }
+  })
+
+  it('reports paths relative to a canonical symlink root for reads and mutations', async () => {
+    const firstRoot = await createTempDir('filesystem-report-first-')
+    const secondRoot = await createTempDir('filesystem-report-second-')
+    const linkParent = await createTempDir('filesystem-report-links-')
+    const linkedRoot = path.join(linkParent, 'workspace')
+    await fs.symlink(secondRoot, linkedRoot, process.platform === 'win32' ? 'junction' : 'dir')
+    const roots = [firstRoot, linkedRoot]
+    const target = path.join(linkedRoot, 'note.txt')
+
+    expect(toolText(await writeTool({ file_path: target, content: 'original' }, roots))).toContain(
+      'Created file: note.txt\n'
+    )
+    expect(toolText(await readTool({ file_path: target }, roots))).toContain('File: note.txt\n')
+    expect(toolText(await editTool({ file_path: target, old_string: 'original', new_string: 'edited' }, roots))).toBe(
+      'Edited: note.txt'
+    )
+    await expect(fs.readFile(path.join(secondRoot, 'note.txt'), 'utf-8')).resolves.toBe('edited')
+    expect(toolText(await editTool({ file_path: target, old_string: '', new_string: 'overwritten' }, roots))).toContain(
+      'Overwrote file: note.txt\n'
+    )
+    expect(toolText(await deleteTool({ path: target }, roots))).toBe('File deleted: note.txt')
+    await expect(fs.stat(path.join(secondRoot, 'note.txt'))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(toolText(await editTool({ file_path: target, old_string: '', new_string: 'created' }, roots))).toContain(
+      'Created new file: note.txt\n'
+    )
+    await expect(fs.readFile(path.join(secondRoot, 'note.txt'), 'utf-8')).resolves.toBe('created')
+    expect(toolText(await readTool({ file_path: 'note.txt' }, [linkedRoot, firstRoot]))).toContain('File: note.txt\n')
+  })
+
   it('prefers WORKSPACE_ROOT and falls back to args for filesystem root', () => {
     expect(resolveFilesystemBaseDir(['C:/args-root'], {})).toEqual(['C:/args-root'])
     expect(resolveFilesystemBaseDir(['C:/args-root', '', 'D:/args-root'], {})).toEqual(['C:/args-root', 'D:/args-root'])

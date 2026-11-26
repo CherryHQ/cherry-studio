@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决定
 
-所有非空配置路径参数都会成为授权根目录。设置 `WORKSPACE_ROOT` 时仍由它作为唯一覆盖根目录；没有配置根目录时，服务仍使用现有的 MCP 工作区回退值。路径校验会先规范化目标，再逐个检查目标是否位于某个根目录内，继续阻止路径穿越和符号链接逃逸。
+所有非空配置路径参数都会成为授权根目录。设置 `WORKSPACE_ROOT` 时仍由它作为唯一覆盖根目录；没有配置根目录时，服务仍使用现有的 MCP 工作区回退值。路径校验会规范化目标和根目录。相对路径和默认目录列表始终限制在规范化后的第一个根目录内，发现的子路径也不例外；绝对路径请求可匹配任意配置根目录。子路径校验保留原始请求的根目录范围，防止相对路径搜索通过符号链接发现其他配置根目录中的内容。文件操作输出使用校验时选中的规范化根目录，返回相对于该根目录的路径。
 
 ## 备选方案
 
@@ -19,9 +19,9 @@ Status: implemented
 
 ## 后果
 
-工具可以访问所有明确配置的根目录，且不受参数顺序影响。相对工具路径和默认目录列表仍使用第一个配置根目录；显式指定的路径可以指向任意配置根目录。
+工具可以访问所有明确配置的根目录，且不受参数顺序影响。相对工具路径和默认目录列表仍使用第一个配置根目录；绝对路径可以指向任意配置根目录。
 
 ## 验证
 
-- 回归 — `pnpm test:main src/main/ai/mcp/servers/filesystem/__tests__/filesystem.test.ts`：多个根目录可用于 `ls`、`read`、`write`、`glob` 和 `grep`；配置根目录不受顺序影响；路径穿越和符号链接逃逸仍被拒绝。
-- 回归 — `tsc --noEmit -p tsconfig.json`：TypeScript 编译通过。
+- 回归 — `pnpm exec vitest run --project main src/main/ai/mcp/servers/filesystem/__tests__/filesystem.test.ts src/main/ai/mcp/servers/filesystem/__tests__/grep.test.ts src/main/utils/file/__tests__/path.test.ts`：显式绝对路径请求可访问多个根目录；相对路径的跨根目录读取和修改会被拒绝，目标保持不变；符号链接根目录的输出仍为根目录相对路径。真实 ripgrep 和明确标注的输出 fixture 覆盖默认与相对路径 glob 搜索，结果不包含跨根目录符号链接中的文件。
+- 回归 — `pnpm typecheck:node`：Node 项目类型检查通过。

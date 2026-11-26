@@ -10,7 +10,7 @@ The built-in filesystem MCP accepted multiple configured paths but treated only 
 
 ## Decision
 
-All non-empty configured path arguments are allowed roots. `WORKSPACE_ROOT`, when set, remains the single overriding root; with no configured root, the server uses the existing MCP workspace fallback. Path validation canonicalizes the target and checks containment against each root, preserving traversal and symlink escape protection.
+All non-empty configured path arguments are allowed roots. `WORKSPACE_ROOT`, when set, remains the single overriding root; with no configured root, the server uses the existing MCP workspace fallback. Path validation canonicalizes the target and roots. Relative paths and default listings stay within the canonical first root, including discovered descendants; absolute requests may match any configured root. Descendant validation preserves the original request's root scope, preventing relative discovery through a symlink into another configured root. File operation output uses the canonical root selected during validation to report root-relative paths.
 
 ## Alternatives considered
 
@@ -19,9 +19,9 @@ All non-empty configured path arguments are allowed roots. `WORKSPACE_ROOT`, whe
 
 ## Consequences
 
-Tools can access any explicitly configured root regardless of argument order. Relative tool paths and default listings continue to use the first configured root; explicit paths may target any configured root.
+Tools can access any explicitly configured root regardless of argument order. Relative tool paths and default listings continue to use the first configured root; absolute paths may target any configured root.
 
 ## Verification
 
-- Regression — `pnpm test:main src/main/ai/mcp/servers/filesystem/__tests__/filesystem.test.ts`: multiple roots work for `ls`, `read`, `write`, `glob`, and `grep`; configured roots remain order-independent; traversal and symlink escapes are rejected.
-- Regression — `tsc --noEmit -p tsconfig.json`: TypeScript compilation passes.
+- Regression — `pnpm exec vitest run --project main src/main/ai/mcp/servers/filesystem/__tests__/filesystem.test.ts src/main/ai/mcp/servers/filesystem/__tests__/grep.test.ts src/main/utils/file/__tests__/path.test.ts`: multiple roots work for explicit absolute requests; relative cross-root reads and mutations are denied without changing the target; symlink-root output stays root-relative. Real ripgrep and a labeled output fixture cover default and relative glob discovery without cross-root symlink results.
+- Regression — `pnpm typecheck:node`: Node project typechecking passes.

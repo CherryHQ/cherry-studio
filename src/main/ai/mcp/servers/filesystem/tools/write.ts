@@ -4,7 +4,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { logger, relativeToRoot, validatePath } from '../types'
+import { logger, validatePathWithRoot } from '../types'
 
 // Schema definition
 export const WriteToolSchema = z.object({
@@ -24,7 +24,7 @@ export async function handleWriteTool(
   baseDir: string | string[]
 ): Promise<CallToolResult> {
   const filePath = args.file_path
-  const validPath = await validatePath(filePath, baseDir)
+  const { validPath, root } = await validatePathWithRoot(filePath, baseDir)
 
   // Create parent directory if it doesn't exist
   const parentDir = path.dirname(validPath)
@@ -60,7 +60,7 @@ export async function handleWriteTool(
   })
 
   // Format output
-  const relativePath = relativeToRoot(validPath, baseDir)
+  const relativePath = path.relative(root, validPath)
   const action = isOverwrite ? 'Updated' : 'Created'
   const lines = args.content.split('\n').length
 

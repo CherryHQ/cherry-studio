@@ -4,7 +4,7 @@ import path from 'path'
 import type { CallToolResult } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
-import { logger, MAX_FILES_LIMIT, validatePath } from '../types'
+import { expandHome, logger, MAX_FILES_LIMIT, validatePath, validatePathWithRoot } from '../types'
 
 // Schema definition
 export const LsToolSchema = z.object({
@@ -23,8 +23,9 @@ export async function handleLsTool(
   args: z.infer<typeof LsToolSchema>,
   baseDir: string | string[]
 ): Promise<CallToolResult> {
-  const targetPath = args.path || (Array.isArray(baseDir) ? baseDir[0] : baseDir)
-  const validPath = await validatePath(targetPath, baseDir)
+  const targetPath = args.path || '.'
+  const { validPath, root } = await validatePathWithRoot(targetPath, baseDir)
+  const discoveryRoots = path.isAbsolute(expandHome(targetPath)) ? baseDir : root
 
   // Verify the target exists and is a directory before walking it: the recursive
   // walk below treats an unreadable directory as empty, so without this check a
@@ -94,7 +95,7 @@ export async function handleLsTool(
           const childPath = path.join(dirPath, entry.name)
           // Validate symlinked directories to prevent escaping the workspace root
           try {
-            await validatePath(childPath, baseDir)
+            await validatePath(childPath, discoveryRoots)
             node.children = await buildTree(childPath, depth + 1)
           } catch {
             logger.debug('Skipping directory outside workspace root', { path: childPath })
