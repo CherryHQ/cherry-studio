@@ -250,7 +250,8 @@ separate recovery flows. An incompatible managed CLI can be kept alongside a
 system install.
 
 Terminal launch uses the native interactive command with a selected directory and
-terminal application. Choices and removable recent directories are stored per tool.
+terminal application. Agents share the last launch directory and removable recent
+directories. Each tool remembers its own terminal application.
 A missing directory blocks launch. macOS starts terminals through an owner-only
 script that removes itself before running the CLI. Failure, shutdown and expiry
 clean up unused scripts.

@@ -52,6 +52,7 @@ function mockFolderSelection(folder: string | null) {
 
 beforeEach(() => {
   mockPreferenceState.set('feature.code_cli.configs', {})
+  mockPreferenceState.set('feature.code_cli.workspace', {})
   mockFolderSelection('/projects/new folder')
 })
 
@@ -79,15 +80,18 @@ it('reuses Code Mate settings and preserves provider/model configuration when ch
     'claude-code': {
       providers: { custom: providerConfig },
       current: 'custom',
-      directory: '/projects/new folder',
-      terminal: 'iTerm2',
-      directoryHistory: ['/projects/new folder', '/projects/old']
+      directory: '/projects/old',
+      terminal: 'iTerm2'
     },
     codex: { providers: {}, current: null, directory: '/unrelated' }
   })
+  expect(mockPreferenceState.get('feature.code_cli.workspace')).toEqual({
+    directory: '/projects/new folder',
+    directoryHistory: ['/projects/new folder', '/projects/old', '/unrelated']
+  })
 })
 
-it('remembers the directory for an ACP-only tool and uses the displayed terminal fallback', async () => {
+it('prefills another Agent with the shared directory while preserving its terminal app', async () => {
   const user = userEvent.setup()
   const launch = vi.fn().mockResolvedValue(true)
   const view = render(<Harness presetId="kilo" launch={launch} />)
@@ -97,8 +101,12 @@ it('remembers the directory for an ACP-only tool and uses the displayed terminal
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(launch).toHaveBeenCalledWith({ directory: '/projects/new folder', terminal: 'Terminal' })
   view.unmount()
-  render(<Harness presetId="kilo" launch={launch} />)
+  mockPreferenceState.set('feature.code_cli.configs', {
+    'claude-code': { providers: {}, current: null, terminal: 'iTerm2' }
+  })
+  render(<Harness presetId="claude" launch={launch} />)
   expect(screen.getByDisplayValue('/projects/new folder')).toBeVisible()
+  expect(await screen.findByRole('combobox', { name: '终端' })).toHaveTextContent('iTerm2')
 })
 
 it('does not start a process or save settings when folder selection and launch are cancelled', async () => {
@@ -112,6 +120,7 @@ it('does not start a process or save settings when folder selection and launch a
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(launch).not.toHaveBeenCalled()
   expect(mockPreferenceState.get('feature.code_cli.configs')).toEqual({})
+  expect(mockPreferenceState.get('feature.code_cli.workspace')).toEqual({})
 })
 
 it('selects a recent directory and moves it to the front without duplicating it', async () => {
@@ -132,15 +141,15 @@ it('selects a recent directory and moves it to the front without duplicating it'
   await user.click(screen.getByRole('button', { name: '启动' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(launch).toHaveBeenCalledWith({ directory: '/projects/中文 folder', terminal: 'Terminal' })
-  expect(mockPreferenceState.get('feature.code_cli.configs')?.kilo?.directoryHistory).toEqual([
+  expect(mockPreferenceState.get('feature.code_cli.workspace')?.directoryHistory).toEqual([
     '/projects/中文 folder',
     '/projects/current',
     '/projects/older'
   ])
 })
 
-it('removes legacy directory history persistently without changing the current directory or another tool', async () => {
-  const unrelated = { providers: {}, current: null, directory: '/other', directoryHistory: ['/other'] }
+it('keeps a removed legacy folder out of other Agents’ recent directories', async () => {
+  const unrelated = { providers: {}, current: null, directory: '/projects/old' }
   mockPreferenceState.set('feature.code_cli.configs', {
     kilo: { providers: {}, current: null, directory: '/projects/old' },
     codex: unrelated
@@ -150,14 +159,15 @@ it('removes legacy directory history persistently without changing the current d
   const view = render(<Harness presetId="kilo" launch={launch} />)
   await user.click(screen.getByRole('button', { name: '最近使用的目录' }))
   await user.click(screen.getByRole('button', { name: '从历史记录中移除 /projects/old' }))
-  await waitFor(() => expect(mockPreferenceState.get('feature.code_cli.configs')?.kilo?.directoryHistory).toEqual([]))
+  await waitFor(() => expect(mockPreferenceState.get('feature.code_cli.workspace')?.directoryHistory).toEqual([]))
   expect(screen.getByDisplayValue('/projects/old')).toBeVisible()
   await user.click(screen.getByRole('button', { name: '取消' }))
   view.unmount()
-  render(<Harness presetId="kilo" launch={launch} />)
+  render(<Harness presetId="codex" launch={launch} />)
+  expect(screen.getByDisplayValue('/projects/old')).toBeVisible()
   expect(screen.queryByRole('button', { name: '最近使用的目录' })).not.toBeInTheDocument()
   expect(mockPreferenceState.get('feature.code_cli.configs')).toEqual({
-    kilo: { providers: {}, current: null, directory: '/projects/old', directoryHistory: [] },
+    kilo: { providers: {}, current: null, directory: '/projects/old' },
     codex: unrelated
   })
   expect(launch).not.toHaveBeenCalled()

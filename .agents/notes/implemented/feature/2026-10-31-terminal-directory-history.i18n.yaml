@@ -1,5 +1,5 @@
-# Bilingual-pair consistency record (docs/i18n/README.md).
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-10-31-terminal-directory-history.md
-2026-10-31-terminal-directory-history.md: 432f568cf08e8c6c8a5ae8d6e672d2007ad2a66f
-2026-10-31-terminal-directory-history.zh.md: 48cb25893f0b23b42b8ead25a5255bb881397ce2
+2026-10-31-terminal-directory-history.md: ab3cc6ffa94a739aa9cec397c6b0e433588c7f67
+2026-10-31-terminal-directory-history.zh.md: ef4a5e2a15406250e3c86b21cce9386ea0e88a1e

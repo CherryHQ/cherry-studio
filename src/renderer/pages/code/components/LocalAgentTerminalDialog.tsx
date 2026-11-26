@@ -8,7 +8,29 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { codeCliForLocalAgent } from '@renderer/utils/agent/codeCliForLocalAgent'
 import type { LocalAgentPreset } from '@shared/ai/localAgent'
+import type { CodeCliConfigs, CodeCliWorkspace } from '@shared/data/preference/preferenceTypes'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+
+const workspacePreferences = {
+  configs: 'feature.code_cli.configs',
+  workspace: 'feature.code_cli.workspace'
+} as const
+
+function resolveWorkspace(configs: CodeCliConfigs, key: string, workspace: CodeCliWorkspace) {
+  if (workspace.directoryHistory !== undefined) {
+    return { directory: workspace.directory, directoryHistory: workspace.directoryHistory }
+  }
+
+  const legacy = [configs[key], ...Object.values(configs)].filter((config) => config !== undefined)
+  return {
+    directory: legacy.find((config) => config.directory)?.directory,
+    directoryHistory: [
+      ...new Set(
+        legacy.flatMap(({ directory, directoryHistory }) => directoryHistory ?? (directory ? [directory] : []))
+      )
+    ]
+  }
+}
 
 export function LocalAgentTerminalDialog({
   open,
@@ -23,16 +45,17 @@ export function LocalAgentTerminalDialog({
   onClose: () => void
   onLaunch: (options: { directory: string; terminal?: string }) => Promise<boolean>
 }) {
-  const [configs, setConfigs] = usePreference('feature.code_cli.configs')
+  const [configs] = usePreference('feature.code_cli.configs')
+  const [workspace, setWorkspace] = usePreference('feature.code_cli.workspace')
   const key = codeCliForLocalAgent(preset.id) ?? preset.id
   const saved = configs[key]
   const terminals = useAvailableTerminals(open)
   const [chosenDirectory, setDirectory] = useState<string>()
   const [chosenTerminal, setTerminal] = useState<string>()
   const [launching, setLaunching] = useState(false)
-  const directory = chosenDirectory ?? saved?.directory
+  const shared = resolveWorkspace(configs, key, workspace)
+  const directory = chosenDirectory ?? shared.directory
   const terminal = chosenTerminal ?? saved?.terminal ?? terminals[0]?.id
-  const directoryHistory = saved?.directoryHistory ?? (saved?.directory ? [saved.directory] : [])
   const close = () => {
     setDirectory(undefined)
     setTerminal(undefined)
@@ -52,18 +75,16 @@ export function LocalAgentTerminalDialog({
     if (!directory || launching) return
     setLaunching(true)
     try {
-      const latest = await preferenceService.get('feature.code_cli.configs')
-      const previous = latest[key]
-      const history = previous?.directoryHistory ?? (previous?.directory ? [previous.directory] : [])
-      await setConfigs({
-        ...latest,
-        [key]: {
-          providers: {},
-          current: null,
-          ...previous,
+      const latest = await preferenceService.getMultiple(workspacePreferences)
+      const { directoryHistory } = resolveWorkspace(latest.configs, key, latest.workspace)
+      await preferenceService.setMultiple({
+        'feature.code_cli.configs': {
+          ...latest.configs,
+          [key]: { providers: {}, current: null, ...latest.configs[key], terminal }
+        },
+        'feature.code_cli.workspace': {
           directory,
-          terminal,
-          directoryHistory: [directory, ...history.filter((path) => path !== directory)]
+          directoryHistory: [directory, ...directoryHistory.filter((path) => path !== directory)]
         }
       })
       if (await onLaunch({ directory, terminal })) close()
@@ -75,17 +96,11 @@ export function LocalAgentTerminalDialog({
   }
   const removeDirectory = async (path: string) => {
     try {
-      const latest = await preferenceService.get('feature.code_cli.configs')
-      const previous = latest[key]
-      const history = previous?.directoryHistory ?? (previous?.directory ? [previous.directory] : [])
-      await setConfigs({
-        ...latest,
-        [key]: {
-          providers: {},
-          current: null,
-          ...previous,
-          directoryHistory: history.filter((entry) => entry !== path)
-        }
+      const latest = await preferenceService.getMultiple(workspacePreferences)
+      const shared = resolveWorkspace(latest.configs, key, latest.workspace)
+      await setWorkspace({
+        ...shared,
+        directoryHistory: shared.directoryHistory.filter((entry) => entry !== path)
       })
     } catch (error) {
       toast.error(String(error))
@@ -96,7 +111,7 @@ export function LocalAgentTerminalDialog({
       open={open}
       toolName={name}
       directory={directory}
-      directoryHistory={directoryHistory}
+      directoryHistory={shared.directoryHistory}
       onSelectDirectory={setDirectory}
       onRemoveDirectory={(path) => void removeDirectory(path)}
       terminals={terminals}
