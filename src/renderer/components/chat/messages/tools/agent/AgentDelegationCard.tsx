@@ -80,7 +80,9 @@ export function AgentDelegationCard({ output }: { output: unknown }) {
   }
   const route = CONVERSATION_ROUTES.agent
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-background p-3" data-testid="agent-delegation-card">
+    <div
+      className="min-w-0 space-y-3 overflow-hidden rounded-lg border border-border bg-background p-3"
+      data-testid="agent-delegation-card">
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium text-sm">{data?.agentName ?? t('message.tools.sessionCreate.untitled')}</span>
         <Badge variant="outline">{label}</Badge>

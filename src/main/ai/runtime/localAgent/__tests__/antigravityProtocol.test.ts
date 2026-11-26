@@ -161,4 +161,24 @@ describe('antigravityProtocol', () => {
       })
     ).toBeUndefined()
   })
+
+  it('assigns structured i18n labels for Yes allow once, Reject once, Cancel, and Never allow ACP options', () => {
+    const mapped = mapAcpPermissionOptions(
+      [
+        { optionId: 'yes-once', name: 'Yes, allow once', kind: 'allow_once' },
+        { optionId: 'rej-once', name: 'Reject once', kind: 'reject_once' },
+        { optionId: 'rej-cancel', name: 'Cancel', kind: 'reject_once' },
+        { optionId: 'rej-always', name: 'No, never allow', kind: 'reject_always' }
+      ],
+      { isAntigravity: false, hostAllowSessionOptionId: '__host_session__' }
+    )
+
+    expect(mapped.map((option) => ({ optionId: option.optionId, label: option.label }))).toEqual([
+      { optionId: 'yes-once', label: 'allow_once' },
+      { optionId: '__host_session__', label: 'allow_session' },
+      { optionId: 'rej-once', label: 'deny' },
+      { optionId: 'rej-cancel', label: 'cancel' },
+      { optionId: 'rej-always', label: 'deny_always' }
+    ])
+  })
 })

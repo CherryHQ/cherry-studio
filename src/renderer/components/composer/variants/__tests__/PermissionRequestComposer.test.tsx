@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
@@ -14,41 +14,49 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({
-    t: (key: string) =>
-      ({
-        'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
-        'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
-        'agent.toolPermission.reasonPlaceholder': 'Tell the Agent what to do instead',
-        'agent.toolPermission.risk.title': 'What this does',
-        'agent.toolPermission.risk.destructive': 'Deletes or overwrites data.',
-        'agent.toolPermission.risk.irreversible': 'Cannot be undone automatically.',
-        'agent.toolPermission.risk.network': 'Sends data over the network or fetches remote content.',
-        'agent.toolPermission.confirmation': 'Allow tool call?',
-        'agent.toolPermission.inputPreview': 'Tool input preview',
-        'agent.toolPermission.button.allow': 'Allow',
-        'local_agents.allow_always': '始终允许',
-        'local_agents.allow_once': '允许一次',
-        'local_agents.allow_session': '本次会话内允许',
-        'agent.toolPermission.button.allowOnce': 'Allow this invocation',
-        'agent.toolPermission.workingDirectory': 'Working directory',
-        'agent.toolPermission.policyEvidence': 'Matching command details',
-        'agent.toolPermission.button.deny': 'Deny',
-        'agent.toolPermission.button.run': 'Run',
-        'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
-        'message.processing': 'Processing',
-        'message.tools.activity.checking': 'Checking',
-        'message.tools.activity.projectChecks': 'project checks',
-        'message.tools.activity.relatedContent': 'related content',
-        'message.tools.activity.searching': 'Searching',
-        'message.tools.activity.usingExtension': 'Bringing in an extension',
-        'message.tools.labels.mcpServerTool': 'MCP Server Tool',
-        'message.tools.labels.tool': 'Tool',
-        'message.tools.sections.input': 'Input',
-        'agent.toolPermission.title': 'Approval required',
-        'agent.toolPermission.source': 'From',
-        'agent.toolPermission.subagent': 'Subagent',
-        'agent.toolPermission.background': 'Background task'
-      })[key] ?? key
+    t: (key: string, params?: Record<string, unknown>) => {
+      const template =
+        {
+          'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
+          'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
+          'agent.toolPermission.reasonPlaceholder': 'Tell the Agent what to do instead',
+          'agent.toolPermission.risk.title': 'What this does',
+          'agent.toolPermission.risk.destructive': 'Deletes or overwrites data.',
+          'agent.toolPermission.risk.irreversible': 'Cannot be undone automatically.',
+          'agent.toolPermission.risk.network': 'Sends data over the network or fetches remote content.',
+          'agent.toolPermission.confirmation': 'Allow tool call?',
+          'agent.toolPermission.inputPreview': 'Tool input preview',
+          'agent.toolPermission.button.allow': 'Allow',
+          'local_agents.allow_always': '始终允许',
+          'local_agents.allow_always_host': '始终允许主机：{{host}}',
+          'local_agents.allow_always_target': '始终允许：{{target}}',
+          'local_agents.allow_once': '允许一次',
+          'local_agents.allow_session': '本次会话内允许',
+          'local_agents.deny_always': '始终拒绝',
+          'local_agents.deny_always_host': '始终拒绝主机：{{host}}',
+          'agent.toolPermission.button.allowOnce': 'Allow this invocation',
+          'agent.toolPermission.workingDirectory': 'Working directory',
+          'agent.toolPermission.policyEvidence': 'Matching command details',
+          'agent.toolPermission.button.deny': 'Deny',
+          'agent.toolPermission.button.run': 'Run',
+          'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
+          'message.processing': 'Processing',
+          'message.tools.activity.checking': 'Checking',
+          'message.tools.activity.projectChecks': 'project checks',
+          'message.tools.activity.relatedContent': 'related content',
+          'message.tools.activity.searching': 'Searching',
+          'message.tools.activity.usingExtension': 'Bringing in an extension',
+          'message.tools.labels.mcpServerTool': 'MCP Server Tool',
+          'message.tools.labels.tool': 'Tool',
+          'message.tools.sections.input': 'Input',
+          'agent.toolPermission.title': 'Approval required',
+          'agent.toolPermission.source': 'From',
+          'agent.toolPermission.subagent': 'Subagent',
+          'agent.toolPermission.background': 'Background task',
+          'common.cancel': 'Cancel'
+        }[key] ?? key
+      return template.replace(/\{\{(\w+)\}\}/g, (_, token: string) => String(params?.[token] ?? ''))
+    }
   })
 }))
 
@@ -829,5 +837,306 @@ describe('PermissionRequestComposer', () => {
         updatedInput: { localPermissionOption: 'cancel-1' }
       })
     )
+  })
+
+  it('orders compact local permission options from deny to allow (matching built-in agents)', () => {
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'allow-once', name: 'Allow once', label: 'allow_once', decision: 'accept' },
+        { optionId: 'allow-session', name: 'Allow for session', label: 'allow_session', decision: 'acceptForSession' },
+        { optionId: 'reject-once', name: 'Reject', label: 'deny', decision: 'decline' }
+      ]
+    }
+
+    render(<PermissionRequestComposer request={request} onRespond={vi.fn()} />)
+
+    const actions = screen.getByTestId('permission-actions')
+    expect(actions).toHaveAttribute('data-layout', 'inline')
+    const buttonTexts = within(actions)
+      .getAllByRole('button')
+      .map((button) => button.textContent?.replace(/\s+/g, ' ').trim())
+    expect(buttonTexts).toEqual(['DenyEsc', '本次会话内允许', '允许一次Enter'])
+  })
+
+  it('stacks long Grok-style permission options vertically with primary allow first and dispatches clicked optionId', () => {
+    const onRespond = vi.fn()
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        {
+          optionId: 'allow-always-domain',
+          name: 'Yes, always allow github.com for this project',
+          decision: 'acceptAlways'
+        },
+        {
+          optionId: 'allow-once',
+          name: 'Yes, allow once',
+          decision: 'accept'
+        },
+        {
+          optionId: 'reject-once',
+          name: 'No, and tell Grok what to do differently',
+          decision: 'decline'
+        },
+        {
+          optionId: 'reject-always-domain',
+          name: 'No, never allow github.com for this project',
+          decision: 'cancel'
+        }
+      ]
+    }
+
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+
+    const actions = screen.getByTestId('permission-actions')
+    expect(actions).toHaveAttribute('data-layout', 'stacked')
+    const buttons = within(actions).getAllByRole('button')
+    expect(buttons.map((button) => button.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+      'Yes, allow onceEnter',
+      'Yes, always allow github.com for this project',
+      'No, and tell Grok what to do differentlyEsc',
+      'No, never allow github.com for this project'
+    ])
+
+    fireEvent.click(buttons[1])
+    expect(onRespond).toHaveBeenCalledWith({
+      match: request.match,
+      approved: true,
+      updatedInput: { localPermissionOption: 'allow-always-domain' }
+    })
+  })
+
+  it('binds Esc to explicit deny instead of a preceding persistent deny amendment (Codex / ACP)', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'accept', decision: 'accept', label: 'allow', name: 'Allow' },
+        {
+          optionId: 'always-deny-host',
+          decision: 'decline',
+          name: 'Always deny host: github.com'
+        },
+        { optionId: 'decline', decision: 'decline', label: 'deny', name: 'Deny' },
+        { optionId: 'cancel', decision: 'cancel', label: 'cancel', name: 'Cancel' }
+      ]
+    }
+
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+
+    const actions = screen.getByTestId('permission-actions')
+    expect(actions).toHaveAttribute('data-layout', 'stacked')
+    const buttonTexts = within(actions)
+      .getAllByRole('button')
+      .map((button) => button.textContent?.replace(/\s+/g, ' ').trim())
+    expect(buttonTexts).toEqual(['AllowEnter', 'DenyEsc', 'Always deny host: github.com', 'Cancel'])
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: request.match,
+        approved: false,
+        updatedInput: { localPermissionOption: 'decline' }
+      })
+    )
+  })
+
+  it('stacks CJK ACP permission options when wide characters exceed compact visual width', () => {
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'allow-once', decision: 'accept', label: 'allow_once', name: 'Allow once' },
+        { optionId: 'allow-domain', decision: 'acceptAlways', name: '始终允许当前项目访问此域名' },
+        { optionId: 'reject-once', decision: 'decline', label: 'deny', name: 'Deny' }
+      ]
+    }
+
+    render(<PermissionRequestComposer request={request} onRespond={vi.fn()} />)
+
+    const actions = screen.getByTestId('permission-actions')
+    expect(actions).toHaveAttribute('data-layout', 'stacked')
+  })
+
+  it('stacks four medium-width options that would wrap while keeping Codex compact four-option layout inline', () => {
+    const mediumRequest = makeRequest()
+    mediumRequest.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'allow-once', decision: 'accept', name: 'Yes, allow once' },
+        { optionId: 'allow-always', decision: 'acceptAlways', name: 'Yes, always allow' },
+        { optionId: 'reject-once', decision: 'decline', name: 'No, deny once' },
+        { optionId: 'reject-always', decision: 'cancel', name: 'No, never allow' }
+      ]
+    }
+    const { rerender } = render(<PermissionRequestComposer request={mediumRequest} onRespond={vi.fn()} />)
+    expect(screen.getByTestId('permission-actions')).toHaveAttribute('data-layout', 'stacked')
+
+    const codexCompactRequest = makeRequest({
+      approvalId: 'approval-codex-compact',
+      match: { ...makeRequest().match, approvalId: 'approval-codex-compact' }
+    })
+    codexCompactRequest.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'accept', decision: 'accept', label: 'allow', name: 'Allow' },
+        {
+          optionId: 'acceptForSession',
+          decision: 'acceptForSession',
+          label: 'allow_session',
+          name: 'Allow for session'
+        },
+        { optionId: 'decline', decision: 'decline', label: 'deny', name: 'Deny' },
+        { optionId: 'cancel', decision: 'cancel', label: 'cancel', name: 'Cancel' }
+      ]
+    }
+    rerender(<PermissionRequestComposer request={codexCompactRequest} onRespond={vi.fn()} />)
+
+    const actions = screen.getByTestId('permission-actions')
+    expect(actions).toHaveAttribute('data-layout', 'inline')
+    expect(
+      within(actions)
+        .getAllByRole('button')
+        .map((button) => button.textContent?.replace(/\s+/g, ' ').trim())
+    ).toEqual(['Cancel', 'DenyEsc', '本次会话内允许', 'AllowEnter'])
+  })
+
+  it('localizes Codex command/host amendments instead of mixing English labels with Chinese UI', () => {
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'accept', decision: 'accept', label: 'allow', name: 'Allow' },
+        {
+          optionId: 'execpolicy-1',
+          decision: 'acceptAlways',
+          label: 'allow_always_target',
+          labelTarget: 'prlctl start Windows 11',
+          name: 'Always allow: prlctl start Windows 11'
+        },
+        {
+          optionId: 'deny-host-1',
+          decision: 'decline',
+          label: 'deny_always_host',
+          labelTarget: 'github.com',
+          name: 'Always deny host: github.com'
+        },
+        { optionId: 'decline', decision: 'decline', label: 'deny', name: 'Deny' }
+      ]
+    }
+
+    render(<PermissionRequestComposer request={request} onRespond={vi.fn()} />)
+
+    const actions = screen.getByTestId('permission-actions')
+    expect(actions).toHaveAttribute('data-layout', 'stacked')
+    expect(
+      within(actions)
+        .getAllByRole('button')
+        .map((button) => button.textContent?.replace(/\s+/g, ' ').trim())
+    ).toEqual(['AllowEnter', '始终允许：prlctl start Windows 11', 'DenyEsc', '始终拒绝主机：github.com'])
+  })
+
+  it('stacks and contains huge unbroken Codex command amendments without horizontal overflow', () => {
+    const hugeCommand =
+      'prlctl exec Windows11 powershell -NoProfile -Command Get-Process explorer; Get-Command node,electron -ErrorAction SilentlyContinue; Get-ChildItem C:\\ProgramFiles\\VeryLongUnbrokenDirectoryNameForOverflowTest\\SubFolder'
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'accept', decision: 'accept', label: 'allow', name: 'Allow' },
+        {
+          optionId: 'execpolicy-huge',
+          decision: 'acceptAlways',
+          label: 'allow_always_target',
+          labelTarget: hugeCommand,
+          name: `Always allow: ${hugeCommand}`
+        },
+        { optionId: 'cancel', decision: 'cancel', label: 'cancel', name: 'Cancel' }
+      ]
+    }
+
+    render(<PermissionRequestComposer request={request} onRespond={vi.fn()} />)
+
+    const actions = screen.getByTestId('permission-actions')
+    expect(actions).toHaveAttribute('data-layout', 'stacked')
+    const expectedLabel = `始终允许：${hugeCommand}`
+    const hugeButton = screen.getByRole('button', { name: expectedLabel })
+    expect(hugeButton).toHaveClass('w-full', 'min-w-0', 'max-w-full', 'overflow-hidden')
+    expect(hugeButton).toHaveAttribute('title', expectedLabel)
+    const labelSpan = within(hugeButton).getByText(expectedLabel)
+    expect(labelSpan).toHaveClass('line-clamp-2', 'min-w-0', '[overflow-wrap:anywhere]')
+  })
+
+  it('always stacks parameterized rules even when target text is short (ls)', () => {
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        { optionId: 'accept', decision: 'accept', label: 'allow', name: 'Allow' },
+        {
+          optionId: 'execpolicy-short',
+          decision: 'acceptAlways',
+          label: 'allow_always_target',
+          labelTarget: 'ls',
+          name: 'Always allow: ls'
+        },
+        { optionId: 'decline', decision: 'decline', label: 'deny', name: 'Deny' }
+      ]
+    }
+
+    render(<PermissionRequestComposer request={request} onRespond={vi.fn()} />)
+
+    const actions = screen.getByTestId('permission-actions')
+    expect(actions).toHaveAttribute('data-layout', 'stacked')
+    expect(
+      within(actions)
+        .getAllByRole('button')
+        .map((button) => button.textContent?.replace(/\s+/g, ' ').trim())
+    ).toEqual(['AllowEnter', '始终允许：ls', 'DenyEsc'])
+  })
+
+  it('switches standard verb actions from inline to stacked via ResizeObserver when the container narrows', () => {
+    let observedWidth = 640
+    let observerCallback: ResizeObserverCallback | undefined
+
+    class MockResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        observerCallback = callback
+      }
+      observe(target: Element) {
+        Object.defineProperty(target, 'clientWidth', {
+          configurable: true,
+          get: () => observedWidth
+        })
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+
+    vi.stubGlobal('ResizeObserver', MockResizeObserver)
+    try {
+      const request = makeRequest()
+      request.toolResponse.arguments = {
+        localPermissionOptions: [
+          { optionId: 'accept', decision: 'accept', label: 'allow', name: 'Allow' },
+          {
+            optionId: 'acceptForSession',
+            decision: 'acceptForSession',
+            label: 'allow_session',
+            name: 'Allow for session'
+          },
+          { optionId: 'decline', decision: 'decline', label: 'deny', name: 'Deny' },
+          { optionId: 'cancel', decision: 'cancel', label: 'cancel', name: 'Cancel' }
+        ]
+      }
+
+      render(<PermissionRequestComposer request={request} onRespond={vi.fn()} />)
+      const actions = screen.getByTestId('permission-actions')
+      expect(actions).toHaveAttribute('data-layout', 'inline')
+
+      observedWidth = 260
+      act(() => {
+        observerCallback?.([], {} as ResizeObserver)
+      })
+
+      expect(actions).toHaveAttribute('data-layout', 'stacked')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

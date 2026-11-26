@@ -113,7 +113,11 @@ export function mapAcpPermissionOptions(
       return {
         optionId: option.optionId,
         decision: 'accept',
-        label: /^allow once$/i.test(trimmed) ? 'allow_once' : /^allow$/i.test(trimmed) ? 'allow' : undefined,
+        label: /^(?:yes,\s*)?allow\s+once$/i.test(trimmed)
+          ? 'allow_once'
+          : /^(?:yes,\s*)?allow$/i.test(trimmed)
+            ? 'allow'
+            : undefined,
         name: option.name,
         ...(warning ? { warning } : {})
       }
@@ -121,8 +125,8 @@ export function mapAcpPermissionOptions(
     if (option.kind === 'allow_always') {
       const trimmed = option.name.trim()
       // Antigravity scopes allow_always to the thread/session rather than permanently.
-      const isSessionScoped = isAntigravity || /^allow for (?:this )?session$/i.test(trimmed)
-      const isGenericAlways = /^(?:always allow|allow always)(?:\s*\(risky\))?$/i.test(trimmed)
+      const isSessionScoped = isAntigravity || /^(?:yes,\s*)?allow for (?:this )?session$/i.test(trimmed)
+      const isGenericAlways = /^(?:yes,\s*)?(?:always allow|allow always)(?:\s*\(risky\))?$/i.test(trimmed)
       return {
         optionId: option.optionId,
         decision: isSessionScoped ? 'acceptForSession' : 'acceptAlways',
@@ -132,16 +136,26 @@ export function mapAcpPermissionOptions(
       }
     }
     if (option.kind === 'reject_once') {
+      const trimmed = option.name.trim()
       return {
         optionId: option.optionId,
         decision: 'decline',
-        label: /^(?:reject|deny)$/i.test(option.name.trim()) ? 'deny' : undefined,
+        label: /^(?:no,\s*)?(?:reject|deny|decline)(?:\s+once)?$/i.test(trimmed)
+          ? 'deny'
+          : /^cancel$/i.test(trimmed)
+            ? 'cancel'
+            : undefined,
         name: option.name
       }
     }
     return {
       optionId: option.optionId,
       decision: 'decline',
+      label: /^(?:no,\s*)?(?:always\s+(?:reject|deny)|(?:reject|deny)\s+always|never\s+allow)$/i.test(
+        option.name.trim()
+      )
+        ? 'deny_always'
+        : undefined,
       name: option.name
     }
   })

@@ -545,14 +545,24 @@ export class CodexConnection extends LocalConnection {
                     : 'cancel',
           label:
             typeof decision !== 'string'
-              ? undefined
+              ? 'acceptWithExecpolicyAmendment' in decision
+                ? 'allow_always_target'
+                : decision.applyNetworkPolicyAmendment.network_policy_amendment.action === 'allow'
+                  ? 'allow_always_host'
+                  : 'deny_always_host'
               : decision === 'accept'
                 ? 'allow'
                 : decision === 'acceptForSession'
                   ? 'allow_session'
                   : decision === 'decline'
                     ? 'deny'
-                    : 'cancel'
+                    : 'cancel',
+          ...(typeof decision !== 'string' && {
+            labelTarget:
+              'acceptWithExecpolicyAmendment' in decision
+                ? decision.acceptWithExecpolicyAmendment.execpolicy_amendment.join(' ')
+                : decision.applyNetworkPolicyAmendment.network_policy_amendment.host
+          })
         }))
         const fullAccessDecision = this.isFullAccess()
           ? decisions.includes('accept')

@@ -610,7 +610,21 @@ export const LocalPermissionOptionsSchema = z.object({
     z.object({
       optionId: z.string(),
       decision: LocalApprovalDecisionSchema,
-      label: z.enum(['allow', 'allow_once', 'allow_session', 'allow_always', 'deny', 'cancel']).optional(),
+      label: z
+        .enum([
+          'allow',
+          'allow_once',
+          'allow_session',
+          'allow_always',
+          'allow_always_target',
+          'allow_always_host',
+          'deny',
+          'deny_always',
+          'deny_always_host',
+          'cancel'
+        ])
+        .optional(),
+      labelTarget: z.string().optional(),
       name: z.string(),
       warning: z.string().optional()
     })

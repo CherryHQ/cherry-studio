@@ -1433,7 +1433,9 @@ describe('local protocol processes', () => {
       expect.objectContaining({
         optionId,
         name: `${action === 'allow' ? 'Always allow' : 'Always deny'} host: example.com`,
-        decision: action === 'allow' ? 'acceptAlways' : 'decline'
+        decision: action === 'allow' ? 'acceptAlways' : 'decline',
+        label: action === 'allow' ? 'allow_always_host' : 'deny_always_host',
+        labelTarget: 'example.com'
       })
     )
     toolApprovalRegistry.dispatch(approval.request.approvalId, {
@@ -1455,7 +1457,9 @@ describe('local protocol processes', () => {
       expect.objectContaining({
         optionId,
         name: 'Always allow: git status',
-        decision: 'acceptAlways'
+        decision: 'acceptAlways',
+        label: 'allow_always_target',
+        labelTarget: 'git status'
       })
     )
     toolApprovalRegistry.dispatch(approval.request.approvalId, {
