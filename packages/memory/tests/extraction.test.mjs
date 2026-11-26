@@ -33,7 +33,7 @@ export const model = {
     }
   }
 }
-test('user quotes must belong to the authorized snapshot', async () => {
+void test('user quotes must belong to the authorized snapshot', async () => {
   const { store, access, approve } = fixture()
   const message = { id: 'u', version: '1', role: 'user', createdAt: 0, text: 'I prefer tea' }
   const window = { hash: 'v', timeZone: 'UTC', conversationId: 'c', kind: 'chat', messages: [message] }
@@ -43,7 +43,7 @@ test('user quotes must belong to the authorized snapshot', async () => {
   message.text = 'Something else'
   await assert.rejects(run, /output/)
 })
-test('ordinary restart resumes registered turns at local 21:00', async () => {
+void test('ordinary restart resumes registered turns at local 21:00', async () => {
   let saved,
     at = new Date(2025, 0, 1, 20, 59).getTime()
   const states = {
@@ -69,7 +69,7 @@ test('ordinary restart resumes registered turns at local 21:00', async () => {
   assert.equal(await restarted.due('c'), undefined)
 })
 for (const reason of ['changed', 'corrected', 'qualified'])
-  test('correction preserves history and hides duplicates: ' + reason, async () => {
+  void test('correction preserves history and hides duplicates: ' + reason, async () => {
     const { store, access, approve } = fixture()
     for (const path of ['MEMORY.md', '.memories/topic.md']) {
       const { receipt } = await store.read(access, path)

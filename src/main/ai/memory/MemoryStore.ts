@@ -204,8 +204,7 @@ export class MemoryStore {
       .flatMap((text) => entriesIn(parseMemoryEntries(text)))
       .filter((entry) => !isMemoryRevision(entry))
     const afterClear =
-      purpose === 'extraction' &&
-      maintenance &&
+      ((!maintenance && purpose === 'current') || (maintenance && purpose === 'extraction')) &&
       structured.length > 0 &&
       structured.every((entry) => entry.clearedAt !== undefined)
     const validate = async () => {
@@ -330,7 +329,7 @@ export class MemoryStore {
     for (const mutation of intent) {
       const baseline = this.baseline(access, mutation.receipt)
       const before = await this.readMatching(baseline)
-      if (source === 'extraction' && baseline.afterClear) afterClear.add(baseline.path)
+      if ((source === 'controlled' || source === 'extraction') && baseline.afterClear) afterClear.add(baseline.path)
       if (baseline.revisionContent !== undefined) {
         if (source !== 'extraction' || mutation.kind !== 'write' || mutation.content !== baseline.revisionContent)
           invalidEntries()
