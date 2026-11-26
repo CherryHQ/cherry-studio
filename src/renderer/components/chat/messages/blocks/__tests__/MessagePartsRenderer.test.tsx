@@ -2391,7 +2391,92 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('active layout', () => {
-    it('shows intermediate prose inline while keeping tools and reasoning in one live fold', () => {
+    it('keeps narration before its own tool when addressed parts arrive incrementally', async () => {
+      const ipc = projectionIpc()
+      const store = new MessageProjectionService()
+      const target = { kind: 'topic', topicId: 't' } as const
+      const stop = store.subscribe(target, () => {})
+      const attachment = ipc.attachments[0]
+      const first = { type: 'text', text: 'First update', state: 'done' } as const
+      const firstCall = toolPart('read') as CherryMessagePart
+      const second = { type: 'text', text: 'Second update', state: 'done' } as const
+      const row = {
+        id: 'msg-1',
+        role: 'assistant' as const,
+        parts: [first, firstCall, second],
+        partIds: ['first-text', 'first-tool', 'second-text']
+      }
+      await act(async () => attachment.resolve({ ...target, revision: 0, executions: [], messages: [row] }))
+      activateTurn('streaming')
+      const config = { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true, expandLiveToolSteps: true }
+      const tree = render(
+        <ProjectionReaderProvider reader={store.partsFor(target)}>
+          {renderPartsTree(row.parts, msg({ status: 'pending', partIds: row.partIds }), {}, config)}
+        </ProjectionReaderProvider>
+      )
+      try {
+        act(() =>
+          ipc.emit(attachment.subscriptionId, {
+            kind: 'topic',
+            type: 'parts',
+            revision: 1,
+            patches: [
+              {
+                type: 'part-add',
+                placement: { messageId: 'msg-1', pos: 20 },
+                partId: 'second-tool',
+                part: {
+                  type: 'dynamic-tool',
+                  toolName: 'edit',
+                  toolCallId: 'edit',
+                  state: 'input-available',
+                  input: {}
+                }
+              }
+            ]
+          })
+        )
+        const [read, edit] = screen.getAllByTestId('child-tool-group-trigger')
+        expect(read).toHaveTextContent('read')
+        expect(edit).toHaveTextContent('edit')
+        expectNodeBefore(screen.getByText('First update'), read)
+        expectNodeBefore(read, screen.getByText('Second update'))
+        expectNodeBefore(screen.getByText('Second update'), edit)
+      } finally {
+        tree.unmount()
+        stop()
+      }
+    })
+
+    it('preserves the order of narration and tools during streaming and after Stop', () => {
+      activateTurn('streaming')
+      const parts = [
+        { type: 'text', text: 'Before the search' },
+        toolPart('search'),
+        { type: 'text', text: 'Before the screenshot' },
+        toolPart('screenshot', 'output-error')
+      ] as CherryMessagePart[]
+      const config = { ...defaultMessageRenderConfig, keepIntermediateAssistantText: true, expandToolSteps: true }
+      const { rerender } = renderParts(parts, msg({ status: 'pending' }), {}, config)
+      const expectInOrder = () => {
+        expandCollapsedChildToolGroups()
+        const [beforeSearch, search, beforeScreenshot, screenshot] = [
+          screen.getByText('Before the search'),
+          screen.getAllByTestId('mock-message-tools').find((tool) => tool.dataset.toolName === 'search')!,
+          screen.getByText('Before the screenshot'),
+          screen.getAllByTestId('mock-message-tools').find((tool) => tool.dataset.toolName === 'screenshot')!
+        ]
+        expectNodeBefore(beforeSearch, search)
+        expectNodeBefore(search, beforeScreenshot)
+        expectNodeBefore(beforeScreenshot, screenshot)
+      }
+      expectInOrder()
+      finishTurn('aborted')
+      rerender(renderPartsTree(parts, msg({ status: 'paused' }), {}, config))
+      expectInOrder()
+    })
+
+    it('shows intermediate prose between live tool folds', () => {
       activateTurn('streaming')
       renderParts(
         [
@@ -2418,7 +2503,7 @@ describe('MessagePartsRenderer', () => {
         screen.getByText('Second update').compareDocumentPosition(screen.getByText('Final answer')) &
           Node.DOCUMENT_POSITION_FOLLOWING
       ).toBeTruthy()
-      expect(screen.getAllByTestId('live-tool-group')).toHaveLength(1)
+      expect(screen.getAllByTestId('live-tool-group')).toHaveLength(2)
       expect(latestMainTextProps(5)?.isStreaming).toBe(true)
       expandCollapsedLiveToolGroups()
       expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
@@ -2426,7 +2511,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getAllByText('First update')).toHaveLength(1)
     })
 
-    it('uses one top-level disclosure for separated process parts without swallowing answer text', () => {
+    it('keeps streamed prose between the tools when a second process group opens', () => {
       activateTurn()
       const pendingMessage = msg({ status: 'pending' })
       const agentConfig = {
@@ -2452,12 +2537,9 @@ describe('MessagePartsRenderer', () => {
       rerender(renderPartsTree(laterParts, pendingMessage, {}, agentConfig))
 
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
-      expect(screen.getAllByTestId('live-tool-group')).toHaveLength(1)
-      expect(screen.getByTestId('mock-tool-group-header')).toHaveTextContent('Processing')
-      // Agent keeps intermediate text in the response lane, so both tool calls fold into one live group.
-      expect(screen.getAllByTestId('mock-tool-group-content')).toHaveLength(1)
-      expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '2')
-      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+      const [firstTool, secondTool] = screen.getAllByTestId('mock-message-tools')
+      expectNodeBefore(firstTool, screen.getByText('answer in progress'))
+      expectNodeBefore(screen.getByText('answer in progress'), secondTool)
       expect(screen.getByText('answer in progress')).toBeInTheDocument()
       expect(screen.queryByTestId('tool-history-divider')).toBeNull()
     })
@@ -2781,11 +2863,11 @@ describe('MessagePartsRenderer', () => {
         screen.getByText('Second update').compareDocumentPosition(screen.getByText('Final answer')) &
           Node.DOCUMENT_POSITION_FOLLOWING
       ).toBeTruthy()
-      const historyTrigger = screen.getByTestId('completed-process-trigger')
-      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
-      fireEvent.click(historyTrigger)
-      expect(screen.getAllByTestId('child-tool-group')).toHaveLength(1)
+      for (const trigger of screen.getAllByTestId('completed-process-trigger')) fireEvent.click(trigger)
       expandCollapsedChildToolGroups()
+      const [read, edit] = screen.getAllByTestId('mock-message-tools')
+      expectNodeBefore(read, screen.getByText('Second update'))
+      expectNodeBefore(screen.getByText('Second update'), edit)
       expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Checking result')
       expect(screen.getAllByText('First update')).toHaveLength(1)
     })
@@ -2823,9 +2905,6 @@ describe('MessagePartsRenderer', () => {
           approval: { id: 'ask-approval' }
         }
       ] as unknown as CherryMessagePart[])
-
-      fireEvent.click(screen.getByTestId('completed-process-trigger'))
-      expandCollapsedChildToolGroups()
 
       expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-status', 'cancelled')
     })
@@ -3155,30 +3234,25 @@ describe('MessagePartsRenderer', () => {
       const historyTrigger = screen.getByRole('button', { name: 'Error' })
       expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
       expect(screen.queryByTestId('mock-error-block')).toBeNull()
-      expect(screen.getByText('partial answer')).toBeInTheDocument()
-
       fireEvent.click(historyTrigger)
+      expectNodeBefore(screen.getByText('partial answer'), screen.getByTestId('mock-thinking-block'))
       expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('Investigating')
       expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'failed after reasoning')
     })
 
-    it('keeps an earlier final answer visible when process tools trail it', () => {
+    it('keeps prose between tools inside their expandable history when intermediate text is off', () => {
       renderParts([
         toolPart('read'),
         { type: 'text', text: 'stable final answer' },
         toolPart('cleanup')
       ] as unknown as CherryMessagePart[])
 
-      expect(screen.getByText('stable final answer')).toBeInTheDocument()
-      const historyTrigger = screen.getByTestId('completed-process-trigger')
-      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
-      expect(screen.queryByTestId('mock-tool-group-content')).toBeNull()
-
-      fireEvent.click(historyTrigger)
-      expect(screen.getByTestId('child-tool-group-trigger')).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.queryByText('stable final answer')).toBeNull()
+      fireEvent.click(screen.getByTestId('completed-process-trigger'))
       expandCollapsedChildToolGroups()
-      expect(screen.getByTestId('mock-tool-group-content')).toHaveAttribute('data-count', '2')
-      expect(screen.getByText('stable final answer')).toBeInTheDocument()
+      const [read, cleanup] = screen.getAllByTestId('mock-message-tools')
+      expectNodeBefore(read, screen.getByText('stable final answer'))
+      expectNodeBefore(screen.getByText('stable final answer'), cleanup)
     })
 
     it('keeps non-process value parts visible beside collapsed tools', () => {
@@ -3251,7 +3325,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-image-block')).toBeInTheDocument()
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'result.pdf')
       expect(await screen.findByTestId('mock-message-video')).toHaveAttribute('data-file-path', '/tmp/result.mp4')
-      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.getAllByTestId('completed-process-trigger')).toHaveLength(2)
     })
 
     it('removes this message translation through the inline delete when the action is available', () => {
