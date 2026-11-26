@@ -430,6 +430,20 @@ describe('inLoopCompactionFeature', () => {
   // `compactModelMessages` propagates provider errors. Letting one escape
   // `prepareStep` kills the whole chat turn — a misconfigured or rate-limited
   // compressor would take the conversation down with it.
+  it('continues with unfurled history when a custom compressor window is unusable', async () => {
+    compactModelMessages.mockClear()
+    const hook = getPrepareStep(
+      scope({
+        chatId: 'topic-1',
+        contextWindow: CONTEXT_WINDOW,
+        compressionModel: { languageModel: COMPRESSION_LANGUAGE_MODEL, contextWindow: 2 }
+      })
+    )
+    const messages: ModelMessage[] = [{ role: 'user', content: 'large '.repeat(100_000) }]
+    await expect(hook({ messages, steps: [] } as any)).resolves.toBeUndefined()
+    expect(compactModelMessages).not.toHaveBeenCalled()
+  })
+
   it('survives a failing compressor instead of failing the turn', async () => {
     compactModelMessages.mockClear()
     compactModelMessages.mockRejectedValue(Object.assign(new Error('401 invalid api key'), { name: 'APICallError' }))
