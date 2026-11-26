@@ -8,6 +8,7 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { SEED_KEY_PREFIX } from '@data/db/seeding/SeedRunner'
+import { loggerService } from '@logger'
 import { getLegacyProfilePaths } from '@main/core/paths/legacyProfilePaths'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
@@ -77,6 +78,19 @@ function statIfPresent(file: string) {
   }
 }
 
+const logger = loggerService.withContext('LegacyUpgrade')
+
+const V2_USER_DATA_TABLES = ['topic', 'message', 'assistant', 'user_provider'] as const
+
+function hasV2UserData(db: Database.Database): boolean {
+  const tableExists = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+  for (const table of V2_USER_DATA_TABLES) {
+    if (!tableExists.get(table)) continue
+    if (db.prepare(`SELECT 1 FROM "${table}" LIMIT 1`).get() !== undefined) return true
+  }
+  return false
+}
+
 /** Read-only: classification must never initialize or migrate the user's database. */
 export function inspectLegacyProfile(userData: string): 'fresh' | 'ready' | 'legacy' {
   const paths = getLegacyProfilePaths(userData)
@@ -84,13 +98,22 @@ export function inspectLegacyProfile(userData: string): 'fresh' | 'ready' | 'leg
     const db = new Database(paths.database, { readonly: true, fileMustExist: true })
     try {
       const value = db.prepare('SELECT value FROM app_state WHERE key = ?').pluck().get(MIGRATION_V2_STATUS)
-      if (value !== undefined) {
-        const status = migrationStatusSchema.parse(JSON.parse(z.string().parse(value)))
-        return status.status === 'completed' ? 'ready' : 'legacy'
-      }
+      const status =
+        value !== undefined ? migrationStatusSchema.parse(JSON.parse(z.string().parse(value))).status : undefined
+      if (status === 'completed') return 'ready'
       // The retired converter created schemas before recording progress, but never ran seeders.
-      const seeded = db.prepare('SELECT key FROM app_state WHERE key LIKE ? LIMIT 1').get(`${SEED_KEY_PREFIX}%`)
-      if (seeded) return 'ready'
+      if (status === undefined) {
+        const seeded = db.prepare('SELECT key FROM app_state WHERE key LIKE ? LIMIT 1').get(`${SEED_KEY_PREFIX}%`)
+        if (seeded) return 'ready'
+      }
+      if (hasV2UserData(db)) {
+        logger.warn(
+          'Database already contains v2 user data without a completed migration status; treating profile as existing v2 without migration',
+          { profile: userData, status: status ?? null }
+        )
+        return 'ready'
+      }
+      if (status !== undefined) return 'legacy'
     } finally {
       db.close()
     }

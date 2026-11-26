@@ -3,16 +3,23 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { messageTable } from '@data/db/schemas/message'
+import { topicTable } from '@data/db/schemas/topic'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { LegacyFileCleanupPolicySeeder } from '@data/db/seeding/seeders/legacyFileCleanupPolicySeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import type * as UserDataLocationModule from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import {
   findLegacyUpgradeProfile,
@@ -43,6 +50,7 @@ describe('legacy profile detection', () => {
     vi.spyOn(application, 'getPath').mockImplementation((key) => (key === 'v1.home_config_file' ? configFile : profile))
     vi.mocked(bootConfigService.get).mockReturnValue(null)
     vi.mocked(getNormalizedExecutablePath).mockReturnValue('/app/cherry')
+    mockMainLoggerService.warn.mockClear()
     Object.defineProperty(app, 'isPackaged', { configurable: true, value: true })
   })
 
@@ -55,6 +63,37 @@ describe('legacy profile detection', () => {
     if (value !== undefined) dbh.db.insert(appStateTable).values({ key: MIGRATION_V2_STATUS, value }).run()
     fs.mkdirSync(path.join(profile, 'Data'))
     await dbh.sqlite.backup(path.join(profile, 'Data/cherrystudio.sqlite'))
+  }
+
+  function seedPopulatedV2UserData() {
+    dbh.db
+      .insert(assistantTable)
+      .values({ name: 'Existing Assistant', emoji: '🌟', orderKey: 'a0', settings: DEFAULT_ASSISTANT_SETTINGS })
+      .run()
+    const [topic] = dbh.db
+      .insert(topicTable)
+      .values({ name: 'Existing Conversation', orderKey: 'a0' })
+      .returning()
+      .all()
+    const [rootMsg] = dbh.db
+      .insert(messageTable)
+      .values({ topicId: topic.id, parentId: null, role: 'root', status: 'success', data: { parts: [] } })
+      .returning()
+      .all()
+    dbh.db
+      .insert(messageTable)
+      .values({
+        topicId: topic.id,
+        parentId: rootMsg.id,
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'hello' }] }
+      })
+      .run()
+    dbh.db
+      .insert(userProviderTable)
+      .values({ providerId: 'openai', name: 'OpenAI', isEnabled: true, orderKey: 'a0' })
+      .run()
   }
 
   it.each([true, undefined])('restores an interrupted tray-on-close preference (%s)', (trayOnClose) => {
@@ -154,6 +193,133 @@ describe('legacy profile detection', () => {
   })
 
   it('fails closed on malformed migration status', async () => {
+    await copyDatabase({ status: 'unknown' })
+    expect(() => findLegacyUpgradeProfile()).toThrow()
+  })
+
+  it('preserves a populated v2 database without migration_v2_status despite version.log and non-empty config.json', async () => {
+    seedPopulatedV2UserData()
+    await copyDatabase()
+    fs.writeFileSync(path.join(profile, 'version.log'), '2.2.2')
+    fs.writeFileSync(path.join(profile, 'config.json'), '{"theme":"dark"}')
+
+    const file = path.join(profile, 'Data/cherrystudio.sqlite')
+    const beforeBytes = fs.readFileSync(file)
+    const beforeProfileEntries = fs.readdirSync(profile).sort()
+    const beforeDataEntries = fs.readdirSync(path.join(profile, 'Data')).sort()
+
+    expect(findLegacyUpgradeProfile()).toBeUndefined()
+    expect(fs.readFileSync(file)).toEqual(beforeBytes)
+    expect(fs.readdirSync(profile).sort()).toEqual(beforeProfileEntries)
+    expect(fs.readdirSync(path.join(profile, 'Data')).sort()).toEqual(beforeDataEntries)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(expect.any(String), { profile, status: null })
+  })
+
+  it.each(['failed', 'in_progress'] as const)(
+    'preserves a populated v2 database with %s status and leaves files untouched',
+    async (status) => {
+      seedPopulatedV2UserData()
+      await copyDatabase({ status })
+      const file = path.join(profile, 'Data/cherrystudio.sqlite')
+      const beforeBytes = fs.readFileSync(file)
+      const beforeProfileEntries = fs.readdirSync(profile).sort()
+
+      expect(findLegacyUpgradeProfile()).toBeUndefined()
+      expect(fs.readFileSync(file)).toEqual(beforeBytes)
+      expect(fs.readdirSync(profile).sort()).toEqual(beforeProfileEntries)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(expect.any(String), { profile, status })
+    }
+  )
+
+  it.each(['topic', 'message', 'assistant', 'user_provider'] as const)(
+    'treats a profile with rows only in %s as ready despite legacy residue',
+    async (table) => {
+      if (table === 'assistant') {
+        dbh.db
+          .insert(assistantTable)
+          .values({ name: 'Existing Assistant', emoji: '🌟', orderKey: 'a0', settings: DEFAULT_ASSISTANT_SETTINGS })
+          .run()
+        await copyDatabase()
+      } else if (table === 'topic') {
+        dbh.db.insert(topicTable).values({ name: 'Existing Conversation', orderKey: 'a0' }).run()
+        await copyDatabase()
+      } else if (table === 'user_provider') {
+        dbh.db
+          .insert(userProviderTable)
+          .values({ providerId: 'openai', name: 'OpenAI', isEnabled: true, orderKey: 'a0' })
+          .run()
+        await copyDatabase()
+      } else {
+        const [topic] = dbh.db
+          .insert(topicTable)
+          .values({ name: 'Existing Conversation', orderKey: 'a0' })
+          .returning()
+          .all()
+        dbh.db
+          .insert(messageTable)
+          .values({ topicId: topic.id, parentId: null, role: 'root', status: 'success', data: { parts: [] } })
+          .run()
+        await copyDatabase()
+        const copy = new Database(path.join(profile, 'Data/cherrystudio.sqlite'))
+        try {
+          copy.pragma('foreign_keys = OFF')
+          copy.exec('DELETE FROM topic')
+          const topicCount = copy.prepare('SELECT COUNT(*) FROM topic').pluck().get()
+          const messageCount = copy.prepare('SELECT COUNT(*) FROM message').pluck().get()
+          expect(topicCount).toBe(0)
+          expect(messageCount).toBe(1)
+        } finally {
+          copy.close()
+        }
+      }
+
+      fs.writeFileSync(path.join(profile, 'version.log'), '1.9.0')
+      fs.writeFileSync(path.join(profile, 'config.json'), '{"theme":"dark"}')
+      const file = path.join(profile, 'Data/cherrystudio.sqlite')
+      const beforeBytes = fs.readFileSync(file)
+
+      expect(inspectLegacyProfile(profile)).toBe('ready')
+      expect(fs.readFileSync(file)).toEqual(beforeBytes)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(expect.any(String), { profile, status: null })
+    }
+  )
+
+  it('recognizes a seeded post-retirement v2 database with user data without warning', async () => {
+    new SeedRunner(dbh.db).runAll([new LegacyFileCleanupPolicySeeder()])
+    dbh.db
+      .insert(assistantTable)
+      .values({ name: 'Seeded Assistant', emoji: '🌟', orderKey: 'a0', settings: DEFAULT_ASSISTANT_SETTINGS })
+      .run()
+    await copyDatabase()
+    fs.writeFileSync(path.join(profile, 'version.log'), '2.2.3')
+
+    expect(findLegacyUpgradeProfile()).toBeUndefined()
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+  })
+
+  it('skips missing user data tables without throwing', async () => {
+    await copyDatabase()
+    const file = path.join(profile, 'Data/cherrystudio.sqlite')
+    const copy = new Database(file)
+    try {
+      copy.pragma('foreign_keys = OFF')
+      copy.exec('DROP TABLE message; DROP TABLE topic; DROP TABLE assistant; DROP TABLE user_provider;')
+    } finally {
+      copy.close()
+    }
+    fs.writeFileSync(path.join(profile, 'version.log'), '1.9.0')
+    const beforeBytes = fs.readFileSync(file)
+
+    expect(inspectLegacyProfile(profile)).toBe('legacy')
+    expect(fs.readFileSync(file)).toEqual(beforeBytes)
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+  })
+
+  it('still fails closed on malformed migration status even when v2 user data exists', async () => {
+    dbh.db.insert(topicTable).values({ name: 'Existing Conversation', orderKey: 'a0' }).run()
     await copyDatabase({ status: 'unknown' })
     expect(() => findLegacyUpgradeProfile()).toThrow()
   })
