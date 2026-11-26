@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-24-thinking-auto-collapse-sync.md
-2026-11-24-thinking-auto-collapse-sync.md: 06a4b74419df55796352aac2df4c7f422d20deff
-2026-11-24-thinking-auto-collapse-sync.zh.md: e80b9235fc5e3677be4d783499ee4107613e9ab4
+2026-11-24-thinking-auto-collapse-sync.md: c716cb6ae8f04595d09ab0881a5127fdbf13350a
+2026-11-24-thinking-auto-collapse-sync.zh.md: c8ee92996379e08486832f8548b7f612fddfb727

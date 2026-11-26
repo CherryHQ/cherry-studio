@@ -6,7 +6,7 @@ import { ClaudeControlState, type ClaudeControl } from '../src/control'
 // A newly added SDK variant must receive an explicit owner before upgrading the dependency.
 const systemMessages = {
   init: 'control: native session identity',
-  compact_boundary: 'control: compaction and archive revision',
+  compact_boundary: 'control: completed compaction and its native anchor',
   status: 'control: compaction outcome',
   api_retry: 'control: retry status',
   control_request_progress: 'native-only: request progress does not settle input',

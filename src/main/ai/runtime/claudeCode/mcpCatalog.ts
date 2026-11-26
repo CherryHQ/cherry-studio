@@ -149,7 +149,7 @@ export async function buildMcpToolMetadata(
       const server = mcpServerService.findByIdOrName(mcpId)
       if (!server) continue
 
-      const tools = mcpService.listTools(server.id)
+      const tools = mcpService.listTools(server.id, { audience: 'model' })
       for (const tool of tools) {
         addMcpToolMetadataAliases(metadataByName, server, tool)
       }
