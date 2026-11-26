@@ -6,7 +6,6 @@ import type {
   AgentChange,
   ModelRef,
   Registry,
-  Session,
   Storage,
   TaskId
 } from '@earendil-works/pi-durable'
@@ -369,9 +368,24 @@ export class DurableBackend {
           }
         },
         release: async () => {
-          await handle.release()
-          if (this.preparedRoots.get(host.context.id) === prepared) {
-            await this.hostOperations.queue(() => this.retirePrepared(host))
+          try {
+            await handle.release()
+          } finally {
+            const id = host.context.id
+            if (this.preparedRoots.get(id) === prepared) {
+              await this.hostOperations.queue(() => this.retirePrepared(host))
+            } else if (
+              this.roots.get(id) === host &&
+              !this.stopping &&
+              !this.deferredReclaims.has(id) &&
+              [...this.retired].some((item) => item.context.id === id)
+            ) {
+              try {
+                await this.hostOperations.queue(() => this.reclaimRetiredHost(host))
+              } catch (error) {
+                logger.warn('Failed to reclaim retired durable desktop on handle release', { contextId: id, error })
+              }
+            }
           }
         }
       }
@@ -585,20 +599,12 @@ export class DurableBackend {
   private async stop(): Promise<void> {
     this.stopping = true
     this.deferredReclaims.clear()
-    try {
-      const result = await this.runtime.shutdown()
-      if (result.status !== 'confirmed') throw new Error(result.error.message)
-    } catch (error) {
-      logger.warn('Durable runtime shutdown failed; joining the native Session', { error })
-      const { BACKGROUND_CONTEXT } = await import('@earendil-works/chord/context')
-      // The runtime exposes its Harness here. Session.close joins its scheduler before closing storage.
-      const session = this.runtime.durable as Session
-      try {
-        await session.close(BACKGROUND_CONTEXT)
-      } catch (closeError) {
-        if (!this.nativeStopped) throw closeError
-        logger.warn('Durable Session close failed after the scheduler stopped', { error: closeError })
-      }
+    const result = await this.runtime.shutdown()
+    if (result.status !== 'confirmed') {
+      if (!this.nativeStopped) throw new Error(result.error.message)
+      logger.warn('Durable runtime shutdown did not confirm after the native scheduler stopped', {
+        error: result.error
+      })
     }
     await this.closeHosts()
   }

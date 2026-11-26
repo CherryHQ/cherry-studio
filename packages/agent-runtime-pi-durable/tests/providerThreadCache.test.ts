@@ -261,21 +261,17 @@ describe('Durable behavior providerThread cache', () => {
               get(target, prop) {
                 const value = Reflect.get(target, prop)
                 if (typeof value !== 'function') return value
-                if (prop === 'doc') {
+                if (prop === 'createConversation') {
                   return async (...args: unknown[]) => {
-                    const doc = await value.apply(target, args)
-                    if (
-                      failChildConfig &&
-                      args[0] === ProviderDoc &&
-                      args[1] !== conversationId(parent) &&
-                      doc &&
-                      typeof doc === 'object' &&
-                      'sessionId' in doc &&
-                      typeof doc.sessionId === 'string'
-                    ) {
-                      stagedChildSessionId = doc.sessionId
+                    const record = await value.apply(target, args)
+                    if (failChildConfig && record && typeof record === 'object' && 'id' in record) {
+                      const doc = await target.doc(
+                        ProviderDoc,
+                        (record as { id: ReturnType<typeof conversationId> }).id
+                      )
+                      if (typeof doc?.sessionId === 'string') stagedChildSessionId = doc.sessionId
                     }
-                    return doc
+                    return record
                   }
                 }
                 return value.bind(target)
@@ -304,16 +300,74 @@ describe('Durable behavior providerThread cache', () => {
     await expect(h.behavior().providerThread(stagedChildSessionId!)).rejects.toThrow('Unknown Durable provider session')
   })
 
-  it('keeps fallback resolution for unwarmed conversations and rejects unknown sessions', async () => {
+  it('keeps fallback resolution for unwarmed conversations after restart and rejects unknown sessions', async () => {
     const h = await openDurableHarness(() => {})
     const native = h.native()
     const uncached = await native.createConversation({ ownership: { kind: 'ownerless' } }, context)
     const provider = await native.snapshot(ProviderDoc, uncached.id, context)
     expect(provider?.sessionId).toBeTruthy()
 
+    await h.harness.restart()
+
     expect(await h.behavior().providerThread(provider!.sessionId)).toBe(threadId(uncached.id))
     await expect(h.behavior().providerThread('non-existent-provider-session')).rejects.toThrow(
       'Unknown Durable provider session'
     )
+  })
+
+  it('warms provider cache for created root conversations and ownerless forks without scanning', async () => {
+    const h = await openDurableHarness(() => {})
+    const parent = await h.harness.createThread()
+    h.harness.script(parent, [{ text: 'parent ready' }])
+    await h.harness.sendUser(parent, 'seed parent')
+    await h.harness.settle()
+
+    const parentFacts = await h.harness.withCall(parent, (ports) => ports.ledger.read(parent))
+    const forkAt = parentFacts.history.findLast((entry) => entry.kind === 'assistant')!.id
+
+    const native = h.native()
+    const origCommit = native.commit.bind(native)
+    let scanConversationsCalls = 0
+    let measuring = false
+    native.commit = ((call: (tx: Tx) => Promise<unknown>, callContext: typeof context, options?: unknown) =>
+      origCommit(
+        (tx) =>
+          call(
+            new Proxy(tx, {
+              get(target, prop) {
+                const value = Reflect.get(target, prop)
+                if (typeof value !== 'function') return value
+                if (prop === 'scanConversations') {
+                  return (...args: unknown[]) => {
+                    if (measuring) scanConversationsCalls++
+                    return value.apply(target, args)
+                  }
+                }
+                return value.bind(target)
+              }
+            })
+          ),
+        callContext,
+        options as never
+      )) as typeof native.commit
+
+    measuring = true
+    const created = await native.createConversation({ ownership: { kind: 'ownerless' } }, context)
+    const forked = await native.commit(
+      (tx) =>
+        tx.forkConversation(conversationId(parent), Number(forkAt) as never, { ownership: { kind: 'ownerless' } }),
+      context
+    )
+    const [createdProvider, forkedProvider] = await Promise.all([
+      native.snapshot(ProviderDoc, created.id, context),
+      native.snapshot(ProviderDoc, forked.id, context)
+    ])
+    expect(createdProvider?.sessionId).toBeTruthy()
+    expect(forkedProvider?.sessionId).toBeTruthy()
+
+    expect(await h.behavior().providerThread(createdProvider!.sessionId)).toBe(threadId(created.id))
+    expect(await h.behavior().providerThread(forkedProvider!.sessionId)).toBe(threadId(forked.id))
+    expect(scanConversationsCalls).toBe(0)
+    measuring = false
   })
 })

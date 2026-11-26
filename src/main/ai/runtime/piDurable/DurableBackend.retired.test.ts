@@ -1144,4 +1144,36 @@ describe('DurableBackend retired resource reclamation', () => {
     expect(firstDesktop.closeSpy).toHaveBeenCalledTimes(1)
     expect(secondDesktop.closeSpy).toHaveBeenCalledTimes(1)
   })
+
+  it('reclaims replaced desktop when connection start fails after configure before reclaimRetired', async () => {
+    const { primaryId, primary, sibling, owner } = await openSiblingPair()
+    const [first, siblingDesktop] = createdDesktops
+    await primary.connection.close()
+    connections.splice(connections.indexOf(primary.connection), 1)
+
+    const origOpen = owner.runtime.open
+    vi.spyOn(owner.runtime, 'open').mockImplementationOnce(async (ref) => {
+      const opened = await origOpen(ref)
+      if (opened.status === 'confirmed') {
+        vi.spyOn(opened.value.durable, 'observe').mockResolvedValueOnce({
+          status: 'unknown',
+          error: { operation: 'observe', code: 'native-error', message: 'observe failed' }
+        } as never)
+      }
+      return opened
+    })
+
+    await expect(connectFor({ ...input, sessionId: primaryId, reasoningEffort: 'high' })).rejects.toThrow(
+      'observe failed'
+    )
+
+    expect(siblingDesktop.closeSpy).not.toHaveBeenCalled()
+    expect(first.closeSpy).toHaveBeenCalledTimes(1)
+    expect(owner['retired'].size).toBe(0)
+    const installed = owner['registry'].snapshot()
+    for (const extension of first.desktop.registry.snapshot().installed()) {
+      expect(installed.extension(extension.name)).toBeUndefined()
+    }
+    expect(sibling.connection.contextId).toBeTruthy()
+  })
 })
