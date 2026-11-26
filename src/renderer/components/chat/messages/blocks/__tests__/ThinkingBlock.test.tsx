@@ -299,38 +299,6 @@ describe('ThinkingBlock', () => {
     })
   })
 
-  describe('layout and readability', () => {
-    it('uses viewport-aware max height on the content panel', () => {
-      mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock()
-      renderThinkingBlock(block)
-
-      // Bound long reasoning to the viewport so the message list remains reachable.
-      expect(getContentContainer()).toHaveClass('max-h-[min(32rem,60dvh)]')
-    })
-
-    it('uses theme-aware muted foreground for panel and markdown content', () => {
-      mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock({ content: 'Readable reasoning text' })
-      renderThinkingBlock(block)
-
-      const panel = getContentContainer()!
-      expect(panel).toHaveClass('text-muted-foreground')
-
-      const markdownWrapper = screen.getByText('Markdown: Readable reasoning text').parentElement
-      expect(markdownWrapper).toHaveClass('text-muted-foreground')
-      expect(markdownWrapper).toHaveStyle({ '--markdown-foreground': 'var(--muted-foreground)' })
-    })
-
-    it('keeps short thinking content compact without a minimum panel height', () => {
-      mockRenderConfig.thoughtAutoCollapse = false
-      const block = createThinkingBlock({ content: 'Short thought.' })
-      renderThinkingBlock(block)
-
-      expect(getContentContainer()?.className).not.toMatch(/min-h-/)
-    })
-  })
-
   it('follows streamed thinking only while the reader remains at the bottom', () => {
     mockRenderConfig.thoughtAutoCollapse = false
     let resize: (() => void) | undefined

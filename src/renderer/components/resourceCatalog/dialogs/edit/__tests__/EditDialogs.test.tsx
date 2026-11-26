@@ -804,6 +804,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.clearAllMocks()
 })
 
@@ -2589,6 +2590,7 @@ describe('edit dialogs', () => {
   })
 
   it('persists the latest edit made while an earlier save is still in flight', async () => {
+    vi.useFakeTimers()
     let resolveFirstSave: (() => void) | undefined
     updateAssistantMock.mockImplementationOnce(
       () =>
@@ -2600,7 +2602,8 @@ describe('edit dialogs', () => {
 
     const nameInput = screen.getByLabelText('Name')
     fireEvent.change(nameInput, { target: { value: 'First Edit' } })
-    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    await act(() => vi.advanceTimersByTimeAsync(700))
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
     expect(updateAssistantMock).toHaveBeenNthCalledWith(1, {
       body: expect.objectContaining({ name: 'First Edit' })
     })
@@ -2608,35 +2611,36 @@ describe('edit dialogs', () => {
     // Keep editing while the first PATCH is still in flight.
     fireEvent.change(nameInput, { target: { value: 'Second Edit' } })
     // Let the debounce fire; the in-flight guard must queue — not drop — this edit.
-    await new Promise((resolve) => setTimeout(resolve, 700))
+    await act(() => vi.advanceTimersByTimeAsync(700))
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
 
-    resolveFirstSave?.()
-    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    await act(async () => resolveFirstSave?.())
+    expect(updateAssistantMock).toHaveBeenCalledTimes(2)
     expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
       body: expect.objectContaining({ name: 'Second Edit' })
     })
   })
 
   it('allows discarding an unchanged failed assistant save without retrying it', async () => {
+    vi.useFakeTimers()
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
-    const user = userEvent.setup()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
     const nameInput = screen.getByLabelText('Name')
-    await user.clear(nameInput)
-    await user.type(nameInput, 'Closing Edit')
-    await user.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.change(nameInput, { target: { value: 'Closing Edit' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    })
 
-    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(screen.getByText('Save failed')).toBeInTheDocument()
     expect(toast.error).toHaveBeenCalledWith('Save failed')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
     const saveAttemptsAfterFailure = updateAssistantMock.mock.calls.length
 
-    await user.click(screen.getByRole('button', { name: 'Close' }))
-    await new Promise((resolve) => setTimeout(resolve, 700))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await act(() => vi.advanceTimersByTimeAsync(700))
 
     expect(toast.error).toHaveBeenCalledTimes(2)
     expect(updateAssistantMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
@@ -2725,22 +2729,25 @@ describe('edit dialogs', () => {
   })
 
   it('allows discarding an unchanged failed agent save without retrying it', async () => {
+    vi.useFakeTimers()
     updateAgentMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
 
     const nameInput = screen.getByLabelText('Avatar and name')
     fireEvent.change(nameInput, { target: { value: 'Closing Agent' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    })
 
-    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(screen.getByText('Save failed')).toBeInTheDocument()
     expect(toast.error).toHaveBeenCalledWith('Save failed')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
     const saveAttemptsAfterFailure = updateAgentMock.mock.calls.length
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-    await new Promise((resolve) => setTimeout(resolve, 700))
+    await act(() => vi.advanceTimersByTimeAsync(700))
 
     expect(toast.error).toHaveBeenCalledTimes(2)
     expect(updateAgentMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)

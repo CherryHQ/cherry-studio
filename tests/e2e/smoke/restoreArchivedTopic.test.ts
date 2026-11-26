@@ -106,12 +106,11 @@ test('restores an archived conversation and its messages without reloading', asy
   await assistant.click()
   await page.keyboard.press('Escape')
   await row.click()
-  await page.waitForTimeout(2000)
   await expect(row).toHaveAttribute('data-selected', 'true')
   for (const message of MESSAGES) await expect(chat.getByText(message, { exact: true })).toBeVisible()
 
-  await row.hover()
-  await row.getByRole('button', { name: 'Archive', exact: true }).click()
+  await row.click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Archive', exact: true }).click()
   for (const message of MESSAGES) await expect(chat.getByText(message, { exact: true })).toBeHidden()
 
   await page.getByRole('button', { name: 'User', exact: true }).first().click()
@@ -135,7 +134,6 @@ test('restores an archived conversation and its messages without reloading', asy
   await assistant.click()
   await page.keyboard.press('Escape')
   await row.click()
-  await page.waitForTimeout(2000)
   await expect(row).toHaveAttribute('data-selected', 'true')
   for (const message of MESSAGES) await expect(chat.getByText(message, { exact: true })).toBeVisible()
 })

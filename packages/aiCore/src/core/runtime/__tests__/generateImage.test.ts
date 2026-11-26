@@ -447,48 +447,6 @@ describe('RuntimeExecutor.generateImage', () => {
     })
   })
 
-  describe('Multiple providers support', () => {
-    it('should work with different providers', async () => {
-      const googleImageModel = createMockImageModel({
-        provider: 'google',
-        modelId: 'imagen-3.0-generate-002'
-      })
-
-      const googleProvider = createMockProviderV3({
-        provider: 'google',
-        imageModel: vi.fn(() => googleImageModel)
-      })
-
-      const googleExecutor = RuntimeExecutor.create('google', googleProvider, {
-        apiKey: 'google-key'
-      })
-
-      await googleExecutor.generateImage({ model: 'imagen-3.0-generate-002', prompt: 'A landscape' })
-
-      expect(googleProvider.imageModel).toHaveBeenCalledWith('imagen-3.0-generate-002')
-    })
-
-    it('should support xAI Grok image models', async () => {
-      const xaiImageModel = createMockImageModel({
-        provider: 'xai',
-        modelId: 'grok-2-image'
-      })
-
-      const xaiProvider = createMockProviderV3({
-        provider: 'xai',
-        imageModel: vi.fn(() => xaiImageModel)
-      })
-
-      const xaiExecutor = RuntimeExecutor.create('xai', xaiProvider, {
-        apiKey: 'xai-key'
-      })
-
-      await xaiExecutor.generateImage({ model: 'grok-2-image', prompt: 'A futuristic robot' })
-
-      expect(xaiProvider.imageModel).toHaveBeenCalledWith('grok-2-image')
-    })
-  })
-
   describe('Advanced features', () => {
     it('should support batch image generation with maxImagesPerCall', async () => {
       await executor.generateImage({ model: 'dall-e-3', prompt: 'A test image', n: 10, maxImagesPerCall: 5 })

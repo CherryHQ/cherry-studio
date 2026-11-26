@@ -1,6 +1,6 @@
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import type * as DoctorWrites from '@main/ai/agents/doctor/doctorWrites'
@@ -72,7 +72,6 @@ const report: DoctorReport = {
 }
 
 const agentState = () => application.get('CacheService').getShared(doctorAgentStateCacheKey('global'))
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 let listener: StreamListener | undefined
 
@@ -99,6 +98,8 @@ beforeEach(() => {
   })
 })
 
+afterEach(() => vi.useRealTimers())
+
 async function startedService() {
   const service = new DoctorAgentService()
   const started = await service.start({ scope: 'global', reportRunId: 'report-1' })
@@ -115,6 +116,7 @@ describe('DoctorAgentService.start', () => {
   })
 
   it('runs one hidden headless session per scope and streams the reply into the shared state', async () => {
+    vi.useFakeTimers()
     const { service, runId } = await startedService()
     expect(mocks.createSession).toHaveBeenCalledWith(expect.objectContaining({ agentId: 'doctor-agent' }), 'background')
     expect(mocks.startRun).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'session-1', headless: true }))
@@ -123,7 +125,7 @@ describe('DoctorAgentService.start', () => {
     listener!.onChunk({ type: 'tool-input-start', toolCallId: 't1', toolName: 'mcp__doctor__data_api' })
     listener!.onChunk({ type: 'text-delta', id: 'm1', delta: 'Proxy is ' })
     listener!.onChunk({ type: 'text-delta', id: 'm1', delta: 'misconfigured.' })
-    await wait(250)
+    await vi.advanceTimersByTimeAsync(250)
     expect(agentState()).toMatchObject({
       status: 'running',
       text: 'Proxy is misconfigured.',
@@ -136,6 +138,7 @@ describe('DoctorAgentService.start', () => {
   })
 
   it('replaces withdrawn native output before publishing and settling the diagnostic reply', async () => {
+    vi.useFakeTimers()
     await startedService()
     listener!.onMessage?.(
       { id: 'answer', role: 'assistant', parts: [{ type: 'text', text: 'Withdrawn' }] },
@@ -161,7 +164,7 @@ describe('DoctorAgentService.start', () => {
       undefined,
       'messages'
     )
-    await wait(250)
+    await vi.advanceTimersByTimeAsync(250)
     expect(agentState()).toMatchObject({
       status: 'running',
       text: 'Corrected answer',
@@ -328,14 +331,13 @@ describe('DoctorAgentService writes', () => {
 
   it('applies a proposal once even when two clicks race', async () => {
     const { service, runId } = await startedService()
-    let release!: () => void
-    mocks.applyWrite.mockImplementation(
-      () =>
-        new Promise(
-          (resolve) =>
-            (release = () => resolve({ before: { apiHost: 'old' }, after: { apiHost: 'new' }, undoable: true }))
-        )
-    )
+    const entered = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    mocks.applyWrite.mockImplementation(async () => {
+      entered.resolve()
+      await release.promise
+      return { before: { apiHost: 'old' }, after: { apiHost: 'new' }, undoable: true }
+    })
     const outcome = await service.requestWrite(
       'session-1',
       { kind: 'data_api_patch', path: '/providers/openai', body: { apiHost: 'new' } },
@@ -345,8 +347,8 @@ describe('DoctorAgentService writes', () => {
 
     const first = service.apply({ key: 'global', runId, proposalId })
     const second = service.apply({ key: 'global', runId, proposalId })
-    await wait(10)
-    release()
+    await entered.promise
+    release.resolve()
     expect((await first).status).toBe('applied')
     expect((await second).status).toBe('stale')
     expect(mocks.applyWrite).toHaveBeenCalledTimes(1)
@@ -493,11 +495,13 @@ describe('DoctorAgentService incidents', () => {
       request: { scope: 'global', runId: 'report-1', checkId: 'mcp-servers-connected', fixId: 'restart', target: 's1' }
     } as const
     const order: string[] = []
-    let release!: () => void
+    const entered = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
     mocks.applyWrite
       .mockImplementationOnce(async () => {
         order.push('a:start')
-        await new Promise<void>((resolve) => (release = resolve))
+        entered.resolve()
+        await release.promise
         order.push('a:end')
         return { before: null, after: null, undoable: false }
       })
@@ -507,8 +511,8 @@ describe('DoctorAgentService incidents', () => {
       })
     const first = service.requestWrite('session-a', fix, 'a')
     const second = service.requestWrite('session-b', fix, 'b')
-    await wait(10)
-    release()
+    await entered.promise
+    release.resolve()
     await Promise.all([first, second])
     expect(order).toEqual(['a:start', 'a:end', 'b:start'])
   })
