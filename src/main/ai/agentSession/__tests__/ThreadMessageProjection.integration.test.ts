@@ -4,7 +4,7 @@ import { configure, createRegistry, defineExtension, defineTool, MemoryStorage }
 import { num, obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
-import { createScriptedHost } from '@cherrystudio/agent-behavior'
+import { createScriptedHost } from '@cherrystudio/agent-behavior/testing'
 import { runtimeId, type OperationResult, type ThreadHandle } from '@cherrystudio/agent-runtime'
 import { createPiRuntime, type PiSessionOptions } from '@cherrystudio/agent-runtime-pi'
 import { createPiDurableRuntime } from '@cherrystudio/agent-runtime-pi-durable'

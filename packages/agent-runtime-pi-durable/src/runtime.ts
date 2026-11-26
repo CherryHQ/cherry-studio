@@ -4,6 +4,9 @@ import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { canSuggestPrompt } from '@earendil-works/pi-ai/utils/query-fork'
 import {
   ConversationBusy,
+  GenerationTask,
+  InboxDoc,
+  LiveDoc,
   ProviderDoc,
   ToolTask,
   createRegistry,
@@ -26,13 +29,12 @@ import {
 } from '@earendil-works/pi-durable'
 
 import {
-  install,
+  decodeEntry,
+  ENTRY_KINDS,
   type HostPorts,
-  type Entries,
   type CallRef,
-  type ConversationFacts,
   type SubagentOrigin
-} from '@cherrystudio/agent-behavior'
+} from '@cherrystudio/agent-behavior/policy'
 import {
   runtimeId,
   type AgentRuntime,
@@ -52,7 +54,7 @@ import {
 } from '@cherrystudio/agent-runtime'
 
 import { createPiDurableBehavior, type PiDurableBehavior } from './behavior/harness'
-import { DurableFolds, HistoryFold, historyOf, pages, readFacts } from './behavior/history'
+import { DurableFolds, HistoryFold, pages } from './behavior/history'
 import { meteredModels } from './behavior/models'
 import { ContentProjection } from './content'
 import { readContextUsage } from './contextUsage'
@@ -75,6 +77,9 @@ export interface PiDurableRuntimeBehavior {
   configureRoot?(thread: ThreadId): AgentChange | Promise<AgentChange>
 }
 export type PiDurableSessionOptions = ConversationCreateOptions
+export type DurableRunState =
+  | { readonly state: 'active' | 'queued' }
+  | { readonly state: 'idle'; readonly outcome: 'completed' | 'aborted' | 'error' | undefined }
 export interface PiDurableThreadHandle extends ThreadHandle {
   readonly input: ThreadInput
   readonly durable: {
@@ -90,7 +95,7 @@ export interface PiDurableThreadHandle extends ThreadHandle {
       }>
     >
     predictPrompt(prompt: string, signal: AbortSignal): Promise<string>
-    facts(): Promise<ConversationFacts>
+    runState(): Promise<DurableRunState>
     providerSessionId(): Promise<string | undefined>
     behaviorToolCallId(call: CallRef): Promise<string | undefined>
     configure(change: AgentChange): Promise<void>
@@ -154,7 +159,6 @@ export async function createPiDurableRuntime(
     }
   }
   let behavior: PiDurableBehavior | undefined
-  let behaviorEntries: Entries | undefined
   let stopRegistry: (() => void) | undefined
   let harnessOptions = options.harness
   const refFor = (id: number): Thread =>
@@ -164,9 +168,7 @@ export async function createPiDurableRuntime(
     const config = options.behavior
     behavior = createPiDurableBehavior({
       folds,
-      install: (ports) => {
-        behaviorEntries = install(ports, config.host).entries
-      },
+      host: config.host,
       configureChild: async (child, parent, origin) =>
         withBehavior(
           await config.configureChild({
@@ -303,10 +305,14 @@ export async function createPiDurableRuntime(
     let cursor: Cursor | undefined
     do {
       const page = await tx.scanEntries({ conversationId: id, order: 'ascending' }, 16, cursor)
-      const found = historyOf(page.items, [], id).find(
-        (entry) => entry.kind === 'record' && entry.record.type === 'subagent-origin'
-      )
-      if (found?.kind === 'record' && found.record.type === 'subagent-origin') origin = found.record.value
+      for (const entry of page.items) {
+        if (entry.conversationId !== id || entry.kind !== ENTRY_KINDS.subagentOrigin) continue
+        const found = decodeEntry({ id: runtimeId(String(entry.id)), kind: entry.kind, data: entry.data })
+        if (found?.kind === 'record' && found.record.type === 'subagent-origin') {
+          origin = found.record.value
+          break
+        }
+      }
       cursor = origin ? undefined : page.next
     } while (cursor)
     origins.set(id, origin)
@@ -499,7 +505,8 @@ export async function createPiDurableRuntime(
               }
               cursor = page.next
             } while (cursor)
-            projection.update(view, undefined, states, fold.history)
+            let backgroundVersion = fold.backgroundVersion
+            projection.update(view, undefined, states, fold.hasBackgroundEvidence ? fold.history : undefined)
             let currentView = view
             let publishedView = view
             detachCommits = native.observeCommits({
@@ -536,7 +543,9 @@ export async function createPiDurableRuntime(
                   changed.push(submissionState(refFor(conversation.id), record, answer, logicalIds.get(record.id)))
                 }
                 publishedView = after
-                projection.update(after, publication.seq, changed, fold.history)
+                const backgroundChanged = fold.hasBackgroundEvidence && backgroundVersion !== fold.backgroundVersion
+                backgroundVersion = fold.backgroundVersion
+                projection.update(after, publication.seq, changed, backgroundChanged ? fold.history : undefined)
               },
               end() {}
             }).detach
@@ -548,7 +557,7 @@ export async function createPiDurableRuntime(
                 queueMicrotask(() => {
                   if (!closing && currentView === call.value && publishedView !== call.value) {
                     publishedView = call.value
-                    projection.update(call.value, undefined, [], fold.history)
+                    projection.update(call.value)
                   }
                 })
               },
@@ -604,7 +613,14 @@ export async function createPiDurableRuntime(
       if (!result.value.unloaded) return { status: 'confirmed', value: access(result.value) }
     }
   }
+  const managedParent = (id: ConversationId) =>
+    native.commit(async (tx) => {
+      const owner = (await tx.conversation(id))?.owner
+      if (owner && (await originOf(tx, id))) return refFor(owner.conversationId).id
+    }, context)
+
   function access(entry: Entry): PiDurableThreadHandle {
+    const commands = behavior?.commands
     entry.handles++
     let released = false
     const observations = new Set<Observation>()
@@ -714,7 +730,21 @@ export async function createPiDurableRuntime(
           return message.content.find((part) => part.type === 'text')?.text ?? ''
         },
         providerSessionId: async () => (await native.snapshot(ProviderDoc, entry.conversation.id, context))?.sessionId,
-        facts: () => native.commit((tx) => readFacts(tx, folds, entry.conversation.id), context),
+        runState: () =>
+          native.commit(async (tx) => {
+            const conversationId = entry.conversation.id
+            if ((await tx.doc(LiveDoc, conversationId)).run) return { state: 'active' }
+            if ((await tx.doc(InboxDoc, conversationId)).items.length) return { state: 'queued' }
+            const latest = await tx.scanTasks(
+              { conversationId, kind: GenerationTask.definition.name, order: 'descending' },
+              1
+            )
+            const outcome = latest.items[0]?.state.outcome?.status
+            return {
+              state: 'idle',
+              outcome: outcome === 'completed' || outcome === 'aborted' ? outcome : outcome ? 'error' : undefined
+            }
+          }, context),
         async behaviorToolCallId(call) {
           if (unavailable() || call.thread !== entry.ref.id || nativeId(call.key) === undefined) return undefined
           const task = await native.getTask(Number(call.key) as never, context)
@@ -766,10 +796,7 @@ export async function createPiDurableRuntime(
         },
         async permissionModeChanged() {
           if (unavailable()) return rejected('permission-mode-changed', 'closed')
-          if (behavior)
-            await behavior.withCall(entry.ref.id, (ports) =>
-              behaviorEntries!.permissionModeChanged(ports, entry.ref.id)
-            )
+          await commands?.permissionModeChanged(entry.ref.id)
           return { status: 'confirmed', value: undefined }
         }
       },
@@ -834,21 +861,10 @@ export async function createPiDurableRuntime(
               return { ...rejected('submit', 'closed'), inputId: input.inputId }
             }
             try {
-              if (behavior && behaviorEntries) {
-                const facts = await native.commit((tx) => readFacts(tx, folds, entry.conversation.id), context)
-                if (facts.lineage.kind === 'subagent') {
-                  const receipt = await behavior.withCall(
-                    entry.ref.id,
-                    (ports) =>
-                      behaviorEntries!.messageSubagent(
-                        ports,
-                        entry.ref.id,
-                        input.text,
-                        input.inputId,
-                        new AbortController().signal
-                      ),
-                    { inputId: input.inputId }
-                  )
+              if (commands) {
+                const parent = await managedParent(entry.conversation.id)
+                if (parent) {
+                  const receipt = await commands.messageChild(parent, entry.ref.id, input.text, input.inputId)
                   if (receipt.status === 'refused') {
                     return {
                       status: 'rejected',
@@ -864,14 +880,7 @@ export async function createPiDurableRuntime(
                   return { status: 'acknowledged', inputId: input.inputId, facts: state.facts }
                 }
                 if (/^\/goal(?:\s|$)/.test(input.text)) {
-                  await behavior.withCall(entry.ref.id, (ports) =>
-                    behaviorEntries!.goalCommand(
-                      ports,
-                      entry.ref.id,
-                      input.text.slice('/goal'.length).trim(),
-                      input.inputId
-                    )
-                  )
+                  await commands.goal(entry.ref.id, input.text.slice('/goal'.length).trim(), input.inputId)
                   native.resume()
                   const state: InputState = { inputId: input.inputId, facts: ['locally-handled'], outcome: 'completed' }
                   entry.projection.input(state)
@@ -933,13 +942,8 @@ export async function createPiDurableRuntime(
       interrupt() {
         if (unavailable()) return Promise.resolve(rejected('interrupt', 'closed'))
         return track(
-          (behavior
-            ? behavior.withCall(entry.ref.id, async (ports) => {
-                const facts = await ports.ledger.read(entry.ref.id)
-                if (facts.lineage.kind === 'subagent')
-                  await behaviorEntries!.stopSubagent(ports, entry.ref.id, randomUUID())
-                else await behaviorEntries!.userStop(ports, entry.ref.id, randomUUID())
-              })
+          (commands
+            ? managedParent(entry.conversation.id).then((parent) => commands.stop(entry.ref.id, randomUUID(), parent))
             : entry.conversation.abort(context)
           ).then(
             () => ({ status: 'confirmed' as const, value: undefined }),

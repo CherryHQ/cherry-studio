@@ -2,10 +2,11 @@ import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { Effect, Step, TxOp } from '../core/decisions'
 import type { ConversationFacts } from '../core/facts'
-import type { CallInputs, HostSettingsSnapshot } from '../core/hostFacts'
+import type { CallInputs } from '../core/hostFacts'
 import { subagentViews } from '../core/subagents/subagentLedger'
 import type { BoundPorts, MessageResult, RetractResult, StartResult, TransactResult } from '../ports/harness'
-import type { HostPorts, Settings } from '../ports/host'
+import type { HostPorts } from '../ports/host'
+import { settingsSnapshot } from './hostInputs'
 
 /** The ports of one tool call, job run, lifecycle callback or host entry, with the host's. */
 export type Context = { readonly ports: BoundPorts; readonly host: HostPorts }
@@ -82,16 +83,6 @@ export async function step<R extends JsonValue>(
     ...(messaged === undefined ? {} : { messaged })
   }
 }
-
-/** C3–C6, C14: each setting read once for one decision. */
-const settingsSnapshot = (settings: Settings, thread: ThreadId): HostSettingsSnapshot => ({
-  goalDefaults: settings.goalDefaults(),
-  autonomy: settings.autonomy(),
-  permissionMode: settings.permissionMode(thread),
-  attendance: settings.attendance(thread),
-  maxBackground: settings.maxBackground(),
-  offloadThreshold: settings.offloadThreshold()
-})
 
 /** Design §7.1 point 1: the host facts one decision needs, gathered before its commit. */
 export function gatherInputs(

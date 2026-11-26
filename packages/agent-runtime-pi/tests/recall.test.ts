@@ -3,7 +3,8 @@ import { defineTool, type SessionEntry, SessionManager } from '@earendil-works/p
 import { obj } from '@earendil-works/pi-schema'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
-import { createScriptedHost, install } from '@cherrystudio/agent-behavior'
+import { install } from '@cherrystudio/agent-behavior'
+import { createScriptedHost } from '@cherrystudio/agent-behavior/testing'
 
 import { type AgentRuntimeEvent } from '../src'
 import { createPiBehavior } from '../src/behavior/harness'

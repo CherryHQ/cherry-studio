@@ -27,7 +27,8 @@ It captures committed archives after native execution has quiesced and before st
 closes; retained accesses can flush these archives until `release()`.
 Shared behavior drains native input admission before ending local consumption waits.
 Ending a wait does not cancel or resend an admitted input; a queued steer remains in
-native storage for recovery. Unexpected native closure seals accesses and closes
+native storage for recovery. The production close path has no behavior callback and skips the
+conversation scan used for custom close callbacks. Unexpected native closure seals accesses and closes
 observation feeds immediately, even while task cleanup is still running. Normal shutdown
 still drains admitted relation reads and their final facts before closing feeds.
 
@@ -35,6 +36,9 @@ still drains admitted relation reads and their final facts before closing feeds.
 Harness, including other conversations. Without shared behavior, `interrupt()` uses native ordinary-scope
 abort: queued inputs and owned non-background work are included; queued writes and
 background subtrees are not. These effects are not application-wide cancellation.
+
+Pi Durable installs tool approval and offload through native ToolTask hooks. Approval grants reuse the
+existing task memo key, and output offload preserves non-text segments and structured tool results.
 
 ## Input and output
 
@@ -44,7 +48,8 @@ history as a passive native write. The native request ID makes repeated initiali
 idempotent across reopening. It starts no model run and is excluded from product projections
 and behavior-authorizing user history, while ordinary and autonomous model requests see it.
 Busy rejection comes from native
-`ConversationBusy`; uncertain failures return `unknown`. Once native admission returns, a failed
+`ConversationBusy`; uncertain failures return `unknown`. Ordinary root submission uses native ownership and skips the behavior ledger. Managed child
+submission resolves its stored origin and uses the existing child admission rules. Once native admission returns, a failed
 status read cannot erase the acknowledged receipt. Inputs retain their logical InputId in native
 entry metadata, so observations recover their placement and outcome after reopening. External
 native submissions may lack that logical ID. The adapter exposes no separate host deduplication,
@@ -84,6 +89,7 @@ confirm foreground completion. Native progress may remain unpersisted for up to 
 `persistWithinMs` interval (1,000 ms by default); archives contain stored entries only. Reopen reads all submission
 facts, including placed native-only inputs. Completion stays pending during admission, unresolved input,
 foreground work or compaction, and carries terminal inputs after their content. Revision and pending state stay private to the projection.
+The desktop child status read uses the native live run, inbox and latest generation outcome in one transaction.
 A confirmed rejection releases only its temporary admission hold; unknown admission remains unresolved.
 Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; committed output after the unique logical user-input boundary of an unfinished placed input also remains live. Earlier answers, queued inputs and ambiguous boundaries remain historical. A returning preview receives a fresh local identity even when a resumed native task repeats its attempt number. State-only reads and updates use `ThreadFeed.state`. Native views append the same entry records, so
 the projection keeps its committed messages frozen and projects only appended entries; a later tool
@@ -154,14 +160,16 @@ of polling retained inputs or deriving completion from idle activity.
 
 ## Shared behavior
 
-The optional `behavior` factory option installs `agent-behavior` with Cherry's
-`HostPorts` and a `configureChild({ thread, parent, modelKey })` model-binding callback. Native tools, transactional
-records, hooks, memo, jobs and waits implement the harness ports. Product rules remain
-in `agent-behavior`; this adapter contains no second subagent or goal policy engine.
+The optional `behavior` factory option takes Cherry's `HostPorts` and a
+`configureChild({ thread, parent, modelKey })` model-binding callback. The native extension
+registers the tools and executes the durable jobs, commands and lifecycle transitions
+through its own transactions, submissions and task waits. It imports shared decisions,
+tool schemas, host services and record codecs from `@cherrystudio/agent-behavior/policy`.
+The older execution ports are adapted in the contract test fixture.
 
-Managed child input calls the shared `messageSubagent` entry, so background continuation
-keeps the native child identity and creates the shared result job. Root `/goal` input
-uses the shared command entry. Explicit root `interrupt()` records user stop before
+Managed child input resolves its native parent and calls the shared continuation rules.
+It keeps the native child identity and creates the existing result job. Root `/goal` input
+applies the goal-command decision in a native transaction. Explicit root `interrupt()` records user stop before
 cancelling; child interruption follows its current shared ownership. Opening installs
 model bindings and runs `onOpen` before scheduler resume. Desktop hosts can select owned conversations and rebind root configuration before this recovery. Inherited model context remains visible, while behavior authority and summary charges come only from conversation-owned records. That policy stops interrupted
 background children and disarms goals; ordinary unfinished root tasks can resume.
@@ -202,7 +210,7 @@ identity files, skill catalog entries and tool schemas expose individual estimat
 from tool registration, including codemode-only tools listed as deferred. Reads never rerender sections
 or reload files. These partial estimates are separate from native billable usage records.
 
-The runtime `durable.commit` facet shares the existing native mutation line; desktop fork operations retain the backend while using it. The thread `durable` facet exposes native configuration, compaction, behavior facts,
+The runtime `durable.commit` facet shares the existing native mutation line; desktop fork operations retain the backend while using it. The thread `durable` facet exposes native configuration, compaction, run state,
 provider session identity and tool-call resolution for the desktop adapter. These stay
 outside the harness-neutral Runtime contract. `onInputPlaced(inputId, thread)` runs synchronously at
 native placement so the host reserves input attribution before the next model request; native-only

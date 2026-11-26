@@ -1100,8 +1100,8 @@ its archive cannot open as an independent writable root. Public projection code 
 
 ### Pi Durable behavior host
 
-`PiDurableRuntimeDriver` owns one native backend per store and connections borrow root accesses. `DurableBackend` installs the same `agent-behavior` rules and routes host ports by the native conversation ownership tree through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
-question cards and tool rendering. Native SQLite owns execution history and task state;
+`PiDurableRuntimeDriver` owns one native backend per store and connections borrow root accesses. `DurableBackend` supplies desktop services by native conversation ownership. `agent-runtime-pi-durable` runs tool and lifecycle hooks and schedules background work through native Harness tasks and transactions. Both Pi engines use the same product decisions and record codecs. Durable imports them through `@cherrystudio/agent-behavior/policy`.
+The backend reuses gateway model routing, approval facts, question cards and tool rendering. Native SQLite owns execution history and task state;
 the existing backend/context tables bind it to product sessions. Strict identity checks
 prevent a missing store from silently becoming a fresh conversation.
 Pi Durable renders the Pi SDK's global and workspace-ancestor context files before each
@@ -1342,8 +1342,7 @@ occupancy keeps the session busy and holds later input until the connection emit
 paused reply, unless a background run continued that reply after its input ended. `onTurnTerminal`
 fires once for the stopped reply, after that decision. A failed or unconfirmed stop (20 s, including
 the native interrupt call) falls back to closing. Durable shutdown preserves ordinary
-unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's
-`onOpen` before native resume, disarming goals and stopping interrupted background children.
+unfinished root tasks; explicit interruption cancels them. The native reopen hook disarms goals and stops interrupted background children before the scheduler resumes.
 Repeated `closeSession()` calls join the in-flight close. A closing session rejects new
 input and replacement turns until the old reply releases ownership. Teardown joins a pending
 `driver.connect()` and closes a late connection before completing. It keeps the current

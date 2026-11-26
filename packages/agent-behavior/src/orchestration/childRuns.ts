@@ -1,28 +1,13 @@
 import type { ThreadId } from '@cherrystudio/agent-runtime'
 
-import { exceedsThreshold, offloadName } from '../core/context/offload'
 import type { TurnInput } from '../core/decisions'
 import type { CallKey, ToolResultFact } from '../core/facts'
 import { type Key, keys } from '../core/keys'
 import { decideRunEnd, decideSpawnAbandoned } from '../core/subagents/subagentDecisions'
 import { runStopping } from '../core/subagents/subagentLedger'
-import { type RunReport, runReport, TURN_STOPPED } from '../core/subagents/subagentText'
-import type { HostPorts } from '../ports/host'
-import { storedMarker } from './output'
+import { runReport, TURN_STOPPED } from '../core/subagents/subagentText'
+import { storeChildReport } from './output'
 import { type Context, step } from './step'
-
-export const SUBAGENT_TOOL_NAME = 'subagent'
-
-/** D22: a report or partial output over the threshold goes to the output store; the run record keeps the marker. */
-async function shortened(host: HostPorts, call: CallKey, report: RunReport): Promise<RunReport> {
-  const threshold = host.settings.offloadThreshold()
-  const shorten = async (text: string | undefined) =>
-    text === undefined || !exceedsThreshold(text, threshold)
-      ? text
-      : storedMarker(host, { name: offloadName(text), content: text, key: call, tool: SUBAGENT_TOOL_NAME })
-  const [text, partial] = await Promise.all([shorten(report.report), shorten(report.partial)])
-  return { ...report, ...(text === undefined ? {} : { report: text }), ...(partial === undefined ? {} : { partial }) }
-}
 
 /**
  * H3, AC10: the foreground child `call` spawned never runs, because the call aborted before the child's first input;
@@ -54,6 +39,6 @@ export async function runChild(
   // A stop recorded before the input arrived (G-C4) still applies: the run it started stops at once.
   if (runStopping((await ports.ledger.read(parent)).history, child, run)) await ports.helpers.stop(child, accepted.run)
   const answer = await ports.helpers.awaitAnswer(child, accepted.run, key)
-  const report = await shortened(context.host, call, runReport(answer))
+  const report = await storeChildReport(context.host, call, runReport(answer))
   return (await step(context, parent, (facts) => decideRunEnd(facts, child, run, answer, report))).result
 }

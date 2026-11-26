@@ -157,7 +157,9 @@ export function conversationExtension(adapter: Adapter, conv: Conversation): Ext
     )
     pi.on(
       'session_shutdown',
-      reporting(adapter, () => adapter.lifecycle((handlers, ports) => handlers.onClose(conv.thread, ports)))
+      reporting(adapter, () =>
+        adapter.lifecycle((handlers, ports) => handlers.onClose?.(conv.thread, ports) ?? Promise.resolve())
+      )
     )
   }
 }

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { ConversationId, AgentChange, Registry } from '@earendil-works/pi-durable'
 
 import { application } from '@application'
-import type { HostPorts, BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
+import type { HostPorts, BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior/policy'
 import { runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
 import type { PiDurableRuntime } from '@cherrystudio/agent-runtime-pi-durable'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'

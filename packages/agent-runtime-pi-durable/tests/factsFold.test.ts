@@ -97,7 +97,7 @@ it('reads only unseen rows on repeated facts reads and on the child answer and s
   const commit = native.commit.bind(native)
   native.commit = (call, callContext) => commit((tx) => call(countingTx(tx, counts)), callContext)
   reset()
-  const answer = await opened.behavior().withCall(threadId(root.id), async (ports) => {
+  const answer = await opened.harness.withCall(threadId(root.id), async (ports) => {
     const value = await ports.helpers.awaitAnswer(threadId(child.id), 1, 'fold-answer' as Key)
     await ports.helpers.stop(threadId(child.id), 1)
     return value

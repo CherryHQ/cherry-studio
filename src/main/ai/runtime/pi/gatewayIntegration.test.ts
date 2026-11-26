@@ -3,8 +3,10 @@ import type { AddressInfo } from 'node:net'
 import { resolve } from 'node:path'
 
 import { UnsupportedFunctionalityError } from '@ai-sdk/provider'
+import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { normalizeContext } from '@earendil-works/pi-ai'
 import { defineTool } from '@earendil-works/pi-coding-agent'
+import type { ConversationId } from '@earendil-works/pi-durable'
 import {
   FunctionCallingConfigMode,
   GoogleGenAI,
@@ -761,7 +763,7 @@ describe('native Pi through the production gateway', () => {
   it.each(overflowCases)('handles $name in Durable through the gateway', async ({ code, message, overflow }) => {
     const { createModels, createProvider } = await import('@earendil-works/pi-ai')
     const { stream, streamSimple } = await import('@earendil-works/pi-ai/api/openai-completions')
-    const { MemoryStorage, createRegistry } = await import('@earendil-works/pi-durable')
+    const { CompactionEntry, MemoryStorage, createRegistry } = await import('@earendil-works/pi-durable')
     const { createPiDurableRuntime } = await import('@cherrystudio/agent-runtime-pi-durable')
     const binding = await createPiGatewayModelBinding(
       { sessionId: 'session' },
@@ -821,18 +823,29 @@ describe('native Pi through the production gateway', () => {
       rejectUpstream = () => (requests.length === 2 ? { message, code } : undefined)
       await handle.input.submit({ inputId: runtimeId('second'), text: 'Continue the task', whenBusy: 'reject' })
       await durable.settled()
-      const facts = await handle.durable.facts()
-      const compaction = facts.history.findIndex((entry) => entry.kind === 'compaction')
+      const entries = await durable.durable.commit(
+        async (tx) =>
+          (await tx.scanEntries({ conversationId: Number(handle.thread.id) as ConversationId, order: 'ascending' }, 32))
+            .items,
+        BACKGROUND_CONTEXT
+      )
+      const compaction = entries.findIndex((entry) => CompactionEntry.is(entry))
       expect(compaction !== -1).toBe(overflow)
       if (overflow) {
         expect(requests.length).toBeGreaterThanOrEqual(4)
         expect(
-          facts.history
+          entries
             .slice(compaction + 1)
-            .some((entry) => entry.kind === 'assistant' && entry.text === 'Model answer')
+            .some((entry) =>
+              entry.model?.some(
+                (message) =>
+                  message.role === 'assistant' &&
+                  message.content.some((part) => part.type === 'text' && part.text === 'Model answer')
+              )
+            )
         ).toBe(true)
       } else expect(requests).toHaveLength(2)
-      expect(facts.live.runEnd?.outcome).toBe(overflow ? 'completed' : 'error')
+      expect(await handle.durable.runState()).toEqual({ state: 'idle', outcome: overflow ? 'completed' : 'error' })
     } finally {
       confirmed(await durable.shutdown())
     }

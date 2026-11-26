@@ -25,8 +25,6 @@ export function lifecycleHandlers(host: HostPorts): LifecycleHandlers {
     // The status a compaction leaves is written by the driver once the conversation is idle (S-i).
     async onCompacted(thread, ports) {
       await step({ ports, host }, thread, (facts) => ({ ops: [ensureDriver(facts)], effects: [], result: null }))
-    },
-    // S-f (a shutdown record for running children) comes with PR-3a.
-    async onClose() {}
+    }
   }
 }

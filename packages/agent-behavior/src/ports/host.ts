@@ -34,7 +34,6 @@ export type ApprovalRequest = {
  * is H6's in-session store, since a restart drops the pending call.
  * @harness durable `beforeTool` waits before the intent and reruns after a crash; `Memory` is `api.memo`, and the host
  * deduplicates a repeated ask by `CallRef`.
- * @harness fake Scripted answers; an ask with none queued stays pending; `Memory` is the fake's persistent memo table.
  * @keys `CallRef` (thread and call key) identifies a call to the host. The gate always records each answer through
  * `Memory.remember` under `cherry.approval:<callKey>`.
  * @waits `ask` waits for a person until answered or `signal` aborts.
@@ -51,7 +50,6 @@ export type QuestionRequest = { readonly call: CallRef; readonly questions: read
  *
  * @harness coding-agent Today's AskUserPort; a restart does not resume the call.
  * @harness durable The tool is replay-safe and memoizes the answer; a crash while waiting asks once more.
- * @harness fake Scripted answers, pending until one is queued.
  * @keys `CallRef` identifies the call; the answer is memoized under `cherry.ask:<callKey>`.
  * @waits Waits for a person until answered or `signal` aborts.
  */
@@ -66,7 +64,6 @@ export interface Questions {
  * @harness coding-agent Cherry's model catalog (today's `findModels` and model tool support) and the conversation's
  * model settings.
  * @harness durable The same catalog; configuring a child's run stays with the adapter (today's `SubagentPort.configure`).
- * @harness fake A fixed candidate list and one fixed answer for every conversation.
  */
 export interface Models {
   find(query: string, thread: ThreadId): Promise<readonly SubagentModelCandidate[]>
@@ -91,7 +88,6 @@ export type VerifyRequest = {
  *
  * @harness coding-agent The host verifier over the conversation's context after replay rules.
  * @harness durable The same; the verdict is memoized so a rerun phase does not ask again.
- * @harness fake Scripted verdicts, pending until one is queued.
  * @keys `cherry.verdict:<callKey>`.
  * @waits The host owns any timeout; the package sets none.
  */
@@ -110,7 +106,6 @@ export type OutputFile = {
  *
  * @harness coding-agent Today's ToolOutputStore.
  * @harness durable The same store; it is not transactional, so a crash may leave an orphan file.
- * @harness fake An in-memory list; saving a name again returns the same path.
  * @keys `name` is content-addressed by the core's sha256, so both harnesses name one output alike and a rerun is harmless.
  */
 export interface OutputStore {
@@ -122,7 +117,6 @@ export interface OutputStore {
  *
  * @harness coding-agent The runtime event channel (subagent views, notices).
  * @harness durable The same host channel.
- * @harness fake Records events in order.
  */
 export interface Observation {
   emit(event: BehaviorEvent): void
@@ -138,7 +132,6 @@ export interface Observation {
  *
  * @harness coding-agent Read from Cherry's preferences at decision time.
  * @harness durable The same reads; nothing is stored in the harness.
- * @harness fake A snapshot the test replaces.
  */
 export interface Settings {
   goalDefaults(): GoalDefaults

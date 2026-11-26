@@ -24,7 +24,7 @@ import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite
 import { obj, str } from '@earendil-works/pi-schema'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
-import { createScriptedHost } from '@cherrystudio/agent-behavior'
+import { createScriptedHost } from '@cherrystudio/agent-behavior/testing'
 import { runtimeId, ThreadFeed, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import {
@@ -33,6 +33,7 @@ import {
   type PiDurableRuntimeOptions,
   type PiDurableThreadHandle
 } from '../src'
+import { DurableFolds, readFacts } from '../src/behavior/history'
 
 function gate() {
   let resolve!: () => void
@@ -70,7 +71,10 @@ function blocked() {
     })
   return { reached, step }
 }
-async function setup(openStorage: PiDurableRuntimeOptions['openStorage'] = async () => new MemoryStorage()) {
+async function setup(
+  openStorage: PiDurableRuntimeOptions['openStorage'] = async () => new MemoryStorage(),
+  behavior?: PiDurableRuntimeOptions['behavior']
+) {
   const faux = fauxProvider({ tokensPerSecond: 20, tokenSize: { min: 1, max: 1 } })
   const models = createModels()
   models.setProvider(faux.provider)
@@ -79,6 +83,7 @@ async function setup(openStorage: PiDurableRuntimeOptions['openStorage'] = async
   const options: PiDurableRuntimeOptions = {
     backendId: runtimeId('test-durable'),
     openStorage,
+    behavior,
     harness: { models, registry, onReport: (error) => errors.push(error) },
     onError: (error) => errors.push(error)
   }
@@ -120,7 +125,11 @@ describe('Pi Durable runtime contract', () => {
     await handle.durable.initializeContext('Remember reference mango')
     expect(faux.state.callCount).toBe(0)
     expect(confirmed(await handle.archive()).messages).toEqual([])
-    expect((await handle.durable.facts()).history.filter((entry) => entry.kind === 'user')).toEqual([])
+    const facts = await runtime.durable.commit(
+      (tx) => readFacts(tx, new DurableFolds(), Number(handle.thread.id) as ConversationId),
+      BACKGROUND_CONTEXT
+    )
+    expect(facts.history.filter((entry) => entry.kind === 'user')).toEqual([])
     await runtime.shutdown()
     const recovered = confirmed(await createPiDurableRuntime(options))
     onTestFinished(async () => {
@@ -342,6 +351,67 @@ describe('Pi Durable runtime contract', () => {
     await access.release()
     const cold = confirmed(await runtime.open(access.thread))
     expect(confirmed(await cold.archive())).toEqual(after)
+  })
+
+  it.each([0, 256, 2048])('routes ordinary input without rereading %i old entries', async (historySize) => {
+    const dir = await mkdtemp(join(tmpdir(), 'durable-admission-'))
+    onTestFinished(() => rm(dir, { recursive: true, force: true }))
+    const oldReads = new Set<number>()
+    const oldEntries = new Set<number>()
+    const { runtime, faux } = await setup(
+      async () => {
+        const storage = await openNodeSqliteStorage(join(dir, 'session.sqlite'))
+        return new Proxy(storage, {
+          get(target, key) {
+            if (key === 'scanEntries')
+              return async (...args: Parameters<typeof storage.scanEntries>) => {
+                const page = await target.scanEntries(...args)
+                // Prompt construction and context usage read up to a captured head.
+                if (args[0].maxEntryId === undefined)
+                  for (const entry of page.items) if (oldEntries.has(entry.id)) oldReads.add(entry.id)
+                return page
+              }
+            const value = Reflect.get(target, key)
+            return typeof value === 'function' ? value.bind(target) : value
+          }
+        })
+      },
+      {
+        host: createScriptedHost({
+          settings: {
+            goalDefaults: { maxGoalRounds: 5, maxGoalRoundsCeiling: 10, blockedAfter: 2 },
+            autonomy: 'auto',
+            permissionMode: 'bypassPermissions',
+            attendance: 'stream',
+            maxBackground: 2,
+            offloadThreshold: 4000
+          }
+        }),
+        configureChild: () => ({})
+      }
+    )
+    const handle = confirmed(await runtime.create(sessionOptions))
+    await runtime.durable.commit(async (tx) => {
+      const id = Number(handle.thread.id) as ConversationId
+      for (let index = 0; index < historySize; index++) {
+        const entry = await tx.appendEntry(id, {
+          kind: 'pi.user',
+          model: [{ role: 'user', content: 'Earlier input', timestamp: index }]
+        })
+        oldEntries.add(entry.id)
+      }
+    }, BACKGROUND_CONTEXT)
+    faux.setResponses([fauxAssistantMessage('Current answer')])
+
+    oldReads.clear()
+    expect((await handle.input.submit(draft('Current input'))).status).toBe('acknowledged')
+    expect(oldReads.size).toBe(0)
+    await runtime.settled()
+    expect(faux.state.callCount).toBe(1)
+
+    oldReads.clear()
+    expect(await handle.durable.runState()).toEqual({ state: 'idle', outcome: 'completed' })
+    expect(oldReads.size).toBe(0)
   })
 
   it.each(['before', 'after'] as const)(
@@ -733,6 +803,88 @@ describe('Pi Durable runtime contract', () => {
     })
     expect(faux.state.callCount).toBe(before + 1)
   })
+
+  it('settles a pending background report once across SQLite reopens', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'durable-report-'))
+    onTestFinished(() => rm(directory, { recursive: true, force: true }))
+    const model = sessionOptions.agent.model
+    const { runtime, faux, options, errors } = await setup(
+      () => openNodeSqliteStorage(join(directory, 'session.sqlite')),
+      {
+        host: createScriptedHost({
+          settings: {
+            goalDefaults: { maxGoalRounds: 5, maxGoalRoundsCeiling: 10, blockedAfter: 2 },
+            autonomy: 'auto',
+            permissionMode: 'bypassPermissions',
+            attendance: 'stream',
+            maxBackground: 2,
+            offloadThreshold: 4000
+          }
+        }),
+        configureChild: () => ({ model })
+      }
+    )
+    const child = blocked()
+    const respond: FauxResponseStep = (...args) => {
+      const input = args[0].messages.findLast((message) => message.role === 'user')?.content
+      return typeof input === 'string' && input.includes('Scan in the background')
+        ? child.step(...args)
+        : fauxAssistantMessage('parent done')
+    }
+    faux.setResponses([
+      fauxAssistantMessage(
+        fauxToolCall(
+          'subagent',
+          { description: 'Scan', prompt: 'Scan in the background', background: true },
+          { id: 'spawn' }
+        ),
+        { stopReason: 'toolUse' }
+      ),
+      respond,
+      respond
+    ])
+    const root = confirmed(await runtime.create(sessionOptions))
+    expect((await root.input.submit(draft('Delegate the scan'))).status).toBe('acknowledged')
+    await child.reached
+    await expect.poll(() => root.durable.runState()).toEqual({ state: 'idle', outcome: 'completed' })
+    const id = Number(root.thread.id) as ConversationId
+    const report = await runtime.durable.commit(async (tx) => {
+      const tasks = await tx.scanTasks({ conversationId: id, kind: 'cherry.behavior-job' }, 32)
+      return tasks.items.find((task) => task.state.status !== 'terminal')
+    }, BACKGROUND_CONTEXT)
+    if (!report) throw new Error('Expected a pending background report')
+    expect(report.input).toMatchObject({ job: { kind: 'subagent-report' } })
+    confirmed(await runtime.shutdown())
+
+    const calls = faux.state.callCount
+    for (let reopening = 0; reopening < 2; reopening++) {
+      const reopened = confirmed(await createPiDurableRuntime(options))
+      try {
+        if (reopening === 0) {
+          const pending = await reopened.durable.commit((tx) => tx.task(report.id), BACKGROUND_CONTEXT)
+          expect(pending).toBeDefined()
+          expect(pending?.state.status).not.toBe('terminal')
+        }
+        confirmed(await reopened.resume())
+        await reopened.settled()
+        const facts = await reopened.durable.commit((tx) => readFacts(tx, new DurableFolds(), id), BACKGROUND_CONTEXT)
+        expect(
+          facts.history.flatMap((entry) =>
+            entry.kind === 'record' && entry.record.type === 'subagent-run' && entry.record.value.status === 'finished'
+              ? [entry.record.value.outcome]
+              : []
+          )
+        ).toEqual(['interrupted'])
+        expect(await reopened.durable.commit((tx) => tx.task(report.id), BACKGROUND_CONTEXT)).toMatchObject({
+          state: { status: 'terminal', outcome: { status: 'completed' } }
+        })
+        expect(faux.state.callCount).toBe(calls)
+      } finally {
+        confirmed(await reopened.shutdown())
+      }
+    }
+    expect(errors).toEqual([])
+  })
 })
 
 it('reads the native compaction estimate passively without resuming the scheduler or writing usage', async () => {
@@ -1118,13 +1270,18 @@ it('predicts from durable context without committing prediction messages or task
   await root.input.submit(draft('Check the fix'))
   await runtime.settled()
   const before = confirmed(await root.archive())
-  const facts = await root.durable.facts()
+  const readTasks = () =>
+    runtime.durable.commit(
+      (tx) => tx.scanTasks({ conversationId: Number(root.thread.id) as ConversationId }, 32),
+      BACKGROUND_CONTEXT
+    )
+  const tasks = await readTasks()
   expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe(
     'run the tests'
   )
   expect(confirmed(await root.archive())).toEqual(before)
-  expect(await root.durable.facts()).toEqual(facts)
+  expect(await readTasks()).toEqual(tasks)
   expect(await root.durable.predictPrompt('exact prediction instruction', new AbortController().signal)).toBe('')
   expect(confirmed(await root.archive())).toEqual(before)
-  expect(await root.durable.facts()).toEqual(facts)
+  expect(await readTasks()).toEqual(tasks)
 })

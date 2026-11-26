@@ -317,7 +317,7 @@ The retired tests map to retained behavior owners as follows. Cases that only ex
 | --- | --- |
 | AskUser and Todo | `behaviorRuntime.test.ts` tests approvals/answers, Stop with a late answer, and Todo native-file reopen without model work; `agent-behavior/tests/core/interaction/interaction.test.ts` owns input validation. |
 | Output offload | `behaviorAdapter.test.ts` covers successful/failed storage, excerpts, image order, structured output and file reopen; `agent-behavior/tests/core/context/context.test.ts` owns selection/exemption rules. |
-| Goal state, stops and recovery | `agent-behavior/tests/core/goal/` owns budgets/state/history; `tests/orchestration/fixtures/goal.test.ts` and `reopen.test.ts` own policy/recovery; Pi `behaviorRuntime.test.ts` verifies local goal commands and compaction. |
+| Goal state, stops and recovery | `agent-behavior/tests/core/goal/` owns budgets, state and history. Pi `behaviorRuntime.test.ts` verifies local goal commands and compaction. Pi Durable tests verify goals through the Main connection and recovery with native SQLite. |
 | Child create/fork/approval/model/continue/stop/delivery | Pi `behaviorAdapter.test.ts`, `behaviorRuntime.test.ts`, `behaviorContract.test.ts` and `behaviorHistory.test.ts` cover native ownership, persisted lineage, independent continuation, admission failures, stopped turns and reporting; Main child projection/archive suites retain the product persistence contract. |
 | Root runtime and native storage | Existing runtime, lifecycle, startup/stream/boundary observation, session/storage/events and compaction suites remain; Gateway and native-tool integration now use `createPiRuntime` rather than an exported session builder. |
 

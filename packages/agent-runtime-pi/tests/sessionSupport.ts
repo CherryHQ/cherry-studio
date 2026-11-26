@@ -19,7 +19,7 @@ import {
 import { type AgentSession, ModelRuntime, type SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent'
 import { onTestFinished } from 'vitest'
 
-import { createScriptedHost } from '@cherrystudio/agent-behavior'
+import { createScriptedHost } from '@cherrystudio/agent-behavior/testing'
 
 import { type AgentRuntimeEvent } from '../src'
 import { type AgentRuntimeModel, type AgentRuntimeSessionOptions, createAgentRuntimeSession } from '../src/session'

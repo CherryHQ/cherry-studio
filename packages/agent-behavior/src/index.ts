@@ -67,6 +67,7 @@ export type { Key } from './core/keys'
 export { nativeSummaryKey } from './core/keys'
 export { goalForRequest, turnOrigin } from './core/goal/goalHistory'
 export { delegationStatus, subagentViews, subagentResults } from './core/subagents/subagentLedger'
+export { allowRequest } from './core/subagents/subagentDecisions'
 export type { DelegationStatus, SubagentResults } from './core/subagents/subagentLedger'
 export { DEFAULT_MAX_BACKGROUND, FORK_PLACEHOLDER_RESULT, INTERRUPTED_CALL_RESULT } from './core/subagents/subagentText'
 export type { SubagentStop } from './core/driver/lifecycle'
@@ -117,6 +118,7 @@ export type {
   HostPorts
 } from './ports/host'
 export { install } from './orchestration/install'
+export { createToolPolicy } from './orchestration/gate'
 export {
   TOOL_INTENT_ARG,
   TOOL_INTENT_GUIDE,
@@ -127,7 +129,7 @@ export {
 export type { IntentTool } from './orchestration/toolIntent'
 export type { Installation } from './orchestration/install'
 export type { Entries } from './orchestration/entries'
-export type { SubagentMessageReceipt } from './orchestration/tools/subagents'
+export type { SubagentMessageReceipt } from './core/subagents/subagentText'
 export { harnessContract } from './contract/cases'
 export type {
   ContractCase,
@@ -137,7 +139,3 @@ export type {
   ScriptedReply,
   ScriptedToolCall
 } from './contract/harness'
-export { createFakeHarness } from './fake/fakeHarness'
-export type { FakeHarness, FakeHarnessOptions } from './fake/fakeHarness'
-export { createScriptedHost } from './fake/scriptedHost'
-export type { ScriptedHost, ScriptedHostOptions } from './fake/scriptedHost'

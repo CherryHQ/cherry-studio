@@ -3,7 +3,7 @@ import { allowRequest } from '../core/subagents/subagentDecisions'
 import type { HarnessPorts } from '../ports/harness'
 import type { HostPorts } from '../ports/host'
 import { type Entries, entries } from './entries'
-import { gateHandlers } from './gate'
+import { createToolPolicy } from './gate'
 import { idleDriver } from './jobs/idleDriver'
 import { subagentReport } from './jobs/subagentReport'
 import { lifecycleHandlers } from './lifecycle'
@@ -19,7 +19,11 @@ export type Installation = { readonly entries: Entries }
 export function install(harness: HarnessPorts, host: HostPorts): Installation {
   for (const tool of [...goalTools(host), ...subagentTools(host), ...interactionTools(host), recallTool()])
     harness.tools.register(tool)
-  harness.toolGate.register(gateHandlers(host))
+  const policy = createToolPolicy(host)
+  harness.toolGate.register({
+    before: (call, facts, ports) => policy.approve(call, facts, (key, ask) => ports.memory.remember(key, ask)),
+    after: policy.offload
+  })
   harness.contextFilter.register({ omit: (_thread, facts) => unadmittedRoundItems(facts) })
   harness.requestMeter.register({ allow: (_thread, requestsInRun, lineage) => allowRequest(requestsInRun, lineage) })
   harness.jobs.register('idle-driver', idleDriver(host))
