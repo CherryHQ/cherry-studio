@@ -7,6 +7,7 @@ import { IMPORT_LIMITS, type NormalizedMessage, type NormalizedSession } from '.
 
 type Fields = Record<string, unknown>
 type Part = { type: 'text' | 'reasoning'; text: string }
+type PendingStream = { step: string; time: number; line: number; inferred: boolean; fragments: Map<number, Fields> }
 
 function fields(value: unknown): Fields {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Fields) : {}
@@ -35,7 +36,6 @@ const setup = new Set([
   'session/title-llm-request',
   'web/deepseek-search-llm-request',
   'model/selection',
-  'assistant/attempt',
   'llm/retry',
   'llm/retry-started',
   'session-log-deepseek/delivery-accepted',
@@ -45,6 +45,7 @@ const setup = new Set([
   'command/done'
 ])
 const generatedUsers = new Set([
+  'compact-checkpoint',
   'runtime-context',
   'plugin',
   'skill-catalog',
@@ -74,7 +75,7 @@ function blockText(value: unknown): string {
 }
 
 function readFragment(fragments: Map<number, Fields>, kind: string, data: Fields) {
-  const chunk = kind === 'assistant/chunk' ? fields(data.chunk) : data
+  const chunk = kind === 'assistant/chunk' || kind === 'chunk' ? fields(data.chunk) : data
   const index = typeof chunk.index === 'number' ? chunk.index : 0
   const type = string(chunk.type)
   if (type === 'block-end') fragments.set(index, fields(chunk.block))
@@ -125,8 +126,8 @@ export async function readDshSession(file: string, signal: AbortSignal): Promise
   let setupOnly = true
   const ids = new Map<string, NormalizedMessage>()
   const calls = new Map<string, string>()
-  const fragments = new Map<number, Fields>()
-  let stream: { step: string; time: number; line: number; inferred: boolean } | undefined
+  const attempts: PendingStream[] = []
+  let stream: PendingStream | undefined
   const warn = (code: string, severity: 'warning' | 'error' = 'warning') =>
     session.diagnostics.push({ code, line, path: file, severity })
 
@@ -216,22 +217,22 @@ export async function readDshSession(file: string, signal: AbortSignal): Promise
     flush()
   }
 
-  function flushStream() {
-    if (!stream) return
+  function flushStreams() {
+    if (stream) attempts.push(stream)
     const saved = { time, line, inferred }
-    time = stream.time
-    line = stream.line
-    inferred = stream.inferred
-    const content = [...fragments.entries()].sort(([a], [b]) => a - b).map(([, block]) => block)
-    if (content.length) {
-      message('assistant', { content }, 'stream:' + stream.step + ':' + line, 'paused')
+    for (const attempt of attempts) {
+      time = attempt.time
+      line = attempt.line
+      inferred = attempt.inferred
+      const content = [...attempt.fragments.entries()].sort(([a], [b]) => a - b).map(([, block]) => block)
+      message('assistant', { content }, 'stream:' + attempt.step + ':' + line, 'paused')
       session.downgradedParts++
       warn('incomplete_message')
     }
     time = saved.time
     line = saved.line
     inferred = saved.inferred
-    fragments.clear()
+    attempts.length = 0
     stream = undefined
   }
 
@@ -267,20 +268,33 @@ export async function readDshSession(file: string, signal: AbortSignal): Promise
     inferred = typeof timestamp !== 'number' || !Number.isFinite(new Date(timestamp).getTime())
     time = inferred ? (session.messages.at(-1)?.timestamp ?? createdAt) : Number(timestamp)
     const step = String(data.turn) + '/' + String(data.step)
+    const pending = stream ?? attempts.at(-1)
     if (
-      stream &&
-      ((data.turn !== undefined && step !== stream.step) ||
+      pending &&
+      ((data.turn !== undefined && step !== pending.step) ||
         ['step/end', 'turn/end', 'session/end-seed', 'user/message', 'tool/call', 'tool/result'].includes(kind))
     )
-      flushStream()
+      flushStreams()
     if (kind === 'assistant/attempt') {
-      fragments.clear()
+      const fragments = new Map<number, Fields>()
+      for (const entry of Array.isArray(data.stream) ? data.stream : []) {
+        const record = fields(entry)
+        readFragment(fragments, string(record.type), record)
+      }
+      // The embedded stream mirrors this attempt's live chunks. A later final message supersedes both.
+      if (fragments.size) stream = { step, time, line, inferred, fragments }
+      if (stream) {
+        setupOnly = false
+        attempts.push(stream)
+      } else session.skippedRecords++
       stream = undefined
+      return
     }
     if (kind === 'assistant/chunk' || ['reasoning-chunks', 'text-chunks', 'tool-call-chunks'].includes(kind)) {
       setupOnly = false
+      const fragments = stream?.fragments ?? new Map<number, Fields>()
       readFragment(fragments, kind, data)
-      if (fragments.size) stream ??= { step, time, line, inferred }
+      if (fragments.size) stream ??= { step, time, line, inferred, fragments }
       return
     }
     if (kind === 'session/title') {
@@ -296,23 +310,31 @@ export async function readDshSession(file: string, signal: AbortSignal): Promise
       return
     }
     setupOnly = false
-    const msg = fields(data.message)
+    const legacy = session.sourceVersion === '0'
+    const fallbackId =
+      legacy && Number.isSafeInteger(row.seq)
+        ? `legacy-message:${session.originalSessionId}:${row.seq}`
+        : 'line:' + line
+    const msg: Fields =
+      legacy && data.message === undefined && data.content !== undefined
+        ? { ...data, source: data.provenance ?? data.source }
+        : fields(data.message)
     if (kind === 'assistant/message') {
       const blocks = Array.isArray(msg.content) ? msg.content : [msg.content]
       if (blocks.some((part) => blockText(part) || fields(part).type === 'tool-call')) {
-        fragments.clear()
+        attempts.length = 0
         stream = undefined
-      } else flushStream()
-      message('assistant', msg, 'line:' + line)
+      } else flushStreams()
+      message('assistant', msg, fallbackId, data.interrupted === true ? 'paused' : 'success')
     } else if (kind === 'user/message') {
-      message('user', data, 'line:' + line)
+      message('user', data, fallbackId)
     } else if (kind === 'tool/call') {
       call(string(data.callId), string(data.name), data.arguments)
     } else if (kind === 'tool/result') {
       const blocks = Array.isArray(msg.content) ? msg.content : [msg.content]
       const nested = blocks.map(fields).filter((b) => b.type === 'tool-result')
       for (const result of nested.length ? nested : [msg]) {
-        const id = string(result.toolCallId) || string(fields(msg.source).callId)
+        const id = string(result.toolCallId) || string(fields(msg.source).callId) || string(msg.callId)
         const content = Array.isArray(result.content) ? result.content : [result.content]
         const output = content.map(blockText).filter(Boolean).join('\n\n')
         if (!output && content.length) {
@@ -349,7 +371,7 @@ export async function readDshSession(file: string, signal: AbortSignal): Promise
     const input = await readDshArchive(file, signal, parse)
     session.sourceFingerprint = input.fingerprint
     session.inputBytes = input.bytes
-    flushStream()
+    flushStreams()
   } catch (error) {
     signal.throwIfAborted()
     const code =

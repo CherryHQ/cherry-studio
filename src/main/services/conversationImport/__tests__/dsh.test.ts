@@ -32,6 +32,102 @@ describe('DSH session archives', () => {
     for await (const ref of dshAdapter.discover(root, signal)) refs.push(ref)
     return refs
   }
+  async function save(version: number, ...rows: unknown[]) {
+    const file = path.join(dir, version === 0 ? 'session.jsonl.zstd' : `session.v${version}.jsonl.zstd`)
+    await writeFile(file, archive(version, ...rows))
+    return { path: file }
+  }
+
+  it('matches flat v0 messages with migrated IDs and preserves failed tool output', async () => {
+    const step = { turn: 1, step: 1 }
+    const prompt = { content: 'Read the note', source: { kind: 'user' } }
+    const model = { provider: 'sample', model: 'test' }
+    const call = { type: 'tool-call', id: 'c', name: 'read', arguments: '{}' }
+    const content = [{ type: 'text', text: 'Checking the note' }, call]
+    const output = [{ type: 'text', text: 'Note missing' }]
+    const invoke = event('tool/call', { ...step, callId: 'c', name: 'read', arguments: '{}' })
+    const legacy = await save(
+      0,
+      { ...event('user/message', prompt), seq: 1 },
+      { ...event('assistant/message', { ...step, content, provenance: model }), seq: 2 },
+      invoke,
+      { ...event('tool/result', { ...step, callId: 'c', content: output, isError: true }), seq: 4 }
+    )
+    const before = await dshAdapter.read(legacy, signal)
+    expect(before.messages.map((m) => m.provenance.originalMessageId)).toEqual([
+      'legacy-message:child:1',
+      'legacy-message:child:2',
+      'call:c',
+      'result:c'
+    ])
+    expect(before.messages[1].data.parts).toEqual([{ type: 'text', text: 'Checking the note' }])
+    expect(before.messages[3]).toMatchObject({
+      status: 'error',
+      data: { parts: [{ text: expect.stringContaining('Note missing') }] }
+    })
+    const answer = { id: 'legacy-message:child:2', role: 'assistant', content, source: { kind: 'model', ...model } }
+    const result = { type: 'tool-result', toolCallId: 'c', content: output, isError: true }
+    await save(
+      4,
+      event('user/message', { ...prompt, id: 'legacy-message:child:1', role: 'user' }),
+      event('assistant/message', { ...step, message: answer }),
+      invoke,
+      event('tool/result', {
+        ...step,
+        message: {
+          id: 'legacy-message:child:4',
+          role: 'user',
+          source: { kind: 'tool', callId: 'c' },
+          content: [result]
+        }
+      })
+    )
+    const refs = await discover()
+    expect(refs).toHaveLength(1)
+    const migrated = await dshAdapter.read(refs[0], signal)
+    expect(migrated).toMatchObject({ sourceVersion: '4', diagnostics: [], messages: before.messages })
+  })
+
+  it('recovers a terminal attempt once and prefers the delivered message after a retry', async () => {
+    const step = { turn: 1, step: 1 }
+    const thought = { type: 'reasoning', text: 'Thought' }
+    const stream = [
+      { type: 'chunk', time: 100, chunk: { type: 'block-end', index: 0, block: thought } },
+      { type: 'text-chunks', time0: 100, index: 1, dt: [1], texts: ['Part', 'ial'] }
+    ]
+    const mirror = event('text-chunks', { ...step, index: 1, texts: ['Partial'] })
+    const rows = [user, mirror, event('assistant/attempt', { ...step, stream })]
+    const partial = await dshAdapter.read(await save(4, ...rows), signal)
+    const parts = [thought, { type: 'text', text: 'Partial' }]
+    expect(partial.messages.slice(1)).toMatchObject([{ status: 'paused', data: { parts } }])
+
+    const message = { id: 'final', content: [{ type: 'text', text: 'Delivered answer' }] }
+    for (const interrupted of [false, true]) {
+      const final = event('assistant/message', { ...step, message, interrupted })
+      const recovered = await dshAdapter.read(await save(4, ...rows, event('llm/retry', step), final), signal)
+      expect(recovered.messages.slice(1)).toMatchObject([
+        { status: interrupted ? 'paused' : 'success', data: { parts: message.content } }
+      ])
+    }
+    const nextStep = event('assistant/message', { ...step, step: 2, message })
+    const continued = await dshAdapter.read(await save(4, ...rows, nextStep), signal)
+    expect(continued.messages.slice(1)).toMatchObject([
+      { status: 'paused', data: { parts } },
+      { status: 'success', data: { parts: message.content } }
+    ])
+  })
+
+  it('skips generated compaction checkpoints and keeps matching user-authored text', async () => {
+    const answer = event('assistant/message', { message: { id: 'answer', content: 'Original answer' } })
+    const content = [{ type: 'text', text: 'Earlier summary' }]
+    const source = { kind: 'compact-checkpoint', compactionId: 'compact' }
+    const summary = event('user/message', { id: 'checkpoint', content, source })
+    const typed = event('user/message', { id: 'typed', content, source: { kind: 'user' } })
+    const session = await dshAdapter.read(await save(4, user, answer, summary, typed), signal)
+    expect(session.messages.map((m) => m.provenance.originalMessageId)).toEqual(['u', 'answer', 'typed'])
+    expect(session.skippedRecords).toBe(1)
+  })
+
   it('selects the complete migrated history, deduplicates seeded messages and stream mirrors, and recovers the unfinished answer', async () => {
     await writeFile(path.join(dir, 'session.jsonl.zstd'), archive(0, user))
     const file = path.join(dir, 'session.v4.jsonl.zstd')
