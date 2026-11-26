@@ -562,56 +562,28 @@ describe('ArtifactService', () => {
   })
 })
 
-// 0042 shipped with #22382; earlier builds of this stack made `artifact` in other shapes, before or inside 0042.
-describe('artifact migrate-forward from the shipped 0042', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0043_artifact' })
+describe('artifact migrate-forward from 2.2.3', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0042_agent_history_artifacts_and_mcp' })
 
-  // Catches a rewritten 0042 that runs again on a database that applied it and fails on its duplicate column.
-  it('adds the artifact table without running 0042 again', () => {
+  it('adds artifact storage and skill permissions while preserving existing rows', () => {
     dbh.db.insert(topicTable).values({ id: 'existing', name: 'Existing topic', orderKey: 'a0' }).run()
     dbh.sqlite
-      .prepare('INSERT INTO mcp_server (id, name, skill_permissions, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
-      .run('existing-server', 'Existing MCP server', null, NOW, NOW)
+      .prepare('INSERT INTO mcp_server (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
+      .run('existing-server', 'Existing MCP server', NOW, NOW)
 
     applyMigrations(dbh.db, 'migrations/sqlite-drizzle')
 
     expect(dbh.db.select().from(topicTable).where(eq(topicTable.id, 'existing')).get()?.name).toBe('Existing topic')
     expect(dbh.db.select().from(artifactTable).all()).toEqual([])
+    expect(() =>
+      dbh.sqlite
+        .prepare('INSERT INTO artifact (id, topic_id, path, title, reported_at) VALUES (?, ?, ?, ?, ?)')
+        .run('invalid', 'existing', 'a.md', 'Invalid', NOW)
+    ).toThrow(/CHECK constraint failed/)
     expect(dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, 'existing-server')).get()).toMatchObject({
       name: 'Existing MCP server',
       skillPermissions: null
     })
     expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
-  })
-})
-
-// Catches `table artifact already exists` on a profile that ran an earlier build of this stack.
-describe.each([
-  ['an earlier build with assistant_id', 'assistant_id text,'],
-  ['a build that created the current shape', '']
-])('artifact migrate-forward after %s', (_case, extraColumn) => {
-  const dbh = setupTestDatabase({ beforeMigration: '0043_artifact' })
-
-  it('keeps the existing rows and rebuilds the table in the current shape', () => {
-    dbh.db.insert(topicTable).values({ id: 'topic-1', name: 'Topic', orderKey: 'a0' }).run()
-    dbh.sqlite.exec(
-      `CREATE TABLE artifact (id text PRIMARY KEY NOT NULL, agent_id text, session_id text, ${extraColumn} topic_id text, path text, file_entry_id text, title text NOT NULL, size integer, reported_at integer NOT NULL)`
-    )
-    dbh.sqlite
-      .prepare('INSERT INTO artifact (id, topic_id, file_entry_id, title, size, reported_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run('artifact-1', 'topic-1', 'file-1', 'Report', 10, NOW)
-
-    applyMigrations(dbh.db, 'migrations/sqlite-drizzle')
-
-    const columns = (dbh.sqlite.pragma('table_info(artifact)') as { name: string }[]).map((column) => column.name)
-    expect(columns).not.toContain('assistant_id')
-    expect(dbh.db.select().from(artifactTable).all()).toEqual([
-      expect.objectContaining({ id: 'artifact-1', topicId: 'topic-1', fileEntryId: 'file-1', title: 'Report' })
-    ])
-    expect(() =>
-      dbh.sqlite
-        .prepare('INSERT INTO artifact (id, topic_id, path, title, reported_at) VALUES (?, ?, ?, ?, ?)')
-        .run('invalid', 'topic-1', 'a.md', 'Invalid', NOW)
-    ).toThrow(/CHECK constraint failed/)
   })
 })

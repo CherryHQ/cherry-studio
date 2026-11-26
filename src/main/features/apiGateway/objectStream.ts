@@ -14,7 +14,7 @@ import { type IStreamAdapter, StreamAdapterFactory, type StreamAdapterOptions } 
 import { objectGatewayError } from './errors'
 import type { AgentGatewayContext, MessageConfig } from './gatewayRequest'
 import { gatewayPromptOptions, prepareGatewayMessage } from './prepareGatewayMessage'
-import { isStartupCommitChunk, streamInterruptedError } from './streamLifecycle'
+import { isStartupCommitChunk, requiresSemanticFrames, streamInterruptedError } from './streamLifecycle'
 
 const logger = loggerService.withContext('GatewayObjectStream')
 
@@ -267,8 +267,15 @@ async function openObjectMessage<T>(
           config.agentContext?.onRetryEvent?.(event)
           return
         }
-        write(adapter.transformChunk(chunk))
-        if (isStartupCommitChunk(chunk)) commit()
+        if (!started && requiresSemanticFrames(chunk)) {
+          const { opening, events } = adapter.transformChunkWithOpening(chunk)
+          write(opening)
+          write(events)
+          if (events.length > 0) commit()
+        } else {
+          write(adapter.transformChunk(chunk))
+          if (isStartupCommitChunk(chunk)) commit()
+        }
       } catch (error) {
         fail(error)
         manager.abort(streamId, 'object model adapter failed')

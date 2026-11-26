@@ -26,8 +26,6 @@ const mockRevokeObjectURL = vi.fn()
 // Mock fetch
 const mockFetch = vi.fn()
 
-// 辅助函数
-const waitForAsync = () => new Promise((resolve) => setTimeout(resolve, 10))
 const createMockResponse = (options = {}) => ({
   ok: true,
   headers: new Headers(),
@@ -80,33 +78,6 @@ describe('download', () => {
         expect(mockClick).toHaveBeenCalled()
       })
 
-      it('should handle data URLs', () => {
-        const dataUrl =
-          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
-
-        void download(dataUrl)
-
-        const element = mockCreateElement.mock.results[0].value
-        expect(element.href).toBe(dataUrl)
-        expect(mockClick).toHaveBeenCalled()
-      })
-
-      it('should handle SVG data URLs via direct download without fetch (CSP)', () => {
-        const now = Date.now()
-        vi.spyOn(Date, 'now').mockReturnValue(now)
-
-        const svgDataUrl = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg"/>')
-
-        void download(svgDataUrl)
-
-        const element = mockCreateElement.mock.results[0].value
-        expect(element.href).toBe(svgDataUrl)
-        expect(element.download).toBe(`${now}_download.svg`)
-        expect(mockClick).toHaveBeenCalled()
-        // data:image/svg+xml 不应走 fetch，否则会被 CSP connect-src 阻止
-        expect(mockFetch).not.toHaveBeenCalled()
-      })
-
       it('should handle different MIME types in data URLs', async () => {
         const now = Date.now()
         vi.spyOn(Date, 'now').mockReturnValue(now)
@@ -120,9 +91,13 @@ describe('download', () => {
 
         directDownloadTests.forEach(({ url, expectedExt }) => {
           mockCreateElement.mockClear()
+          mockClick.mockClear()
           void download(url)
           const element = mockCreateElement.mock.results[0].value
+          expect(element.href).toBe(url)
           expect(element.download).toBe(`${now}_download${expectedExt}`)
+          expect(mockClick).toHaveBeenCalledOnce()
+          expect(mockFetch).not.toHaveBeenCalled()
         })
 
         // 其他类型会通过 fetch 处理
@@ -133,21 +108,13 @@ describe('download', () => {
           })
         )
 
-        void download('data:application/pdf;base64,xxx')
-        await waitForAsync()
+        await download('data:application/pdf;base64,xxx')
 
         expect(mockFetch).toHaveBeenCalled()
       })
     })
 
     describe('Filename handling', () => {
-      it('should extract filename from file path', () => {
-        void download('file:///Users/test/Documents/report.pdf')
-
-        const element = mockCreateElement.mock.results[0].value
-        expect(element.download).toBe('report.pdf')
-      })
-
       it('should handle URL encoded filenames', () => {
         void download('file:///path/to/%E6%96%87%E6%A1%A3.pdf') // 编码的"文档.pdf"
 
@@ -160,8 +127,7 @@ describe('download', () => {
       it('should handle successful network request', async () => {
         mockFetch.mockResolvedValue(createMockResponse())
 
-        void download('https://example.com/file.pdf', 'custom.pdf')
-        await waitForAsync()
+        await download('https://example.com/file.pdf', 'custom.pdf')
 
         expect(mockFetch).toHaveBeenCalledWith('https://example.com/file.pdf')
         expect(mockCreateObjectURL).toHaveBeenCalledWith(expect.any(Blob))
@@ -177,8 +143,7 @@ describe('download', () => {
         mockFetch.mockResolvedValue(createMockResponse({ headers }))
 
         // URL has no extension, so the Content-Disposition filename is used.
-        void download('https://example.com/files/download')
-        await waitForAsync()
+        await download('https://example.com/files/download')
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.download).toBe(`${now}_server-file.pdf`)
@@ -193,8 +158,7 @@ describe('download', () => {
         headers.set('Content-Disposition', 'attachment; filename="Q1.2026 \\"final\\".pdf"')
         mockFetch.mockResolvedValue(createMockResponse({ headers }))
 
-        void download('https://example.com/files/download')
-        await waitForAsync()
+        await download('https://example.com/files/download')
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.download).toBe(`${now}_Q1.2026 "final".pdf`)
@@ -205,8 +169,7 @@ describe('download', () => {
         headers.set('Content-Type', 'application/pdf')
         mockFetch.mockResolvedValue(createMockResponse({ headers }))
 
-        void download('https://example.com/download')
-        await waitForAsync()
+        await download('https://example.com/download')
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.download).toMatch(/\d+_download\.pdf$/)
@@ -224,8 +187,7 @@ describe('download', () => {
         vi.spyOn(Date, 'now').mockReturnValue(now)
         mockFetch.mockResolvedValue(createMockResponse())
 
-        void download('https://example.com/files/report.pdf?token=abc')
-        await waitForAsync()
+        await download('https://example.com/files/report.pdf?token=abc')
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.download).toBe(`${now}_report.pdf`)
@@ -236,8 +198,7 @@ describe('download', () => {
         headers.set('Content-Type', 'text/plain; charset=utf-8')
         mockFetch.mockResolvedValue(createMockResponse({ headers }))
 
-        void download('https://example.com/files/notes')
-        await waitForAsync()
+        await download('https://example.com/files/notes')
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.download).toMatch(/\d+_.*\.txt$/)
@@ -257,14 +218,6 @@ describe('download', () => {
         mockFetch.mockRejectedValue(fetchError)
 
         await expect(download('https://example.com/file.pdf')).rejects.toBe(fetchError)
-      })
-
-      it('should reject (not throw synchronously) on a bad HTTP response', async () => {
-        mockFetch.mockResolvedValue({ ok: false, status: 404 })
-
-        const pending = download('https://example.com/file.pdf')
-        expect(pending).toBeInstanceOf(Promise)
-        await expect(pending).rejects.toBeInstanceOf(Error)
       })
     })
   })

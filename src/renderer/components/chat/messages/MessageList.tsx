@@ -461,6 +461,10 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   // at the very bottom the last turn wins regardless of its height.
   const updateActiveAnchorMessage = useCallback(() => {
     if (!shouldTrackAnchorPosition) return
+    if (messageListRef.current?.isFollowing()) {
+      setActiveAnchorMessageId(null)
+      return
+    }
 
     const scrollElement = scrollContainerRef.current ?? messageListRef.current?.getScrollElement()
     if (!scrollElement) return
@@ -500,6 +504,14 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   }, [messageById, shouldTrackAnchorPosition])
   const updateActiveAnchorMessageRef = useRef(updateActiveAnchorMessage)
   updateActiveAnchorMessageRef.current = updateActiveAnchorMessage
+  const activeAnchorFrameRef = useRef<number | null>(null)
+  const requestActiveAnchorUpdate = useCallback(() => {
+    if (activeAnchorFrameRef.current !== null) return
+    activeAnchorFrameRef.current = requestAnimationFrame(() => {
+      activeAnchorFrameRef.current = null
+      updateActiveAnchorMessageRef.current()
+    })
+  }, [])
 
   const loadMoreMessages = useCallback(() => {
     if (!hasOlder || isLoadingMoreRef.current || !loadOlder) return
@@ -700,14 +712,6 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
 
   useEffect(() => {
     if (!shouldTrackAnchorPosition) {
-      setActiveAnchorMessageId((current) => (current ? null : current))
-      return
-    }
-    updateActiveAnchorMessage()
-  }, [groupedMessages, shouldTrackAnchorPosition, updateActiveAnchorMessage])
-
-  useEffect(() => {
-    if (!shouldTrackAnchorPosition) {
       setRailGutterPx(0)
       return
     }
@@ -725,25 +729,39 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     const resizeObserver = new ResizeObserver(updateRailGutter)
     resizeObserver.observe(scrollElement)
 
-    let frame: number | null = null
-    const handleAnchorUpdate = () => {
-      if (frame !== null) return
-      frame = requestAnimationFrame(() => {
-        frame = null
-        updateActiveAnchorMessageRef.current()
-      })
-    }
-    scrollElement.addEventListener('scroll', handleAnchorUpdate, { passive: true })
-    window.addEventListener('resize', handleAnchorUpdate)
+    scrollElement.addEventListener('scroll', requestActiveAnchorUpdate, { passive: true })
+    window.addEventListener('resize', requestActiveAnchorUpdate)
 
     // The layout owner survives topic switches, so preserve its width-derived gutter.
     return () => {
       resizeObserver.disconnect()
-      if (frame !== null) cancelAnimationFrame(frame)
-      scrollElement.removeEventListener('scroll', handleAnchorUpdate)
-      window.removeEventListener('resize', handleAnchorUpdate)
+      scrollElement.removeEventListener('scroll', requestActiveAnchorUpdate)
+      window.removeEventListener('resize', requestActiveAnchorUpdate)
     }
-  }, [data.isInitialLoading, data.listKey, setRailGutterPx, shouldTrackAnchorPosition, topic.id])
+  }, [
+    data.isInitialLoading,
+    data.listKey,
+    requestActiveAnchorUpdate,
+    setRailGutterPx,
+    shouldTrackAnchorPosition,
+    topic.id
+  ])
+
+  useEffect(() => {
+    if (shouldTrackAnchorPosition) {
+      requestActiveAnchorUpdate()
+    } else {
+      setActiveAnchorMessageId(null)
+    }
+  }, [groupedMessages, requestActiveAnchorUpdate, shouldTrackAnchorPosition, updateActiveAnchorMessage])
+
+  useEffect(() => {
+    return () => {
+      if (activeAnchorFrameRef.current === null) return
+      cancelAnimationFrame(activeAnchorFrameRef.current)
+      activeAnchorFrameRef.current = null
+    }
+  }, [shouldTrackAnchorPosition])
 
   useEffect(() => {
     return bindRuntime?.({

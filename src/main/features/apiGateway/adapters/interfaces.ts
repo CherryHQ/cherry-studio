@@ -7,6 +7,7 @@
  * - SSE formatters: Format events for Server-Sent Events
  */
 
+import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ProviderMetadata, ToolSet, UIMessageChunk } from 'ai'
 
@@ -15,6 +16,8 @@ import type { ProviderReportedOutputUsage } from '@shared/ai/reportedOutputUsage
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+
+import type { ClaudeCodeReplayBlock } from '../claudeCodeReplay'
 
 /**
  * Token usage carried on `message-metadata` UIMessageChunks emitted by main's
@@ -88,6 +91,12 @@ export interface IStreamAdapter<TOutputEvent = unknown> {
   transformChunk(chunk: UIMessageChunk): TOutputEvent[]
 
   /**
+   * Push API: process one chunk while separating lazy opening scaffolding
+   * (`message_start` / initial assistant frame) from chunk-produced semantic events.
+   */
+  transformChunkWithOpening(chunk: UIMessageChunk): { opening: TOutputEvent[]; events: TOutputEvent[] }
+
+  /**
    * Push API: finalize the stream and return its closing events.
    */
   finalizeEvents(): TOutputEvent[]
@@ -126,6 +135,7 @@ export interface StreamAdapterOptions {
    * HTTP gateway keeps its normalized usage payloads unchanged.
    */
   exposeReportedOutputUsage?: boolean
+  captureReplay?: (blocks: readonly ClaudeCodeReplayBlock[]) => void
 }
 
 /**
@@ -206,6 +216,7 @@ export interface ContentBlockState {
   toolInput?: string
   // For thinking blocks — captured from reasoning chunk providerMetadata
   signature?: string
+  providerMetadata?: SharedV3ProviderMetadata
 }
 
 /**
