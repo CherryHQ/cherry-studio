@@ -330,6 +330,13 @@ export function applyCapabilityOverride(
  * registry's ID-pattern heuristics (ingest-time only, #16598). The membership
  * gate is built in: pass `declaredReasoning: true` to skip it when the
  * model's REASONING capability is already declared.
+ *
+ * When the id matches no family rule but the model explicitly declares the
+ * REASONING capability (e.g. a manually added custom model, #25203), fall
+ * back to the default effort ladder (low/medium/high) so custom models get
+ * the same Reasoning Effort options as built-ins instead of no options.
+ * The wire profile still filters the ladder, so endpoints without an effort
+ * mode correctly resolve to no selectable efforts.
  */
 export function inferCustomModelReasoning(
   modelId: string,
@@ -337,8 +344,11 @@ export function inferCustomModelReasoning(
   options?: { declaredReasoning?: boolean }
 ): RuntimeReasoning | undefined {
   if (!options?.declaredReasoning && !inferReasoningMembership(modelId)) return undefined
-  const controls = inferReasoningControls(modelId)
-  if (!controls) return undefined
+  let controls = inferReasoningControls(modelId)
+  if (!controls) {
+    if (!options?.declaredReasoning) return undefined
+    controls = [{ kind: 'effort', values: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH] }]
+  }
   const proto: ProtoReasoningSupport = { controls, ...deriveLegacyReasoningFields(controls) }
   return projectRuntimeReasoning(proto, profile)
 }

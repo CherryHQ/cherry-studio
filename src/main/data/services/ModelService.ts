@@ -545,19 +545,21 @@ class ModelService {
 
     // No preset: a custom model. When the id/capabilities say the model reasons,
     // infer the controls from the registry heuristics so custom rows are
-    // descriptor-driven like catalog rows (#16598).
+    // descriptor-driven like catalog rows (#16598). Unknown ids with an
+    // explicitly declared REASONING capability fall back to the default
+    // low/medium/high ladder inside inferCustomModelReasoning (#25203).
+    // Ollama keeps its richer toggle + effort descriptor so thinking can be disabled.
     if (dtoValues.reasoning == null) {
       const declaredReasoning = (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
       const inferred =
-        inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, { declaredReasoning }) ??
-        (declaredReasoning && registryData?.reasoningProfile.format === 'ollama'
+        declaredReasoning && registryData?.reasoningProfile.format === 'ollama'
           ? projectRuntimeReasoning(
               {
                 controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
               },
               registryData.reasoningProfile.wire
             )
-          : undefined)
+          : inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, { declaredReasoning })
       if (inferred) dtoValues.reasoning = inferred
     }
 
@@ -850,9 +852,16 @@ class ModelService {
         } else if (model.reasoning?.controls?.length) {
           reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
         } else {
-          reasoning = inferCustomModelReasoning(modelId, reasoningProfile.wire, {
-            declaredReasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING)
-          })
+          const declaredReasoning = model.capabilities.includes(MODEL_CAPABILITY.REASONING)
+          reasoning =
+            declaredReasoning && reasoningProfile.format === 'ollama'
+              ? projectRuntimeReasoning(
+                  {
+                    controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
+                  },
+                  reasoningProfile.wire
+                )
+              : inferCustomModelReasoning(modelId, reasoningProfile.wire, { declaredReasoning })
         }
         if (reasoning)
           updates.reasoning = {

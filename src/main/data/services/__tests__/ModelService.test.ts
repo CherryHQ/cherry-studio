@@ -1966,6 +1966,36 @@ describe('ModelService — reasoning descriptor enrichment', () => {
       controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
     })
   })
+
+  it('falls back to low/medium/high for an unknown custom id with declared reasoning (#25203)', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'my-compat',
+          modelId: 'acme-custom-reasoner-xyz',
+          capabilities: [MODEL_CAPABILITY.REASONING]
+        }
+      }
+    ])
+
+    expect(created.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high'] }])
+    expect(created.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high'])
+
+    const [listed] = modelService.list({ providerId: 'my-compat' })
+    expect(listed.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high'])
+  })
+
+  it('leaves an unknown custom id without declared reasoning untouched (#25203)', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+
+    const [created] = modelService.create([
+      { dto: { providerId: 'my-compat', modelId: 'acme-plain-xyz', capabilities: [] } }
+    ])
+
+    expect(created.reasoning).toBeUndefined()
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

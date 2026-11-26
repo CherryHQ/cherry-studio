@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-26-custom-model-reasoning-effort.md
+2026-11-26-custom-model-reasoning-effort.md: d3456bdb916f2783ececbfe04e3a2ee4ab9829a7
+2026-11-26-custom-model-reasoning-effort.zh.md: 48dac4cccede19fe7995bdc1e08b94cd3e1a570b
