@@ -1797,6 +1797,28 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
   })
 
+  it('hides file mutation tools from Claude in Plan Only and keeps read-only tools available', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      disabledTools: ['WebSearch'],
+      configuration: { permission_mode: 'plan' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const disallowedTools = settings.disallowedTools ?? []
+
+    expect(disallowedTools).toEqual(expect.arrayContaining(['Edit', 'MultiEdit', 'NotebookEdit', 'Write', 'WebSearch']))
+    expect(disallowedTools.filter((name) => ['Read', 'Glob', 'Grep'].includes(name))).toEqual([])
+  })
+
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

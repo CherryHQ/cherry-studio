@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockFileIntakeUtils } from '@test-mocks/main/FileIntakeService'
 import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
@@ -641,7 +642,7 @@ describe('remote agent access', () => {
       const bytes = Buffer.from('managed attachment')
       const uploadId = randomUUID()
       const presence = new AttachmentPresenceService()
-      for (const name of ['present', 'submitting', 'list'] as const)
+      for (const name of ['present', 'submitting', 'list', 'disconnect'] as const)
         Object.assign(application.get('AttachmentPresenceService'), { [name]: presence[name].bind(presence) })
       const selectionId = randomUUID()
       await call('agent.attachments.present', {
@@ -727,6 +728,103 @@ describe('remote agent access', () => {
       expect(await call('agent.messages.send', params)).toEqual(receipt)
       expect(vi.mocked(startAgentSessionRun).mock.calls.length).toBe(before)
     } finally {
+      await intake.drain()
+      paths.mockRestore()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('clears abandoned presented attachments when a remote connection disconnects without sending', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-attachment-disconnect-'))
+    const paths = vi
+      .spyOn(application, 'getPath')
+      .mockImplementation((key, filename) => path.join(root, key, filename ?? ''))
+    const intake = new FileIntakeService()
+    MockFileIntakeUtils.setImplementation(intake)
+    const files = new FileManager()
+    Object.assign(application.get('FileManager'), { intakes: files.intakes })
+    fake.files.publishIntake.mockImplementation((input) => files.publishIntake(input))
+    fake.files.getById.mockImplementation((id) => files.getById(id))
+    const presence = new AttachmentPresenceService()
+    MockApplicationUtils.setService('AttachmentPresenceService', presence)
+    let remote: RemoteConnection | undefined
+    try {
+      await mkdir(application.getPath('feature.files.data'), { recursive: true })
+      const { device, authorization } = apiGatewayPairedDeviceService.approveRemote({
+        name: 'Disconnect Phone',
+        platform: 'ios',
+        peerIdentity: 'disconnect-phone',
+        capabilities: ['agent']
+      })
+      remote = new RemoteConnection(
+        makeChannel('disconnect-phone', []),
+        new RemotePairing(),
+        new RemoteTokens(),
+        () => {},
+        hub,
+        async () => ({ desktopIdentity: 'desktop', endpoints: [] })
+      )
+      const request = async (method: string, params: unknown): Promise<any> => {
+        const response = (await remote!.rpc.receive(
+          { jsonrpc: '2.0', id: randomUUID(), method, params },
+          undefined
+        )) as {
+          result?: unknown
+          error?: unknown
+        }
+        if (response.error)
+          throw Object.assign(new Error(), response.error, { message: `${method}: ${JSON.stringify(response.error)}` })
+        return response.result
+      }
+      await request('connection.hello', { protocolVersions: [1] })
+      await request('connection.authenticate', { deviceId: device.id })
+      const bytes = Buffer.from('abandoned attachment')
+      const uploadId = randomUUID()
+      await request('agent.uploads.prepare', {
+        uploadId,
+        filename: 'abandoned.txt',
+        mediaType: 'text/plain',
+        byteLength: bytes.length
+      })
+      await remote.receiveUpload({
+        kind: 'upload',
+        requestId: randomUUID(),
+        uploadId,
+        writerEpoch: '0',
+        offset: '0',
+        bytes
+      })
+      await request('agent.uploads.complete', { uploadId, writerEpoch: '0' })
+      await expect.poll(async () => (await request('agent.uploads.get', { uploadId })).state).toBe('ready')
+      await request('agent.attachments.present', {
+        selectionId: randomUUID(),
+        sessionId,
+        sequence: '1',
+        items: [
+          {
+            attachmentId: uploadId,
+            uploadId,
+            filename: 'abandoned.txt',
+            mediaType: 'text/plain',
+            byteLength: bytes.length
+          }
+        ]
+      })
+      expect(await presence.list(sessionId)).toMatchObject([
+        { sessionId, items: [{ uploadId, upload: { state: 'ready' } }] }
+      ])
+
+      remote.dispose()
+      expect(await presence.list(sessionId)).toEqual([])
+      const scope = hub.uploads.scope({
+        deviceId: device.id,
+        grantId: authorization.grants[0].grantId,
+        peerIdentity: 'disconnect-phone'
+      })
+      expect((await intake.get(scope, uploadId)).state).toBe('ready')
+    } finally {
+      remote?.dispose()
+      MockApplicationUtils.resetServices()
       await intake.drain()
       paths.mockRestore()
       await rm(root, { recursive: true, force: true })
@@ -1686,6 +1784,89 @@ describe('remote agent access', () => {
     other.dispose()
   })
 
+  it.each([
+    [20, 20],
+    [20_000, 20],
+    [20, 20_000]
+  ])(
+    'appends through the desktop journal without reading %i old messages or %i sibling IDs',
+    async (history, siblings) => {
+      const journal = hub.journal(sessionId)
+      await journal.startRun('hi', 'agent-1', () => {})
+      const sink = [...(fake.streams.get(`agent-session:${sessionId}`) ?? [])].find(
+        (listener) => listener.content
+      )?.content
+      if (!sink) throw new Error('Missing live feed')
+      const answer = randomUUID()
+      sink.snapshot({ id: answer, role: 'assistant', parts: [] }, 'messages')
+      sink.part({ type: 'part-open', messageId: answer, partId: 'tail', pos: 1, kind: 'text' })
+      const state = journal.projection
+      const row = Object.values(state.messages).find((message) => message.role === 'assistant')!
+      const active = row.partIds[0]
+      for (let i = 0; i < history; i++) {
+        const id = `prior-${i}`
+        state.messages[id] = { ...row, messageId: id, partIds: [] }
+        state.parts[id] = { ...state.parts[active], partId: id }
+      }
+      const visited = () => {
+        throw new Error('Unrelated projection data was visited')
+      }
+      const guard = {
+        ownKeys: visited,
+        get<T extends object>(target: T, key: PropertyKey, receiver: unknown) {
+          if (typeof key === 'string' && key.startsWith('prior-')) visited()
+          return Reflect.get(target, key, receiver)
+        }
+      }
+      state.messages = new Proxy<typeof state.messages>(state.messages, guard)
+      state.parts = new Proxy<typeof state.parts>(state.parts, guard)
+      row.partIds = new Proxy([...Array.from({ length: siblings }, (_, i) => `sibling-${i}`), active], { get: visited })
+      sink.part({ type: 'part-append', partId: 'tail', text: '世界' })
+      expect(journal.projection.parts[active]).toMatchObject({ content: { text: '世界' } })
+    }
+  )
+
+  it('replays a targeted insertion, suffix and tool output with stable remote identities', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const epoch = journal.epoch
+    const answer = randomUUID()
+    const call = { type: 'dynamic-tool', toolCallId: 'tool', toolName: 'Read', input: {} } as const
+    for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? []) {
+      const sink = listener.content
+      if (!sink) continue
+      sink.snapshot(
+        {
+          id: answer,
+          role: 'assistant',
+          partIds: ['tool', 'tail'],
+          parts: [
+            { ...call, state: 'input-available' },
+            { type: 'text', text: 'Tail', state: 'done' }
+          ]
+        },
+        'messages'
+      )
+      sink.part({ type: 'part-open', messageId: answer, partId: 'answer', pos: 3, kind: 'text' })
+      sink.part({ type: 'part-append', partId: 'answer', text: '界'.repeat(4200) })
+      sink.part({ type: 'part-finish', partId: 'answer' })
+      sink.part({
+        type: 'part-put',
+        archiveMessageId: answer,
+        partId: 'tool',
+        part: { ...call, state: 'output-available', output: 'result' }
+      })
+    }
+    const parts = journal.projection.messages[answer].partIds.map((id) => journal.projection.parts[id])
+    expect(parts).toMatchObject([
+      { kind: 'tool-input' },
+      { kind: 'tool-output', content: { text: '"result"' } },
+      { kind: 'text', content: { text: 'Tail' } },
+      { kind: 'text', content: { text: '界'.repeat(4200) }, state: 'completed' }
+    ])
+    expect(journal.epoch).toBe(epoch)
+  })
+
   it('keeps streaming replacements across the content-reference threshold in the same journal epoch', async () => {
     const journal = hub.journal(sessionId)
     await journal.startRun('hi', 'agent-1', () => {})
@@ -1694,9 +1875,8 @@ describe('remote agent access', () => {
     for (const length of [4096, 4097, 5000]) {
       const text = '界'.repeat(length)
       for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
-        listener.onMessage?.(
+        listener.content?.snapshot(
           { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
-          undefined,
           'messages'
         )
       expect(journal.epoch).toBe(epoch)
@@ -1729,9 +1909,8 @@ describe('remote agent access', () => {
     const answerId = randomUUID()
     const text = '界'.repeat(5000)
     for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? []) {
-      listener.onMessage?.(
+      listener.content?.snapshot(
         { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
-        undefined,
         'messages'
       )
     }
@@ -1776,7 +1955,7 @@ describe('remote agent access', () => {
     await journal.startRun('hi', 'agent-1', () => {})
     const publish = (parts: CherryMessagePart[]) => {
       for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
-        listener.onMessage?.({ id: 'answer', role: 'assistant', parts }, undefined, 'messages')
+        listener.content?.snapshot({ id: 'answer', role: 'assistant', parts }, 'messages')
     }
     publish([
       { type: 'text', text: 'Withdrawn', state: 'streaming' },

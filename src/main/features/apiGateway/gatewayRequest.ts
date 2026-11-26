@@ -3,7 +3,12 @@ import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_REASONING_EFFORT_HEADER, CHERRY_SERVICE_TIER_HEADER } from '@main/ai/constants'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import type { InProcessUsageContext } from '@main/ai/types'
-import { ENDPOINT_TYPE, type ServiceTierSelection, ServiceTierSelectionSchema } from '@shared/data/types/model'
+import {
+  ENDPOINT_TYPE,
+  type EndpointType,
+  type ServiceTierSelection,
+  ServiceTierSelectionSchema
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
@@ -19,6 +24,8 @@ type InputParams = InputParamsMap[InputFormat]
 /** Trusted object-call state; HTTP routes never populate this field. */
 export interface AgentGatewayContext {
   agentSessionId: string
+  replayRouteId?: string
+  omitGeminiSignaturesFor?: ReadonlySet<number>
   reasoningEffort: ReasoningEffortOption
   serviceTier?: ServiceTierSelection
   fastMode: boolean
@@ -65,8 +72,8 @@ export interface MessageConfig {
   onComplete?: () => void
 }
 
-/** Resolve the trusted routing envelope without converting the caller payload. */
-export async function resolveGatewayRequest(config: MessageConfig) {
+/** Read the authenticated request envelope before admitting an upstream model. */
+export function readGatewayRequest(config: MessageConfig) {
   const { inputFormat = 'anthropic', outputFormat = 'anthropic' } = config
   // Trust boundary: narrow the loosely-validated body to the format's SDK type once.
   const params = config.params as InputParams
@@ -113,15 +120,37 @@ export async function resolveGatewayRequest(config: MessageConfig) {
       (config.fastMode === true ||
         (isInternalRequest && config.requestHeaders?.get(CHERRY_FAST_MODE_HEADER) === 'true'))
   }
-  const resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalRequest)
-  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
   const agentSessionId =
     config.agentContext?.agentSessionId ??
     (config.requestHeaders ? application.get('ApiGatewayService').getAgentSessionId(config.requestHeaders) : undefined)
-  // agentSessionId lets System Doctor attribute this upstream hop to the Agent session that made it.
-  const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
-
+  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
+  return {
+    inputFormat,
+    outputFormat,
+    params,
+    modelString,
+    isInternalRequest,
+    isInternalAnthropicAgentRequest,
+    isStreaming,
+    agentSessionId,
+    turnOptions,
+    reasoning,
+    asClientError
+  }
+}
+
+export async function resolveGatewayRequest(
+  config: MessageConfig,
+  incoming: ReturnType<typeof readGatewayRequest>,
+  continuation?: { source: { modelAddress: string; endpointType?: EndpointType }; routeId: string }
+) {
+  const { inputFormat, outputFormat, isInternalRequest, isInternalAnthropicAgentRequest, isStreaming, agentSessionId } =
+    incoming
+  const modelAddress = continuation?.source.modelAddress ?? incoming.modelString
+  const resolvedAddress = await resolveGatewayModelAddress(modelAddress, isInternalRequest)
+  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider } = resolvedAddress
+  const logContext = { providerId, modelId, ...(agentSessionId ? { agentSessionId } : {}) }
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     ...logContext,
@@ -130,34 +159,26 @@ export async function resolveGatewayRequest(config: MessageConfig) {
   })
 
   const provider: Provider = config.provider ?? resolvedProvider
-  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalRequest
   const endpoint = resolveEffectiveEndpoint(
     provider,
     resolvedAddress.model,
-    isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined
+    continuation?.source.endpointType ??
+      (isInternalAnthropicAgentRequest ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined)
   )
   const model =
     endpoint.endpointType && endpoint.endpointType !== resolvedAddress.model.endpointTypes?.[0]
       ? { ...resolvedAddress.model, endpointTypes: [endpoint.endpointType] }
       : resolvedAddress.model
-  const resolvedModel = { provider, model }
+  const resolvedModel = { provider, model, replayRouteId: continuation?.routeId ?? config.agentContext?.replayRouteId }
   return {
-    inputFormat,
-    outputFormat,
-    params,
+    ...incoming,
     provider,
     model,
     resolvedModel,
     endpoint,
-    isInternalAnthropicAgentRequest,
-    isInternalRequest,
-    isStreaming,
-    agentSessionId,
-    turnOptions,
-    reasoning,
     uniqueModelId,
     modelId,
-    logContext,
-    asClientError
+    modelAddress,
+    logContext
   }
 }

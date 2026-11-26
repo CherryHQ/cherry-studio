@@ -146,6 +146,23 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     }
   })
 
+  it('keeps the selected branch approval pending when another context closes', () => {
+    const resolve = vi.fn()
+    for (const id of ['active', 'background'])
+      toolApprovalRegistry.register({
+        approvalId: id,
+        sessionId: 'same-session',
+        contextId: id,
+        toolCallId: id,
+        toolName: 'read',
+        originalInput: {},
+        resolve
+      })
+    expect(toolApprovalRegistry.abort('same-session', 'closed', 'background')).toBe(1)
+    expect(toolApprovalRegistry.peek('active')).toBeDefined()
+    expect(toolApprovalRegistry.peek('background')).toBeUndefined()
+  })
+
   it('aborts only the matching session and reports the count', async () => {
     const a = makeEntry({ sessionId: 'sA' })
     const b = makeEntry({ sessionId: 'sA' })

@@ -1,7 +1,7 @@
 const fs = require('node:fs')
 
 const { GLOBAL_EDITION, getReleaseDownloadGroups } = require('./edition')
-const { readBuilderReleaseNotes } = require('./hotfix-release-notes')
+const { parseBilingualReleaseNotes, readBuilderReleaseNotes } = require('./hotfix-release-notes')
 
 const PLATFORMS = [
   { id: 'windows', label: 'Windows' },
@@ -34,19 +34,15 @@ function createDownloadTable({ productName, repository, tag }) {
 }
 
 function createReleaseNotes(curatedNotes) {
-  const start = '<!--LANG:en-->'
-  const content = curatedNotes
-    .slice(curatedNotes.indexOf(start) + start.length, curatedNotes.indexOf('<!--LANG:zh-CN-->'))
-    .trim()
+  const { english } = parseBilingualReleaseNotes(curatedNotes)
 
-  return `<details>\n<summary>Release Notes</summary>\n\n${content}\n\n</details>`
+  return `<details>\n<summary>Release Notes</summary>\n\n${english}\n\n</details>`
 }
 
 function composeReleaseBody({ builderContent, generatedNotes, productName, repository, tag }) {
-  const curatedNotes = readBuilderReleaseNotes(builderContent).releaseNotes.trim()
+  const curatedNotes = readBuilderReleaseNotes(builderContent).releaseNotes
   const changes = generatedNotes?.trim() || ''
 
-  if (!curatedNotes) throw new Error('electron-builder.yml release notes are empty')
   const body = `${createDownloadTable({ productName, repository, tag })}\n\n${createReleaseNotes(curatedNotes)}`
   if (!changes) return `${body}\n`
 
