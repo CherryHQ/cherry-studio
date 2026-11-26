@@ -102,6 +102,60 @@ it('restores input history in one snapshot and resumes only the unfinished place
   expect(batches[0]?.resumedInput).toBe(active)
 })
 
+it('reuses the prior preview when a restarted task replays the same generation attempt', async () => {
+  const active = runtimeId<'input'>('active')
+  const { projection } = setup(view([]))
+  projection.update(view([], live()), {
+    type: 'snapshot',
+    inputs: [{ inputId: active, facts: ['placed'] }]
+  })
+  const [message] = projection.feed.snapshot.messages
+  const savedPreview = 'live:previous-process:7:1:1'
+  const observed: DurableObservation[] = []
+  const subscription = projection.observe(
+    (batch) => {
+      observed.push(batch)
+    },
+    ['live:previous-process:6:1:1', savedPreview]
+  )
+  await subscription.drain()
+
+  expect(observed[0]?.aliases).toEqual({ [message.id]: savedPreview })
+  expect(observed[0]?.live).toEqual([message.id])
+})
+
+it('reconciles an interrupted preview after restart while retaining repeated committed text', async () => {
+  const active = runtimeId<'input'>('active')
+  const user: EntryRecord = {
+    id: 1 as EntryId,
+    conversationId,
+    kind: 'cherry.user-input',
+    data: { cherryInputId: active },
+    model: [{ role: 'user', content: 'Start work', timestamp: 0 }]
+  }
+  const interrupted: EntryRecord = {
+    ...entry(3, 'Repeated'),
+    model: [{ ...fauxAssistantMessage('Repeated'), stopReason: 'aborted' }]
+  }
+  const { projection } = setup(view([]))
+  projection.update(view([user, entry(2, 'Repeated'), interrupted, entry(4, 'Repeated')], { run: live().run }), {
+    type: 'snapshot',
+    inputs: [{ inputId: active, facts: ['placed'] }]
+  })
+  const savedPreview = 'live:previous-process:7:1:1'
+  const observed: DurableObservation[] = []
+  const subscription = projection.observe(
+    (batch) => {
+      observed.push(batch)
+    },
+    ['entry:2:0', savedPreview]
+  )
+  await subscription.drain()
+
+  expect(observed[0]?.aliases).toEqual({ 'entry:3:0': savedPreview })
+  expect(observed[0]?.live).toEqual(['entry:2:0', 'entry:3:0', 'entry:4:0'])
+})
+
 it.each([0, 32, 1024])(
   'relays ordered text edits without reading a cumulative source with %i settled parts',
   async (count) => {

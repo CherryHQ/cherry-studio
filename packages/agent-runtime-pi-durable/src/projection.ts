@@ -81,7 +81,10 @@ export class DurableProjection {
     this.history = []
   }
 
-  observe(sink: (batch: DurableObservation) => void | Promise<void>): Observation {
+  observe(
+    sink: (batch: DurableObservation) => void | Promise<void>,
+    knownSources: readonly string[] = []
+  ): Observation {
     const active = this.preview?.id
     const snapshot = this.feed.snapshot
     const pending = snapshot.inputs.findLast((input) => !input.outcome && input.facts.includes('placed'))
@@ -96,6 +99,8 @@ export class DurableProjection {
         .filter((message, index) => message.id === active || (index > boundary && message.role === 'assistant'))
         .map((message) => message.id)
     )
+    const recoveredAliases =
+      pending && knownSources.length ? this.recoverInterruptedPreviews(knownSources, baseline) : {}
     const historical = new Set(
       snapshot.messages.filter((message) => !baseline.has(message.id)).map((message) => message.id)
     )
@@ -103,7 +108,7 @@ export class DurableProjection {
       const replaced = event.type === 'message.reconcile' ? this.aliases[event.message.id] : undefined
       const aliases =
         event.type === 'snapshot'
-          ? this.aliases
+          ? { ...recoveredAliases, ...this.aliases }
           : event.type === 'message.reconcile' && replaced
             ? { [event.message.id]: replaced }
             : {}
@@ -128,6 +133,39 @@ export class DurableProjection {
         retain: Boolean(completion)
       }
     })
+  }
+
+  private recoverInterruptedPreviews(knownSources: readonly string[], baseline: ReadonlySet<string>) {
+    const previews = new Map<number, { id: string; attempt: number }>()
+    const known = new Set(knownSources)
+    for (const id of knownSources) {
+      const match = /^live:[^:]+:(\d+):(\d+):\d+$/.exec(id)
+      if (match) previews.set(Number(match[1]), { id, attempt: Number(match[2]) })
+    }
+    const aliases: Record<string, string> = {}
+    const active = this.preview
+    const saved = active && previews.get(active.task)
+    if (active && saved?.attempt === active.attempt) {
+      if (!known.has(active.id)) aliases[active.id] = saved.id
+      previews.delete(active.task)
+    }
+    // A generation may already have committed its interrupted output before the initial observation.
+    const entries = this.committed?.entries ?? []
+    for (let index = entries.length - 1; index >= 0 && previews.size; index--) {
+      const entry = entries[index]
+      if (entry.byTaskId === undefined) continue
+      const preview = previews.get(entry.byTaskId)
+      if (!preview) continue
+      const position = entry.model?.findIndex(
+        (message) => message.role === 'assistant' && message.stopReason === 'aborted'
+      )
+      if (position === undefined || position < 0) continue
+      const committed = entryMessageId(entry, position)
+      if (!baseline.has(committed)) continue
+      if (!known.has(committed) && !this.aliases[committed]) aliases[committed] = preview.id
+      previews.delete(entry.byTaskId)
+    }
+    return aliases
   }
 
   input(input: InputState): void {
