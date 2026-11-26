@@ -2488,6 +2488,7 @@
   "library.config.dialogs.edit.section.capabilities": "Возможности",
   "library.config.dialogs.edit.section.heartbeat": "Heartbeat",
   "library.config.dialogs.edit.section.run": "Запуск",
+  "library.config.dialogs.edit.skills_fixed_hint": "Список навыков этого агента задан системой. Агент использует только входящие в него навыки.",
   "library.config.dialogs.edit.tasks.add": "Новая задача",
   "library.config.dialogs.edit.tasks.add_manually": "Создать вручную",
   "library.config.dialogs.edit.tasks.add_with_agent": "Создать с агентом",

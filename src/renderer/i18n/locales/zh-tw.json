@@ -2460,6 +2460,7 @@
   "library.config.dialogs.edit.section.capabilities": "能力",
   "library.config.dialogs.edit.section.heartbeat": "心跳",
   "library.config.dialogs.edit.section.run": "執行",
+  "library.config.dialogs.edit.skills_fixed_hint": "此智能體的技能列表由系統固定，只能使用系統內建的技能。",
   "library.config.dialogs.edit.tasks.add": "新增任務",
   "library.config.dialogs.edit.tasks.add_manually": "手動建立",
   "library.config.dialogs.edit.tasks.add_with_agent": "智能體建立",

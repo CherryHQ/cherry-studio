@@ -2460,6 +2460,7 @@
   "library.config.dialogs.edit.section.capabilities": "Funzionalità",
   "library.config.dialogs.edit.section.heartbeat": "Heartbeat",
   "library.config.dialogs.edit.section.run": "Esecuzione",
+  "library.config.dialogs.edit.skills_fixed_hint": "L'elenco delle competenze di questo agente è fissato dal sistema. Usa solo le competenze che include.",
   "library.config.dialogs.edit.tasks.add": "Nuova attività",
   "library.config.dialogs.edit.tasks.add_manually": "Crea manualmente",
   "library.config.dialogs.edit.tasks.add_with_agent": "Crea con l'agente",
