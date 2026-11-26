@@ -1385,12 +1385,12 @@ describe('AiService', () => {
         providerId: 'openai-compatible',
         providerOptionsKey: customProviderId,
         providerSettings: {},
-    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
+        modelId: 'gpt-image-2-6-sunburst'
       }
     })
-    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
     mockApplicationGet.mockImplementation((name: string) =>
-      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+      name === 'FileManager' ? { createInternalEntry: vi.fn().mockResolvedValue({ id: 'file-1' }) } : undefined
     )
 
     await service.generateImage({
