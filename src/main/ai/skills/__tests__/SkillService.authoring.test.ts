@@ -1842,7 +1842,7 @@ describe('SkillService authoring and remote updates', () => {
     const baseline = await installer.computeContentHash(staleDir)
     const boundedMarker = path.join(
       path.dirname(backupPath),
-      `.${createHash('sha1').update(backupPath).digest('hex')}.obsolete`
+      `.${createHash('sha1').update(path.basename(backupPath)).digest('hex')}.obsolete`
     )
     await fs.promises.rm(boundedMarker, { force: true })
 
@@ -1880,5 +1880,37 @@ describe('SkillService authoring and remote updates', () => {
     await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(fs.promises.lstat(boundedMarker)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo stale\n')
+  })
+
+  it('preserves a managed edit after profile relocation when the bounded obsolete record exists', async () => {
+    const { createHash } = await import('node:crypto')
+    const oldSkillsRoot = path.join(root, 'old-profile', 'Data', 'Skills')
+    await fs.promises.mkdir(oldSkillsRoot, { recursive: true })
+    const oldDest = path.join(oldSkillsRoot, 'writer')
+    const oldBackup = path.join(oldSkillsRoot, '.writer.bak')
+    await writeSkill(oldDest, { supportingContent: 'echo edited\n' })
+    await writeSkill(oldBackup, { supportingContent: 'echo stale\n' })
+    const baseline = await installer.computeContentHash(oldBackup)
+    const markerName = `.${createHash('sha1').update(path.basename(oldBackup)).digest('hex')}.obsolete`
+    await fs.promises.writeFile(path.join(oldSkillsRoot, markerName), 'obsolete:stale', 'utf-8')
+
+    // Simulate a profile copy/relocation: the whole storage directory moves to
+    // a new absolute path with marker filenames preserved verbatim.
+    const newSkillsRoot = path.join(root, 'new-profile', 'Data', 'Skills')
+    await fs.promises.mkdir(path.join(root, 'new-profile', 'Data'), { recursive: true })
+    await fs.promises.cp(oldSkillsRoot, newSkillsRoot, { recursive: true })
+    const newDest = path.join(newSkillsRoot, 'writer')
+    const newBackup = path.join(newSkillsRoot, '.writer.bak')
+    const newMarker = path.join(
+      newSkillsRoot,
+      `.${createHash('sha1').update(path.basename(newBackup)).digest('hex')}.obsolete`
+    )
+    await expect(fs.promises.access(newMarker)).resolves.toBeUndefined()
+
+    await installer.recoverInterruptedInstallWithBaseline(newDest, baseline)
+
+    await expect(fs.promises.readFile(path.join(newDest, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo edited\n')
+    await expect(fs.promises.lstat(newBackup)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(fs.promises.lstat(newMarker)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })

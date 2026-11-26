@@ -1074,11 +1074,24 @@ export class SkillInstaller {
 
   /**
    * Fixed-length companion of the obsolete record. The `sha1` of the marker
-   * path keeps the sibling far below `NAME_MAX` regardless of skill folder
+   * basename keeps the sibling far below `NAME_MAX` regardless of skill folder
    * length. The name carries no `.bak`/`.bak.stash-`/`.cleanup` pattern, so
-   * recovery sweeps ignore it exactly like the legacy record.
+   * recovery sweeps ignore it exactly like the legacy record. The digest binds
+   * only the basename (not the absolute path) so a profile copy/relocation that
+   * preserves the storage layout keeps the record discoverable under the new
+   * absolute path.
    */
   private getBoundedObsoleteMarkerPath(markerPath: string): string {
+    const digest = createHash('sha1').update(path.basename(markerPath)).digest('hex')
+    return path.join(path.dirname(markerPath), `.${digest}.obsolete`)
+  }
+
+  /**
+   * Pre-relocation bounded record keyed by the absolute marker path. Markers
+   * written before the basename-stable key landed still exist on disk; consult
+   * and clear them alongside the current key so they are never orphaned.
+   */
+  private getLegacyBoundedObsoleteMarkerPath(markerPath: string): string {
     const digest = createHash('sha1').update(markerPath).digest('hex')
     return path.join(path.dirname(markerPath), `.${digest}.obsolete`)
   }
@@ -1113,7 +1126,12 @@ export class SkillInstaller {
       // Fall through to the bounded companion.
     }
     try {
-      return await pathExists(this.getBoundedObsoleteMarkerPath(markerPath))
+      if (await pathExists(this.getBoundedObsoleteMarkerPath(markerPath))) return true
+    } catch {
+      // Fall through to the previous absolute-path companion.
+    }
+    try {
+      return await pathExists(this.getLegacyBoundedObsoleteMarkerPath(markerPath))
     } catch {
       return false
     }
@@ -1122,7 +1140,8 @@ export class SkillInstaller {
   private async clearObsoleteMarker(markerPath: string): Promise<void> {
     for (const obsoletePath of [
       this.getObsoleteMarkerPath(markerPath),
-      this.getBoundedObsoleteMarkerPath(markerPath)
+      this.getBoundedObsoleteMarkerPath(markerPath),
+      this.getLegacyBoundedObsoleteMarkerPath(markerPath)
     ]) {
       try {
         await fs.promises.rm(obsoletePath, { force: true })
@@ -1142,11 +1161,15 @@ export class SkillInstaller {
    * cleared.
    */
   private async ensureObsoleteMarkerCleared(markerPath: string): Promise<void> {
-    // Consult the legacy sibling and its bounded companion together: a stale
-    // record under either name would mis-mark the fresh `.bak`. An
+    // Consult the legacy sibling and both bounded companions together: a stale
+    // record under any name would mis-mark the fresh `.bak`. An
     // `ENAMETOOLONG` lookup means the sibling cannot exist on this filesystem
     // (long skill folder on ext4), so it counts as absent instead of fatal.
-    const obsoletePaths = [this.getObsoleteMarkerPath(markerPath), this.getBoundedObsoleteMarkerPath(markerPath)]
+    const obsoletePaths = [
+      this.getObsoleteMarkerPath(markerPath),
+      this.getBoundedObsoleteMarkerPath(markerPath),
+      this.getLegacyBoundedObsoleteMarkerPath(markerPath)
+    ]
     for (const obsoletePath of obsoletePaths) {
       try {
         await fs.promises.rm(obsoletePath, { force: true })
