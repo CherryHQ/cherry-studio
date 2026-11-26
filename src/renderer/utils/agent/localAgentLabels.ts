@@ -1,6 +1,10 @@
 import type { TFunction } from 'i18next'
 
-import { requiresPermissionConfirmation, selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
+import {
+  hasPermissionModeChoices,
+  requiresPermissionConfirmation,
+  selectedPermissionMode
+} from '@cherrystudio/agent-runtime/cli'
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
@@ -34,78 +38,8 @@ const CANONICAL_PERMISSION_MODE_ORDER: readonly AgentPermissionMode[] = [
   'bypassPermissions'
 ]
 
-const THOUGHT_CONFIG_OPTION_IDENTIFIERS = new Set([
-  'thought_level',
-  'thoughtlevel',
-  'reasoning_effort',
-  'reasoningeffort',
-  'reasoning',
-  'thinking',
-  'effort',
-  'thinking_effort',
-  'thinking_level',
-  'thinking_levels',
-  'levels'
-])
-
-const THOUGHT_CHOICE_IDENTIFIERS = new Set([
-  'off',
-  'none',
-  'minimal',
-  'low',
-  'medium',
-  'high',
-  'xhigh',
-  'max',
-  'auto',
-  'default'
-])
-
 export function isUnifiedLocalPermissionMode(mode?: LocalAgentSelection): boolean {
-  return (
-    !!mode &&
-    mode.options.some(({ value }) => value === mode.currentValue) &&
-    mode.options.every((option) => option.permissionMode && !option.requiresConfirmation) &&
-    new Set(mode.options.map((option) => option.permissionMode)).size >= 2
-  )
-}
-
-export function findLocalPermissionConfigOption(
-  options: LocalAgentConfigOption[] | undefined
-): LocalAgentSelection | undefined {
-  for (const option of options ?? []) {
-    if (option.type !== 'select' || !option.application) continue
-    const selection: LocalAgentSelection = {
-      id: option.id,
-      application: option.application,
-      currentValue: option.currentValue,
-      options: option.options
-        .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
-        .map((choice) => ({ ...choice, description: choice.description ?? undefined }))
-    }
-    if (isUnifiedLocalPermissionMode(selection)) return selection
-  }
-  return undefined
-}
-
-export function isLocalThoughtConfigOption(
-  option: LocalAgentConfigOption
-): option is Extract<LocalAgentConfigOption, { type: 'select' }> {
-  if (option.type !== 'select') return false
-  const flattened = option.options.flatMap((choice) => ('group' in choice ? choice.options : [choice]))
-  if (flattened.length <= 1) return false
-  if (option.role === 'reasoning' || option.category === 'thought_level' || option.category === 'thinking') {
-    return true
-  }
-  const id = option.id.trim().toLowerCase()
-  const name = option.name.trim().toLowerCase()
-  if (!THOUGHT_CONFIG_OPTION_IDENTIFIERS.has(id) && !THOUGHT_CONFIG_OPTION_IDENTIFIERS.has(name)) return false
-  const recognized = flattened.filter(
-    (choice) =>
-      THOUGHT_CHOICE_IDENTIFIERS.has(choice.value.trim().toLowerCase()) ||
-      THOUGHT_CHOICE_IDENTIFIERS.has(choice.name.trim().toLowerCase())
-  )
-  return recognized.length >= 2
+  return hasPermissionModeChoices(mode)
 }
 
 export function resolveUnifiedLocalPermissionModes(mode?: LocalAgentSelection) {

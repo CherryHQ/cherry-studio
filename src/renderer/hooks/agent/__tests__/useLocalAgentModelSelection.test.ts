@@ -43,7 +43,7 @@ const agent: AgentEntity = {
   id: 'agent',
   type: 'local',
   name: 'Pi',
-  configuration: { localRuntime: { presetId: 'pi-acp', protocol: 'acp', enabled: true, args: [], env: {} } }
+  configuration: { localRuntime: { presetId: 'pi-acp', enabled: true, args: [], env: {} } }
 }
 let disk: Map<CliConfigTarget, string>
 
@@ -110,10 +110,10 @@ it('offers only native models and Cherry models through the gateway', () => {
 })
 
 it.each([
-  ['antigravity-acp', 'acp', 'gemini'],
-  ['cursor', 'cursor', 'composer']
-] as const)('selects advertised %s models while keeping gateway models unavailable', async (presetId, protocol, id) => {
-  const config = { ...agent.configuration!.localRuntime!, presetId, protocol }
+  ['antigravity-acp', 'gemini'],
+  ['cursor', 'composer']
+] as const)('selects advertised %s models while keeping gateway models unavailable', async (presetId, id) => {
+  const config = { ...agent.configuration!.localRuntime!, presetId }
   const { result } = renderHook(() => useLocalAgentModelSelection(config, [{ id, name: id }]))
   expect(result.current.sourceRestrictions?.native).toBeUndefined()
   expect(result.current.sourceRestrictions?.gateway).toBeTruthy()

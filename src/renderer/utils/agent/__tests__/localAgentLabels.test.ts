@@ -5,13 +5,11 @@ import { acpPermissionChoice } from '@cherrystudio/agent-runtime-acp/v1'
 import en from '@renderer/i18n/locales/en-us.json'
 import zh from '@renderer/i18n/locales/zh-cn.json'
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
-import { getDefaultLocalAgentMode, localCliPresetById, type LocalAgentConfigOption } from '@shared/ai/localAgent'
+import { getLocalAgentLaunchMode, localCliPresetById, type LocalAgentConfigOption } from '@shared/ai/localAgent'
 
 import {
   findLocalDefaultNonPlanOption,
-  findLocalPermissionConfigOption,
   findLocalPlanModeOption,
-  isLocalThoughtConfigOption,
   isUnifiedLocalPermissionMode,
   localAgentConfigOptions,
   localAgentModeOptions,
@@ -255,7 +253,7 @@ describe('installed agent translations', () => {
       'Full Access (High Risk)'
     ])
 
-    const codexMode = getDefaultLocalAgentMode('codex')!
+    const codexMode = getLocalAgentLaunchMode({ presetId: 'codex', env: {} })!
     expect(findLocalPlanModeOption(codexMode)?.value).toBe('readOnly')
     expect(findLocalDefaultNonPlanOption(codexMode, 'readOnly')?.value).toBe('workspace')
 
@@ -296,7 +294,7 @@ describe('installed agent translations', () => {
   })
 
   it('exposes the declared Claude permission choices in menu order', () => {
-    const claude = resolveUnifiedLocalPermissionModes(getDefaultLocalAgentMode('claude'))
+    const claude = resolveUnifiedLocalPermissionModes(getLocalAgentLaunchMode({ presetId: 'claude', env: {} }))
     expect(claude?.currentCanonicalMode).toBe('default')
     expect(claude?.options.map(({ canonicalMode }) => canonicalMode)).toEqual([
       'plan',
@@ -332,28 +330,6 @@ describe('installed agent translations', () => {
     }
     expect(isUnifiedLocalPermissionMode(piMode)).toBe(false)
     expect(resolveUnifiedLocalPermissionModes(piMode)).toBeUndefined()
-  })
-
-  it('reads permissions from an annotated native config option', () => {
-    const permissions = findLocalPermissionConfigOption([
-      {
-        id: 'permissions',
-        name: 'Permissions',
-        application: 'session',
-        type: 'select',
-        currentValue: 'bypass',
-        options: [
-          { value: 'default', name: 'Default', permissionMode: 'default' },
-          { value: 'bypass', name: 'Bypass', permissionMode: 'bypassPermissions' }
-        ]
-      }
-    ])
-    const unified = resolveUnifiedLocalPermissionModes(permissions)
-    expect(unified?.currentCanonicalMode).toBe('bypassPermissions')
-    expect(unified?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
-      ['default', 'default'],
-      ['bypassPermissions', 'bypass']
-    ])
   })
 
   it.each([
@@ -478,51 +454,5 @@ describe('installed agent translations', () => {
     const result = resolveUnifiedLocalPermissionModes(mode)
     expect(result?.options.map((option) => [option.canonicalMode, option.value])).toEqual(scenario.expected)
     if (scenario.currentCanonicalMode) expect(result?.currentCanonicalMode).toBe(scenario.currentCanonicalMode)
-  })
-
-  it('detects uncategorized thinking effort configOptions without catching unrelated selects', () => {
-    expect(
-      isLocalThoughtConfigOption({
-        id: 'reasoning',
-        name: 'Reasoning',
-        type: 'select',
-        currentValue: 'off',
-        options: [
-          { value: 'off', name: 'Off' },
-          { value: 'low', name: 'Low' },
-          { value: 'medium', name: 'Medium' },
-          { value: 'high', name: 'High' },
-          { value: 'max', name: 'Max' }
-        ]
-      })
-    ).toBe(true)
-
-    expect(
-      isLocalThoughtConfigOption({
-        id: 'custom_id',
-        name: 'Custom',
-        category: 'thinking',
-        role: 'reasoning',
-        type: 'select',
-        currentValue: 'low',
-        options: [
-          { value: 'low', name: 'Low' },
-          { value: 'high', name: 'High' }
-        ]
-      })
-    ).toBe(true)
-
-    expect(
-      isLocalThoughtConfigOption({
-        id: 'workflow_mode',
-        name: 'Workflow mode',
-        type: 'select',
-        currentValue: 'off',
-        options: [
-          { value: 'off', name: 'Off' },
-          { value: 'on', name: 'On' }
-        ]
-      })
-    ).toBe(false)
   })
 })

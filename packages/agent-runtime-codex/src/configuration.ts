@@ -1,7 +1,9 @@
 import type * as z from 'zod'
 
+import type { RuntimeEffortControl } from '@cherrystudio/agent-runtime'
+
 import { CodexRequestError, type CodexAppServerClient, type CodexRequestParams } from './appServerClient'
-import { CODEX_PERMISSION_MODES, CODEX_LOCAL_THOUGHT_LEVEL_ID, CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS } from './cli'
+import { CODEX_PERMISSION_MODES } from './cli'
 import type { responses } from './responses'
 
 export type CodexThreadRestore = { threadId: string; kind: 'required' | 'empty-prewarm' }
@@ -53,12 +55,14 @@ const CODEX_EFFORT_LABELS: Record<string, string> = {
   ultra: 'Ultra'
 }
 
-function buildCodexThoughtLevelOptions(
-  efforts?: Array<{ reasoningEffort: string; description?: string }>
-): Array<{ value: string; name: string; description?: string }> {
-  if (!efforts?.length) return CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS.map((option) => ({ ...option }))
+function codexEffortControl(
+  modelId: string | undefined,
+  efforts: Array<{ reasoningEffort: string; description?: string }> | undefined,
+  currentValue: string | null | undefined
+): RuntimeEffortControl | undefined {
+  if (!modelId || !efforts?.length) return
   const seen = new Set<string>(['default'])
-  const options: Array<{ value: string; name: string; description?: string }> = [{ value: 'default', name: 'Default' }]
+  const options: RuntimeEffortControl['options'] = [{ value: 'default', name: 'Default' }]
   for (const entry of efforts) {
     if (!entry.reasoningEffort || seen.has(entry.reasoningEffort)) continue
     seen.add(entry.reasoningEffort)
@@ -68,7 +72,14 @@ function buildCodexThoughtLevelOptions(
       ...(entry.description ? { description: entry.description } : {})
     })
   }
-  return options
+  if (options.length > 1)
+    return {
+      id: 'codex-effort',
+      application: 'next-turn',
+      modelId,
+      currentValue: options.find((option) => option.value === currentValue)?.value ?? 'default',
+      options
+    }
 }
 
 export function chatArgs({ headless, mcp }: SessionOptions): string[] {
@@ -164,7 +175,6 @@ function describeThread(
       : thread.sandbox?.type === 'dangerFullAccess' && thread.approvalPolicy === 'never'
         ? 'fullAccess'
         : CODEX_PERMISSION_MODES.currentValue
-  const efforts = buildCodexThoughtLevelOptions(selected?.supportedReasoningEfforts)
   const info = {
     resume: true,
     images: (selected?.inputModalities ?? ['text', 'image']).includes('image'),
@@ -175,11 +185,9 @@ function describeThread(
       currentValue: initialMode,
       options: CODEX_PERMISSION_MODES.options.filter((o) => !headless || o.value === 'readOnly')
     },
-    thoughtLevel: {
-      id: CODEX_LOCAL_THOUGHT_LEVEL_ID,
-      currentValue: efforts.find((o) => o.value === thread.reasoningEffort)?.value ?? 'default',
-      options: efforts
-    }
+    thoughtLevel: headless
+      ? undefined
+      : codexEffortControl(thread.model, selected?.supportedReasoningEfforts, thread.reasoningEffort)
   }
   return {
     id: thread.thread.id,

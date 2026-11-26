@@ -1645,7 +1645,7 @@ describe('AgentComposer', () => {
         ]
       }
     }
-    mocks.ipcApiRequest.mockImplementation(async (route) => (route === 'ai.local_agents.session_info' ? info : {}))
+    mocks.ipcApiRequest.mockImplementation(async (route) => (route === 'ai.local_agents.session_info' ? { info } : {}))
     const props = {
       agentId: 'agent-1',
       sessionId: 'session-1',
@@ -1679,7 +1679,9 @@ describe('AgentComposer', () => {
 
     // Even if previously in high-risk yolo mode, leaving plan via Shift+Tab falls back to safe default.
     mocks.ipcApiRequest.mockImplementation(async (route) =>
-      route === 'ai.local_agents.session_info' ? { ...info, mode: { ...info.mode, currentValue: 'plan' } } : {}
+      route === 'ai.local_agents.session_info'
+        ? { info: { ...info, mode: { ...info.mode, currentValue: 'plan' } } }
+        : {}
     )
     view.rerender(<AgentComposer {...props} sessionId="session-plan-safe" />)
     await waitFor(() =>
@@ -1702,24 +1704,22 @@ describe('AgentComposer', () => {
     }
   })
 
-  it('keeps cached native modes usable while hiding pinned Cherry resource controls', () => {
+  it('displays runtime permission choices while hiding pinned Cherry resource controls', async () => {
     mocks.pinnedToolIds = ['permission-mode', 'knowledge-base', 'skills', 'mcp-status']
     mocks.toolLaunchers = [
       { id: 'permission-mode', kind: 'group', sources: ['popover'], label: 'Permission Mode', icon: null, submenu: [] }
     ]
-    MockUseCacheUtils.setCacheValue('agent.session.local_options', {
-      'session-1': {
-        mode: {
-          id: 'mode',
-          currentValue: 'manual',
-          options: [
-            { value: 'manual', name: 'Manual review', permissionMode: 'default' },
-            { value: 'edit', name: 'Review edits', permissionMode: 'acceptEdits' }
-          ]
-        }
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: null,
+      idleMode: {
+        id: 'mode',
+        currentValue: 'manual',
+        options: [
+          { value: 'manual', name: 'Manual review', permissionMode: 'default' },
+          { value: 'edit', name: 'Review edits', permissionMode: 'acceptEdits' }
+        ]
       }
     })
-    mocks.ipcApiRequest.mockResolvedValue(null)
     render(
       <AgentComposer
         sessionId="session-1"
@@ -1732,17 +1732,21 @@ describe('AgentComposer', () => {
       />
     )
     expect(mocks.runtimeHostProps?.session?.localPermission?.disabled).toBe(false)
-    expect(screen.getByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: /agent\.settings\.permissionMode\.title/ })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'chat.input.knowledge_base' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'plugins.skills' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'MCP' })).not.toBeInTheDocument()
   })
 
-  it('routes non-permission local modes such as pi thinking levels into LocalAgentThoughtControl', async () => {
-    MockUseCacheUtils.setCacheValue('agent.session.local_options', {
-      'session-pi': {
-        mode: {
-          id: 'mode',
+  it('renders Pi effort without treating it as a permission mode', async () => {
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: {
+        models: [],
+        images: true,
+        resume: true,
+        thoughtLevel: {
+          id: 'legacy-mode',
+          application: 'session',
           currentValue: 'medium',
           options: [
             { value: 'off', name: 'Thinking: off' },
@@ -1753,7 +1757,6 @@ describe('AgentComposer', () => {
         }
       }
     })
-    mocks.ipcApiRequest.mockResolvedValue(null)
     render(
       <AgentComposer
         sessionId="session-pi"
@@ -1761,7 +1764,7 @@ describe('AgentComposer', () => {
         resolvedAgent={{
           ...createControlledAgent(),
           type: 'local',
-          configuration: { localRuntime: { protocol: 'acp', presetId: 'pi-acp' } } as any
+          configuration: { localRuntime: { presetId: 'pi-acp' } } as any
         }}
         resolvedModel={undefined}
         sendMessage={mocks.sendMessage}
@@ -1773,11 +1776,11 @@ describe('AgentComposer', () => {
     const getControls = () => within(screen.getByTestId('composer-send-accessory'))
     expect(getControls().queryByRole('button', { name: 'code.adv.permission_mode' })).not.toBeInTheDocument()
     expect(getControls().queryByRole('button', { name: 'local_agents.configuration' })).not.toBeInTheDocument()
-    const thoughtBtn = getControls().getByRole('button', { name: 'agent.speed.title' })
+    const thoughtBtn = await getControls().findByRole('button', { name: 'agent.speed.title' })
     expect(thoughtBtn).toHaveTextContent('assistants.settings.reasoning_effort.medium')
   })
 
-  it('promotes config-backed permissions and uncategorized reasoning options out of LocalAgentConfigControl', async () => {
+  it('uses runtime-declared permission controls and keeps uncategorized reasoning in native settings', async () => {
     const permissionsOption = {
       id: 'permissions',
       application: 'session',
@@ -1804,19 +1807,23 @@ describe('AgentComposer', () => {
     }
     const executionMode = {
       id: 'mode',
+      name: 'Native mode',
+      type: 'select' as const,
       currentValue: 'local',
       options: [
         { value: 'local', name: 'Local' },
         { value: 'orb', name: 'Orb' }
       ]
     }
-    MockUseCacheUtils.setCacheValue('agent.session.local_options', {
-      'session-config-routing': {
-        mode: executionMode,
-        configOptions: [permissionsOption, reasoningOption]
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: {
+        models: [],
+        images: true,
+        resume: true,
+        mode: permissionsOption,
+        configOptions: [executionMode, reasoningOption]
       }
     })
-    mocks.ipcApiRequest.mockResolvedValue(null)
     mocks.runtimeHostProps = undefined
 
     render(
@@ -1837,30 +1844,23 @@ describe('AgentComposer', () => {
 
     await waitFor(() =>
       expect(mocks.runtimeHostProps?.session?.localPermission).toMatchObject({
-        kind: 'config',
         mode: { id: 'permissions', currentValue: 'default' }
       })
     )
 
     const getControls = () => within(screen.getByTestId('composer-send-accessory'))
-    expect(getControls().getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
-      'assistants.settings.reasoning_effort.medium'
-    )
-    // Only the non-permission session mode (Local/Orb) remains in LocalAgentConfigControl.
+    expect(getControls().queryByRole('button', { name: 'agent.speed.title' })).not.toBeInTheDocument()
     expect(getControls().getByRole('button', { name: 'local_agents.configuration' })).toBeInTheDocument()
     expect(getControls().getByRole('menuitemradio', { name: 'Local' })).toBeInTheDocument()
     expect(getControls().getByRole('menuitemradio', { name: 'Orb' })).toBeInTheDocument()
     expect(getControls().queryByRole('menuitemradio', { name: 'Bypass' })).not.toBeInTheDocument()
-    expect(getControls().queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
+    expect(getControls().getByRole('menuitemradio', { name: 'High' })).toBeInTheDocument()
   })
 
-  it('promotes ACP thinking/reasoning role configOptions into LocalAgentThoughtControl and omits unsupported context meter', async () => {
+  it('displays negotiated ACP effort and omits the unsupported context meter', async () => {
     const thinkingOption = {
       id: 'reasoning-budget',
-      name: 'Thinking Budget',
-      category: 'thinking',
-      role: 'reasoning' as const,
-      type: 'select' as const,
+      application: 'session',
       currentValue: 'high',
       options: [
         { value: 'low', name: 'Low' },
@@ -1874,10 +1874,8 @@ describe('AgentComposer', () => {
       type: 'boolean' as const,
       currentValue: true
     }
-    MockUseCacheUtils.setCacheValue('agent.session.local_options', {
-      'session-thinking-role': {
-        configOptions: [thinkingOption, extraBool]
-      }
+    mocks.ipcApiRequest.mockResolvedValue({
+      info: { models: [], images: true, resume: true, thoughtLevel: thinkingOption, configOptions: [extraBool] }
     })
     MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-thinking-role', {
       result: {
@@ -1885,7 +1883,6 @@ describe('AgentComposer', () => {
         error: { operation: 'contextUsage', code: 'unsupported', message: 'Not supported' }
       }
     })
-    mocks.ipcApiRequest.mockResolvedValue(null)
     mocks.sessionLayout = 'time'
 
     render(
@@ -1895,7 +1892,7 @@ describe('AgentComposer', () => {
         resolvedAgent={{
           ...createControlledAgent(),
           type: 'local',
-          configuration: { localRuntime: { protocol: 'acp', presetId: 'antigravity-acp' } } as any
+          configuration: { localRuntime: { presetId: 'antigravity-acp' } } as any
         }}
         resolvedModel={undefined}
         sendMessage={mocks.sendMessage}
@@ -1905,7 +1902,7 @@ describe('AgentComposer', () => {
     )
 
     const accessory = within(screen.getByTestId('composer-send-accessory'))
-    expect(accessory.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+    expect(await accessory.findByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.high'
     )
     expect(accessory.queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
@@ -1918,7 +1915,9 @@ describe('AgentComposer', () => {
 
   it('allows arbitrary workspace files for local agents while honoring ACP image/audio capability exclusions', async () => {
     mocks.ipcApiRequest.mockImplementation(async (route) =>
-      route === 'ai.local_agents.session_info' ? { images: false, audio: false, supportsEmbeddedContext: false } : null
+      route === 'ai.local_agents.session_info'
+        ? { info: { images: false, audio: false, supportsEmbeddedContext: false } }
+        : null
     )
 
     const { rerender } = render(
@@ -1928,7 +1927,7 @@ describe('AgentComposer', () => {
         resolvedAgent={{
           ...createControlledAgent(),
           type: 'local',
-          configuration: { localRuntime: { protocol: 'acp', presetId: 'pi-acp', enabled: true } } as any
+          configuration: { localRuntime: { presetId: 'pi-acp', enabled: true } } as any
         }}
         resolvedModel={undefined}
         sendMessage={mocks.sendMessage}
@@ -1963,7 +1962,7 @@ describe('AgentComposer', () => {
         resolvedAgent={{
           ...createControlledAgent(),
           type: 'local',
-          configuration: { localRuntime: { protocol: 'claude', presetId: 'claude-code', enabled: true } } as any
+          configuration: { localRuntime: { presetId: 'claude', enabled: true } } as any
         }}
         resolvedModel={undefined}
         sendMessage={mocks.sendMessage}

@@ -46,6 +46,7 @@ export const claudeCli = {
   terminalArgs: [],
   name: 'Claude Code',
   protocol: 'claude',
+  defaultMode: CLAUDE_PERMISSION_MODES,
   executable: 'claude',
   npmPackage: '@anthropic-ai/claude-code',
   args: [],

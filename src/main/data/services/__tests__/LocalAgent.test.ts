@@ -21,7 +21,7 @@ import { AgentChatContextProvider } from '@main/ai/streamManager/context/AgentCh
 import { getProviderModelId } from '@shared/ai/executionIdentity'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
-const config: LocalAgentConfiguration = { presetId: 'codex', protocol: 'codex', enabled: true, args: [], env: {} }
+const config: LocalAgentConfiguration = { presetId: 'codex', enabled: true, args: [], env: {} }
 
 describe('local agents on migrated SQLite', () => {
   const database = setupTestDatabase()
@@ -103,9 +103,6 @@ describe('local agents on migrated SQLite', () => {
       args: ['app-server', '--test'],
       env: { TEST: 'value' }
     })
-    expect(() => agentService.updateAgent(agent.id, { configuration: { localRuntime: { protocol: 'acp' } } })).toThrow(
-      'Protocol and preset'
-    )
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toEqual(updated?.configuration?.localRuntime)
   })
 
@@ -211,7 +208,7 @@ describe('local agents on migrated SQLite', () => {
     )
   })
 
-  it('keeps protocol, preset, and session directory immutable and rejects Cherry model/resources', async () => {
+  it('keeps preset and session directory immutable and rejects Cherry model/resources', async () => {
     const agent = await createAgent(request())
     const session = agentSessionService.create({
       name: 'Test session',
@@ -219,8 +216,8 @@ describe('local agents on migrated SQLite', () => {
       workspace: { type: 'system' }
     })
     expect(() =>
-      agentService.updateAgent(agent.id, { configuration: { localRuntime: { ...config, protocol: 'acp' } } })
-    ).toThrow('Protocol and preset')
+      agentService.updateAgent(agent.id, { configuration: { localRuntime: { presetId: 'opencode' } } })
+    ).toThrow('Preset cannot change')
     expect(() => agentService.updateAgent(agent.id, { configuration: { localRuntime: undefined } })).toThrow()
     expect(() => agentService.updateAgent(agent.id, { configuration: { heartbeat_enabled: true } })).toThrow(
       'own their model'

@@ -240,3 +240,10 @@ export interface AgentRuntime {
   open(ref: Thread): Promise<OperationResult<ThreadHandle>>
   shutdown(): Promise<OperationResult<void>>
 }
+export interface RuntimeEffortControl<Value extends string = string> {
+  id: string
+  currentValue: Value
+  application: 'session' | 'next-turn'
+  modelId?: string
+  options: Array<{ value: Value; name: string; description?: string }>
+}

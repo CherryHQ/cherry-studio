@@ -43,7 +43,7 @@ describe('LocalAgentMcpBridgeService', () => {
         name: 'Claude Local',
         instructions: '',
         orderKey: 'a0',
-        configuration: { localRuntime: { protocol: 'claude', presetId: 'claude', enabled: true, args: [], env: {} } }
+        configuration: { localRuntime: { presetId: 'claude', enabled: true, args: [], env: {} } }
       })
       .run()
     dbh.db

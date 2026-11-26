@@ -63,9 +63,10 @@ const mode = () => ({
 let thoughtValue = 'balanced'
 let thoughtPending = false
 const thought = () => ({
-  id: 'reasoning-budget',
+  id: scenario === 'thought-uncategorized' ? 'effort' : 'reasoning-budget',
   name: 'Reasoning',
-  category: scenario === 'thought-thinking' ? 'thinking' : 'thought_level',
+  category:
+    scenario === 'thought-uncategorized' ? undefined : scenario === 'thought-thinking' ? 'thinking' : 'thought_level',
   type: 'select',
   currentValue: thoughtValue,
   options: [
@@ -354,6 +355,27 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       })
     }
     reply(id, {
+      ...(scenario === 'grok-legacy-effort'
+        ? {
+            models: {
+              currentModelId: 'grok-reasoning',
+              availableModels: [
+                {
+                  modelId: 'grok-reasoning',
+                  name: 'Grok Reasoning',
+                  _meta: {
+                    reasoningEffort: 'medium',
+                    reasoningEfforts: [
+                      { id: 'medium', value: 'medium', label: 'Medium' },
+                      { id: 'xhigh', value: 'xhigh', label: 'Extra high' }
+                    ]
+                  }
+                },
+                { modelId: 'grok-basic', name: 'Grok Basic', _meta: { supportsReasoningEffort: false } }
+              ]
+            }
+          }
+        : {}),
       ...(scenario === 'legacy-models' || scenario === 'both-models'
         ? {
             models: {
@@ -390,7 +412,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
           ? semanticConfig()
           : scenario === 'config-multiple'
             ? multipleConfig()
-            : scenario === 'mode-legacy' || scenario.startsWith('mode-legacy-upgrade')
+            : scenario === 'mode-legacy' ||
+                scenario === 'grok-legacy-effort' ||
+                scenario === 'thought-legacy-only' ||
+                scenario.startsWith('mode-legacy-upgrade')
               ? undefined
               : scenario === 'mode-legacy-null'
                 ? null
@@ -440,6 +465,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       generation: generation === 1 ? generation : generation - 1,
       suggestion: sessionId === 'native-session' ? 'run the tests' : null
     })
+  } else if (scenario === 'grok-legacy-effort' && method === 'session/set_model') {
+    const { modelId, _meta } = message.params
+    if (_meta?.reasoningEffort && (modelId !== 'grok-reasoning' || _meta.reasoningEffort !== 'xhigh'))
+      return emit({ id, error: { code: -32602, message: 'Unsupported model effort' } })
+    reply(id, {})
   } else if (method === 'session/set_config_option') {
     if (scenario === 'model-setup-update') {
       update({ sessionUpdate: 'config_option_update', configOptions: [thought()] })
@@ -466,7 +496,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       modeValue = message.params.value
       return reply(id, { configOptions: scenario === 'mode-removed' ? [] : [mode()] })
     }
-    if (message.params.configId === 'reasoning-budget') {
+    if (message.params.configId === thought().id) {
       if (scenario === 'thought-error') return emit({ id, error: { code: -32602, message: 'Reasoning unavailable' } })
       if (scenario === 'thought-delayed') {
         thoughtPending = true
@@ -501,7 +531,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     ]
     reply(id, {
       data: [
-        { id: 'fixture-model', displayName: 'Fixture model', supportedReasoningEfforts: efforts },
+        {
+          id: 'fixture-model',
+          displayName: 'Fixture model',
+          ...(scenario !== 'codex-no-effort' && { supportedReasoningEfforts: efforts })
+        },
         ...(scenario.startsWith('codex-usage')
           ? [{ id: 'gpt-5-codex', displayName: 'GPT-5 Codex', supportedReasoningEfforts: efforts }]
           : [])

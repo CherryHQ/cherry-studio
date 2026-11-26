@@ -15,6 +15,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import {
+  getLocalAgentProtocol,
   LocalAgentConfigurationSchema,
   resolveLocalAgentBrowserControl,
   type LocalAgentBrowserControlMode,
@@ -68,6 +69,7 @@ export function LocalAgentAdvancedSettings({
   const [dirty, setDirty] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
   const busy = busyAction !== undefined
+  const sdk = getLocalAgentProtocol(config.presetId) === 'cursor'
   const close = () => {
     if (busy) return
     if (dirty) setConfirmClose(true)
@@ -173,9 +175,7 @@ export function LocalAgentAdvancedSettings({
           )}
         </div>
       }>
-      {config.protocol !== 'cursor' && (
-        <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.advanced_hint')}</p>
-      )}
+      {!sdk && <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.advanced_hint')}</p>}
       <fieldset
         disabled={busy}
         className="min-w-0 space-y-5"
@@ -194,7 +194,7 @@ export function LocalAgentAdvancedSettings({
             onChange={(e) => setName(e.target.value)}
           />
         </div>
-        {config.protocol !== 'cursor' && (
+        {!sdk && (
           <>
             <div className="space-y-2">
               <Label htmlFor="local-agent-path">{t('local_agents.executable')}</Label>
@@ -254,7 +254,7 @@ export function LocalAgentAdvancedSettings({
           </Select>
           <p className="text-xs leading-relaxed text-muted-foreground">
             {t(
-              !config.presetId || config.presetId === 'custom'
+              config.presetId === undefined
                 ? 'local_agents.browser_control_custom_hint'
                 : 'local_agents.browser_control_hint'
             )}

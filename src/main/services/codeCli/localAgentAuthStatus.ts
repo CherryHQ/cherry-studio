@@ -2,7 +2,7 @@ import { stripVTControlCharacters } from 'node:util'
 
 import { getCursorAuthStatus } from '@main/ai/runtime/cursor/cursorAccount'
 import { CommandFailedError, executeCommand } from '@main/utils/processRunner'
-import { LOCAL_CLI_AGENT_PRESETS, type LocalAgentConfiguration } from '@shared/ai/localAgent'
+import { getLocalAgentPreset, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { OutputFor } from '@shared/ipc/types'
 
 import { resolveLocalAgentCli } from './localAgentCli'
@@ -10,10 +10,8 @@ import { resolveLocalAgentCli } from './localAgentCli'
 type AuthStatus = OutputFor<'ai.local_agents.auth_status'>
 
 export async function getLocalAgentAuthStatus(config: LocalAgentConfiguration): Promise<AuthStatus> {
-  if (config.protocol === 'cursor') return getCursorAuthStatus(config)
-  const preset = LOCAL_CLI_AGENT_PRESETS.find(
-    (entry) => entry.id === config.presetId && entry.protocol === config.protocol
-  )
+  const preset = getLocalAgentPreset(config.presetId)
+  if (preset?.protocol === 'cursor') return getCursorAuthStatus(config)
   const probe = preset?.authStatus
   if (!preset || !probe) return 'unsupported'
   if (

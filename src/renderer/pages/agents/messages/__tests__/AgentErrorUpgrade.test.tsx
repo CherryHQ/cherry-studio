@@ -23,7 +23,7 @@ const agent: AgentEntity = {
   orderKey: 'a',
   createdAt: '2026-11-05T00:00:00Z',
   updatedAt: '2026-11-05T00:00:00Z',
-  configuration: { localRuntime: { protocol: 'codex', presetId: 'codex', enabled: true, args: [], env: {} } }
+  configuration: { localRuntime: { presetId: 'codex', enabled: true, args: [], env: {} } }
 }
 let canUpgrade = true
 let finishInstall: (result: OutputFor<'ai.local_agents.install'>) => void

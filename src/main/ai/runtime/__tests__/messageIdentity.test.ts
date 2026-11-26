@@ -33,7 +33,6 @@ describe('ACP message identity', () => {
       .values({ id: 'session', workspaceId: 'workspace', name: 'Test', orderKey: 'a0' })
       .run()
     const connection = new AcpConnection('session', 'agent', {
-      protocol: 'acp',
       enabled: true,
       executableOverride: process.execPath,
       args: [fileURLToPath(new URL('./fixtures/localAgent.mjs', import.meta.url)), 'acp', 'message-ids'],

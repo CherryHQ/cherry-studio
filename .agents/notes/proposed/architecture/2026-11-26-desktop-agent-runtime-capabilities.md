@@ -26,6 +26,8 @@ Use the Agent permission mode for product policy. A runtime can report its effec
 
 A runtime declares whether a mode choice applies on the live session, the next turn or after reconnecting. Main uses the applied mode where the runtime can confirm it. The Composer reads the same choice semantics. Unknown ACP choices remain native controls. Their labels can require confirmation but cannot grant host permissions.
 
+An idle session exposes the permission control declared by its selected runtime. A connected session exposes its current native controls. Effort choices come from the active model or an explicit native session option. A model-bound change carries the model identity for validation at the destination.
+
 Main uses one adapter table for local connection checks, model discovery and session opening across ACP, Cursor, Codex and Claude. An adapter implements all three operations. A saved preset identifies its runtime by preset ID and takes its protocol from the preset declaration. A custom command uses ACP. CLI discovery and installation use the desktop Code CLI services. MCP leases belong to the desktop MCP bridge.
 
 CLI launch preparation resolves the gateway route from the same configuration snapshot as the process environment. A runtime that can install a session credential publishes the resolved route and its installer. The gateway verifies the route before issuing a scoped credential. Gateway requests using only the public credential retain provider-level usage without a session attachment.
@@ -62,6 +64,7 @@ A provider-wide boolean cannot express read-only child access, a volatile queue 
 - AC22 — Codex, Cursor and Claude can launch, query models and resume their native conversations through their own Main adapters. Their session paths import neither the desktop ACP registry nor the ACP attachment encoder. (verification: import boundaries and Electron)
 - AC23 — Two CLI sessions using the same gateway model receive distinct credentials and each request belongs to its credential's session. Requests presenting only the public key cannot attach to either session. Launch preparation does not reread the config files to bind credentials. (verification: unit and Electron)
 - AC24 — A preset selects the same Main adapter for checking, model discovery and opening. The saved configuration contains the preset ID. A custom executable selects ACP. Adding a protocol requires providing all three operations to the Main table. (verification: schema and typecheck)
+- AC25 — Reading idle controls does not open a native session. The Composer removes live controls when their connection closes. A model change withdraws the previous effort choices and rejects writes addressed to that model. ACP preserves advertised values, including Pi ACP's legacy thinking modes and Grok's legacy model metadata. Cursor takes levels from the SDK model catalog and applies the chosen value to the next send. (verification: unit and Electron)
 
 ## Risks
 

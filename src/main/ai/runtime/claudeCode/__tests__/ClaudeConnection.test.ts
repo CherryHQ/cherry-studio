@@ -67,7 +67,7 @@ async function transport() {
   return { directory, wire, launch, spawn }
 }
 
-const config: LocalAgentConfiguration = { protocol: 'claude', enabled: true, args: [], env: {}, nativeModel: 'sonnet' }
+const config: LocalAgentConfiguration = { presetId: 'claude', enabled: true, args: [], env: {}, nativeModel: 'sonnet' }
 
 async function session(headless = false, resumeToken?: string) {
   const test = await transport()
@@ -255,6 +255,7 @@ it('applies session permissions and effort on the active query and still asks in
   })
   await expect(connection.setMode('claude-mode', 'invalid')).rejects.toThrow()
   await connection.setMode('claude-mode', 'bypassPermissions')
+  await expect(connection.setThoughtLevel('claude-effort', 'max')).rejects.toThrow('no longer available')
   await connection.setThoughtLevel('claude-effort', 'high')
   expect(connection.localSessionInfo.thoughtLevel?.currentValue).toBe('high')
   await connection.setThoughtLevel('claude-effort', 'default')
@@ -285,7 +286,7 @@ it('binds browser permissions to the session mode and releases its lease', async
 it('reads the initialization catalog without submitting a prompt or creating a transcript', async () => {
   const { wire, spawn, launch, directory } = await transport()
   const catalog = await probeLocalClaude(config, directory, new AbortController())
-  expect(catalog.models).toEqual([])
+  expect(catalog.models).toEqual([{ id: 'sonnet', name: 'Sonnet' }])
   expect(wire.inputs).toHaveLength(0)
   expect(wire.process.exitCode).toBe(0)
   expect(vi.mocked(query).mock.calls.at(-1)?.[0].options).toMatchObject({

@@ -4,13 +4,15 @@ import { acpPermissionChoice, acpPermissionControl } from '@cherrystudio/agent-r
 import { gooseCli } from '@cherrystudio/agent-runtime-goose-acp/cli'
 import { requiresPermissionConfirmation } from '@cherrystudio/agent-runtime/cli'
 
-import { getDefaultLocalAgentMode } from '../localAgent'
+import { getLocalAgentLaunchMode } from '../localAgent'
 
 describe('runtime permission declarations', () => {
   it('keeps Goose auto approval distinct from Claude auto review', () => {
     const raw = { value: 'auto', name: 'Auto' }
     const goose = acpPermissionChoice(raw, 'mode', gooseCli.permissionMode)
-    const claude = getDefaultLocalAgentMode('claude')?.options.find(({ value }) => value === 'auto')
+    const claude = getLocalAgentLaunchMode({ presetId: 'claude', env: {} })?.options.find(
+      ({ value }) => value === 'auto'
+    )
 
     expect(goose.permissionMode).toBe('bypassPermissions')
     expect(requiresPermissionConfirmation(goose)).toBe(true)

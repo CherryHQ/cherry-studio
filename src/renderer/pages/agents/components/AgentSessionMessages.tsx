@@ -105,8 +105,8 @@ const AgentSessionMessages = ({
       onLocalRestoreChecked(event.restoreUnavailable === true || event.info?.resume === false)
     })
     void ipcApi.request('ai.local_agents.session_info', { sessionId }).then(
-      (info) => {
-        if (current) onLocalRestoreChecked(info?.resume === false)
+      (view) => {
+        if (current) onLocalRestoreChecked(view?.info?.resume === false)
       },
       () => {
         if (current) onLocalRestoreChecked(false)

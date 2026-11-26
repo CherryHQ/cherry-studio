@@ -16,6 +16,7 @@ import {
   LocalAgentUninstallComponentSchema,
   LocalAgentCheckResultSchema,
   type LocalAgentSessionInfo,
+  type LocalAgentSessionView,
   type LocalAgentNotice,
   type LocalAgentDetection
 } from '@shared/ai/localAgent'
@@ -480,15 +481,20 @@ export const aiRequestSchemas = {
   }),
   'ai.local_agents.set_mode': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1), configId: z.string().min(1), value: z.string() }),
-    output: z.custom<LocalAgentSessionInfo>()
+    output: z.custom<LocalAgentSessionView>()
   }),
   'ai.local_agents.set_thought_level': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1), configId: z.string().min(1), value: z.string() }),
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      configId: z.string().min(1),
+      value: z.string(),
+      modelId: z.string().min(1).optional()
+    }),
     output: z.custom<LocalAgentSessionInfo>()
   }),
   'ai.local_agents.session_info': defineRoute({
     input: z.object({ sessionId: z.string() }),
-    output: z.custom<LocalAgentSessionInfo | null>()
+    output: z.custom<LocalAgentSessionView>()
   }),
   'ai.local_agents.detect': defineRoute({ input: z.object({}), output: z.custom<LocalAgentDetection[]>() }),
   'ai.local_agents.web_start': defineRoute({
@@ -752,10 +758,8 @@ export const aiRequestSchemas = {
 export type AiEventSchemas = {
   'ai.local_agents.auth_prompt': { requestId: string; url?: string; code?: string }
   'ai.local_agents.notice': { sessionId: string; notice: LocalAgentNotice }
-  'ai.local_agents.session_updated': {
+  'ai.local_agents.session_updated': LocalAgentSessionView & {
     sessionId: string
-    info: LocalAgentSessionInfo | null
-    clearSnapshots?: boolean
     restoreUnavailable?: boolean
   }
   'ai.agent.import.progress': AgentImportSnapshot

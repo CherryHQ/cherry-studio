@@ -1,4 +1,4 @@
-import { Agent, type AgentOptions } from '@cursor/sdk'
+import { Agent, Cursor, type AgentOptions } from '@cursor/sdk'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { openCursorSession, sendCursorTurn, type SDKAgent } from '@cherrystudio/agent-runtime-cursor'
@@ -29,7 +29,62 @@ it.each([undefined, 'saved-agent'])('opens %s with the native workspace, toolset
     vi.spyOn(Agent, 'create').mockImplementation(inspect)
     vi.spyOn(Agent, 'resume').mockRejectedValue(new Error('Tried to resume a new chat'))
   }
-  await expect(openCursorSession({ cwd, model: 'composer', browser, agentId })).rejects.toBe(opened)
+  await expect(openCursorSession({ cwd, model: 'composer', browser, agentId, headless: true })).rejects.toBe(opened)
+})
+
+it('sets an advertised effort on the next SDK send and preserves the selected context', async () => {
+  vi.spyOn(Cursor.models, 'list').mockResolvedValue([
+    {
+      id: 'composer',
+      displayName: 'Composer',
+      parameters: [{ id: 'effort', values: [{ value: 'low' }, { value: 'xhigh', displayName: 'Extra high' }] }],
+      variants: [
+        {
+          displayName: 'Default',
+          isDefault: true,
+          params: [
+            { id: 'context', value: 'long' },
+            { id: 'effort', value: 'low' }
+          ]
+        },
+        {
+          displayName: 'Extra high',
+          params: [
+            { id: 'context', value: 'long' },
+            { id: 'effort', value: 'xhigh' }
+          ]
+        }
+      ]
+    }
+  ])
+  const recorded = new Error('Recorded SDK request')
+  const send: SDKAgent['send'] = async (_message, input) => {
+    expect(input?.model).toEqual({
+      id: 'composer',
+      params: [
+        { id: 'context', value: 'long' },
+        { id: 'effort', value: 'xhigh' }
+      ]
+    })
+    throw recorded
+  }
+  vi.spyOn(Agent, 'create').mockResolvedValue({
+    model: { id: 'composer', params: [{ id: 'context', value: 'long' }] },
+    send
+  } as SDKAgent)
+  const { agent, effort } = await openCursorSession({ cwd: '/workspace', model: 'composer' })
+  expect(effort?.control).toMatchObject({
+    modelId: 'composer',
+    currentValue: 'low',
+    options: [
+      { value: 'low', name: 'low' },
+      { value: 'xhigh', name: 'Extra high' }
+    ]
+  })
+  const host = { append: vi.fn(), toolStarted: vi.fn(), toolCompleted: vi.fn() }
+  await expect(sendCursorTurn(agent, { text: 'inspect' }, 'plan', host, effort?.modelFor('xhigh'))).rejects.toBe(
+    recorded
+  )
 })
 
 it('reports a native shell permission denial on the original tool call', async () => {

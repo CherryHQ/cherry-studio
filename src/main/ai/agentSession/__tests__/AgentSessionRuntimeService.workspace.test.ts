@@ -66,7 +66,7 @@ function setup(protocol: 'acp' | 'codex', pauseFirst = false) {
       configuration: {
         localRuntime: {
           enabled: true,
-          protocol,
+          presetId: protocol === 'codex' ? 'codex' : undefined,
           executableOverride: process.execPath,
           args: [fixture, protocol, 'workspace'],
           env: { FIXTURE_LOG: path.join(directory, 'wire.jsonl') }

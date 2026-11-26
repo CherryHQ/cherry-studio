@@ -11,3 +11,11 @@ export const CURSOR_PERMISSION_MODES = {
 } as const
 
 export type CursorPermissionMode = (typeof CURSOR_PERMISSION_MODES.options)[number]['value']
+
+export const cursorPreset = {
+  id: 'cursor',
+  name: 'Cursor',
+  protocol: 'cursor',
+  defaultMode: CURSOR_PERMISSION_MODES,
+  helpUrl: 'https://cursor.com/docs/api/sdk/typescript'
+} as const

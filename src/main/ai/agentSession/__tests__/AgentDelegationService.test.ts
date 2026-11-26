@@ -99,7 +99,7 @@ describe('delegation ownership and terminal results', () => {
           name: 'Codex',
           instructions: '',
           orderKey: 'b',
-          configuration: { localRuntime: { enabled: true, protocol: 'codex', args: [], env: {} } }
+          configuration: { localRuntime: { enabled: true, presetId: 'codex', args: [], env: {} } }
         }
       ])
       .run()
@@ -226,7 +226,7 @@ describe('delegation ownership and terminal results', () => {
     await service._doInit()
     try {
       agentService.updateAgent('target', {
-        configuration: { localRuntime: { enabled: false, protocol: 'codex', args: [], env: {} } }
+        configuration: { localRuntime: { enabled: false, presetId: 'codex', args: [], env: {} } }
       })
       await vi.waitFor(() => expect(service.read(owner, task.message.id).terminal).toBe(true))
       expect(stopped).toBe(true)

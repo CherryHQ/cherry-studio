@@ -30,7 +30,7 @@ function localAgent(
     orderKey: 'a0',
     createdAt: '',
     updatedAt: '',
-    configuration: { localRuntime: { protocol: 'acp', enabled: true, args: [], env: {}, ...configuration } }
+    configuration: { localRuntime: { enabled: true, args: [], env: {}, ...configuration } }
   }
 }
 
@@ -441,7 +441,7 @@ describe('local agent settings navigation', () => {
     await screen.findByText('已连接')
     expect(ipcApi.request).toHaveBeenCalledWith(
       'ai.local_agents.check',
-      expect.objectContaining({ presetId: 'cursor', protocol: 'cursor' })
+      expect.objectContaining({ presetId: 'cursor' })
     )
   })
 
@@ -541,7 +541,6 @@ describe('local agent settings navigation', () => {
     await waitFor(() =>
       expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.open_terminal', {
         presetId: 'claude',
-        protocol: 'claude',
         enabled: false,
         args: [],
         env: {},
@@ -608,7 +607,7 @@ describe('local agent settings navigation', () => {
   })
 
   it.each([true, false])('opens the selected local agent only when enabled: %s', async (enabled) => {
-    publishAgent(localAgent('Claude Code', { protocol: 'claude', presetId: 'claude', enabled }, 'local-claude'))
+    publishAgent(localAgent('Claude Code', { presetId: 'claude', enabled }, 'local-claude'))
     render(<LocalAgentDirectory />)
     await screen.findByRole('button', { name: '检查连接' })
     const button = screen.getByRole('button', { name: '对话' })
@@ -630,7 +629,7 @@ describe('local agent settings navigation', () => {
   })
 
   it.each(['matching', 'other', 'none'])('closes settings and reuses an agent tab: %s', async (existing) => {
-    publishAgent(localAgent('Claude Code', { protocol: 'claude', presetId: 'claude' }, 'local-claude'))
+    publishAgent(localAgent('Claude Code', { presetId: 'claude' }, 'local-claude'))
     MockDataApiUtils.setCustomResponse('/agent-sessions/latest', 'GET', { session: { id: 'target-session' } })
     let tabs: Tab[] = [{ id: 'settings', type: 'route', title: 'Settings', url: '/settings/local-agents' }]
     if (existing !== 'none')
@@ -735,7 +734,7 @@ describe('local agent settings navigation', () => {
   it.each(['cancel', 'failure'])(
     'leaves an enabled agent unchanged when archiving does not complete (%s)',
     async (outcome) => {
-      const agent = localAgent('Claude Code', { protocol: 'claude', presetId: 'claude' })
+      const agent = localAgent('Claude Code', { presetId: 'claude' })
       publishAgent(agent)
       vi.mocked(popup.confirm).mockResolvedValueOnce(outcome !== 'cancel')
       const commands: string[] = []
@@ -759,7 +758,6 @@ describe('local agent settings navigation', () => {
   it.each([false, true])('restores the existing archived agent (fails=%s)', async (fails) => {
     let agent: AgentEntity = {
       ...localAgent('Claude Code', {
-        protocol: 'claude',
         presetId: 'claude',
         nativeModel: 'saved-model',
         executableOverride: '/test/saved-cli',

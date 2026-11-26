@@ -62,7 +62,6 @@ describe('connection-local gateway attribution', () => {
   const config = (presetId = 'opencode') =>
     LocalAgentConfigurationSchema.parse({
       presetId,
-      protocol: 'acp',
       enabled: true,
       nativeModel: 'cherry/provider:model',
       sourceModelId: 'provider::model',

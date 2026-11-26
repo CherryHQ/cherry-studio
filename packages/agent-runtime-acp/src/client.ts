@@ -111,7 +111,8 @@ export function connectAcpClient(stream: Stream, options: AcpClientOptions) {
         configuration: LoadSessionResponse,
         newSessionMetadata?: NewSessionResponse['_meta']
       ) {
-        const models = legacyModelsSchema.safeParse('models' in configuration ? configuration.models : undefined)
+        const legacyModelState = 'models' in configuration ? configuration.models : undefined
+        const models = legacyModelsSchema.safeParse(legacyModelState)
         return {
           id,
           prompt: (prompt: PromptRequest['prompt'], metadata?: PromptRequest['_meta']) =>
@@ -139,6 +140,7 @@ export function connectAcpClient(stream: Stream, options: AcpClientOptions) {
               agentCapabilities: capabilities,
               sessionId: id,
               newSessionMetadata,
+              legacyModelState: configuration.configOptions?.length ? undefined : legacyModelState,
               currentModel
             })
         }
@@ -174,6 +176,19 @@ export function connectAcpClient(stream: Stream, options: AcpClientOptions) {
 export type AcpClient = ReturnType<typeof connectAcpClient>
 export type AcpAgent = Awaited<ReturnType<AcpClient['initialize']>>
 export type AcpSession = Awaited<ReturnType<AcpAgent['create']>>['session']
+
+export function acpEffortOption(options: AcpSessionConfiguration['configOptions']) {
+  return (
+    options?.find((option) => option.type === 'select' && option.category === 'thought_level') ??
+    options?.find(
+      ({ type, category, id }) =>
+        type === 'select' &&
+        (category === 'thinking' ||
+          category === 'effort' ||
+          (category == null && ['thought_level', 'reasoning_effort', 'effort'].includes(id)))
+    )
+  )
+}
 
 export function acpModelCatalog(options: AcpSessionConfiguration['configOptions'], legacy: AcpSession['legacyModels']) {
   const model = options?.find((option) => option.category === 'model' && option.type === 'select')

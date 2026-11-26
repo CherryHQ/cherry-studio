@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.mocked(ipcApi.request).mockClear()
 })
 
-const config = { protocol: 'acp' as const, enabled: true, args: [], env: {} }
+const config = { enabled: true, args: [], env: {} }
 const checked = {
   ok: true,
   status: 'ready',
@@ -259,7 +259,7 @@ describe('external authentication', () => {
     render(
       <LocalAgentLogin
         {...props}
-        config={{ ...config, protocol: 'codex', presetId: 'codex' }}
+        config={{ ...config, presetId: 'codex' }}
         authMethods={[]}
         onTerminalLogin={onTerminalLogin}
       />
@@ -278,7 +278,7 @@ describe('external authentication', () => {
     render(
       <LocalAgentLogin
         {...props}
-        config={{ ...config, protocol: 'codex', presetId: 'codex' }}
+        config={{ ...config, presetId: 'codex' }}
         authMethods={[]}
         onTerminalLogin={vi.fn()}
         onAuthenticated={onAuthenticated}
@@ -307,7 +307,7 @@ describe('external authentication', () => {
       <>
         <LocalAgentLogin
           {...props}
-          config={{ ...config, protocol: 'acp', presetId: 'opencode' }}
+          config={{ ...config, presetId: 'opencode' }}
           authMethods={[{ id: 'opencode-login', name: 'OpenCode', type: 'agent' }]}
           onTerminalLogin={onTerminalLogin}
           onAuthenticated={onAuthenticated}
@@ -362,12 +362,12 @@ describe('external authentication', () => {
   })
 
   it.each([
-    ['claude', 'claude', /Claude 订阅账号/, 'claude-subscription'],
-    ['kimi', 'acp', /Kimi 国内版/, 'kimi-cn']
-  ] as const)('opens %s browser sign-in without starting a terminal', async (presetId, protocol, label, methodId) => {
+    ['claude', /Claude 订阅账号/, 'claude-subscription'],
+    ['kimi', /Kimi 国内版/, 'kimi-cn']
+  ] as const)('opens %s browser sign-in without starting a terminal', async (presetId, label, methodId) => {
     request.mockResolvedValue(undefined)
     const onTerminalLogin = vi.fn()
-    render(<LocalAgentLogin {...props} config={{ ...config, protocol, presetId }} onTerminalLogin={onTerminalLogin} />)
+    render(<LocalAgentLogin {...props} config={{ ...config, presetId }} onTerminalLogin={onTerminalLogin} />)
     await userEvent.click(await screen.findByRole('button', { name: '登录' }))
     await userEvent.click(screen.getByRole('button', { name: label }))
     await waitFor(() =>
@@ -471,7 +471,7 @@ describe('external authentication', () => {
     render(
       <LocalAgentLogin
         {...props}
-        config={{ ...config, presetId: 'cursor', protocol: 'cursor' }}
+        config={{ ...config, presetId: 'cursor' }}
         authMethods={[{ id: 'cursor_login', name: 'Cursor', type: 'agent' }]}
       />
     )
@@ -492,7 +492,7 @@ describe('external authentication', () => {
     render(
       <LocalAgentLogin
         {...props}
-        config={{ ...config, presetId: 'cursor', protocol: 'cursor' }}
+        config={{ ...config, presetId: 'cursor' }}
         onAuthenticated={onAuthenticated}
         authMethods={[{ id: 'login', name: 'Login', type: 'agent' }]}
       />

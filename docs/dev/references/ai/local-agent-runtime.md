@@ -22,6 +22,7 @@ sources:
   - packages/agent-runtime-codex/src
   - packages/agent-runtime-cursor/src
   - packages/agent-runtime-deepseek-harness-acp/src
+  - packages/agent-runtime-grok-acp/src
   - packages/agent-runtime-kiro-acp/src
   - packages/agent-runtime-vibe-acp/src
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
@@ -63,9 +64,11 @@ are preserved.
 
 ## Ownership and routing
 
-- SQLite stores `configuration.localRuntime`. Writes merge supplied fields in the
-  transaction. Omitted fields retain their latest values and explicit `undefined`
-  clears an optional field. Discovery, checks and session capability reads use IpcApi.
+- SQLite stores `configuration.localRuntime`. A preset stores its ID and the
+  catalog supplies its protocol. A custom command stores its executable and uses
+  ACP. Writes merge supplied fields in the transaction. Omitted fields retain
+  their latest values and explicit `undefined` clears an optional field.
+  Discovery, checks and session capability reads use IpcApi.
 - `AgentSessionRuntimeService` owns scheduling, approvals, persistence and disposal.
   Session opening, connection checks and model discovery use the same adapter
   table in `LocalRuntimeDriver`. The table loads the ACP, Cursor, Claude Code or
@@ -275,13 +278,20 @@ explicitly. For Qwen, MiniMax and Hermes, Cherry maps provider-configured defaul
 to advertised ACP IDs. CLIs with config-file-only model selection use the
 configured default.
 
-The composer applies confirmed session options. A reconnect validates remembered
-choices against live options before replaying them. Failed changes retain the last
-confirmed state and running turns block reconfiguration. Per-session permission
-and effort overrides do not modify global CLI configuration. High-risk changes
-require confirmation. `Shift+Tab` switches between the active safe mode and the
-advertised plan or read-only mode. The renderer may display cached controls while
-reconnecting, with edits and attachment capability gated on live session data.
+An idle session shows the permission mode declared by its runtime. Main can
+record that choice before opening a connection. The live session publishes its
+current permission, effort and other configuration controls, and a disconnect
+withdraws them. Claude and Codex offer the levels advertised for the active
+model. Cursor reads the active model's effort parameter from the SDK catalog
+and applies it on the next send. ACP uses the session's advertised effort
+options. Pi ACP also accepts its legacy thinking modes, and Grok can read its
+legacy model metadata and update effort on that native model. A reconnect
+validates saved choices against the live control and model before applying them.
+
+Running turns block reconfiguration. Per-session choices apply within the
+runtime and leave global CLI settings intact. High-risk changes require
+confirmation. `Shift+Tab` switches between the active safe mode and the
+advertised plan or read-only mode.
 
 The runtime maps its current permission setting to the shared Agent permission
 mode. Prompt suggestions stay disabled while either the Agent configuration or
@@ -310,8 +320,7 @@ the same native aliases when identifying full-access choices.
   those annotations for its permission menu, risk confirmation and Plan
   shortcut. Unmapped options remain available in the native configuration
   menu. A label can trigger a risk confirmation but cannot authorize a host
-  operation. Option snapshots created before the annotation contract are
-  refreshed from the connection.
+  operation.
   Terminals are connection-owned and working directories provide no OS isolation.
   A command path with spaces runs directly when it resolves to an executable.
   A legacy command string without an argument array can run as approved shell input.

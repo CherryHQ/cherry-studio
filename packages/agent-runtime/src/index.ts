@@ -12,6 +12,7 @@ export type {
   SubmitInput,
   InputDraft,
   RuntimeError,
+  RuntimeEffortControl,
   OperationResult,
   InputFact,
   SubmitResult,

@@ -240,7 +240,7 @@ describe('AgentJobsService', () => {
         name: 'Local ACP',
         instructions: '',
         orderKey: id,
-        configuration: { localRuntime: { protocol: 'acp', enabled: true, args: [], env: {} } }
+        configuration: { localRuntime: { executableOverride: '/custom/acp', enabled: true, args: [], env: {} } }
       })
       .run()
     const active = service.createTask(id, form)
@@ -272,7 +272,6 @@ describe('AgentJobsService', () => {
         configuration: {
           localRuntime: {
             enabled: true,
-            protocol: 'acp',
             executableOverride: '/old/acp',
             args: ['old'],
             env: {},
@@ -427,38 +426,41 @@ describe('AgentJobsService', () => {
 
   describe('createTask', () => {
     it.each([
-      ['codex', 'codex', true, true],
-      ['codex', 'codex', false, false],
-      ['opencode', 'acp', true, true],
-      ['claude', 'claude', true, true],
-      ['custom', 'acp', false, false]
-    ] as const)(
-      'allows scheduling the %s preset only when supported and enabled',
-      (presetId, protocol, enabled, supported) => {
-        dbh.db
-          .insert(agentTable)
-          .values({
-            id: OTHER_AGENT_ID,
-            type: 'local',
-            name: presetId,
-            instructions: '',
-            orderKey: OTHER_AGENT_ID,
-            configuration: { localRuntime: { presetId, protocol, enabled, args: [], env: {} } }
-          })
-          .run()
+      ['codex', true, true],
+      ['codex', false, false],
+      ['opencode', true, true],
+      ['claude', true, true],
+      [undefined, false, false]
+    ] as const)('allows scheduling the %s preset only when supported and enabled', (presetId, enabled, supported) => {
+      dbh.db
+        .insert(agentTable)
+        .values({
+          id: OTHER_AGENT_ID,
+          type: 'local',
+          name: presetId ?? 'Custom ACP',
+          instructions: '',
+          orderKey: OTHER_AGENT_ID,
+          configuration: {
+            localRuntime: {
+              presetId,
+              ...(presetId === undefined ? { executableOverride: '/custom/acp' } : {}),
+              enabled,
+              args: [],
+              env: {}
+            }
+          }
+        })
+        .run()
 
-        if (supported) {
-          const task = service.createTask(OTHER_AGENT_ID, form)
-          expect(task.agentId).toBe(OTHER_AGENT_ID)
-          expect(scheduler.has(`schedule:${task.id}`)).toBe(true)
-        } else {
-          expect(() => service.createTask(OTHER_AGENT_ID, form)).toThrow(
-            'Scheduled tasks require an enabled local agent'
-          )
-          expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
-        }
+      if (supported) {
+        const task = service.createTask(OTHER_AGENT_ID, form)
+        expect(task.agentId).toBe(OTHER_AGENT_ID)
+        expect(scheduler.has(`schedule:${task.id}`)).toBe(true)
+      } else {
+        expect(() => service.createTask(OTHER_AGENT_ID, form)).toThrow('Scheduled tasks require an enabled local agent')
+        expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
       }
-    )
+    })
 
     it('stores an explicitly empty timeout as unlimited', () => {
       const task = service.createTask(AGENT_ID, { ...form, timeoutMinutes: null })

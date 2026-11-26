@@ -17,7 +17,7 @@ import { getBundledGitDir } from '@main/utils/bundledGit'
 import { autoDiscoverGitBash, findExecutableInEnv } from '@main/utils/commandResolver'
 import { getEnvironmentValue, mergeEnvironment } from '@main/utils/env'
 import { getRawShellEnv } from '@main/utils/shellEnv'
-import { LOCAL_CLI_AGENT_PRESETS, type LocalCliAgentPreset, type LocalAgentConfiguration } from '@shared/ai/localAgent'
+import { getLocalAgentPreset, type LocalCliAgentPreset, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { BinaryAvailability, BinaryToolSnapshot } from '@shared/types/binary'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
@@ -197,13 +197,13 @@ export async function resolveCliProgram(
   policy?: CliLaunchPolicy
 ) {
   const terminal = purpose === 'cli'
-  const definition = LOCAL_CLI_AGENT_PRESETS.find((p) => p.id === config.presetId)
+  const definition = getLocalAgentPreset(config.presetId)
+  if (definition?.protocol === 'cursor' || (config.presetId !== undefined && !definition))
+    throw new Error('Invalid local agent preset')
   const preset =
     terminal && definition?.terminalCli
       ? { ...definition, executable: definition.terminalCli.executable, aliases: undefined }
       : definition
-  if (config.protocol === 'cursor' || (config.presetId && (!preset || preset.protocol !== config.protocol)))
-    throw new Error('Invalid local agent preset')
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
   let shellEnv = await getRawShellEnv(signal)

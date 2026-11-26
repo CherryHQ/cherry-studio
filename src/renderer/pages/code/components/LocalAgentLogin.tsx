@@ -37,7 +37,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import {
-  LOCAL_AGENT_PRESETS,
+  getLocalAgentPreset,
   type CliAuthOption,
   type LocalAgentAuthMethod,
   type LocalAgentConfiguration,
@@ -83,14 +83,14 @@ export function LocalAgentLogin({
   const [busy, setBusy] = useState(false)
   const [discovered, setDiscovered] = useState<{ signature: string; methods: LocalAgentAuthMethod[] }>()
   const signature = JSON.stringify({
-    protocol: config.protocol,
     presetId: config.presetId,
     executableOverride: config.executableOverride,
     args: config.args,
     env: config.env,
     enabled: true
   })
-  const sdk = config.protocol === 'cursor'
+  const preset = getLocalAgentPreset(config.presetId)
+  const sdk = preset?.protocol === 'cursor'
   const methods: LocalAgentAuthMethod[] | undefined = sdk
     ? [cursorLoginMethod]
     : (authMethods ?? (discovered?.signature === signature ? discovered.methods : undefined))
@@ -106,7 +106,6 @@ export function LocalAgentLogin({
     kilo: { 'kilo-login': `Kilo · ${t('local_agents.sign_in')}` },
     hermes: { custom: t('local_agents.auth_runtime_credentials') }
   }
-  const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId && entry.protocol === config.protocol)
   const loginMethod = (id: string | undefined) => preset?.auth?.methods.find((method) => method.id === id)
   const usableMethods = methods
     ?.filter((method) => method.type === 'agent' && !preset?.externalCredentialMethods?.includes(method.id))

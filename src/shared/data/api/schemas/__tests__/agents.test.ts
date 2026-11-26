@@ -80,7 +80,25 @@ describe('AgentEntitySchema', () => {
     })
     expect(patch.configuration?.localRuntime).toEqual({ args: ['--acp'], executableOverride: undefined })
     expect(UpdateAgentSchema.safeParse({ configuration: { localRuntime: { args: [1] } } }).success).toBe(false)
+  })
+
+  it('stores a known preset or a custom executable as the local runtime identity', () => {
+    const preset = { presetId: 'cursor', enabled: true }
+    const custom = { executableOverride: '/custom/acp', enabled: true }
+    expect(AgentConfigurationSchema.parse({ localRuntime: preset }).localRuntime).toEqual({
+      ...preset,
+      args: [],
+      env: {}
+    })
+    expect(AgentConfigurationSchema.parse({ localRuntime: custom }).localRuntime).toEqual({
+      ...custom,
+      args: [],
+      env: {}
+    })
+    expect(AgentConfigurationSchema.safeParse({ localRuntime: { ...custom, presetId: 'unknown' } }).success).toBe(false)
+    expect(AgentConfigurationSchema.safeParse({ localRuntime: { ...preset, protocol: 'acp' } }).success).toBe(false)
     expect(AgentConfigurationSchema.safeParse({ localRuntime: { enabled: true } }).success).toBe(false)
+    expect(UpdateAgentSchema.safeParse({ configuration: { localRuntime: { protocol: 'acp' } } }).success).toBe(false)
   })
 
   it('validates and deduplicates knowledgeBaseIds at the API parse boundary', () => {

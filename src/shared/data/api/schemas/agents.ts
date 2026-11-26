@@ -11,7 +11,7 @@ import { AGENT_PERMISSION_MODES } from '@cherrystudio/agent-runtime/cli'
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
 import { AgentPromptOverridesPatchSchema, AgentPromptOverridesSchema } from '@shared/ai/agentPromptSections'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
-import { LocalAgentConfigurationSchema } from '@shared/ai/localAgent'
+import { LocalAgentConfigurationSchema, StoredLocalAgentConfigurationSchema } from '@shared/ai/localAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -52,7 +52,7 @@ export const AgentSchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
 
 export const AgentConfigurationSchema = z
   .object({
-    localRuntime: LocalAgentConfigurationSchema.optional(),
+    localRuntime: StoredLocalAgentConfigurationSchema.optional(),
     avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),

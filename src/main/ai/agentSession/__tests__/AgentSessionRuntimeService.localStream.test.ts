@@ -64,7 +64,7 @@ it.each(['success', 'error', 'live'] as const)(
     runtimeDriverRegistry.register({
       type: 'local',
       validateSession: () => {},
-      connect: async () => new TestConnection('root', 'agent', { enabled: true, protocol: 'acp', args: [], env: {} })
+      connect: async () => new TestConnection('root', 'agent', { enabled: true, args: [], env: {} })
     })
     const service = new AgentSessionRuntimeService()
     onTestFinished(async () => {

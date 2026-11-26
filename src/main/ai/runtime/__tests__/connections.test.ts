@@ -79,7 +79,7 @@ describe('local protocol processes', () => {
 
   function fixtureConfig(protocol: 'acp' | 'codex', scenario: string): LocalAgentConfiguration {
     return {
-      protocol,
+      presetId: protocol === 'codex' ? 'codex' : undefined,
       enabled: true,
       executableOverride: process.execPath,
       args: [fixture, protocol, scenario],
@@ -95,7 +95,12 @@ describe('local protocol processes', () => {
     sourceModelId?: LocalAgentConfiguration['sourceModelId'],
     headless = false
   ) {
-    const config = { ...fixtureConfig(protocol, scenario), presetId, nativeModel, sourceModelId }
+    const config = {
+      ...fixtureConfig(protocol, scenario),
+      ...(presetId ? { presetId } : {}),
+      nativeModel,
+      sourceModelId
+    }
     const connection =
       protocol === 'acp'
         ? new AcpConnection('session', 'agent', config, headless)
@@ -174,7 +179,6 @@ describe('local protocol processes', () => {
       service.authenticate(
         'redaction-test',
         {
-          protocol: 'acp',
           enabled: true,
           executableOverride: process.execPath,
           args: [fixture, 'acp', 'auth-secret'],
@@ -223,7 +227,6 @@ describe('local protocol processes', () => {
   it.each(['cancel', 'stop'])('cleans up an outstanding authentication process on %s', async (action) => {
     const service = new LocalAgentAuthService()
     const config: LocalAgentConfiguration = {
-      protocol: 'acp',
       enabled: true,
       executableOverride: process.execPath,
       args: [fixture, 'acp', 'auth-pending'],
@@ -257,7 +260,6 @@ describe('local protocol processes', () => {
       service.authenticate(
         'timeout-test',
         {
-          protocol: 'acp',
           enabled: true,
           executableOverride: process.execPath,
           args: [fixture, 'acp', 'auth-pending'],
@@ -647,6 +649,18 @@ describe('local protocol processes', () => {
     }
   )
 
+  it('writes Pi legacy thinking levels through native set_mode without publishing permission choices', async () => {
+    const { connection } = create('acp', 'thought-legacy-only', undefined, 'pi-acp')
+    const acp = connection as AcpConnection
+    await acp.start(cwd)
+    expect(acp.localSessionInfo.mode).toBeUndefined()
+    await acp.setThoughtLevel('legacy-mode', 'deep')
+    expect(acp.localSessionInfo.thoughtLevel?.currentValue).toBe('deep')
+    expect((await readWire()).find(({ method }) => method === 'session/set_mode')?.params).toMatchObject({
+      modeId: 'deep'
+    })
+  })
+
   it('treats an empty configOptions list as authoritative', async () => {
     const acp = create('acp', 'mode-legacy-empty').connection as AcpConnection
     await acp.start(cwd)
@@ -680,21 +694,24 @@ describe('local protocol processes', () => {
     )
   })
 
-  it('uses advertised thought option IDs and values and publishes confirmed state', async () => {
-    const { connection, events } = create('acp', 'thought')
+  it.each([
+    ['thought', 'reasoning-budget'],
+    ['thought-uncategorized', 'effort']
+  ])('applies and publishes the advertised ACP effort (%s)', async (scenario, configId) => {
+    const { connection, events } = create('acp', scenario)
     await connection.start(cwd)
     const acp = connection as AcpConnection
     expect(acp.localSessionInfo.thoughtLevel).toMatchObject({
-      id: 'reasoning-budget',
+      id: configId,
       currentValue: 'balanced',
       options: [
         { value: 'balanced', name: 'Balanced' },
         { value: 'deep', name: 'Deep' }
       ]
     })
-    await expect(acp.setThoughtLevel('reasoning-budget', 'high')).rejects.toThrow('no longer available')
-    await acp.setThoughtLevel('reasoning-budget', 'deep')
-    expect(acp.localSessionInfo.thoughtLevel?.currentValue).toBe('deep')
+    await expect(acp.setThoughtLevel(configId, 'high')).rejects.toThrow('no longer available')
+    await acp.setThoughtLevel(configId, 'deep')
+    expect(acp.localSessionInfo.thoughtLevel).toMatchObject({ currentValue: 'deep', modelId: 'fixture-default' })
     await vi.waitFor(() =>
       expect(events).toContainEqual(
         expect.objectContaining({
@@ -706,7 +723,7 @@ describe('local protocol processes', () => {
     const wire = await readWire()
     expect(
       wire.filter((message) => message.method === 'session/set_config_option').map((message) => message.params)
-    ).toEqual([{ sessionId: 'native-session', configId: 'reasoning-budget', value: 'deep' }])
+    ).toEqual([{ sessionId: 'native-session', configId, value: 'deep' }])
   })
 
   it('waits for a pending thought change before prompting and rejects concurrent changes', async () => {
@@ -869,6 +886,26 @@ describe('local protocol processes', () => {
     expect(invocations[1].usage).toEqual({ inputTokens: 3, outputTokens: 2, totalTokens: 5, noCacheTokens: 3 })
     expect(invocations.every((summary) => summary.nativeSessionId && summary.correlation === 'unknown')).toBe(true)
     expect(events.filter((event) => event.type === 'usage')).toEqual([])
+  })
+
+  it('applies Grok legacy effort to the active native model and hides it for an unsupported model', async () => {
+    const { connection } = create('acp', 'grok-legacy-effort', undefined, 'grok-build')
+    await connection.start(cwd)
+    const effort = connection.localSessionInfo.thoughtLevel
+    expect(effort).toMatchObject({ modelId: 'grok-reasoning', currentValue: 'medium' })
+    if (!effort) throw new Error('Missing Grok effort')
+    const applied = await (connection as AcpConnection).setThoughtLevel(effort.id, 'xhigh')
+    expect(applied.thoughtLevel?.currentValue).toBe('xhigh')
+
+    const unsupported = create('acp', 'grok-legacy-effort', 'grok-basic', 'grok-build').connection
+    await unsupported.start(cwd)
+    expect(unsupported.localSessionInfo.activeModel?.id).toBe('grok-basic')
+    expect(unsupported.localSessionInfo.thoughtLevel).toBeUndefined()
+    const wire = await readWire()
+    expect(wire.filter(({ method }) => method === 'session/set_model').map(({ params }) => params)).toEqual([
+      { sessionId: 'native-session', modelId: 'grok-reasoning', _meta: { reasoningEffort: 'xhigh' } },
+      { sessionId: 'native-session', modelId: 'grok-basic' }
+    ])
   })
 
   it('reads suggestions from the bound Grok session and drops a response for an older request', async () => {
@@ -1150,7 +1187,7 @@ describe('local protocol processes', () => {
   // Enumeration must not infer, apply a stale saved model, or create a Codex thread.
   it.each(['acp', 'codex'] as const)('%s loads real model IDs without sending a prompt', async (protocol) => {
     const catalog = await listLocalAgentModels({
-      protocol,
+      presetId: protocol === 'codex' ? 'codex' : undefined,
       enabled: false,
       nativeModel: 'stale-model',
       executableOverride: process.execPath,
@@ -1200,7 +1237,6 @@ describe('local protocol processes', () => {
         )
     })
     const catalog = await listLocalAgentModels({
-      protocol: 'acp',
       presetId: 'antigravity-acp',
       enabled: true,
       args: [],
@@ -1785,8 +1821,6 @@ describe('local protocol processes', () => {
     await connection.start(cwd)
     const acp = connection as AcpConnection
     expect(acp.localSessionInfo.configOptions?.map((option) => option.id)).toEqual([
-      'agent-mode',
-      'reasoning-budget',
       'model',
       'secondary-mode',
       'secondary-thought',
@@ -1797,7 +1831,7 @@ describe('local protocol processes', () => {
     await acp.setConfigOption('secondary-mode', 'plan')
     await acp.setConfigOption('secondary-thought', 'deep')
     await acp.setConfigOption('secondary-model', 'other-model')
-    expect(acp.localSessionInfo.configOptions?.slice(3, 6).map((option) => option.currentValue)).toEqual([
+    expect(acp.localSessionInfo.configOptions?.slice(1, 4).map((option) => option.currentValue)).toEqual([
       'plan',
       'deep',
       'other-model'
@@ -1814,17 +1848,15 @@ describe('local protocol processes', () => {
     await connection.start(cwd)
     expect(connection.localSessionInfo.configOptions?.map(({ id, category }) => [id, category])).toEqual([
       ['verbosity', '_verbosity'],
-      ['reasoning-budget', 'thought_level'],
       ['model', 'model'],
       ['context-size', 'model_config'],
-      ['agent-mode', 'mode'],
       ['notifications', undefined]
     ])
     expect((await readWire()).find(({ method }) => method === 'initialize').params.clientInfo.version).toBe(
       app.getVersion()
     )
     await (connection as AcpConnection).setConfigOption('context-size', 'large')
-    expect(connection.localSessionInfo.configOptions?.map(({ id }) => id)).toEqual(['notifications', 'agent-mode'])
+    expect(connection.localSessionInfo.configOptions?.map(({ id }) => id)).toEqual(['notifications'])
     expect(connection.localSessionInfo.thoughtLevel).toBeUndefined()
     expect(connection.localSessionInfo.models).toEqual([])
     expect(connection.localSessionInfo.activeModel).toBeUndefined()
@@ -2104,7 +2136,6 @@ describe('local protocol processes', () => {
 
   it('exposes native DeepSeek Harness modes from ACP config env when ACP omits modes', async () => {
     const config: LocalAgentConfiguration = {
-      protocol: 'acp',
       presetId: 'deepseek-harness',
       enabled: true,
       executableOverride: process.execPath,
@@ -2765,10 +2796,21 @@ describe('local protocol processes', () => {
       id: 'reasoning-budget',
       currentValue: 'balanced'
     })
-    expect(thinking.connection.localSessionInfo.configOptions).toContainEqual(
-      expect.objectContaining({ id: 'reasoning-budget', role: 'reasoning' })
+    expect(thinking.connection.localSessionInfo.configOptions).not.toContainEqual(
+      expect.objectContaining({ id: 'reasoning-budget' })
     )
     await thinking.closeAndDrain()
+  })
+
+  it('keeps a Codex thread usable when its active model advertises no effort choices', async () => {
+    const { connection, text } = create('codex', 'codex-no-effort')
+    await connection.start(cwd)
+    expect(connection.localSessionInfo.thoughtLevel).toBeUndefined()
+    await expect(connection.setThoughtLevel?.('codex-effort', 'high')).rejects.toThrow('no longer available')
+    await connection.send(input)
+    await vi.waitFor(() => expect(text()).toContain('hello'))
+    const turn = (await readWire()).find(({ method }) => method === 'turn/start')
+    expect(turn.params.effort).toBeUndefined()
   })
 
   it('emits confirmed context-usage for Codex models with known windows and unknown otherwise', async () => {

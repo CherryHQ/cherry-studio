@@ -59,6 +59,7 @@ import { findConversationTab } from '@renderer/utils/conversationNavigation'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import {
+  getLocalAgentProtocol,
   LOCAL_AGENT_PRESETS,
   LocalAgentLaunchSettingsSchema,
   type LocalAgentConfiguration,
@@ -360,8 +361,7 @@ export function LocalAgentDirectory({
                   const enabled = !e.agent?.deletedAt && e.agent?.configuration?.localRuntime?.enabled
                   const detection = detections.find((d) => d.presetId === e.id)
                   const executableOverride = e.agent?.configuration?.localRuntime?.executableOverride
-                  const config = e.agent?.configuration?.localRuntime
-                  const sdk = (e.preset?.protocol ?? config?.protocol) === 'cursor'
+                  const sdk = e.preset?.protocol === 'cursor'
                   const notInstalled =
                     !sdk &&
                     !!detection &&
@@ -558,12 +558,13 @@ export function LocalAgentDetails({
   const archived = !!agent?.deletedAt
   const initial: LocalAgentConfiguration = agent?.configuration?.localRuntime
     ? { ...agent.configuration.localRuntime, enabled: !archived && agent.configuration.localRuntime.enabled }
-    : { protocol: preset?.protocol ?? 'acp', presetId: preset?.id, enabled: false, args: [], env: {} }
+    : { presetId: preset?.id, enabled: false, args: [], env: {} }
   const [busyAction, setBusyAction] = useState<
     'save' | 'check' | 'toggle' | 'uninstall' | 'confirm-uninstall' | 'model' | 'terminal'
   >()
   const missing = missingChatExecutable(detection, initial)
-  const sdk = (preset?.protocol ?? initial.protocol) === 'cursor'
+  const protocol = getLocalAgentProtocol(initial.presetId)
+  const sdk = protocol === 'cursor'
   const available = sdk || (!!(detection?.path || initial.executableOverride) && !missing)
   const {
     catalog,
@@ -1068,12 +1069,10 @@ export function LocalAgentDetails({
                   {!available && detection?.terminalPath && terminalButton}
                   {available ? (
                     <>
-                      {(sdk || initial.protocol === 'acp' || preset?.loginArgs) && (
+                      {(sdk || protocol === 'acp' || preset?.loginArgs) && (
                         <LocalAgentLogin
                           config={initial}
-                          authMethods={
-                            initial.protocol === 'acp' ? (freshCatalog?.authMethods ?? catalog?.authMethods) : []
-                          }
+                          authMethods={protocol === 'acp' ? (freshCatalog?.authMethods ?? catalog?.authMethods) : []}
                           modelsLoading={modelsLoading}
                           freshCatalog={freshCatalog}
                           authenticationError={modelsRefreshError ?? (freshCatalog ? undefined : result.message)}

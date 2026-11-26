@@ -23,6 +23,7 @@ export function dshMode(selected?: string) {
 export const dshCli = {
   id: 'deepseek-harness',
   defaultMode: DSH_PERMISSION_MODES,
+  modeForLaunch: (env: Readonly<Record<string, string>>) => dshMode(env.DSH_PERMISSION_MODE),
   minimumAcpVersion: '0.1.2-alpha.2',
   name: 'DeepSeek Harness',
   protocol: 'acp',

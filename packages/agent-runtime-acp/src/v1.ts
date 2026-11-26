@@ -4,7 +4,7 @@ export type {
   McpServer as AcpMcpServer,
   PromptCapabilities as AcpPromptCapabilities
 } from '@agentclientprotocol/sdk'
-export { acpAuthMethods, acpModelCatalog, type AcpClient, type AcpSession } from './client'
+export { acpAuthMethods, acpEffortOption, acpModelCatalog, type AcpClient, type AcpSession } from './client'
 export {
   acpHostError,
   connectAcpManagementStdio,

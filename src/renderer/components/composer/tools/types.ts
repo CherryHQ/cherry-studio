@@ -75,7 +75,6 @@ export interface ToolContext {
     knowledgeBaseIds?: readonly string[]
     localPermission?: {
       mode?: LocalAgentSelection
-      kind?: 'mode' | 'config'
       disabled?: boolean
     }
   }

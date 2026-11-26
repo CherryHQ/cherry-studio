@@ -69,11 +69,11 @@ import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { getProviderModelId, type ExecutionId } from '@shared/ai/executionIdentity'
 import {
-  getDefaultLocalAgentMode,
-  getDefaultLocalAgentThoughtLevel,
-  type LocalAgentConfiguration,
+  getLocalAgentLaunchMode,
+  type LocalAgentSelection,
   type LocalAgentSessionInfo,
-  type LocalAgentSessionOverrides
+  type LocalAgentSessionOverrides,
+  type LocalAgentSessionView
 } from '@shared/ai/localAgent'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
@@ -166,19 +166,6 @@ const USER_STOP_REASONS: ReadonlySet<unknown> = new Set(['user-requested', 'remo
 type NativeInputState = Extract<AgentRuntimeEvent, { type: 'input-state' }>['input']
 /** Shown on a card whose requesting runtime went away before the user could answer it. */
 const ABANDONED_APPROVAL_ERROR = 'The runtime connection closed before this request was answered'
-const LOCAL_CAPABILITY_RESET_ERROR_CODES = new Set(['LOCAL_AGENT_HOST_REQUIRED', 'LOCAL_AGENT_NOT_INSTALLED'])
-
-function isMissingLocalAgentRuntimeError(error: unknown): boolean {
-  let current: unknown = error
-  const seen = new Set<unknown>()
-  while (current && typeof current === 'object' && !seen.has(current)) {
-    seen.add(current)
-    const code = (current as { code?: unknown }).code
-    if (typeof code === 'string' && LOCAL_CAPABILITY_RESET_ERROR_CODES.has(code)) return true
-    current = (current as { cause?: unknown }).cause
-  }
-  return false
-}
 
 function knowledgeScopeEquals(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false
@@ -2535,8 +2522,6 @@ export class AgentSessionRuntimeService extends BaseService {
       ...this.inputCallbacks(entry, attemptId)
     }
     const connection = await driver.connect(request).catch((error: unknown) => {
-      if (entry.agentType === 'local' && isMissingLocalAgentRuntimeError(error))
-        this.publishLocalSessionInfo(entry, null, { clearSnapshots: true })
       if (error instanceof LocalAgentSessionRestoreError)
         this.publishLocalSessionInfo(entry, null, { restoreUnavailable: true })
       throw error
@@ -4165,7 +4150,7 @@ export class AgentSessionRuntimeService extends BaseService {
     sessionId: string,
     patch: {
       mode?: { configId: string; value: string }
-      thoughtLevel?: { configId: string; value: string }
+      thoughtLevel?: LocalAgentSessionOverrides['thoughtLevel']
       configOption?: { configId: string; value: string | boolean }
     }
   ): void {
@@ -4233,6 +4218,7 @@ export class AgentSessionRuntimeService extends BaseService {
       connection.setThoughtLevel &&
       thoughtInfo &&
       thoughtInfo.id === saved.thoughtLevel.configId &&
+      thoughtInfo.modelId === saved.thoughtLevel.modelId &&
       thoughtInfo.currentValue !== saved.thoughtLevel.value &&
       thoughtInfo.options.some((option) => option.value === saved.thoughtLevel!.value)
     ) {
@@ -4280,176 +4266,109 @@ export class AgentSessionRuntimeService extends BaseService {
     return this.isCurrentGeneration(entry, attemptId) && this.currentConnection(entry) === connection
   }
 
-  private async changeLocalOption(
-    sessionId: string,
-    apply: (connection: AgentRuntimeConnection) => Promise<LocalAgentSessionInfo> | undefined
-  ) {
-    let entry = this.entries.get(sessionId)
-    if ((!entry || !this.currentConnection(entry)) && !this.isSessionBusy(sessionId)) {
-      const agentId = agentSessionService.getById(sessionId)?.agentId
-      if (agentId && agentService.getAgent(agentId)?.type === 'local') {
-        await this.commandConnection(sessionId)
-        entry = this.entries.get(sessionId)
-      }
-    }
-    const connection = entry?.agentType === 'local' && this.currentConnection(entry)
-    const change = connection && !this.isSessionBusy(sessionId) && apply(connection)
-    if (!change) throw new Error('Local agent session is unavailable or busy')
-    return change
+  private localOptionConnection(sessionId: string) {
+    const entry = this.entries.get(sessionId)
+    if (entry?.agentType === 'local' && !entry.closing) return this.currentConnection(entry)
   }
 
   async setLocalConfigOption(sessionId: string, configId: string, value: string | boolean) {
-    const info = await this.changeLocalOption(sessionId, (connection) => connection.setConfigOption?.(configId, value))
+    const connection = this.localOptionConnection(sessionId)
+    if (!connection?.setConfigOption || this.isSessionBusy(sessionId))
+      throw new Error('Local agent session is unavailable or busy')
+    const info = await connection.setConfigOption(configId, value)
     const option = info.configOptions?.find((item) => item.id === configId)
-    if (option?.application === 'session') {
+    if (option?.application === 'session' && this.localOptionConnection(sessionId) === connection) {
       this.saveLocalSessionOverride(sessionId, { configOption: { configId, value } })
     }
     return info
   }
 
-  private buildLocalFallbackSessionInfo(
-    sessionId: string,
-    protocol: LocalAgentConfiguration['protocol'],
-    presetId?: string,
-    baseInfo?: LocalAgentSessionInfo
-  ): LocalAgentSessionInfo {
-    const saved = this.getLocalSessionOverrides(sessionId)
-    const defaultMode = getDefaultLocalAgentMode(protocol, presetId)
-    const savedMode = saved?.mode
-    const resolvedMode =
-      defaultMode &&
-      savedMode?.configId === defaultMode.id &&
-      defaultMode.options.some((option) => option.value === savedMode.value)
-        ? { ...defaultMode, currentValue: savedMode.value }
-        : defaultMode
-    const defaultThoughtLevel = getDefaultLocalAgentThoughtLevel(protocol)
-    const savedThoughtLevel = saved?.thoughtLevel
-    const resolvedThoughtLevel =
-      defaultThoughtLevel &&
-      savedThoughtLevel?.configId === defaultThoughtLevel.id &&
-      defaultThoughtLevel.options.some((option) => option.value === savedThoughtLevel.value)
-        ? { ...defaultThoughtLevel, currentValue: savedThoughtLevel.value }
-        : defaultThoughtLevel
-    return {
-      models: baseInfo?.models ?? [],
-      images: baseInfo?.images ?? true,
-      resume: baseInfo?.resume ?? true,
-      ...baseInfo,
-      ...(resolvedMode ? { mode: resolvedMode } : {}),
-      ...(resolvedThoughtLevel ? { thoughtLevel: resolvedThoughtLevel } : {})
-    }
+  private localIdleMode(sessionId: string, agentId?: string | null): LocalAgentSelection | undefined {
+    const agent = agentId ? agentService.getAgent(agentId) : undefined
+    const config = agent?.type === 'local' ? agent.configuration?.localRuntime : undefined
+    const mode = config?.enabled ? getLocalAgentLaunchMode(config) : undefined
+    if (!mode) return
+    const saved = this.getLocalSessionOverrides(sessionId)?.mode
+    if (saved?.configId === mode.id && mode.options.some(({ value }) => value === saved.value))
+      return { ...mode, currentValue: saved.value }
+    return mode
   }
 
-  async setLocalMode(sessionId: string, configId: string, value: string) {
-    if (this.isSessionBusy(sessionId)) throw new Error('Local agent session is unavailable or busy')
-    const session = agentSessionService.getById(sessionId)
-    const agent = session?.agentId ? agentService.getAgent(session.agentId) : undefined
-    const isLocalAgent = agent?.type === 'local'
-    const localConfig = isLocalAgent ? agent.configuration?.localRuntime : undefined
-    const declaredMode = localConfig && getDefaultLocalAgentMode(localConfig.protocol, localConfig.presetId)
-    const isDeclaredValue =
-      declaredMode?.id === configId && declaredMode.options.some((option) => option.value === value)
-    if (localConfig && declaredMode?.application === 'reconnect' && isDeclaredValue) {
-      const existingEntry = this.entries.get(sessionId)
-      const existingConnection = existingEntry && this.currentConnection(existingEntry)
-      const baseInfo = existingConnection?.localSessionInfo ? { ...existingConnection.localSessionInfo } : undefined
-      this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
-      if (existingConnection) {
-        await this.closeSession(sessionId)
-      }
-      const info = this.buildLocalFallbackSessionInfo(sessionId, localConfig.protocol, localConfig.presetId, baseInfo)
-      application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, info })
-      return info
-    }
-    let primeError: unknown
-    let entry = this.entries.get(sessionId)
-    if (!entry || !this.currentConnection(entry)) {
-      if (isLocalAgent) {
-        try {
-          await this.commandConnection(sessionId)
-        } catch (error) {
-          primeError = error
-        }
-        entry = this.entries.get(sessionId)
-      }
-    }
-    const connection = entry?.agentType === 'local' && this.currentConnection(entry)
-    if (connection && !this.isSessionBusy(sessionId) && connection.setMode) {
-      const info = await connection.setMode(configId, value)
-      this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
-      return info
-    }
-    if (!connection && !this.isSessionBusy(sessionId) && localConfig) {
-      if (isDeclaredValue) {
-        this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
-        const info = this.buildLocalFallbackSessionInfo(sessionId, localConfig.protocol, localConfig.presetId)
-        application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, info })
-        return info
-      }
-    }
-    if (primeError) throw primeError
-    throw new Error('Local agent session is unavailable or busy')
-  }
-
-  async setLocalThoughtLevel(sessionId: string, configId: string, value: string) {
-    if (this.isSessionBusy(sessionId)) throw new Error('Local agent session is unavailable or busy')
-    let primeError: unknown
-    let entry = this.entries.get(sessionId)
-    if (!entry || !this.currentConnection(entry)) {
-      const agentId = agentSessionService.getById(sessionId)?.agentId
-      if (agentId && agentService.getAgent(agentId)?.type === 'local') {
-        try {
-          await this.commandConnection(sessionId)
-        } catch (error) {
-          primeError = error
-        }
-        entry = this.entries.get(sessionId)
-      }
-    }
-    const connection = entry?.agentType === 'local' && this.currentConnection(entry)
-    if (connection && !this.isSessionBusy(sessionId) && connection.setThoughtLevel) {
-      const info = await connection.setThoughtLevel(configId, value)
-      this.saveLocalSessionOverride(sessionId, { thoughtLevel: { configId, value } })
-      return info
-    }
-    if (!connection && !this.isSessionBusy(sessionId)) {
-      const session = agentSessionService.getById(sessionId)
-      const agent = session?.agentId ? agentService.getAgent(session.agentId) : undefined
-      const localConfig = agent?.type === 'local' ? agent.configuration?.localRuntime : undefined
-      const defaultThoughtLevel = localConfig ? getDefaultLocalAgentThoughtLevel(localConfig.protocol) : undefined
-      if (
-        localConfig &&
-        defaultThoughtLevel &&
-        defaultThoughtLevel.id === configId &&
-        defaultThoughtLevel.options.some((option) => option.value === value)
-      ) {
-        this.saveLocalSessionOverride(sessionId, { thoughtLevel: { configId, value } })
-        const info = this.buildLocalFallbackSessionInfo(sessionId, localConfig.protocol, localConfig.presetId)
-        application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, info })
-        return info
-      }
-    }
-    if (primeError) throw primeError
-    throw new Error('Local agent session is unavailable or busy')
-  }
-
-  getLocalSessionInfo(sessionId: string) {
+  async setLocalMode(sessionId: string, configId: string, value: string): Promise<LocalAgentSessionView> {
     const entry = this.entries.get(sessionId)
-    return entry ? (this.currentConnection(entry)?.localSessionInfo ?? null) : null
+    if (this.isSessionBusy(sessionId)) throw new Error('Local agent session is unavailable or busy')
+    const connection = this.localOptionConnection(sessionId)
+    const agentId = entry?.agentId ?? agentSessionService.getById(sessionId)?.agentId
+    const mode = connection ? connection.localSessionInfo?.mode : this.localIdleMode(sessionId, agentId)
+    if (!mode || mode.id !== configId || !mode.options.some((option) => option.value === value))
+      throw new Error('This session option is no longer available')
+
+    if (connection && mode.application !== 'reconnect') {
+      if (!connection.setMode) throw new Error('This session option is no longer available')
+      const info = await connection.setMode(configId, value)
+      if (this.localOptionConnection(sessionId) !== connection)
+        throw new Error('This session option is no longer available')
+      if (info.mode?.id === configId && info.mode.currentValue === value)
+        this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
+      return { info }
+    }
+
+    this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
+    if (connection) await this.closeSession(sessionId)
+    const view: LocalAgentSessionView = { info: null, idleMode: { ...mode, currentValue: value } }
+    application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, ...view })
+    return view
   }
 
-  /** Push the live capabilities, or null when the connection that owned them is gone. */
+  async setLocalThoughtLevel(sessionId: string, configId: string, value: string, modelId?: string) {
+    const connection = this.localOptionConnection(sessionId)
+    if (!connection?.setThoughtLevel || this.isSessionBusy(sessionId))
+      throw new Error('Local agent session is unavailable or busy')
+    const effort = connection.localSessionInfo?.thoughtLevel
+    if (
+      !effort ||
+      effort.id !== configId ||
+      effort.modelId !== modelId ||
+      !effort.options.some((option) => option.value === value)
+    )
+      throw new Error('This session option is no longer available')
+    const info = await connection.setThoughtLevel(configId, value)
+    if (
+      this.localOptionConnection(sessionId) !== connection ||
+      info.thoughtLevel?.id !== configId ||
+      info.thoughtLevel.modelId !== modelId
+    )
+      throw new Error('This session option is no longer available')
+    if (info.thoughtLevel.currentValue === value)
+      this.saveLocalSessionOverride(sessionId, { thoughtLevel: { configId, value, modelId } })
+    return info
+  }
+
+  getLocalSessionView(sessionId: string): LocalAgentSessionView {
+    const info = this.localOptionConnection(sessionId)?.localSessionInfo
+    if (info) return { info }
+    const session = agentSessionService.getById(sessionId)
+    const idleMode = this.localIdleMode(sessionId, session?.agentId)
+    return { info: null, idleMode }
+  }
+
   private publishLocalSessionInfo(
     entry: AgentSessionRuntimeEntry,
     info: LocalAgentSessionInfo | null,
-    options?: { clearSnapshots?: boolean; restoreUnavailable?: boolean }
+    options?: { restoreUnavailable: true }
   ): void {
-    if (this.isShuttingDown) return
+    if (this.isShuttingDown || entry.agentType !== 'local') return
     const prediction = entry.prediction
     if (prediction?.localModelId && prediction.localModelId !== info?.activeModel?.id) prediction.controller.abort()
+    const view: LocalAgentSessionView = info
+      ? { info }
+      : {
+          info: null,
+          idleMode: options?.restoreUnavailable ? undefined : this.localIdleMode(entry.sessionId, entry.agentId)
+        }
     application.get('IpcApiService').broadcast('ai.local_agents.session_updated', {
       sessionId: entry.sessionId,
-      info,
+      ...view,
       ...options
     })
   }

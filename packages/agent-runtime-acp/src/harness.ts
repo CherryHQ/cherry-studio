@@ -6,7 +6,7 @@ import type {
   PromptResponse
 } from '@agentclientprotocol/sdk'
 
-import type { OperationResult, ThreadContextUsage } from '@cherrystudio/agent-runtime'
+import type { OperationResult, RuntimeEffortControl, ThreadContextUsage } from '@cherrystudio/agent-runtime'
 
 import type { AcpPermissionOption, AcpPermissionOptionDetails, AcpPermissionRequest } from './permissions'
 import type { AcpTurnUsage } from './usage'
@@ -19,6 +19,10 @@ interface AcpPermissionQuestion {
 
 export interface AcpHarnessSession {
   readonly promptMeta?: PromptRequest['_meta']
+  readonly legacyEffort?: {
+    read(): RuntimeEffortControl | undefined
+    set(value: string): Promise<void>
+  }
   predictPrompt?(signal: AbortSignal): Promise<string>
   inspectContextUsage?(): Promise<OperationResult<ThreadContextUsage>>
   contextAfterPrompt?(response: PromptResponse, revision: string): ThreadContextUsage | undefined
@@ -50,6 +54,7 @@ export interface AcpHarnessAdapter {
     readonly agentCapabilities: InitializeResponse['agentCapabilities']
     readonly sessionId: string
     readonly newSessionMetadata?: NewSessionResponse['_meta']
+    readonly legacyModelState?: unknown
     currentModel(): string | undefined
   }): AcpHarnessSession
 }

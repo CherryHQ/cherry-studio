@@ -1,11 +1,13 @@
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
+  getLocalAgentProtocol,
   type LocalAgentCheckResult,
   type LocalAgentConfiguration,
-  LocalAgentConfigurationSchema,
   type LocalAgentModelCatalog,
-  type LocalAgentProtocolInfo
+  type LocalAgentProtocol,
+  type LocalAgentProtocolInfo,
+  StoredLocalAgentConfigurationSchema
 } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -24,7 +26,7 @@ interface LocalRuntimeAdapter {
   check(config: LocalAgentConfiguration): Promise<LocalAgentProtocolInfo | void>
 }
 
-const localRuntimeAdapters: Record<LocalAgentConfiguration['protocol'], () => Promise<LocalRuntimeAdapter>> = {
+const localRuntimeAdapters: Record<LocalAgentProtocol, () => Promise<LocalRuntimeAdapter>> = {
   acp: () => import('./acp/acpDriver'),
   claude: () => import('./claudeCode').then(({ loadLocalClaudeDriver }) => loadLocalClaudeDriver()),
   codex: () => import('./codex/codexDriver'),
@@ -54,22 +56,22 @@ export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
       )
     }
     await prepareAgentSessionWorkspaceDirectory(session)
-    const config = LocalAgentConfigurationSchema.parse(
+    const config = StoredLocalAgentConfigurationSchema.parse(
       agentService.getAgent(input.agentId)?.configuration?.localRuntime
     )
-    const adapter = await localRuntimeAdapters[config.protocol]()
+    const adapter = await localRuntimeAdapters[getLocalAgentProtocol(config.presetId)]()
     return adapter.connect(input, config, session.workspace.path)
   }
 }
 
 export async function listLocalAgentModels(config: LocalAgentConfiguration): Promise<LocalAgentModelCatalog> {
-  const adapter = await localRuntimeAdapters[config.protocol]()
+  const adapter = await localRuntimeAdapters[getLocalAgentProtocol(config.presetId)]()
   return adapter.listModels(config)
 }
 
 export async function checkLocalAgent(config: LocalAgentConfiguration): Promise<LocalAgentCheckResult> {
   try {
-    const adapter = await localRuntimeAdapters[config.protocol]()
+    const adapter = await localRuntimeAdapters[getLocalAgentProtocol(config.presetId)]()
     const protocolInfo = await adapter.check(config)
     return protocolInfo ? { ok: true, status: 'ready', protocolInfo } : { ok: true, status: 'ready' }
   } catch (error) {

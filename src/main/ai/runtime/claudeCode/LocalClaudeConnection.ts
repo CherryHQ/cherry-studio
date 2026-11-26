@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
-import type { Options } from '@anthropic-ai/claude-agent-sdk'
+import type { ModelInfo, Options } from '@anthropic-ai/claude-agent-sdk'
 
 import {
+  claudeEffortControl,
   localClaudeOptions,
   probeClaudeModels,
   type ClaudeControl,
@@ -13,13 +14,7 @@ import { selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
 import { agentService } from '@data/services/AgentService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
-import {
-  CLAUDE_LOCAL_THOUGHT_LEVEL_ID,
-  CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS,
-  getDefaultLocalAgentThoughtLevel,
-  type LocalAgentConfiguration,
-  type LocalAgentSessionInfo
-} from '@shared/ai/localAgent'
+import type { LocalAgentConfiguration, LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
 import {
@@ -103,13 +98,15 @@ export async function probeLocalClaude(config: LocalAgentConfiguration, cwd: str
 }
 
 export class LocalClaudeConnection extends ClaudeSdkConnection {
+  private effortModels: readonly ModelInfo[] = []
   readonly sessionCostScope = 'native-session' as const
   readonly localSessionInfo: LocalAgentSessionInfo = {
     models: [],
     images: true,
     resume: true,
-    mode: { ...CLAUDE_PERMISSION_MODES, options: [...CLAUDE_PERMISSION_MODES.options] },
-    thoughtLevel: getDefaultLocalAgentThoughtLevel('claude')
+    mode: this.input.headless
+      ? undefined
+      : { ...CLAUDE_PERMISSION_MODES, options: [...CLAUDE_PERMISSION_MODES.options] }
   }
   get effectivePermissionMode() {
     return this.permissionModeSource ? selectedPermissionMode(this.localSessionInfo.mode) : undefined
@@ -251,8 +248,12 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
       initialModel && initialWindow ? { model: initialModel, tokens: initialWindow } : undefined
     )
     const models = await this.handle!.claude.supportedModels()
-    if (models.status === 'confirmed')
+    if (models.status === 'confirmed') {
+      this.effortModels = models.value
       this.localSessionInfo.models = models.value.map((m) => ({ id: m.value, name: m.displayName }))
+      const modelId = this.localSessionInfo.activeModel?.id ?? model
+      if (modelId) this.updateActiveModel(modelId)
+    }
     return this
   }
 
@@ -320,14 +321,18 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
   }
 
   async setThoughtLevel(configId: string, value: string) {
-    const selected = CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS.find((option) => option.value === value)
-    if (configId !== CLAUDE_LOCAL_THOUGHT_LEVEL_ID || !selected)
+    const modelId = this.localSessionInfo.activeModel?.id
+    const effort =
+      modelId && claudeEffortControl(this.effortModels, modelId, this.localSessionInfo.thoughtLevel?.currentValue)
+    const selected = effort && effort.options.find((option) => option.value === value)
+    if (!effort || this.input.headless || configId !== effort.id || !selected)
       throw new Error('This session option is no longer available')
     if (!this.handle || this.closing || this.handle.claude.state().active)
       throw new Error('Claude session is unavailable or busy')
     const result = await this.handle.claude.setEffort(selected.value === 'default' ? null : selected.value)
     if (result.status !== 'confirmed') throw new Error(result.error.message)
-    this.updateSessionInfo({ thoughtLevel: { ...this.localSessionInfo.thoughtLevel!, currentValue: selected.value } })
+    if (this.localSessionInfo.activeModel?.id !== modelId) throw new Error('This session option is no longer available')
+    this.updateSessionInfo({ thoughtLevel: { ...effort, currentValue: selected.value } })
     return this.localSessionInfo
   }
 
@@ -336,10 +341,20 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
     this.eventQueue.push({ type: 'local-session-info', info: { ...this.localSessionInfo } })
   }
 
+  private updateActiveModel(modelId: string, selected = this.localSessionInfo.thoughtLevel?.currentValue) {
+    this.updateSessionInfo({
+      activeModel: { id: modelId },
+      thoughtLevel: this.input.headless ? undefined : claudeEffortControl(this.effortModels, modelId, selected)
+    })
+  }
+
   protected override acceptNative(batch: ClaudeObservation) {
     for (const item of batch.native) {
       if (item.source !== 'live') continue
       const message = item.message
+      if (message.type === 'system' && message.subtype === 'init' && message.model) {
+        this.updateActiveModel(message.model, message.effort === null ? 'default' : message.effort)
+      }
       if (this.permissionModeSource !== 'selection' && message.type === 'system' && message.subtype === 'init') {
         const value = CLAUDE_PERMISSION_MODES.options.find((option) => option.value === message.permissionMode)?.value
         this.permissionModeSource = value && !this.input.headless ? 'native' : undefined
@@ -354,7 +369,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
         message.message.model !== '<synthetic>' &&
         message.message.model !== this.localSessionInfo.activeModel?.id
       ) {
-        this.updateSessionInfo({ activeModel: { id: message.message.model } })
+        this.updateActiveModel(message.message.model)
       }
       if (message.type === 'system' && message.subtype === 'local_command_output' && message.content.trim())
         this.eventQueue.push({ type: 'notice', notice: { severity: 'info', title: message.content } })

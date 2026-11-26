@@ -17,7 +17,7 @@ import { useLocalAgentModelCatalog } from '../useLocalAgentModelCatalog'
 vi.unmock('@data/hooks/useCache')
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
 
-const config: LocalAgentConfiguration = { protocol: 'acp', enabled: true, args: [], env: { API_KEY: 'secret-value' } }
+const config: LocalAgentConfiguration = { enabled: true, args: [], env: { API_KEY: 'secret-value' } }
 const first = { models: [{ id: 'first', name: 'First' }] }
 const second = { models: [{ id: 'second', name: 'Second' }] }
 

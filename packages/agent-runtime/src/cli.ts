@@ -35,6 +35,7 @@ export type CliInstallPlan =
   | { manager: 'script'; command: string; args: string[] }
 export {
   AGENT_PERMISSION_MODES,
+  hasPermissionModeChoices,
   isAgentFullAccessMode,
   requiresPermissionConfirmation,
   selectedPermissionMode,

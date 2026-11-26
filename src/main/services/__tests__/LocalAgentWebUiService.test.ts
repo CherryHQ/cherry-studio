@@ -65,7 +65,7 @@ vi.mock('@main/utils/processRunner', async (importOriginal) => {
 
 let home: string
 let service: LocalAgentWebUiService
-const config = { protocol: 'acp' as const, enabled: true, args: [], env: {} }
+const config = { enabled: true, args: [], env: {} }
 beforeEach(async () => {
   BaseService.resetInstances()
   home = await mkdtemp(path.join(tmpdir(), 'agent-web-'))

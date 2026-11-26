@@ -2842,7 +2842,7 @@ describe('AgentPage', () => {
         name: 'Claude Code',
         type: 'local',
         configuration: {
-          localRuntime: { protocol: 'claude', presetId: 'claude-code', enabled: true, args: [], env: {} }
+          localRuntime: { presetId: 'claude', enabled: true, args: [], env: {} }
         }
       } as any
     ]

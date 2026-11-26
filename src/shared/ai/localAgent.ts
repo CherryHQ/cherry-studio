@@ -1,19 +1,15 @@
 import * as z from 'zod'
 
+import type { RuntimeEffortControl } from '@cherrystudio/agent-runtime'
 import type { AcpLoginProfile, AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
 import { ampCli } from '@cherrystudio/agent-runtime-amp-acp/cli'
 import { antigravityCli } from '@cherrystudio/agent-runtime-antigravity-acp/cli'
-import { claudeCli, CLAUDE_PERMISSION_MODES } from '@cherrystudio/agent-runtime-claude-code/cli'
+import { claudeCli } from '@cherrystudio/agent-runtime-claude-code/cli'
 import { clineCli } from '@cherrystudio/agent-runtime-cline-acp/cli'
 import { codeBuddyCli } from '@cherrystudio/agent-runtime-codebuddy-acp/cli'
-import {
-  codexCli,
-  CODEX_PERMISSION_MODES,
-  CODEX_LOCAL_THOUGHT_LEVEL_ID,
-  CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS
-} from '@cherrystudio/agent-runtime-codex/cli'
+import { codexCli } from '@cherrystudio/agent-runtime-codex/cli'
 import { copilotCli } from '@cherrystudio/agent-runtime-copilot-acp/cli'
-import { CURSOR_PERMISSION_MODES } from '@cherrystudio/agent-runtime-cursor/cli'
+import { cursorPreset } from '@cherrystudio/agent-runtime-cursor/cli'
 import { dshCli } from '@cherrystudio/agent-runtime-deepseek-harness-acp/cli'
 import { factoryCli } from '@cherrystudio/agent-runtime-factory-acp/cli'
 import { glmCli } from '@cherrystudio/agent-runtime-glm-acp/cli'
@@ -46,34 +42,7 @@ import { UniqueModelIdSchema } from '@shared/data/types/model'
 export const LocalAgentBrowserControlModeSchema = z.enum(['inherit', 'readonly', 'disabled'])
 export type LocalAgentBrowserControlMode = z.infer<typeof LocalAgentBrowserControlModeSchema>
 
-export const LocalAgentConfigurationSchema = z.strictObject({
-  presetId: z.string().min(1).optional(),
-  protocol: z.enum(['acp', 'claude', 'codex', 'cursor']),
-  enabled: z.boolean().default(false),
-  executableOverride: z.string().trim().min(1).optional(),
-  args: z.array(z.string()).default([]),
-  env: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string()).default({}),
-  nativeModel: z.string().min(1).optional(),
-  sourceModelId: UniqueModelIdSchema.optional(),
-  sourceModelViaGateway: z.boolean().optional(),
-  browserControl: LocalAgentBrowserControlModeSchema.optional()
-})
-export type LocalAgentConfiguration = z.infer<typeof LocalAgentConfigurationSchema>
-
-/** Custom third-party executables default to opt-in (`disabled`); built-in presets inherit Browser settings. */
-export function resolveLocalAgentBrowserControl(
-  config: Pick<LocalAgentConfiguration, 'presetId' | 'browserControl'>
-): LocalAgentBrowserControlMode {
-  if (config.browserControl) return config.browserControl
-  return !config.presetId || config.presetId === 'custom' ? 'disabled' : 'inherit'
-}
-
-export const LocalAgentLaunchSettingsSchema = LocalAgentConfigurationSchema.pick({
-  executableOverride: true,
-  args: true,
-  env: true
-})
-export type LocalAgentLaunchSettings = z.infer<typeof LocalAgentLaunchSettingsSchema>
+export type LocalAgentProtocol = 'acp' | 'claude' | 'codex' | 'cursor'
 
 export interface CliAuthOption {
   id: string
@@ -95,7 +64,7 @@ interface LocalAgentCliOptions extends CliComponent {
   registryId?: string
   placeholderTitle?: RegExp
   permissionMode?: AcpPermissionModes
-  defaultMode?: PermissionModeCatalog
+  legacyModes?: 'effort'
   terminalArgs?: readonly string[]
   aliases?: readonly string[]
   loginArgs?: readonly string[]
@@ -115,11 +84,13 @@ interface LocalAgentPresetInfo {
   id: string
   name: string
   helpUrl: string
+  defaultMode?: PermissionModeCatalog
+  modeForLaunch?: (env: Readonly<Record<string, string>>) => PermissionModeCatalog
 }
 
 export type LocalCliAgentPreset = LocalAgentPresetInfo &
   LocalAgentCliOptions & {
-    protocol: Exclude<LocalAgentConfiguration['protocol'], 'cursor'>
+    protocol: Exclude<LocalAgentProtocol, 'cursor'>
   }
 
 type CursorPreset = LocalAgentPresetInfo & { id: 'cursor'; protocol: 'cursor' } & {
@@ -133,12 +104,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   codexCli,
   copilotCli,
   minimaxCli,
-  {
-    id: 'cursor',
-    name: 'Cursor',
-    protocol: 'cursor',
-    helpUrl: 'https://cursor.com/docs/api/sdk/typescript'
-  },
+  cursorPreset,
   kimiCli,
   qwenCli,
   openCodeCli,
@@ -219,6 +185,49 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   poolsideCli
 ]
 
+export function getLocalAgentPreset(presetId: string | undefined): LocalAgentPreset | undefined {
+  return LOCAL_AGENT_PRESETS.find((preset) => preset.id === presetId)
+}
+
+export function getLocalAgentProtocol(presetId: string | undefined): LocalAgentProtocol {
+  if (presetId === undefined) return 'acp'
+  const preset = getLocalAgentPreset(presetId)
+  if (!preset) throw new Error('Invalid local agent preset')
+  return preset.protocol
+}
+
+export const LocalAgentConfigurationSchema = z.strictObject({
+  presetId: z.enum(LOCAL_AGENT_PRESETS.map(({ id }) => id)).optional(),
+  enabled: z.boolean().default(false),
+  executableOverride: z.string().trim().min(1).optional(),
+  args: z.array(z.string()).default([]),
+  env: z.record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string()).default({}),
+  nativeModel: z.string().min(1).optional(),
+  sourceModelId: UniqueModelIdSchema.optional(),
+  sourceModelViaGateway: z.boolean().optional(),
+  browserControl: LocalAgentBrowserControlModeSchema.optional()
+})
+export type LocalAgentConfiguration = z.infer<typeof LocalAgentConfigurationSchema>
+
+export const StoredLocalAgentConfigurationSchema = LocalAgentConfigurationSchema.refine(
+  ({ presetId, executableOverride }) => presetId !== undefined || executableOverride !== undefined,
+  { path: ['executableOverride'], error: 'A custom ACP agent requires an executable' }
+)
+
+/** Custom third-party executables default to opt-in (`disabled`); built-in presets inherit Browser settings. */
+export function resolveLocalAgentBrowserControl(
+  config: Pick<LocalAgentConfiguration, 'presetId' | 'browserControl'>
+): LocalAgentBrowserControlMode {
+  return config.browserControl ?? (config.presetId === undefined ? 'disabled' : 'inherit')
+}
+
+export const LocalAgentLaunchSettingsSchema = LocalAgentConfigurationSchema.pick({
+  executableOverride: true,
+  args: true,
+  env: true
+})
+export type LocalAgentLaunchSettings = z.infer<typeof LocalAgentLaunchSettingsSchema>
+
 export const LOCAL_CLI_AGENT_PRESETS = LOCAL_AGENT_PRESETS.filter((preset) => preset.protocol !== 'cursor')
 
 export const localCliPresetById: ReadonlyMap<string, LocalCliAgentPreset> = new Map(
@@ -276,55 +285,17 @@ export interface LocalAgentSelection {
   options: Array<PermissionModeChoice & { description?: string }>
 }
 
-export const CLAUDE_LOCAL_THOUGHT_LEVEL_ID = 'claude-effort'
-export const CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS = [
-  { value: 'default', name: 'Default' },
-  { value: 'low', name: 'Low' },
-  { value: 'medium', name: 'Medium' },
-  { value: 'high', name: 'High' },
-  { value: 'max', name: 'Max' }
-] as const
-
-export function getDefaultLocalAgentMode(
-  protocol: LocalAgentConfiguration['protocol'],
-  presetId?: string
+export function getLocalAgentLaunchMode(
+  config: Pick<LocalAgentConfiguration, 'presetId' | 'env'>
 ): LocalAgentSelection | undefined {
-  const catalog =
-    protocol === 'claude'
-      ? CLAUDE_PERMISSION_MODES
-      : protocol === 'codex'
-        ? CODEX_PERMISSION_MODES
-        : protocol === 'cursor'
-          ? CURSOR_PERMISSION_MODES
-          : presetId
-            ? localCliPresetById.get(presetId)?.defaultMode
-            : undefined
+  const preset = getLocalAgentPreset(config.presetId)
+  const catalog = preset?.modeForLaunch?.(config.env) ?? preset?.defaultMode
   if (catalog) return { ...catalog, options: [...catalog.options] }
-}
-
-export function getDefaultLocalAgentThoughtLevel(
-  protocol: LocalAgentConfiguration['protocol']
-): LocalAgentSelection | undefined {
-  if (protocol === 'claude') {
-    return {
-      id: CLAUDE_LOCAL_THOUGHT_LEVEL_ID,
-      currentValue: 'default',
-      options: CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS.map((option) => ({ ...option }))
-    }
-  }
-  if (protocol === 'codex') {
-    return {
-      id: CODEX_LOCAL_THOUGHT_LEVEL_ID,
-      currentValue: 'default',
-      options: CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS.map((option) => ({ ...option }))
-    }
-  }
-  return undefined
 }
 
 export interface LocalAgentSessionOverrides {
   mode?: { configId: string; value: string }
-  thoughtLevel?: { configId: string; value: string }
+  thoughtLevel?: { configId: string; value: string; modelId?: string }
   configOptions?: Record<string, string | boolean>
   updatedAt: number
 }
@@ -358,12 +329,16 @@ export type LocalAgentConfigOption = {
 export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
   configOptions?: LocalAgentConfigOption[]
   mode?: LocalAgentSelection
-  thoughtLevel?: LocalAgentSelection
+  thoughtLevel?: RuntimeEffortControl
   protocolInfo?: LocalAgentProtocolInfo
   images: boolean
   audio?: boolean
   resume: boolean
 }
+
+export type LocalAgentSessionView =
+  | { info: LocalAgentSessionInfo; idleMode?: never }
+  | { info: null; idleMode?: LocalAgentSelection }
 
 export const LocalApprovalDecisionSchema = z.enum(['accept', 'acceptForSession', 'acceptAlways', 'decline', 'cancel'])
 export type LocalApprovalDecision = z.infer<typeof LocalApprovalDecisionSchema>

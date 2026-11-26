@@ -12,6 +12,7 @@ import { getCursorApiKey } from './cursorAccount'
 
 export class CursorConnection extends LocalConnection {
   private agent?: SDKAgent
+  private modelForEffort?: NonNullable<Awaited<ReturnType<typeof openCursorSession>>['effort']>['modelFor']
   private browser?: LocalAgentBrowserLease
   private get mode() {
     const currentValue = this.localSessionInfo.mode?.currentValue
@@ -29,7 +30,8 @@ export class CursorConnection extends LocalConnection {
     this.localSessionInfo.activeModel = { id: model }
     this.localSessionInfo.images = true
     this.localSessionInfo.resume = true
-    this.localSessionInfo.mode = { ...CURSOR_PERMISSION_MODES, options: [...CURSOR_PERMISSION_MODES.options] }
+    if (!this.headless)
+      this.localSessionInfo.mode = { ...CURSOR_PERMISSION_MODES, options: [...CURSOR_PERMISSION_MODES.options] }
     this.supportedCommands = []
     this.browser = await acquireLocalAgentBrowserLease({
       sessionId: this.sessionId,
@@ -40,11 +42,12 @@ export class CursorConnection extends LocalConnection {
       isReadOnly: () => this.mode.permissionMode === 'plan'
     })
     this.abort.signal.throwIfAborted()
-    const agent = await openCursorSession({
+    const { agent, effort } = await openCursorSession({
       cwd,
       apiKey,
       model,
       agentId: resume,
+      headless: this.headless,
       browser: this.browser && { type: 'http', url: this.browser.url, headers: this.browser.headers }
     }).catch((error: unknown) => {
       if (resume) throw new LocalAgentSessionRestoreError('Could not restore the Cursor SDK session', { cause: error })
@@ -56,6 +59,9 @@ export class CursorConnection extends LocalConnection {
       throw new LocalAgentSessionRestoreError('Cursor returned a different session')
     }
     this.agent = agent
+    if (agent.model) this.localSessionInfo.activeModel = { id: agent.model.id }
+    this.modelForEffort = effort?.modelFor
+    this.localSessionInfo.thoughtLevel = effort?.control
     this.publishResumeToken(agent.agentId)
     return this
   }
@@ -66,6 +72,21 @@ export class CursorConnection extends LocalConnection {
     if (this.headless || this.closed || this.active || !mode || id !== mode.id || !selected)
       throw new Error('Cursor mode is unavailable')
     this.localSessionInfo.mode = { ...mode, currentValue: selected.value }
+    this.events.push({ type: 'local-session-info', info: { ...this.localSessionInfo } })
+    return this.localSessionInfo
+  }
+
+  async setThoughtLevel(id: string, value: string) {
+    const effort = this.localSessionInfo.thoughtLevel
+    if (
+      this.headless ||
+      this.closed ||
+      this.active ||
+      effort?.id !== id ||
+      !effort.options.some((option) => option.value === value)
+    )
+      throw new Error('Cursor effort is unavailable')
+    this.localSessionInfo.thoughtLevel = { ...effort, currentValue: value }
     this.events.push({ type: 'local-session-info', info: { ...this.localSessionInfo } })
     return this.localSessionInfo
   }
@@ -81,20 +102,27 @@ export class CursorConnection extends LocalConnection {
     this.begin(input.message.id)
     const signal = AbortSignal.any([this.abort.signal, this.turnAbort.signal])
     try {
-      this.pendingRun = sendCursorTurn(agent, prompt, this.mode.value, {
-        append: (kind, text) => {
-          if (!signal.aborted) this.content(text, kind)
-        },
-        toolStarted: (id, name, args) => {
-          if (!signal.aborted && !this.tools.has(id)) {
-            this.endContent()
-            this.tool(id, name, args)
+      const effort = this.localSessionInfo.thoughtLevel
+      this.pendingRun = sendCursorTurn(
+        agent,
+        prompt,
+        this.mode.value,
+        {
+          append: (kind, text) => {
+            if (!signal.aborted) this.content(text, kind)
+          },
+          toolStarted: (id, name, args) => {
+            if (!signal.aborted && !this.tools.has(id)) {
+              this.endContent()
+              this.tool(id, name, args)
+            }
+          },
+          toolCompleted: (id, output, failed) => {
+            if (!signal.aborted) this.result(id, output, failed)
           }
         },
-        toolCompleted: (id, output, failed) => {
-          if (!signal.aborted) this.result(id, output, failed)
-        }
-      })
+        effort && this.modelForEffort?.(effort.currentValue)
+      )
       const run = await this.pendingRun
       const completed = await run.wait()
       const model = completed.model?.id ?? agent.model?.id ?? this.localSessionInfo.activeModel?.id ?? null

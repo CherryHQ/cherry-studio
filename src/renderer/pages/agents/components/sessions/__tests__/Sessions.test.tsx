@@ -3826,7 +3826,7 @@ describe('Sessions', () => {
       id: 'opencode',
       type: 'local',
       name: 'OpenCode',
-      configuration: { localRuntime: { protocol: 'acp', presetId: 'opencode', enabled: false, args: [], env: {} } }
+      configuration: { localRuntime: { presetId: 'opencode', enabled: false, args: [], env: {} } }
     }
     dataApiMocks.agentRows = [
       openCode,
@@ -3856,7 +3856,7 @@ describe('Sessions', () => {
         {
           id: 'agent-a',
           name: 'Pi',
-          configuration: { localRuntime: { protocol: 'acp', presetId: 'pi-acp', enabled: true, args: [], env: {} } }
+          configuration: { localRuntime: { presetId: 'pi-acp', enabled: true, args: [], env: {} } }
         }
       ],
       isLoading: false,

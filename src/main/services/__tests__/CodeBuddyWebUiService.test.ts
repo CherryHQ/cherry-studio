@@ -48,7 +48,7 @@ vi.mock('@main/utils/processRunner', async (importOriginal) => {
 let home: string
 let service: CodeBuddyWebUiService
 let server: Server | undefined
-const config = { presetId: 'codebuddy-code', protocol: 'acp' as const, enabled: true, args: [], env: {} }
+const config = { presetId: 'codebuddy-code', enabled: true, args: [], env: {} }
 
 beforeEach(async () => {
   BaseService.resetInstances()

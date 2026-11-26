@@ -49,6 +49,7 @@ import { cn } from '@renderer/utils/style'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { getLocalAgentProtocol } from '@shared/ai/localAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -110,7 +111,7 @@ type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' 
 
 function AgentTopBarControls(props: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
-  const { info } = useLocalAgentSessionInfo(
+  const view = useLocalAgentSessionInfo(
     props.localSessionId ?? '',
     props.agent?.type === 'local' && !!props.localSessionId
   )
@@ -120,7 +121,7 @@ function AgentTopBarControls(props: AgentTopBarControlsProps) {
   return (
     <AgentConversationControls
       {...props}
-      localInfo={info}
+      localInfo={view?.info ?? null}
       side="bottom"
       iconOnly={iconOnly}
       onAvatarClick={profilePane?.toggle}
@@ -691,11 +692,9 @@ const AgentChatSessionCenter = ({
 }: AgentChatSessionCenterProps) => {
   const { t } = useTranslation()
   const [localRestoreUnavailable, setLocalRestoreUnavailable] = useState<boolean>()
-  const checkLocalRestore =
-    !!onStartNewTaskConversation &&
-    activeAgent?.type === 'local' &&
-    (activeAgent.configuration?.localRuntime?.protocol === 'acp' ||
-      activeAgent.configuration?.localRuntime?.protocol === 'cursor')
+  const localRuntime = activeAgent?.type === 'local' ? activeAgent.configuration?.localRuntime : undefined
+  const protocol = localRuntime && getLocalAgentProtocol(localRuntime.presetId)
+  const checkLocalRestore = !!onStartNewTaskConversation && (protocol === 'acp' || protocol === 'cursor')
   const historyOnly = checkLocalRestore && localRestoreUnavailable === true
   const checkingRestore = checkLocalRestore && localRestoreUnavailable === undefined
   const composer = (

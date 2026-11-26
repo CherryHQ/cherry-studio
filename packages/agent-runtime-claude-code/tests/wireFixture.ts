@@ -114,7 +114,18 @@ export function wireProcess(contextUsage?: () => Promise<SDKControlGetContextUsa
             response: {
               subtype: 'success',
               request_id: frame.request_id,
-              response: { commands: [], models: [], agents: [] }
+              response: {
+                commands: [],
+                models: [
+                  {
+                    value: 'sonnet',
+                    displayName: 'Sonnet',
+                    description: '',
+                    supportedEffortLevels: ['low', 'medium', 'high']
+                  }
+                ],
+                agents: []
+              }
             }
           }) + '\n'
         )

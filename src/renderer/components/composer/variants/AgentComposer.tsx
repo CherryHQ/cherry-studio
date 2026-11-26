@@ -73,9 +73,7 @@ import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import {
   findLocalDefaultNonPlanOption,
-  findLocalPermissionConfigOption,
   findLocalPlanModeOption,
-  isLocalThoughtConfigOption,
   isUnifiedLocalPermissionMode
 } from '@renderer/utils/agent/localAgentLabels'
 import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
@@ -90,7 +88,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
-import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
+import { getLocalAgentProtocol } from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -635,12 +633,9 @@ const AgentComposerInner = ({
   )
   const currentTabId = useCurrentTabId()
   const isActiveTab = useIsActiveTab()
-  const { info: localInfo, options: localOptions } = useLocalAgentSessionInfo(
-    sessionId,
-    agent?.type === 'local' && (!currentTabId || isActiveTab),
-    agent?.type === 'local' ? agent.configuration?.localRuntime?.protocol : undefined,
-    agent?.type === 'local' ? agent.configuration?.localRuntime?.presetId : undefined
-  )
+  const localRuntime = agent?.type === 'local' ? agent.configuration?.localRuntime : undefined
+  const localView = useLocalAgentSessionInfo(sessionId, agent?.type === 'local' && (!currentTabId || isActiveTab))
+  const localInfo = localView?.info ?? null
   const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
   const canonicalReasoningEffort = model
     ? (resolveReasoningEffortForModel(model, configuredReasoningEffort) ?? 'default')
@@ -710,26 +705,21 @@ const AgentComposerInner = ({
   const usesCherryPermissionMode = (capabilities?.permissionModes.length ?? 0) > 0
   const supportsPlan = capabilities?.permissionModes.some((mode) => mode === 'plan') ?? false
   const localPresetId = agent?.configuration?.localRuntime?.presetId
-  const localMode = agent?.type === 'local' ? localOptions?.mode : undefined
+  const localMode = localInfo?.mode ?? localView?.idleMode
+  const localEffort = localInfo?.thoughtLevel
   const localExtraOptions = useMemo(() => {
-    const primaryModel = localOptions?.configOptions?.find(
-      (item) => item.category === 'model' && item.type === 'select'
+    const primaryModel = localInfo?.configOptions?.find(
+      (option) => option.category === 'model' && option.type === 'select'
     )
-    return localOptions?.configOptions?.filter(
-      (option) => option.category !== 'model_config' && option !== primaryModel && option.id !== localOptions?.mode?.id
+    return localInfo?.configOptions?.filter(
+      (option) =>
+        option.category !== 'model_config' &&
+        option !== primaryModel &&
+        option.id !== localMode?.id &&
+        option.id !== localEffort?.id
     )
-  }, [localOptions?.configOptions, localOptions?.mode?.id])
-  const localPermissionSource = useMemo<{ kind: 'mode' | 'config'; selection: LocalAgentSelection } | undefined>(() => {
-    if (isUnifiedLocalPermissionMode(localMode) && localMode) {
-      return { kind: 'mode', selection: localMode }
-    }
-    if (agent?.type !== 'local') return undefined
-    const configSelection = findLocalPermissionConfigOption(localExtraOptions)
-    return configSelection ? { kind: 'config', selection: configSelection } : undefined
-  }, [agent?.type, localExtraOptions, localMode])
-  const hasUnifiedPermissionMode = Boolean(localPermissionSource)
-  const hasUnifiedModePermission = localPermissionSource?.kind === 'mode'
-  const localPermissionSelection = localPermissionSource?.selection
+  }, [localInfo?.configOptions, localMode?.id, localEffort?.id])
+  const localPermissionSelection = isUnifiedLocalPermissionMode(localMode) ? localMode : undefined
   const localPlanOption = useMemo(() => findLocalPlanModeOption(localPermissionSelection), [localPermissionSelection])
   const lastNonPlanLocalModeRef = useRef<{ sessionId: string; value: string } | null>(null)
   const localPlanSwitchInFlightRef = useRef(false)
@@ -765,8 +755,8 @@ const AgentComposerInner = ({
     if (launcher && quickPanel) dispatchLauncher(launcher, { quickPanel, source: 'root-panel' })
   }, [dispatchLauncher, getLaunchers, quickPanel])
   const toggleLocalPlanMode = useCallback(() => {
-    if (isStreaming || localPlanSwitchInFlightRef.current || !localPermissionSource || !localPlanOption) return
-    const activeSelection = localPermissionSource.selection
+    if (isStreaming || localPlanSwitchInFlightRef.current || !localPermissionSelection || !localPlanOption) return
+    const activeSelection = localPermissionSelection
     const isCurrentlyPlan = activeSelection.currentValue === localPlanOption.value
     let targetValue: string | undefined
     if (!isCurrentlyPlan) {
@@ -789,10 +779,8 @@ const AgentComposerInner = ({
     }
     if (!targetValue || targetValue === activeSelection.currentValue) return
     localPlanSwitchInFlightRef.current = true
-    const method =
-      localPermissionSource.kind === 'config' ? 'ai.local_agents.set_config_option' : 'ai.local_agents.set_mode'
     void ipcApi
-      .request(method, {
+      .request('ai.local_agents.set_mode', {
         sessionId,
         configId: activeSelection.id,
         value: targetValue
@@ -803,7 +791,7 @@ const AgentComposerInner = ({
       .finally(() => {
         localPlanSwitchInFlightRef.current = false
       })
-  }, [isStreaming, localPermissionSource, localPlanOption, sessionId])
+  }, [isStreaming, localPermissionSelection, localPlanOption, sessionId])
   const rootPanelVisible =
     layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const skillsPanelVisible =
@@ -842,9 +830,8 @@ const AgentComposerInner = ({
   })
 
   const fileCapabilities = useComposerFileCapabilities(model)
-  const reportsLocalAudio =
-    agent?.type === 'local' &&
-    (agent.configuration?.localRuntime?.protocol === 'acp' || agent.configuration?.localRuntime?.protocol === 'cursor')
+  const localProtocol = localRuntime && getLocalAgentProtocol(localRuntime.presetId)
+  const reportsLocalAudio = localProtocol === 'acp' || localProtocol === 'cursor'
   const canAddImageFile = agent?.type === 'local' ? localInfo?.images !== false : fileCapabilities.canAddImageFile
   const canAddAudioFile = !reportsLocalAudio || localInfo?.audio === true
   const supportedExts = useMemo(
@@ -1382,11 +1369,10 @@ const AgentComposerInner = ({
       agent?.type === 'local' && !launchOptions?.editing
         ? {
             mode: localPermissionSelection,
-            kind: localPermissionSource?.kind,
             disabled: isStreaming
           }
         : undefined,
-    [agent?.type, isStreaming, launchOptions?.editing, localPermissionSelection, localPermissionSource?.kind]
+    [agent?.type, isStreaming, launchOptions?.editing, localPermissionSelection]
   )
   const toolsSession = useMemo(
     () => (sessionData && localPermission ? { ...sessionData, localPermission } : sessionData),
@@ -1877,7 +1863,7 @@ const AgentComposerInner = ({
   ])
 
   const showsPermissionModeToolbar =
-    usesCherryPermissionMode || (agent?.type === 'local' && hasUnifiedPermissionMode && !launchOptions?.editing)
+    usesCherryPermissionMode || (agent?.type === 'local' && !!localPermissionSelection && !launchOptions?.editing)
   const renderQuickPanelShortcuts = useCallback(
     ({
       inputAdapter,
@@ -1947,45 +1933,6 @@ const AgentComposerInner = ({
     workspaceChanging
   })
 
-  const localPermissionConfigId =
-    localPermissionSource?.kind === 'config' ? localPermissionSource.selection.id : undefined
-  const localThoughtConfigOption = localExtraOptions?.find(
-    (option): option is Extract<LocalAgentConfigOption, { type: 'select' }> =>
-      option.id !== localPermissionConfigId && isLocalThoughtConfigOption(option)
-  )
-  const localThoughtControl: { kind: 'thought' | 'config' | 'mode'; selection: LocalAgentSelection } | undefined =
-    localOptions?.thoughtLevel && localOptions.thoughtLevel.options.length > 1
-      ? { kind: 'thought', selection: localOptions.thoughtLevel }
-      : localThoughtConfigOption
-        ? {
-            kind: 'config',
-            selection: {
-              id: localThoughtConfigOption.id,
-              currentValue: String(localThoughtConfigOption.currentValue),
-              options: localThoughtConfigOption.options
-                .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
-                .map((choice) => ({
-                  ...choice,
-                  description: choice.description ?? undefined
-                }))
-            }
-          }
-        : !hasUnifiedPermissionMode &&
-            localPresetId === 'pi-acp' &&
-            localOptions?.mode &&
-            localOptions.mode.options.length > 1
-          ? { kind: 'mode', selection: localOptions.mode }
-          : undefined
-  const excludedExtraOptionIds = new Set<string>()
-  if (localPermissionSource?.kind === 'config') excludedExtraOptionIds.add(localPermissionSource.selection.id)
-  if (localThoughtControl && localThoughtControl.kind !== 'mode') {
-    excludedExtraOptionIds.add(localThoughtControl.selection.id)
-  }
-  const localRemainingConfigOptions =
-    excludedExtraOptionIds.size > 0
-      ? localExtraOptions?.filter((option) => !excludedExtraOptionIds.has(option.id))
-      : localExtraOptions
-
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
       {model ? (
@@ -2001,13 +1948,11 @@ const AgentComposerInner = ({
       ) : null}
       {agent?.type === 'local' && !launchOptions?.editing ? (
         <>
-          {localThoughtControl ? (
+          {localEffort && localEffort.options.length > 1 ? (
             <LocalAgentThoughtControl
-              key={`thought:${sessionId}`}
+              key={JSON.stringify([sessionId, localEffort.id, localEffort.modelId])}
               sessionId={sessionId}
-              kind={localThoughtControl.kind}
-              selection={localThoughtControl.selection}
-              presetId={localPresetId}
+              selection={localEffort}
               disabled={isStreaming}
             />
           ) : null}
@@ -2016,8 +1961,8 @@ const AgentComposerInner = ({
             sessionId={sessionId}
             agentName={agent.name.trim() || undefined}
             presetId={localPresetId}
-            options={localRemainingConfigOptions}
-            mode={hasUnifiedModePermission || localThoughtControl?.kind === 'mode' ? undefined : localOptions?.mode}
+            options={localExtraOptions}
+            mode={localPermissionSelection ? undefined : localMode}
             disabled={isStreaming}
           />
         </>

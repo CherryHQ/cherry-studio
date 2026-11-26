@@ -2439,7 +2439,7 @@ describe('classic layout entity resource list actions', () => {
   it.each([false, true])('offers icon display settings only for non-local agents (local=%s)', (local) => {
     if (local)
       agentDataMocks.agents[0].configuration = {
-        localRuntime: { protocol: 'acp', presetId: 'pi-acp', enabled: true, args: [], env: {} }
+        localRuntime: { presetId: 'pi-acp', enabled: true, args: [], env: {} }
       }
     render(
       <AgentResourceList

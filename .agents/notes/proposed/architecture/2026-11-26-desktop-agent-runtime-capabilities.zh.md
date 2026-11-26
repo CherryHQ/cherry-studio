@@ -26,6 +26,8 @@ Amp 声明两个安装组件，Kiro 和 Vibe 各自提供安装配方。原生�
 
 Runtime 声明模式选项在当前会话、下一轮或重连后生效。Main 在 runtime 能确认时读取已应用的模式。Composer 使用同一份选项语义。未映射的 ACP 选项继续作为原生控件展示。选项名称可以触发确认，宿主授权仍须有对应的权限依据。
 
+未连接的会话展示选定 runtime 声明的权限控件。连接后使用当前原生控件。Effort 档位来自当前模型或明确声明的原生会话选项。绑定到模型的修改携带模型身份，由接收方复验。
+
 Main 的本机连接检查、模型查询与会话打开共用一张表，派发到 ACP、Cursor、Codex 或 Claude 适配器。适配器实现这三项操作。保存的预设配置通过预设 ID 标识 runtime，从预设声明取得协议。自定义命令使用 ACP。CLI 发现与安装使用桌面 Code CLI 服务。MCP 租约由桌面的 MCP bridge 持有。
 
 CLI 启动准备从进程环境使用的同一份配置快照解析 Gateway 路由。能够注入会话凭据的 runtime 提供已解析路由和注入操作。Gateway 校验路由后签发限定范围的凭据。只使用公共密钥的请求保留 provider 用量，归属会话为空。
@@ -62,6 +64,7 @@ Harness 适配器解释原生审批请求和选项。公共 ACP 包转换标准�
 - AC22 — Codex、Cursor 和 Claude 分别通过自己的 Main 适配器启动、查询模型和恢复原生会话。它们的会话路径不导入桌面 ACP 注册表或 ACP 附件编码器。(verification: import boundaries and Electron)
 - AC23 — 使用同一个网关模型的两个 CLI 会话分别取得自己的凭据，请求归到凭据对应的会话。只有公共密钥的请求不会归到任一会话。启动准备在绑定凭据时不重复读取配置文件。(verification: unit and Electron)
 - AC24 — 同一预设的检查、模型查询与会话打开选择同一个 Main 适配器。保存的配置包含预设 ID。自定义可执行文件选择 ACP。新增协议时必须为 Main 派发表提供三项操作。(verification: schema and typecheck)
+- AC25 — 读取冷会话控件不会打开原生会话。连接关闭时 Composer 撤下该连接的实时控件。切换模型后撤下旧模型档位，并拒绝写入旧模型。ACP 保留原生公布的档位，包括 Pi ACP 的旧版思考模式和 Grok 的旧版模型元数据。Cursor 从 SDK 模型目录读取档位，在下一次发送时应用所选值。(verification: unit and Electron)
 
 ## Risks
 

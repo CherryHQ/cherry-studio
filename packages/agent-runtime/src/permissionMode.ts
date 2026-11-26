@@ -26,6 +26,18 @@ export function selectedPermissionMode(selection?: {
   return selection?.options.find(({ value }) => value === selection.currentValue)?.permissionMode
 }
 
+export function hasPermissionModeChoices(selection?: {
+  currentValue: string
+  options: readonly PermissionModeChoice[]
+}): boolean {
+  return (
+    !!selection &&
+    selection.options.some(({ value }) => value === selection.currentValue) &&
+    selection.options.every((option) => option.permissionMode && !option.requiresConfirmation) &&
+    new Set(selection.options.map((option) => option.permissionMode)).size >= 2
+  )
+}
+
 export function isAgentFullAccessMode(mode?: AgentPermissionMode): boolean {
   return mode === 'bypassPermissions'
 }

@@ -4,7 +4,7 @@ import { application } from '@application'
 import { runCliLogin } from '@cherrystudio/agent-runtime/stdio'
 import { authenticateCursor } from '@main/ai/runtime/cursor/cursorAccount'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
+import { getLocalAgentProtocol, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { isSensitiveKey, redactLiteral } from '@shared/utils/redaction'
 
 import { authenticateLocalAcp } from '../ai/runtime/acp/AcpManagement'
@@ -62,10 +62,11 @@ export class LocalAgentAuthService extends BaseService {
     signal: AbortSignal,
     options?: CliAuthOptions
   ) {
-    if (config.protocol === 'cursor') return authenticateCursor(methodId, signal)
+    const protocol = getLocalAgentProtocol(config.presetId)
+    if (protocol === 'cursor') return authenticateCursor(methodId, signal)
     const spec = resolveCliAuthCommand(config.presetId, methodId, options)
     if (spec) return this.authenticateViaCli(requestId, config, spec, signal)
-    if (config.protocol !== 'acp') throw new Error('ACP authentication is unavailable')
+    if (protocol !== 'acp') throw new Error('ACP authentication is unavailable')
     return authenticateLocalAcp(config, application.getPath('cherry.bin'), methodId, signal)
   }
 

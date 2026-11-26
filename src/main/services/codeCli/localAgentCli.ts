@@ -2,7 +2,12 @@ import { application } from '@application'
 import { resolveCliProgram, selectAvailableInstallation, selectChatInstallation } from '@main/ai/runtime/cli/cliProgram'
 import { readInstalledPackageVersion } from '@main/ai/runtime/cli/installedVersion'
 import { mergeEnvironment } from '@main/utils/env'
-import { LOCAL_CLI_AGENT_PRESETS, type LocalAgentConfiguration, type LocalAgentDetection } from '@shared/ai/localAgent'
+import {
+  LOCAL_CLI_AGENT_PRESETS,
+  type LocalAgentConfiguration,
+  type LocalAgentDetection,
+  localCliPresetById
+} from '@shared/ai/localAgent'
 import type { InputFor } from '@shared/ipc/types'
 
 import { acpPreset } from '../../ai/runtime/acp/acpPresets'
@@ -46,13 +51,12 @@ export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
 }
 
 export async function resolveLocalAgentCli(config: LocalAgentConfiguration, signal?: AbortSignal) {
-  const policy = config.protocol === 'acp' ? acpPreset(config.presetId) : undefined
-  const { executable, source, env } = await resolveCliProgram(config, 'cli', signal, policy)
+  const { executable, source, env } = await resolveCliProgram(config, 'cli', signal, acpPreset(config.presetId))
   return { executable, source, env }
 }
 
 export async function openLocalAgentTerminal(config: InputFor<'ai.local_agents.open_terminal'>) {
-  const preset = LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === config.presetId)
+  const preset = config.presetId ? localCliPresetById.get(config.presetId) : undefined
   if (!preset?.terminalArgs) throw new Error('This agent does not have a supported interactive CLI')
   let args = config.login ? preset.loginArgs : preset.terminalArgs
   if (!args) throw new Error('This agent does not have a supported terminal login command')

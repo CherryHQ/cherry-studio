@@ -28,7 +28,7 @@ import { topicNamingService } from '@main/services/TopicNamingService'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import { type ExecutionId, getProviderModelId } from '@shared/ai/executionIdentity'
-import { isLocalAgentPlaceholderTitle } from '@shared/ai/localAgent'
+import { getLocalAgentProtocol, isLocalAgentPlaceholderTitle } from '@shared/ai/localAgent'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -198,6 +198,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
 
     const uniqueModelId: ExecutionId = providerUniqueModelId ?? `runtime:${agent.id}`
+    const localRuntime = agent.configuration?.localRuntime
     const providerModel = providerUniqueModelId ? parseUniqueModelId(providerUniqueModelId) : undefined
     const modelName =
       providerUniqueModelId && providerModel
@@ -211,8 +212,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       (deliveryMessage
         ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
         : !agentSessionMessageService.hasSessionMessages(sessionId)) ||
-      (!session.isNameManuallyEdited &&
-        isLocalAgentPlaceholderTitle(session.name, () => agent.configuration?.localRuntime?.presetId))
+      (!session.isNameManuallyEdited && isLocalAgentPlaceholderTitle(session.name, () => localRuntime?.presetId))
     return {
       sessionId,
       parentMessageId,
@@ -245,7 +245,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
                 provider: providerModel.providerId
               }
             }
-          : { nativeModel: { runtime: agent.configuration?.localRuntime?.protocol ?? 'local' } })
+          : { nativeModel: { runtime: localRuntime ? getLocalAgentProtocol(localRuntime.presetId) : 'local' } })
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
       userMessageParts,

@@ -1,4 +1,4 @@
-import type { LocalAgentSessionInfo, LocalAgentSessionOverrides } from '@shared/ai/localAgent'
+import type { LocalAgentSessionOverrides } from '@shared/ai/localAgent'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { LocalModelStatusSnapshots } from '@shared/data/presets/localModel'
@@ -173,7 +173,6 @@ export type UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
-  'agent.session.local_options': Record<string, Pick<LocalAgentSessionInfo, 'mode' | 'thoughtLevel' | 'configOptions'>>
   'local_agent.versions': Record<string, { path: string; current?: string; latest?: string; canUpgrade: boolean }>
   'code_cli.versions': Record<string, { snapshot?: BinaryToolSnapshot; latest?: string }>
   // Per-session composer draft. Renderer memory only; app restart discards it.
@@ -267,7 +266,6 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': {},
-  'agent.session.local_options': {},
   'local_agent.versions': {},
   'code_cli.versions': {},
   'agent.composer_draft.${sessionId}': {
@@ -459,10 +457,6 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'local_agent.model_catalogs': Record<string, CacheValueTypes.LocalAgentModelCacheEntry>
-  'local_agent.session_option_snapshots': Record<
-    string,
-    Pick<LocalAgentSessionInfo, 'mode' | 'thoughtLevel' | 'configOptions'> & { permissionCatalog?: true }
-  >
   'ui.model_selector.presentation': 'popover' | 'dialog'
   'ui.model_selector.cherryai_pinned': boolean
   'ui.browser.import_prompt_hidden': boolean
@@ -556,7 +550,6 @@ export type RendererPersistCacheSchema = {
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'local_agent.model_catalogs': {},
-  'local_agent.session_option_snapshots': {},
   'ui.model_selector.presentation': 'popover',
   'ui.model_selector.cherryai_pinned': true,
   'ui.browser.import_prompt_hidden': false,

@@ -2,9 +2,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { RuntimeEffortControl } from '@cherrystudio/agent-runtime'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { LocalAgentSelection } from '@shared/ai/localAgent'
 
 import { LocalAgentThoughtControl } from '../LocalAgentThoughtControl'
 
@@ -18,8 +18,10 @@ beforeEach(() => {
   HTMLElement.prototype.scrollIntoView = vi.fn()
 })
 
-const claudeSelection: LocalAgentSelection = {
+const claudeSelection: RuntimeEffortControl = {
   id: 'claude-effort',
+  application: 'session',
+  modelId: 'sonnet',
   currentValue: 'default',
   options: [
     { value: 'default', name: 'Default' },
@@ -35,15 +37,7 @@ describe('LocalAgentThoughtControl', () => {
     const user = userEvent.setup()
     vi.mocked(ipcApi.request).mockResolvedValue(null)
 
-    render(
-      <LocalAgentThoughtControl
-        sessionId="session-claude"
-        kind="thought"
-        selection={claudeSelection}
-        presetId="claude"
-        disabled={false}
-      />
-    )
+    render(<LocalAgentThoughtControl sessionId="session-claude" selection={claudeSelection} disabled={false} />)
 
     const trigger = screen.getByRole('button', { name: '响应设置' })
     expect(trigger).toHaveTextContent('默认')
@@ -62,6 +56,7 @@ describe('LocalAgentThoughtControl', () => {
       expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_thought_level', {
         sessionId: 'session-claude',
         configId: 'claude-effort',
+        modelId: 'sonnet',
         value: 'medium'
       })
     )
@@ -72,6 +67,7 @@ describe('LocalAgentThoughtControl', () => {
       expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_thought_level', {
         sessionId: 'session-claude',
         configId: 'claude-effort',
+        modelId: 'sonnet',
         value: 'default'
       })
     )
@@ -93,9 +89,9 @@ describe('LocalAgentThoughtControl', () => {
     render(
       <LocalAgentThoughtControl
         sessionId="session-codex"
-        kind="thought"
         selection={{
           id: 'codex-effort',
+          application: 'next-turn',
           currentValue: 'low',
           options: [
             { value: 'default', name: 'Default' },
@@ -105,7 +101,6 @@ describe('LocalAgentThoughtControl', () => {
             { value: 'xhigh', name: 'Extra High' }
           ]
         }}
-        presetId="codex"
         disabled={false}
       />
     )
@@ -132,16 +127,16 @@ describe('LocalAgentThoughtControl', () => {
     expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent('低')
   })
 
-  it('routes ACP config thought_level with quick Off button and Pi mode via set_mode', async () => {
+  it('uses the same effort action for ACP and Pi legacy controls', async () => {
     const user = userEvent.setup()
     vi.mocked(ipcApi.request).mockResolvedValue(null)
 
     const { unmount } = render(
       <LocalAgentThoughtControl
         sessionId="session-acp"
-        kind="config"
         selection={{
           id: 'reasoning_effort',
+          application: 'session',
           currentValue: 'high',
           options: [
             { value: 'off', name: 'Off' },
@@ -156,7 +151,7 @@ describe('LocalAgentThoughtControl', () => {
     await user.click(screen.getByRole('button', { name: '响应设置' }))
     await user.click(screen.getByRole('button', { name: '关闭' }))
     await waitFor(() =>
-      expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
+      expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_thought_level', {
         sessionId: 'session-acp',
         configId: 'reasoning_effort',
         value: 'off'
@@ -167,9 +162,9 @@ describe('LocalAgentThoughtControl', () => {
     render(
       <LocalAgentThoughtControl
         sessionId="session-pi"
-        kind="mode"
         selection={{
           id: 'mode',
+          application: 'session',
           currentValue: 'medium',
           options: [
             { value: 'off', name: 'Thinking: off' },
@@ -179,7 +174,6 @@ describe('LocalAgentThoughtControl', () => {
             { value: 'high', name: 'Thinking: high' }
           ]
         }}
-        presetId="pi-acp"
         disabled={false}
       />
     )
@@ -187,7 +181,7 @@ describe('LocalAgentThoughtControl', () => {
     await user.click(screen.getByRole('button', { name: '响应设置' }))
     await user.click(screen.getByRole('button', { name: '关闭' }))
     await waitFor(() =>
-      expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_mode', {
+      expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_thought_level', {
         sessionId: 'session-pi',
         configId: 'mode',
         value: 'off'
@@ -202,9 +196,9 @@ describe('LocalAgentThoughtControl', () => {
     render(
       <LocalAgentThoughtControl
         sessionId="session-disabled"
-        kind="config"
         selection={{
           id: 'thinking',
+          application: 'session',
           currentValue: 'high',
           options: [
             { value: 'off', name: 'Off' },

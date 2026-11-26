@@ -119,7 +119,7 @@ async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4
   } as unknown as ReturnType<typeof createClaudeCodeRuntime>)
 
   const config: LocalAgentConfiguration = {
-    protocol: 'claude',
+    presetId: 'claude',
     enabled: true,
     args: [],
     env: {},

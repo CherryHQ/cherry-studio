@@ -1,8 +1,15 @@
 import { once } from 'node:events'
 import { resolve } from 'node:path'
 
-import { query, type Options, type SpawnedProcess, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import {
+  query,
+  type ModelInfo,
+  type Options,
+  type SpawnedProcess,
+  type SpawnOptions
+} from '@anthropic-ai/claude-agent-sdk'
 
+import type { RuntimeEffortControl } from '@cherrystudio/agent-runtime'
 import type { InstalledCli } from '@cherrystudio/agent-runtime/cli'
 import type { LaunchSpec } from '@cherrystudio/agent-runtime/stdio'
 
@@ -58,5 +65,35 @@ export async function probeClaudeModels(
     done.abort()
     stream.close()
     await join()
+  }
+}
+
+type ClaudeEffort = NonNullable<Options['effort']> | 'default'
+
+const effortLabels = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'Extra High',
+  max: 'Max'
+} satisfies Record<NonNullable<Options['effort']>, string>
+
+export function claudeEffortControl(
+  models: readonly ModelInfo[],
+  modelId: string,
+  selected: string | undefined
+): RuntimeEffortControl<ClaudeEffort> | undefined {
+  const model = models.find((entry) => entry.value === modelId || entry.resolvedModel === modelId)
+  if (model?.supportsEffort === false || !model?.supportedEffortLevels?.length) return
+  const options: RuntimeEffortControl<ClaudeEffort>['options'] = [
+    { value: 'default', name: 'Default' },
+    ...model.supportedEffortLevels.map((value) => ({ value, name: effortLabels[value] }))
+  ]
+  return {
+    id: 'claude-effort',
+    application: 'session',
+    modelId,
+    currentValue: options.find(({ value }) => value === selected)?.value ?? 'default',
+    options
   }
 }

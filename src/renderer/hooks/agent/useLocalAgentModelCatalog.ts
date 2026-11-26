@@ -12,7 +12,6 @@ export function useLocalAgentModelCatalog(
   const [catalogs, setCatalogs] = usePersistCache('local_agent.model_catalogs')
   const signature = JSON.stringify([
     identity,
-    config?.protocol,
     config?.presetId,
     config?.executableOverride,
     config?.args,
@@ -21,10 +20,9 @@ export function useLocalAgentModelCatalog(
   const [fingerprint, setFingerprint] = useState<{ signature: string; key: string }>()
   const key = fingerprint?.signature === signature ? fingerprint.key : undefined
   const requestConfig = useMemo<LocalAgentConfiguration | undefined>(() => {
-    const [, protocol, presetId, executableOverride, args, env] = JSON.parse(signature)
-    if (!protocol) return undefined
+    const [, presetId, executableOverride, args, env] = JSON.parse(signature)
+    if (!args) return undefined
     return {
-      protocol,
       presetId: presetId ?? undefined,
       executableOverride: executableOverride ?? undefined,
       args,

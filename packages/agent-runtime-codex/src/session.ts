@@ -225,7 +225,7 @@ export class CodexSession {
   setThoughtLevel(id: string, value: string) {
     this.requireIdle()
     const { thoughtLevel } = this.thread.info
-    if (id !== thoughtLevel.id || !thoughtLevel.options.some((o) => o.value === value))
+    if (!thoughtLevel || id !== thoughtLevel.id || !thoughtLevel.options.some((o) => o.value === value))
       throw new Error('This session option is no longer available')
     this.effortOverride = value === 'default' ? undefined : value
     this.thread.info = { ...this.thread.info, thoughtLevel: { ...thoughtLevel, currentValue: value } }
@@ -556,16 +556,14 @@ export class CodexSession {
         promptText === undefined ? content.map(toNativeInput) : [toNativeInput({ type: 'text', text: promptText })]
       if (skillInput) input.unshift(skillInput)
       turn.expectsStart = true
+      const effort = this.thread.info.thoughtLevel?.currentValue
       await this.client.request(
         'turn/start',
         {
           clientUserMessageId: inputId,
           ...this.controls.turnSettings(
             this.thread.info.activeModel?.id,
-            this.effortOverride ??
-              (this.thread.info.thoughtLevel.currentValue === 'default'
-                ? undefined
-                : this.thread.info.thoughtLevel.currentValue)
+            this.effortOverride ?? (effort === 'default' ? undefined : effort)
           ),
           threadId: this.id,
           input,

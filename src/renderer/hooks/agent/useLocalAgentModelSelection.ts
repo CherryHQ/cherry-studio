@@ -51,7 +51,7 @@ export function useLocalAgentModelSelection(
   const { t } = useTranslation()
   const { updateNativeModel } = useUpdateAgent()
   const gateway = useApiGatewayProvider()
-  const storage = getLocalAgentModelStorage(config)
+  const storage = getLocalAgentModelStorage(config?.presetId)
   const native = storage?.type === 'cli' ? storage : undefined
   const isDeepSeekHarness = config?.presetId === CodeCli.DEEPSEEK_HARNESS
   const managedDeepSeekHarness = isDeepSeekHarness && !config?.env.DSH_HOME

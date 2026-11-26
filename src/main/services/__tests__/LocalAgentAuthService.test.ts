@@ -67,7 +67,6 @@ describe('LocalAgentAuthService', () => {
 
     const config: LocalAgentConfiguration = {
       presetId: 'opencode',
-      protocol: 'acp',
       enabled: true,
       args: [],
       env: {}

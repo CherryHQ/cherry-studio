@@ -5079,30 +5079,29 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
-  it('restores the native session to change its mode without sending a turn', async () => {
-    const info = { models: [], images: false, resume: true }
-    const connection = {
-      ...createAsyncQueue<any>(),
-      send: vi.fn(),
-      reconcile: vi.fn().mockResolvedValue('current'),
-      setMode: vi.fn().mockResolvedValue(info)
-    }
-    const connect = vi.fn().mockResolvedValue(connection)
+  it('reads idle permission choices without starting the runtime and rejects changes during a turn', async () => {
+    const connect = vi.fn()
     runtimeDriverRegistry.register({ type: 'local', connect, validateSession: vi.fn() })
     mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
-    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'local', model: baseTurnInput.modelId })
-    mocks.getLastRuntimeResumeToken.mockReturnValue('previous-session')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'local',
+      model: baseTurnInput.modelId,
+      configuration: { localRuntime: { presetId: 'codex', enabled: true, args: [], env: {} } }
+    })
 
     const service = new AgentSessionRuntimeService()
-    await expect(service.setLocalMode('session-1', 'mode', 'default')).resolves.toEqual(info)
-    expect(connect).toHaveBeenCalledWith(expect.objectContaining({ resumeToken: 'previous-session' }))
-    expect(connection.setMode).toHaveBeenCalledWith('mode', 'default')
-    expect(connection.send).not.toHaveBeenCalled()
-    expect(service.inspect('session-1')?.status).toBe('idle')
-
+    expect(service.getLocalSessionView('session-1')).toMatchObject({
+      info: null,
+      idleMode: { id: 'codex-mode', currentValue: 'workspace' }
+    })
+    await expect(service.setLocalMode('session-1', 'codex-mode', 'readOnly')).resolves.toMatchObject({
+      info: null,
+      idleMode: { currentValue: 'readOnly' }
+    })
+    expect(connect).not.toHaveBeenCalled()
     service.beginTurn({ ...baseTurnInput, agentType: 'local' })
-    await expect(service.setLocalMode('session-1', 'mode', 'auto')).rejects.toThrow('busy')
-    expect(connection.setMode).toHaveBeenCalledTimes(1)
+    await expect(service.setLocalMode('session-1', 'codex-mode', 'workspace')).rejects.toThrow('busy')
   })
 
   it('persists local session mode and security overrides, replays them on reconnect, and supports pre-connect mode selection', async () => {
@@ -5111,17 +5110,18 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-1',
       type: 'local',
       model: baseTurnInput.modelId,
-      configuration: { localRuntime: { protocol: 'claude', enabled: true, args: [], env: {} } }
+      configuration: { localRuntime: { presetId: 'claude', enabled: true, args: [], env: {} } }
     })
 
     const service = new AgentSessionRuntimeService()
 
     // Blank session with no registered driver yet still accepts and persists valid Claude default mode.
     const preConnect = await service.setLocalMode('session-1', 'claude-mode', 'plan')
-    expect(preConnect.mode?.currentValue).toBe('plan')
+    expect(preConnect.idleMode?.currentValue).toBe('plan')
     expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.session_updated', {
       sessionId: 'session-1',
-      info: expect.objectContaining({ mode: expect.objectContaining({ id: 'claude-mode', currentValue: 'plan' }) })
+      info: null,
+      idleMode: expect.objectContaining({ id: 'claude-mode', currentValue: 'plan' })
     })
 
     // Reconnecting replays both persisted mode and security config options before publishing capabilities.
@@ -5197,7 +5197,7 @@ describe('AgentSessionRuntimeService', () => {
       id: 'agent-1',
       type: 'local',
       model: baseTurnInput.modelId,
-      configuration: { localRuntime: { protocol: 'acp', enabled: true, args: [], env: {} } }
+      configuration: { localRuntime: { enabled: true, args: [], env: {} } }
     })
 
     const service = new AgentSessionRuntimeService()
@@ -5288,39 +5288,19 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.setConfigOption).not.toHaveBeenCalledWith('verbosity', expect.anything())
   })
 
-  it('surfaces the underlying CLI reconnect error instead of unavailable/busy when priming a disconnected ACP session fails', async () => {
-    runtimeDriverRegistry.register({
-      type: 'local',
-      connect: vi.fn().mockRejectedValue(new Error('zcode backend reader exited (backend dead)')),
-      validateSession: vi.fn()
-    })
+  it('binds effort changes and replay to the current model and rebuilds DSH on a launch mode change', async () => {
     mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'local',
       model: baseTurnInput.modelId,
-      configuration: { localRuntime: { presetId: 'zcode', protocol: 'acp', enabled: true, args: [], env: {} } }
+      configuration: { localRuntime: { presetId: 'claude', enabled: true, args: [], env: {} } }
     })
 
     const service = new AgentSessionRuntimeService()
-    await expect(service.setLocalMode('session-1', 'mode', 'edit')).rejects.toThrow(
-      'zcode backend reader exited (backend dead)'
+    await expect(service.setLocalThoughtLevel('session-1', 'claude-effort', 'high', 'sonnet')).rejects.toThrow(
+      'unavailable or busy'
     )
-  })
-
-  it('persists pre-connect thoughtLevel overrides, replays them on reconnect, and rebuilds idle DSH sessions on mode switch', async () => {
-    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/workspace' } })
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      type: 'local',
-      model: baseTurnInput.modelId,
-      configuration: { localRuntime: { presetId: 'claude', protocol: 'claude', enabled: true, args: [], env: {} } }
-    })
-
-    const service = new AgentSessionRuntimeService()
-    const preThought = await service.setLocalThoughtLevel('session-1', 'claude-effort', 'high')
-    expect(preThought.thoughtLevel?.currentValue).toBe('high')
-    expect(preThought.mode).toMatchObject({ id: 'claude-mode', currentValue: 'default' })
 
     const replayedInfo = {
       models: [],
@@ -5329,6 +5309,8 @@ describe('AgentSessionRuntimeService', () => {
       mode: { id: 'claude-mode', currentValue: 'default', options: [{ value: 'default', name: 'Default' }] },
       thoughtLevel: {
         id: 'claude-effort',
+        application: 'session' as const,
+        modelId: 'sonnet',
         currentValue: 'default',
         options: [
           { value: 'default', name: 'Default' },
@@ -5352,7 +5334,16 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     await service.listSessionCommands('session-1')
-    expect(setThoughtLevel).toHaveBeenCalledWith('claude-effort', 'high')
+    await expect(service.setLocalThoughtLevel('session-1', 'claude-effort', 'high', 'opus')).rejects.toThrow(
+      'no longer available'
+    )
+    expect(setThoughtLevel).not.toHaveBeenCalled()
+    await service.setLocalThoughtLevel('session-1', 'claude-effort', 'high', 'sonnet')
+    await service.closeSession('session-1')
+
+    replayedInfo.thoughtLevel.currentValue = 'default'
+    await service.listSessionCommands('session-1')
+    expect(replayedInfo.thoughtLevel.currentValue).toBe('high')
     await service.closeSession('session-1')
 
     // DSH mode change persists override, closes an idle connection for next-turn env injection, and broadcasts mode.
@@ -5362,7 +5353,7 @@ describe('AgentSessionRuntimeService', () => {
       type: 'local',
       model: baseTurnInput.modelId,
       configuration: {
-        localRuntime: { presetId: 'deepseek-harness', protocol: 'acp', enabled: true, args: [], env: {} }
+        localRuntime: { presetId: 'deepseek-harness', enabled: true, args: [], env: {} }
       }
     })
     mocks.hasSessionMessages.mockReturnValue(true)
@@ -5379,6 +5370,7 @@ describe('AgentSessionRuntimeService', () => {
           resume: true,
           mode: {
             id: 'dsh-mode',
+            application: 'reconnect',
             currentValue: 'workspace-write',
             options: [
               { value: 'read-only', name: 'Read Only' },
@@ -5394,8 +5386,8 @@ describe('AgentSessionRuntimeService', () => {
     mocks.broadcast.mockClear()
 
     const updatedDsh = await service.setLocalMode('session-dsh', 'dsh-mode', 'read-only')
-    expect(updatedDsh.mode?.currentValue).toBe('read-only')
-    expect(updatedDsh.models).toEqual([{ id: 'm1', name: 'Model 1' }])
+    expect(updatedDsh.idleMode?.currentValue).toBe('read-only')
+    expect(updatedDsh.info).toBeNull()
     expect(dshClose).toHaveBeenCalled()
     expect(
       (mocks.cachePersist.get('local_agent.session_overrides') as Record<string, any> | undefined)?.['session-dsh']
@@ -5406,7 +5398,8 @@ describe('AgentSessionRuntimeService', () => {
     })
     expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.session_updated', {
       sessionId: 'session-dsh',
-      info: expect.objectContaining({ mode: expect.objectContaining({ id: 'dsh-mode', currentValue: 'read-only' }) })
+      info: null,
+      idleMode: expect.objectContaining({ id: 'dsh-mode', currentValue: 'read-only' })
     })
   })
 

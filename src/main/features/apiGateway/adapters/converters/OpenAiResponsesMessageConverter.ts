@@ -447,7 +447,12 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     overrideReasoning = false
   ): ProviderOptions | undefined {
     if (overrideReasoning) return undefined
-    return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
+    return mapReasoningEffortToProviderOptions(
+      provider,
+      model,
+      params.reasoning?.effort ?? params.reasoning_effort,
+      maxOutputTokens
+    )
   }
 }
 

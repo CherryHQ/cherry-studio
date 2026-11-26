@@ -7,6 +7,7 @@ import path from 'node:path'
 import type { FinishReason } from 'ai'
 
 import {
+  acpEffortOption,
   acpHostError,
   acpModelCatalog,
   acpPermissionChoice,
@@ -20,7 +21,7 @@ import {
   type AcpPromptCapabilities,
   type AcpSessionConfiguration
 } from '@cherrystudio/agent-runtime-acp/v1'
-import { selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
+import { hasPermissionModeChoices, selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
@@ -31,6 +32,7 @@ import {
   isLocalAllowDecision,
   localCliPresetById,
   type LocalAcpTool,
+  type LocalAgentConfigOption,
   type LocalAgentSelection,
   type LocalPermissionOption
 } from '@shared/ai/localAgent'
@@ -91,8 +93,15 @@ function selectedQuestionAnswer(input?: Record<string, unknown>): string | undef
     ?.trim()
 }
 
-function isAcpThoughtLevelOption(option: NonNullable<AcpSessionConfiguration['configOptions']>[number]): boolean {
-  return option.type === 'select' && (option.category === 'thought_level' || option.category === 'thinking')
+function describeAcpSelection(option: Extract<LocalAgentConfigOption, { type: 'select' }>) {
+  return {
+    id: option.id,
+    application: 'session' as const,
+    currentValue: option.currentValue,
+    options: option.options
+      .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
+      .map((choice) => ({ ...choice, description: choice.description ?? undefined }))
+  }
 }
 type Terminal = {
   child: ChildProcess
@@ -141,7 +150,7 @@ export class AcpConnection extends LocalConnection {
   )
   private configChange?: Promise<void>
   private launchMode?: LocalAgentSelection & { application: 'reconnect' }
-  private modeSource?: 'config' | 'legacy'
+  private legacyMode?: 'mode' | 'thoughtLevel'
   private planPart?: number
   private planId?: string
   private readonly approvedWrites: Array<{ path: string; content: string }> = []
@@ -158,9 +167,8 @@ export class AcpConnection extends LocalConnection {
     return this.session?.predictPrompt
   }
 
-  private readonly permissionModes = this.config.presetId
-    ? localCliPresetById.get(this.config.presetId)?.permissionMode
-    : undefined
+  private readonly preset = this.config.presetId ? localCliPresetById.get(this.config.presetId) : undefined
+  private readonly permissionModes = this.preset?.permissionMode
 
   get effectivePermissionMode() {
     const { mode, configOptions } = this.localSessionInfo
@@ -185,8 +193,18 @@ export class AcpConnection extends LocalConnection {
   }
 
   private get hostPermissionMode() {
-    const { mode } = this.localSessionInfo
+    const { mode, configOptions } = this.localSessionInfo
     if (mode?.options.some(({ value, restrictHost }) => value === mode.currentValue && restrictHost)) return 'plan'
+    if (
+      configOptions?.some(
+        (option) =>
+          option.type === 'select' &&
+          option.options
+            .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
+            .some(({ value, restrictHost }) => value === option.currentValue && restrictHost)
+      )
+    )
+      return 'plan'
     return this.effectivePermissionMode
   }
 
@@ -280,6 +298,8 @@ export class AcpConnection extends LocalConnection {
         } else if (session.legacyModels) {
           await session.legacyModels.select(model)
           this.localSessionInfo.activeModel = { id: model }
+          this.localSessionInfo.thoughtLevel = this.headless ? undefined : this.session?.legacyEffort?.read()
+          this.publishSessionInfo()
         } else if (selection.implicit === model && !catalog.length) {
           this.localSessionInfo.activeModel = { id: model }
         } else throw new Error('This agent does not support model selection')
@@ -699,11 +719,17 @@ export class AcpConnection extends LocalConnection {
             .some((option) => option.value === value))
     )
       throw new Error('This session option is no longer available')
-    if (category === 'mode' && this.modeSource !== 'config' && typeof value === 'string') {
-      const mode = this.localSessionInfo.mode
+    const legacyEffort = category === 'thoughtLevel' ? this.session.legacyEffort : undefined
+    if (legacyEffort && typeof value === 'string' && legacyEffort.read()?.id === configId) {
+      this.configChange = legacyEffort.set(value).then(() => {
+        if (this.localSessionInfo.thoughtLevel !== selection) return
+        this.localSessionInfo.thoughtLevel = legacyEffort.read()
+        this.publishSessionInfo()
+      })
+    } else if (category === this.legacyMode && typeof value === 'string') {
       this.configChange = this.session.setMode(value).then(() => {
-        if (mode && this.localSessionInfo.mode === mode) {
-          mode.currentValue = value
+        if (selection && this.legacyMode === category && this.localSessionInfo[category] === selection) {
+          selection.currentValue = value
           this.publishSessionInfo()
         }
       })
@@ -725,8 +751,8 @@ export class AcpConnection extends LocalConnection {
     initialLegacy?: AcpLiveSession['legacyModels']
   ) {
     const mode = options?.find((option) => option.category === 'mode' && option.type === 'select')
-    const thought = options?.find(isAcpThoughtLevelOption)
-    this.localSessionInfo.configOptions =
+    const thought = acpEffortOption(options)
+    const configOptions: LocalAgentConfigOption[] | undefined =
       options
         ?.filter((option) => option.type === 'select' || option.type === 'boolean')
         .map((option) => {
@@ -764,49 +790,63 @@ export class AcpConnection extends LocalConnection {
           }
         }) ?? undefined
 
-    const modeOption = this.localSessionInfo.configOptions?.find((option) => option.role === 'mode')
-    if (this.launchMode) {
-      this.modeSource = undefined
-      this.localSessionInfo.mode = this.launchMode
-    } else if (modeOption?.type === 'select') {
-      this.modeSource = 'config'
-      this.localSessionInfo.mode = {
-        id: modeOption.id,
-        application: 'session',
-        currentValue: modeOption.currentValue,
-        options: modeOption.options
-          .flatMap((option) => ('group' in option ? option.options : [option]))
-          .map((choice) => ({ ...choice, description: choice.description ?? undefined }))
+    this.legacyMode = undefined
+    const modeOption = configOptions?.find((option) => option.role === 'mode')
+    let permission = modeOption?.type === 'select' ? describeAcpSelection(modeOption) : undefined
+    if (!this.launchMode && !hasPermissionModeChoices(permission)) {
+      for (const option of configOptions ?? []) {
+        if (option.type !== 'select' || !option.application || option === modeOption) continue
+        const selection = describeAcpSelection(option)
+        if (!hasPermissionModeChoices(selection)) continue
+        permission = selection
+        break
       }
-    } else if (options == null && modes) {
-      this.modeSource = 'legacy'
-      this.localSessionInfo.mode = {
-        id: 'legacy-mode',
-        application: 'session',
-        currentValue: modes.currentModeId,
-        options: modes.availableModes.map(({ id, name, description }) =>
-          acpPermissionChoice({ value: id, name, description: description ?? undefined }, 'mode', this.permissionModes)
-        )
-      }
-    } else {
-      this.modeSource = undefined
-      this.localSessionInfo.mode = undefined
     }
-    this.localSessionInfo.thoughtLevel =
-      thought?.type === 'select'
+    const legacy =
+      options == null && modes
         ? {
-            id: thought.id,
-            currentValue: thought.currentValue,
-            options: thought.options
-              .flatMap((option) => ('group' in option ? option.options : [option]))
-              .map(({ value, name }) => ({ value, name }))
+            id: 'legacy-mode',
+            application: 'session' as const,
+            currentValue: modes.currentModeId,
+            options: modes.availableModes.map(({ id, name, description }) => ({
+              value: id,
+              name,
+              description: description ?? undefined
+            }))
           }
         : undefined
+    if (legacy) {
+      if (this.preset?.legacyModes === 'effort') {
+        this.legacyMode = 'thoughtLevel'
+      } else if (!this.launchMode) {
+        this.legacyMode = 'mode'
+        permission = {
+          ...legacy,
+          options: legacy.options.map((choice) => acpPermissionChoice(choice, 'mode', this.permissionModes))
+        }
+      }
+    }
+    this.localSessionInfo.mode = this.launchMode ?? permission
+    const thoughtOption = configOptions?.find((option) => option.role === 'reasoning')
     const catalog = acpModelCatalog(options, initialLegacy)
+    if (catalog.activeModel) this.localSessionInfo.activeModel = catalog.activeModel
     if (catalog.configId || initialLegacy || !this.session?.legacyModels) {
-      this.localSessionInfo.activeModel = catalog.activeModel
       this.localSessionInfo.models = catalog.models
     }
+    const effort =
+      thoughtOption?.type === 'select'
+        ? describeAcpSelection(thoughtOption)
+        : this.legacyMode === 'thoughtLevel'
+          ? legacy
+          : undefined
+    this.localSessionInfo.thoughtLevel = this.headless
+      ? undefined
+      : effort
+        ? { ...effort, modelId: this.localSessionInfo.activeModel?.id }
+        : this.session?.legacyEffort?.read()
+    this.localSessionInfo.configOptions = configOptions?.filter(
+      (option) => option.id !== this.localSessionInfo.mode?.id && option.id !== effort?.id
+    )
     this.publishSessionInfo()
   }
   private publishSessionInfo() {
@@ -836,8 +876,9 @@ export class AcpConnection extends LocalConnection {
     options: (configOptions) => this.readConfigOptions({ configOptions }),
     commands: (commands) => this.publishCommands(commands),
     mode: (id) => {
-      if (this.modeSource !== 'legacy' || !this.localSessionInfo.mode) return
-      this.localSessionInfo.mode.currentValue = id
+      const selection = this.legacyMode && this.localSessionInfo[this.legacyMode]
+      if (!selection?.options.some(({ value }) => value === id)) return
+      selection.currentValue = id
       this.publishSessionInfo()
     },
     usage: ({ used, size, cost }) => {

@@ -45,10 +45,10 @@ async function createCursorSession(nativeModel?: string) {
     close: vi.fn(),
     send: vi.fn()
   } as unknown as SDKAgent
-  vi.mocked(openCursorSession).mockResolvedValue(agent)
+  vi.mocked(openCursorSession).mockResolvedValue({ agent, effort: undefined })
 
   const connection = new CursorConnection('session-cursor', 'agent-cursor', {
-    protocol: 'cursor',
+    presetId: 'cursor',
     enabled: true,
     args: [],
     env: {},

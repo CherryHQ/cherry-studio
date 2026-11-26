@@ -36,7 +36,7 @@ const agent: AgentEntity = {
   name: 'Local',
   type: 'local',
   configuration: {
-    localRuntime: { protocol: 'acp', presetId: 'opencode', enabled: true, args: [], env: {}, nativeModel: 'first' }
+    localRuntime: { presetId: 'opencode', enabled: true, args: [], env: {}, nativeModel: 'first' }
   }
 }
 const info = {

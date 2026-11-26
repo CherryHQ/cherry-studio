@@ -126,7 +126,7 @@ describe('AgentProfilePane', () => {
     agent = {
       ...createAgent({
         avatar: '🍉',
-        localRuntime: { protocol: 'codex', presetId: 'codex', enabled: true, args: [], env: {} }
+        localRuntime: { presetId: 'codex', enabled: true, args: [], env: {} }
       }),
       type: 'local'
     }

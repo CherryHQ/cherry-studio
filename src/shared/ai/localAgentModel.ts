@@ -19,7 +19,7 @@ import { zcodeCli } from '@cherrystudio/agent-runtime-zcode-acp/cli'
 import { CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget, ModelConfiguredCli } from '@shared/utils/cliConfig'
 
-import { localCliPresetById, type LocalAgentConfiguration } from './localAgent'
+import { getLocalAgentPreset } from './localAgent'
 
 /** Native defaults shared by the interactive CLI and its protocol adapter. */
 export const LOCAL_AGENT_MODEL_CONFIG: Readonly<
@@ -59,13 +59,11 @@ export const LOCAL_AGENT_MODEL_CONFIG: Readonly<
   [glmCli.id]: glmCli.modelConfig
 }
 
-export function getLocalAgentModelStorage(config: Pick<LocalAgentConfiguration, 'protocol' | 'presetId'> | undefined) {
-  if (
-    config?.protocol === 'cursor' ||
-    (config?.protocol === 'acp' && config.presetId && localCliPresetById.get(config.presetId)?.sessionModel)
-  ) {
+export function getLocalAgentModelStorage(presetId: string | undefined) {
+  const preset = getLocalAgentPreset(presetId)
+  if (preset?.protocol === 'cursor' || (preset?.protocol === 'acp' && preset.sessionModel)) {
     return { type: 'agent' } as const
   }
-  const file = config?.presetId && LOCAL_AGENT_MODEL_CONFIG[config.presetId]
+  const file = preset && LOCAL_AGENT_MODEL_CONFIG[preset.id]
   return file ? ({ type: 'cli', ...file } as const) : undefined
 }

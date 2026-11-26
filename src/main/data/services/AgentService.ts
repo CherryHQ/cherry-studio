@@ -29,10 +29,9 @@ import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import {
-  LocalAgentConfigurationSchema,
   type LocalAgentConfiguration,
   type LocalAgentLaunchSettings,
-  LOCAL_AGENT_PRESETS
+  StoredLocalAgentConfigurationSchema
 } from '@shared/ai/localAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -192,7 +191,7 @@ function applyAgentConfigurationPatch(
     } else if (value === undefined) {
       delete next[key]
     } else if (key === 'localRuntime') {
-      next.localRuntime = LocalAgentConfigurationSchema.parse({
+      next.localRuntime = StoredLocalAgentConfigurationSchema.parse({
         ...(next.localRuntime as LocalAgentConfiguration | undefined),
         ...(value as Partial<LocalAgentConfiguration>)
       })
@@ -407,8 +406,12 @@ export class AgentService {
         'configuration.builtin_role is reserved for system agents'
       )
     }
+    let configuration = req.configuration
     if (req.type === 'local') {
-      const config = LocalAgentConfigurationSchema.parse(req.configuration?.localRuntime)
+      configuration = {
+        ...configuration,
+        localRuntime: StoredLocalAgentConfigurationSchema.parse(configuration?.localRuntime)
+      }
       if (
         req.planModel ||
         req.smallModel ||
@@ -420,11 +423,6 @@ export class AgentService {
         req.skillIds?.length
       )
         throw DataApiErrorFactory.invalidOperation('create local agent', 'Local agents own their model and resources')
-      if (
-        config.presetId &&
-        !LOCAL_AGENT_PRESETS.some((p) => p.id === config.presetId && p.protocol === config.protocol)
-      )
-        throw DataApiErrorFactory.invalidOperation('create local agent', 'Invalid preset')
     } else if (!req.model) throw DataApiErrorFactory.invalidOperation('create agent', 'A provider model is required')
     const mcps = req.mcps ?? []
     const knowledgeBaseIds = req.knowledgeBaseIds ?? []
@@ -443,7 +441,7 @@ export class AgentService {
       planModel: req.planModel,
       smallModel: req.smallModel,
       disabledTools: req.disabledTools,
-      configuration: req.configuration
+      configuration
     }
 
     // Validate referenced skills before opening the write tx so the main path
@@ -938,16 +936,16 @@ export class AgentService {
           if (!current) throw DataApiErrorFactory.notFound('Agent', id)
           let changedLocalEnabled: boolean | undefined
           if (current.type === 'local') {
-            const previous = LocalAgentConfigurationSchema.parse(current.configuration.localRuntime)
-            const next = LocalAgentConfigurationSchema.parse(
+            const previous = StoredLocalAgentConfigurationSchema.parse(current.configuration.localRuntime)
+            const next = StoredLocalAgentConfigurationSchema.parse(
               updates.configuration && Object.hasOwn(updates.configuration, 'localRuntime')
                 ? updates.configuration.localRuntime === undefined
                   ? undefined
                   : { ...previous, ...updates.configuration.localRuntime }
                 : previous
             )
-            if (next.protocol !== previous.protocol || next.presetId !== previous.presetId)
-              throw DataApiErrorFactory.invalidOperation('update local agent', 'Protocol and preset cannot change')
+            if (next.presetId !== previous.presetId)
+              throw DataApiErrorFactory.invalidOperation('update local agent', 'Preset cannot change')
             if (next.enabled !== previous.enabled) changedLocalEnabled = next.enabled
             if (
               updates.planModel ||
@@ -1244,13 +1242,13 @@ export class AgentService {
 
     const restoreData: Partial<AgentRow> = { deletedAt: null }
     if (launchSettings) {
-      const runtime = LocalAgentConfigurationSchema.safeParse(target.configuration.localRuntime)
-      if (target.type !== 'local' || !runtime.success || runtime.data.protocol !== 'acp' || runtime.data.presetId) {
+      const runtime = StoredLocalAgentConfigurationSchema.safeParse(target.configuration.localRuntime)
+      if (target.type !== 'local' || !runtime.success || runtime.data.presetId !== undefined) {
         throw DataApiErrorFactory.invalidOperation('restore agent', 'Only custom ACP launch settings can be changed')
       }
       restoreData.configuration = {
         ...target.configuration,
-        localRuntime: LocalAgentConfigurationSchema.parse({ ...runtime.data, ...launchSettings, enabled: true })
+        localRuntime: StoredLocalAgentConfigurationSchema.parse({ ...runtime.data, ...launchSettings, enabled: true })
       }
       restoreData.updatedAt = Math.max(Date.now(), target.updatedAt + 1)
     }

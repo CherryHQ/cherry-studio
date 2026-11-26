@@ -157,6 +157,7 @@ function liveSession(session: AcpSession, events: AcpLiveEvents, currentModel: (
       cancel: session.cancel,
       close: session.close,
       legacyModels: session.legacyModels,
+      legacyEffort: harness?.legacyEffort,
       setMode: session.setMode,
       setConfigOption: session.setConfigOption,
       inspectContextUsage: harness?.inspectContextUsage,

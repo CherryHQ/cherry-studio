@@ -22,13 +22,12 @@ import { FullAccessConfirmDialog } from '@renderer/components/PermissionModeOpti
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { localAgentConfigOptions, localAgentModeOptions } from '@renderer/utils/agent/localAgentLabels'
-import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
 
 const triggerClass = 'h-7 min-w-0 max-w-64 gap-1.5 rounded-lg px-2 text-xs text-muted-foreground'
 
 type PendingHighRiskSelection = {
-  kind: 'mode' | 'thought' | 'config'
+  kind: 'mode' | 'config'
   configId: string
   value: string | boolean
 }
@@ -39,7 +38,6 @@ export function LocalAgentConfigControl({
   presetId,
   options: nativeOptions = [],
   mode,
-  thoughtLevel,
   disabled,
   side = 'top'
 }: {
@@ -48,7 +46,6 @@ export function LocalAgentConfigControl({
   presetId?: string
   options?: LocalAgentConfigOption[]
   mode?: LocalAgentSelection
-  thoughtLevel?: LocalAgentSelection
   disabled: boolean
   side?: 'top' | 'bottom'
 }) {
@@ -67,72 +64,16 @@ export function LocalAgentConfigControl({
 
   const modeOptions = mode ? localAgentModeOptions(mode, t, presetId) : []
   const currentMode = modeOptions.find((option) => option.value === mode?.currentValue)
-  const thoughtOptions = thoughtLevel?.options.map((option) => ({
-    ...option,
-    name: reasoningEffortLabel(option.value, t, option.name)
-  }))
-  const summary = [
-    currentMode?.name ?? mode?.currentValue,
-    thoughtOptions?.find((option) => option.value === thoughtLevel?.currentValue)?.name ?? thoughtLevel?.currentValue
-  ]
-    .filter(Boolean)
-    .join(' · ')
-  const selections: Array<{ kind: 'mode' | 'thought'; option: LocalAgentConfigOption }> = []
-  if (mode && modeOptions.length > 1 && !options.some((option) => option.id === mode.id))
-    selections.push({
+  const rows: Array<{ kind: 'mode' | 'config'; option: LocalAgentConfigOption }> = []
+  if (mode && modeOptions.length > 1) {
+    rows.push({
       kind: 'mode',
       option: { ...mode, type: 'select', name: t('local_agents.mode'), options: modeOptions }
     })
-  if (
-    thoughtLevel &&
-    thoughtOptions &&
-    thoughtOptions.length > 1 &&
-    !options.some((option) => option.id === thoughtLevel.id)
-  )
-    selections.push({
-      kind: 'thought',
-      option: {
-        ...thoughtLevel,
-        type: 'select',
-        name: t('assistants.settings.reasoning_effort.label'),
-        options: thoughtOptions
-      }
-    })
-  const rows = [
-    ...selections,
-    ...options
-      .filter(
-        (option) =>
-          option.type !== 'select' ||
-          (option.id !== mode?.id && option.id !== thoughtLevel?.id) ||
-          option.options.flatMap((choice) => ('group' in choice ? choice.options : [choice])).length > 1
-      )
-      .map((option) => {
-        if (option.type !== 'select') return { kind: 'config' as const, option }
-        const kind: 'mode' | 'thought' | 'config' =
-          option.role === 'mode' || option.id === mode?.id
-            ? 'mode'
-            : option.role === 'reasoning' || option.id === thoughtLevel?.id
-              ? 'thought'
-              : 'config'
-        const translated = kind === 'mode' ? modeOptions : kind === 'thought' ? thoughtOptions : undefined
-        if (!translated) return { kind, option }
-        const translate = (choice: { value: string; name: string; description?: string | null }) => ({
-          ...choice,
-          ...translated.find((value) => value.value === choice.value)
-        })
-        return {
-          kind,
-          option: {
-            ...option,
-            name: t(kind === 'mode' ? 'local_agents.mode' : 'assistants.settings.reasoning_effort.label'),
-            options: option.options.map((choice) =>
-              'group' in choice ? { ...choice, options: choice.options.map(translate) } : translate(choice)
-            )
-          }
-        }
-      })
-  ]
+  }
+  for (const option of options) {
+    if (option.id !== mode?.id) rows.push({ kind: 'config', option })
+  }
   if (!rows.length) return null
 
   const requiresConfirmation = (option: LocalAgentConfigOption, value: string | boolean) => {
@@ -155,14 +96,14 @@ export function LocalAgentConfigControl({
           .find((choice) => choice.value === option.currentValue)?.name ?? option.currentValue)
   const triggerLabel = single
     ? t('local_agents.config_summary', { name: rows[0].option.name, value: selectedName(rows[0].option) })
-    : summary || t('local_agents.configuration')
-  const change = async (kind: 'mode' | 'thought' | 'config', configId: string, value: string | boolean) => {
+    : (currentMode?.name ?? t('local_agents.configuration'))
+  const change = async (kind: 'mode' | 'config', configId: string, value: string | boolean) => {
     if (disabled || saving) return
     setSaving(true)
     try {
       if (kind === 'config') await ipcApi.request('ai.local_agents.set_config_option', { sessionId, configId, value })
       else if (typeof value === 'string')
-        await ipcApi.request(kind === 'mode' ? 'ai.local_agents.set_mode' : 'ai.local_agents.set_thought_level', {
+        await ipcApi.request('ai.local_agents.set_mode', {
           sessionId,
           configId,
           value
@@ -173,11 +114,7 @@ export function LocalAgentConfigControl({
       setSaving(false)
     }
   }
-  const handleSelectValue = (
-    kind: 'mode' | 'thought' | 'config',
-    option: LocalAgentConfigOption,
-    nextValue: string | boolean
-  ) => {
+  const handleSelectValue = (kind: 'mode' | 'config', option: LocalAgentConfigOption, nextValue: string | boolean) => {
     if (disabled || saving || nextValue === option.currentValue) return
     if (requiresConfirmation(option, nextValue)) {
       setMenuOpen(false)

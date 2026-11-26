@@ -84,14 +84,85 @@ const registerPromptUsage: NonNullable<AcpHarnessAdapter['registerPromptUsage']>
 
 const prediction = z.object({ generation: z.number().int().nonnegative(), suggestion: z.string().nullable() })
 
+const legacyEffortModelState = z.object({
+  availableModels: z.array(
+    z.object({
+      modelId: z.string(),
+      _meta: z
+        .object({
+          supportsReasoningEffort: z.boolean().optional(),
+          reasoningEffort: z.string().optional(),
+          reasoningEfforts: z
+            .array(
+              z.object({
+                id: z.string().optional(),
+                value: z.string().optional(),
+                label: z.string().optional(),
+                description: z.string().nullish(),
+                default: z.boolean().optional()
+              })
+            )
+            .optional()
+        })
+        .nullish()
+    })
+  )
+})
+
+function bindLegacyEffort({
+  agent,
+  sessionId,
+  currentModel,
+  legacyModelState
+}: Parameters<NonNullable<AcpHarnessAdapter['bind']>>[0]) {
+  const models = legacyEffortModelState.safeParse(legacyModelState).data?.availableModels
+  if (!models) return
+  let applied: { modelId: string; value: string } | undefined
+  const read = () => {
+    const modelId = currentModel()
+    if (!modelId) return
+    const metadata = models.find((model) => model.modelId === modelId)?._meta
+    if (!metadata?.reasoningEfforts?.length || metadata.supportsReasoningEffort === false) return
+    const options = metadata.reasoningEfforts.flatMap((option) => {
+      const value = option.value ?? option.id
+      return value ? [{ value, name: option.label || value, description: option.description ?? undefined }] : []
+    })
+    if (!options.length) return
+    const nativeDefault = metadata.reasoningEfforts.find((option) => option.default)
+    const value = applied?.modelId === modelId ? applied.value : metadata.reasoningEffort
+    return {
+      id: 'grok-legacy-effort',
+      modelId,
+      application: 'session' as const,
+      currentValue: value ?? nativeDefault?.value ?? nativeDefault?.id ?? 'default',
+      options
+    }
+  }
+  return {
+    read,
+    async set(value: string) {
+      const effort = read()
+      if (!effort?.options.some((option) => option.value === value)) throw new Error('Grok effort is unavailable')
+      await agent.request('session/set_model', {
+        sessionId,
+        modelId: effort.modelId,
+        _meta: { reasoningEffort: value }
+      })
+      applied = { modelId: effort.modelId, value }
+    }
+  }
+}
+
 export function createGrokAcpAdapter(host: GrokInteractionHost): AcpHarnessAdapter {
   return {
     registerPromptUsage,
     registerRequests: grokInteractions(host),
-    bind({ agent, sessionId }) {
+    bind(input) {
+      const { agent, sessionId } = input
       let generation = 0
       let unavailable = false
       return {
+        legacyEffort: bindLegacyEffort(input),
         async predictPrompt(signal) {
           if (unavailable || signal.aborted) return ''
           const requested = ++generation

@@ -327,7 +327,7 @@ describe('permissionModeTool submenu', () => {
               agentId: 'agent-amp',
               sessionId: 'session-amp',
               agentType: 'local',
-              localPermission: { mode: ampConfigPermission, kind: 'config', disabled: false }
+              localPermission: { mode: ampConfigPermission, disabled: false }
             }
           } as any
         }
@@ -339,7 +339,7 @@ describe('permissionModeTool submenu', () => {
       ampSubmenu.find((item) => item.id === 'permission-mode-bypassPermissions')?.action?.({} as any)
     })
     await user.click(await screen.findByRole('button', { name: 'Enable Full Access' }))
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.local_agents.set_mode', {
       sessionId: 'session-amp',
       configId: 'permissions',
       value: 'bypass'

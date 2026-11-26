@@ -10,6 +10,7 @@ export const piCli = {
   terminalArgs: [],
   name: 'Pi',
   protocol: 'acp',
+  legacyModes: 'effort',
   executable: 'pi',
   npmPackage: '@earendil-works/pi-coding-agent',
   args: [],

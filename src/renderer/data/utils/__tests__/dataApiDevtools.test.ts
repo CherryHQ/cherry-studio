@@ -17,7 +17,7 @@ describe('DataApiDevtools', () => {
       DataApiDevtools.exposeControlSurface()
       window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: true })
       const config = {
-        protocol: 'acp',
+        presetId: 'opencode',
         env: { CUSTOM: 'private-value' },
         args: ['private-argument'],
         credentials: 'private-credential'
@@ -40,7 +40,7 @@ describe('DataApiDevtools', () => {
       expect(captured).not.toContain('private-value')
       expect(captured).not.toContain('private-argument')
       expect(captured).not.toContain('private-credential')
-      expect(captured).toContain('acp')
+      expect(captured).toContain('opencode')
       expect(config.env.CUSTOM).toBe('private-value')
     }
   )

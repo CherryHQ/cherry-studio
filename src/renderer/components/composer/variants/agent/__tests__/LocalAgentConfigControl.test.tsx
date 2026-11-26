@@ -62,7 +62,6 @@ describe('LocalAgentConfigControl', () => {
         sessionId="session"
         disabled={false}
         mode={mode}
-        thoughtLevel={thoughtLevel}
         options={[
           options[1],
           {
@@ -79,19 +78,16 @@ describe('LocalAgentConfigControl', () => {
     )
     await user.click(screen.getByRole('button', { name: '智能体配置' }))
     expect(screen.getAllByRole('menuitem').map((item) => item.getAttribute('aria-label'))).toEqual([
+      '会话模式',
       '通知',
       '思考强度',
-      '回答详细程度',
-      '会话模式'
+      '回答详细程度'
     ])
     fireEvent.keyDown(screen.getByRole('menuitem', { name: '思考强度' }), { key: 'ArrowRight' })
     expect(screen.getByRole('menuitemradio', { name: '低' })).toHaveAttribute('aria-checked', 'true')
   })
 
-  it.each([
-    ['mode', 'ai.local_agents.set_mode'],
-    ['thoughtLevel', 'ai.local_agents.set_thought_level']
-  ] as const)('opens a lone %s directly and keeps the confirmed selection when rejected', async (kind, route) => {
+  it('keeps the confirmed mode when a change is rejected', async () => {
     const user = userEvent.setup()
     vi.mocked(ipcApi.request).mockRejectedValue(new Error('Cannot switch now'))
     const selection = {
@@ -102,19 +98,19 @@ describe('LocalAgentConfigControl', () => {
         { value: 'high', name: 'High' }
       ]
     }
-    render(<LocalAgentConfigControl sessionId="session" {...{ [kind]: selection }} disabled={false} />)
+    render(<LocalAgentConfigControl sessionId="session" mode={selection} disabled={false} />)
     const trigger = screen.getByRole('button', { name: '智能体配置' })
-    expect(trigger).toHaveTextContent(kind === 'mode' ? '会话模式：Low' : '思考强度：低')
+    expect(trigger).toHaveTextContent('会话模式：Low')
     await user.click(trigger)
     expect(screen.queryByRole('menuitem')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('menuitemradio', { name: kind === 'mode' ? 'High' : '高' }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'High' }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Error: Cannot switch now'))
-    expect(ipcApi.request).toHaveBeenCalledWith(route, {
+    expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_mode', {
       sessionId: 'session',
       configId: 'native-config',
       value: 'high'
     })
-    const confirmed = screen.getByRole('menuitemradio', { name: kind === 'mode' ? 'Low' : '低' })
+    const confirmed = screen.getByRole('menuitemradio', { name: 'Low' })
     expect(confirmed).toHaveAttribute('aria-checked', 'true')
     expect(confirmed).not.toHaveAttribute('aria-disabled', 'true')
   })
@@ -275,7 +271,7 @@ describe('LocalAgentConfigControl', () => {
     )
   })
 
-  it('identifies reasoning controls via explicit role regardless of option id', async () => {
+  it('keeps extra native selectors on the generic settings action', async () => {
     const user = userEvent.setup()
     vi.mocked(ipcApi.request).mockResolvedValue(null)
     render(
@@ -300,7 +296,7 @@ describe('LocalAgentConfigControl', () => {
     await user.click(screen.getByRole('button', { name: '智能体配置' }))
     await user.click(screen.getByRole('menuitemradio', { name: '低' }))
     await waitFor(() =>
-      expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_thought_level', {
+      expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_config_option', {
         sessionId: 'session',
         configId: 'custom-think-id',
         value: 'low'

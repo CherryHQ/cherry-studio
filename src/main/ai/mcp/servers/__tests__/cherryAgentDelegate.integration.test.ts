@@ -58,7 +58,7 @@ describe('agent_delegate project and admission contract', () => {
           name: 'Codex',
           instructions: '',
           orderKey: 'b',
-          configuration: { localRuntime: { protocol: 'codex', enabled: true, args: [], env: {} } }
+          configuration: { localRuntime: { presetId: 'codex', enabled: true, args: [], env: {} } }
         },
         {
           id: 'disabled',
@@ -66,7 +66,7 @@ describe('agent_delegate project and admission contract', () => {
           name: 'Disabled',
           instructions: '',
           orderKey: 'c',
-          configuration: { localRuntime: { protocol: 'acp', enabled: false, args: [], env: {} } }
+          configuration: { localRuntime: { presetId: 'opencode', enabled: false, args: [], env: {} } }
         }
       ])
       .run()
@@ -153,7 +153,7 @@ describe('agent_delegate project and admission contract', () => {
     await callBuiltinTool(createServer, 'agent_list', {})
     dbh.db
       .update(agentTable)
-      .set({ configuration: { localRuntime: { protocol: 'codex', enabled: false, args: [], env: {} } } })
+      .set({ configuration: { localRuntime: { presetId: 'codex', enabled: false, args: [], env: {} } } })
       .where(eq(agentTable.id, 'local-target'))
       .run()
     const before = dbh.db.select().from(agentSessionTable).all().length

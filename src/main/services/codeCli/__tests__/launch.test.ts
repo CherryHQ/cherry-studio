@@ -10,14 +10,14 @@ import { resolveClaudeLaunch } from '@main/ai/runtime/claudeCode/localClaudeLaun
 import { resolveCliProgram, systemAgentEntry } from '@main/ai/runtime/cli/cliProgram'
 import type * as Platform from '@main/core/platform'
 import type * as ShellEnv from '@main/utils/shellEnv'
-import { type LocalAgentConfiguration } from '@shared/ai/localAgent'
+import { getLocalAgentProtocol, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { detectLocalAgents, openLocalAgentTerminal, resolveLocalAgentCli } from '../localAgentCli'
 
 function resolveLocalAgentLaunch(config: LocalAgentConfiguration) {
-  return config.protocol === 'acp' ? resolveAcpLaunch(config) : resolveCliProgram(config, 'chat')
+  return getLocalAgentProtocol(config.presetId) === 'acp' ? resolveAcpLaunch(config) : resolveCliProgram(config, 'chat')
 }
 
 const inventory = vi.hoisted(() => ({
@@ -56,7 +56,7 @@ vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
   getRawShellEnv: inventory.getRawShellEnv
 }))
 
-const config: LocalAgentConfiguration = { presetId: 'codex', protocol: 'codex', enabled: true, args: [], env: {} }
+const config: LocalAgentConfiguration = { presetId: 'codex', enabled: true, args: [], env: {} }
 
 function installSystemCommands(...names: string[]) {
   for (const name of names) {
@@ -94,7 +94,6 @@ describe('local agent installation resolution', () => {
         {
           ...config,
           presetId: 'claude',
-          protocol: 'claude',
           executableOverride: process.execPath,
           env
         },
@@ -150,7 +149,7 @@ describe('local agent installation resolution', () => {
           })
         }
       ])
-      const launch = await resolveLocalAgentLaunch({ ...config, presetId: 'cline', protocol: 'acp', env })
+      const launch = await resolveLocalAgentLaunch({ ...config, presetId: 'cline', env })
       expect(launch.env.CLINE_API_KEY).toBeUndefined()
       expect(launch.env.CLINE_BASE_URL).toBeUndefined()
       expect(launch.env.CLINE_MODEL).toBeUndefined()
@@ -194,9 +193,7 @@ describe('local agent installation resolution', () => {
       availability: { source: 'mise', path: '/mise/shims/dsh', version: '0.1.0-rc.7' }
     }
     expect((await detectLocalAgents()).find((entry) => entry.presetId === 'deepseek-harness')?.source).toBe('none')
-    await expect(
-      resolveLocalAgentLaunch({ ...config, presetId: 'deepseek-harness', protocol: 'acp' })
-    ).rejects.toMatchObject({
+    await expect(resolveLocalAgentLaunch({ ...config, presetId: 'deepseek-harness' })).rejects.toMatchObject({
       code: 'LOCAL_AGENT_NOT_INSTALLED'
     })
   })
@@ -204,7 +201,7 @@ describe('local agent installation resolution', () => {
   it('routes Antigravity WebSockets through the configured HTTP proxy without replacing explicit routes', async () => {
     installSystemCommands('agy_acp_server.par')
     inventory.getRawShellEnv.mockResolvedValue({ HTTPS_PROXY: 'http://proxy:8100', NO_PROXY: 'localhost' })
-    const agent = { ...config, presetId: 'antigravity-acp', protocol: 'acp' as const }
+    const agent = { ...config, presetId: 'antigravity-acp' }
     const { env } = await resolveLocalAgentLaunch(agent)
     expect(env).toMatchObject({ WSS_PROXY: 'http://proxy:8100', WS_PROXY: 'http://proxy:8100', NO_PROXY: 'localhost' })
     const custom = await resolveLocalAgentLaunch({ ...agent, env: { WSS_PROXY: 'http://websocket:8123' } })
@@ -220,7 +217,7 @@ describe('local agent installation resolution', () => {
     vi.stubEnv('no_proxy', 'localhost')
     installSystemCommands('agy_acp_server.par')
     try {
-      const { env } = await resolveLocalAgentLaunch({ ...config, presetId: 'antigravity-acp', protocol: 'acp' })
+      const { env } = await resolveLocalAgentLaunch({ ...config, presetId: 'antigravity-acp' })
       expect(env).toMatchObject(
         process.platform === 'win32'
           ? { WSS_PROXY: 'http://desktop:9123', NO_PROXY: 'localhost' }
@@ -236,7 +233,7 @@ describe('local agent installation resolution', () => {
     expect((await detectLocalAgents()).find((entry) => entry.presetId === 'antigravity-acp')?.path).toBe(
       '/user/bin/agy'
     )
-    expect(await resolveLocalAgentLaunch({ ...config, protocol: 'acp', presetId: 'antigravity-acp' })).toMatchObject({
+    expect(await resolveLocalAgentLaunch({ ...config, presetId: 'antigravity-acp' })).toMatchObject({
       executable: '/user/bin/agy',
       args: ['acp']
     })
@@ -254,7 +251,7 @@ describe('local agent installation resolution', () => {
 
   it('starts OpenClaw ACP with the formal native state directory and config file', async () => {
     installSystemCommands('openclaw')
-    const launch = await resolveLocalAgentLaunch({ ...config, protocol: 'acp', presetId: 'openclaw' })
+    const launch = await resolveLocalAgentLaunch({ ...config, presetId: 'openclaw' })
     expect(launch.args).toEqual(['acp'])
     expect(launch.env).toMatchObject({
       OPENCLAW_STATE_DIR: path.join(directory, 'external.openclaw.config'),
@@ -284,7 +281,7 @@ agent_servers:
 `
       }
     ])
-    const selected = { ...config, presetId: 'poolside', protocol: 'acp' as const }
+    const selected = { ...config, presetId: 'poolside' }
     const launch = await resolveLocalAgentLaunch(selected)
     expect(launch.nativeModel).toBe('gateway/model')
     expect(launch.env).toMatchObject({
@@ -359,7 +356,7 @@ agent_servers:
     if (presetId === 'zcode') {
       installSystemCommands('zcode')
     }
-    await openLocalAgentTerminal({ ...config, protocol: 'acp', presetId, enabled: false, args: ['--acp'] })
+    await openLocalAgentTerminal({ ...config, presetId, enabled: false, args: ['--acp'] })
     expect(inventory.openTerminal).toHaveBeenLastCalledWith(
       expect.objectContaining({
         executable: `/user/bin/${executable}`,
@@ -380,7 +377,7 @@ agent_servers:
     if (presetId === 'zcode') {
       installSystemCommands('zcode')
     }
-    const launch = await resolveLocalAgentLaunch({ ...config, protocol: 'acp', presetId })
+    const launch = await resolveLocalAgentLaunch({ ...config, presetId })
     expect(launch).toMatchObject({ executable: `/user/bin/${executable}`, args: [...args] })
     if (presetId === 'zcode') expect(launch.env.ZCODE_ACP_MODE).toBe('build')
   })
@@ -390,7 +387,6 @@ agent_servers:
     await openLocalAgentTerminal({
       ...config,
       presetId: 'pi-acp',
-      protocol: 'acp',
       executableOverride: '/wrapper/pi-acp'
     })
     expect(inventory.openTerminal).toHaveBeenCalledWith(
@@ -402,7 +398,7 @@ agent_servers:
     installSystemCommands('node')
     inventory.snapshots['pi-acp'] = { name: 'pi-acp', availability: { source: 'system', path: '/adapter/pi-acp' } }
     inventory.snapshots.pi = { name: 'pi', availability: { source, path: '/native pi/bin/pi' } }
-    const launch = await resolveLocalAgentLaunch({ ...config, presetId: 'pi-acp', protocol: 'acp' })
+    const launch = await resolveLocalAgentLaunch({ ...config, presetId: 'pi-acp' })
     expect(launch.executable).toBe('/user/bin/node')
     expect(launch.env.PI_ACP_PI_COMMAND).toBe('/native pi/bin/pi')
     expect(launch.args).toEqual([application.getPath('app.pi_acp.file')])
@@ -412,41 +408,40 @@ agent_servers:
   it.each([false, true])('makes bundled Bun available to omp (terminal=%s)', async (terminal) => {
     installSystemCommands('omp')
     inventory.snapshots.bun = { name: 'bun', availability: { source: 'bundled', path: '/bundled/bin/bun' } }
-    const selected = { ...config, presetId: 'omp', protocol: 'acp' } as const
+    const selected = { ...config, presetId: 'omp' } as const
     const launch = terminal ? await resolveLocalAgentCli(selected) : await resolveLocalAgentLaunch(selected)
     expect(launch.env.PATH.split(path.delimiter)).toContain('/bundled/bin')
     expect(launch.env.HOME).toBe('/user/home')
   })
 
   it.each([
-    ['codex', 'codex', 'codex', ['login']],
-    ['claude', 'claude', 'claude', ['auth', 'login']],
-    ['kimi', 'acp', 'kimi', ['login']],
-    ['opencode', 'acp', 'opencode', ['auth', 'login']],
-    ['qoder', 'acp', 'qodercli', ['login']],
-    ['pi-acp', 'acp', 'pi', ['auth', 'login', 'openai-codex']],
-    ['poolside', 'acp', 'pool', ['login']]
-  ] as const)('opens the native %s sign-in with its login arguments', async (presetId, protocol, executable, args) => {
+    ['codex', 'codex', ['login']],
+    ['claude', 'claude', ['auth', 'login']],
+    ['kimi', 'kimi', ['login']],
+    ['opencode', 'opencode', ['auth', 'login']],
+    ['qoder', 'qodercli', ['login']],
+    ['pi-acp', 'pi', ['auth', 'login', 'openai-codex']],
+    ['poolside', 'pool', ['login']]
+  ] as const)('opens the native %s sign-in with its login arguments', async (presetId, executable, args) => {
     const path = `/user/bin/${executable}`
     inventory.snapshots[executable] = { name: executable, availability: { source: 'system', path } }
     await openLocalAgentTerminal({
       ...config,
       presetId,
-      protocol,
       login: presetId === 'pi-acp' ? { provider: 'openai-codex' } : true
     })
     expect(inventory.openTerminal).toHaveBeenCalledWith(expect.objectContaining({ executable: path, args }))
   })
 
   it('rejects login for a CLI without a terminal login command', async () => {
-    await expect(openLocalAgentTerminal({ ...config, presetId: 'qwen', protocol: 'acp', login: true })).rejects.toThrow(
+    await expect(openLocalAgentTerminal({ ...config, presetId: 'qwen', login: true })).rejects.toThrow(
       'supported terminal login'
     )
     expect(inventory.openTerminal).not.toHaveBeenCalled()
   })
 
   it('does not open unsupported ACP adapters or silently replace a missing explicit program', async () => {
-    await expect(openLocalAgentTerminal({ ...config, presetId: 'glm-acp-agent', protocol: 'acp' })).rejects.toThrow(
+    await expect(openLocalAgentTerminal({ ...config, presetId: 'glm-acp-agent' })).rejects.toThrow(
       'supported interactive CLI'
     )
     installSystemCommands('codex')
@@ -514,7 +509,6 @@ agent_servers:
 
       const kimiConfig: LocalAgentConfiguration = {
         presetId: 'kimi',
-        protocol: 'acp',
         enabled: true,
         args: [],
         env: {}
@@ -550,7 +544,6 @@ agent_servers:
     await writeFile(executable, '#!/bin/sh\n')
     await chmod(executable, 0o755)
     const launch = await resolveLocalAgentLaunch({
-      protocol: 'acp',
       enabled: false,
       args: [],
       executableOverride: 'audit-custom',
@@ -571,25 +564,15 @@ agent_servers:
       name: executable,
       availability: { source: 'system', path: executablePath }
     }
-    const launch = await resolveLocalAgentLaunch({ ...config, presetId, protocol: 'acp' })
+    const launch = await resolveLocalAgentLaunch({ ...config, presetId })
     expect(launch).toMatchObject({ executable: executablePath, args })
   })
 
   it('excludes SDK-only Cursor from discovery and rejects direct CLI launches', async () => {
     expect((await detectLocalAgents()).some((agent) => agent.presetId === 'cursor')).toBe(false)
-    await expect(resolveLocalAgentCli({ ...config, presetId: 'cursor', protocol: 'cursor' })).rejects.toThrow(
-      'Invalid local agent preset'
-    )
+    await expect(resolveLocalAgentCli({ ...config, presetId: 'cursor' })).rejects.toThrow('Invalid local agent preset')
     await expect(
-      resolveLocalAgentLaunch({
-        ...config,
-        presetId: undefined,
-        protocol: 'cursor',
-        executableOverride: process.execPath
-      })
-    ).rejects.toThrow('Invalid local agent preset')
-    await expect(
-      resolveLocalAgentLaunch({ ...config, presetId: 'cursor', protocol: 'acp', executableOverride: process.execPath })
+      resolveLocalAgentLaunch({ ...config, presetId: 'cursor', executableOverride: process.execPath })
     ).rejects.toThrow('Invalid local agent preset')
   })
 
@@ -598,7 +581,6 @@ agent_servers:
     const launch = await resolveLocalAgentLaunch({
       ...config,
       presetId: 'factory-droid',
-      protocol: 'acp',
       env: { DROID_DISABLE_AUTO_UPDATE: 'false' }
     })
     expect(launch.env.FACTORY_DROID_AUTO_UPDATE_ENABLED).toBe('false')
@@ -607,9 +589,7 @@ agent_servers:
 
   it('does not mistake the base CLI for a separately installed ACP adapter', async () => {
     installSystemCommands('pi')
-    await expect(
-      resolveLocalAgentLaunch({ ...config, presetId: 'glm-acp-agent', protocol: 'acp' })
-    ).rejects.toMatchObject({
+    await expect(resolveLocalAgentLaunch({ ...config, presetId: 'glm-acp-agent' })).rejects.toMatchObject({
       code: 'LOCAL_AGENT_NOT_INSTALLED'
     })
   })
@@ -625,9 +605,7 @@ agent_servers:
       source: 'system',
       path: '/system/qodercli'
     })
-    expect((await resolveLocalAgentLaunch({ ...config, presetId: 'qoder', protocol: 'acp' })).executable).toBe(
-      '/system/qodercli'
-    )
+    expect((await resolveLocalAgentLaunch({ ...config, presetId: 'qoder' })).executable).toBe('/system/qodercli')
   })
 
   it('detects the Antigravity adapter and interactive CLI independently', async () => {
@@ -656,7 +634,7 @@ agent_servers:
         })
       }
     ])
-    const glmLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'glm-acp-agent', protocol: 'acp' })
+    const glmLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'glm-acp-agent' })
     expect(glmLaunch.nativeModel).toBe('cherryin:agent/glm-5')
     expect(glmLaunch.env).toMatchObject({
       Z_AI_API_KEY: 'glm-key',
@@ -677,7 +655,6 @@ agent_servers:
     const cbLaunch = await resolveLocalAgentLaunch({
       ...config,
       presetId: 'codebuddy-code',
-      protocol: 'acp',
       env: {}
     })
     expect(cbLaunch.nativeModel).toBe('cherryin:agent/deepseek-v4-pro')
@@ -704,7 +681,6 @@ agent_servers:
     const clineLaunch = await resolveLocalAgentLaunch({
       ...config,
       presetId: 'cline',
-      protocol: 'acp',
       env: { CLINE_API_KEY: 'explicit-override' }
     })
     expect(clineLaunch.nativeModel).toBe('cherryin:agent/deepseek-v4-pro')
@@ -724,7 +700,7 @@ agent_servers:
         })
       }
     ])
-    const snowLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'snow', protocol: 'acp' })
+    const snowLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'snow' })
     expect(snowLaunch.nativeModel).toBe('cherryin:agent/deepseek-v4-pro')
 
     installSystemCommands('goose')
@@ -740,7 +716,7 @@ agent_servers:
         ].join('\n')
       }
     ])
-    const gooseAnthropicLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'goose', protocol: 'acp' })
+    const gooseAnthropicLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'goose' })
     expect(gooseAnthropicLaunch.nativeModel).toBe('cherryin:agent/glm-5')
     expect(gooseAnthropicLaunch.env).toMatchObject({
       GOOSE_PROVIDER: 'anthropic',
@@ -761,7 +737,7 @@ agent_servers:
         ].join('\n')
       }
     ])
-    const gooseOpenAiLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'goose', protocol: 'acp' })
+    const gooseOpenAiLaunch = await resolveLocalAgentLaunch({ ...config, presetId: 'goose' })
     expect(gooseOpenAiLaunch.nativeModel).toBe('cherryin:agent/deepseek-v4-pro')
     expect(gooseOpenAiLaunch.env).toMatchObject({
       GOOSE_PROVIDER: 'openai',
@@ -779,7 +755,6 @@ agent_servers:
     const gooseUnmanagedLaunch = await resolveLocalAgentLaunch({
       ...config,
       presetId: 'goose',
-      protocol: 'acp',
       env: {}
     })
     expect(gooseUnmanagedLaunch.nativeModel).toBeUndefined()
@@ -788,7 +763,7 @@ agent_servers:
 
   it('requires ZCode host (zcode CLI, desktop bundle, or ZCODE_BIN) when launching zcode-acp', async () => {
     installSystemCommands('zcode-acp')
-    await expect(resolveLocalAgentLaunch({ ...config, presetId: 'zcode', protocol: 'acp' })).rejects.toMatchObject({
+    await expect(resolveLocalAgentLaunch({ ...config, presetId: 'zcode' })).rejects.toMatchObject({
       code: 'LOCAL_AGENT_HOST_REQUIRED'
     })
 
@@ -798,7 +773,6 @@ agent_servers:
     const viaEnv = await resolveLocalAgentLaunch({
       ...config,
       presetId: 'zcode',
-      protocol: 'acp',
       env: { ZCODE_BIN: customBin }
     })
     expect(viaEnv.env.ZCODE_BIN).toBe(customBin)
@@ -808,7 +782,6 @@ agent_servers:
       resolveLocalAgentLaunch({
         ...config,
         presetId: 'zcode',
-        protocol: 'acp',
         env: { ZCODE_BIN: path.join(directory, 'missing-zcode.cjs') }
       })
     ).rejects.toMatchObject({
@@ -830,7 +803,7 @@ agent_servers:
       )
       await mkdir(path.dirname(macBundle), { recursive: true })
       await writeFile(macBundle, '// zcode\n')
-      const viaMacBundle = await resolveLocalAgentLaunch({ ...config, presetId: 'zcode', protocol: 'acp' })
+      const viaMacBundle = await resolveLocalAgentLaunch({ ...config, presetId: 'zcode' })
       expect(viaMacBundle.executable).toBe('/user/bin/zcode-acp')
     }
 
@@ -842,7 +815,6 @@ agent_servers:
     const viaWinBundle = await resolveLocalAgentLaunch({
       ...config,
       presetId: 'zcode',
-      protocol: 'acp',
       env: { LOCALAPPDATA: path.join(directory, 'localappdata') }
     })
     expect(viaWinBundle.executable).toBe('/user/bin/zcode-acp')
@@ -850,7 +822,7 @@ agent_servers:
 
   it('opens Amp login with only the native CLI installed', async () => {
     installSystemCommands('amp')
-    const selected = { ...config, presetId: 'amp-acp', protocol: 'acp' } as const
+    const selected = { ...config, presetId: 'amp-acp' } as const
     await openLocalAgentTerminal({ ...selected, login: true })
     expect(inventory.openTerminal).toHaveBeenCalledWith(
       expect.objectContaining({ executable: '/user/bin/amp', args: ['login'] })
@@ -864,12 +836,12 @@ agent_servers:
       path: '/user/bin/amp-acp',
       missingChatExecutable: 'amp'
     })
-    await expect(resolveLocalAgentLaunch({ ...config, presetId: 'amp-acp', protocol: 'acp' })).rejects.toMatchObject({
+    await expect(resolveLocalAgentLaunch({ ...config, presetId: 'amp-acp' })).rejects.toMatchObject({
       code: 'LOCAL_AGENT_HOST_REQUIRED'
     })
 
     installSystemCommands('amp')
-    const launched = await resolveLocalAgentLaunch({ ...config, presetId: 'amp-acp', protocol: 'acp' })
+    const launched = await resolveLocalAgentLaunch({ ...config, presetId: 'amp-acp' })
     expect(launched.executable).toBe('/user/bin/amp-acp')
   })
 })

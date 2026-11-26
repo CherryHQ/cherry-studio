@@ -34,7 +34,7 @@ export async function selectLocalAgentModel(
 ) {
   const agent = agentService.getAgent(agentId)
   const config = agent?.configuration?.localRuntime
-  const native = getLocalAgentModelStorage(config)
+  const native = getLocalAgentModelStorage(config?.presetId)
   if (!agent || agent.type !== 'local' || !config || !native) {
     throw new Error(t('code_cli.model.unsupported'))
   }
@@ -90,8 +90,7 @@ export async function selectLocalAgentModel(
       // Re-read after queued I/O so an enable or environment edit is not overwritten.
       const current = agentService.getAgent(agentId)?.configuration?.localRuntime
       if (!current) throw new Error(t('code_cli.model.agent_missing'))
-      if (current.presetId !== config.presetId || current.protocol !== config.protocol)
-        throw new Error(t('code_cli.model.config_changed'))
+      if (current.presetId !== config.presetId) throw new Error(t('code_cli.model.config_changed'))
       if (hasConfigOverrides(native.overrides, current.env, shellEnv))
         throw new Error(t('code_cli.model.environment_mismatch'))
       const updated = agentService.updateAgent(agentId, {

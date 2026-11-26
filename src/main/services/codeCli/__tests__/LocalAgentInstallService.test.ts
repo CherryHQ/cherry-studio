@@ -193,7 +193,7 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
       name: agentId,
       type: 'local',
       model: null,
-      configuration: { localRuntime: { presetId, protocol: 'acp', enabled: true, args: [], env: {} } }
+      configuration: { localRuntime: { presetId, enabled: true, args: [], env: {} } }
     })
     return agentSessionService.create({ agentId, name: agentId, workspace: { type: 'system' } }).id
   }
@@ -272,7 +272,6 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
   it('discovers and resolves Antigravity ACP after installing only the official CLI', async () => {
     const cli = path.join(state.root, 'agy')
     const config: LocalAgentConfiguration = {
-      protocol: 'acp',
       presetId: 'antigravity-acp',
       enabled: true,
       args: [],
@@ -531,7 +530,7 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
   it('uses the executable found after installation for Codex discovery, chat and model probes', async () => {
     state.name = 'codex'
     const installed = await new LocalAgentInstallService().install('codex')
-    const settings = { protocol: 'codex' as const, presetId: 'codex', enabled: true, args: [], env: {} }
+    const settings = { presetId: 'codex', enabled: true, args: [], env: {} }
     const signal = new AbortController().signal
 
     expect(installed).toMatchObject({ ok: true, path: path.join(state.root, 'codex') })

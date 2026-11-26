@@ -298,7 +298,7 @@ describe('TopicNamingService', () => {
   )
 
   it('preserves an ACP title from a custom agent even when it looks like an OpenClaw bridge title', () => {
-    mocks.getAgent.mockReturnValue({ configuration: { localRuntime: { protocol: 'acp' } } })
+    mocks.getAgent.mockReturnValue({ configuration: { localRuntime: { executableOverride: '/custom/acp' } } })
     mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', name: 'acp-bridge:my-task' })
     createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', 'Inspect the workspace')
     expect(mocks.updateSession).not.toHaveBeenCalled()

@@ -68,10 +68,8 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         if (!sessionId || !unifiedLocalMode || localPermission?.disabled) return false
         const targetOption = unifiedLocalMode.options.find((option) => option.canonicalMode === nextMode)
         if (!targetOption) return false
-        const method =
-          localPermission?.kind === 'config' ? 'ai.local_agents.set_config_option' : 'ai.local_agents.set_mode'
         void ipcApi
-          .request(method, {
+          .request('ai.local_agents.set_mode', {
             sessionId,
             configId: unifiedLocalMode.id,
             value: targetOption.value
@@ -83,16 +81,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
       void updateAgent({ id: agentId, configuration: { permission_mode: nextMode } }, { showSuccessToast: false })
       return true
     },
-    [
-      agent,
-      agentId,
-      isLocal,
-      localPermission?.disabled,
-      localPermission?.kind,
-      sessionId,
-      unifiedLocalMode,
-      updateAgent
-    ]
+    [agent, agentId, isLocal, localPermission?.disabled, sessionId, unifiedLocalMode, updateAgent]
   )
 
   const handleSelectMode = useCallback(
