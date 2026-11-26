@@ -233,6 +233,7 @@ export class ClaudeProjection {
         !Array.isArray(structuredContent) &&
         projected &&
         'result' in projected &&
+        projected.result.state === 'output-available' &&
         !('is_error' in block && block.is_error)
       ) {
         projected.result.output = { content: block.content ?? '', structuredContent }
