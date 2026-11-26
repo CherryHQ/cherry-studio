@@ -6,7 +6,8 @@ const CREATE_COMMIT_MUTATION =
   'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url}}}'
 
 function listStagedPaths(diffFilter) {
-  return execFileSync('git', ['diff', '--cached', '--name-only', '-z', `--diff-filter=${diffFilter}`])
+  // GitHub represents a rename as deleting the old path and adding the new one.
+  return execFileSync('git', ['diff', '--cached', '--no-renames', '--name-only', '-z', `--diff-filter=${diffFilter}`])
     .toString()
     .split('\0')
     .filter(Boolean)
@@ -53,7 +54,7 @@ function main() {
   const rootDirectory = process.cwd()
   const request = buildRegistrySyncRequest({
     rootDirectory,
-    additionPaths: listStagedPaths('ACMR'),
+    additionPaths: listStagedPaths('AM'),
     deletionPaths: listStagedPaths('D'),
     refId: requiredEnvironment('REGISTRY_SYNC_REF_ID'),
     expectedHeadOid: requiredEnvironment('REGISTRY_SYNC_EXPECTED_HEAD_OID'),
