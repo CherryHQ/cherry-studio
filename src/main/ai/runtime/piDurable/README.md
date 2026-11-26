@@ -55,8 +55,9 @@ initializes a passive native reference entry separately from command text, using
 deduplication across reopening. Initialization starts no model run and stays out of product
 projections and behavior-authorizing user history. Both ordinary submissions and autonomous goal
 rounds receive it. This creates no source-message entries or historical checkpoints; fresh bindings
-capture the selected product position, and subsequent input uses native history. Root SDK message views pass through `ThreadMessageProjection`;
-Main's `RootMessageProjection` groups them into product replies for the stream manager. Every child has an independent `ChildThreadProjection`,
+capture the selected product position, and subsequent input uses native history. The root adapter
+captures one source for structural reconciliation. Main's `RootMessageProjection` accepts live part
+operations and supplies the reply body when it is read. Every child has an independent `ChildThreadProjection`,
 archive and shared `ai.projection.*` subscription. Parent parts contain task metadata
 and navigation, not the child's streamed body. Accepted child text remains the user's
 text even when shared behavior wraps its native input.
@@ -120,9 +121,10 @@ cancellation and ownership semantics.
   cannot identify that reply. A queued input that has no reply yet gets a new one. Follow-ups
   still queued are placed and answered after it. A pending reply whose input already has a
   Durable outcome is rebuilt from committed entries with that outcome; a reply already stored
-  with a terminal status is not rebuilt. Boot recovery leaves admitted delivery turns pending and
-  opens their Sessions so Durable finishes them; a Session that cannot connect ends its delivery
-  turn as an error.
+  with a terminal status is not rebuilt. At startup Main reads terminal native evidence by the original input and
+  commits the recovered body to the corresponding product Run. The driver owns one scheduler per
+  physical store with unfinished work. It installs the affected roots and child writers before
+  resuming and keeps unresolved stores eligible for another recovery.
 - Closing a child panel only detaches its projection subscription.
 
 Background continuation keeps one child identity. Independent continuation of an ended

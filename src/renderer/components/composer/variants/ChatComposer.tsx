@@ -1390,7 +1390,7 @@ const ChatComposerInner = ({
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
 
-  useComposerQuoteInsertion(actionsRef)
+  useComposerQuoteInsertion(actionsRef, topicId, !editingMessageForCurrentTopic)
   useComposerPrefill(actionsRef, {
     topicId: streamScopeKey,
     enabled: !editingMessageForCurrentTopic,

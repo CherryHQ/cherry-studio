@@ -7,7 +7,8 @@
 
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 
-import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
+import type { ReasoningCacheReaders } from '../../reasoningCache'
+import { AnthropicMessageConverter } from '../converters/AnthropicMessageConverter'
 import { type GeminiGenerateContentRequest, GeminiMessageConverter } from '../converters/GeminiMessageConverter'
 import { type ExtendedChatCompletionCreateParams, OpenAiMessageConverter } from '../converters/OpenAiMessageConverter'
 import {
@@ -24,14 +25,6 @@ export type InputParamsMap = {
   anthropic: MessageCreateParams
   'openai-responses': ResponsesCreateParams
   gemini: GeminiGenerateContentRequest
-}
-
-/**
- * Options for creating converters
- */
-export interface ConverterOptions {
-  googleReasoningCache?: ReasoningCache
-  openRouterReasoningCache?: ReasoningCache
 }
 
 /**
@@ -60,7 +53,7 @@ export class MessageConverterFactory {
    */
   static create<T extends InputFormat>(
     format: T,
-    options: ConverterOptions = {}
+    options: ReasoningCacheReaders = {}
   ): IMessageConverter<InputParamsMap[T]> {
     if (format === 'openai') {
       return new OpenAiMessageConverter() as IMessageConverter<InputParamsMap[T]>
@@ -71,10 +64,7 @@ export class MessageConverterFactory {
     if (format === 'gemini') {
       return new GeminiMessageConverter() as IMessageConverter<InputParamsMap[T]>
     }
-    return new AnthropicMessageConverter({
-      googleReasoningCache: options.googleReasoningCache,
-      openRouterReasoningCache: options.openRouterReasoningCache
-    }) as IMessageConverter<InputParamsMap[T]>
+    return new AnthropicMessageConverter(options) as IMessageConverter<InputParamsMap[T]>
   }
 }
 
