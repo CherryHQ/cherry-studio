@@ -104,6 +104,7 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     initial: (): { values: Record<string, NativeJson> } => ({ values: {} })
   })
   const providers = new Map<string, ThreadId>()
+  const pendingProviders = new Map<string, Promise<void>>()
   async function consumeRequest(thread: ThreadId, ownerRun?: number) {
     return harness.commit(async (tx) => {
       const id = conversationId(thread)
@@ -123,6 +124,8 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
     }, context)
   }
   async function providerThread(sessionId: string): Promise<ThreadId> {
+    const publication = pendingProviders.get(sessionId)
+    if (publication) await publication
     const known = providers.get(sessionId)
     if (known) return known
     await harness.commit(async (tx) => {
@@ -330,8 +333,14 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
         read: (thread) =>
           enter(scope, () => scope.commit((tx) => readFacts(tx, folds, conversationId(thread), abandoned))),
         transact: (thread, decide) =>
-          enter(scope, () =>
-            scope.commit(async (tx) => {
+          enter(scope, async () => {
+            let stagedProviders: { sessionId: string; thread: ThreadId }[] = []
+            let finishPublication!: () => void
+            const publication = new Promise<void>((resolve) => {
+              finishPublication = resolve
+            })
+            const committed = scope.commit(async (tx) => {
+              stagedProviders = []
               const id = conversationId(thread)
               const facts = await readFacts(tx, folds, id, abandoned)
               const step = decide(facts)
@@ -410,6 +419,9 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                         ownership
                       })
                     : await tx.createConversation({ ownership })
+                  const provider = await tx.doc(ProviderDoc, child.id)
+                  if (provider.sessionId)
+                    stagedProviders.push({ sessionId: provider.sessionId, thread: threadId(child.id) })
                   const point = forkPoints.get(op.key)
                   for (const message of point?.model ?? [])
                     if (message.role === 'assistant')
@@ -463,9 +475,21 @@ export function createPiDurableBehavior(options: PiDurableBehaviorOptions) {
                   spawned.push({ key: op.key, child: threadId(child.id) })
                 }
               }
+              // Commit observers can look up child identities before commit resolves.
+              for (const entry of stagedProviders) pendingProviders.set(entry.sessionId, publication)
               return { result: step.result, effects: step.effects, spawned }
             })
-          ),
+            try {
+              const result = await committed
+              for (const entry of stagedProviders) providers.set(entry.sessionId, entry.thread)
+              return result
+            } finally {
+              for (const { sessionId } of stagedProviders) {
+                if (pendingProviders.get(sessionId) === publication) pendingProviders.delete(sessionId)
+              }
+              finishPublication()
+            }
+          }),
         modelContext: (thread) =>
           enter(scope, async () => (await (await native(thread)).context(scope.context)).messages)
       },

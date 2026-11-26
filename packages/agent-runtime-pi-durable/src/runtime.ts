@@ -144,8 +144,8 @@ export interface PiDurableArchive {
 }
 export interface PiDurableRuntime extends AgentRuntime {
   readonly lookupInput: LookupInput
-  /** Native transactions share this owner's mutation line; callers must retain their backend access. */
-  readonly durable: Pick<Harness, 'commit'>
+  /** Native transactions and commit observations share this owner's mutation line and require retained backend access. */
+  readonly durable: Pick<Harness, 'commit' | 'observeCommits'>
   create(options: PiDurableSessionOptions): Promise<OperationResult<PiDurableThreadHandle>>
   open(ref: Thread): Promise<OperationResult<PiDurableThreadHandle>>
   resume(): Promise<OperationResult<void>>
