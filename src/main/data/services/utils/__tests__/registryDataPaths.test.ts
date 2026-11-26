@@ -28,7 +28,9 @@ const MANIFEST = resolve(OVERRIDE, 'manifest.json')
 const activePaths = {
   models: resolve(OVERRIDE, 'models.json'),
   providers: resolve(BUNDLED, 'providers.json'),
-  providerModels: resolve(OVERRIDE, 'provider-models.json')
+  providerModels: resolve(OVERRIDE, 'provider-models.json'),
+  // Rows of providers the snapshot predates still come from the bundled catalog.
+  bundledProviderModels: resolve(BUNDLED, 'provider-models.json')
 }
 const bundledPaths = {
   models: resolve(BUNDLED, 'models.json'),

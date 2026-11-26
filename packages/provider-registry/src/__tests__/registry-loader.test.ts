@@ -201,3 +201,42 @@ describe('RegistryLoader.findModel — explicit size misses', () => {
     expect(loader.findModel(modelId)).toBeNull()
   })
 })
+
+describe('RegistryLoader bundled fallback — remote snapshot published before a provider existed', () => {
+  const snapshotRow = { providerId: 'openai', modelId: 'gpt-x', apiModelId: 'gpt-x' }
+  const bundledRows = [
+    { providerId: 'openai', modelId: 'gpt-old', apiModelId: 'gpt-old' },
+    { providerId: 'acctoken', modelId: 'deepseek-v4-flash', apiModelId: 'deepseek-v4-flash' },
+    { providerId: 'acctoken', modelId: 'kimi-k3', apiModelId: 'kimi/kimi-k3' }
+  ]
+  const snapshotLoader = (bundledProviderModels?: string) =>
+    new RegistryLoader({
+      models: write('models.json', { version: '2026.01.01', models: [] }),
+      providers: write('providers.json', { version: '2026.01.01', providers: [] }),
+      providerModels: write('provider-models.json', { version: '2026.01.01', overrides: [snapshotRow] }),
+      bundledProviderModels
+    })
+  const bundledFile = () => write('bundled-provider-models.json', { version: '2026.01.02', overrides: bundledRows })
+
+  it('lists the bundled rows of a provider the snapshot never mentions', () => {
+    const loader = snapshotLoader(bundledFile())
+    expect(loader.getOverridesForProvider('acctoken').map((row) => row.apiModelId)).toEqual([
+      'deepseek-v4-flash',
+      'kimi/kimi-k3'
+    ])
+    expect(loader.findOverride('acctoken', 'kimi-k3')?.apiModelId).toBe('kimi/kimi-k3')
+  })
+
+  it('keeps exactly the snapshot rows for a provider the snapshot mentions', () => {
+    expect(snapshotLoader(bundledFile()).getOverridesForProvider('openai')).toEqual([snapshotRow])
+  })
+
+  it('still reports the snapshot version', () => {
+    expect(snapshotLoader(bundledFile()).getProviderModelsVersion()).toBe('2026.01.01')
+  })
+
+  it('adds nothing without a bundled file, or when it cannot be read', () => {
+    expect(snapshotLoader().getOverridesForProvider('acctoken')).toEqual([])
+    expect(snapshotLoader(join(dir, 'missing.json')).getOverridesForProvider('acctoken')).toEqual([])
+  })
+})

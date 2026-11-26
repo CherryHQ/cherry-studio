@@ -73,6 +73,27 @@ export interface RegistryPaths {
   models: string
   providers: string
   providerModels: string
+  /**
+   * The bundled provider-models file, set while `providerModels` points at a remote snapshot. A snapshot
+   * published before a provider existed has no rows for it; that provider keeps its bundled rows.
+   */
+  bundledProviderModels?: string
+}
+
+/**
+ * Add the bundled rows of every provider the active rows never mention. A remote snapshot published before a
+ * provider was added carries no rows for it, so a registry-listed preset would list no models and stale-model
+ * cleanup would offer to delete the ones the user already saved. Providers the snapshot does mention keep
+ * exactly its rows.
+ */
+function withBundledRowsForUnknownProviders(
+  active: ProviderModelOverride[],
+  bundled: ProviderModelOverride[]
+): ProviderModelOverride[] {
+  if (bundled.length === 0) return active
+  const known = new Set(active.map((row) => row.providerId))
+  const missing = bundled.filter((row) => !known.has(row.providerId))
+  return missing.length > 0 ? [...active, ...missing] : active
 }
 
 /** Default idle TTL in milliseconds (30 seconds). */
@@ -132,15 +153,29 @@ export class RegistryLoader {
     return this.providers
   }
 
-  /** Load and cache provider-models.json. Returns overrides array. */
+  /**
+   * Load and cache provider-models.json. Returns overrides array. While a remote snapshot is active, providers
+   * it never mentions keep their bundled rows; the version stays the snapshot's.
+   */
   loadProviderModels(): ProviderModelOverride[] {
     this.touch()
     if (this.providerModels) return this.providerModels
     const data = readProviderModelRegistry(this.paths.providerModels)
-    this.providerModels = data.overrides ?? []
+    this.providerModels = withBundledRowsForUnknownProviders(data.overrides ?? [], this.readBundledProviderModels())
     this.providerModelsVersion = data.version
     this.overrideIndex = new ProviderModelIndex(this.providerModels)
     return this.providerModels
+  }
+
+  /** Bundled rows to fall back on while a snapshot is active. Unreadable bundled data adds nothing. */
+  private readBundledProviderModels(): ProviderModelOverride[] {
+    const bundledPath = this.paths.bundledProviderModels
+    if (!bundledPath || bundledPath === this.paths.providerModels) return []
+    try {
+      return readProviderModelRegistry(bundledPath).overrides ?? []
+    } catch {
+      return []
+    }
   }
 
   /** Get the models.json version string. */
