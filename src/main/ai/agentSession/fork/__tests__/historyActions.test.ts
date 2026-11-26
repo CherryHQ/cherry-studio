@@ -16,6 +16,7 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import { AgentSessionRuntimeService } from '../../AgentSessionRuntimeService'
 import { AgentSessionForkOperations } from '../AgentSessionForkOperations'
+import { readHistoryActions } from '../readHistoryActions'
 
 const dbh = setupTestDatabase()
 let sessionId: string
@@ -77,15 +78,13 @@ it('offers native-backed boundaries and lets edit preparation use a predecessor 
   const page = messages.listSessionMessages(sessionId, { messageId: next.id, limit: 1 })
   expect(page.items.map((row) => row.id)).toEqual([next.id])
   expect(
-    runtime
-      .getHistoryActions(
-        sessionId,
-        page.items.map((row) => row.id)
-      )
-      .get(next.id)
+    readHistoryActions(
+      sessionId,
+      page.items.map((row) => row.id)
+    ).get(next.id)
   ).toEqual({ fork: 'not_turn_boundary', edit: null })
   const rows = messages.listSessionMessages(sessionId).items
-  const actions = runtime.getHistoryActions(
+  const actions = readHistoryActions(
     sessionId,
     rows.map((row) => row.id)
   )
@@ -117,7 +116,7 @@ it('refuses legacy, malformed and foreign-runtime checkpoints consistently in li
   })
   const foreignEdit = user('Foreign edit')
   const rows = messages.listSessionMessages(sessionId).items
-  const availability = runtime.getHistoryActions(
+  const availability = readHistoryActions(
     sessionId,
     rows.map((row) => row.id)
   )
@@ -156,7 +155,7 @@ it('keeps unsupported harness history readable and rejects execution, including 
   const first = user('Durable input')
   const completed = answer()
   const rows = messages.listSessionMessages(sessionId).items
-  const actions = runtime.getHistoryActions(
+  const actions = readHistoryActions(
     sessionId,
     rows.map((row) => row.id)
   )
@@ -192,7 +191,7 @@ it('refuses a missing edit parent without treating the input as a first message'
   } finally {
     dbh.sqlite.pragma('foreign_keys = ON')
   }
-  expect(runtime.getHistoryActions(sessionId, [input.id]).get(input.id)?.edit).toBe('checkpoint_unsupported')
+  expect(readHistoryActions(sessionId, [input.id]).get(input.id)?.edit).toBe('checkpoint_unsupported')
   await expect(runtime.getEditTarget(sessionId, input.id)).rejects.toMatchObject({ reason: 'checkpoint_unsupported' })
   const target = { messageId: input.id, version: messages.readEditSnapshotTx(dbh.db, sessionId, input.id).version }
   await expect(
@@ -225,7 +224,7 @@ it('rejects delivery edits and keeps boundary reads scoped to the requested sess
     })
     .where(eq(agentSessionMessageTable.id, delivered.id))
     .run()
-  expect(runtime.getHistoryActions(sessionId, [delivered.id]).get(delivered.id)?.edit).toBe('invalid_target')
+  expect(readHistoryActions(sessionId, [delivered.id]).get(delivered.id)?.edit).toBe('invalid_target')
   await expect(runtime.getEditTarget(sessionId, delivered.id)).rejects.toMatchObject({ reason: 'invalid_target' })
   const other = randomUUID()
   const session = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, sessionId)).get()!
@@ -234,9 +233,9 @@ it('rejects delivery edits and keeps boundary reads scoped to the requested sess
     .values({ id: other, agentId, workspaceId: session.workspaceId, name: 'Other', orderKey: 'a1' })
     .run()
   const foreign = messages.saveMessage({ sessionId: other, message: { role: 'user', data: { parts: [] } } })
-  const actions = runtime.getHistoryActions(sessionId, [first.id, foreign.id])
+  const actions = readHistoryActions(sessionId, [first.id, foreign.id])
   expect([...actions.keys()]).toEqual([first.id])
-  expect(runtime.getHistoryActions(sessionId, []).size).toBe(0)
+  expect(readHistoryActions(sessionId, []).size).toBe(0)
 })
 
 // Durable edits need either a fresh first-input context or a valid predecessor checkpoint.
@@ -248,7 +247,7 @@ it('enables Durable edits at first inputs and committed predecessor boundaries',
   const later = user('Later Durable input')
   const malformed = answer({ runtime: 'pi-durable', backendId: randomUUID(), conversationId: '1', entryId: '0' })
   const legacy = answer()
-  const actions = runtime.getHistoryActions(sessionId, [first.id, completed.id, later.id, malformed.id, legacy.id])
+  const actions = readHistoryActions(sessionId, [first.id, completed.id, later.id, malformed.id, legacy.id])
   expect(actions.get(completed.id)?.fork).toBeNull()
   expect(actions.get(malformed.id)?.fork).toBe('unsupported_checkpoint')
   expect(actions.get(legacy.id)?.fork).toBe('legacy_history')

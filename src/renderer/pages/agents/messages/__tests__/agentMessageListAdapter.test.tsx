@@ -11,6 +11,7 @@ import type {
 import { toast } from '@renderer/services/toast'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Topic } from '@renderer/types/topic'
+import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -799,24 +800,26 @@ describe('useAgentMessageListProviderValue', () => {
         ...(status === 'TIMEOUT' ? [{ type: 'text', text: 'Preserved partial answer' }] : []),
         { type: 'data-imported-status', data: { status } }
       ]
-      expect(value?.state.partsByMessageId?.[`imported-${status}`]).toEqual(expected)
-      expect(value?.state.streamingLayers?.historyPartsByMessageId[`imported-${status}`]).toEqual(expected)
+      expect(messagePartsAt(value?.state.partsByMessageId, `imported-${status}`)).toEqual(expected)
+      expect(messagePartsAt(value?.state.streamingLayers?.historyPartsByMessageId, `imported-${status}`)).toEqual(
+        expected
+      )
     }
-    expect(value?.state.partsByMessageId?.['assistant-error']).toEqual([
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-error')).toEqual([
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
-    expect(value?.state.partsByMessageId?.['assistant-empty-success']).toEqual([
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-empty-success')).toEqual([
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
-    expect(value?.state.partsByMessageId?.['assistant-pending']).toEqual([])
-    expect(value?.state.partsByMessageId?.['assistant-hidden-success']).toEqual([
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-pending')).toEqual([])
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-hidden-success')).toEqual([
       expect.objectContaining({ type: 'data-agent-task-event' }),
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
-    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-error']).toEqual([
+    expect(messagePartsAt(value?.state.streamingLayers?.historyPartsByMessageId, 'assistant-error')).toEqual([
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
-    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-hidden-success']).toEqual([
+    expect(messagePartsAt(value?.state.streamingLayers?.historyPartsByMessageId, 'assistant-hidden-success')).toEqual([
       expect.objectContaining({ type: 'data-agent-task-event' }),
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])

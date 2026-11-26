@@ -181,6 +181,12 @@ describe('projectLiveMessageParts', () => {
     expect(emptyReasoning).toEqual([])
   })
 
+  it('keeps an addressed open text row mounted before the first suffix arrives', () => {
+    const entry = { part: { type: 'text', text: '', state: 'streaming' }, index: 0, partId: 'reply' } as const
+    expect(projectLiveMessageParts([entry])).toEqual([{ kind: 'part', key: 'reply', entry }])
+    expect(projectLiveMessageParts([{ ...entry, part: { ...entry.part, state: 'done' } }])).toEqual([])
+  })
+
   it('does not let empty settled text or reasoning split a continuous tool run', () => {
     const layout = projectLiveMessageParts(
       entries([

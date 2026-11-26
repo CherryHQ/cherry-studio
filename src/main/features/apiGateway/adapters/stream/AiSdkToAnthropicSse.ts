@@ -167,14 +167,14 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<AnthropicStreamEvent>
       case 'tool-input-error':
       case 'tool-input-available': {
         const toolName = this.toClientToolName?.(chunk.toolName) ?? chunk.toolName
-        const meta = chunk.providerMetadata as Record<string, any> | undefined
+        const meta = chunk.providerMetadata
         const thoughtSignature = meta?.google?.thoughtSignature
-        if (googleReasoningCache && typeof thoughtSignature === 'string') {
+        if (typeof thoughtSignature === 'string') {
           googleReasoningCache.set(`google-${chunk.toolCallId}`, thoughtSignature)
         }
         const reasoningDetails = meta?.openrouter?.reasoning_details
-        if (openRouterReasoningCache && Array.isArray(reasoningDetails)) {
-          openRouterReasoningCache.set(`openrouter-${chunk.toolCallId}`, JSON.parse(JSON.stringify(reasoningDetails)))
+        if (Array.isArray(reasoningDetails)) {
+          openRouterReasoningCache.set(`openrouter-${chunk.toolCallId}`, reasoningDetails)
         }
         this.handleToolCall({
           toolCallId: chunk.toolCallId,

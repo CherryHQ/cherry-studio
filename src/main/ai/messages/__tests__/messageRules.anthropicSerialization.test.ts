@@ -112,6 +112,33 @@ const errorBytes =
   '[{"type":"tool_use","id":"error","name":"lookup","input":{}},{"type":"tool_result","tool_use_id":"error","content":"Lookup failed","is_error":true}]'
 
 describe('Anthropic replay over loopback HTTP', () => {
+  it('keeps both user prompts when a historical answer consists entirely of whitespace', async () => {
+    await replay([{ type: 'text', text: '\n \t' }])
+    const body: WireBody = JSON.parse(captures.at(-1)!.bytes)
+    expect(body.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'before' },
+          { type: 'text', text: 'after' }
+        ]
+      }
+    ])
+  })
+
+  it('omits blank assistant text blocks and preserves the surrounding answer verbatim', async () => {
+    await replay([
+      { type: 'text', text: '  First paragraph.\n' },
+      { type: 'text', text: '\n \t' },
+      { type: 'text', text: '  Second paragraph.' }
+    ])
+    const body: WireBody = JSON.parse(captures.at(-1)!.bytes)
+    expect(body.messages.find((message) => message.role === 'assistant')?.content).toEqual([
+      { type: 'text', text: '  First paragraph.\n' },
+      { type: 'text', text: '  Second paragraph.' }
+    ])
+  })
+
   it.each([
     ['static', staticBad],
     ['dynamic', dynamicBad]

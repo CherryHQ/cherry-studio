@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto'
 
-import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
+import {
+  type AgentSessionMessageFixture,
+  insertAgentSessionMessages,
+  setupTestDatabase,
+  seedSessionRoot
+} from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,7 +14,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentRuntimeBackendTable } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
-import { agentSessionMessageTable, type InsertAgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { seeders } from '@data/db/seeding/seederRegistry'
@@ -45,19 +50,16 @@ describe('AgentSessionContextSeeder', () => {
     return id
   }
 
-  function message(sessionId: string, values: Partial<InsertAgentSessionMessageRow> = {}) {
-    dbh.db
-      .insert(agentSessionMessageTable)
-      .values({
-        parentId: seedSessionRoot(dbh.db, sessionId),
-        id: randomUUID(),
-        sessionId,
-        role: 'user',
-        status: 'success',
-        data: { parts: [{ type: 'text', text: 'Preserved history' }] },
-        ...values
-      })
-      .run()
+  function message(sessionId: string, values: Partial<AgentSessionMessageFixture> = {}) {
+    insertAgentSessionMessages(dbh.db, {
+      parentId: seedSessionRoot(dbh.db, sessionId),
+      id: randomUUID(),
+      sessionId,
+      role: 'user',
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'Preserved history' }] },
+      ...values
+    })
   }
 
   function journal() {
