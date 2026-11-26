@@ -867,18 +867,25 @@ class ModelService {
         if (registryModel) {
           reasoning = registryModel.reasoning
         } else {
-          // Custom row with no catalog match: derive fresh from the current
-          // id + capability so removing REASONING clears synthetic ladders
-          // instead of resurrecting a stale stored copy (#25203). Stored
-          // `defaultEffort` is still overlaid below. Recognized family
-          // vocabularies win over the Ollama fallback, and PROFILE matches
-          // with no knobs (e.g. `step-3`) stay knob-less.
+          // Custom row with no catalog match: preserve stored intrinsic
+          // controls (e.g. a custom `ultra` ladder) and synthesize the
+          // default fallback only when intrinsic controls are absent
+          // (#25203). Removing REASONING clears a synthetic ladder from a
+          // truly unmatched id. Recognized family vocabularies win over the
+          // Ollama fallback, and PROFILE matches with no knobs
+          // (e.g. `step-3`) stay knob-less.
           const declaredReasoning = model.capabilities.includes(MODEL_CAPABILITY.REASONING)
           const familyControls = inferReasoningControls(modelId)
-          if (familyControls) {
-            reasoning = inferCustomModelReasoning(modelId, reasoningProfile.wire, { declaredReasoning })
-          } else if (matchesReasoningFamilyProfile(modelId)) {
+          const isFixedReasoner = !familyControls && matchesReasoningFamilyProfile(modelId)
+          if (isFixedReasoner) {
             reasoning = undefined
+          } else if (model.reasoning?.controls?.length) {
+            reasoning =
+              !declaredReasoning && !familyControls
+                ? undefined
+                : projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
+          } else if (familyControls) {
+            reasoning = inferCustomModelReasoning(modelId, reasoningProfile.wire, { declaredReasoning })
           } else if (!declaredReasoning) {
             reasoning = undefined
           } else if (reasoningProfile.format === 'ollama') {
