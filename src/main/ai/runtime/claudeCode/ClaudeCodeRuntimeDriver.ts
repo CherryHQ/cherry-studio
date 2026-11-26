@@ -162,6 +162,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     | { state: 'opening'; pending: Promise<ClaudeChildResource | undefined> }
     | { state: 'attached' | 'closing'; resource: ClaudeChildResource }
   >()
+  private runActive = false
   private closing = false
   private closePromise?: Promise<void>
   /** Keep the effective child environment for native checkpoint capture. */
@@ -362,6 +363,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       parts: input.message.data.parts
     })
     this.input.onInputPrepared?.(input.message.id, contextId)
+    this.runActive = true
     const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'follow-up')
     this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
@@ -802,9 +804,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // share the next response. Retire result attribution by membership so an
       // unplaced steer's count is never reported as sent.
       for (const inputId of control.inputIds) this.placedImageInputIds.add(inputId)
-      this.eventQueue.push({ type: 'steer-boundary', inputIds: control.inputIds })
+      this.eventQueue.push({ type: this.runActive ? 'steer-boundary' : 'run-started', inputIds: control.inputIds })
+      this.runActive = true
       this.currentSources.clear()
     } else if (control.type === 'autonomous-turn-state' && control.state === 'started') {
+      this.runActive = true
       this.currentSources.clear()
     } else if (control.type === 'session') {
       if (contextId !== this.context?.id) return
@@ -835,6 +839,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       logger.warn(control.message, { detail: control.detail })
     } else if (control.type === 'result') {
       if (control.sessionId !== this.handle?.claude.sessionId) return
+      if (control.terminal || control.failure) this.runActive = false
       if (control.failure) {
         // Provider result failures bypass the admission normalizer: the
         // workspace owner already acknowledged `submit` before yielding the

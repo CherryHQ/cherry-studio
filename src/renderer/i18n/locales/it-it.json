@@ -2680,6 +2680,7 @@
   "message.backup.cleanup_failed": "Backup completato, ma non è stato possibile eliminare i vecchi backup.",
   "message.backup.failed": "Backup non riuscito",
   "message.backup.success": "Backup riuscito",
+  "message.chat.completion.interrupted": "Interrotto",
   "message.chat.completion.paused": "Generazione della risposta in pausa",
   "message.citation": "{{count}} citazioni",
   "message.citation_source": "Fonte della citazione {{number}}",
