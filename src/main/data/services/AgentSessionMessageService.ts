@@ -1793,6 +1793,13 @@ export class AgentSessionMessageService {
     }
     const hydratedRows = deferToolOutputs ? storedRows : hydrateAgentSessionMessageRowsTx(database, storedRows)
     return hydratedRows.map((row) => {
+      // Detached native input stays stored, but visible parts and IDs are parallel.
+      // Project both before deferred tool-output handles bind to a part ID.
+      const storedParts = row.data.parts ?? []
+      const visibleParts = new Set(this.projectFileParts(row.data))
+      const partIds = row.data.detachedFileEntryIds?.length
+        ? row.partIds?.filter((_, index) => visibleParts.has(storedParts[index]))
+        : row.partIds
       const entity = this.rowToEntity(row)
       if (deferToolOutputs && entity.role === 'assistant' && entity.data.parts) {
         entity.data = {
@@ -1801,13 +1808,13 @@ export class AgentSessionMessageService {
             entity.data.parts,
             buildAgentSessionTopicId(sessionId),
             entity.id,
-            row.partIds
+            partIds
           )
         }
       }
       return {
         ...entity,
-        ...(row.partIds && { partIds: row.partIds }),
+        ...(partIds && { partIds }),
         siblings: siblingsByParent.get(row.parentId) ?? []
       }
     })

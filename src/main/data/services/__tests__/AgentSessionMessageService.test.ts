@@ -231,7 +231,8 @@ describe('AgentSessionMessageService', () => {
             mediaType: 'text/plain',
             url: 'file:///files/note.txt',
             providerMetadata: { cherry: { fileEntryId: FILE_ENTRY_ID } }
-          }
+          },
+          { type: 'file' as const, mediaType: 'text/plain', url: 'file:///files/survivor.txt' }
         ]
       }
     }
@@ -263,6 +264,7 @@ describe('AgentSessionMessageService', () => {
       .where(eq(agentSessionMessageTable.id, USER_MESSAGE_ID))
       .run()
 
+    const originalParts = agentSessionMessageService.getStoredMessageParts(SESSION_ID, USER_MESSAGE_ID)
     dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, FILE_ENTRY_ID)).run()
     agentSessionMessageService.detachFileEntryParts(SESSION_ID, USER_MESSAGE_ID, FILE_ENTRY_ID)
 
@@ -279,16 +281,24 @@ describe('AgentSessionMessageService', () => {
       checkpoint: { runtime: 'pi', runtimeSessionId: 'thread-1', leafId: 'leaf' }
     })
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toEqual([
-      { type: 'text', text: 'see attachment' }
+      { type: 'text', text: 'see attachment' },
+      { type: 'file', mediaType: 'text/plain', url: 'file:///files/survivor.txt' }
     ])
     expect(agentSessionMessageService.projectFileParts({ ...raw.data, parts: message.data.parts })).toEqual([
-      { type: 'text', text: 'see attachment' }
+      { type: 'text', text: 'see attachment' },
+      { type: 'file', mediaType: 'text/plain', url: 'file:///files/survivor.txt' }
     ])
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data).not.toHaveProperty(
       'detachedFileEntryIds'
     )
+    for (const deferToolOutputs of [false, true]) {
+      const history = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs })
+      const visible = history.items.find((item) => item.id === USER_MESSAGE_ID)!
+      if (deferToolOutputs) expect(visible.partIds).toEqual([originalParts[0].partId, originalParts[2].partId])
+      expect(visible.data.parts).toHaveLength(2)
+    }
     agentSessionMessageService.saveMessage({ sessionId: SESSION_ID, message })
-    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toHaveLength(1)
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).data.parts).toHaveLength(2)
     expect(storedParts()).toEqual(message.data.parts)
   })
 
