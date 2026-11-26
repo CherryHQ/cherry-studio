@@ -127,216 +127,25 @@ describe('RuntimeExecutor.streamText', () => {
     })
   })
 
-  describe('Temperature Parameter', () => {
-    const temperatures = [0, 0.3, 0.5, 0.7, 0.9, 1.0, 1.5, 2.0]
+  it('forwards sampling settings to the SDK, including zero and negative values', async () => {
+    const settings = {
+      temperature: 0,
+      maxOutputTokens: 100,
+      topP: 0.9,
+      frequencyPenalty: -0.5,
+      presencePenalty: 0.5,
+      seed: 0
+    }
 
-    it.each(temperatures)('should support temperature=%s', async (temperature) => {
-      const mockStream = {
-        textStream: (async function* () {
-          yield 'Response'
-        })(),
-        fullStream: (async function* () {
-          yield { type: 'text-delta', textDelta: 'Response' }
-        })()
-      }
+    vi.mocked(streamText).mockResolvedValue({
+      textStream: (async function* () {
+        yield 'Response'
+      })()
+    } as any)
 
-      vi.mocked(streamText).mockResolvedValue(mockStream as any)
+    await executor.streamText({ model: 'gpt-4', messages: testMessages.simple, ...settings })
 
-      await executor.streamText({
-        model: 'gpt-4',
-        messages: testMessages.simple,
-        temperature
-      })
-
-      expect(streamText).toHaveBeenCalledWith(
-        expect.objectContaining({
-          temperature
-        })
-      )
-    })
-  })
-
-  describe('Max Tokens Parameter', () => {
-    const maxTokensValues = [10, 50, 100, 500, 1000, 2000, 4000]
-
-    it.each(maxTokensValues)('should support maxOutputTokens=%s', async (maxOutputTokens) => {
-      const mockStream = {
-        textStream: (async function* () {
-          yield 'Response'
-        })(),
-        fullStream: (async function* () {
-          yield { type: 'text-delta', textDelta: 'Response' }
-        })()
-      }
-
-      vi.mocked(streamText).mockResolvedValue(mockStream as any)
-
-      await executor.streamText({
-        model: 'gpt-4',
-        messages: testMessages.simple,
-        maxOutputTokens
-      })
-
-      // Parameters are passed through without transformation
-      expect(streamText).toHaveBeenCalledWith(
-        expect.objectContaining({
-          maxOutputTokens
-        })
-      )
-    })
-  })
-
-  describe('Top P Parameter', () => {
-    const topPValues = [0.1, 0.3, 0.5, 0.7, 0.9, 0.95, 1.0]
-
-    it.each(topPValues)('should support topP=%s', async (topP) => {
-      const mockStream = {
-        textStream: (async function* () {
-          yield 'Response'
-        })(),
-        fullStream: (async function* () {
-          yield { type: 'text-delta', textDelta: 'Response' }
-        })()
-      }
-
-      vi.mocked(streamText).mockResolvedValue(mockStream as any)
-
-      await executor.streamText({
-        model: 'gpt-4',
-        messages: testMessages.simple,
-        topP
-      })
-
-      expect(streamText).toHaveBeenCalledWith(
-        expect.objectContaining({
-          topP
-        })
-      )
-    })
-  })
-
-  describe('Frequency and Presence Penalty', () => {
-    it('should support frequency penalty', async () => {
-      const penalties = [-2.0, -1.0, 0, 0.5, 1.0, 1.5, 2.0]
-
-      for (const frequencyPenalty of penalties) {
-        vi.clearAllMocks()
-
-        const mockStream = {
-          textStream: (async function* () {
-            yield 'Response'
-          })(),
-          fullStream: (async function* () {
-            yield { type: 'text-delta', textDelta: 'Response' }
-          })()
-        }
-
-        vi.mocked(streamText).mockResolvedValue(mockStream as any)
-
-        await executor.streamText({
-          model: 'gpt-4',
-          messages: testMessages.simple,
-          frequencyPenalty
-        })
-
-        expect(streamText).toHaveBeenCalledWith(
-          expect.objectContaining({
-            frequencyPenalty
-          })
-        )
-      }
-    })
-
-    it('should support presence penalty', async () => {
-      const penalties = [-2.0, -1.0, 0, 0.5, 1.0, 1.5, 2.0]
-
-      for (const presencePenalty of penalties) {
-        vi.clearAllMocks()
-
-        const mockStream = {
-          textStream: (async function* () {
-            yield 'Response'
-          })(),
-          fullStream: (async function* () {
-            yield { type: 'text-delta', textDelta: 'Response' }
-          })()
-        }
-
-        vi.mocked(streamText).mockResolvedValue(mockStream as any)
-
-        await executor.streamText({
-          model: 'gpt-4',
-          messages: testMessages.simple,
-          presencePenalty
-        })
-
-        expect(streamText).toHaveBeenCalledWith(
-          expect.objectContaining({
-            presencePenalty
-          })
-        )
-      }
-    })
-
-    it('should support both penalties together', async () => {
-      const mockStream = {
-        textStream: (async function* () {
-          yield 'Response'
-        })(),
-        fullStream: (async function* () {
-          yield { type: 'text-delta', textDelta: 'Response' }
-        })()
-      }
-
-      vi.mocked(streamText).mockResolvedValue(mockStream as any)
-
-      await executor.streamText({
-        model: 'gpt-4',
-        messages: testMessages.simple,
-        frequencyPenalty: 0.5,
-        presencePenalty: 0.5
-      })
-
-      expect(streamText).toHaveBeenCalledWith(
-        expect.objectContaining({
-          frequencyPenalty: 0.5,
-          presencePenalty: 0.5
-        })
-      )
-    })
-  })
-
-  describe('Seed Parameter', () => {
-    it('should support seed for deterministic output', async () => {
-      const seeds = [0, 12345, 67890, 999999]
-
-      for (const seed of seeds) {
-        vi.clearAllMocks()
-
-        const mockStream = {
-          textStream: (async function* () {
-            yield 'Response'
-          })(),
-          fullStream: (async function* () {
-            yield { type: 'text-delta', textDelta: 'Response' }
-          })()
-        }
-
-        vi.mocked(streamText).mockResolvedValue(mockStream as any)
-
-        await executor.streamText({
-          model: 'gpt-4',
-          messages: testMessages.simple,
-          seed
-        })
-
-        expect(streamText).toHaveBeenCalledWith(
-          expect.objectContaining({
-            seed
-          })
-        )
-      }
-    })
+    expect(streamText).toHaveBeenCalledWith(expect.objectContaining(settings))
   })
 
   describe('Abort Signal', () => {

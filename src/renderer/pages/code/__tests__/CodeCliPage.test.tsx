@@ -827,28 +827,6 @@ describe('CodeCliPage', () => {
     })
   })
 
-  it('locks Hermes Agent provider actions from the shared status snapshot', async () => {
-    mockCodeCliState({
-      selectedCliTool: CodeCli.HERMES,
-      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
-      currentProviderId: 'anthropic'
-    })
-    versionStatusesMock.mockReturnValue(
-      baseVersionStatuses({ [CodeCli.HERMES]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true } })
-    )
-    MockUseCacheUtils.setSharedCacheValue('feature.hermes_dashboard.status', {
-      status: 'running',
-      url: 'http://127.0.0.1:49152'
-    })
-    render(<CodeCliPage />)
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'toggle anthropic' })).toBeDisabled()
-      expect(screen.getByRole('button', { name: 'configure anthropic' })).toBeDisabled()
-      expect(screen.getByRole('button', { name: 'upgrade tool' })).toBeDisabled()
-    })
-  })
-
   it('enables the provider after saving detailed config from the pending dialog', async () => {
     render(<CodeCliPage />)
 

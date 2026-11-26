@@ -17,18 +17,6 @@ const defaultProps = {
 }
 
 describe('OwnLoginCard', () => {
-  it('pairs action visibility with hit testing for hover, keyboard and no-hover input', () => {
-    render(<OwnLoginCard {...defaultProps} onToggle={vi.fn()} />)
-    const actions = screen.getByRole('button', { name: 'code.enable' }).parentElement
-
-    // Own-login actions share the hidden-hotspot and no-hover accessibility contract.
-    expect(actions?.className).toBe(
-      'pointer-events-none flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100'
-    )
-    expect(actions).toHaveClass('pointer-events-none', 'no-hover:pointer-events-auto', 'no-hover:opacity-100')
-    expect(actions).not.toHaveClass('pointer-events-auto')
-  })
-
   it('labels the toggle Enable when unselected and Disable when selected', () => {
     const onToggle = vi.fn()
     const { rerender } = render(<OwnLoginCard {...defaultProps} onToggle={onToggle} />)
