@@ -9,8 +9,11 @@ import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 import { application } from '@application'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import { ENDPOINT_TYPE, type Model, ModelSchema } from '@shared/data/types/model'
+import { providerService } from '@data/services/ProviderService'
+import { serializeError } from '@main/ai/utils/serializeError'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, ModelSchema } from '@shared/data/types/model'
 import { type AuthConfig, type Provider, ProviderSchema } from '@shared/data/types/provider'
 import { getRawModelId } from '@shared/utils/model'
 
@@ -114,7 +117,11 @@ beforeEach(() => {
   vi.spyOn(application, 'getPath').mockImplementation((key, filename) =>
     key === 'feature.provider_registry.data' && filename
       ? resolve(process.cwd(), 'packages/provider-registry/data', filename)
-      : getPath(key, filename)
+      : key === 'app.root'
+        ? filename
+          ? resolve(process.cwd(), filename)
+          : process.cwd()
+        : getPath(key, filename)
   )
   providerRegistryService.clearCache()
 })
@@ -275,29 +282,108 @@ it.each([{ capabilities: ['image-recognition'] }, { capabilities: [], inputModal
   }
 )
 
-it.each(['custom:anthropic', 'claude-code'])('rejects an unroutable provider %s', async (providerId) => {
+it('routes built-in deepseek deepseek-flash through the internal gateway', async () => {
+  dbh.db
+    .insert(userProviderTable)
+    .values({
+      providerId: 'deepseek',
+      presetProviderId: 'deepseek',
+      name: 'DeepSeek',
+      isEnabled: true,
+      orderKey: 'a0'
+    })
+    .run()
+  dbh.db
+    .insert(userModelTable)
+    .values({
+      id: 'deepseek::deepseek-flash',
+      providerId: 'deepseek',
+      modelId: 'deepseek-flash',
+      presetModelId: 'deepseek-flash',
+      isEnabled: true,
+      orderKey: 'a0'
+    })
+    .run()
+  const provider = providerService.getByProviderId('deepseek')
+  const model = modelService.getByKey('deepseek', 'deepseek-flash')
+  const binding = await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+  const reply = await binding.modelRuntime.completeSimple(
+    binding.model,
+    normalizeContext({ messages: [{ role: 'user', content: 'fixture', timestamp: 1 }] })
+  )
+  expect(gateway.requests, reply.errorMessage).toHaveLength(1)
+  expect(gateway.requests[0].api).toBe('anthropic-messages')
+  expect(gateway.requests[0].body).toMatchObject({ model: 'deepseek:deepseek-flash' })
+})
+
+it.each(['custom:anthropic', 'claude-code'])(
+  'rejects an unroutable provider %s as a local error',
+  async (providerId) => {
+    const provider = ProviderSchema.parse({
+      isEnabled: true,
+      apiKeys: [],
+      authType: 'api-key',
+      settings: {},
+      id: providerId,
+      name: 'Fixture',
+      reportsActualCost: false,
+      ...(providerId === 'claude-code' ? { authMethods: ['external-cli'] } : {})
+    })
+    const model = ModelSchema.parse({
+      isEnabled: true,
+      isHidden: false,
+      supportsStreaming: true,
+      id: `${providerId}::model`,
+      providerId,
+      name: 'Fixture',
+      capabilities: []
+    })
+    let failure: unknown
+    try {
+      await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+    } catch (error) {
+      failure = error
+    }
+    expect(failure).toBeInstanceOf(Error)
+    expect(serializeError(failure)).toMatchObject({
+      errorSource: 'local',
+      message: `Provider "${providerId}" cannot be routed through the internal gateway for pi agents`
+    })
+  }
+)
+
+it('names the model and provider in a local error when a model on a routable provider is rejected', async () => {
   const provider = ProviderSchema.parse({
     isEnabled: true,
     apiKeys: [],
     authType: 'api-key',
     settings: {},
-    id: providerId,
-    name: 'Fixture',
+    id: 'deepseek',
+    name: 'DeepSeek',
     reportsActualCost: false,
-    ...(providerId === 'claude-code' ? { authMethods: ['external-cli'] } : {})
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   })
   const model = ModelSchema.parse({
     isEnabled: true,
     isHidden: false,
     supportsStreaming: true,
-    id: `${providerId}::model`,
-    providerId,
-    name: 'Fixture',
-    capabilities: []
+    id: 'deepseek::deepseek-flash',
+    providerId: 'deepseek',
+    apiModelId: 'deepseek-flash',
+    name: 'DeepSeek V4.1 Flash',
+    capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
   })
-  await expect(createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)).rejects.toThrow(
-    'cannot be routed through the internal gateway'
-  )
+  let failure: unknown
+  try {
+    await createPiGatewayModelBinding({ sessionId: 'session-1' }, provider, model)
+  } catch (error) {
+    failure = error
+  }
+  expect(failure).toBeInstanceOf(Error)
+  expect(serializeError(failure)).toMatchObject({
+    errorSource: 'local',
+    message: 'Model "deepseek-flash" on provider "deepseek" cannot be routed through the internal gateway for pi agents'
+  })
 })
 
 it('preserves a per-call output cap when native reasoning disagrees with the gateway selection', async () => {

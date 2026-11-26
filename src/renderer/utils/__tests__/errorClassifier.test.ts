@@ -94,6 +94,20 @@ describe('classifyError', () => {
     }
   )
 
+  // #24565: Pi internal gateway routing refusals must not fall back to generic stream/network guidance.
+  it.each([
+    'Provider "deepseek" cannot be routed through the internal gateway for pi agents',
+    'Provider "network-proxy" cannot be routed through the internal gateway for pi agents',
+    'Model "deepseek-flash" on provider "deepseek" cannot be routed through the internal gateway for pi agents'
+  ])('keeps Pi internal gateway routing refusals out of stream guidance even without errorSource (%s)', (message) => {
+    const error = makeError({ name: 'StreamError', message, streamStage: 'response-stream' })
+    expect(classifyError(error, 'deepseek')).toEqual({
+      category: 'unknown',
+      i18nKey: 'error.diagnosis.unknown',
+      navTarget: null
+    })
+  })
+
   it.each([
     [401, 'auth'],
     [429, 'rate_limit'],

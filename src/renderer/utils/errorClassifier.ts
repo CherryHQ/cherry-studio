@@ -210,6 +210,13 @@ function isLocalAgentAuthenticationMessage(error: SerializedError): boolean {
   return /^(?:(?:IpcError|Error):\s*)*(?:Authentication required|No authentication method selected)\b/i.test(message)
 }
 
+function isPiGatewayRoutingRefusal(error: SerializedError): boolean {
+  return (
+    typeof error.message === 'string' &&
+    /cannot be routed through the internal gateway for pi agents/i.test(error.message)
+  )
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   const authentication = getProviderAuthenticationFailure(error)
   if (authentication) {
@@ -226,7 +233,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     navTarget: navTargetFor(category, providerSuffix)
   })
 
-  if (!error || error.errorSource === 'local') return classify('unknown')
+  if (!error || error.errorSource === 'local' || isPiGatewayRoutingRefusal(error)) return classify('unknown')
 
   if (
     /model is not supported when using Codex with a ChatGPT account/i.test(
