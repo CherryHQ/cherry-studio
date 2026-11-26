@@ -303,9 +303,16 @@
       "breakpoints": true
     },
     {
+      "idx": 43,
+      "version": "6",
+      "when": 1795691699090,
+      "tag": "0043_agent_session_head_recovery",
+      "breakpoints": true
+    },
+    {
       "idx": 45,
       "version": "6",
-      "when": 1795667893691,
+      "when": 1795691699500,
       "tag": "0045_generated_image",
       "breakpoints": true
     }

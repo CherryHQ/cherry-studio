@@ -1,9 +1,11 @@
+import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, MouseEvent, ReactElement, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import { exportService, getMessageTitle } from '@renderer/services/ExportService'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 
@@ -886,5 +888,147 @@ describe('messageMenuBarActions', () => {
 
     expect(notifyError).toHaveBeenCalledWith(expect.stringContaining('clipboard denied'))
     expect(setCopied).not.toHaveBeenCalled()
+  })
+
+  describe('Work mode live projection export', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+    async function setupWorkModeProjection() {
+      const ipc = projectionIpc()
+      const target = { kind: 'topic', topicId: 'agent_session_session-1' } as const
+      const release = messageProjectionService.subscribe(target, () => {})
+      const attachment = ipc.attachments[0]
+      attachment.resolve({
+        kind: 'topic',
+        topicId: target.topicId,
+        revision: 0,
+        executions: [],
+        messages: [{ id: 'message-1', role: 'assistant', parts: [], partIds: [] }]
+      })
+      await flush()
+
+      ipc.emit(attachment.subscriptionId, {
+        kind: 'topic',
+        type: 'parts',
+        revision: 1,
+        patches: [
+          { type: 'part-open', messageId: 'message-1', partId: 'reason-1', kind: 'reasoning', pos: 1 },
+          { type: 'part-append', partId: 'reason-1', text: 'Work mode thought' },
+          { type: 'part-finish', partId: 'reason-1' },
+          { type: 'part-open', messageId: 'message-1', partId: 'text-1', kind: 'text', pos: 2 },
+          { type: 'part-append', partId: 'text-1', text: 'Work mode answer' },
+          { type: 'part-finish', partId: 'text-1' }
+        ]
+      })
+
+      const shellParts = messageProjectionService.getSnapshot(target).view!.messages[0].parts
+      return { shellParts, release }
+    }
+
+    it('resolves live reasoning and text parts when exporting Work mode messages to Markdown', async () => {
+      const { shellParts, release } = await setupWorkModeProjection()
+      try {
+        expect(shellParts).toEqual([])
+        const exportMessageAsMarkdown = vi.fn()
+        const saveTextFile = vi.fn()
+        const context = createActionContext({
+          actions: { exportMessageAsMarkdown, saveTextFile },
+          menuConfig: {
+            ...defaultMessageMenuConfig,
+            exportMenuOptions: {
+              ...defaultMessageMenuConfig.exportMenuOptions,
+              markdown: true,
+              markdown_reason: true
+            }
+          },
+          messageParts: shellParts,
+          messageForExport: {
+            id: 'message-1',
+            role: 'assistant',
+            assistantId: 'assistant-1',
+            topicId: 'agent_session_session-1',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            status: 'success',
+            parts: shellParts
+          },
+          mainTextContent: ''
+        })
+
+        const expectedParts = [
+          { type: 'reasoning', text: 'Work mode thought', state: 'done' },
+          { type: 'text', text: 'Work mode answer', state: 'done' }
+        ]
+
+        await executeMessageMenuBarAction('export.markdown-reason', context)
+        expect(exportMessageAsMarkdown).toHaveBeenNthCalledWith(
+          1,
+          expect.objectContaining({ id: 'message-1', parts: expectedParts }),
+          true
+        )
+
+        await executeMessageMenuBarAction('export.markdown', context)
+        expect(exportMessageAsMarkdown).toHaveBeenNthCalledWith(
+          2,
+          expect.objectContaining({ id: 'message-1', parts: expectedParts })
+        )
+        expect(exportMessageAsMarkdown.mock.calls[1]?.[1]).toBeUndefined()
+
+        await executeMessageMenuBarAction('save.file', context)
+        expect(saveTextFile).toHaveBeenCalledWith(expect.stringMatching(/\.md$/), 'Work mode answer')
+
+        const readAloud = resolveMessageMenuBarToolbarActions(context).find((action) => action.id === 'read-aloud')
+        expect(readAloud?.availability).toEqual({ visible: true, enabled: true })
+      } finally {
+        release()
+      }
+    })
+
+    it('keeps Chat mode snapshot parts intact for both Markdown export options', async () => {
+      const exportMessageAsMarkdown = vi.fn()
+      const chatParts = [
+        { type: 'reasoning' as const, text: 'Chat mode thought', state: 'done' as const },
+        { type: 'text' as const, text: 'Chat mode answer', state: 'done' as const }
+      ]
+      const context = createActionContext({
+        actions: { exportMessageAsMarkdown },
+        menuConfig: {
+          ...defaultMessageMenuConfig,
+          exportMenuOptions: {
+            ...defaultMessageMenuConfig.exportMenuOptions,
+            markdown: true,
+            markdown_reason: true
+          }
+        },
+        messageParts: chatParts,
+        messageForExport: {
+          id: 'message-1',
+          role: 'assistant',
+          assistantId: 'assistant-1',
+          topicId: 'topic-1',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          status: 'success',
+          parts: chatParts
+        },
+        mainTextContent: 'Chat mode answer'
+      })
+
+      await executeMessageMenuBarAction('export.markdown-reason', context)
+      expect(exportMessageAsMarkdown).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ id: 'message-1', parts: chatParts }),
+        true
+      )
+
+      await executeMessageMenuBarAction('export.markdown', context)
+      expect(exportMessageAsMarkdown).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ id: 'message-1', parts: chatParts })
+      )
+      expect(exportMessageAsMarkdown.mock.calls[1]?.[1]).toBeUndefined()
+    })
   })
 })

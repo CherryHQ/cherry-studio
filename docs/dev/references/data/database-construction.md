@@ -21,7 +21,7 @@ How the SQLite database is **built at boot and evolved over time**. Scope: drizz
 |---|---|---|
 | 1 | `ensureDatabaseIntegrity()` (constructor) | Deletes a 0-byte `.db` and orphaned `-wal`/`-shm` sidecars to avoid `SQLITE_IOERR_SHORT_READ`. Opening the DB can delete files. |
 | 2 | `configurePragmas()` | `journal_mode=WAL` via `db.run()` (persisted in the file, once); `synchronous=NORMAL` + `foreign_keys=ON` set once on the single persistent connection (see below). |
-| 3 | `applyMigrations()`: `migrate()` | Applies un-applied drizzle migrations from `migrations/sqlite-drizzle/`. |
+| 3 | `applyMigrations()`: legacy tree repair and `migrate()` | Repairs legacy Agent Session parent edges before `0039`, then applies pending Drizzle migrations from `migrations/sqlite-drizzle/`. Migration `0043` restores invalid active nodes from their session trees. |
 | 4 | `applyMigrations()`: custom SQL replay | Replays `CUSTOM_SQL_STATEMENTS` (FTS vtables + triggers) — **every boot**, unconditionally. |
 | 5 | `SeedRunner.runAll(seeders)` | Runs on the just-migrated schema; a schema change a seeder relies on must land in the migration first. See [database-seeding-guide.md](./database-seeding-guide.md). |
 

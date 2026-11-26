@@ -74,6 +74,18 @@ describe('packaging tool assets', () => {
     expect(requests).toEqual(['/one'])
   })
 
+  it('restores an empty prepared executable from the verified asset cache', async () => {
+    await prepareTools('test', 'x64', options('bundle'))
+    const installed = binary('bundle', 'one')
+    fs.truncateSync(installed)
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+
+    await prepareTools('test', 'x64', options('bundle'))
+
+    expect(fs.readFileSync(installed, 'utf8')).toBe('payload:/one')
+    expect(requests).toEqual(['/one'])
+  })
+
   it('repairs a corrupt original asset instead of trusting the cache filename', async () => {
     const first = tool('one')
     await prepareTools('test', 'x64', options('first', [first]))
