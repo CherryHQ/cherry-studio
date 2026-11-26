@@ -203,7 +203,7 @@ function parseKbReadCitation(
 function documentKey(item: { baseId?: string; conceptId?: string }): string | undefined {
   if (!item.conceptId) return undefined
   // NUL separator: neither id can contain one, so the join is unambiguous.
-  return `${item.baseId ?? ''}\u0000${item.conceptId}`
+  return `${item.baseId ?? ''}\uE000${item.conceptId}`
 }
 
 /** Numeric value a lookup-result id can answer a bare `[N]` marker with. */
@@ -618,10 +618,10 @@ function hasUnresolvedMarker({ content, byMarker }: ResolvedCitationMarkers): bo
 export function stripCitationMarkers(content: string): string {
   return mapMarkdownOutsideCode(canonicalizeMarkers(content), (text) =>
     text
-      .replace(CITATION_MARKER_PATTERN, '\u0000')
+      .replace(CITATION_MARKER_PATTERN, '\uE000')
       // A wrapper emptied by the removal (`**[cite:id]**`) would otherwise leave `****`, a thematic break.
-      .replace(/(\*{1,3}|_{1,3})[ \t]*\u0000+[ \t]*\1/g, '')
-      .replace(/\u0000/g, '')
+      .replace(/(\*{1,3}|_{1,3})[ \t]*\uE000+[ \t]*\1/g, '')
+      .replace(/\uE000/g, '')
   )
 }
 
