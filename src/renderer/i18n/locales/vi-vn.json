@@ -1674,6 +1674,7 @@
   "error.diagnosis.payload": "Nội dung yêu cầu quá lớn, vui lòng giảm kích thước tệp hoặc văn bản",
   "error.diagnosis.permission": "Nhà cung cấp đã từ chối yêu cầu này. Hãy kiểm tra chi tiết lỗi, gói tài khoản, quyền của khóa API hoặc quyền truy cập vào tài nguyên này",
   "error.diagnosis.prefill_memory": "Không đủ bộ nhớ để xử lý yêu cầu này. Hãy rút ngắn cuộc trò chuyện hoặc dùng mô hình nhỏ hơn.",
+  "error.diagnosis.provider_unavailable": "Nhà cung cấp {{provider}} không còn trong ứng dụng này. Hãy chọn mô hình của nhà cung cấp khác cho cuộc trò chuyện này.",
   "error.diagnosis.proxy": "Lỗi proxy hoặc chứng chỉ SSL, hãy kiểm tra cài đặt proxy và mạng",
   "error.diagnosis.quota": "Hạn mức tài khoản đã cạn kiệt, vui lòng nạp tiền hoặc chuyển đổi nhà cung cấp",
   "error.diagnosis.rate_limit": "Quá nhiều yêu cầu trong thời gian ngắn. Hãy đợi một chút rồi thử lại, hoặc chuyển sang mô hình có giới hạn tốc độ cao hơn",

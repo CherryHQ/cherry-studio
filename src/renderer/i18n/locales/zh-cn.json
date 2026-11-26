@@ -1674,6 +1674,7 @@
   "error.diagnosis.payload": "请求内容过大，请减少发送的文件或文本量",
   "error.diagnosis.permission": "服务商拒绝了此请求。请查看错误详情，并确认账户套餐、API 密钥权限或该资源的访问权限",
   "error.diagnosis.prefill_memory": "可用内存不足，无法处理此请求。请缩短上下文或改用更小的模型。",
+  "error.diagnosis.provider_unavailable": "此应用中已找不到服务商 {{provider}}。请在当前会话中选择其他服务商的模型。",
   "error.diagnosis.proxy": "代理或 SSL 证书错误，请检查代理和网络设置",
   "error.diagnosis.quota": "账户额度已用完，请充值或更换服务商",
   "error.diagnosis.rate_limit": "请求过于频繁，请稍等片刻再试，或改用速率限制更高的模型",
