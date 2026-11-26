@@ -667,6 +667,21 @@ describe('provider billing through AiService and the real SDK', () => {
     return uniqueModelId
   }
 
+  it('uses the published CherryIN token rates with a saved provider multiplier', async () => {
+    const uniqueModelId = addCherryInModel(
+      'deepseek/deepseek-v4-pro',
+      'deepseek-v4-pro',
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+    providerService.update('cherryin', {
+      providerSettings: { billing: { defaultMultiplier: 2, scheduleEnabled: false, timeZone: '+08:00', periods: [] } }
+    })
+    transport.mockResolvedValueOnce(completion({ prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 }))
+    const service = new (AiService as unknown as new () => AiService)()
+    expect((await service.generateText({ ...request, uniqueModelId })).text).toBe('ok')
+    expect(dbh.db.select().from(aiUsageRecordTable).get()?.cost).toBeCloseTo(0.000351, 12)
+  })
+
   it('includes Gemini tool prompt tokens in the recorded CherryIN cost', async () => {
     const uniqueModelId = addCherryInModel('google/gemini-2.5-flash', 'gemini-2-5-flash')
     transport.mockResolvedValueOnce(
@@ -699,7 +714,7 @@ describe('provider billing through AiService and the real SDK', () => {
     })
   })
 
-  it.each(['native', 'chat', 'missing audio details'] as const)(
+  it.each(['native', 'chat', 'missing audio details', 'cached audio'] as const)(
     'prices the CherryIN Gemini audio split for %s',
     async (mode) => {
       const uniqueModelId = addCherryInModel(
@@ -719,9 +734,10 @@ describe('provider billing through AiService and the real SDK', () => {
               candidates: [{ content: { role: 'model', parts: [{ text: 'ok' }] }, finishReason: 'STOP' }],
               usageMetadata: {
                 promptTokenCount: 24,
+                ...(mode === 'cached audio' ? { cachedContentTokenCount: 20 } : {}),
                 candidatesTokenCount: 1,
                 totalTokenCount: 25,
-                ...(mode === 'native'
+                ...(mode === 'native' || mode === 'cached audio'
                   ? {
                       promptTokensDetails: [
                         { modality: 'AUDIO', tokenCount: 13 },
@@ -739,7 +755,8 @@ describe('provider billing through AiService and the real SDK', () => {
         inputTokens: 24,
         outputTokens: 1,
         totalTokens: 25,
-        cost: mode === 'missing audio details' ? null : expect.closeTo(0.00001075, 12)
+        cost:
+          mode === 'missing audio details' ? null : expect.closeTo(mode === 'cached audio' ? 0.0000085 : 0.00001075, 12)
       })
     }
   )
@@ -780,7 +797,8 @@ describe('provider billing through AiService and the real SDK', () => {
 
   it.each([
     [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, 'openai/gpt-image-2', 'gpt-image-2', 0, 0, 0.0019],
-    [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, 'openai/gpt-image-2.5-flare', 'gpt-image-2-5-flare', 100, 120, 0.001705]
+    [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, 'openai/gpt-image-2.5-flare', 'gpt-image-2-5-flare', 100, 120, 0.001705],
+    [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, 'openai/gpt-image-2.5-flare', 'gpt-image-2-5-flare', null, 0, null]
   ] as const)(
     'records CherryIN image token settlement through %s',
     async (endpoint, apiId, presetId, images, cached, cost) => {
@@ -794,7 +812,9 @@ describe('provider billing through AiService and the real SDK', () => {
             input_tokens: 200,
             output_tokens: 30,
             total_tokens: 230,
-            input_tokens_details: { text_tokens: 200 - images, image_tokens: images, cached_tokens: cached }
+            ...(images === null
+              ? {}
+              : { input_tokens_details: { text_tokens: 200 - images, image_tokens: images, cached_tokens: cached } })
           }
         })
       )
@@ -818,8 +838,8 @@ describe('provider billing through AiService and the real SDK', () => {
         inputTokens: 200,
         outputTokens: 30,
         cacheReadTokens: cached,
-        cost: expect.closeTo(cost, 12),
-        costBreakdown: { image: expect.closeTo(0.0009, 12) }
+        cost: cost === null ? null : expect.closeTo(cost, 12),
+        costBreakdown: cost === null ? null : { image: expect.closeTo(0.0009, 12) }
       })
     }
   )

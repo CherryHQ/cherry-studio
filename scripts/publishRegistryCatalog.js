@@ -150,6 +150,14 @@ function projectLegacyImageParams(schemaVersion, file, document, catalog) {
 /** Prune until the frozen validator accepts, or `null` when a break is not droppable. */
 function downconvert(validateCatalogFile, file, document, schemaVersion, catalog) {
   let dropped = projectLegacyImageParams(schemaVersion, file, document, catalog)
+  if (schemaVersion <= 4 && file === 'provider-models.json' && Array.isArray(document.overrides)) {
+    const originalCount = document.overrides.length
+    // Earlier desktop builds cannot apply CherryIN's Qwen4 Max chat reasoning contract.
+    document.overrides = document.overrides.filter(
+      (offer) => !(offer.providerId === 'cherryin' && offer.apiModelId === 'qwen/qwen4-max')
+    )
+    dropped += originalCount - document.overrides.length
+  }
   for (;;) {
     try {
       validateCatalogFile(file, document)
@@ -225,7 +233,8 @@ async function publishRegistryCatalog({
     const manifestPath = path.join(destination, 'manifest.json')
     // An older dir keeps the semantic floor it was published with; only the
     // current version tracks REGISTRY_MIN_APP_VERSION.
-    const floor = (version === currentVersion ? null : readPublishedMinAppVersion(manifestPath)) ?? minAppVersion
+    const legacyFloor = version === currentVersion ? null : readPublishedMinAppVersion(manifestPath)
+    const floor = legacyFloor ?? (version === 4 && version < currentVersion ? '2.1.11' : minAppVersion)
     const manifest = {
       minAppVersion: floor,
       sourceAppVersion,

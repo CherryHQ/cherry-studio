@@ -48313,6 +48313,9 @@
     },
     {
       "apiModelId": "Qwen/Qwen3-VL-235B-A22B-Thinking",
+      "capabilities": {
+        "add": ["reasoning"]
+      },
       "modelId": "qwen3-vl-235b-a22b",
       "pricing": {
         "input": {
@@ -48327,6 +48330,15 @@
       "providerId": "silicon",
       "reasoningContracts": {
         "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "budget",
+                "max": 38912,
+                "min": 1024
+              }
+            ]
+          },
           "wire": {
             "auto": {
               "budget": {
@@ -50862,5 +50874,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "38d626f17fc56cfe"
+  "version": "3e0d1de108d69d81"
 }

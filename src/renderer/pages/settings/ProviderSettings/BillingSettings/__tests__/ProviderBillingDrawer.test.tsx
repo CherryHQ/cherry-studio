@@ -120,7 +120,7 @@ describe('provider billing draft', () => {
         pricing: undefined
       }
     ])
-    render(<ProviderBillingDrawer provider={official} onClose={() => {}} />)
+    const view = render(<ProviderBillingDrawer provider={official} onClose={() => {}} />)
 
     const date = screen.getByLabelText('Preview date')
     const preview = within(screen.getByRole('region', { name: 'Unit price preview' }))
@@ -128,6 +128,17 @@ describe('provider billing draft', () => {
     expect(preview.getByRole('row', { name: '09:00–12:00 0.3 1.2 0.006 Unable to estimate' })).toBeVisible()
     fireEvent.change(date, { target: { value: '2026-11-14' } })
     expect(preview.getByRole('row', { name: '00:00–24:00 0.15 0.6 0.003 Unable to estimate' })).toBeVisible()
+    view.unmount()
+    const withSavedMultiplier = ProviderSchema.parse({
+      ...official,
+      settings: { billing: { defaultMultiplier: 2, scheduleEnabled: false, timeZone: '+08:00', periods: [] } }
+    })
+    render(<ProviderBillingDrawer provider={withSavedMultiplier} onClose={() => {}} />)
+    expect(
+      within(screen.getByRole('region', { name: 'Unit price preview' })).getByRole('row', {
+        name: '00:00–24:00 0.6 2.4 0.012 Unable to estimate'
+      })
+    ).toBeVisible()
   })
 
   it('keeps edits private until Save and discards Cancel', async () => {

@@ -60,7 +60,6 @@ import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model
 import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
-import { readNativeGeminiTokenUsage, readOpenAIImageTokenUsage } from '@shared/utils/cherryinModalityPricing'
 import {
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -72,6 +71,7 @@ import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 import {
   CHERRYIN_GEMINI_MODALITY_VERSION,
   CHERRYIN_OPENAI_IMAGE_VERSION,
+  getCherryInPublishedPricing,
   getDefaultProviderBilling
 } from '@shared/utils/providerBillingDefaults'
 
@@ -114,6 +114,12 @@ import type {
   InProcessUsageContext,
   ListModelsRequest
 } from './types'
+import {
+  computeCherryInGeminiModalityCost,
+  computeCherryInOpenAIImageCost,
+  readNativeGeminiTokenUsage,
+  readOpenAIImageTokenUsage
+} from './utils/cherryinModalityPricing'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { normalizeImageEditInputs } from './utils/normalizeImageEditInputs'
@@ -233,17 +239,17 @@ function createCaptureContext(input: {
     try {
       const provider = providerService.getByProviderId(input.provider.id)
       const model = modelService.getByKey(input.provider.id, modelId)
+      const defaultBilling = getDefaultProviderBilling(
+        input.provider,
+        model,
+        resolveEffectiveEndpoint(input.provider, input.model).baseUrl
+      )
+      const publishedPricing = defaultBilling?.source === 'cherryin' ? getCherryInPublishedPricing(modelId) : undefined
       pricingSnapshot = createAiUsageCaptureContext({
         providerId: provider.id,
         modelId,
-        pricing: model.pricing,
-        billing:
-          provider.settings.billing ??
-          getDefaultProviderBilling(
-            input.provider,
-            model,
-            resolveEffectiveEndpoint(input.provider, input.model).baseUrl
-          )
+        pricing: publishedPricing ?? model.pricing,
+        billing: provider.settings.billing ?? defaultBilling
       }).pricingSnapshot
     } catch (error) {
       logger.warn('Could not capture invocation pricing', { error })
@@ -265,20 +271,24 @@ function createCaptureContext(input: {
 
 function imageUsageToRecord(
   event: Extract<RuntimeProviderCallEvent, { modality: 'image' }>,
-  ruleVersion: string | undefined
-): RecordAiInvocationInput['usage'] {
+  context: AiUsageCaptureContext,
+  hasInputImages: boolean
+): Pick<RecordAiInvocationInput, 'usage' | 'localEstimate'> {
+  const ruleVersion = context.pricingSnapshot?.billing?.ruleVersion
   if (ruleVersion === CHERRYIN_GEMINI_MODALITY_VERSION) {
     const metadata: unknown = event.providerMetadata?.google
     const usage = isPlainObject(metadata) ? readNativeGeminiTokenUsage(metadata.usageMetadata) : undefined
     if (usage) {
       return {
-        inputTokens: usage.input,
-        outputTokens: usage.output,
-        totalTokens: usage.input + usage.output,
-        reasoningTokens: usage.reasoning,
-        cacheReadTokens: usage.cached,
-        noCacheTokens: usage.input - usage.cached,
-        modalityUsage: usage.raw
+        usage: {
+          inputTokens: usage.input,
+          outputTokens: usage.output,
+          totalTokens: usage.input + usage.output,
+          reasoningTokens: usage.reasoning,
+          cacheReadTokens: usage.cached,
+          noCacheTokens: usage.input - usage.cached
+        },
+        localEstimate: computeCherryInGeminiModalityCost(context.modelId, usage.raw) ?? null
       }
     }
   } else if (ruleVersion === CHERRYIN_OPENAI_IMAGE_VERSION) {
@@ -287,19 +297,21 @@ function imageUsageToRecord(
     const usage = readOpenAIImageTokenUsage(raw)
     if (usage) {
       return {
-        inputTokens: usage.input,
-        outputTokens: usage.output,
-        totalTokens: usage.total,
-        cacheReadTokens: usage.cached,
-        noCacheTokens: usage.input - usage.cached,
-        modalityUsage: raw
+        usage: {
+          inputTokens: usage.input,
+          outputTokens: usage.output,
+          totalTokens: usage.total,
+          cacheReadTokens: usage.cached,
+          noCacheTokens: usage.input - usage.cached
+        },
+        localEstimate: computeCherryInOpenAIImageCost(raw, hasInputImages) ?? null
       }
     }
   }
-  return event.usage
+  return { usage: event.usage }
 }
 
-function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProviderCallHandler {
+function createProviderCallHandler(context: AiUsageCaptureContext, hasInputImages = false): RuntimeProviderCallHandler {
   return (event: RuntimeProviderCallEvent) => {
     aiUsageRecordService.recordInvocation({
       requestId: event.requestId,
@@ -311,7 +323,7 @@ function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProvi
       ...(event.modality === 'image'
         ? {
             imageCount: event.imageCount,
-            usage: imageUsageToRecord(event, context.pricingSnapshot?.billing?.ruleVersion)
+            ...imageUsageToRecord(event, context, hasInputImages)
           }
         : {}),
       metrics: event.metrics,
@@ -1317,7 +1329,7 @@ export class AiService extends BaseService {
         sdkConfig.providerSettings,
         {
           ...imageParams,
-          onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
+          onProviderCallStart: () => createProviderCallHandler(imageUsageContext(), Boolean(inputImages?.length))
         }
       ).catch((error: unknown) => {
         if (

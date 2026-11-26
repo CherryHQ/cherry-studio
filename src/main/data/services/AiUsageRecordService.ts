@@ -61,12 +61,7 @@ import type {
   MessageStats
 } from '@shared/data/types/message'
 import type { Currency } from '@shared/data/types/model'
-import {
-  computeCherryInGeminiModalityCost,
-  computeCherryInOpenAIImageCost
-} from '@shared/utils/cherryinModalityPricing'
 import { settleCherryInPricingSnapshot } from '@shared/utils/providerBilling'
-import { CHERRYIN_GEMINI_MODALITY_VERSION, CHERRYIN_OPENAI_IMAGE_VERSION } from '@shared/utils/providerBillingDefaults'
 import { computeLanguageCost } from '@shared/utils/usagePricing'
 
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
@@ -127,9 +122,9 @@ export interface RecordAiInvocationInput {
     cacheWriteTokens?: number
     /** Duration-weighted writes for cost calculation only. */
     cacheWriteBillableTokens?: number
-    modalityUsage?: unknown
   }
   imageCount?: number
+  localEstimate?: { amount: number; breakdown: AiUsageCostBreakdown } | null
   providerCost?: {
     amount: number
     currency: Currency
@@ -1164,14 +1159,8 @@ function computedCost(
 ): { amount: number; breakdown: AiUsageCostBreakdown } | undefined {
   if (!pricing) return undefined
 
-  if (pricing.billing?.source === 'cherryin' && pricing.billing.ruleVersion === CHERRYIN_GEMINI_MODALITY_VERSION) {
-    if ((input.usage?.cacheWriteTokens ?? 0) > 0) return undefined
-    return computeCherryInGeminiModalityCost(input.context.modelId, input.usage?.modalityUsage)
-  }
+  if (input.localEstimate !== undefined) return input.localEstimate ?? undefined
   if (input.modality === 'image') {
-    if (pricing.billing?.source === 'cherryin' && pricing.billing.ruleVersion === CHERRYIN_OPENAI_IMAGE_VERSION) {
-      return computeCherryInOpenAIImageCost(input.usage?.modalityUsage)
-    }
     if (!pricing.perImage || pricing.perImage.unit !== 'image' || input.imageCount === undefined) return undefined
     const amount = input.imageCount * pricing.perImage.price
     return { amount, breakdown: { image: amount } }

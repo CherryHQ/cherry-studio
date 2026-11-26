@@ -20,6 +20,8 @@ The Chat Completions adapter caps non-thinking Qwen4 Max requests at 131,072 out
 
 The daily workflow checks the generated catalog before updating its pull request and includes changed model data and tool indexes together. Full refreshes keep previously reviewed base models while generated offers still reference them. When a declared provider template has no fresh listing, its previous offer supplies the exact request ID and pricing. OpenCode Go offers use declared protocol settings first, then the supported upstream SDK protocol or Chat Completions. The generator publishes upstream reasoning controls only for models the reasoning rules recognize.
 
+The remote publisher keeps the CherryIN Qwen4 Max offer in the v5 stream, whose Desktop floor is 2.2.4. Earlier streams omit the offer because their Chat Completions adapter cannot apply its reasoning controls. Daily catalog PRs include a provider-registry changeset. The Gemini Flash-Lite Preview effort vocabulary and Silicon Qwen3-VL Thinking budget survive full generation. Saved CherryIN billing multipliers use published base rates when no model override applies. Main AI computes modality estimates before persistence and leaves GPT Image edit costs unset when the input split is missing.
+
 ## Alternatives considered
 
 Keeping one row per canonical model loses independently callable offers. Selecting the first row makes pricing depend on upstream array order.
@@ -44,3 +46,4 @@ The catalog can serve multiple exact offers for one model. A candidate that viol
 - Regression — `providerBilling.integration.test.ts`: desktop requests preserve Qwen4 Max reasoning controls through both protocols.
 - Production smoke, 2026-11-26 — Chat Completions accepted `off`, `low`, `high`, and `xhigh`. Messages accepted the same modes and rejected `max_tokens: 262145`. Thinking streams returned answer text for the complete-sentence prompt, while the digits-only prompt ended without a text block. The non-streaming Messages response included the digits.
 - Regression — full catalog generation with captured and refreshed upstream inputs: the catalog checks cover request IDs, reference integrity, OpenCode Go endpoints and reasoning membership.
+- Regression — publication replay checks the legacy and current streams; the catalog and billing tests cover reasoning controls, saved multipliers, cached audio and incomplete image-edit usage.

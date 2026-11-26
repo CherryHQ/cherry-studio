@@ -20,6 +20,8 @@ CherryIN 的 Chat Completions 适配器读取 `cherryin` SDK 选项命名空间�
 
 每日工作流在更新 PR 前检查生成目录，并一起提交变更的模型数据和工具索引。完整刷新会保留生成线路仍在引用的已审核基础模型。供应商模板没有匹配到新目录条目时，沿用上一版线路的完整请求 ID 和价格。OpenCode Go 优先使用模板声明的协议，其次采用上游标注且受支持的 SDK 协议，最后使用 Chat Completions。只有推理规则已覆盖的模型才会发布上游提供的推理控件。
 
+远程发布仅在 v5 通道保留 CherryIN Qwen4 Max 条目，该通道的桌面端最低版本是 2.2.4。更早的通道省略该条目，因为旧版 Chat Completions 适配器无法应用其推理控制。每日目录 PR 包含 provider-registry 的 changeset。完整生成保留 Gemini Flash-Lite Preview 的推理档位和 Silicon Qwen3-VL Thinking 的预算。未设置模型价格覆盖时，CherryIN 已保存的倍率使用公开基础费率。主进程 AI 层在写入记录前计算模态估算，GPT Image 编辑缺少输入分项时费用留空。
+
 ## 考虑过的替代方案
 
 每个规范模型只保留一条记录，会丢失可独立调用的条目。选第一条会让价格受上游数组顺序影响。
@@ -44,3 +46,4 @@ CherryIN 的 Chat Completions 适配器读取 `cherryin` SDK 选项命名空间�
 - Regression — `providerBilling.integration.test.ts`：桌面端在两种协议的请求中保留 Qwen4 Max 推理设置。
 - 生产冒烟验证（2026-11-26）— Chat Completions 接受关闭思考以及 `low`、`high`、`xhigh` 档位。Messages 接受同样的档位，并拒绝 `max_tokens: 262145`。开启思考后，要求完整句子的流式请求返回正文，要求只回数字的请求结束时缺少正文块。同一数字请求走非流式 Messages 时返回了正文。
 - Regression — 用留存和重新获取的上游数据完整生成目录。目录校验覆盖请求 ID、模型引用、OpenCode Go 端点和推理模型识别。
+- Regression — 发布回放验证旧版与当前通道。目录与计费测试覆盖推理控件、已保存倍率、缓存音频和图片编辑分项缺失。

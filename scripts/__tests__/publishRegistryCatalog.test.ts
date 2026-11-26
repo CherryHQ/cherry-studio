@@ -141,6 +141,36 @@ describe('publishRegistryCatalog', () => {
     }
   })
 
+  it('publishes the CherryIN Qwen4 Max offer only to the compatible catalog stream', async () => {
+    const { destinationDirectory } = makeDirectories()
+    const sourceDirectory = path.resolve(COMPAT_DIRECTORY, '../data')
+    await publishRegistryCatalog({
+      ...publishOptions,
+      sourceDirectory,
+      destinationDirectory,
+      currentVersion: REGISTRY_SCHEMA_VERSION,
+      minAppVersion: REGISTRY_MIN_APP_VERSION,
+      sourceAppVersion: REGISTRY_MIN_APP_VERSION
+    })
+
+    function hasOffer(version: number) {
+      const { overrides } = JSON.parse(
+        fs.readFileSync(path.join(destinationDirectory, `v${version}`, 'provider-models.json'), 'utf8')
+      )
+      return overrides.some(
+        (offer: { providerId: string; apiModelId?: string }) =>
+          offer.providerId === 'cherryin' && offer.apiModelId === 'qwen/qwen4-max'
+      )
+    }
+
+    expect(JSON.parse(fs.readFileSync(path.join(destinationDirectory, 'v4', 'manifest.json'), 'utf8'))).toMatchObject({
+      minAppVersion: '2.1.11',
+      schemaVersion: 4
+    })
+    expect(hasOffer(4)).toBe(false)
+    expect(hasOffer(REGISTRY_SCHEMA_VERSION)).toBe(true)
+  })
+
   it('keeps a model reaching an older schema by dropping only what it cannot represent', async () => {
     const { sourceDirectory, destinationDirectory } = makeDirectories()
     writeCatalog(sourceDirectory, OVERRIDE_WITH_UNKNOWN_EFFORT)

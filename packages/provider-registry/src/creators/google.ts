@@ -28,7 +28,7 @@ export default defineCreator({
     { pattern: '^gemma-?4', toggle: true },
     { pattern: '^gemini-nano-banana', effort: ['minimal', 'medium', 'high'] },
     {
-      pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
+      pattern: '^gemini-3(?:[.-]\\d+)?-flash|^gemini-flash-latest',
       effort: ['minimal', 'low', 'medium', 'high']
     },
     { pattern: '^(?:gemini-3-pro|nano-banana-pro)', effort: ['low', 'high'] },

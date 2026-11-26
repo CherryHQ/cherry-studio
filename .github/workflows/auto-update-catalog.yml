@@ -65,6 +65,11 @@ jobs:
         id: set_date
         run: echo "CURRENT_DATE=$(date +'%b %d, %Y')" >> $GITHUB_ENV # e.g., "Jun 06, 2024"
 
+      - name: Record automated catalog package changes
+        if: steps.git_status.outputs.has_changes == 'true'
+        run: |
+          printf '%s\n' '---' '"@cherrystudio/provider-registry": patch' '---' '' 'Refresh the provider model catalog.' > ".changeset/catalog-refresh-${GITHUB_RUN_ID}.md"
+
       - name: 🚀 Create Pull Request if changes exist
         if: steps.git_status.outputs.has_changes == 'true'
         uses: peter-evans/create-pull-request@v8
@@ -81,6 +86,7 @@ jobs:
           add-paths: |
             packages/provider-registry/data
             packages/provider-registry/src/patterns/*.gen.ts
+            .changeset/catalog-refresh-${{ github.run_id }}.md
           branch: "auto-update-catalog-daily" # Stable branch so an open catalog PR is updated, not duplicated
           base: "main" # Or 'develop', set your base branch
           delete-branch: true # Delete the branch after merging or closing the PR

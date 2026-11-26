@@ -71,10 +71,8 @@ export class ProviderModelIndex {
       this.overridesByProvider.set(pm.providerId, providerOffers)
       if (pm.apiModelId) this.overrideByApiKey.set(`${pm.providerId}::${pm.apiModelId}`, pm)
 
-      if (pm.providerId === 'cherryin' && pm.apiModelId && pm.pricing) {
-        // CherryIN prices belong to the exact served model, including aliases.
-        continue
-      }
+      // Canonical fallback can reuse metadata from the standard CherryIN offer.
+      if (pm.providerId === 'cherryin' && pm.apiModelId && pm.pricing && canonicalVariantPriority(pm) < 2) continue
       const key = `${pm.providerId}::${pm.modelId}`
       if (prefersCanonicalOffer(pm, this.overrideByKey.get(key))) {
         this.overrideByKey.set(key, pm)
@@ -102,9 +100,18 @@ export class ProviderModelIndex {
 
   findOverride(providerId: string, modelId: string): ProviderModelOverride | null {
     const key = `${providerId}::${modelId}`
-    // Exact API IDs win over normalized keys that may collide across model sizes.
-    const exact = this.overrideByApiKey.get(key) ?? this.overrideByKey.get(key)
+    const exact = this.overrideByApiKey.get(key)
     if (exact) return exact
+
+    const fallback = this.findModelOverride(providerId, modelId, key)
+    if (fallback?.providerId !== 'cherryin' || !fallback.apiModelId || !fallback.pricing) return fallback
+    if (modelId.includes('/')) return null
+    return { ...fallback, apiModelId: undefined, pricing: undefined }
+  }
+
+  private findModelOverride(providerId: string, modelId: string, key: string): ProviderModelOverride | null {
+    const canonical = this.overrideByKey.get(key)
+    if (canonical) return canonical
 
     const sizedModelId = normalizeModelId(modelId, { keepParameterSize: true })
     const sizedNormKey = `${providerId}::${sizedModelId}`

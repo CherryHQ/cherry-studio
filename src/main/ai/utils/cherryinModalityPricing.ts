@@ -1,6 +1,6 @@
 import { isPlainObject } from 'es-toolkit'
 
-import { getCherryInGeminiModalityRates } from './providerBillingDefaults'
+import { getCherryInGeminiModalityRates } from '@shared/utils/providerBillingDefaults'
 
 function count(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined
@@ -78,9 +78,9 @@ export function computeCherryInGeminiModalityCost(modelId: string, raw: unknown)
   if (!usage || usage.audio === undefined || usage.images === undefined || usage.cacheRead === undefined)
     return undefined
   const cached = rates.cacheRead === undefined ? 0 : usage.cacheRead
-  const textInput = usage.input - cached - usage.audio
+  const textInput = Math.max(0, usage.input - cached - usage.audio)
   const textOutput = usage.output - usage.images
-  if (usage.cacheRead > usage.input || textInput < 0 || textOutput < 0) return undefined
+  if (usage.cacheRead > usage.input || usage.audio > usage.input || textOutput < 0) return undefined
 
   const input = (textInput * rates.input + usage.audio * (rates.audioInput ?? 0)) / 1_000_000
   const outputRate = usage.images === 0 ? (rates.outputWithoutImage ?? rates.output) : rates.output
@@ -98,21 +98,27 @@ export function readOpenAIImageTokenUsage(raw: unknown) {
   const details = raw.input_tokens_details ?? raw.prompt_tokens_details
   if (details != null && !isPlainObject(details)) return undefined
   const cached = count(details?.cached_tokens ?? 0)
-  const images = count(details?.image_tokens ?? 0)
-  if (cached === undefined || images === undefined || cached > input || images > input) return undefined
+  const images = details?.image_tokens === undefined ? undefined : count(details.image_tokens)
+  if (
+    cached === undefined ||
+    cached > input ||
+    (details?.image_tokens !== undefined && (images === undefined || images > input))
+  )
+    return undefined
   const total = count(raw.total_tokens ?? input + output)
   if (total !== input + output || total === 0) return undefined
   return { input, output, total, images, cached }
 }
 
-export function computeCherryInOpenAIImageCost(raw: unknown) {
+export function computeCherryInOpenAIImageCost(raw: unknown, hasInputImages: boolean) {
   const usage = readOpenAIImageTokenUsage(raw)
-  if (!usage) return undefined
+  if (!usage || (hasInputImages && usage.images === undefined)) return undefined
+  const images = usage.images ?? 0
 
   // The public expression applies cached tokens to text input first.
-  const text = usage.input - usage.images
+  const text = usage.input - images
   const cachedImage = Math.max(0, usage.cached - text)
-  const input = Math.max(0, text * 5 + usage.images * 8 - usage.cached * 3.75 - cachedImage * 2.25) / 1_000_000
+  const input = Math.max(0, text * 5 + images * 8 - usage.cached * 3.75 - cachedImage * 2.25) / 1_000_000
   const image = (usage.output * 30) / 1_000_000
   return { amount: input + image, breakdown: { input, image } }
 }

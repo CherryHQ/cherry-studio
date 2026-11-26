@@ -14,6 +14,7 @@ import {
 } from '@shared/utils/providerBillingDefaults'
 
 import { extractProviderCostWithCurrency } from '../utils/billingCost'
+import { computeCherryInGeminiModalityCost } from '../utils/cherryinModalityPricing'
 import { ensureNestedV3Usage, recordTotalTokens } from '../utils/usageNormalize'
 
 export const BILLABLE_AI_OPERATIONS = ['streamText', 'generateText', 'embedMany', 'generateImage', 'rerank'] as const
@@ -107,9 +108,11 @@ function recordLanguageInvocation(
 ): void {
   const providerCost = extractProviderCostWithCurrency(usage.raw, context.reportedCostCurrency)
   const recordedUsage = usageToRecord(usage)
-  if (context.pricingSnapshot?.billing?.ruleVersion === CHERRYIN_GEMINI_MODALITY_VERSION) {
-    recordedUsage.modalityUsage = usage.raw
-  }
+  const modalityPricing = context.pricingSnapshot?.billing?.ruleVersion === CHERRYIN_GEMINI_MODALITY_VERSION
+  const localEstimate =
+    modalityPricing && !recordedUsage.cacheWriteTokens
+      ? computeCherryInGeminiModalityCost(context.modelId, usage.raw)
+      : undefined
   if (context.pricingSnapshot?.billing?.source === 'cherryin' && recordedUsage.cacheWriteTokens) {
     const billableTokens = cherryInBillableCacheWriteTokens(usage.raw, recordedUsage.cacheWriteTokens, context.modelId)
     if (billableTokens !== undefined) recordedUsage.cacheWriteBillableTokens = billableTokens
@@ -119,6 +122,7 @@ function recordLanguageInvocation(
     context,
     modality: 'language',
     usage: recordedUsage,
+    ...(modalityPricing ? { localEstimate: localEstimate ?? null } : {}),
     ...(providerCost ? { providerCost } : {}),
     metrics,
     completedAt

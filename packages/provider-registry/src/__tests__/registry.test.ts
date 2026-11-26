@@ -160,6 +160,16 @@ describe('portable registry', () => {
     })
   })
 
+  it('retains standard CherryIN capabilities for bare IDs without inheriting their exact price', () => {
+    const registry = createRegistry(bundledCatalog)
+
+    expect(registry.findOverride('cherryin', 'qwen3.5-122b-a10b')).toMatchObject({
+      capabilities: { remove: ['audio-recognition'] },
+      apiModelId: undefined,
+      pricing: undefined
+    })
+  })
+
   it('keeps CherryIN paid aliases from supplying prices to a different API ID', () => {
     const registry = createRegistry(bundledCatalog)
     const agent = registry.findOverride('cherryin', 'agent/glm-5')

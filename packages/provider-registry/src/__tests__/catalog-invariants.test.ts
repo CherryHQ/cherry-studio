@@ -9,6 +9,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isDeepStrictEqual } from 'node:util'
 
 import { describe, expect, it } from 'vitest'
 
@@ -128,6 +129,21 @@ describe('catalog invariants (data/*.json)', () => {
     expect(paid?.capabilities?.remove ?? []).not.toContain('structured-output')
   })
 
+  it('keeps native Gemini minimal effort and Silicon Thinking budgets in regenerated data', () => {
+    const parsed = ModelListSchema.parse(modelsRaw)
+    const gemini = parsed.models.find(({ id }) => id === 'gemini-3-1-flash-lite-preview')
+    expect(gemini?.reasoning?.supportedEfforts).toContain('minimal')
+
+    const index = new ProviderModelIndex(providerModelOverrides)
+    const silicon = index.findOverride('silicon', 'Qwen/Qwen3-VL-235B-A22B-Thinking')
+    expect(silicon?.capabilities?.add).toContain('reasoning')
+    expect(silicon?.reasoningContracts?.['openai-chat-completions']?.support?.controls).toContainEqual({
+      kind: 'budget',
+      min: 1024,
+      max: 38_912
+    })
+  })
+
   it('base model ids are unique', () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
   })
@@ -217,7 +233,7 @@ describe('catalog invariants (data/*.json)', () => {
     const orderDependent = providerModelOverrides
       .filter(
         ({ providerId, modelId }) =>
-          forward.findOverride(providerId, modelId) !== reversed.findOverride(providerId, modelId)
+          !isDeepStrictEqual(forward.findOverride(providerId, modelId), reversed.findOverride(providerId, modelId))
       )
       .map(({ providerId, modelId }) => `${providerId}::${modelId}`)
     expect(orderDependent).toEqual([])
