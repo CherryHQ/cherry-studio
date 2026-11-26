@@ -1045,10 +1045,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'loveapi:claude-opus-5-5[1m]'
     })
     expect(request?.settings.env?.CLAUDE_CODE_SUBAGENT_MODEL).toBe('loveapi:claude-opus-5-5[1m]')
+    expect.soft(request?.settings.env?.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL).toBe('loveapi:claude-opus-5-5[1m]')
     expect(request?.options.env).toMatchObject({
       CLAUDE_CODE_SUBAGENT_MODEL: 'loveapi:claude-opus-5-5[1m]',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api'
     })
+    expect.soft(request?.options.env?.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL).toBe('loveapi:claude-opus-5-5[1m]')
   })
 
   it('keeps the gateway route unsuffixed on the first-party Anthropic endpoint', async () => {
@@ -1176,7 +1178,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
         ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api',
         CLAUDE_CODE_SUBAGENT_MODEL: 'openai:gpt-main-api'
       })
+      expect.soft(env).toMatchObject({ CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: 'openai:gpt-main-api' })
       expect(env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL_FORCE')
+      expect(env).not.toHaveProperty('CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL_FORCE')
     }
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
   })
@@ -1217,6 +1221,77 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
         ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api',
         CLAUDE_CODE_SUBAGENT_MODEL: expected,
         CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1'
+      })
+    }
+  })
+
+  it.each([
+    [undefined, 'openai:gpt-main-api'],
+    ['', 'openai:gpt-main-api'],
+    [' \t ', 'openai:gpt-main-api'],
+    ['other:wf-api', 'other:wf-api'],
+    ['openrouter:anthropic/claude:beta', 'openrouter:anthropic/claude:beta'],
+    ['sonnet', 'sonnet'],
+    [' sonnet ', ' sonnet '],
+    ['claude-sonnet-4-6-code', 'claude-sonnet-4-6-code'],
+    ['inherit', 'inherit']
+  ])(
+    'resolves the gateway workflow sub-agent pin %j to %j, preserving explicit bare IDs and inherit',
+    async (pin, expected) => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'openai::gpt-main',
+        planModel: 'openai::gpt-plan',
+        smallModel: 'other::small'
+      })
+      mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({
+        id: providerId,
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+      }))
+      mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+        id: modelId,
+        apiModelId: `${modelId}-api`
+      }))
+      mocks.buildSessionSettings.mockResolvedValue({ env: { CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: pin } })
+
+      const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+      for (const env of [request?.settings.env, request?.options.env]) {
+        expect.soft(env).toMatchObject({
+          ANTHROPIC_MODEL: 'openai:gpt-main-api',
+          ANTHROPIC_DEFAULT_OPUS_MODEL: 'openai:gpt-main-api',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api',
+          CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: expected,
+          CLAUDE_CODE_SUBAGENT_MODEL: 'openai:gpt-main-api'
+        })
+      }
+    }
+  )
+
+  it('defaults the gateway workflow sub-agent independently of an explicit Task pin', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'openai::gpt-main',
+      planModel: 'openai::gpt-plan',
+      smallModel: 'other::small'
+    })
+    mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({
+      id: providerId,
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+    }))
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.buildSessionSettings.mockResolvedValue({ env: { CLAUDE_CODE_SUBAGENT_MODEL: 'other:task-api' } })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    for (const env of [request?.settings.env, request?.options.env]) {
+      expect.soft(env).toMatchObject({
+        CLAUDE_CODE_SUBAGENT_MODEL: 'other:task-api',
+        CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: 'openai:gpt-main-api'
       })
     }
   })
@@ -1484,6 +1559,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     expect(request?.settings.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL')
     expect(request?.options.env).not.toHaveProperty('CLAUDE_CODE_SUBAGENT_MODEL')
+    expect(request?.settings.env).not.toHaveProperty('CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL')
+    expect(request?.options.env).not.toHaveProperty('CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_CUSTOM_HEADERS')
@@ -2169,7 +2246,7 @@ describe('deriveConnectionConfig', () => {
     expect(secondSelection.config.rebuildSignature).toBe(firstSelection.config.rebuildSignature)
   })
 
-  it('keeps permission mode live-only while disabled tools also require a rebuild', async () => {
+  it('rebuilds across Plan Only and disabled tool changes while other permission mode changes stay live', async () => {
     const base = await deriveSignature()
 
     mocks.getAgent.mockReturnValue({
@@ -2188,6 +2265,19 @@ describe('deriveConnectionConfig', () => {
       mcps: []
     })
     expect(base.live.toolPolicy.permissionMode).toBeNull()
+
+    const plan = await deriveConnectionConfig(
+      'session-1',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      false,
+      'plan'
+    )
+    if (!plan.ok) throw new Error('expected Plan Only configuration')
+    expect(plan.config.rebuildSignature).not.toBe(policyChanged.rebuildSignature)
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

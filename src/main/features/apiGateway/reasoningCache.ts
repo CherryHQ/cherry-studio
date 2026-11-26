@@ -5,9 +5,9 @@
  * This includes Google Gemini's thought signatures and OpenRouter's reasoning details.
  */
 
-import { application } from '@application'
+import type { JSONArray } from '@ai-sdk/provider'
 
-import type { ReasoningDetailUnion } from './openrouter'
+import { application } from '@application'
 
 /**
  * Interface for reasoning cache
@@ -40,8 +40,20 @@ export const googleReasoningCache: IReasoningCache<string> = {
  * Stores reasoning details from OpenRouter responses to preserve thinking tokens
  * and reasoning metadata across the conversation flow.
  */
-export const openRouterReasoningCache: IReasoningCache<ReasoningDetailUnion[]> = {
-  set: (key, value) =>
-    application.get('CacheService').set(`openrouter-reasoning:${key}`, value, REASONING_CACHE_DURATION),
-  get: (key) => application.get('CacheService').get<ReasoningDetailUnion[]>(`openrouter-reasoning:${key}`) || undefined
+export const openRouterReasoningCache: IReasoningCache<JSONArray> = {
+  set(key, details) {
+    // The SDK appends to this array and can extend its trailing reasoning.text in place after publishing a tool call.
+    const snapshot = details.slice()
+    const tail = snapshot.at(-1)
+    if (tail && typeof tail === 'object' && !Array.isArray(tail) && tail.type === 'reasoning.text') {
+      snapshot[snapshot.length - 1] = { ...tail }
+    }
+    application.get('CacheService').set(`openrouter-reasoning:${key}`, snapshot, REASONING_CACHE_DURATION)
+  },
+  get: (key) => application.get('CacheService').get<JSONArray>(`openrouter-reasoning:${key}`)
+}
+
+export interface ReasoningCacheReaders {
+  googleReasoningCache?: Pick<typeof googleReasoningCache, 'get'>
+  openRouterReasoningCache?: Pick<typeof openRouterReasoningCache, 'get'>
 }

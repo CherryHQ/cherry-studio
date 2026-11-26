@@ -6,8 +6,9 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
-import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
+import { prepareDurableBranch } from '@main/ai/runtime/piDurable/durableContext'
 
 import { AgentSessionDeliveryService } from '../AgentSessionDeliveryService'
 import { recoverSessionDeliveries } from '../recoverSessionDeliveries'
@@ -27,9 +28,10 @@ beforeEach(() => {
     dbh.db.insert(agentSessionTable).values({ id, agentId: 'agent', workspaceId: 'work', name: id, orderKey: id }).run()
 })
 
-/** A delivery whose turn was running when the app exited; `admitted` means Durable recorded its input. */
-function interruptedDelivery(admitted: boolean) {
-  const context = preparePiBranch('target')
+/** A delivery interrupted before dispatch or before the native receipt reached Main. */
+function interruptedDelivery(dispatched: boolean) {
+  const branch = prepareDurableBranch('target')
+  const context = contexts.bindContext(branch.id, '1')
   const request = messages.acceptSessionDelivery({
     senderAgentId: 'agent',
     senderSessionId: 'sender',
@@ -42,20 +44,18 @@ function interruptedDelivery(admitted: boolean) {
     message: { role: 'assistant', status: 'pending', data: { parts: [{ type: 'text', text: 'Partial' }] } }
   })
   messages.transitionSessionDelivery('target', request.id, 'delivering', { expected: ['accepted'], turnRef: reply.id })
-  application.get('DbService').withWriteTx((tx) => {
-    messages.bindInputContextTx(tx, 'target', request.id, context.id)
-    if (admitted) messages.bindNativeInputTx(tx, 'target', request.id, context.id, 'native-input')
-  })
-  return { request, reply }
+  if (dispatched)
+    application.get('DbService').withWriteTx((tx) => messages.bindInputContextTx(tx, 'target', request.id, context.id))
+  return { request, reply, context }
 }
 
 // AC6: Durable still owns an admitted input after an exit, so boot recovery must not end its reply.
-it('leaves an admitted Durable delivery turn for the runtime to resume', () => {
+it('retains a dispatched Durable delivery across a lost acknowledgement and an agent change', () => {
   const { request, reply } = interruptedDelivery(true)
+  dbh.db.update(agentTable).set({ type: 'pi' }).run()
 
-  const { resumable } = recoverSessionDeliveries()
+  recoverSessionDeliveries()
 
-  expect(resumable).toEqual(new Set(['target']))
   expect(messages.getSessionMessage('target', reply.id).status).toBe('pending')
   expect(messages.getSessionMessage('target', request.id).delivery?.status).toBe('delivering')
 })
@@ -64,21 +64,22 @@ it('leaves an admitted Durable delivery turn for the runtime to resume', () => {
 it('ends a Durable delivery turn whose input never reached the runtime', () => {
   const { request, reply } = interruptedDelivery(false)
 
-  const { resumable } = recoverSessionDeliveries()
+  recoverSessionDeliveries()
 
-  expect(resumable.size).toBe(0)
   expect(messages.getSessionMessage('target', reply.id).status).toBe('error')
   expect(messages.getSessionMessage('target', request.id).delivery?.status).not.toBe('delivering')
 })
 
-// Durable can settle the reply only through a connection; without one the turn must still end.
-it('ends a recovered Durable delivery turn whose session cannot connect', async () => {
+it('keeps the original delivery pending when its captured Durable target cannot reconnect', async () => {
   const { request, reply } = interruptedDelivery(true)
+  const recoverPendingReplies = vi.fn(async () => {})
+  dbh.db.update(agentTable).set({ type: 'pi' }).run()
   MockApplicationUtils.setService('AgentSessionRuntimeService', {
     onTurnTerminal: () => ({ dispose() {} }),
     onRuntimeIdle: () => ({ dispose() {} }),
     isSessionBusy: () => false,
-    primeConnection: async () => false
+    whenStartupRecoverySettles: async () => {},
+    recoverPendingReplies
   })
   MockApplicationUtils.setService('AiStreamManager', {
     isWriteQuiesced: false,
@@ -92,7 +93,14 @@ it('ends a recovered Durable delivery turn whose session cannot connect', async 
   })
 
   await service._doInit()
+  await service._doAllReady()
 
-  await vi.waitFor(() => expect(messages.getSessionMessage('target', reply.id).status).toBe('error'))
-  expect(messages.getSessionMessage('target', request.id).delivery?.status).not.toBe('delivering')
+  await service.drainSessionQueues(['target'])
+  expect(recoverPendingReplies).toHaveBeenCalledWith({
+    sessionId: 'target',
+    runId: reply.id,
+    deliveryInputId: request.id
+  })
+  expect(messages.getSessionMessage('target', reply.id).status).toBe('pending')
+  expect(messages.getSessionMessage('target', request.id).delivery?.status).toBe('delivering')
 })
