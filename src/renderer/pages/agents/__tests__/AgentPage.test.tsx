@@ -324,11 +324,12 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   )
 }))
 
-vi.mock('@renderer/hooks/tab', () => {
+vi.mock('@renderer/hooks/tab', async (importOriginal) => {
   const updateTab = (_id: string, updates: { metadata: Record<string, unknown> }) => {
     agentPageMocks.tabMetadata = updates.metadata
   }
   return {
+    ...(await importOriginal<typeof TabHooks>()),
     useCloseConversationTabs: () => agentPageMocks.closeConversationTabs,
     useCurrentTab: () => ({
       id: 'agent-tab',
@@ -739,7 +740,8 @@ vi.mock('@renderer/components/history/HistoryRecordsView', () => ({
   }
 }))
 
-import { useTabSelfVisuals } from '@renderer/hooks/tab'
+import type * as TabHooks from '@renderer/hooks/tab'
+import { TabIdContext, useTabSelfVisuals } from '@renderer/hooks/tab'
 import { MinimalModeContext } from '@renderer/hooks/useMinimalMode'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
@@ -847,17 +849,11 @@ describe('AgentPage', () => {
 
   it('preserves the manually collapsed minimal sidebar when its home becomes visible again', () => {
     const home = (visible: boolean) => (
-      <MinimalModeContext
-        value={{
-          enabled: true,
-          isHome: visible,
-          homeKind: 'agent',
-          switchHome: () => {},
-          returnHome: () => {},
-          openFeature: () => {}
-        }}>
+      <MinimalModeContext value={{ enabled: true, homeTabId: 'agent-tab' }}>
         <Activity mode={visible ? 'visible' : 'hidden'}>
-          <AgentPage />
+          <TabIdContext value="agent-tab">
+            <AgentPage />
+          </TabIdContext>
         </Activity>
       </MinimalModeContext>
     )

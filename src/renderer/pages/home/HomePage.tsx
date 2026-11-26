@@ -1,6 +1,6 @@
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import type { FC, HTMLAttributes } from 'react'
-import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { use, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
@@ -33,7 +33,7 @@ import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
-import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
+import { MinimalModeContext } from '@renderer/hooks/useMinimalMode'
 import { useModelById } from '@renderer/hooks/useModel'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -74,9 +74,7 @@ type NewTopicAssistantTargetOptions = {
 }
 
 const HomePage: FC = () => {
-  const minimalContext = useMinimalMode()
-  const minimalMode = !!minimalContext?.enabled && minimalContext.isHome
-  const [minimalPaneOpen, setMinimalPaneOpen] = useState(true)
+  const minimalContext = use(MinimalModeContext)
   const { t } = useTranslation()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
@@ -105,11 +103,11 @@ const HomePage: FC = () => {
     toggleShellPane,
     handlePaneAutoCollapseChange
   } = useConversationShellPaneState({
-    persistedPaneOpen: minimalMode ? minimalPaneOpen : showSidebar,
-    setPersistedPaneOpen: minimalMode ? setMinimalPaneOpen : setShowSidebar
+    persistedPaneOpen: showSidebar,
+    setPersistedPaneOpen: setShowSidebar
   })
   const topicListPosition: ChatPanePosition =
-    !minimalMode && !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
+    !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
   const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', {
     enabled: isClassicTopicLayout,
     defaultOpen: !isWindowFrame && panePosition === 'right'
@@ -630,7 +628,7 @@ const HomePage: FC = () => {
                 kind={activeResourceKind}
                 onOpenAssistantChat={handleOpenAssistantChatFromLibrary}
                 toolbarLeading={
-                  !isWindowFrame && !minimalMode ? (
+                  !isWindowFrame ? (
                     <ConversationSidebarToggleButton
                       sidebarOpen={shellPaneOpen}
                       onSidebarToggle={toggleShellPane}
@@ -642,7 +640,7 @@ const HomePage: FC = () => {
             )
           }
         : null,
-    [activeResourceKind, shellPaneOpen, handleOpenAssistantChatFromLibrary, isWindowFrame, minimalMode, toggleShellPane]
+    [activeResourceKind, shellPaneOpen, handleOpenAssistantChatFromLibrary, isWindowFrame, toggleShellPane]
   )
   const historyRecordsCenter = historyRecordsActive
     ? {
@@ -657,7 +655,7 @@ const HomePage: FC = () => {
             onActiveRecordChange={handleHistoryActiveTopicChange}
             onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
             toolbarLeading={
-              !isWindowFrame && !minimalMode ? (
+              !isWindowFrame ? (
                 <ConversationSidebarToggleButton
                   sidebarOpen={shellPaneOpen}
                   onSidebarToggle={toggleShellPane}
@@ -734,7 +732,7 @@ const HomePage: FC = () => {
         revealRequest={topicRevealRequest}
         manageAssistantsActive={manageAssistantsActive}
         onManageAssistants={onManageAssistants}
-        onSetPanePosition={isWindowFrame || minimalMode ? undefined : setTopicListPosition}
+        onSetPanePosition={isWindowFrame ? undefined : setTopicListPosition}
         panePosition="left"
       />
     )
@@ -813,7 +811,6 @@ const HomePage: FC = () => {
             paneManualToggle={paneManualToggle}
             onNewTopic={handleCreateEmptyTopic}
             onCreateEmptyTopic={handleCreateEmptyTopic}
-            showResourceListControls={!minimalMode}
             sidebarOpen={shellPaneOpen}
             onSidebarToggle={toggleShellPane}
             locateMessageId={locateMessageId}

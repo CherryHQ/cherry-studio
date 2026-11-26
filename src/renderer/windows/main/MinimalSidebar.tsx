@@ -1,23 +1,13 @@
-import { ChevronDown, Settings } from 'lucide-react'
-import { lazy, Suspense, useState } from 'react'
+import { Plus } from 'lucide-react'
+import { lazy, Suspense, type ReactNode, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  Button,
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-  Tooltip,
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem
-} from '@cherrystudio/ui'
+import { Button, Popover, PopoverTrigger, PopoverContent, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { AppUpdateButton } from '@renderer/components/layout/AppUpdateButton'
 import { HelpMenu } from '@renderer/components/layout/HelpMenu'
+import NavbarIcon from '@renderer/components/NavbarIcon'
 import { UserAvatar } from '@renderer/components/Sidebar'
 import { UserAccountPanel } from '@renderer/components/UserAccountPanel'
 import useAvatar from '@renderer/hooks/useAvatar'
@@ -27,42 +17,6 @@ import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
 const FeedbackDialog = lazy(() => import('@renderer/components/feedback/FeedbackDialog'))
-
-export function MinimalHomeSwitcher() {
-  const minimalMode = useMinimalMode()
-  const { t } = useTranslation()
-  if (!minimalMode) return null
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 gap-1 px-2 text-sm font-medium [-webkit-app-region:no-drag]">
-          {t(minimalMode.homeKind === 'assistant' ? 'minimal.chat' : 'minimal.work')}
-          <ChevronDown className="size-4 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-max min-w-64 max-w-[calc(100vw-24px)]">
-        <DropdownMenuRadioGroup
-          value={minimalMode.homeKind}
-          onValueChange={(value) => {
-            if (value === 'assistant' || value === 'agent') minimalMode.switchHome(value)
-          }}>
-          <DropdownMenuRadioItem value="agent" textValue={t('minimal.work')} className="py-2">
-            <div className="flex flex-col gap-0.5">
-              <span>{t('minimal.work')}</span>
-              <span className="text-xs text-muted-foreground">{t('minimal.work_description')}</span>
-            </div>
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="assistant" textValue={t('minimal.chat')} className="py-2">
-            <div className="flex flex-col gap-0.5">
-              <span>{t('minimal.chat')}</span>
-              <span className="text-xs text-muted-foreground">{t('minimal.chat_description')}</span>
-            </div>
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
 
 export function MinimalSidebarToggle({
   sidebarOpen,
@@ -75,10 +29,11 @@ export function MinimalSidebarToggle({
   return (
     <div
       className={cn(
-        'absolute top-2 left-2 z-20 [-webkit-app-region:no-drag]',
-        isMac && !fullscreen && 'left-[max(80px,env(titlebar-area-x))]'
+        'absolute top-7 left-2 z-20 -translate-y-1/2 [-webkit-app-region:no-drag]',
+        isMac && !fullscreen && 'top-5.75 left-[max(80px,env(titlebar-area-x))]'
       )}>
       <ConversationSidebarToggleButton
+        className="text-foreground"
         sidebarOpen={sidebarOpen}
         onSidebarToggle={onSidebarToggle}
         tooltipPlacement="bottom"
@@ -87,34 +42,41 @@ export function MinimalSidebarToggle({
   )
 }
 
-export function MinimalSidebarHeader() {
-  const minimalMode = useMinimalMode()
+export function MinimalSidebarHeader({
+  children,
+  onAddAgent
+}: {
+  children: ReactNode
+  onAddAgent?: () => void | Promise<void>
+}) {
+  const { t } = useTranslation()
   const fullscreen = useNativeFullscreen()
   return (
-    <>
-      {minimalMode?.enabled && (
-        <div
-          className={cn(
-            'flex h-11.5 shrink-0 items-center px-2 [-webkit-app-region:drag]',
-            isMac && !fullscreen && 'h-9.5 items-start pt-2 pl-[max(80px,env(titlebar-area-x))]'
-          )}>
-          <div className="size-[30px] shrink-0 [-webkit-app-region:no-drag]" />
-          <div className="flex-1" />
-          <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
-            {minimalMode.sidebarToolbarActions}
-          </div>
-        </div>
-      )}
-      <div className="flex shrink-0 items-center px-2 pt-1">
-        <MinimalHomeSwitcher />
+    <div
+      className={cn(
+        'flex h-14 shrink-0 items-center px-3 [-webkit-app-region:drag]',
+        isMac && !fullscreen && 'h-11.5 pl-[max(80px,env(titlebar-area-x))]'
+      )}>
+      <div className="size-[30px] shrink-0 [-webkit-app-region:no-drag]" />
+      <div className="flex-1" />
+      <div className="flex shrink-0 items-center gap-0.5 [--muted-foreground:var(--foreground)] [-webkit-app-region:no-drag]">
+        {onAddAgent && (
+          <Tooltip content={t('agent.add.title')} placement="bottom">
+            <NavbarIcon tone="conversation" aria-label={t('agent.add.title')} onClick={() => void onAddAgent()}>
+              <Plus />
+            </NavbarIcon>
+          </Tooltip>
+        )}
+        {children}
       </div>
-    </>
+    </div>
   )
 }
 
 export function MinimalSidebarFooter() {
   const minimalMode = useMinimalMode()
   const [userOpen, setUserOpen] = useState(false)
+  const openingNotificationsRef = useRef(false)
   const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const { t } = useTranslation()
@@ -124,41 +86,41 @@ export function MinimalSidebarFooter() {
   return (
     <>
       {minimalMode?.enabled && (
-        <div className="flex shrink-0 items-center gap-0.5 border-t-[0.5px] border-border px-2 py-1.5">
+        <div className="flex shrink-0 items-center gap-0.5 px-3 py-3">
           <Popover open={userOpen} onOpenChange={setUserOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-[30px] min-w-0 flex-1 justify-start gap-2 px-1 text-muted-foreground! hover:text-foreground! focus-visible:text-foreground!"
-                aria-label={name}>
+            <PopoverTrigger asChild data-notification-anchor="left">
+              <Button variant="ghost" size="lg" className="min-w-0 flex-1 justify-start gap-2 px-2" aria-label={name}>
                 <UserAvatar user={{ name, avatar }} className="size-6 shrink-0" />
                 <span className="truncate text-sm">{name}</span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent side="top" align="start">
-              <UserAccountPanel onRequestClose={() => setUserOpen(false)} />
+            <PopoverContent
+              aria-label={t('sidebar.account_menu')}
+              side="top"
+              sideOffset={8}
+              align="start"
+              className="w-56 p-0"
+              onCloseAutoFocus={(event) => {
+                if (!openingNotificationsRef.current) return
+                openingNotificationsRef.current = false
+                event.preventDefault()
+              }}>
+              <UserAccountPanel
+                onRequestClose={() => setUserOpen(false)}
+                onNotificationsOpen={() => {
+                  openingNotificationsRef.current = true
+                }}>
+                <HelpMenu
+                  onRequestClose={() => setUserOpen(false)}
+                  onFeedbackClick={() => {
+                    setFeedbackDialogMounted(true)
+                    setFeedbackOpen(true)
+                  }}
+                />
+              </UserAccountPanel>
             </PopoverContent>
           </Popover>
           <AppUpdateButton className="size-[30px] rounded-md [&_svg]:size-4" placement="top" />
-          <Tooltip content={t('settings.title')} placement="top" delay={800}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="group size-[30px] shrink-0 rounded-md"
-              aria-label={t('settings.title')}
-              onClick={() => minimalMode.openFeature('/settings')}>
-              <Settings className="size-4 text-muted-foreground! group-hover:text-foreground!" strokeWidth={1.6} />
-            </Button>
-          </Tooltip>
-          <HelpMenu
-            iconOnly
-            triggerClassName="size-[30px] rounded-md [&_svg]:size-4"
-            tooltipPlacement="top"
-            onFeedbackClick={() => {
-              setFeedbackDialogMounted(true)
-              setFeedbackOpen(true)
-            }}
-          />
         </div>
       )}
       {feedbackDialogMounted && (

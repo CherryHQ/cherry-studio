@@ -227,6 +227,8 @@ const AgentChat = ({
   composerLaunchOptions
 }: AgentChatProps) => {
   const { t } = useTranslation()
+  const minimalMode = useMinimalMode()
+  const showAgentInSidebar = Boolean(minimalMode?.enabled && minimalMode.isHome && paneOpen && panePosition === 'left')
   const [messageStyle] = usePreference('chat.message.style')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const [skipModelSwitchConfirmationsForAppRun, setSkipModelSwitchConfirmationsForAppRun] = useSharedCache(
@@ -498,6 +500,7 @@ const AgentChat = ({
           activeAgent ? (
             <AgentTopBarControls
               agent={activeAgent}
+              hideAgentControl={showAgentInSidebar}
               model={activeModel}
               workspace={sessionSnapshot.workspace}
               workspaceId={sessionSnapshot.workspace?.type === 'system' ? null : sessionSnapshot.workspaceId}

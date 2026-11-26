@@ -10,6 +10,7 @@ export {
 } from './constants'
 export { UserAvatar } from './primitives'
 export { Sidebar, type SidebarProps } from './Sidebar'
+export { SidebarSortableList } from './SidebarSortableList'
 export type {
   ResolvedSidebarEntry,
   SidebarIconPresentation,

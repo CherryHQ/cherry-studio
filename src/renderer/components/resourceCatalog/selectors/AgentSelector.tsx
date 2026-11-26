@@ -9,12 +9,13 @@ import {
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { usePins } from '@renderer/hooks/usePins'
 import { toast } from '@renderer/services/toast'
 import type { AgentDetail, ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
-import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
+import { AGENTS_MAX_LIMIT, AgentTypeSchema } from '@shared/data/api/schemas/agents'
 
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
 
@@ -68,6 +69,8 @@ export function AgentSelector(props: AgentSelectorProps) {
     mountStrategy
   } = props
   const { t } = useTranslation()
+  const minimal = useMinimalMode()
+  const minimalMode = minimal?.enabled && minimal.isHome
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -101,16 +104,18 @@ export function AgentSelector(props: AgentSelectorProps) {
 
   const items: AgentSelectorItem[] = useMemo(
     () => [
-      ...(data?.items ?? []).map((agent) => ({
-        id: agent.id,
-        name: agent.name,
-        description: getAgentDescriptionForDisplay(agent, t),
-        emoji: getAgentAvatarFromConfiguration(agent.configuration),
-        avatarSrc: agent.avatarSrc
-      })),
+      ...(data?.items ?? [])
+        .filter((agent) => !minimalMode || AgentTypeSchema.safeParse(agent.type).success)
+        .map((agent) => ({
+          id: agent.id,
+          name: agent.name,
+          description: getAgentDescriptionForDisplay(agent, t),
+          emoji: getAgentAvatarFromConfiguration(agent.configuration),
+          avatarSrc: agent.avatarSrc
+        })),
       ...(additionalItems ?? [])
     ],
-    [additionalItems, data, t]
+    [additionalItems, data, minimalMode, t]
   )
 
   const handleTogglePin = useCallback(

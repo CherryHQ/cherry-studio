@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next'
 import { Copy, LoaderCircle, Mic, RotateCcw, Settings, Square, Trash2, Undo2, X } from 'lucide-react'
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
 
@@ -70,9 +71,8 @@ function runAction(action: () => unknown | Promise<unknown>, inputAdapter?: Quic
   }
 }
 
-const DictationComposerRuntime = ({ context }: { context: DictationContext }) => {
+export function useDictationLauncher(t: TFunction) {
   const enabled = useDictationEnabled()
-  const { launcher, t } = context
   const snapshot = useSyncExternalStore(
     dictationService.subscribe,
     dictationService.getSnapshot,
@@ -80,7 +80,7 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
   )
   const { elapsedMs, error, phase, recoveryAvailable, retryAvailable } = snapshot
 
-  const launchers = useMemo(() => {
+  const launcher = useMemo<ComposerToolLauncher>(() => {
     const status =
       phase === 'failed' ? t(dictationErrorKey(error)) : phase !== 'idle' ? t(PHASE_TRANSLATION_KEYS[phase]) : undefined
     const processing = phase === 'stopping' || phase === 'transcribing'
@@ -201,43 +201,47 @@ const DictationComposerRuntime = ({ context }: { context: DictationContext }) =>
       })
     }
 
-    return [
-      {
-        ...DICTATION_TOOLBAR_MANIFEST.toolbar,
-        hidden: !enabled,
-        sources: ['root-panel'] as const,
-        label: actionLabel,
-        description: status,
-        tooltip: actionLabel,
-        searchAliases: getQuickPanelSearchAliases(t, 'chat.input.dictation.title'),
-        icon,
-        active,
-        disabled: false,
-        suffix:
-          elapsedMs > 0 ? t('settings.voice.dictation.elapsed', { seconds: Math.floor(elapsedMs / 1000) }) : undefined,
-        submenu,
-        action: ({ inputAdapter }: ComposerToolLauncherActionOptions) => {
-          if (phase === 'recording') {
-            runAction(() => dictationService.stop(), inputAdapter)
-          } else if (phase === 'starting' || processing) {
-            runAction(() => dictationService.cancel(), inputAdapter)
-          } else if (phase === 'recorded') {
-            runAction(() => dictationService.transcribeRecording(), inputAdapter)
-          } else if (phase === 'recovery') {
-            runAction(() => dictationService.insertRecovery(), inputAdapter)
-          } else if (retryAvailable) {
-            runAction(() => dictationService.retry(), inputAdapter)
-          } else {
-            const run = dictationService.startScoped()
-            void run.result.catch(() => undefined)
-            restoreFocus(inputAdapter)
-          }
+    return {
+      ...DICTATION_TOOLBAR_MANIFEST.toolbar,
+      hidden: !enabled,
+      sources: ['root-panel'] as const,
+      label: actionLabel,
+      description: status,
+      tooltip: actionLabel,
+      searchAliases: getQuickPanelSearchAliases(t, 'chat.input.dictation.title'),
+      icon,
+      active,
+      disabled: false,
+      suffix:
+        elapsedMs > 0 ? t('settings.voice.dictation.elapsed', { seconds: Math.floor(elapsedMs / 1000) }) : undefined,
+      submenu,
+      action: ({ inputAdapter }: ComposerToolLauncherActionOptions) => {
+        if (phase === 'recording') {
+          runAction(() => dictationService.stop(), inputAdapter)
+        } else if (phase === 'starting' || processing) {
+          runAction(() => dictationService.cancel(), inputAdapter)
+        } else if (phase === 'recorded') {
+          runAction(() => dictationService.transcribeRecording(), inputAdapter)
+        } else if (phase === 'recovery') {
+          runAction(() => dictationService.insertRecovery(), inputAdapter)
+        } else if (retryAvailable) {
+          runAction(() => dictationService.retry(), inputAdapter)
+        } else {
+          const run = dictationService.startScoped()
+          void run.result.catch(() => undefined)
+          restoreFocus(inputAdapter)
         }
       }
-    ]
+    }
   }, [enabled, elapsedMs, error, phase, recoveryAvailable, retryAvailable, t])
 
-  useEffect(() => launcher.registerLaunchers(launchers), [launcher, launchers])
+  return { launcher, snapshot }
+}
+
+const DictationComposerRuntime = ({ context }: { context: DictationContext }) => {
+  const { launcher } = useDictationLauncher(context.t)
+  const { registerLaunchers } = context.launcher
+  useEffect(() => registerLaunchers([launcher]), [launcher, registerLaunchers])
   return null
 }
 

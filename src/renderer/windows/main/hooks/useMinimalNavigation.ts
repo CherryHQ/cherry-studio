@@ -3,56 +3,33 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTabs } from '@renderer/hooks/tab'
-import type { MinimalHomeKind } from '@renderer/hooks/useMinimalMode'
 import { findMinimalFeatureTab, getMinimalFeatureKey } from '@renderer/utils/minimalNavigation'
 
-const HOME_URLS = { agent: '/app/agents', assistant: '/app/chat' } as const
+const HOME_URL = '/app/agents'
 
 export function useMinimalNavigation() {
   const [mode] = usePreference('ui.mode')
-  const { tabs, activeTabId, setActiveTab, openTab, closeTabs, updateTab } = useTabs()
+  const { tabs, activeTabId, setActiveTab, openTab, closeTabs } = useTabs()
   const [, setSplit] = useCache('mini_app.split')
   const enabled = mode === 'minimal'
-  const [homeKind, setHomeKind] = useState<MinimalHomeKind>('agent')
-  const [homeTabIds, setHomeTabIds] = useState(() => ({
-    agent: findMinimalFeatureTab(tabs, HOME_URLS.agent)?.id,
-    assistant: findMinimalFeatureTab(tabs, HOME_URLS.assistant)?.id
-  }))
-  const isHome = tabs.some(
-    (tab) =>
-      tab.id === homeTabIds[homeKind] && tab.id === activeTabId && getMinimalFeatureKey(tab.url) === HOME_URLS[homeKind]
-  )
+  const [rememberedHomeTabId, setHomeTabId] = useState(() => findMinimalFeatureTab(tabs, HOME_URL)?.id)
+  const homeTab = tabs.find((tab) => tab.id === rememberedHomeTabId && getMinimalFeatureKey(tab.url) === HOME_URL)
+  const homeTabId = homeTab?.id
+  const isHome = homeTabId !== undefined && homeTabId === activeTabId
   const wasEnabled = useRef(false)
   const pendingEfficiencyHomeId = useRef<string | null>(null)
 
-  const switchHome = useCallback(
-    (kind: MinimalHomeKind) => {
-      const url = HOME_URLS[kind]
-      const home =
-        tabs.find((tab) => tab.id === homeTabIds[kind] && getMinimalFeatureKey(tab.url) === url) ??
-        findMinimalFeatureTab(tabs, url)
-      const id = home ? home.id : openTab(url)
-      if (home) setActiveTab(home.id)
-      setHomeTabIds((current) => (current[kind] === id ? current : { ...current, [kind]: id }))
-      setHomeKind(kind)
-      return id
-    },
-    [homeTabIds, openTab, setActiveTab, tabs]
-  )
-
   const returnHome = useCallback(() => {
-    switchHome(homeKind)
-  }, [homeKind, switchHome])
+    const home = homeTab ?? findMinimalFeatureTab(tabs, HOME_URL)
+    const id = home?.id ?? openTab(HOME_URL)
+    if (home) setActiveTab(home.id)
+    setHomeTabId(id)
+    return id
+  }, [homeTab, openTab, setActiveTab, tabs])
 
   useLayoutEffect(() => {
-    if (enabled && !wasEnabled.current) {
-      const assistant = findMinimalFeatureTab(tabs, HOME_URLS.assistant)
-      const assistantId = assistant?.id ?? openTab(HOME_URLS.assistant)
-      if (assistant?.isDormant) updateTab(assistantId, { isDormant: false })
-      setHomeTabIds((current) => ({ ...current, assistant: assistantId }))
-      returnHome()
-    }
-    if (!enabled && wasEnabled.current) pendingEfficiencyHomeId.current = switchHome('agent')
+    if (enabled && !wasEnabled.current) returnHome()
+    if (!enabled && wasEnabled.current) pendingEfficiencyHomeId.current = returnHome()
     wasEnabled.current = enabled
 
     const homeId = pendingEfficiencyHomeId.current
@@ -65,24 +42,24 @@ export function useMinimalNavigation() {
       setActiveTab(homeId)
       setSplit(null)
     }
-  }, [closeTabs, enabled, openTab, returnHome, setActiveTab, setSplit, switchHome, tabs, updateTab])
+  }, [closeTabs, enabled, returnHome, setActiveTab, setSplit, tabs])
 
   const openFeature = useCallback(
     (url: string) => {
       const key = getMinimalFeatureKey(url)
-      if (key === HOME_URLS.agent || key === HOME_URLS.assistant) {
-        switchHome(key === HOME_URLS.agent ? 'agent' : 'assistant')
+      if (key === HOME_URL) {
+        returnHome()
         return
       }
       const existing = findMinimalFeatureTab(tabs, url)
       if (existing) setActiveTab(existing.id)
       else openTab(url)
     },
-    [openTab, switchHome, setActiveTab, tabs]
+    [openTab, returnHome, setActiveTab, tabs]
   )
 
   return useMemo(
-    () => ({ enabled, isHome, homeKind, homeTabIds, switchHome, returnHome, openFeature }),
-    [enabled, isHome, homeKind, homeTabIds, switchHome, returnHome, openFeature]
+    () => ({ enabled, isHome, homeTabId, returnHome, openFeature }),
+    [enabled, isHome, homeTabId, returnHome, openFeature]
   )
 }

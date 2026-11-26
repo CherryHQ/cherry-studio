@@ -59,6 +59,7 @@ import { useCherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuo
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useLatest } from '@renderer/hooks/useLatest'
 import { useMcpSkills } from '@renderer/hooks/useMcpSkills'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -553,6 +554,8 @@ const AgentComposerInner = ({
   deferQuickPanel = false,
   resolvedWorkspaceWarning
 }: InnerProps) => {
+  const minimal = useMinimalMode()
+  const minimalMode = !!(minimal?.enabled && minimal.isHome)
   const { updateAgent } = useUpdateAgent()
   const quotaExhaustion = useCherryCloudQuotaExhaustion(model, true)
   const quotaBlocksSend = !!quotaExhaustion && quotaExhaustion.reason !== 'unknown'
@@ -1335,11 +1338,12 @@ const AgentComposerInner = ({
   const steerKeyLabel = getComposerShortcutLabel(resolvedSteerShortcut)
 
   const placeholderText = useMemo(() => {
+    if (minimalMode) return t('minimal.input.placeholder')
     if (!isStreaming) return t('agent.input.placeholder')
     return steerWhileBusy
       ? t('agent.input.placeholder_steering')
       : t('agent.input.placeholder_streaming', { sendKey: sendKeyLabel, steerKey: steerKeyLabel })
-  }, [isStreaming, sendKeyLabel, steerKeyLabel, steerWhileBusy, t])
+  }, [isStreaming, minimalMode, sendKeyLabel, steerKeyLabel, steerWhileBusy, t])
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
@@ -1748,6 +1752,7 @@ const AgentComposerInner = ({
     <>
       {model ? (
         <ModelSpeedControl
+          iconOnly={minimalMode}
           model={model}
           reasoningEffort={reasoningEffort}
           serviceTier={serviceTier}
@@ -1757,7 +1762,7 @@ const AgentComposerInner = ({
           onFastModeChange={setFastMode}
         />
       ) : null}
-      <AgentComposerContextUsage model={model} sessionId={sessionId} />
+      {!minimalMode && <AgentComposerContextUsage model={model} sessionId={sessionId} />}
       <ComposerDictationButton inputAdapter={inputAdapter} />
     </>
   )

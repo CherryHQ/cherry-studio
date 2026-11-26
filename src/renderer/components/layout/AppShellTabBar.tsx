@@ -33,7 +33,6 @@ import './ShellNavigation.css'
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type AppShellTabBarProps = {
-  onOpenLaunchpad?: () => void
   tabs: Tab[]
   shortcutHints?: ReadonlyMap<string, string | undefined>
   activeTabId: string
@@ -601,8 +600,7 @@ export const AppShellTabBar = ({
   pinTab,
   unpinTab,
   detachTab,
-  openTab,
-  onOpenLaunchpad
+  openTab
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
@@ -827,10 +825,6 @@ export const AppShellTabBar = ({
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleOpenLaunchpad = () => {
-    if (onOpenLaunchpad) {
-      onOpenLaunchpad()
-      return
-    }
     openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true, position: 'end' })
   }
 

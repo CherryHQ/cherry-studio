@@ -29,15 +29,7 @@ it('offers a downloaded update in the minimal footer and opens its release dialo
   const user = userEvent.setup()
   const releaseInfo = { version: '2.0.0', files: [], path: '', sha512: '', releaseDate: '' }
   const footer = (
-    <MinimalModeContext
-      value={{
-        enabled: true,
-        isHome: true,
-        homeKind: 'agent',
-        switchHome: vi.fn(),
-        returnHome: vi.fn(),
-        openFeature: vi.fn()
-      }}>
+    <MinimalModeContext value={{ enabled: true }}>
       <MinimalSidebarFooter />
     </MinimalModeContext>
   )

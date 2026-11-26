@@ -38,11 +38,9 @@ export const AppShell = (props: Parameters<typeof AppShellContent>[0]) => (
 
 const AppShellContent = ({
   minimalMode,
-  minimalToolbar,
-  onOpenLaunchpad
+  minimalToolbar
 }: {
-  onOpenLaunchpad?: () => void
-  minimalMode?: { isHome: boolean; returnHome: () => void; homeTabIds?: { agent?: string; assistant?: string } }
+  minimalMode?: { isHome: boolean; returnHome: () => void; homeTabId?: string }
   minimalToolbar?: (detachTab: (id: string) => void) => ReactNode
 }) => {
   const isMinimal = !!minimalMode
@@ -255,7 +253,6 @@ const AppShellContent = ({
       unpinTab={unpinTab}
       detachTab={handleDetachTab}
       openTab={openTab}
-      onOpenLaunchpad={onOpenLaunchpad}
     />
   )
 
@@ -281,7 +278,7 @@ const AppShellContent = ({
                 key={tab.id}
                 tab={tab}
                 isActive={tab.id === activeTabId}
-                preload={tab.id === minimalMode?.homeTabIds?.agent || tab.id === minimalMode?.homeTabIds?.assistant}
+                preload={tab.id === minimalMode?.homeTabId}
                 onUrlChange={(url) => handleUrlChange(tab.id, url)}
               />
             ))}

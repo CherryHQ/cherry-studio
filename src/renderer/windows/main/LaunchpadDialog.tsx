@@ -11,13 +11,11 @@ export function LaunchpadDialog({
   open,
   onOpenChange,
   onOpen,
-  minimal,
   returnFocusRef
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onOpen: (url: string) => void
-  minimal: boolean
   returnFocusRef: RefObject<HTMLElement | null>
 }) {
   const { t } = useTranslation()
@@ -31,12 +29,12 @@ export function LaunchpadDialog({
           event.preventDefault()
           returnFocusRef.current?.focus()
         }}
-        overlayClassName="bg-background/60 backdrop-blur-2xl"
+        overlayClassName="window-dialog-backdrop"
         className="inset-0 flex h-dvh w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-transparent p-0 shadow-none sm:max-w-none">
         <DialogTitle className="sr-only">{t('title.launchpad')}</DialogTitle>
         <Suspense fallback={null}>
           <LaunchpadContent
-            compact={minimal}
+            compact
             onDismiss={() => onOpenChange(false)}
             onOpen={(url) => {
               onOpenChange(false)

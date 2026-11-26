@@ -1,7 +1,7 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Activity, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -322,7 +322,6 @@ vi.mock('../Chat', () => ({
     pane,
     paneOpen,
     panePosition,
-    showResourceListControls,
     onSidebarToggle,
     locateMessageId,
     resourcePaneCount,
@@ -338,7 +337,6 @@ vi.mock('../Chat', () => ({
     pane?: ReactNode
     paneOpen?: boolean
     panePosition?: string
-    showResourceListControls?: boolean
     onSidebarToggle?: () => void
     locateMessageId?: string
     resourcePaneCount?: { label: string; count: number }
@@ -363,9 +361,8 @@ vi.mock('../Chat', () => ({
           <>
             <output data-testid="active-topic">{activeTopic.id}</output>
             <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
-            <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
             <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
-            {showResourceListControls && onSidebarToggle && (
+            {onSidebarToggle && (
               <button type="button" onClick={onSidebarToggle}>
                 Toggle sidebar
               </button>
@@ -784,28 +781,12 @@ describe('HomePage', () => {
     ipcMocks.request.mockClear()
   })
 
-  it('preserves the manually collapsed minimal sidebar when its home becomes visible again', () => {
-    const home = (visible: boolean) => (
-      <MinimalModeContext
-        value={{
-          enabled: true,
-          isHome: visible,
-          homeKind: 'assistant',
-          switchHome: () => {},
-          returnHome: () => {},
-          openFeature: () => {}
-        }}>
-        <Activity mode={visible ? 'visible' : 'hidden'}>
-          <HomePage />
-        </Activity>
+  it('keeps the regular Chat sidebar preference in a minimal window', () => {
+    render(
+      <MinimalModeContext value={{ enabled: true, homeTabId: 'agent-tab' }}>
+        <HomePage />
       </MinimalModeContext>
     )
-    const { rerender } = render(home(true))
-    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse pane' }))
-    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
-    rerender(home(false))
-    rerender(home(true))
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
   })
 

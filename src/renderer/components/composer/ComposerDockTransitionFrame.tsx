@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
 
 import {
@@ -10,6 +10,7 @@ import {
   useComposerDockMotionTransition
 } from '@renderer/components/chat/motion/composerDockMotion'
 import { useOptionalQuickPanel } from '@renderer/components/QuickPanel'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { cn } from '@renderer/utils/style'
 
 const COMPOSER_MESSAGE_GAP_PX = 16
@@ -55,11 +56,18 @@ export default function ComposerDockTransitionFrame({
   const composerRef = useRef<HTMLDivElement>(null)
   const [bottomOverlayInsets, setBottomOverlayInsets] = useState<ChatBottomOverlayInsets | null>(null)
   const [composerInlineInsets, setComposerInlineInsets] = useState<ComposerInlineInsets>(ZERO_COMPOSER_INLINE_INSETS)
+  const minimal = useMinimalMode()
+  const minimalHome = minimal?.enabled && minimal.isHome
   const isDocked = placement === 'docked'
   const hasComposer = Boolean(composer)
   const dockMotionTransition = useComposerDockMotionTransition(placement)
   const dockMotionAttributes = getComposerDockMotionAttributes(dockMotionTransition)
   const quickPanel = useOptionalQuickPanel()
+  const fadeEnd = minimalHome ? bottomOverlayInsets?.contentBottomPadding : undefined
+  const messageMask =
+    fadeEnd === undefined
+      ? undefined
+      : `linear-gradient(to top, transparent ${Math.max(0, fadeEnd - COMPOSER_MESSAGE_GAP_PX)}px, black ${fadeEnd}px)`
 
   // Home placement asks the quick panel to fill the available height above the input.
   // Pushed explicitly through context (no DOM contract); no-op when there is no provider.
@@ -109,9 +117,11 @@ export default function ComposerDockTransitionFrame({
       const scroller = root.querySelector<HTMLElement>('[data-message-virtual-list-scroller]')
       const scrollerRect = scroller?.getBoundingClientRect()
       const scrollerClientWidth = scroller?.clientWidth ?? 0
+      const bottomMargin = Math.max(0, rootRect.bottom - insetTargetRect.bottom)
+      const contentBottomPadding = Math.max(0, insetTargetRect.bottom - composerRect.top + COMPOSER_MESSAGE_GAP_PX)
       const nextBottomOverlayInsets = {
-        contentBottomPadding: Math.max(0, insetTargetRect.bottom - composerRect.top + COMPOSER_MESSAGE_GAP_PX),
-        scrollerBottomMargin: Math.max(0, rootRect.bottom - insetTargetRect.bottom)
+        contentBottomPadding: contentBottomPadding + (minimalHome ? bottomMargin : 0),
+        scrollerBottomMargin: minimalHome ? 0 : bottomMargin
       }
       const nextComposerInlineInsets = {
         left: scrollerRect ? Math.max(0, scrollerRect.left - rootRect.left) : 0,
@@ -151,14 +161,18 @@ export default function ComposerDockTransitionFrame({
       mutationObserver?.disconnect()
       observer?.disconnect()
     }
-  }, [hasComposer, isDocked])
+  }, [hasComposer, isDocked, minimalHome])
 
   return (
     <div ref={rootRef} data-composer-stage="" className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <ChatBottomOverlayInsetProvider value={bottomOverlayInsets}>
         <div
-          className={cn('flex h-full min-h-0 flex-1 flex-col overflow-hidden', !mainVisible && 'pointer-events-none')}
-          style={{ opacity: mainVisible ? 1 : 0 }}>
+          className={cn(
+            'flex h-full min-h-0 flex-1 flex-col overflow-hidden',
+            !mainVisible && 'pointer-events-none',
+            messageMask && '[&_[data-message-virtual-list-scroller]]:[mask-image:var(--chat-message-mask)]'
+          )}
+          style={{ opacity: mainVisible ? 1 : 0, '--chat-message-mask': messageMask } as CSSProperties}>
           {main}
         </div>
       </ChatBottomOverlayInsetProvider>

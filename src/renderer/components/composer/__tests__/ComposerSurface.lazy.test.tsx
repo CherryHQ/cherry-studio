@@ -627,6 +627,15 @@ describe('deferred ComposerSurface', () => {
     expect(mocks.onSendDraft).toHaveBeenCalledTimes(1)
   })
 
+  it('renders the next compact composer without showing the regular fallback when the editor is loaded', async () => {
+    const view = render(<Harness key="first" compactWhenSingleLine text="First draft" />)
+    expect(await screen.findByTestId('composer-runtime')).toHaveTextContent('First draft')
+
+    view.rerender(<Harness key="second" compactWhenSingleLine text="Second draft" />)
+
+    expect(screen.getByTestId('composer-runtime')).toHaveTextContent('Second draft')
+  })
+
   it('names the fallback pause action for screen readers', () => {
     const { container } = render(<Harness isLoading sendDisabled />)
     const pause = container.querySelector('[data-ui="chat.composer.action.pause"]')

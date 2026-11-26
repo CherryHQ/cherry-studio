@@ -619,9 +619,7 @@ const AgentPage = () => {
     setMissingAgentSelection(true)
   }, [clearActiveSession, clearLocate, closeSurface])
 
-  // Stable wrapper for the classic-layout rail's per-agent "new session" action. Adapting the
-  // `(agentId) => ...` signature inline at the JSX call site would hand `AgentResourceList` a fresh
-  // function every render, defeating its `entities` memo (mirrors the assistant rail's stable ref).
+  // Sidebars resolve new sessions separately so activation can reject a stale selection.
   const handleCreateSessionForAgent = useCallback(
     (agentId: string) => resolveEmptySession(agentId, { agentId }),
     [resolveEmptySession]
@@ -938,6 +936,13 @@ const AgentPage = () => {
     },
     [closeSurface, setActiveSessionAndClearTransient]
   )
+  const handleMinimalSessionActivation = useCallback(
+    (session: AgentSessionEntity, created: boolean) => {
+      if (created) activateSession(session)
+      else setActiveSessionAndClearTransient(session.id, session)
+    },
+    [activateSession, setActiveSessionAndClearTransient]
+  )
   // After deleting the active agent, settle on the latest remaining session or the empty route.
   const handleActiveAgentDeleted = useCallback(
     async (deletedAgentId: string) => {
@@ -1070,6 +1075,8 @@ const AgentPage = () => {
         revealRequest={sessionRevealRequest}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         onCreateSession={createAndActivateEmptySession}
+        onCreateSessionForAgent={handleCreateSessionForAgent}
+        onActivateMinimalSession={handleMinimalSessionActivation}
         onShowMissingAgentSelection={showMissingAgentSelection}
         onSetPanePosition={isWindowFrame || minimalMode ? undefined : setSessionListPosition}
         panePosition="left"

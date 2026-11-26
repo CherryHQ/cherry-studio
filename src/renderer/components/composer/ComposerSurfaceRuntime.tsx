@@ -2250,7 +2250,7 @@ export default function ComposerSurfaceRuntime({
   const unifiedPanelAvailable = useMemo(() => {
     // Recompute when runtime launchers register or unregister.
     void toolLaunchersVersion
-    if (!quickPanelReady || !quickPanelEnabled) return false
+    if (!quickPanelEnabled || (!isCompact && !quickPanelReady)) return false
 
     return hasUnifiedQuickPanelRootContent(getToolLaunchers?.() ?? [], {
       leadingItems: rootPanelLeadingItems,
@@ -2258,6 +2258,7 @@ export default function ComposerSurfaceRuntime({
     })
   }, [
     getToolLaunchers,
+    isCompact,
     quickPanelReady,
     quickPanelEnabled,
     rootPanelAdditionalItems,
@@ -2370,7 +2371,10 @@ export default function ComposerSurfaceRuntime({
     )
   }, [deferredIntent, editor, setTimeoutTimer, unifiedPanelAvailable, unifiedPanelOpen])
 
-  const quickPanelElement = quickPanelReady && quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
+  const quickPanelElement =
+    quickPanelEnabled && (quickPanelReady || (isCompact && quickPanel.isVisible)) ? (
+      <QuickPanelView inputAdapter={inputAdapter} />
+    ) : null
   const showPauseButton = isLoading && sendDisabled
   const leftControls = renderLeftControls?.(inputAdapter, unifiedPanelControl)
   const belowControls = renderBelowControls?.(inputAdapter, unifiedPanelControl)
@@ -2513,14 +2517,12 @@ export default function ComposerSurfaceRuntime({
       {topContent}
       <div
         data-composer-compact-row={isCompact ? '' : undefined}
-        className={
-          isCompact
-            ? 'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 px-2 py-1'
-            : leadingContent
-              ? 'flex items-start'
-              : 'contents'
-        }>
-        {isCompact ? <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} /> : null}
+        className={isCompact ? 'flex items-center gap-1 px-2 py-1' : leadingContent ? 'flex items-start' : 'contents'}>
+        {isCompact && quickPanelEnabled && (
+          <div className="w-7.5 shrink-0">
+            <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
+          </div>
+        )}
         {leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{leadingContent}</div> : null}
         <div
           ref={frameRef}

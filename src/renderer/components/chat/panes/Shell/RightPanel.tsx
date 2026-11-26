@@ -493,6 +493,7 @@ function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolea
 
   return (
     <div
+      data-right-pane-header
       data-testid="shell-tab-list"
       className={cn(
         'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-2 [-webkit-app-region:no-drag]',

@@ -46,15 +46,21 @@ export type {
   ComposerSurfaceProps
 } from './ComposerSurfaceRuntime'
 
-let runtimePromise: Promise<{ default: ComponentType<ComposerSurfaceProps> }> | undefined
+let runtimePromise: Promise<ComponentType<ComposerSurfaceProps>> | undefined
+let loadedRuntime: ComponentType<ComposerSurfaceProps> | undefined
 
 function loadRuntime() {
-  runtimePromise ??= import('./ComposerSurfaceRuntime').catch((error) => {
-    // Drop the rejected promise so the next interaction retries instead of replaying the failure.
-    runtimePromise = undefined
-    logger.error('Failed to load composer runtime', error as Error)
-    throw error
-  })
+  runtimePromise ??= import('./ComposerSurfaceRuntime')
+    .then(({ default: Runtime }) => {
+      loadedRuntime = Runtime
+      return Runtime
+    })
+    .catch((error) => {
+      // Drop the rejected promise so the next interaction retries instead of replaying the failure.
+      runtimePromise = undefined
+      logger.error('Failed to load composer runtime', error as Error)
+      throw error
+    })
   return runtimePromise
 }
 
@@ -79,10 +85,10 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
   const sendMessageShortcut = props.sendMessageShortcut ?? resolveSendShortcut(preferredSendMessageShortcut)
   const [preferredNewlineShortcut] = usePreference('chat.input.newline_shortcut')
   const newlineShortcut = resolveNewlineShortcut(preferredNewlineShortcut, sendMessageShortcut)
-  const [Runtime, setRuntime] = useState<ComponentType<ComposerSurfaceProps>>()
-  const [runtimeReady, setRuntimeReady] = useState(false)
+  // The regular fallback is taller than the compact editor and would flash on session switches.
+  const [Runtime, setRuntime] = useState(() => (props.compactWhenSingleLine ? loadedRuntime : undefined))
   const [isComposing, setIsComposing] = useState(false)
-  const ActiveRuntime = runtimeReady && !isComposing ? Runtime : undefined
+  const ActiveRuntime = !isComposing ? Runtime : undefined
   const layerActive = useComposerLayerActive()
   const [runtimeFocus, setRuntimeFocus] = useState<() => boolean>()
   const handleFocusTargetChange: NonNullable<ComposerSurfaceProps['onFocusTargetChange']> = useCallback(
@@ -164,10 +170,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
 
   const requestRuntime = useCallback(() => {
     void loadRuntime()
-      .then((module) => {
-        setRuntime(() => module.default)
-        setRuntimeReady(true)
-      })
+      .then((runtime) => setRuntime(() => runtime))
       .catch(() => {
         // Already logged; the fallback stays usable and a later interaction retries.
       })
@@ -193,8 +196,8 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     Boolean(props.compactWhenSingleLine) ||
     props.isExpanded
   useEffect(() => {
-    if (needsRuntime) requestRuntime()
-  }, [needsRuntime, requestRuntime])
+    if (needsRuntime && !Runtime) requestRuntime()
+  }, [needsRuntime, requestRuntime, Runtime])
 
   // Swap while the app is idle rather than under the user's first keystroke: a swap that lands
   // between a keydown and its character insertion drops that character, and no hand-off inside

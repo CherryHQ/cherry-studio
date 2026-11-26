@@ -1,23 +1,20 @@
-import { createContext, type ReactNode, use } from 'react'
+import { createContext, type ReactNode, use, useMemo } from 'react'
 
-export type MinimalHomeKind = 'agent' | 'assistant'
+import { TabIdContext } from './tab'
 
 export interface MinimalModeContextValue {
-  homeKind: MinimalHomeKind
-  switchHome: (kind: MinimalHomeKind) => void
-  sidebarHeader?: ReactNode
+  renderSidebarHeader?: (onAddAgent?: () => void | Promise<void>) => ReactNode
   renderSidebarToggle?: (sidebarOpen: boolean, onSidebarToggle?: () => void) => ReactNode
   sidebarFooter?: ReactNode
   renderHomeToolbar?: (sidebarOpen: boolean, topBar: ReactNode) => ReactNode
-  sidebarToolbarActions?: ReactNode
   enabled: boolean
-  isHome: boolean
-  returnHome: () => void
-  openFeature: (url: string) => void
+  homeTabId?: string
 }
 
 export const MinimalModeContext = createContext<MinimalModeContextValue | null>(null)
 
 export function useMinimalMode() {
-  return use(MinimalModeContext)
+  const mode = use(MinimalModeContext)
+  const isHome = !!mode?.enabled && mode.homeTabId !== undefined && use(TabIdContext) === mode.homeTabId
+  return useMemo(() => (mode ? { ...mode, isHome } : null), [mode, isHome])
 }

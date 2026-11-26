@@ -42,6 +42,21 @@
 
 /* Let the Electron window surface control the document background. */
 @layer app {
+  .window-dialog-backdrop {
+    @apply bg-card/45;
+  }
+
+  /* Blur the window content directly so transparent windows don't show unfiltered text through the overlay. */
+  body:has(> .window-dialog-backdrop[data-state='open']) > #root {
+    @apply blur-lg;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    body:has(> .window-dialog-backdrop) > #root {
+      transition: filter 200ms ease-out;
+    }
+  }
+
   [data-ui~='file-preview.view'] {
     --file-preview-bottom-inset: var(--chat-composer-inset, 0px);
   }

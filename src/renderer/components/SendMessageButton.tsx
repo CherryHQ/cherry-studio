@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
 import { TooltipLabelWithShortcut } from '@renderer/components/command'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 
 interface Props {
   label?: string
@@ -15,7 +16,10 @@ interface Props {
 
 const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, label, shortcutLabel }) => {
   const { t } = useTranslation()
+  const minimalMode = useMinimalMode()
   const sendLabel = label ?? t('chat.input.send')
+  const disabledColor =
+    minimalMode?.enabled && minimalMode.isHome ? 'var(--muted-foreground)' : 'var(--foreground-disabled)'
 
   const handleClick = () => {
     if (disabled) {
@@ -59,7 +63,7 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, 
         tabIndex={disabled ? -1 : 0}
         style={{
           cursor: disabled ? 'not-allowed' : 'pointer',
-          color: disabled ? 'var(--foreground-disabled)' : 'var(--primary)',
+          color: disabled ? disabledColor : 'var(--primary)',
           fontSize: 22,
           transition: 'all 0.2s',
           marginTop: 1,

@@ -896,6 +896,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const treeToggleOnRight = isWide && paneSettings.treePosition === 'right'
   const paneHeader = (
     <div
+      data-right-pane-header
       data-testid="artifact-pane-header"
       className="flex min-h-(--navbar-height) shrink-0 items-center gap-2 border-b border-border-subtle bg-card px-2 [-webkit-app-region:no-drag]">
       {treeToggleOnRight ? null : treeToggle}

@@ -25,7 +25,7 @@ import { MinimalSidebarHeader, MinimalSidebarFooter, MinimalSidebarToggle } from
 export function MainWindowShell() {
   const navigation = useMinimalNavigation()
   const { t } = useTranslation()
-  const { activeTab, openTab } = useTabs()
+  const { activeTab } = useTabs()
   const launchpadTrigger = useRef<HTMLElement | null>(null)
   const showLaunchpad = () => {
     launchpadTrigger.current = document.activeElement as HTMLElement
@@ -47,23 +47,23 @@ export function MainWindowShell() {
       <MiniLaunchpad onOpen={showLaunchpad} />
     </>
   )
-  const renderToolbar = (sidebarOpen = false, topBar?: ReactNode, onDetach?: () => void) => (
+  const renderToolbar = (isHome: boolean, sidebarOpen = false, topBar?: ReactNode, onDetach?: () => void) => (
     <header
       className={cn(
-        'flex shrink-0 items-center gap-2 border-b-[0.5px] border-border px-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]',
-        navigation.isHome ? 'h-11.5' : 'h-11',
-        navigation.isHome && 'gap-0 transition-[padding-left] duration-300 ease-in-out motion-reduce:transition-none',
-        navigation.isHome && sidebarOpen && 'pl-0',
+        'flex shrink-0 items-center gap-2 px-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]',
+        isHome ? (isMac && !fullscreen ? 'h-11.5' : 'h-14') : 'h-11 border-b-[0.5px] border-border',
+        isHome &&
+          'gap-0 transition-[padding-left] duration-300 ease-in-out [--muted-foreground:var(--foreground)] motion-reduce:transition-none',
         isMac && !fullscreen && !sidebarOpen && 'pl-[max(80px,env(titlebar-area-x))]'
       )}>
-      {!navigation.isHome && (
+      {!isHome && (
         <>
           <BackButton className="pr-0" aria-label={t('minimal.return_home')} onClick={navigation.returnHome} />
           <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-3" />
         </>
       )}
-      {!navigation.isHome && <span className="min-w-0 truncate text-sm text-muted-foreground">{activeTab?.title}</span>}
-      {navigation.isHome && (
+      {!isHome && <span className="min-w-0 truncate text-sm text-muted-foreground">{activeTab?.title}</span>}
+      {isHome && (
         <div
           aria-hidden
           className={cn(
@@ -94,10 +94,12 @@ export function MainWindowShell() {
   return (
     <MinimalModeContext
       value={{
-        ...navigation,
-        renderHomeToolbar: renderToolbar,
-        sidebarToolbarActions,
-        sidebarHeader: <MinimalSidebarHeader />,
+        enabled: navigation.enabled,
+        homeTabId: navigation.homeTabId,
+        renderHomeToolbar: (sidebarOpen, topBar) => renderToolbar(true, sidebarOpen, topBar),
+        renderSidebarHeader: (onAddAgent) => (
+          <MinimalSidebarHeader onAddAgent={onAddAgent}>{sidebarToolbarActions}</MinimalSidebarHeader>
+        ),
         renderSidebarToggle: (sidebarOpen, onSidebarToggle) => (
           <MinimalSidebarToggle sidebarOpen={sidebarOpen} onSidebarToggle={onSidebarToggle} />
         ),
@@ -105,12 +107,12 @@ export function MainWindowShell() {
       }}>
       <SidebarAvailableContext value={!navigation.enabled}>
         <AppShell
-          onOpenLaunchpad={showLaunchpad}
           minimalMode={navigation.enabled ? navigation : undefined}
           minimalToolbar={(detachTab) =>
             navigation.isHome
               ? null
               : renderToolbar(
+                  false,
                   false,
                   undefined,
                   activeTab
@@ -124,13 +126,9 @@ export function MainWindowShell() {
         />
         <LaunchpadDialog
           returnFocusRef={launchpadTrigger}
-          open={launchpadOpen}
+          open={navigation.enabled && launchpadOpen}
           onOpenChange={setLaunchpadOpen}
-          minimal={navigation.enabled}
-          onOpen={(url) => {
-            if (navigation.enabled) navigation.openFeature(url)
-            else openTab(url)
-          }}
+          onOpen={navigation.openFeature}
         />
       </SidebarAvailableContext>
     </MinimalModeContext>
