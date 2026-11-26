@@ -1313,9 +1313,13 @@ describe('ProviderRegistryService', () => {
       expect(maxDated?.modes.generate?.supports?.seed).toEqual({ type: 'text' })
 
       const v2ProDated = providerRegistryService.getImageGenerationSupport('dashscope', 'qwen-image-2.0-pro-2026-03-03')
+      expect(v2ProDated?.modes.edit?.maxInputImages).toBe(3)
       expect(v2ProDated?.modes.generate?.supports?.numImages).toEqual({ type: 'range', min: 1, max: 6, default: 1 })
       expect(v2ProDated?.modes.generate?.supports?.size).toMatchObject({ default: '2048x2048' })
       expect((v2ProDated?.modes.edit?.supports?.size as { default?: string } | undefined)?.default).toBeUndefined()
+      expect(
+        providerRegistryService.getImageGenerationSupport('dashscope', 'qwen-image-2.0')?.modes.edit?.maxInputImages
+      ).toBe(3)
 
       const v21Pro = providerRegistryService.getImageGenerationSupport('dashscope', 'qwen-image-2.1-pro')
       expect(v21Pro?.modes.edit?.maxInputImages).toBe(10)

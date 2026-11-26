@@ -3,6 +3,7 @@ import { Agent } from 'undici'
 
 import { normalizeModelId } from '@cherrystudio/provider-registry'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { normalizePixelSize } from '@shared/ai/imageSize'
 
 import {
   DEFAULT_IMAGE_REQUEST_TIMEOUT_MS,
@@ -159,17 +160,13 @@ function extractImageUrls(output: DashScopeTaskOutput, family: ResponseFamily): 
 }
 
 /**
- * DashScope's `parameters.size` uses `WIDTH*HEIGHT`; the painting UI canonical
- * form is `WIDTHxHEIGHT`. Returns `undefined` for the `'auto'` sentinel and
- * empty / mismatched input so callers can omit the field entirely.
+ * DashScope's `parameters.size` uses `WIDTH*HEIGHT`; accepts canonical
+ * `WIDTHxHEIGHT` as well as `×`/`*`/`X` separators. Returns `undefined` for
+ * `'auto'` and empty / mismatched input so callers omit the field entirely.
  */
 function toDashScopeSize(size: ImageGenerationSubmitInput['size']): string | undefined {
-  if (!size) return undefined
-  const value = String(size)
-  if (value === 'auto') return undefined
-  if (/^\d+\*\d+$/.test(value)) return value
-  if (/^\d+x\d+$/i.test(value)) return value.replace(/x/i, '*')
-  return undefined
+  const normalized = normalizePixelSize(size)
+  return normalized ? normalized.replace('x', '*') : undefined
 }
 
 /**

@@ -23,7 +23,7 @@ const qwenImage1T2iSupports: ImageModeDef['supports'] = {
   size: { type: 'text' }
 }
 
-/** qwen-image-2.0 / -pro support t2i + edit with up to 6 outputs and 512*512..2048*2048 area. */
+/** qwen-image-2.0 / -pro support t2i + edit (up to 3 ref images) with up to 6 outputs and 512*512..2048*2048 area. */
 const qwenImage20SizeOptions = ['2048x2048', '2688x1536', '1536x2688', '2368x1728', '1728x2368']
 
 const qwenImage20GenerateSupports: ImageModeDef['supports'] = {
@@ -305,7 +305,7 @@ export default defineCreator({
       outputModalities: ['image'],
       imageGeneration: {
         modes: {
-          edit: { supports: qwenImage20EditSupports },
+          edit: { maxInputImages: 3, supports: qwenImage20EditSupports },
           generate: { supports: qwenImage20GenerateSupports }
         }
       }
@@ -319,7 +319,7 @@ export default defineCreator({
       outputModalities: ['image'],
       imageGeneration: {
         modes: {
-          edit: { supports: qwenImage20EditSupports },
+          edit: { maxInputImages: 3, supports: qwenImage20EditSupports },
           generate: { supports: qwenImage20GenerateSupports }
         }
       }

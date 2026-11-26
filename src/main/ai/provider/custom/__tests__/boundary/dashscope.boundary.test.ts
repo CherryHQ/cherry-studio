@@ -488,6 +488,23 @@ describe('DashScope newly registered and dated image models', () => {
     })
   })
 
+  it('normalizes U+00D7 dimension separator (1536×1024) on z-image-turbo to 1536*1024', async () => {
+    const req = await captureImageRequest(transport, {
+      ...base,
+      modelId: 'z-image-turbo',
+      prompt: 'landscape scene',
+      n: 1,
+      size: '1536×1024' as ImageGenerationSubmitInput['size'],
+      modelDescriptor: syncDescriptor('z-image-turbo', 'generate'),
+      providerParams: {}
+    })
+
+    expect(req.body).toMatchObject({
+      model: 'z-image-turbo',
+      parameters: { size: '1536*1024' }
+    })
+  })
+
   it('routes catalog-declared qwen-image-plus via multimodal-generation, preserves legacy text2image endpoint fallback, and rejects override-less submits without modelDescriptor', async () => {
     const catalog = ProviderModelListSchema.parse(
       JSON.parse(

@@ -8,6 +8,7 @@ import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { normalizeImageSize, normalizePixelSize } from '@shared/ai/imageSize'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/types/file'
@@ -149,10 +150,10 @@ async function buildSubmitInput(
 ): Promise<ImageGenerationSubmitInput> {
   const files = input.inputFileIds?.length ? await Promise.all(input.inputFileIds.map(readImageFile)) : undefined
   const mask = input.maskFileId ? await readImageFile(input.maskFileId) : undefined
-  let size = input.size
-  if (providerId === 'dashscope' || providerId === 'qwencloud') {
-    size = size?.replace(/[*X]/, 'x').match(/^\d+x\d+$/)?.[0]
-  }
+  const size =
+    providerId === 'dashscope' || providerId === 'qwencloud'
+      ? normalizePixelSize(input.size)
+      : normalizeImageSize(input.size)
   return {
     modelId,
     prompt: input.prompt,

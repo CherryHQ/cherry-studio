@@ -4924,6 +4924,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 3,
             "supports": {
               "addWatermark": {
                 "default": false,
@@ -5002,6 +5003,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 3,
             "supports": {
               "addWatermark": {
                 "default": false,
@@ -39494,6 +39496,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 3,
             "supports": {
               "addWatermark": {
                 "default": false,
@@ -39579,6 +39582,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 3,
             "supports": {
               "addWatermark": {
                 "default": false,
@@ -45953,5 +45957,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "f72c067222286c80"
+  "version": "ad71300065c95b43"
 }

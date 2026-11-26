@@ -530,4 +530,55 @@ describe('DashScope newly registered image models (A2)', () => {
       })
     ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'INPUT_IMAGE_LIMIT_EXCEEDED' })
   })
+
+  it.each(['1536×1024', '1536*1024', '1536X1024', ' 1536 × 1024 '])(
+    'normalizes z-image-turbo free-form size %j to canonical 1536x1024',
+    async (size) => {
+      const support = dashscopeOverrides.find((row) => row.apiModelId === 'z-image-turbo')?.imageGeneration
+      await canonicalGenerate(makeInput({ size }, { model: 'z-image-turbo' }), { mode: 'generate', support })
+      expect(lastGenerateCall().paramValues.size).toBe('1536x1024')
+    }
+  )
+
+  it.each([
+    ['dashscope', 'qwen-image-2.0'],
+    ['dashscope', 'qwen-image-2.0-pro'],
+    ['qwencloud', 'qwen-image-2.0'],
+    ['qwencloud', 'qwen-image-2.0-pro']
+  ])('enforces the 3-image edit limit for %s %s', async (providerId, apiModelId) => {
+    const overrides = ProviderModelListSchema.parse(providerModelCatalog).overrides
+    const support = overrides.find(
+      (row) => row.providerId === providerId && row.apiModelId === apiModelId
+    )?.imageGeneration
+    expect(support?.modes.edit?.maxInputImages).toBe(3)
+
+    const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
+    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+
+    const threeFiles = Array.from({ length: 3 }, (_, index) => ({
+      id: `ref-${index + 1}`,
+      ext: 'png'
+    })) as unknown as FileEntry[]
+    await canonicalGenerate(makeInput({}, { providerId, model: apiModelId, inputFiles: threeFiles }), {
+      mode: 'edit',
+      support
+    })
+    expect(binaryImage).toHaveBeenCalledTimes(3)
+    expect(lastGenerateCall().inputImages).toHaveLength(3)
+
+    binaryImage.mockClear()
+    generatePaintingMock.mockClear()
+    const fourFiles = Array.from({ length: 4 }, (_, index) => ({
+      id: `ref-${index + 1}`,
+      ext: 'png'
+    })) as unknown as FileEntry[]
+    await expect(
+      canonicalGenerate(makeInput({}, { providerId, model: apiModelId, inputFiles: fourFiles }), {
+        mode: 'edit',
+        support
+      })
+    ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'INPUT_IMAGE_LIMIT_EXCEEDED' })
+    expect(binaryImage).not.toHaveBeenCalled()
+    expect(generatePaintingMock).not.toHaveBeenCalled()
+  })
 })

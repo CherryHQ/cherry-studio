@@ -101,6 +101,7 @@ describe('Alibaba Qwen-Image & Z-Image DashScope catalog', () => {
       sizeOptions: qwen20Sizes,
       generateSizeDefault: '2048x2048',
       promptExtendDefault: true,
+      maxEditInputImages: 3,
       legalSize: '2688x1536'
     },
     {
@@ -114,6 +115,7 @@ describe('Alibaba Qwen-Image & Z-Image DashScope catalog', () => {
       sizeOptions: qwen20Sizes,
       generateSizeDefault: '2048x2048',
       promptExtendDefault: true,
+      maxEditInputImages: 3,
       legalSize: '2688x1536'
     },
     {
@@ -253,4 +255,12 @@ describe('Alibaba Qwen-Image & Z-Image DashScope catalog', () => {
       expect(invalid.seed).toBeUndefined()
     }
   })
+
+  it.each(['qwen-image-2.0', 'qwen-image-2.0-pro'])(
+    'caps %s edit mode on qwencloud to 3 input images',
+    (apiModelId) => {
+      const override = loader.findOverride('qwencloud', apiModelId)
+      expect(override?.imageGeneration?.modes.edit?.maxInputImages).toBe(3)
+    }
+  )
 })

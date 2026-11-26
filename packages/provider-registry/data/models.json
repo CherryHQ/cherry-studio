@@ -417,6 +417,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 3,
             "supports": {
               "negativePrompt": {
                 "multiline": true,
@@ -476,6 +477,7 @@
       "imageGeneration": {
         "modes": {
           "edit": {
+            "maxInputImages": 3,
             "supports": {
               "negativePrompt": {
                 "multiline": true,
@@ -24590,5 +24592,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "4e91e29c2bd9719f"
+  "version": "98c5b7c1249001f8"
 }
