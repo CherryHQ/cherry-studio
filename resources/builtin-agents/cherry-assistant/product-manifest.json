@@ -891,8 +891,8 @@
     }
   ],
   "providers": {
-    "version": "5179a16fddc562d9",
-    "count": 68,
+    "version": "62e8498b1600a634",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -1165,6 +1165,10 @@
       {
         "id": "minimax-global",
         "name": "minimax-global"
+      },
+      {
+        "id": "wavespeed",
+        "name": "WaveSpeed"
       }
     ]
   },

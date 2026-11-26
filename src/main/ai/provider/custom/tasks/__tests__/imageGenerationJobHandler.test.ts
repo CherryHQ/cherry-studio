@@ -14,6 +14,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { JobContext } from '@main/core/job/types'
+import { createPaintingGenerateError, decodePaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
 import type { ImageGenerationJobPayload } from '../jobTypes'
 
@@ -290,6 +291,35 @@ describe('imageGenerationJobHandler.execute', () => {
     })
     await expect(imageGenerationJobHandler.execute(ctx)).rejects.toThrow('vendor 500')
     expect(permanentDeleteMock).not.toHaveBeenCalled()
+  })
+
+  it('encodes a transport painting error so its code survives the job boundary', async () => {
+    submitMock.mockRejectedValue(createPaintingGenerateError('REQ_ERROR_TOKEN'))
+
+    const error = await imageGenerationJobHandler.execute(createCtx()).catch((e: unknown) => e)
+    expect(decodePaintingGenerateError((error as Error).message)).toMatchObject({ code: 'REQ_ERROR_TOKEN' })
+  })
+
+  it("keeps a remote painting error's vendor text through the encoding", async () => {
+    submitMock.mockRejectedValue(createPaintingGenerateError('REMOTE_ERROR', { message: 'REQ_ERROR_TOKEN' }))
+
+    const error = await imageGenerationJobHandler.execute(createCtx()).catch((e: unknown) => e)
+    expect(decodePaintingGenerateError((error as Error).message)).toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: 'REQ_ERROR_TOKEN'
+    })
+  })
+
+  it('keeps a plain vendor error that looks encoded as a remote error with its text', async () => {
+    const vendorText = 'PaintingGenerateError:REQ_ERROR_TOKEN:quota exhausted'
+    submitMock.mockResolvedValue({ taskId: 'task-1' })
+    pollMock.mockRejectedValue(new Error(vendorText))
+
+    const error = await imageGenerationJobHandler.execute(createCtx()).catch((e: unknown) => e)
+    expect(decodePaintingGenerateError((error as Error).message)).toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: vendorText
+    })
   })
 
   it('fails (not silently completes) when submit returns neither imageUrls nor a taskId', async () => {
