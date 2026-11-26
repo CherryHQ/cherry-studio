@@ -1259,6 +1259,63 @@ describe('toolSchemaCompatibilityFeature', () => {
     expect(declaration.parameters.properties.clickCount).toEqual({ anyOf: [{ type: 'number' }, { type: 'number' }] })
   })
 
+  it('sends tools whose const or enum the Google adapter would reject, keeping the values in the description', async () => {
+    const requests: Array<{
+      tools: Array<{
+        functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, unknown> } }>
+      }>
+    }> = []
+    const captureFetch: typeof globalThis.fetch = async (_input, init) => {
+      requests.push(JSON.parse(String(init?.body)))
+      return Response.json({ error: { message: 'captured' } }, { status: 400 })
+    }
+    const model = wrapLanguageModel({
+      model: createGoogleGenerativeAI({ apiKey: 'test-key', fetch: captureFetch })('gemini-3.5-flash'),
+      middleware: await getMiddleware({
+        aiSdkProviderId: 'google',
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        maxRetries: 0,
+        tools: {
+          search: tool({
+            inputSchema: jsonSchema({
+              type: 'object',
+              properties: {
+                mode: { type: 'number', const: 'auto' },
+                cursor: { type: 'string', const: null },
+                scope: { type: ['string', 'null'], const: null },
+                filter: { const: { kind: 'all' }, description: 'Filter.' },
+                status: { type: 'string', enum: ['ready', 'busy'] },
+                optional: {
+                  anyOf: [
+                    { type: 'string', enum: ['a'] },
+                    { type: 'null', enum: [null] }
+                  ]
+                }
+              }
+            })
+          })
+        }
+      })
+    ).rejects.toMatchObject({ name: 'AI_APICallError' })
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0].tools[0].functionDeclarations[0].parameters.properties).toEqual({
+      mode: { type: 'number', description: 'Required value (JSON): "auto".' },
+      cursor: { type: 'string', description: 'Required value (JSON): null.' },
+      scope: { type: 'string', description: 'Required value (JSON): null.', nullable: true },
+      filter: { type: 'string', description: 'Filter. Required value (JSON): {"kind":"all"}.' },
+      status: { type: 'string', enum: ['ready', 'busy'] },
+      optional: { type: 'string', enum: ['a'], nullable: true }
+    })
+  })
+
   // Gemini's function-declaration proto has no `propertyNames` /
   // `additionalProperties` fields (issue #20939) — they 400 the whole
   // request as `Unknown name ... Cannot find field`.

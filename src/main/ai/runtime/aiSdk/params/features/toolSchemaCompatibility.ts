@@ -14,6 +14,7 @@
  * expands type arrays because its Schema proto requires concrete types.
  * Incompatible enums keep type-compatible choices, split by primitive type,
  * or carry their allowed values in the description when no enum can be sent.
+ * Any `enum`/`const` the Google adapter would still reject moves to the description.
  *
  * Native Gemini drops tools with untyped array items: no safe type can be inferred.
  * It drops `propertyNames` / `additionalProperties`, absent from its proto (#20939).
@@ -260,14 +261,37 @@ function normalizeGeminiEnum(node: JSONSchema7): JSONSchema7 {
     }
   }
 
-  const { const: constant, ...fallback } = rest
-  const descriptions = [node.description, `Original enum values (JSON): ${JSON.stringify(values)}.`]
+  return describeEnum(node)
+}
+
+/** Drops `enum`/`const`, keeping their values in the description. */
+function describeEnum(node: JSONSchema7): JSONSchema7 {
+  const { enum: values, const: constant, type, ...rest } = node
+  const descriptions = [node.description]
+  if (values !== undefined) descriptions.push(`Original enum values (JSON): ${JSON.stringify(values)}.`)
   if (constant !== undefined) descriptions.push(`Required value (JSON): ${JSON.stringify(constant)}.`)
   return {
-    ...fallback,
+    ...rest,
     type: type ?? (node.$ref || node.anyOf || node.allOf || node.oneOf ? undefined : 'string'),
     description: descriptions.filter(Boolean).join(' ')
   }
+}
+
+/**
+ * Mirrors `@ai-sdk/google`'s `addEnumToSchema`, which throws for the whole
+ * request, narrowed to the string and null enums Gemini's proto accepts.
+ */
+function isGeminiCompatibleEnum(node: JSONSchema7): boolean {
+  const values = node.enum ?? (node.const !== undefined ? [node.const] : undefined)
+  if (values === undefined) return true
+
+  const { type } = node
+  const allows = (kind: Extract<JSONSchema7['type'], string>) =>
+    type === undefined || type === kind || (Array.isArray(type) && type.includes(kind))
+  if (values.length > 0 && values.every((value) => value === null)) return allows('null')
+  const nullable = (Array.isArray(type) && type.includes('null')) || (type === undefined && values.includes(null))
+  const members = nullable ? values.filter((value) => value !== null) : values
+  return members.length > 0 && allows('string') && members.every((value) => typeof value === 'string')
 }
 
 /**
@@ -344,6 +368,7 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
 
   let changed = false
   const droppedTools: string[] = []
+  const describedTools: string[] = []
   const transformedTools: NonNullable<LanguageModelV3CallOptions['tools']> = []
   for (const tool of tools) {
     if (tool.type !== 'function') {
@@ -365,7 +390,16 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
         return isGeminiEndpoint ? expandTypeArrays(normalized) : normalized
       })
     }
-    if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
+    if (isGeminiEndpoint) {
+      let described = false
+      inputSchema = mapSchemas(inputSchema, (node) => {
+        const stripped = stripNonStringEnums(node)
+        if (isGeminiCompatibleEnum(stripped)) return stripped
+        described = true
+        return describeEnum(stripped)
+      })
+      if (described) describedTools.push(tool.name)
+    }
     if (isChatGeminiModel) inputSchema = stripKeywords(inputSchema, CHAT_GEMINI_UNSUPPORTED)
     const optOutOfStrict = isResponsesEndpoint && tool.strict === undefined
     if (inputSchema === tool.inputSchema && !optOutOfStrict) transformedTools.push(tool)
@@ -383,6 +417,12 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     logger.warn('Dropped tools with Gemini-incompatible array schemas', {
       providerId: scope.sdkConfig.providerId,
       toolNames: droppedTools
+    })
+  }
+  if (describedTools.length > 0) {
+    logger.warn('Moved Gemini-incompatible enum values into tool descriptions', {
+      providerId: scope.sdkConfig.providerId,
+      toolNames: describedTools
     })
   }
 

@@ -68,6 +68,10 @@ unrecognized. Normalization can relax the constraints sent to the provider. MCP
 tools still validate against the original schema, and gateway callers validate
 their own tools.
 
+On `google-generate-content`, any tool `enum` or `const` the Google adapter would
+still reject moves into the description with a warning naming the tool, so one
+tool schema cannot abort the whole request.
+
 On `google-generate-content`, Gemini 3 and 4 requests omit Google signatures
 from historical assistant text and client tool calls when the stored source
 model identity differs from the target. The identity includes the provider
