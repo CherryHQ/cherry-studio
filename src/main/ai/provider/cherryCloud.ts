@@ -80,7 +80,7 @@ export function buildCherryCloudProviderConfig(
         throw new ModelUnavailableError('Cherry Cloud model is unavailable')
       }
 
-      return service.authenticatedFetch(`${url.pathname}${url.search}`, {
+      return service.modelFetch(`${url.pathname}${url.search}`, {
         method: request.method,
         headers: forwardedHeaders(request.headers),
         body: request.body ? await request.text() : undefined,

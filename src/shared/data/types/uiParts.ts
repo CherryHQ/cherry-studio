@@ -126,19 +126,19 @@ export interface CodePartData {
  * is being retried or failed over to a fallback model, and stripped before the
  * assistant message is persisted (see PersistenceListener). Never written to DB.
  */
-export type RetryPartData =
-  | {
-      state: 'retrying'
-      /** Model id that will handle the upcoming attempt. */
-      modelId: string
-      /** 1-based number of the upcoming attempt, including the original call. */
-      attempt: number
-      /** Short human reason, e.g. "http 429: rate limit exceeded". */
-      reason: string
-    }
-  | {
-      state: 'settled'
-    }
+export const RetryPartDataSchema = z.discriminatedUnion('state', [
+  z.object({
+    state: z.literal('retrying'),
+    /** Model id that will handle the upcoming attempt. */
+    modelId: z.string(),
+    /** 1-based number of the upcoming attempt, including the original call. */
+    attempt: z.number(),
+    /** Short human reason, e.g. http 429: rate limit exceeded. */
+    reason: z.string()
+  }),
+  z.object({ state: z.literal('settled') })
+])
+export type RetryPartData = z.infer<typeof RetryPartDataSchema>
 
 // ============================================================================
 // Cherry DataUIPart type map (for useChat dataPartSchemas)
@@ -305,6 +305,7 @@ const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
   description: z.string().optional(),
   index: z.number(),
   textOffset: z.number(),
+  sourceMessageId: z.string().optional(),
   promptText: z.string().optional(),
   payload: ComposerMessageFileTokenPayloadSchema.optional()
 })
@@ -461,6 +462,7 @@ export interface ComposerMessageToken {
   description?: string
   index: number
   textOffset: number
+  sourceMessageId?: string
   promptText?: string
   payload?: ComposerMessageTokenPayload
 }

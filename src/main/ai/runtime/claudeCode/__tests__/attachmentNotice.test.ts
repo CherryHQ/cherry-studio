@@ -152,7 +152,7 @@ async function run(steer: boolean) {
   }
   await connection.close()
   await reading
-  return events.filter((event) => event.type === 'chunk' && event.chunk.type === 'data-attachment-notice')
+  return events.filter((event) => event.type === 'data-attachment-notice')
 }
 
 describe('Claude agent attachment notices', () => {
@@ -160,13 +160,10 @@ describe('Claude agent attachment notices', () => {
     const notices = await run(steer)
     expect(notices).toEqual([
       {
-        type: 'chunk',
+        type: 'data-attachment-notice',
         inputId: 'user-image',
-        chunk: {
-          type: 'data-attachment-notice',
-          id: 'attachment-notice:user-image',
-          data: { kind: 'image-ocr', fileNames: ['image.png'] }
-        }
+        id: 'attachment-notice:user-image',
+        data: { kind: 'image-ocr', fileNames: ['image.png'] }
       }
     ])
     expect(JSON.stringify(state.submitted)).toContain('OCR text from image')

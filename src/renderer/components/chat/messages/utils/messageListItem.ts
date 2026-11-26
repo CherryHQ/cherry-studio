@@ -44,12 +44,18 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
   return {
     id: message.id,
     role: message.role,
+    partIds: message.partIds,
     assistantId: ctx.assistantId,
     topicId: ctx.topicId,
     parentId: metadata.parentId ?? null,
     isContextBoundary: hasClearContextPart(message.parts) || undefined,
     createdAt: metadata.createdAt ?? '',
-    status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',
+    status:
+      message.role === 'assistant'
+        ? (metadata.status ?? 'pending')
+        : metadata.status === 'paused'
+          ? 'paused'
+          : 'success',
     modelId,
     model,
     messageSnapshot,
@@ -59,6 +65,10 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     delivery: metadata.delivery,
     turnOrigin: metadata.turnOrigin
   }
+}
+
+export function getMessageListPartId(message: Pick<MessageListItem, 'id' | 'partIds'>, index: number): string {
+  return message.partIds?.[index] ?? `${message.id}-part-${index}`
 }
 
 export function getMessageListItemModel(message: MessageListItem): Model | undefined {

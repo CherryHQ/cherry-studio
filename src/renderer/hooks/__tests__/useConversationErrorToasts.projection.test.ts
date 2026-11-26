@@ -6,7 +6,7 @@ import { toast } from '@renderer/services/toast'
 import type { MessageProjectionView, TopicProjectionState } from '@shared/ai/messageProjection'
 
 import { useConversationErrorToasts } from '../useConversationErrorToasts'
-import { useExecutionOverlay } from '../useExecutionOverlay'
+import { useTopicCompletion } from '../useTopicCompletion'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -26,7 +26,7 @@ function terminal(
         attemptId: 10,
         userMessageId: 'queued-user',
         messageId: 'reply',
-        status
+        ...(status === 'unresolved' ? { status, persistenceError: error } : { status })
       }
     ],
     messages: [
@@ -55,7 +55,7 @@ it.each([
   const topic = `queued-${beforeAck}-${status}`
   const { result } = renderHook(() => {
     const feedback = useConversationErrorToasts(topic)
-    useExecutionOverlay(topic, [], { onFinish: feedback.onFinish })
+    useTopicCompletion(topic, [], feedback.onFinish)
     return feedback
   })
   const accepted = Promise.withResolvers<void>()
@@ -90,7 +90,7 @@ it.each(['error', 'unresolved'] as const)('reports an ordinary queued %s failure
   const topic = `queued-notification-${status}`
   const { result } = renderHook(() => {
     const feedback = useConversationErrorToasts(topic)
-    useExecutionOverlay(topic, [], { onFinish: feedback.onFinish })
+    useTopicCompletion(topic, [], feedback.onFinish)
     return feedback
   })
   act(() => result.current.track([], queued))

@@ -13,6 +13,7 @@ import { install, ENTRY_KINDS, type CallRef, type Entries, type HostPorts } from
 import {
   runtimeId,
   type AgentRuntime,
+  type LookupInput,
   type BackendId,
   type InputFact,
   type InputId,
@@ -57,6 +58,7 @@ export interface PiRuntimeOptions {
 }
 export type PiSessionOptions = Omit<AgentRuntimeSessionOptions, 'compaction'> & {
   behavior: PiRuntimeBehavior
+  compactionPercent?: number
   compaction?: Omit<NonNullable<AgentRuntimeSessionOptions['compaction']>, 'summarize'>
 }
 export interface PiThreadHandle extends ThreadHandle {
@@ -87,6 +89,7 @@ export interface PiThreadHandle extends ThreadHandle {
   }
 }
 export interface PiRuntime extends AgentRuntime {
+  readonly lookupInput: LookupInput
   create(options: PiSessionOptions): Promise<OperationResult<PiThreadHandle>>
   open(ref: Thread): Promise<OperationResult<PiThreadHandle>>
 }
@@ -199,7 +202,17 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
             model,
             sessionManager,
             settings: { ...config.settings, retry: { enabled: false }, cacheWarming: 'off' },
-            compaction: { ...settings, ...config.compaction },
+            compaction: {
+              ...settings,
+              ...config.compaction,
+              ...(!child &&
+                config.compactionPercent !== undefined && {
+                  reserveTokens: Math.max(
+                    settings.reserveTokens,
+                    Math.ceil((model.contextWindow * (100 - config.compactionPercent)) / 100)
+                  )
+                })
+            },
             extensionFactories: [...(config.extensionFactories ?? []), extension],
             onEvent: (event) => {
               try {
@@ -441,7 +454,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
                   const receipt = await harness.withCall(
                     entry.ref.id,
                     (ports) =>
-                      entries.messageSubagent(ports, entry.ref.id, input.text, randomUUID(), controller.signal),
+                      entries.messageSubagent(ports, entry.ref.id, input.text, input.inputId, controller.signal),
                     { inputId: input.inputId, signal: controller.signal }
                   )
                   if (receipt.status === 'refused')
@@ -484,7 +497,7 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
               const { harness, entries } = entry.behavior
               if (/^\/goal(?:\s|$)/.test(text)) {
                 await harness.withCall(entry.ref.id, (ports) =>
-                  entries.goalCommand(ports, entry.ref.id, text.slice('/goal'.length).trim(), randomUUID())
+                  entries.goalCommand(ports, entry.ref.id, text.slice('/goal'.length).trim(), input.inputId)
                 )
                 promptOptions?.preflightResult?.('handled')
                 return
@@ -584,6 +597,11 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
   }
 
   const runtime: PiRuntime = {
+    async lookupInput(thread, inputId) {
+      if (closing || thread.backendId !== options.backendId) return undefined
+      const entry = await entries.get(thread.id)
+      return entry?.status === 'confirmed' ? entry.value.projection.lookupInput(inputId) : undefined
+    },
     async create(config) {
       if (closing) return rejected('create', 'closed')
       const manager = config.sessionManager ?? SessionManager.inMemory(config.cwd)

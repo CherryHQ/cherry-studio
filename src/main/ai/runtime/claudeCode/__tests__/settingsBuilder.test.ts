@@ -128,7 +128,7 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   provisionBuiltinAgent: vi.fn()
 }))
 
-vi.mock('@main/ai/agents/prompt', () => ({
+vi.mock('@main/ai/agents/prompt/promptContext', () => ({
   PromptBuilder: vi.fn(function () {
     return {
       buildPromptParts: mocks.buildPrompt,
@@ -678,17 +678,18 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000' })
   })
 
-  it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
+  it('applies the task compaction percentage and lets an agent env override win', async () => {
     // No context window declared — the percentage still applies.
-    await buildClaudeCodeSessionSettings(
+    const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
         agentId: 'agent-1',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
-      {}
+      { compactionPercent: 55 }
     )
+    expect(settings.env?.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE).toBe('55')
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -1535,6 +1536,62 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
   })
 
+  it.each(['auto', 'prompt', 'disabled'] as const)(
+    'uses the selected MCP Skill permission %s in canUseTool',
+    async (permission) => {
+      let mode = 'default'
+      mocks.findByIdOrName.mockImplementation((id) =>
+        id === 'origin'
+          ? {
+              id: 'origin',
+              name: 'Origin',
+              isActive: true,
+              skillPermissions: { 'skill://reports/SKILL.md': permission }
+            }
+          : undefined
+      )
+      mocks.createToolPolicySnapshot.mockResolvedValue({
+        resolve: () => ({ approval: 'auto' }),
+        isDisabled: () => false,
+        getPermissionMode: () => mode,
+        update: vi.fn(),
+        setPermissionMode: vi.fn()
+      })
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      settings.approvalEmitter!.emit = vi.fn()
+      for (mode of ['default', 'auto', 'bypassPermissions']) {
+        for (const name of ['mcp__skills__load_mcp_skill', 'mcp__skills__read_mcp_skill_file']) {
+          expect(settings.allowedTools).not.toContain(name)
+          mocks.approvalRegister.mockClear()
+          const input = { server_id: 'origin', skill_uri: 'skill://reports/SKILL.md' }
+          const pending = settings.canUseTool!(name, input, {
+            signal: new AbortController().signal,
+            toolUseID: 'skill-read',
+            requestId: 'skill-read'
+          })
+          if (permission === 'disabled') await expect(pending).resolves.toMatchObject({ behavior: 'deny' })
+          else if (permission === 'auto' || mode === 'bypassPermissions') {
+            await expect(pending).resolves.toEqual({ behavior: 'allow', updatedInput: input })
+          } else {
+            await vi.waitFor(() => expect(mocks.approvalRegister.mock.calls).toHaveLength(1))
+            mocks.approvalRegister.mock.lastCall![0].resolve({ approved: false })
+            await expect(pending).resolves.toMatchObject({ behavior: 'deny' })
+          }
+          expect(mocks.approvalRegister.mock.calls).toHaveLength(
+            permission === 'prompt' && mode !== 'bypassPermissions' ? 1 : 0
+          )
+        }
+      }
+    }
+  )
+
   describe('global install approvals without SDK matchedAskRule', () => {
     async function installSettings(
       permissionMode: string,
@@ -1738,6 +1795,28 @@ describe('buildClaudeCodeSessionSettings', () => {
         }
       }
     })
+  })
+
+  it('hides file mutation tools from Claude in Plan Only and keeps read-only tools available', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      disabledTools: ['WebSearch'],
+      configuration: { permission_mode: 'plan' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const disallowedTools = settings.disallowedTools ?? []
+
+    expect(disallowedTools).toEqual(expect.arrayContaining(['Edit', 'MultiEdit', 'NotebookEdit', 'Write', 'WebSearch']))
+    expect(disallowedTools.filter((name) => ['Read', 'Glob', 'Grep'].includes(name))).toEqual([])
   })
 
   it('passes agent disabledTools through to SDK disallowedTools', async () => {

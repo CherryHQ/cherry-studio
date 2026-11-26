@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-20-problem-report-chat-consent.md
+2026-11-20-problem-report-chat-consent.md: 6ca9804771cc76a3bd3bf53147e57d6433697ebe
+2026-11-20-problem-report-chat-consent.zh.md: 4947f9d3d4c5a187e4f1b6933760c5e960d8412c
