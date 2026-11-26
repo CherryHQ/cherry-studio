@@ -88,7 +88,7 @@ function getEntry(service: InstanceType<typeof AgentSessionRuntimeService>) {
 function currentTurn(entry: any) {
   const execution = entry.runtimeState.execution
   if (execution.kind === 'turn' || execution.kind === 'autonomous-turn') return execution.reply.turn
-  if (execution.kind === 'steer-transition') return execution.reply.turn
+  if (execution.kind === 'run-handoff') return execution.reply.turn
   return execution.lastTurn
 }
 

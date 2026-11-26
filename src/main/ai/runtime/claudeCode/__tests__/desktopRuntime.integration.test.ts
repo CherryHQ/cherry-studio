@@ -404,7 +404,9 @@ it('accepts steer across native completion and closes the actual subprocess', as
   next.reply.block({ type: 'text', text: 'Second answer' })
   next.reply.finish()
   await expect.poll(() => test.events.filter((event) => event.type === 'turn-complete').length).toBe(2)
-  expect(test.events.filter((event) => event.type === 'steer-boundary')).toHaveLength(1)
+  expect(test.events.filter((event) => event.type === 'run-started')).toEqual([
+    expect.objectContaining({ inputIds: [second.message.id] })
+  ])
   await connection.closeForEdit!()
   expect(test.children.every((child) => child.exitCode !== null || child.signalCode !== null)).toBe(true)
   expect(test.events.filter((event) => event.type === 'error')).toEqual([])

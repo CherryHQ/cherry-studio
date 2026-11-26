@@ -2,6 +2,7 @@
 description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
 sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/renderer/pages/agents/messages
   - src/main/ai/agentSession/sessionHistory.ts
   - src/main/ai/agentSession/import
   - src/main/ai/agentSession/relocateSystemWorkspaces.ts
@@ -280,9 +281,9 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    `connection.redirect({ message, systemReminder: true })`. The driver
    submits the immutable input to the native queue. Claude Code uses SDK
    `priority: 'next'`: native admission either folds it into the running turn
-   or starts a later turn. The host does not resend an accepted input. Its
-   `steer-boundary` carries input IDs from evidenced native request/response
-   membership, even if the preceding product turn has already settled. Claude's
+   or starts a later turn. The host does not resend an accepted input. A
+   `steer-boundary` carries input IDs joining the active Run from evidenced native request/response
+   membership. When the preceding native execution has already settled, `run-started` starts a new Run instead. Claude's
    correlated `requesting` status establishes this boundary before streamed content;
    `started` alone is not placement evidence.
    Pi consumes its own queue: unplaced inputs remaining after stop/error
@@ -290,17 +291,16 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 2. **Other running native work, or a follow-up intent, + a driver with native admission** — calls
    `connection.followUp(...)` for an interactive input on the current config. When the runtime
    descriptor declares `nativeFollowUp`, the Work composer sends a busy-time Enter at once with
-   `followUp: true`; Main skips `redirect` even for an open turn. The steer shortcut still steers.
-   Other runtimes keep busy-time Enter in the dock until the turn ends. Pi Durable submits the input
-   with its `follow-up` busy policy and persists it at once. Its dock reflects the native waiting order
-   and offers text editing, reordering, and withdrawal while the input is still queued.
-   When Durable places the input, the driver emits `steer-boundary` after the preceding answer;
-   the host gives the input its own reply. The event's `followUp` flag marks such a placement: the
-   host holds it while a steer transition or reservation is pending, or while the current reply has
-   no open stream, so a later placement never joins an earlier reply. Steers still merge into one
-   continuation. The preceding reply settles as answered at the boundary; Durable reports its
-   input's outcome when the run ends, and the host then replaces a reply whose input did not
-   complete. An autonomous reply settles at that boundary, and a deferred user turn resumes
+   `followUp: true` instead of holding it in its follow-up dock; Main then skips `redirect` even
+   for an open turn. The steer shortcut still steers. Other runtimes keep busy-time Enter in the
+   dock until the turn ends. Pi Durable submits
+   it with its `follow-up` busy policy and persists it at once, so the queue survives a crash.
+   Its dock reflects the native waiting order and offers editing, reordering and withdrawal while queued.
+   When Durable places the input into a distinct execution, the driver emits `run-started` after the
+   preceding answer; the host gives the input its own Run. Main holds that handoff while the previous
+   reply has no open stream or another Run handoff is pending. The preceding reply settles as answered
+   at the boundary; Durable reports its admitted inputs' outcomes when the run ends, and Main
+   aggregates them before correcting that reply. An autonomous reply settles at that boundary, and a deferred user turn resumes
    there. A refused submission, or one that throws before it reaches the runtime, falls back to the
    host queue.
    An input queued before a restart has no entry-side context; the host reads its bound user
@@ -312,8 +312,8 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 
 Before dispatch, Main stores each pending steer's original message, snapshot and headless
 policy on the session entry. Drivers receive the native command and return input IDs. Pi and
-Durable placement callbacks reserve the reply synchronously before the next provider request.
-The later boundary transfers the complete input context once. Unknown admission survives
+Durable placement callbacks associate inputs with the active Run synchronously before the next provider request.
+The later boundary consumes the pending input records without allocating another reply. Unknown admission survives
 disconnect on this entry. Its successor looks up the original context and product input ID. Connection generations fence stale callbacks, not the lifetime of unresolved input.
 Unavailable native evidence keeps the context unresolved. This retention covers a living
 process. Snapshot and headless attributes belong to the in-process pending steer.
@@ -348,16 +348,51 @@ scheduled, and other headless-owned work cannot absorb or be absorbed by a steer
 it must wait for its own turn so attribution and authorization remain attached to
 the work's provenance.
 
-When a steer **is** injected mid-turn, the driver emits a `steer-boundary` just
-before the model's post-steer assistant message. The host then **rolls** the
-assistant row: it finalises the pre-steer parts as one row (A1a), opens a fresh
-continuation row (A2), and replays the buffered post-steer chunks into A2 — so
-the steer user message sorts between the two assistant rows instead of dangling
-after the whole turn. `willContinueTopic()` keeps the topic stream alive across
-the roll (and across a mid-flight compaction) so the continuation carries the
-renderer listeners.
-The source row's terminal event is marked `row-roll`; lifecycle consumers must
-not treat it as completion of the work that continues in A2.
+When a steer **is** injected mid-run, its input joins the active `AgentSessionRun`: `runId` is the
+existing assistant row ID, and each admitted input's `replyId` points to it. Steer does not settle
+the Run, replace its frozen author/model/headless context, or open another stream. Existing parts
+retain their IDs, owner and timeline positions; late tool results update the same part. A native
+terminal settles this Run. A queued input starting a distinct execution gets another Run.
+
+The `run-handoff` state applies only to that next native execution. Its preceding reply's provisional
+terminal is still marked `row-roll`; delivery consumers wait for Durable's actual input outcomes.
+Run ownership does not create synthetic continuation assistant records. The durable input and part
+positions retain their order independently of the canonical assistant row.
+
+A `run-checkpoint` event identifies its owning Run through the stable input association and native
+context. Main retains evidence received before placement creates a reply, attaches it to an active
+Run, or updates only the private checkpoint of an already successful Run. A later session-wide
+completion cannot replace that exact answer position. Pi Durable obtains these positions from
+committed submission answers, independently of foreground inactivity; cold pending-reply recovery
+commits the same evidence with its terminal body. Receiving a checkpoint does not terminate a Run.
+
+Renderer derives display segments from placed input positions and each part's immutable position.
+The first segment retains the Run's message ID; later keys combine the Run ID with the segment's
+first part ID. `sourceMessageId` retains the durable owner for approvals, usage and fork. Only the
+last segment exposes the completed Run's fork boundary and statistics. Existing open text and tools
+stay in their original segment; a steer never cuts a string or moves a tool into a new parent.
+Only the first visible content segment owns the Run identity header; subsequent segments keep their
+body and tool parents without repeating it. Boundary compaction parts are separate marker rows with
+no assistant header, action footer or selection checkbox. In-loop compaction remains inside its process
+group. A paused Run projects one stable interrupted marker from its persisted terminal status,
+after both its last content and its latest placed input. Unplaced queue inputs and
+inputs owned by other Runs do not move that marker.
+
+The segment layout selects stable part IDs from the shared projection reader. Text and tool progress
+continue through keyed part subscriptions; only new membership or a baseline changes the list projection.
+Compaction start and completion update one DataUIPart ID at one position. An unchanged or cancelled
+compaction settles that part as skipped; the marker does not become an assistant reply.
+When an interrupted or failed Run is persisted, any remaining busy compaction marker
+also settles as skipped with its existing part ID and position, including during close.
+
+A message page whose input references an older Run expands through that Run and its intervening
+inputs. Its cursor follows the expanded boundary. The requested limit bounds the initial window;
+a Run crossing the seam can make the returned page larger. This preserves the same source order
+without a second dependency cache or losing later output owned by an older assistant record.
+
+Forking the completed Run copies its placed steer inputs, remaps their `replyId` to the copied Run,
+and preserves timeline positions with new part IDs. The fork marker belongs to the selected Run.
+An input accepted inside that Run cannot be edited against the Run's final native checkpoint.
 
 ## Cross-Session delivery
 
@@ -627,7 +662,7 @@ boundary prevents model text that imitates an envelope from changing trusted rou
 ## Starting the next runtime turn
 
 `agentSessionRuntimeState` decides when a queued input or reserved reply can start.
-A queued successor waits for the current reply's terminal persistence. A steer successor
+A queued successor waits for the current reply's terminal persistence. A native Run successor
 waits for its source row to persist; a deferred user reply waits for both the autonomous
 reply's persistence and the native ownership release. Suspension must finish before a
 replacement stream opens. Async launch completion only releases its captured launch target;
@@ -635,7 +670,7 @@ it cannot choose another reply or settle a newer one.
 
 Before asynchronous preparation, each reply has a `turnId`, assistant message ID, input,
 frozen model/author/headless context, and its own delivery, admission, control buffer and
-native terminal facts. `prepareReply()` handles queued, steer, autonomous and resumed replies:
+native terminal facts. `prepareReply()` handles queued, autonomous and resumed replies; same-Run steers reuse the open stream:
 
 1. save a reserved assistant placeholder with its preallocated ID;
 2. refresh trace context, then recheck the captured reply and session;
@@ -1372,8 +1407,10 @@ already finished but background work remains. A `retainOnStop` connection (Pi Du
 interrupted but not closed: Stop withdraws queued follow-ups, and the host marks each withdrawn user
 message `paused`, which the transcript shows as not sent with Resend and Edit. The connection's `stopping`
 occupancy keeps the session busy and holds later input until the connection emits
-`stop-confirmed`. If the native input completed or failed before the stop landed, its outcome replaces the
-paused reply, unless a background run continued that reply after its input ended. `onTurnTerminal`
+`stop-confirmed`. After stop confirmation, Main checks every input admitted to the stopped Run. A completed original
+input cannot replace the paused status while a steered input was aborted or remains unresolved.
+Confirmed failures take precedence; success requires every admitted input to have completed. A
+background continuation does not inherit its finished triggering input's outcome. `onTurnTerminal`
 fires once for the stopped reply, after that decision. A failed or unconfirmed stop (20 s, including
 the native interrupt call) falls back to closing. Durable shutdown preserves ordinary
 unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's

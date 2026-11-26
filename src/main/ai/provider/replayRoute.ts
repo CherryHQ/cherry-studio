@@ -14,6 +14,7 @@ export function getReplayEndpoint(
 ) {
   if (config.providerId === 'aihubmix') return resolveAihubmixChatRoute(config.modelId).endpointType
   if (config.providerId === 'dmxapi') return resolveDmxapiChatRoute(config.modelId).endpointType
+  if (config.providerId === 'google-vertex-maas') return ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   return endpoint
 }
 
