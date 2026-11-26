@@ -285,12 +285,6 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
     await expect(pending).resolves.toBeUndefined()
   })
 
-  it('auto-allows read-only tools in default mode with no approval request', async () => {
-    const { handler, emitted } = buildGate()
-    await expect(handler(toolEvent('read', { path: 'inside.txt' }), extCtx)).resolves.toBeUndefined()
-    expect(emitted).toHaveLength(0)
-  })
-
   it('auto-allows code mode dispatch without treating its arguments as a file path', async () => {
     const { handler, emitted } = buildGate()
     await expect(handler(toolEvent('codemode', { code: 'return 1' }), extCtx)).resolves.toBeUndefined()

@@ -2,6 +2,7 @@ import { getToolName, isToolUIPart } from 'ai'
 
 import { application } from '@application'
 import { computeHeadTailExcerpt } from '@cherrystudio/ai-core'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { readAgentSessionPath } from '@data/services/agentSessionMessageTree'
 import { spliceTextAtKey } from '@main/ai/contextBuild/toolOutputStore'
@@ -41,7 +42,11 @@ export async function readSessionHistory(
     if (row.role === 'user') locallyHandled = row.data.locallyHandled === true
     return !locallyHandled
   })
-  if (prefix.some((row) => row.runtimeResumeToken || row.data.nativeSessionId || row.inputContextId)) return
+  if (
+    prefix.some((row) => row.runtimeResumeToken || row.data.nativeSessionId || row.inputContextId) &&
+    !(contextId && contexts.context(contextId).checkpointMapping?.referenceHistory)
+  )
+    return
   const history: string[] = []
   const files: CherryMessagePart[] = []
   for (const row of prefix) {

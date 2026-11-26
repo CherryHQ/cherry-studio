@@ -2,8 +2,30 @@ const fs = require('node:fs')
 
 const LANGUAGE_MARKERS = ['<!--LANG:en-->', '<!--LANG:zh-CN-->', '<!--LANG:END-->']
 
+function parseBilingualReleaseNotes(releaseNotes) {
+  const normalizedReleaseNotes = releaseNotes.trim()
+  const markers = LANGUAGE_MARKERS
+  const indexes = markers.map((marker) => normalizedReleaseNotes.indexOf(marker))
+  if (
+    indexes.some((index) => index < 0) ||
+    markers.some((marker, markerIndex) => normalizedReleaseNotes.indexOf(marker, indexes[markerIndex] + 1) >= 0) ||
+    indexes[0] >= indexes[1] ||
+    indexes[1] >= indexes[2]
+  ) {
+    throw new Error('Release notes must contain one ordered set of bilingual markers')
+  }
+
+  const english = normalizedReleaseNotes.slice(indexes[0] + markers[0].length, indexes[1]).trim()
+  const chinese = normalizedReleaseNotes.slice(indexes[1] + markers[1].length, indexes[2]).trim()
+  if (!english || !chinese) {
+    throw new Error('Release notes must contain non-empty English and Chinese sections')
+  }
+
+  return { english, chinese }
+}
+
 function extractHotfixReleaseNote(prBody) {
-  const blocks = [...prBody.matchAll(/```release-note[ \t]*\r?\n([\s\S]*?)\r?\n```/g)]
+  const blocks = [...prBody.matchAll(/^ {0,3}```release-note[ \t]*\r?\n([\s\S]*?)^```/gm)]
   if (blocks.length > 1) throw new Error('A hotfix PR may contain at most one release-note block')
   if (blocks.length === 0) return null
 
@@ -161,4 +183,10 @@ if (require.main === module) {
   }
 }
 
-module.exports = { appendBugFix, extractHotfixReleaseNote, readBuilderReleaseNotes, updateHotfixReleaseMetadata }
+module.exports = {
+  appendBugFix,
+  extractHotfixReleaseNote,
+  parseBilingualReleaseNotes,
+  readBuilderReleaseNotes,
+  updateHotfixReleaseMetadata
+}

@@ -46,6 +46,7 @@ import { collectRetainedContext, type RetainedContext } from '../../../messages/
 import { applyHttpTrace, type AgentRuntimeTraceContext } from '../../../observability'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import { getReplayRouteId } from '../../../provider/replayRoute'
 import { resolveSdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
@@ -120,6 +121,8 @@ export interface BuildAgentParamsInput {
 
 export interface BuiltAgentParams {
   sdkConfig: SdkConfig
+  replayRouteId: string
+  endpointType: EndpointType | undefined
   /** Non-secret receipt for the credential path selected for this request. */
   credentialReceipt: ServingCredentialReceipt
   tools: ToolSet | undefined
@@ -143,6 +146,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     resolvedEndpoint,
     request.apiKeyOverride
   )
+  const replayRouteId = getReplayRouteId(provider.id, resolvedEndpoint.endpointType, sdkConfig)
   applyHttpTrace(sdkConfig.providerSettings, {
     topicId: input.traceContext?.topicId ?? request.conversation.topicId,
     modelName: model.name ?? model.id
@@ -160,7 +164,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(
     model,
     request.conversation,
-    assistant?.settings.contextSettings
+    request.contextOwner === 'caller' ? { enabled: false } : assistant?.settings.contextSettings
   )
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
   // A marker minted on the last permitted tool step can never be read back —
@@ -327,6 +331,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     capabilities,
     sdkConfig,
+    replayRouteId,
     endpointType,
     aiSdkProviderId,
     reasoningProfile,
@@ -395,6 +400,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   return {
     sdkConfig,
+    replayRouteId,
+    endpointType,
     credentialReceipt,
     tools,
     plugins: contributions.modelAdapters,
@@ -734,6 +741,12 @@ function buildAgentOptions(
         provider.id,
         sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )
+      if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES && typeof bodyParams.reasoning_effort === 'string') {
+        const { reasoning_effort, ...remainingBodyParams } = bodyParams
+        bodyParams = remainingBodyParams
+        const key = sdkConfig.providerOptionsKey
+        providerOptions[key] = { ...providerOptions[key], reasoningEffort: reasoning_effort }
+      }
     }
   }
 

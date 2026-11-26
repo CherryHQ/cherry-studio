@@ -295,6 +295,7 @@ export function ChatAppShell({
 }: ChatAppShellProps) {
   const hasCenterContent = centerContent !== undefined
   const leftPaneOpen = Boolean(paneOpen && panePosition === 'left')
+  const rightPaneOpen = Boolean(paneOpen && panePosition === 'right')
   const rightPanelState = useOptionalRightPanelState()
   const composerElevated = useRightPanelComposerElevated()
   // While the right pane maximizes/minimizes, its docked spacer snaps under the
@@ -303,6 +304,16 @@ export function ChatAppShell({
   const centerTransition = rightPanelState?.layoutAnimationPending ? { duration: 0 } : CHAT_SHELL_TRANSITION
   const rootRef = useRef<HTMLDivElement>(null)
   const [listResizing, setListResizing] = useState(false)
+  const centerLayoutDependency = [
+    leftPaneOpen,
+    rightPaneOpen,
+    listResizing,
+    rightPanelState?.presentationOpen,
+    rightPanelState?.presentationMaximized,
+    rightPanelState?.layoutAnimationPending,
+    rightPanelState?.fullWidthActive,
+    rightPanelState?.activePaneWidth?.cacheKey
+  ].join(':')
 
   useResourceListAutoCollapse({
     leftPaneOpen,
@@ -332,6 +343,7 @@ export function ChatAppShell({
               id={centerId}
               // Live splitter movement must reflow content without scaling its text and icons.
               layout={!listResizing}
+              layoutDependency={centerLayoutDependency}
               transition={centerTransition}
               className={cn(
                 'relative flex min-w-0 flex-1 flex-col overflow-hidden bg-chat-message-well',
@@ -363,7 +375,7 @@ export function ChatAppShell({
           {rightPane}
         </div>
 
-        <RightPaneHost open={Boolean(paneOpen && panePosition === 'right')}>{pane}</RightPaneHost>
+        <RightPaneHost open={rightPaneOpen}>{pane}</RightPaneHost>
       </div>
 
       {sidePanel && (

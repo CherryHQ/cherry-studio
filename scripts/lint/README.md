@@ -28,6 +28,18 @@ Run `pnpm test:scripts scripts/lint/__tests__/structured-clone.test.ts` to check
 the actual repository configuration against rejected accesses, single-line
 exceptions and unrelated local identifiers.
 
+`copy/no-json-roundtrip` rejects direct `JSON.parse(JSON.stringify(value))`
+calls in application, package and tooling code. Share immutable data, construct
+the fields the caller owns, or encode once at the wire boundary. The rule has
+no autofix. JSON normalization can drop fields and invoke `toJSON`.
+
+The rule recognizes the global JSON methods, including static bracket and
+qualified global access. A replacer or reviver can intentionally transform the
+data. Standalone encoding and decoding, wire tests and the generated provider
+compatibility validators remain valid. Aliases and calls split across
+statements are outside this syntactic check. Existing boundaries that need the
+round trip document the reason with a single-call suppression.
+
 ## UI rules
 
 `scroll-area.mjs` is the Oxlint JavaScript plugin for the shared ScrollArea padding contract.

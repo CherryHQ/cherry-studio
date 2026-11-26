@@ -1390,7 +1390,7 @@ const ChatComposerInner = ({
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
 
-  useComposerQuoteInsertion(actionsRef)
+  useComposerQuoteInsertion(actionsRef, topicId, !editingMessageForCurrentTopic)
   useComposerPrefill(actionsRef, {
     topicId: streamScopeKey,
     enabled: !editingMessageForCurrentTopic,
@@ -1724,8 +1724,7 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
-        // Save-only edits stay available out of quota; only the resend is held.
-        if (quotaBlocksSend) return
+        if (quotaBlocksSend && editingMessageForCurrentTopic.message.role !== 'assistant') return
         await commitEditedMessage(draft, true)
         return
       }

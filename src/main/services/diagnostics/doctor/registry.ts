@@ -4,7 +4,8 @@ import {
   installArchitectureMatch,
   installNativeModules,
   installUpdateAvailable,
-  installVersionChannel
+  installVersionChannel,
+  providerRegistryReadable
 } from './checks/install'
 import { recentLogFindings } from './checks/logs'
 import { mcpLaunchCommands, mcpServersConnected } from './checks/mcp'
@@ -34,6 +35,7 @@ export const doctorCheckRegistry: DoctorCheckRegistry = {
   'install-version-channel': installVersionChannel,
   'install-update-available': installUpdateAvailable,
   'install-native-modules': installNativeModules,
+  'install-provider-registry-readable': providerRegistryReadable,
   'permission-screen-capture': screenCapturePermission,
   'permission-accessibility': accessibilityPermission,
   'storage-userdata-location': userDataLocation,
