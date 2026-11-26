@@ -41,6 +41,11 @@ represented as tool argument objects without changing their meaning. The gateway
 tools or substitutes an empty argument object for invalid input.
 Authenticated internal requests can carry Cherry reasoning, service-tier and Fast selections;
 external callers cannot override these through internal headers.
+Internal Agent calls to `POST /v1/messages` share a request-size-weighted allowance
+before conversion and outbound encoding. Larger image-heavy calls may wait for a
+previous response to finish, fail, or disconnect. The queued call retains its full
+model history. Cancelling a queued call lets the next request proceed as soon as
+the available allowance can cover it.
 
 Responses reasoning preserves provider-issued item IDs and encrypted content in both streaming and
 non-streaming output and on subsequent input, including items with no readable summary. The gateway
@@ -145,8 +150,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── prepareGatewayMessage.ts         ← shared protocol conversion and request overrides
 ├── objectStream.ts                  ← native protocol object transport for Pi / Pi Durable
 ├── proxyStream.ts                   ← `processMessage()` — converter → single SDK call → response adapter
-├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
-├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)
+├── reasoningCache.ts                ← Google signatures and OpenRouter reasoning details captured per tool call
 ├── providerExport.ts                ← provider/model export payload served to paired devices over remote access
 ├── middleware/
 │   └── auth.ts                      ← desktop API-key auth

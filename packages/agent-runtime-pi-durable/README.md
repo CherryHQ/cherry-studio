@@ -23,8 +23,8 @@ detaches its native view and drops its loaded history, and a later `open` loads 
 When an unloaded child receives input, its nearest loaded ancestor publishes
 `subagent.upsert` so hosts can observe it again. `shutdown()` seals all accesses, closes the Harness and
 storage, and joins tracked calls. Unfinished durable tasks are not marked cancelled.
-It captures committed archives after native execution has quiesced and before storage
-closes; retained accesses can flush these archives until `release()`.
+After native execution has quiesced, shutdown extends each retained conversation's archive
+to the final stored entry. Its readers share the frozen result until the last access calls `release()`.
 Shared behavior drains native input admission before ending local consumption waits.
 Ending a wait does not cancel or resend an admitted input; a queued steer remains in
 native storage for recovery. Unexpected native closure seals accesses and closes
@@ -43,12 +43,14 @@ the desktop may call `durable.initializeContext(text)` to admit initial model-on
 history as a passive native write. The native request ID makes repeated initialization
 idempotent across reopening. It starts no model run and is excluded from product projections
 and behavior-authorizing user history, while ordinary and autonomous model requests see it.
-Busy rejection comes from native
-`ConversationBusy`; uncertain failures return `unknown`. Once native admission returns, a failed
-status read cannot erase the acknowledged receipt. Inputs retain their logical InputId in native
-entry metadata, so observations recover their placement and outcome after reopening. External
-native submissions may lack that logical ID. The adapter exposes no separate host deduplication,
-lookup or retraction API; unknown admission is reconciled from captured facts without resubmitting.
+Ordinary submissions use the product `inputId` as the conversation-scoped native request key.
+Native `ConversationBusy` proves rejection. Once the call is admitted, a failed status read
+retains that acknowledgement. The queued draft and the placed entry carry the product ID
+for live observations. Native background work can have its own identity.
+`lookupInput(thread, inputId)` reads the submission from the original store. It works while
+the input is queued and after reopening. For a child command, the parent decision records
+the target child and the native request key in its transaction. That decision proves dispatch.
+The child submission proves admission. A lookup starts no execution.
 
 `whenBusy: 'steer'` delivers input at the next native input boundary. If the current
 run finishes normally before taking it, the input starts a subsequent run. `follow-up`
@@ -85,15 +87,22 @@ confirm foreground completion. Native progress may remain unpersisted for up to 
 facts, including placed native-only inputs. Completion stays pending during admission, unresolved input,
 foreground work or compaction, and carries terminal inputs after their content. Revision and pending state stay private to the projection.
 A confirmed rejection releases only its temporary admission hold; unknown admission remains unresolved.
-Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; committed output after the unique logical user-input boundary of an unfinished placed input also remains live. Earlier answers, queued inputs and ambiguous boundaries remain historical. A returning preview receives a fresh local identity even when a resumed native task repeats its attempt number. State-only reads and updates use `ThreadFeed.state`. Native views append the same entry records, so
-the projection keeps its committed messages frozen and projects only appended entries; a later tool
-result or live progress copies only the message it changes. A view that does not extend the previous
+Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; committed output after the unique logical user-input boundary of an unfinished placed input also remains live. Earlier answers, queued inputs and ambiguous boundaries remain historical. A returning preview receives a fresh local identity. When the host supplies saved source IDs, the restored snapshot aliases the saved preview to the same native task and generation attempt or to the task's interrupted output already committed in the active reply. State-only reads and updates use `ThreadFeed.state`. Native views append the same entry records, so
+the projection keeps its committed messages frozen and projects only appended entries. A tool
+result copies the parts array of its owning message once per batch. A generation correction reads
+the current assistant's content directly. A live tool view looks up committed calls by ID and
+indexes only calls introduced by that view. A view that does not extend the previous
 entries, such as after compaction, rebuilds once. Unchanged messages keep their identity across
 snapshots. An observation starts with a snapshot, and the projection publishes another only after a
 mapping reset and when a run starts, so an observer receives the run's inputs and activity in one frame;
-a run end publishes `activity.changed`. Every other update publishes `message.upsert`,
-`message.remove` and `input.changed` for what changed. A committed answer replaces its preview through
-`replaces`. When an update's changes cannot reproduce the new order, it publishes a snapshot instead.
+a run end publishes `activity.changed`. Exact native text appends for an already published preview
+travel as `message.text-append`. Running tool output changes and matching single-tool result receipts
+publish `message.tool-output` for the existing native tool part. General view updates publish
+`message.parts` for changed blocks. `message.reconcile` installs or corrects one native source and
+uses `replaces` to bind a committed answer to its preview. Message removal and input state use
+`message.remove` and `input.changed`. A snapshot restores order when these changes cannot express it.
+Restoring a conversation publishes its recorded inputs in one snapshot. Later native commits
+publish the input facts they changed. Admission and input facts leave committed content untouched.
 Completion rides the update's last frame, or `activity.changed` when nothing else changed.
 Slow observers retain terminal batches through bounded recovery; final persistence must
 await `Observation.drain()` after native production stops.
@@ -117,7 +126,8 @@ reset and compaction. Inherited fork entries are excluded so a child archive doe
 not import its parent's messages. Pagination is bounded by the head captured when
 the read begins; appends after that head belong to a later read. A loaded conversation
 keeps its sealed archive projection, so later reads fold only newer committed entries and
-return immutable messages; unloading drops it. It neither resumes
+return immutable messages. Provider response IDs are collected during this archive fold.
+Unloading drops the archive. It neither resumes
 the Harness nor includes live previews. `messages` contains SDK message values. `aliases` maps committed message IDs to proven
 preview IDs; tool results update their calling message instead of creating a separate row.
 `legacy` identifies old item-to-part associations using native entry evidence for host checkpoints. These
@@ -248,7 +258,8 @@ Desktop and live-provider acceptance are separate from these package tests.
 Nested calls project onto their owning assistant message using native IDs and parent
 edges. Native session records retain executed arguments, terminal state and bounded
 results independently of the outer script outcome. Archive projection reads those
-records without executing tools. Missing legacy or over-budget payloads remain
+records without executing tools. The parent evidence and the nested tool part share
+each retained JSON result across successful and failed calls. Missing legacy or over-budget payloads remain
 explicitly absent; complete successful built-in artifact declarations can render
 through the same tool mapping as direct calls.
 

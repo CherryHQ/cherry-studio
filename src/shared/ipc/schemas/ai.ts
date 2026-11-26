@@ -3,9 +3,11 @@ import * as z from 'zod'
 
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
+import { AgentConfigChangePreviewSchema } from '@shared/ai/agentConfigToolOutput'
 import { agentImportSnapshotSchema, type AgentImportSnapshot } from '@shared/ai/agentImport'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
-import type { MessageProjectionUpdate, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
+import type { ProjectionNotification, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
+import { ProfileStarterModeSchema, ProfileStartersSchema } from '@shared/ai/profileStarters'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -17,6 +19,7 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
+import { AgentChannelDraftSchema } from '@shared/data/api/schemas/agentChannels'
 import {
   AgentBaseSchema,
   AgentEntitySchema,
@@ -89,7 +92,12 @@ export const CreateAgentCommandSchema = AgentBaseSchema.extend({
    * Create-only: ids of pre-existing global skills to enable for the new
    * Agent. Join rows are written in the same DB transaction as the Agent.
    */
-  skillIds: AgentSkillIdSetSchema.optional()
+  skillIds: AgentSkillIdSetSchema.optional(),
+  /**
+   * Create-only: channels owned by the new Agent, created in the same DB transaction.
+   * QR-login channels are always created inactive.
+   */
+  channels: z.array(AgentChannelDraftSchema).optional()
 })
 export type CreateAgentCommand = z.infer<typeof CreateAgentCommandSchema>
 
@@ -259,6 +267,8 @@ export const aiRequestSchemas = {
       // Optional request identity pairs this one-shot call with `ai.text.abort`.
       // Callers that do not need cancellation keep the existing wire shape.
       requestId: z.string().min(1).optional(),
+      // With a requestId: also push each text delta to the caller as `ai.text.delta` while generating.
+      streamDeltas: z.boolean().optional(),
       ...aiChatRequestShape,
       disableTools: z.boolean().optional(),
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
@@ -268,6 +278,16 @@ export const aiRequestSchemas = {
       messages: z.array(z.custom<ModelMessage>()).optional()
     }),
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
+  }),
+  'ai.profile_starters.generate': defineRoute({
+    input: z.strictObject({
+      ownerId: z.string().min(1),
+      mode: ProfileStarterModeSchema,
+      identityHash: z.string().min(1).max(64),
+      system: z.string(),
+      prompt: z.string()
+    }),
+    output: ProfileStartersSchema.nullable()
   }),
   'ai.text.abort': defineRoute({
     input: z.strictObject({ requestId: z.string().min(1) }),
@@ -370,12 +390,19 @@ export const aiRequestSchemas = {
   // (AiStreamManager holds the live output, AiService applies the decision) —
   // the subtree groups by domain, not by service.
   'ai.tool.get_result': defineRoute({
-    // Mirrors AiToolResultRequest (z.ZodType pins exact-shape drift here, not in a test).
-    input: z.strictObject({
-      topicId: z.string().min(1),
-      messageId: z.string().min(1),
-      toolCallId: z.string().min(1)
-    }) satisfies z.ZodType<AiToolResultRequest>,
+    input: z.intersection(
+      z.object({
+        topicId: z.string().min(1),
+        messageId: z.string().min(1),
+        toolCallId: z.string().min(1),
+        partId: z.string().min(1).optional()
+      }),
+      z.discriminatedUnion('purpose', [
+        z.object({ purpose: z.literal('preview') }),
+        z.object({ purpose: z.literal('text-range'), cursor: z.number().int().nonnegative().optional() }),
+        z.object({ purpose: z.literal('full') })
+      ])
+    ) satisfies z.ZodType<AiToolResultRequest>,
     output: z.custom<AiToolResultResponse>()
   }),
   'ai.tool.respond_approval': defineRoute({
@@ -390,7 +417,7 @@ export const aiRequestSchemas = {
       anchorId: z.string().optional()
     }) satisfies z.ZodType<AiToolApprovalRespondRequest>,
     output: z.discriminatedUnion('ok', [
-      z.object({ ok: z.literal(true) }),
+      z.object({ ok: z.literal(true), approved: z.literal(false).optional() }),
       z.object({ ok: z.literal(false), reason: z.enum(['undelivered', 'rejected']) })
     ]) satisfies z.ZodType<AiToolApprovalRespondResponse>
   }),
@@ -399,6 +426,11 @@ export const aiRequestSchemas = {
   'ai.agent.create': defineRoute({
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
+  }),
+  /** What a pending Agent or Assistant create or settings call would do, for its approval card. */
+  'ai.agent.preview_config_change': defineRoute({
+    input: z.strictObject({ approvalId: z.string().min(1) }),
+    output: AgentConfigChangePreviewSchema
   }),
   'ai.agent.restore': defineRoute({
     input: z.object({ agentId: z.string() }),
@@ -432,7 +464,7 @@ export const aiRequestSchemas = {
     input: z.strictObject({ skillId: z.string().min(1) }),
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
-  'ai.agent.session.prewarm': defineRoute({
+  'ai.agent.session.commands': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
   }),
@@ -461,10 +493,6 @@ export const aiRequestSchemas = {
       fastMode: z.boolean().optional()
     }),
     output: z.custom<AiStreamOpenResponse>()
-  }),
-  'ai.agent.session.close_warm': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1) }),
-    output: z.void()
   }),
   'ai.agent.session.delete': defineRoute({
     input: z.strictObject({
@@ -573,12 +601,14 @@ export const aiRequestSchemas = {
  */
 export type AiEventSchemas = {
   'ai.agent.import.progress': AgentImportSnapshot
-  'ai.projection.changed': { subscriptionId: string; update: MessageProjectionUpdate }
+  'ai.projection.changed': { subscriptionId: string; update: ProjectionNotification }
   'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
   'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload
   'ai.stream.done': StreamDonePayload
   'ai.stream.error': StreamErrorPayload
+  // Directed `send` to the caller of a streamed one-shot `ai.text.generate`, keyed by its requestId.
+  'ai.text.delta': { requestId: string; delta: string }
   // Auto-rename push (broadcast): a background job renamed a topic / agent session; any
   // window showing it should invalidate its cache.
   'ai.topic.auto_renamed': { topicId: string }

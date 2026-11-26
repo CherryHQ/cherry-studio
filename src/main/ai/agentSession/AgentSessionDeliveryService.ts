@@ -3,14 +3,14 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { loggerService } from '@logger'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 import { agentChatContextProvider, finalizeInterruptedParts, type StreamListener } from '../streamManager'
-import { awaitsDurableOutcome, recoverSessionDeliveries } from './recoverSessionDeliveries'
-import { buildAgentSessionTopicId } from './topic'
+import { durableDeliveryTarget, recoverSessionDeliveries } from './recoverSessionDeliveries'
 
 const logger = loggerService.withContext('AgentSessionDeliveryService')
 // Filesystem availability has no app event (for example, an external workspace volume remount).
@@ -61,8 +61,6 @@ export class AgentSessionDeliveryService extends BaseService {
   private readonly pendingKicks = new Set<string>()
   private readonly inFlight = new Map<Promise<void>, string>()
   private readonly suppressedSessionIds = new Set<string>()
-  /** Recovered sessions that could not reconnect; Durable cannot settle their delivery turn. */
-  private readonly unresumableSessionIds = new Set<string>()
   private isShuttingDown = false
 
   protected override onInit(): void {
@@ -75,7 +73,12 @@ export class AgentSessionDeliveryService extends BaseService {
       })
     )
     this.registerDisposable(runtime.onRuntimeIdle(({ sessionId }) => this.kick(sessionId)))
-    this.recoverDeliveries()
+    for (const sessionId of recoverSessionDeliveries()) this.suppressedSessionIds.add(sessionId)
+  }
+
+  protected override async onAllReady(): Promise<void> {
+    await application.get('AgentSessionRuntimeService').whenStartupRecoverySettles()
+    if (this.isShuttingDown) return
     this.registerInterval(() => this.kick(), DELIVERY_RETRY_SWEEP_MS)
     this.kick()
   }
@@ -219,7 +222,7 @@ export class AgentSessionDeliveryService extends BaseService {
   private async runSessionQueue(sessionId: string): Promise<void> {
     let revalidatedRequestId: string | undefined
     while (!this.isShuttingDown && !this.isWriteQuiesced) {
-      if (this.reconcileCompletedDelivery(sessionId)) return
+      if (await this.reconcileCompletedDelivery(sessionId)) return
       const next = agentSessionMessageService.listAcceptedSessionDeliveries(sessionId)[0]
       if (!next) return
       const outcome = await this.dispatchOne(next)
@@ -452,7 +455,7 @@ export class AgentSessionDeliveryService extends BaseService {
     if (result) this.kick(result.sessionId)
   }
 
-  private reconcileCompletedDelivery(sessionId: string): boolean {
+  private async reconcileCompletedDelivery(sessionId: string): Promise<boolean> {
     const delivering = agentSessionMessageService
       .listRecoverableSessionDeliveries(sessionId)
       .find((message) => message.delivery?.status === 'delivering')
@@ -482,13 +485,17 @@ export class AgentSessionDeliveryService extends BaseService {
       ) {
         return true
       }
-      if (awaitsDurableOutcome(delivering) && !this.unresumableSessionIds.has(sessionId)) return true
-      // Runtime and stream persistence are idle, so no writer can still complete this placeholder.
-      // A transient repair failure is retried by the next idle/sweep kick.
-      agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
+      const target = durableDeliveryTarget(delivering)
+      if (target) {
+        if (!target.threadId) return true
+        await application
+          .get('AgentSessionRuntimeService')
+          .recoverPendingReplies({ sessionId, runId: assistant.id, deliveryInputId: delivering.id })
+      } else {
+        agentSessionMessageService.markAssistantMessageTerminalError(sessionId, assistant.id)
+      }
       assistant = agentSessionMessageService.getSessionMessage(sessionId, assistant.id)
       if (assistant.status === 'pending') return true
-      this.unresumableSessionIds.delete(sessionId)
     }
 
     const result = agentSessionMessageService.finalizeSessionDelivery({
@@ -499,20 +506,5 @@ export class AgentSessionDeliveryService extends BaseService {
     })
     if (result) this.kick(result.sessionId)
     return false
-  }
-
-  private recoverDeliveries(): void {
-    const { affected, resumable } = recoverSessionDeliveries()
-    for (const sessionId of affected) this.suppressedSessionIds.add(sessionId)
-    // Reopening lets Durable finish the interrupted turn; its terminal then finalizes the delivery.
-    for (const sessionId of resumable)
-      void application
-        .get('AgentSessionRuntimeService')
-        .primeConnection(sessionId)
-        .then((connected) => {
-          if (connected) return
-          this.unresumableSessionIds.add(sessionId)
-          this.kick(sessionId)
-        })
   }
 }

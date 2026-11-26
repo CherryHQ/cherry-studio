@@ -13,18 +13,18 @@ import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 export interface PartEntry {
   part: CherryMessagePart
   index: number
+  partId?: string
 }
 
 export interface LiveProcessLayoutItem {
   kind: 'process'
-  /** Original index of the first visible entry in this process history. */
-  key: number
+  key: string | number
   entries: readonly PartEntry[]
 }
 
 export interface LivePartLayoutItem {
   kind: 'part'
-  key: number
+  key: string | number
   entry: PartEntry
 }
 
@@ -191,20 +191,24 @@ export function projectLiveMessageParts(
         const foldedEntries = processEntries.filter((entry) => entry.part.type !== 'text')
         for (const entry of processEntries) {
           if (entry.part.type === 'text') {
-            items.push({ kind: 'part', key: entry.index, entry })
+            items.push({ kind: 'part', key: entry.partId ?? entry.index, entry })
           } else if (entry === foldedEntries[0]) {
-            items.push({ kind: 'process', key: entry.index, entries: foldedEntries })
+            items.push({ kind: 'process', key: entry.partId ?? entry.index, entries: foldedEntries })
           }
         }
       } else {
-        items.push({ kind: 'process', key: processEntries[0].index, entries: processEntries })
+        items.push({
+          kind: 'process',
+          key: processEntries[0].partId ?? processEntries[0].index,
+          entries: processEntries
+        })
       }
     }
 
     const resultStart = lastProcessPosition + 1
     for (let position = resultStart; position < regionEntries.length; position++) {
       const entry = regionEntries[position]
-      items.push({ kind: 'part', key: entry.index, entry })
+      items.push({ kind: 'part', key: entry.partId ?? entry.index, entry })
     }
 
     regionEntries = []
@@ -212,13 +216,14 @@ export function projectLiveMessageParts(
 
   for (let position = 0; position < entries.length; position++) {
     const entry = entries[position]
-    if (isIgnorableEmptyContentPart(entry.part)) continue
+    const addressedStream = entry.partId && entry.part.type === 'text' && entry.part.state === 'streaming'
+    if (!addressedStream && isIgnorableEmptyContentPart(entry.part)) continue
     if (isHiddenPart(entry.part)) continue
-    if (isProcessFillerText(entries, position, true)) continue
+    if (!addressedStream && isProcessFillerText(entries, position, true)) continue
 
     if (isToolUIPart(entry.part) && !isVisibleProcessPart(entry.part)) {
       flushRegion()
-      items.push({ kind: 'part', key: entry.index, entry })
+      items.push({ kind: 'part', key: entry.partId ?? entry.index, entry })
       continue
     }
 

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
@@ -24,6 +24,12 @@ type Props = BaseProps &
         phase: 'completed'
         outcome: 'success' | 'error'
         defaultExpanded?: boolean
+        /**
+         * Preference-driven sync target for histories that contain reasoning.
+         * `true` = auto-collapse OFF so the group must open; `false` = auto-collapse
+         * ON so it must close; `undefined` = no reasoning present, leave manual state alone.
+         */
+        syncExpanded?: boolean
       }
   )
 
@@ -61,7 +67,13 @@ function getApprovalWaitDurationMs(runtimeTiming: MessageRuntimeTiming): number 
   return durationMs
 }
 
-const LazyCompletedProcessContent = React.memo(function LazyCompletedProcessContent({
+/**
+ * Radix `AccordionContent` mounts its children only while the item is open (and
+ * during the close animation), so this component never renders for a collapsed
+ * group. The render function therefore always receives `true`: passing the live
+ * `isExpanded` value would blank the content while the close animation runs.
+ */
+const CompletedProcessContent = React.memo(function CompletedProcessContent({
   render
 }: {
   render: (isExpanded: boolean) => React.ReactNode
@@ -100,6 +112,17 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
     'completed-process',
     props.phase === 'completed' && (props.defaultExpanded ?? false)
   )
+  const syncTarget = props.phase === 'completed' ? props.syncExpanded : undefined
+  const [previousSyncTarget, setPreviousSyncTarget] = useMessageDisclosureState(
+    syncTarget === undefined ? undefined : 'completed-process-preference',
+    syncTarget ?? false
+  )
+
+  useEffect(() => {
+    if (syncTarget === undefined) return
+    if (previousSyncTarget !== syncTarget) setIsExpanded(syncTarget)
+    setPreviousSyncTarget(syncTarget)
+  }, [previousSyncTarget, setIsExpanded, setPreviousSyncTarget, syncTarget])
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
   const runtimeTiming = message.stats?.runtimeTiming
   const completedElapsedMs = useMemo(() => {
@@ -139,7 +162,12 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
   }
 
   const elapsedText = completedElapsedMs === undefined ? undefined : formatPlaceholderElapsed(completedElapsedMs, t)
-  const summary = props.outcome === 'error' ? t('message.tools.error') : t('message.tools.processed')
+  const summary =
+    props.outcome === 'error'
+      ? t('message.tools.error')
+      : toolItems.length > 0
+        ? t('message.tools.groupHeader', { count: toolItems.length })
+        : t('message.tools.processed')
   const header = (
     <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
   )
@@ -159,14 +187,14 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
         <AccordionItem value="history" className="border-0 first:border-t-0">
           <AccordionTrigger
             data-testid="completed-process-trigger"
-            className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none select-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:-rotate-90 [&>svg]:opacity-60 [&>svg]:transition-transform [&[data-state=open]>svg]:rotate-0">
+            className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none select-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:-rotate-90 [&>svg]:opacity-60 motion-safe:[&>svg]:transition-transform motion-reduce:[&>svg]:transition-none [&[data-state=open]>svg]:rotate-0">
             <div className="min-w-0 overflow-hidden">{header}</div>
           </AccordionTrigger>
           <AccordionContent
             data-testid="tool-history-content"
             className={`${PROCESS_CONTENT_CLASS_NAME} px-0 pt-2 pb-0 text-inherit`}
             contentClassName="text-inherit motion-safe:data-[state=open]:[animation-duration:200ms] motion-safe:data-[state=closed]:[animation-duration:160ms] motion-reduce:animate-none">
-            <LazyCompletedProcessContent render={children} />
+            <CompletedProcessContent render={children} />
           </AccordionContent>
         </AccordionItem>
       </Accordion>

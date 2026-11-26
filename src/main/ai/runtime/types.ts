@@ -1,9 +1,9 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
-import type { UIMessageChunk } from 'ai'
 
 import type {
   InputLookup,
-  InputState,
+  ProductInputState,
+  LivePartInput,
   OperationResult,
   SubmitResult,
   ThreadContextUsage
@@ -11,16 +11,22 @@ import type {
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
-import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
-import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
+import type {
+  CherryUIMessage,
+  CherryUIMessageChunk,
+  CherryUIMessageMetadata,
+  MessageSnapshot,
+  MessageStats
+} from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -78,6 +84,8 @@ export interface AgentRuntimeConnectInput {
    *  default and ignore session model overrides, which decides which resolution a captured
    *  connection model is compared against for stale-capture pinning. */
   headless?: boolean
+  /** Explicit channel policy for this turn, independent of the Agent's stored configuration. */
+  permissionModeOverride?: AgentPermissionMode
   /** Product position captured before asynchronous connection work. */
   branchHead?: string
   trace?: AgentRuntimeTraceContext
@@ -133,28 +141,43 @@ export interface RuntimeMessageProjection {
   removed: readonly string[]
 }
 
+type RuntimeStreamControl =
+  | Extract<CherryUIMessageChunk, { type: 'data-retry' | 'tool-input-available' }>
+  | {
+      type: 'message-metadata'
+      messageMetadata: { stats: MessageStats; totalTokens?: number } & {
+        [K in Exclude<keyof CherryUIMessageMetadata, 'stats' | 'totalTokens'>]?: never
+      }
+    }
+
+export type AgentControlChunk =
+  | RuntimeStreamControl
+  | { type: 'start' }
+  | Extract<
+      CherryUIMessageChunk,
+      { type: 'tool-approval-request' | 'data-compaction-anchor' | 'data-agent-task-event' }
+    >
+
 export type AgentRuntimeEvent =
   | { type: 'message-projection'; projection: RuntimeMessageProjection }
+  | (LivePartInput & { contextId: string })
   | { type: 'response-start'; responseId: string; messageId?: string }
-  | { type: 'chunk'; chunk: UIMessageChunk }
+  | RuntimeStreamControl
   | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }
   | {
       type: 'usage'
       invocation: {
         /** Globally unique, driver-namespaced invocation id used directly for idempotent persistence. */
         requestId: string
-        /** Native response identity when message ownership is resolved by observation. */
-        responseId?: string
+        /** Native identity shared with the response-start event that binds the product message. */
+        responseId: string
         model: string
-        /** Present only when the driver froze pricing at the provider invocation boundary. */
-        pricingSnapshot?: AiUsagePricingSnapshot | null
         /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
         messageAssociation: 'current-turn' | 'stateless'
         usage?: {
           inputTokens: number
           outputTokens: number
           totalTokens: number
-          reasoningTokens?: number
           noCacheTokens: number
           cacheReadTokens: number
           cacheWriteTokens: number
@@ -169,8 +192,7 @@ export type AgentRuntimeEvent =
   | { type: 'resume-token'; token: string }
   /** `paused`: native evidence that the turn was aborted, such as a recorded user stop. */
   | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor; status?: 'paused' }
-  /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
-   *  as the next turn (the `steer_undelivered` fallback). */
+  /** The driver could not submit a pending input. The host requeues it for the next turn. */
   | { type: 'steer-undelivered'; inputIds: readonly string[] }
   /** A steer was injected mid-turn (PreToolUse/PostToolBatch hook) and the model is about to emit its post-steer
    *  assistant message. Marks where the host should roll the assistant message: finalise the
@@ -180,7 +202,7 @@ export type AgentRuntimeEvent =
    *  `followUp` marks that placement, which starts its own run and so never joins another reply. */
   | { type: 'steer-boundary'; inputIds: readonly string[]; followUp?: true }
   | { type: 'input-submission'; contextId: string; result: SubmitResult }
-  | { type: 'input-state'; contextId: string; input: InputState }
+  | { type: 'input-state'; contextId: string; input: ProductInputState }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
   | { type: 'compaction-error'; error: string; aborted?: boolean }
@@ -233,6 +255,11 @@ export interface AgentRuntimeConnection {
   /** Bound product context for controls that precede the first native message. */
   readonly contextId?: string
 
+  /** Reused connections can carry another Run's settings and need reconciliation before the next admission. */
+  preparedFor?(request: AgentRuntimeConnectInput): boolean
+  /** Install the registered owner's callbacks on a reusable connection. */
+  bindInputs?(callbacks: Pick<AgentRuntimeConnectInput, 'onInputPrepared' | 'onSteerInjected'>): void
+
   predictPrompt?(signal: AbortSignal): Promise<string>
   readonly events: AsyncIterable<AgentRuntimeEvent>
   /** The configured Runtime owner remains resident until explicit retirement. */
@@ -277,6 +304,7 @@ export interface AgentRuntimeConnection {
     knowledgeBaseIds?: readonly string[]
     fastMode?: boolean
     headless?: boolean
+    permissionModeOverride?: AgentPermissionMode
   }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read passive, thread-scoped context usage from the harness. Unknown and unsupported
@@ -291,11 +319,6 @@ export interface AgentRuntimeConnection {
    */
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
   stopTask?(taskId: string): Promise<boolean>
-  childProjection?(
-    toolCallId: string
-  ): Promise<
-    { snapshot(): AgentChildView; subscribe(listener: (update: AgentChildUpdate) => void): () => void } | undefined
-  >
   messageChild?(contextId: string, text: string): Promise<void>
   /** Wait for admitted child execution and its archive writes; does not close the owner. */
   drainChildWrites?(): Promise<void>
@@ -320,6 +343,7 @@ export interface AgentSessionRuntimeDriver {
   readonly workspaceRelocation?: RuntimeWorkspaceRelocation
   /** Restore persisted runtime history after generic fork, crash and delivery recovery. */
   recoverSessions?(): Promise<void>
+  recoverWork?(blocked: ReadonlySet<string>, canWrite: () => boolean): Promise<void>
   fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
   /** Validate the opaque checkpoint and its claimed product binding when supplied. */
   isForkCheckpoint?(value: unknown, binding?: Pick<AgentSessionContextRow, 'backendId' | 'nativeThreadId'>): boolean

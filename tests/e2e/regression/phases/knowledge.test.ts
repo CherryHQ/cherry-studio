@@ -24,7 +24,7 @@ import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/con
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { chooseNativeFile } from '../../../../scripts/e2e/regression/systemAutomation'
 import { expect, test } from '../fixture'
-import { customAssistantName, ensureCustomAssistant } from '../helpers/assistants'
+import { customAssistantName, ensureCustomAssistant, linkAssistantKnowledge } from '../helpers/assistants'
 import { submitChatMarker } from '../helpers/chat'
 import { EMBEDDING_PROVIDER, ensureEmbeddingProvider, ensureKnowledgeBase, knowledgeName } from '../helpers/knowledge'
 import { ensureCustomChatProvider, selectVisibleModel } from '../helpers/models'
@@ -65,22 +65,7 @@ test(...caseDefinition('K-01'), async ({ app, mainWindow }) => {
   await test.step('Query the persisted knowledge base and verify the answer and citations', async () => {
     await ensureCustomAssistant(app, page)
     await page.getByRole('button', { name: `Edit Assistant: ${customAssistantName(app)}`, exact: true }).click()
-    await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
-    const assistantDialog = page.getByRole('dialog').last()
-    if (
-      !(await assistantDialog
-        .getByText(knowledgeName(app), { exact: true })
-        .isVisible()
-        .catch(() => false))
-    ) {
-      await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
-      await page
-        .getByRole('option')
-        .filter({ has: page.getByText(knowledgeName(app), { exact: true }) })
-        .click()
-    }
-    await expect(assistantDialog.getByText(knowledgeName(app), { exact: true })).toBeVisible()
-    await assistantDialog.getByRole('button', { name: 'Close', exact: true }).click()
+    await linkAssistantKnowledge(page, knowledgeName(app))
 
     const sendQuestion = async () => {
       const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
@@ -724,7 +709,7 @@ test(...caseDefinition('MP-62'), async ({ app, mainWindow: page }, testInfo) => 
 
     await test.step('Fetch a public article and verify indexed chunks reach Ready', async () => {
       const dialog = await openUrlDialog()
-      await dialog.getByPlaceholder('https://example.com', { exact: true }).fill(articleUrl)
+      await dialog.getByRole('textbox', { name: 'Enter webpage URLs:', exact: true }).fill(articleUrl)
       await attachScreenshot('MP-62 public article URL before submission')
       await dialog.getByRole('button', { name: 'Add', exact: true }).click()
       await expect(dialog).toBeHidden()
@@ -763,7 +748,7 @@ test(...caseDefinition('MP-62'), async ({ app, mainWindow: page }, testInfo) => 
 
     await test.step('An unreachable URL terminates with Error and an actionable failure reason', async () => {
       const dialog = await openUrlDialog()
-      await dialog.getByPlaceholder('https://example.com', { exact: true }).fill(unreachableUrl)
+      await dialog.getByRole('textbox', { name: 'Enter webpage URLs:', exact: true }).fill(unreachableUrl)
       await dialog.getByRole('button', { name: 'Add', exact: true }).click()
       await expect(dialog).toBeHidden()
       await expect
@@ -783,15 +768,9 @@ test(...caseDefinition('MP-62'), async ({ app, mainWindow: page }, testInfo) => 
 
     await test.step('Reject malformed URL before it becomes a data source', async () => {
       const dialog = await openUrlDialog()
-      await dialog.getByPlaceholder('https://example.com', { exact: true }).fill('not a valid URL')
-      const submit = dialog.getByRole('button', { name: 'Add', exact: true })
-      if (await submit.isEnabled()) {
-        await submit.click()
-        await expect.soft(dialog, 'Invalid URL must keep the input dialog open').toBeVisible({ timeout: 5_000 })
-        await expect
-          .soft(dialog.getByRole('alert'), 'Invalid URL must show validation feedback')
-          .toBeVisible({ timeout: 5_000 })
-      }
+      await dialog.getByRole('textbox', { name: 'Enter webpage URLs:', exact: true }).fill('not-a-valid-url')
+      await expect(dialog.getByRole('button', { name: 'Add', exact: true })).toBeDisabled()
+      await expect(dialog.getByText(/enter a complete HTTP or HTTPS URL/i)).toBeVisible()
       expect
         .soft(
           (await readItems()).map((item) => item.data.source),
@@ -980,10 +959,7 @@ test(...caseDefinition('MP-66'), async ({ app, mainWindow }, testInfo) => {
     await assistantRow.hover()
     await assistantRow.getByRole('button', { name: 'New Chat', exact: true }).click()
     await page.getByRole('button', { name: `Edit Assistant: ${assistantName}`, exact: true }).click()
-    await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
-    await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
-    await page.getByText(name, { exact: true }).click()
-    await page.getByRole('dialog').last().getByRole('button', { name: 'Close', exact: true }).click()
+    await linkAssistantKnowledge(page, name)
     await page
       .locator('[data-ui~="chat.composer"] [contenteditable="true"]')
       .first()
