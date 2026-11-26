@@ -1452,6 +1452,63 @@ it.each(['process-first', 'source-first'] as const)(
   }
 )
 
+// Root events are accepted inside the observation callback, whose only awaited step is control
+// handling. Holding result controls (every root) keeps delivered batches "in flight", so a process
+// failure and a user close can race it exactly as a slow accept used to.
+function holdResultControls(connection: unknown, options: { throwAfter?: boolean } = {}) {
+  const access = connection as {
+    handleControl(control: { type: string }, contextId: string): Promise<unknown>
+  }
+  const original = access.handleControl
+  const paused = Promise.withResolvers<void>()
+  const resume = Promise.withResolvers<void>()
+  access.handleControl = async function (this: unknown, control, contextId) {
+    if (control.type === 'result') {
+      paused.resolve()
+      await resume.promise
+      if (options.throwAfter) throw new Error('Projection failed after process failure')
+    }
+    return original.call(this, control, contextId)
+  }
+  return {
+    paused,
+    resume,
+    restore: () => {
+      delete (access as { handleControl?: unknown }).handleControl
+    }
+  }
+}
+function successResult(sessionId: string, userMessageUuid: string) {
+  return {
+    type: 'result',
+    subtype: 'success',
+    uuid: randomUUID(),
+    session_id: sessionId,
+    user_message_uuid: userMessageUuid,
+    duration_ms: 1,
+    duration_api_ms: 1,
+    is_error: false,
+    num_turns: 1,
+    result: 'Last accepted answer',
+    stop_reason: 'end_turn',
+    total_cost_usd: 0,
+    modelUsage: {},
+    permission_denials: [],
+    usage: {
+      input_tokens: 1,
+      output_tokens: 1,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+      cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+      iterations: [],
+      server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+      service_tier: 'standard',
+      inference_geo: 'us',
+      speed: 'standard'
+    }
+  } as never
+}
+
 it.each([
   { ends: true, mode: 'normal' },
   { ends: false, mode: 'normal' },
@@ -1481,19 +1538,8 @@ it.each([
     // retained after a session switch, without mocking feed drain semantics.
     await access.observeRoot(access.handle)
   }
-  const paused = Promise.withResolvers<void>()
-  const resume = Promise.withResolvers<void>()
-  const accept = ThreadMessageProjection.prototype.accept
-  const spy = vi
-    .spyOn(ThreadMessageProjection.prototype, 'accept')
-    .mockImplementation(async function (this: ThreadMessageProjection, event, refresh) {
-      if (JSON.stringify(event).includes('Last accepted answer')) {
-        paused.resolve()
-        await resume.promise
-        if (mode === 'throw') throw new Error('Projection failed after process failure')
-      }
-      return accept.call(this, event, refresh)
-    })
+  const hold = holdResultControls(connection, { throwAfter: mode === 'throw' })
+  const { paused, resume } = hold
   try {
     await connection.send(test.input('Final output race'))
     await expect.poll(() => wire.inputs.length).toBe(1)
@@ -1501,6 +1547,7 @@ it.each([
     wire.send(
       assistantMessage(context.nativeThreadId!, [{ type: 'text', text: 'Last accepted answer', citations: null }])
     )
+    wire.send(successResult(context.nativeThreadId!, wire.inputs[0].uuid))
     await paused.promise
     stderr.write('native process failed')
     wire.process.emit('exit', 7, null)
@@ -1526,7 +1573,7 @@ it.each([
     expect(test.events.filter((event) => event.type === 'error')).toHaveLength(1)
   } finally {
     resume.resolve()
-    spy.mockRestore()
+    hold.restore()
     wire.exit()
   }
 })
@@ -1555,19 +1602,8 @@ async function gateWire() {
     stderr.end()
   }
   const pause = () => {
-    const paused = Promise.withResolvers<void>()
-    const resume = Promise.withResolvers<void>()
-    const original = ThreadMessageProjection.prototype.accept
-    const spy = vi
-      .spyOn(ThreadMessageProjection.prototype, 'accept')
-      .mockImplementation(async function (this: ThreadMessageProjection, event, refresh) {
-        if (JSON.stringify(event).includes('GATE HELD')) {
-          paused.resolve()
-          await resume.promise
-        }
-        return original.call(this, event, refresh)
-      })
-    return { paused, resume, spy }
+    const hold = holdResultControls(connection)
+    return { paused: hold.paused, resume: hold.resume, spy: { mockRestore: hold.restore } }
   }
   return { test, wire, connection, context, fail, pause }
 }
@@ -1588,6 +1624,7 @@ it('GATE hanging accept blocks failure and user close until released', async () 
   const p = g.pause()
   try {
     g.wire.send(assistantMessage(g.context.nativeThreadId!, [{ type: 'text', text: 'GATE HELD', citations: null }]))
+    g.wire.send(successResult(g.context.nativeThreadId!, g.wire.inputs[0].uuid))
     await p.paused.promise
     g.fail()
     await gateDelay(1100)
@@ -1614,7 +1651,6 @@ it('GATE native error result while process failure latched is a single terminal'
   const p = g.pause()
   try {
     g.wire.send(assistantMessage(g.context.nativeThreadId!, [{ type: 'text', text: 'GATE HELD', citations: null }]))
-    await p.paused.promise
     g.wire.send({
       type: 'result',
       subtype: 'error_during_execution',
@@ -1643,6 +1679,7 @@ it('GATE native error result while process failure latched is a single terminal'
         speed: 'standard'
       }
     })
+    await p.paused.promise
     g.fail()
     g.wire.exit()
     await gateDelay(350)
