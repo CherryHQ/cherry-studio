@@ -102,7 +102,7 @@ export function presentImportedTools(
       toolCallId: `history:${messageId}:${index}`,
       toolName: 'historical_tool',
       input,
-      ...(source === 'workbuddy' && (status === 'error' || status === 'paused')
+      ...((source === 'workbuddy' || source === 'dsh') && (status === 'error' || status === 'paused')
         ? { state: 'output-error' as const, errorText: text || '[Historical interrupted tool]' }
         : { state: 'output-available' as const, output: text }),
       callProviderMetadata: {

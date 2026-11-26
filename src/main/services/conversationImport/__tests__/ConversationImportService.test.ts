@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, writeFile, rm, readdir, readFile, realpath } from 'node
 import type * as fsPromises from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { zstdCompressSync } from 'node:zlib'
 
 import { SessionManager } from '@earendil-works/pi-coding-agent'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -785,6 +786,50 @@ describe('local history atomic import', () => {
     })
     expect(counts()).toEqual([0, 0, 0, 0])
   })
+  it('commits valid DSH sessions independently, rechecks every copy and retries after repair', async () => {
+    const sourceRoot = path.join(root, 'source')
+    const bytes = (id: string, text: string) =>
+      Buffer.concat([
+        zstdCompressSync(JSON.stringify({ type: 'session', version: 4, id, cwd: root, createdAt: 100 }) + '\n'),
+        zstdCompressSync(
+          JSON.stringify({ type: 'user/message', time: 101, data: { id: 'prompt', content: text } }) + '\n'
+        )
+      ])
+    const write = async (id: string, name: string, data: Buffer) => {
+      const dir = path.join(sourceRoot, 'sessions', 'project', id)
+      await mkdir(dir, { recursive: true })
+      await writeFile(path.join(dir, name), data)
+    }
+    const name = 'session.v4.jsonl.zstd'
+    await write('valid', name, bytes('valid', 'Good'))
+    await write('repair', name, bytes('repair', 'Repair me').subarray(0, -1))
+    await write('copy', name, bytes('copy', 'Original'))
+    await write('copy', 'session.jsonl.zstd', bytes('copy', 'Original'))
+    dbh.db.update(agentTable).set({ type: 'pi-durable' }).where(eq(agentTable.id, 'other')).run()
+    const scan = await service.discover('window', 'dsh', sourceRoot)
+    const refs = scan.candidates.map(({ ref }) => ({ ref }))
+    const prepare = () => service.preview('window', scan.scanId, 'other', refs)
+    const commit = async (p: Awaited<ReturnType<typeof prepare>>) => {
+      const outcomes = await service.commit(
+        'window',
+        p.previewId,
+        refs.map((s) => s.ref)
+      )
+      return Object.fromEntries(p.items.map((item, i) => [path.basename(path.dirname(item.sourcePath)), outcomes[i]]))
+    }
+    const preview = await prepare()
+    await write('copy', 'session.jsonl.zstd', bytes('copy', 'Changed'))
+    const first = await commit(preview)
+    expect(first.valid).toMatchObject({ status: 'imported', initialization: 'ready' })
+    expect(first.copy).toMatchObject({ status: 'failed', reason: 'source_changed' })
+    expect(first.repair.status).toBe('failed')
+    await write('repair', name, bytes('repair', 'Repaired'))
+    await write('copy', 'session.jsonl.zstd', bytes('copy', 'Original'))
+    const again = await commit(await prepare())
+    expect(again.valid).toMatchObject({ status: 'existing', sessionId: first.valid.sessionId })
+    expect([again.copy.status, again.repair.status]).toEqual(['imported', 'imported'])
+    expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(3)
+  })
   it('imports durable history without allocating a legacy Pi resume token', async () => {
     dbh.db.update(agentTable).set({ type: 'pi-durable' }).where(eq(agentTable.id, 'other')).run()
     await source('durable', ['2026-01-02T00:00:00Z', '2026-01-01T00:00:00Z'])
@@ -1056,7 +1101,7 @@ describe('local history atomic import', () => {
     await source('valid')
     const scan = await service.discover('window', 'claude-code', path.join(root, 'source'))
     expect(scan.candidates).toHaveLength(2)
-    expect(scan.filtered).toEqual({ claude_no_user_task: 1, codex_guardian_review: 0 })
+    expect(scan.filtered).toEqual({ claude_no_user_task: 1, codex_guardian_review: 0, dsh_settings_only: 0 })
     const before = counts()
     await writeFile(changing, setup('changing'))
     const prepared = await service.preview(

@@ -128,6 +128,13 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.data.import_settings.title'
   },
   {
+    anchorId: 'import-local-dsh',
+    titleKey: 'code.cli_tools.deepseek_harness',
+    panel: 'import_settings',
+    groupKey: 'history_import.title',
+    aliases: ['dsh']
+  },
+  {
     anchorId: 'import-local-workbuddy',
     titleKey: 'history_import.source.workbuddy',
     panel: 'import_settings',

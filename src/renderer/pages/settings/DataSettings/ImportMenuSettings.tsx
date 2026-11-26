@@ -107,8 +107,22 @@ const ImportMenuOptions: FC = () => {
           <Button
             variant="outline"
             disabled={!import.meta.env.DEV}
-            title={!import.meta.env.DEV ? t('history_import.workbuddy_pending') : undefined}
+            title={!import.meta.env.DEV ? t('history_import.source_pending') : undefined}
             onClick={() => void LocalHistoryImportPopup.show({ source: 'workbuddy' })}>
+            {t('history_import.start')}
+          </Button>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow id="setting-data-import-local-dsh" className="scroll-mt-6 py-4">
+          <SettingRowTitle className="gap-4">
+            <CliIcon id={CodeCli.DEEPSEEK_HARNESS} />
+            {t('code.cli_tools.deepseek_harness')}
+          </SettingRowTitle>
+          <Button
+            variant="outline"
+            disabled={!import.meta.env.DEV}
+            title={!import.meta.env.DEV ? t('history_import.source_pending') : undefined}
+            onClick={() => void LocalHistoryImportPopup.show({ source: 'dsh' })}>
             {t('history_import.start')}
           </Button>
         </SettingRow>

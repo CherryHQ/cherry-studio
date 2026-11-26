@@ -6,7 +6,7 @@ export function supportsHistoryImport(type: string): boolean {
 
 export const HISTORY_IMPORT_BATCH_SIZE = 100
 
-export const HistorySourceSchema = z.enum(['claude-code', 'codex', 'opencode', 'workbuddy'])
+export const HistorySourceSchema = z.enum(['claude-code', 'codex', 'opencode', 'workbuddy', 'dsh'])
 export type HistorySource = z.infer<typeof HistorySourceSchema>
 
 export const AgentSessionImportMetadataSchema = z.strictObject({

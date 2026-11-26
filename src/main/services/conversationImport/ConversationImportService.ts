@@ -26,6 +26,7 @@ import type {
 
 import { claudeCodeAdapter } from './claudeCode'
 import { codexAdapter } from './codex'
+import { dshAdapter } from './dsh'
 import { opencodeAdapter } from './opencode'
 import { IMPORT_LIMITS, type HistorySourceAdapter, type NormalizedSession, type SessionRef } from './types'
 import { workbuddyAdapter } from './workbuddy'
@@ -66,31 +67,21 @@ export class ConversationImportService extends BaseService {
     this.scans.delete(owner)
   }
   async discover(owner: string, source: HistorySource, requestedRoot?: string) {
-    if (source !== 'claude-code' && source !== 'codex' && source !== 'opencode' && source !== 'workbuddy')
-      throw new Error('unsupported_source')
+    const sources = {
+      'claude-code': [claudeCodeAdapter, 'external.claude.projects'],
+      codex: [codexAdapter, 'external.codex.home'],
+      opencode: [opencodeAdapter, 'external.opencode.data'],
+      workbuddy: [workbuddyAdapter, 'external.workbuddy.home'],
+      dsh: [dshAdapter, 'external.deepseek_harness.config']
+    } as const
+    if (!Object.hasOwn(sources, source)) throw new Error('unsupported_source')
+    const [adapter, defaultPath] = sources[source]
     this.cancel(owner)
-    let root =
-      requestedRoot ??
-      application.getPath(
-        source === 'workbuddy'
-          ? 'external.workbuddy.home'
-          : source === 'opencode'
-            ? 'external.opencode.data'
-            : source === 'codex'
-              ? 'external.codex.home'
-              : 'external.claude.projects'
-      )
+    let root = requestedRoot ?? application.getPath(defaultPath)
     const scan: Scan = {
       id: randomUUID(),
       root,
-      adapter:
-        source === 'workbuddy'
-          ? workbuddyAdapter
-          : source === 'opencode'
-            ? opencodeAdapter
-            : source === 'codex'
-              ? codexAdapter
-              : claudeCodeAdapter,
+      adapter,
       refs: new Map(),
       abort: new AbortController(),
       expiresAt: Date.now() + IMPORT_LIMITS.previewMs,
@@ -99,7 +90,7 @@ export class ConversationImportService extends BaseService {
     }
     this.scans.set(owner, scan)
     const candidates: ImportCandidate[] = []
-    const filtered: ImportFilterCounts = { codex_guardian_review: 0, claude_no_user_task: 0 }
+    const filtered: ImportFilterCounts = { codex_guardian_review: 0, claude_no_user_task: 0, dsh_settings_only: 0 }
     let scanned = 0
     try {
       root = await realpath(root)

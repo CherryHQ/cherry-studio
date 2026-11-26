@@ -12,10 +12,11 @@ export const ImportDiagnosticSchema = z.object({
 })
 export type ImportDiagnostic = z.infer<typeof ImportDiagnosticSchema>
 
-export const ImportFilterReasonSchema = z.enum(['codex_guardian_review', 'claude_no_user_task'])
+export const ImportFilterReasonSchema = z.enum(['codex_guardian_review', 'claude_no_user_task', 'dsh_settings_only'])
 export type ImportFilterReason = z.infer<typeof ImportFilterReasonSchema>
 export const ImportFilterCountsSchema = z.object({
   codex_guardian_review: z.number().int().nonnegative(),
+  dsh_settings_only: z.number().int().nonnegative(),
   claude_no_user_task: z.number().int().nonnegative()
 })
 export type ImportFilterCounts = z.infer<typeof ImportFilterCountsSchema>
