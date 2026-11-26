@@ -1128,16 +1128,23 @@ describe('local protocol processes', () => {
     expect(events.filter((event) => event.type === 'local-turn-usage')).toEqual([])
   })
 
-  it('does not invent usage when the agent omits it', async () => {
+  it('marks context usage as unsupported without inventing numbers when the agent omits it', async () => {
     const { connection, events, closeAndDrain } = create('acp')
     await connection.start(cwd)
     await connection.send(input)
     await closeAndDrain()
     expect(
       events.filter(
-        (event) => event.type === 'usage' || event.type === 'context-usage' || event.type === 'local-turn-usage'
+        (event) =>
+          event.type === 'usage' ||
+          event.type === 'local-turn-usage' ||
+          (event.type === 'context-usage' && event.result.status !== 'unsupported')
       )
     ).toEqual([])
+    expect(events).toContainEqual({
+      type: 'context-usage',
+      result: expect.objectContaining({ status: 'unsupported' })
+    })
   })
 
   // Enumeration must not infer, apply a stale saved model, or create a Codex thread.
@@ -1359,7 +1366,9 @@ describe('local protocol processes', () => {
     const sending = connection.send(input)
     const approval = await waitForApproval(events)
     expect(approval.request.input.localPermissionOptions).toEqual(
-      expect.arrayContaining([expect.objectContaining({ optionId: 'always', kind: 'allow_always' })])
+      expect.arrayContaining([
+        expect.objectContaining({ optionId: 'always', decision: 'acceptForSession', label: 'allow_session' })
+      ])
     )
     toolApprovalRegistry.dispatch(approval.request.approvalId, {
       approved: true,
@@ -1450,7 +1459,9 @@ describe('local protocol processes', () => {
       expect.objectContaining({
         optionId,
         name: `${action === 'allow' ? 'Always allow' : 'Always deny'} host: example.com`,
-        kind: action === 'allow' ? 'allow_always' : 'reject_always'
+        decision: action === 'allow' ? 'acceptAlways' : 'decline',
+        label: action === 'allow' ? 'allow_always_host' : 'deny_always_host',
+        labelTarget: 'example.com'
       })
     )
     toolApprovalRegistry.dispatch(approval.request.approvalId, {
@@ -1472,7 +1483,9 @@ describe('local protocol processes', () => {
       expect.objectContaining({
         optionId,
         name: 'Always allow: git status',
-        kind: 'allow_always'
+        decision: 'acceptAlways',
+        label: 'allow_always_target',
+        labelTarget: 'git status'
       })
     )
     toolApprovalRegistry.dispatch(approval.request.approvalId, {
@@ -2285,6 +2298,11 @@ describe('local protocol processes', () => {
     })
     const terminal = await waitForApproval(events, 1)
     expect(terminal.request.toolName).toBe('ACP: Terminal')
+    expect(LocalPermissionOptionsSchema.parse(terminal.request.input).localPermissionOptions).toEqual([
+      { optionId: 'allow', decision: 'accept', label: 'allow', name: 'Allow' },
+      { optionId: 'allow_session', decision: 'acceptForSession', label: 'allow_session', name: 'Allow for session' },
+      { optionId: 'deny', decision: 'decline', label: 'deny', name: 'Deny' }
+    ])
     toolApprovalRegistry.dispatch(terminal.request.approvalId, { approved: true })
     await turn1
     expect(text()).toBe('turn1-done')
@@ -2310,6 +2328,11 @@ describe('local protocol processes', () => {
     const outsideWriteApproval = events.filter((event) => event.type === 'tool-approval-request')[2]
     if (outsideWriteApproval.type !== 'tool-approval-request') throw new Error('Missing outside write approval')
     expect(outsideWriteApproval.request.toolName).toBe('ACP: Write')
+    expect(LocalPermissionOptionsSchema.parse(outsideWriteApproval.request.input).localPermissionOptions).toEqual([
+      { optionId: 'allow', decision: 'accept', label: 'allow', name: 'Allow' },
+      { optionId: 'allow_session', decision: 'acceptForSession', label: 'allow_session', name: 'Allow for session' },
+      { optionId: 'deny', decision: 'decline', label: 'deny', name: 'Deny' }
+    ])
     toolApprovalRegistry.dispatch(outsideWriteApproval.request.approvalId, { approved: false })
     await turn2
     expect(await readFile(path.join(cwd, 'in2.txt'), 'utf8')).toBe('inside-ok')
@@ -2396,7 +2419,7 @@ describe('local protocol processes', () => {
     const approval = await waitForApproval(events)
     expect(approval.request.toolName).toBe('Codex: Permissions')
     expect(approval.request.input.localPermissionOptions).toContainEqual(
-      expect.objectContaining({ optionId: 'acceptForSession', kind: 'allow_always', label: 'allow_session' })
+      expect.objectContaining({ optionId: 'acceptForSession', decision: 'acceptForSession', label: 'allow_session' })
     )
     toolApprovalRegistry.dispatch(approval.request.approvalId, {
       approved: true,
@@ -2422,7 +2445,7 @@ describe('local protocol processes', () => {
     const writeApproval = await waitForApproval(events)
     const writeOptions = LocalPermissionOptionsSchema.parse(writeApproval.request.input).localPermissionOptions
     const writeSessionOpt = writeOptions.find((option) => option.label === 'allow_session')
-    expect(writeSessionOpt).toMatchObject({ kind: 'allow_always', label: 'allow_session' })
+    expect(writeSessionOpt).toMatchObject({ decision: 'acceptForSession', label: 'allow_session' })
     if (!writeSessionOpt) throw new Error('Missing allow_session option')
     toolApprovalRegistry.dispatch(writeApproval.request.approvalId, {
       approved: true,
@@ -2662,5 +2685,303 @@ describe('local protocol processes', () => {
     ).toBe(false)
     expect(isInjectedAcpAutomationTool({ title: 'mcp__automation__js', kind: 'execute' }, undefined)).toBe(false)
     expect(isInjectedAcpAutomationTool({ title: 'mcp__automation__js', kind: 'edit' }, undefined)).toBe(false)
+  })
+
+  it('honors synthesized allow_session grants across commands even when antigravity-acp runs in auto mode', async () => {
+    const { connection, events, text, closeAndDrain } = create(
+      'acp',
+      'acp-policy-allow-once-only',
+      undefined,
+      'antigravity-acp'
+    )
+    await connection.start(cwd)
+    await connection.setMode?.('agent-mode', 'auto')
+    const sending = connection.send(input)
+
+    const writeApproval = await waitForApproval(events)
+    const writeSessionOpt = LocalPermissionOptionsSchema.parse(writeApproval.request.input).localPermissionOptions.find(
+      (option) => option.decision === 'acceptForSession'
+    )
+    if (!writeSessionOpt) throw new Error('Missing acceptForSession option')
+    toolApprovalRegistry.dispatch(writeApproval.request.approvalId, {
+      approved: true,
+      updatedInput: { localPermissionOption: writeSessionOpt.optionId }
+    })
+
+    await vi.waitFor(() => expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(2))
+    const execApproval = events.filter((event) => event.type === 'tool-approval-request')[1]
+    if (execApproval.type !== 'tool-approval-request') throw new Error('Missing execute approval')
+    const execSessionOpt = LocalPermissionOptionsSchema.parse(execApproval.request.input).localPermissionOptions.find(
+      (option) => option.decision === 'acceptForSession'
+    )
+    if (!execSessionOpt) throw new Error('Missing execute acceptForSession option')
+    toolApprovalRegistry.dispatch(execApproval.request.approvalId, {
+      approved: true,
+      updatedInput: { localPermissionOption: execSessionOpt.optionId }
+    })
+
+    await sending
+    expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(2)
+    expect(JSON.parse(text())).toEqual([
+      { outcome: { outcome: 'selected', optionId: 'allow' } },
+      { outcome: { outcome: 'selected', optionId: 'allow' } },
+      { outcome: { outcome: 'selected', optionId: 'allow' } },
+      { outcome: { outcome: 'selected', optionId: 'allow' } }
+    ])
+    await closeAndDrain()
+  })
+
+  it('routes antigravity interaction_* requests through AskUserQuestion and maps thinking category with role', async () => {
+    const { connection, events, text, closeAndDrain } = create(
+      'acp',
+      'acp-antigravity-interaction',
+      undefined,
+      'antigravity-acp'
+    )
+    await connection.start(cwd)
+    const sending = connection.send(input)
+    const approval = await waitForApproval(events)
+    expect(approval.request.toolName).toBe('AskUserQuestion')
+    toolApprovalRegistry.dispatch(approval.request.approvalId, {
+      approved: true,
+      updatedInput: { action: 'submit', selections: [{ selected: ['Production'] }] }
+    })
+    await sending
+    expect(JSON.parse(text())).toEqual({ outcome: { outcome: 'selected', optionId: 'opt-prod' } })
+    await closeAndDrain()
+
+    const thinking = create('acp', 'thought-thinking')
+    await thinking.connection.start(cwd)
+    expect(thinking.connection.localSessionInfo.thoughtLevel).toMatchObject({
+      id: 'reasoning-budget',
+      currentValue: 'balanced'
+    })
+    expect(thinking.connection.localSessionInfo.configOptions).toContainEqual(
+      expect.objectContaining({ id: 'reasoning-budget', role: 'reasoning' })
+    )
+    await thinking.closeAndDrain()
+  })
+
+  it('emits confirmed context-usage for Codex models with known windows and unknown otherwise', async () => {
+    const known = create('codex', 'codex-usage', 'gpt-5-codex')
+    await known.connection.start(cwd)
+    expect(known.connection.localSessionInfo.thoughtLevel?.options).toContainEqual({
+      value: 'ultra',
+      name: 'Ultra',
+      description: 'Deepest'
+    })
+    await known.connection.send(input)
+    await vi.waitFor(() =>
+      expect(known.events.some((event) => event.type === 'context-usage' && event.result.status === 'confirmed')).toBe(
+        true
+      )
+    )
+    expect(known.events).toContainEqual({
+      type: 'context-usage',
+      result: {
+        status: 'confirmed',
+        value: expect.objectContaining({
+          contextWindow: 400_000,
+          basis: 'last-request',
+          used: { tokens: 200, precision: 'reported' }
+        })
+      }
+    })
+    await known.closeAndDrain()
+
+    const nativeWindow = create('codex', 'codex-usage-native-window', 'codex/gpt-6.2-sol')
+    await nativeWindow.connection.start(cwd)
+    await nativeWindow.connection.send(input)
+    await vi.waitFor(() =>
+      expect(
+        nativeWindow.events.some((event) => event.type === 'context-usage' && event.result.status === 'confirmed')
+      ).toBe(true)
+    )
+    expect(nativeWindow.events).toContainEqual({
+      type: 'context-usage',
+      result: {
+        status: 'confirmed',
+        value: expect.objectContaining({
+          contextWindow: 258_400,
+          basis: 'last-request',
+          used: { tokens: 250, precision: 'reported' }
+        })
+      }
+    })
+    await nativeWindow.closeAndDrain()
+
+    const unknownModel = create('codex', 'codex-usage', 'fixture-model')
+    await unknownModel.connection.start(cwd)
+    await unknownModel.connection.send(input)
+    await vi.waitFor(() =>
+      expect(
+        unknownModel.events.some((event) => event.type === 'context-usage' && event.result.status === 'unknown')
+      ).toBe(true)
+    )
+    await unknownModel.closeAndDrain()
+  })
+
+  it('falls back to model context window when ACP usage_update omits size and forwards Antigravity warnings', async () => {
+    const zeroSize = create('acp', 'acp-usage-zero-size', 'google/gemini-4-neon')
+    await zeroSize.connection.start(cwd)
+    await zeroSize.connection.send(input)
+    await zeroSize.closeAndDrain()
+    expect(zeroSize.events).toContainEqual({
+      type: 'context-usage',
+      result: {
+        status: 'confirmed',
+        value: expect.objectContaining({
+          contextWindow: 1_048_576,
+          basis: 'current-context',
+          used: { tokens: 5000, precision: 'reported' }
+        })
+      }
+    })
+
+    const agyWarn = create('acp', 'acp-antigravity-warning-grant', undefined, 'antigravity-acp')
+    await agyWarn.connection.start(cwd)
+    const sending = agyWarn.connection.send(input)
+    const approval = await waitForApproval(agyWarn.events)
+    const options = LocalPermissionOptionsSchema.parse(approval.request.input).localPermissionOptions
+    expect(options).toContainEqual({
+      optionId: 'always-native',
+      decision: 'acceptForSession',
+      label: 'allow_session',
+      name: 'Always Allow',
+      warning: 'Allows shell commands for this thread.'
+    })
+    toolApprovalRegistry.dispatch(approval.request.approvalId, {
+      approved: true,
+      updatedInput: { localPermissionOption: 'always-native' }
+    })
+    await sending
+    expect(agyWarn.events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(1)
+    expect(JSON.parse(agyWarn.text())).toEqual([
+      { outcome: { outcome: 'selected', optionId: 'always-native' } },
+      { outcome: { outcome: 'selected', optionId: 'once' } }
+    ])
+    await agyWarn.closeAndDrain()
+  })
+
+  it('falls back to prompt usage window when usage_update is absent and emits unsupported once across turns', async () => {
+    const promptFallback = create('acp', 'acp-usage-prompt-fallback', 'claude-sonnet-4-6')
+    await promptFallback.connection.start(cwd)
+    await promptFallback.connection.send(input)
+    await promptFallback.closeAndDrain()
+
+    expect(promptFallback.events).toContainEqual({
+      type: 'context-usage',
+      result: {
+        status: 'confirmed',
+        value: {
+          model: 'claude-sonnet-4-6',
+          revision: 'claude-sonnet-4-6',
+          contextWindow: 200_000,
+          basis: 'last-request',
+          used: { tokens: 100, precision: 'reported' }
+        }
+      }
+    })
+
+    const noUsage = create('acp', 'normal')
+    await noUsage.connection.start(cwd)
+    await noUsage.connection.send(input)
+    await noUsage.connection.send(input)
+    await noUsage.closeAndDrain()
+
+    expect(noUsage.events.filter((event) => event.type === 'context-usage')).toEqual([
+      {
+        type: 'context-usage',
+        result: {
+          status: 'unsupported',
+          error: {
+            operation: 'contextUsage',
+            code: 'unsupported',
+            message: 'This agent does not report context usage'
+          }
+        }
+      }
+    ])
+  })
+
+  it('handles plain ACP permission approvals/denials and Antigravity interaction cancellation', async () => {
+    const parseJsonOutcome = (raw: string) => JSON.parse(raw.slice(raw.indexOf('{')))
+
+    const allowRun = create('acp', 'permission')
+    await allowRun.connection.start(cwd)
+    const allowing = allowRun.connection.send(input)
+    const allowReq = await waitForApproval(allowRun.events)
+    toolApprovalRegistry.dispatch(allowReq.request.approvalId, { approved: true })
+    await allowing
+    expect(parseJsonOutcome(allowRun.text())).toEqual({ outcome: { outcome: 'selected', optionId: 'once' } })
+    await allowRun.closeAndDrain()
+
+    const denyRun = create('acp', 'permission')
+    await denyRun.connection.start(cwd)
+    const denying = denyRun.connection.send(input)
+    const denyReq = await waitForApproval(denyRun.events)
+    toolApprovalRegistry.dispatch(denyReq.request.approvalId, { approved: false })
+    await denying
+    expect(parseJsonOutcome(denyRun.text())).toEqual({ outcome: { outcome: 'selected', optionId: 'deny' } })
+    await denyRun.closeAndDrain()
+
+    const cancelInteraction = create('acp', 'acp-antigravity-interaction', undefined, 'antigravity-acp')
+    await cancelInteraction.connection.start(cwd)
+    const cancelling = cancelInteraction.connection.send(input)
+    const interactionReq = await waitForApproval(cancelInteraction.events)
+    toolApprovalRegistry.dispatch(interactionReq.request.approvalId, { approved: false })
+    await cancelling
+    expect(parseJsonOutcome(cancelInteraction.text())).toEqual({ outcome: { outcome: 'cancelled' } })
+    await cancelInteraction.closeAndDrain()
+  })
+
+  it('maps Codex interactive approval options to unified decisions and honors permissions scope', async () => {
+    const { connection, events, text, closeAndDrain } = create('codex', 'codex-interactive-approvals')
+    await connection.start(cwd)
+    const sending = connection.send(input)
+
+    const cmdReq = await waitForApproval(events, 0)
+    const cmdOptions = LocalPermissionOptionsSchema.parse(cmdReq.request.input).localPermissionOptions
+    expect(cmdOptions.map((option) => option.decision)).toEqual([
+      'accept',
+      'acceptForSession',
+      'acceptAlways',
+      'acceptAlways',
+      'decline',
+      'decline',
+      'cancel'
+    ])
+    const execPolicyOption = cmdOptions.find((option) => option.name.startsWith('Always allow: git status'))
+    if (!execPolicyOption) throw new Error('Missing execpolicy option')
+    toolApprovalRegistry.dispatch(cmdReq.request.approvalId, {
+      approved: true,
+      updatedInput: { localPermissionOption: execPolicyOption.optionId }
+    })
+
+    const perm1Req = await waitForApproval(events, 1)
+    expect(LocalPermissionOptionsSchema.parse(perm1Req.request.input).localPermissionOptions).toEqual([
+      { optionId: 'accept', decision: 'accept', label: 'allow', name: 'Allow' },
+      { optionId: 'acceptForSession', decision: 'acceptForSession', label: 'allow_session', name: 'Allow for session' },
+      { optionId: 'decline', decision: 'decline', label: 'deny', name: 'Deny' }
+    ])
+    toolApprovalRegistry.dispatch(perm1Req.request.approvalId, {
+      approved: true,
+      updatedInput: { localPermissionOption: 'acceptForSession' }
+    })
+
+    const perm2Req = await waitForApproval(events, 2)
+    toolApprovalRegistry.dispatch(perm2Req.request.approvalId, {
+      approved: false,
+      updatedInput: { localPermissionOption: 'decline' }
+    })
+
+    await sending
+    await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({ type: 'turn-complete' })))
+    expect(JSON.parse(text())).toEqual({
+      cmd: { decision: { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['git', 'status'] } } },
+      p1: { permissions: { fileSystem: { read: null, write: [cwd] } }, scope: 'session' },
+      p2: { permissions: {}, scope: 'turn' }
+    })
+    await closeAndDrain()
   })
 })

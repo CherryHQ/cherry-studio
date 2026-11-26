@@ -7,7 +7,9 @@ const scenario = process.argv[3]
 const configuredModel = {
   'provider-qwen': 'deepseek/deepseek-flash(openai)',
   'provider-hermes': 'custom:deepseek/deepseek-flash',
-  'provider-minimax': 'm:custom_provider%3Acherry-CherryIN:deepseek%2Fdeepseek-flash:v:'
+  'provider-minimax': 'm:custom_provider%3Acherry-CherryIN:deepseek%2Fdeepseek-flash:v:',
+  'acp-usage-zero-size': 'google/gemini-4-neon',
+  'acp-usage-prompt-fallback': 'claude-sonnet-4-6'
 }[scenario]
 if (process.env.FIXTURE_LOG) {
   writeFileSync(`${process.env.FIXTURE_LOG}.pid`, String(process.pid))
@@ -63,7 +65,7 @@ let thoughtPending = false
 const thought = () => ({
   id: 'reasoning-budget',
   name: 'Reasoning',
-  category: 'thought_level',
+  category: scenario === 'thought-thinking' ? 'thinking' : 'thought_level',
   type: 'select',
   currentValue: thoughtValue,
   options: [
@@ -148,7 +150,7 @@ const finish = (turnId = 'turn') => {
   if (protocol === 'acp')
     reply(promptId, {
       stopReason: scenario.startsWith('stop:') ? scenario.slice(5) : scenario === 'cancel' ? 'cancelled' : 'end_turn',
-      ...(scenario === 'usage'
+      ...(scenario === 'usage' || scenario === 'acp-usage-prompt-fallback'
         ? {
             usage:
               turn === 1
@@ -407,7 +409,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
                         category: 'model',
                         name: 'Model',
                         type: 'select',
-                        currentValue: scenario === 'thought-resume' ? 'fixture-model' : 'fixture-default',
+                        currentValue:
+                          scenario === 'thought-resume'
+                            ? 'fixture-model'
+                            : scenario === 'acp-usage-zero-size'
+                              ? 'google/gemini-4-neon'
+                              : 'fixture-default',
                         options: [{ value: configuredModel ?? 'fixture-model', name: 'Fixture model' }]
                       }
                     ]
@@ -485,7 +492,22 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       ]
     })
   } else if (method === 'model/list') {
-    reply(id, { data: [{ id: 'fixture-model', displayName: 'Fixture model' }], nextCursor: null })
+    const efforts = [
+      { reasoningEffort: 'low', description: 'Fast' },
+      { reasoningEffort: 'medium', description: 'Balanced' },
+      { reasoningEffort: 'high', description: 'Deep' },
+      { reasoningEffort: 'xhigh', description: 'Extra' },
+      { reasoningEffort: 'ultra', description: 'Deepest' }
+    ]
+    reply(id, {
+      data: [
+        { id: 'fixture-model', displayName: 'Fixture model', supportedReasoningEfforts: efforts },
+        ...(scenario.startsWith('codex-usage')
+          ? [{ id: 'gpt-5-codex', displayName: 'GPT-5 Codex', supportedReasoningEfforts: efforts }]
+          : [])
+      ],
+      nextCursor: null
+    })
   } else if (method === 'config/read') {
     reply(id, { config: { mcp_servers: { fixture: { enabled: true } } } })
   } else if (method === 'thread/start' || method === 'thread/resume') {
@@ -501,7 +523,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
           : scenario === 'codex-readonly'
             ? { approvalPolicy: 'on-request', sandbox: { type: 'readOnly', networkAccess: false } }
             : {}
-    reply(id, { thread: { id: 'native-session' }, model: 'fixture-model', ...threadMode })
+    reply(id, { thread: { id: 'native-session' }, model: message.params.model ?? 'fixture-model', ...threadMode })
   } else if (method === 'thread/name/set' || method === 'thread/fork') {
     if (scenario === 'no-rollout' && turn === 0) {
       return emit({ id, error: { code: -32600, message: `no rollout found for thread id ${message.params.threadId}` } })
@@ -881,6 +903,61 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
       return
     }
+    if (scenario === 'acp-antigravity-warning-grant') {
+      void (async () => {
+        const p1 = await requestClient('session/request_permission', {
+          sessionId: 'native-session',
+          toolCall: { toolCallId: 'cmd1', kind: 'execute', title: 'echo one' },
+          options: [
+            { optionId: 'once', name: 'Allow', kind: 'allow_once' },
+            {
+              optionId: 'always-native',
+              name: 'Always Allow',
+              kind: 'allow_always',
+              _meta: { 'agy.security.warning': { message: 'Allows shell commands for this thread.' } }
+            },
+            { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+          ]
+        })
+        const p2 = await requestClient('session/request_permission', {
+          sessionId: 'native-session',
+          toolCall: { toolCallId: 'cmd2', kind: 'execute', title: 'echo two' },
+          options: [
+            { optionId: 'once', name: 'Allow', kind: 'allow_once' },
+            { optionId: 'always-native', name: 'Always Allow', kind: 'allow_always' },
+            { optionId: 'deny', name: 'Deny', kind: 'reject_once' }
+          ]
+        })
+        text(JSON.stringify([p1.result, p2.result]))
+        finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
+    if (scenario === 'acp-usage-zero-size') {
+      update({ sessionUpdate: 'usage_update', used: 5000, size: 0 })
+      text('zero-size-ok')
+      finish()
+      return
+    }
+    if (scenario === 'acp-antigravity-interaction') {
+      void (async () => {
+        const perm = await requestClient('session/request_permission', {
+          sessionId: 'native-session',
+          toolCall: {
+            toolCallId: 'interaction_1',
+            title: 'Select environment',
+            rawInput: { prompt: 'Deploy target?' }
+          },
+          options: [
+            { optionId: 'opt-staging', name: 'Staging', kind: 'allow_once' },
+            { optionId: 'opt-prod', name: 'Production', kind: 'allow_once' }
+          ]
+        })
+        text(JSON.stringify(perm.result))
+        finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
     if (scenario === 'acp-browser-permission') {
       void (async () => {
         const perm = await requestClient('session/request_permission', {
@@ -988,6 +1065,40 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
       return
     }
+    if (scenario === 'codex-interactive-approvals') {
+      void (async () => {
+        const cmd = await requestClient('item/commandExecution/requestApproval', {
+          threadId: 'native-session',
+          turnId: 'turn',
+          itemId: 'cmd-1',
+          command: 'git status',
+          availableDecisions: [
+            'accept',
+            'acceptForSession',
+            { acceptWithExecpolicyAmendment: { execpolicy_amendment: ['git', 'status'] } },
+            { applyNetworkPolicyAmendment: { network_policy_amendment: { host: 'example.com', action: 'allow' } } },
+            { applyNetworkPolicyAmendment: { network_policy_amendment: { host: 'evil.test', action: 'deny' } } },
+            'decline',
+            'cancel'
+          ]
+        })
+        const p1 = await requestClient('item/permissions/requestApproval', {
+          threadId: 'native-session',
+          turnId: 'turn',
+          itemId: 'perm-1',
+          permissions: { fileSystem: { write: [cwd] } }
+        })
+        const p2 = await requestClient('item/permissions/requestApproval', {
+          threadId: 'native-session',
+          turnId: 'turn',
+          itemId: 'perm-2',
+          permissions: { network: { allowedHosts: ['example.com'] } }
+        })
+        text(JSON.stringify({ cmd: cmd.result, p1: p1.result, p2: p2.result }))
+        finish()
+      })().catch((error) => emit({ id: promptId, error: { code: -32603, message: String(error) } }))
+      return
+    }
     if (scenario === 'codex-item-permissions') {
       void (async () => {
         const first = await requestClient('item/permissions/requestApproval', {
@@ -1015,13 +1126,20 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         cachedInputTokens: input / 2,
         reasoningOutputTokens: output / 2
       })
-      const notify = (total, last, overrides = {}) =>
+      const notify = (total, last, overrides = {}, modelContextWindow) =>
         emit({
           method: 'thread/tokenUsage/updated',
-          params: { threadId: 'native-session', turnId: 'turn', tokenUsage: { total, last }, ...overrides }
+          params: {
+            threadId: 'native-session',
+            turnId: 'turn',
+            tokenUsage: { total, last, ...(modelContextWindow !== undefined ? { modelContextWindow } : {}) },
+            ...overrides
+          }
         })
       if (scenario === 'codex-usage-invalid') {
         notify(counts(-10, 2), counts(-10, 2))
+      } else if (scenario === 'codex-usage-native-window') {
+        notify(counts(1100, 110), counts(250, 20), {}, 258_400)
       } else {
         notify(counts(9000, 900), counts(9000, 900), { threadId: 'other' })
         notify(counts(9000, 900), counts(9000, 900), { turnId: 'previous-turn' })

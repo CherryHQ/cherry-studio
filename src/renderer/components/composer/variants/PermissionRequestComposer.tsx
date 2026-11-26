@@ -1,5 +1,5 @@
 import { ArrowUpRight, ChevronDown, Loader2, ShieldCheck, TriangleAlert } from 'lucide-react'
-import { type ComponentType, useCallback, useState } from 'react'
+import { type ComponentType, useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import useSWRImmutable from 'swr/immutable'
@@ -27,7 +27,12 @@ import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpToo
 import { cn } from '@renderer/utils/style'
 import type { AgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
 import type { AgentConfigChangePreview as ConfigPreview } from '@shared/ai/agentConfigToolOutput'
-import { LocalAcpToolSchema, LocalPermissionOptionsSchema } from '@shared/ai/localAgent'
+import {
+  isLocalAllowDecision,
+  LocalAcpToolSchema,
+  type LocalPermissionOption,
+  LocalPermissionOptionsSchema
+} from '@shared/ai/localAgent'
 
 import type { ComposerOverride } from '../ComposerContext'
 import { AgentConfigChangePreview } from './AgentConfigChangePreview'
@@ -52,6 +57,121 @@ function isHandledElsewhere(event: KeyboardEvent) {
     event.isComposing ||
     (event.key === 'Enter' && event.target instanceof Element && !!event.target.closest('button, [role="button"]'))
   )
+}
+
+const LOCAL_PERMISSION_LABEL_KEYS = {
+  allow: 'agent.toolPermission.button.allow',
+  allow_once: 'local_agents.allow_once',
+  allow_session: 'local_agents.allow_session',
+  allow_always: 'local_agents.allow_always',
+  deny: 'agent.toolPermission.button.deny',
+  cancel: 'common.cancel'
+} as const
+
+type TranslateFn = ReturnType<typeof useTranslation>['t']
+
+function resolveLocalPermissionLabel(option: LocalPermissionOption, t: TranslateFn): string {
+  if (!option.label) return option.name
+  switch (option.label) {
+    case 'allow_always_target':
+      return option.labelTarget ? t('local_agents.allow_always_target', { target: option.labelTarget }) : option.name
+    case 'allow_always_host':
+      return option.labelTarget ? t('local_agents.allow_always_host', { host: option.labelTarget }) : option.name
+    case 'deny_always':
+      return t('local_agents.deny_always')
+    case 'deny_always_host':
+      return option.labelTarget ? t('local_agents.deny_always_host', { host: option.labelTarget }) : option.name
+    default:
+      return t(LOCAL_PERMISSION_LABEL_KEYS[option.label])
+  }
+}
+
+const COMPACT_PERMISSION_LABEL_MAX_COLUMNS = 20
+const COMPACT_PERMISSION_ROW_MAX_COLUMNS = 60
+
+// Wide CJK/full-width glyphs occupy ~2 Latin columns; measure visual columns instead of UTF-16 length.
+function measureLabelColumns(text: string): number {
+  let columns = 0
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0
+    columns += code >= 0x1100 ? 2 : 1
+  }
+  return columns
+}
+
+function shouldStackLocalPermissionOptions(
+  entries: readonly { option: LocalPermissionOption; buttonLabel: string }[],
+  {
+    keyboardShortcuts,
+    primaryAllowOption,
+    primaryRejectOption,
+    containerWidth
+  }: {
+    keyboardShortcuts: boolean
+    primaryAllowOption: LocalPermissionOption | undefined
+    primaryRejectOption: LocalPermissionOption | undefined
+    containerWidth: number
+  }
+): boolean {
+  // Parameterized policy rules and unmapped prose choices belong in a vertical option list rather than an inline verb bar.
+  if (entries.length > 4 || entries.some((entry) => entry.option.labelTarget != null || !entry.option.label)) {
+    return true
+  }
+  if (entries.some((entry) => measureLabelColumns(entry.buttonLabel) > COMPACT_PERMISSION_LABEL_MAX_COLUMNS)) {
+    return true
+  }
+  const hasShortcutBadge = (option: LocalPermissionOption) =>
+    keyboardShortcuts && (option === primaryAllowOption || option === primaryRejectOption)
+  const totalColumns = entries.reduce(
+    (sum, entry) => sum + measureLabelColumns(entry.buttonLabel) + 4 + (hasShortcutBadge(entry.option) ? 4 : 0),
+    0
+  )
+  if (totalColumns > COMPACT_PERMISSION_ROW_MAX_COLUMNS) {
+    return true
+  }
+  if (containerWidth > 0) {
+    const estimatedRowPx =
+      entries.reduce(
+        (sum, entry) =>
+          sum + measureLabelColumns(entry.buttonLabel) * 8 + 28 + (hasShortcutBadge(entry.option) ? 44 : 0),
+        0
+      ) +
+      Math.max(0, entries.length - 1) * 8
+    if (estimatedRowPx > containerWidth) {
+      return true
+    }
+  }
+  return false
+}
+
+function orderLocalPermissionOptions(
+  options: readonly LocalPermissionOption[],
+  primaryAllowOption: LocalPermissionOption | undefined,
+  primaryRejectOption: LocalPermissionOption | undefined,
+  stacked: boolean
+): LocalPermissionOption[] {
+  const isAllow = (option: LocalPermissionOption) => isLocalAllowDecision(option.decision)
+  const secondaryAllows = options.filter((option) => isAllow(option) && option !== primaryAllowOption)
+  const otherRejects = options.filter((option) => !isAllow(option) && option !== primaryRejectOption)
+
+  if (stacked) {
+    // Place the highest-priority allow/reject actions first in vertical stacks.
+    secondaryAllows.sort((a, b) => Number(a.decision === 'acceptAlways') - Number(b.decision === 'acceptAlways'))
+    return [
+      ...(primaryAllowOption ? [primaryAllowOption] : []),
+      ...secondaryAllows,
+      ...(primaryRejectOption ? [primaryRejectOption] : []),
+      ...otherRejects
+    ]
+  }
+
+  // Inline rows mirror Cherry Studio's built-in order: negative actions left, primary allow far right.
+  return [
+    ...otherRejects,
+    ...(primaryRejectOption ? [primaryRejectOption] : []),
+    ...secondaryAllows,
+    ...(primaryAllowOption ? [primaryAllowOption] : [])
+  ]
 }
 
 export type PermissionRequestComposerProps = {
@@ -295,6 +415,22 @@ export default function PermissionRequestComposer({
   const [evidenceApprovalId, setEvidenceApprovalId] = useState<string | null>(null)
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
   const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '', expanded: false })
+  const actionsRef = useRef<HTMLDivElement>(null)
+  const [actionsWidth, setActionsWidth] = useState(0)
+
+  useLayoutEffect(() => {
+    const el = actionsRef.current
+    if (!el) return
+    const updateWidth = () => {
+      const next = el.clientWidth
+      setActionsWidth((prev) => (prev === next ? prev : next))
+    }
+    updateWidth()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   const reasonExpanded = rejectionDraft.approvalId === request.approvalId && rejectionDraft.expanded
   const isSubmitting = submittingApprovalId === request.approvalId
   const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
@@ -302,13 +438,35 @@ export default function PermissionRequestComposer({
   const hasRejectionReason = rejectionReason.trim().length > 0
   const parsedOptions = LocalPermissionOptionsSchema.safeParse(request.toolResponse.arguments)
   const localOptions = parsedOptions.success ? parsedOptions.data.localPermissionOptions : undefined
+  const optionWarnings = localOptions
+    ? [...new Set(localOptions.flatMap((option) => (option.warning?.trim() ? [option.warning.trim()] : [])))]
+    : []
   const primaryAllowOption = localOptions
-    ? (localOptions.find((option) => option.kind === 'allow_once') ??
-      localOptions.find((option) => option.kind.startsWith('allow_')))
+    ? (localOptions.find((option) => option.decision === 'accept') ??
+      localOptions.find((option) => isLocalAllowDecision(option.decision)))
     : undefined
   const primaryRejectOption = localOptions
-    ? (localOptions.find((option) => option.kind === 'reject_once') ??
-      localOptions.find((option) => option.kind.startsWith('reject_')))
+    ? (localOptions.find((option) => option.label === 'deny') ??
+      localOptions.find((option) => option.decision === 'decline') ??
+      localOptions.find((option) => !isLocalAllowDecision(option.decision)))
+    : undefined
+  const resolvedLocalOptions = localOptions?.map((option) => ({
+    option,
+    buttonLabel: resolveLocalPermissionLabel(option, t)
+  }))
+  const isStackedLocalLayout = Boolean(
+    resolvedLocalOptions &&
+    shouldStackLocalPermissionOptions(resolvedLocalOptions, {
+      keyboardShortcuts,
+      primaryAllowOption,
+      primaryRejectOption,
+      containerWidth: actionsWidth
+    })
+  )
+  const orderedLocalOptions = localOptions
+    ? orderLocalPermissionOptions(localOptions, primaryAllowOption, primaryRejectOption, isStackedLocalLayout).map(
+        (option) => resolvedLocalOptions!.find((entry) => entry.option === option)!
+      )
     : undefined
   const configKind = getAgentConfigToolKind(request.toolResponse)
   const { data: configPreview, error: configPreviewError } = useSWRImmutable(
@@ -409,9 +567,9 @@ export default function PermissionRequestComposer({
       data-composer-viewport-inset-target=""
       // pointer-events-auto: the composer dock stack is click-through; override
       // composers re-enable interaction on their own root.
-      className={cn('pointer-events-auto relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
+      className={cn('pointer-events-auto relative z-2 flex min-w-0 flex-col px-4.5 pt-0 pb-4.5', className)}>
       <div
-        className="rounded-[17px] border-[0.5px] border-border p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]"
+        className="min-w-0 overflow-hidden rounded-[17px] border-[0.5px] border-border p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]"
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
         <div className="flex min-w-0 items-center gap-2 px-1">
           <h2 className="flex shrink-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
@@ -542,38 +700,48 @@ export default function PermissionRequestComposer({
           </div>
         )}
 
-        <div className="mt-2.5 flex flex-wrap justify-end gap-2 px-1 pb-0.5">
-          {localOptions ? (
-            localOptions.map((option) => {
+        {optionWarnings.length > 0 && (
+          <div
+            data-testid="permission-option-warnings"
+            className="mt-2 space-y-1 rounded-[12px] border border-border bg-background px-3 py-2">
+            {optionWarnings.map((warning) => (
+              <p key={warning} className="flex items-start gap-1.5 text-warning-subtle-foreground text-xs leading-4">
+                <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+                <span>{warning}</span>
+              </p>
+            ))}
+          </div>
+        )}
+
+        <div
+          ref={actionsRef}
+          data-testid="permission-actions"
+          data-layout={orderedLocalOptions ? (isStackedLocalLayout ? 'stacked' : 'inline') : 'inline'}
+          className={cn(
+            'mt-2.5 flex min-w-0 px-1 pb-0.5',
+            isStackedLocalLayout ? 'flex-col gap-1.5' : 'flex-wrap justify-end gap-2'
+          )}>
+          {orderedLocalOptions ? (
+            orderedLocalOptions.map(({ option, buttonLabel }) => {
               const isPrimaryAllow = option === primaryAllowOption
               const isPrimaryReject = option === primaryRejectOption
-              const isAllow = option.kind.startsWith('allow_')
-              const buttonLabel = option.label
-                ? t(
-                    (
-                      {
-                        allow: 'agent.toolPermission.button.allow',
-                        allow_session: 'local_agents.allow_session',
-                        deny: 'agent.toolPermission.button.deny',
-                        cancel: 'common.cancel'
-                      } as const
-                    )[option.label]
-                  )
-                : /^allow$/i.test(option.name) && option.kind === 'allow_once'
-                  ? t('agent.toolPermission.button.allow')
-                  : /^allow once$/i.test(option.name) && option.kind === 'allow_once'
-                    ? t('local_agents.allow_once')
-                    : /^(?:reject|deny)$/i.test(option.name) && option.kind === 'reject_once'
-                      ? t('agent.toolPermission.button.deny')
-                      : /^(?:always allow|allow always)(?:\s*\(risky\))?$/i.test(option.name) &&
-                          option.kind === 'allow_always'
-                        ? t('local_agents.allow_always')
-                        : option.name
+              const isAllow = isLocalAllowDecision(option.decision)
+              const buttonTitle = option.warning
+                ? `${buttonLabel}\n${option.warning}`
+                : isStackedLocalLayout
+                  ? buttonLabel
+                  : undefined
               return (
                 <Button
                   key={option.optionId}
                   type="button"
+                  title={buttonTitle}
                   variant={isPrimaryAllow ? 'emphasis' : isAllow ? 'secondary' : 'outline'}
+                  className={cn(
+                    isStackedLocalLayout
+                      ? 'h-auto min-h-9 w-full min-w-0 max-w-full shrink justify-between gap-3 overflow-hidden whitespace-normal rounded-[12px] px-3 py-2 text-left'
+                      : 'min-w-0 max-w-full'
+                  )}
                   disabled={isSubmitting}
                   onClick={() =>
                     void respond(
@@ -585,14 +753,21 @@ export default function PermissionRequestComposer({
                       isAllow ? 'approve' : 'deny'
                     )
                   }>
-                  {buttonLabel}
+                  <span
+                    className={cn(
+                      isStackedLocalLayout
+                        ? 'line-clamp-2 min-w-0 flex-1 break-words [overflow-wrap:anywhere]'
+                        : 'truncate'
+                    )}>
+                    {buttonLabel}
+                  </span>
                   {keyboardShortcuts && isPrimaryAllow && (
-                    <Kbd aria-hidden="true" className="bg-current/10 text-current">
+                    <Kbd aria-hidden="true" className="shrink-0 bg-current/10 text-current">
                       Enter
                     </Kbd>
                   )}
                   {keyboardShortcuts && isPrimaryReject && (
-                    <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
+                    <Kbd aria-hidden="true" className="shrink-0 bg-muted text-muted-foreground">
                       Esc
                     </Kbd>
                   )}

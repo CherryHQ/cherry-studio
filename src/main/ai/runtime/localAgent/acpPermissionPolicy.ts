@@ -86,6 +86,16 @@ export function classifyAcpToolKind(tool: AcpPermissionToolLike): 'read' | 'muta
   ) {
     return 'mutation'
   }
+  if (tool.rawInput && typeof tool.rawInput === 'object' && !Array.isArray(tool.rawInput)) {
+    const input = tool.rawInput as Record<string, unknown>
+    if (
+      (typeof input.CommandLine === 'string' && input.CommandLine.trim()) ||
+      (typeof input.command === 'string' && input.command.trim()) ||
+      (typeof input.cmd === 'string' && input.cmd.trim())
+    ) {
+      return 'execute'
+    }
+  }
   return 'other'
 }
 
@@ -132,8 +142,7 @@ export function evaluateAcpPermissionRequest({
   grants: AcpSessionPermissionGrants
 }): 'allow' | 'ask' {
   if (mode === 'bypassPermissions') return 'allow'
-  // Native Auto uses the agent's own safety classifier and escalates only risky actions.
-  if (mode === 'auto' || mode === 'plan') return 'ask'
+  if (mode === 'plan') return 'ask'
 
   const kind = classifyAcpToolKind(tool)
   const paths = extractAcpToolPaths(tool)
@@ -142,6 +151,7 @@ export function evaluateAcpPermissionRequest({
     return paths.length > 0 && paths.every((targetPath) => isPathWithinWorkspace(targetPath, cwd)) ? 'allow' : 'ask'
   }
 
+  // Explicit user-granted session permissions apply across default, acceptEdits, and auto modes.
   if (kind === 'mutation' && grants.allowWrite) {
     return paths.length > 0 && paths.every((targetPath) => isPathWithinWorkspace(targetPath, cwd)) ? 'allow' : 'ask'
   }

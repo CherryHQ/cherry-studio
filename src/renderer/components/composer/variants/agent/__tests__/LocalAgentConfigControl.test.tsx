@@ -274,4 +274,37 @@ describe('LocalAgentConfigControl', () => {
       })
     )
   })
+
+  it('identifies reasoning controls via explicit role regardless of option id', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipcApi.request).mockResolvedValue(null)
+    render(
+      <LocalAgentConfigControl
+        sessionId="session"
+        disabled={false}
+        options={[
+          {
+            id: 'custom-think-id',
+            name: 'Thinking',
+            role: 'reasoning',
+            type: 'select',
+            currentValue: 'medium',
+            options: [
+              { value: 'low', name: 'Low' },
+              { value: 'medium', name: 'Medium' }
+            ]
+          }
+        ]}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: '智能体配置' }))
+    await user.click(screen.getByRole('menuitemradio', { name: '低' }))
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.set_thought_level', {
+        sessionId: 'session',
+        configId: 'custom-think-id',
+        value: 'low'
+      })
+    )
+  })
 })

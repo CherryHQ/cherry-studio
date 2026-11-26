@@ -17,8 +17,16 @@ type Decision = z.infer<typeof decisionSchema>
 interface ApprovalOption {
   optionId: string
   name: string
-  label?: 'allow' | 'allow_session' | 'deny' | 'cancel'
-  kind: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always'
+  decision: 'accept' | 'acceptForSession' | 'acceptAlways' | 'decline' | 'cancel'
+  label:
+    | 'allow'
+    | 'allow_session'
+    | 'allow_always_target'
+    | 'allow_always_host'
+    | 'deny'
+    | 'deny_always_host'
+    | 'cancel'
+  labelTarget?: string
 }
 export interface CodexApprovalRequest {
   itemId: string
@@ -37,21 +45,27 @@ function option(decision: Decision): ApprovalOption {
     return {
       optionId: decision,
       name: decision,
-      label: label[decision],
-      kind: decision === 'accept' ? 'allow_once' : decision === 'acceptForSession' ? 'allow_always' : 'reject_once'
+      decision,
+      label: label[decision]
     }
   }
-  if ('acceptWithExecpolicyAmendment' in decision)
+  if ('acceptWithExecpolicyAmendment' in decision) {
+    const command = decision.acceptWithExecpolicyAmendment.execpolicy_amendment.join(' ')
     return {
       optionId: JSON.stringify(decision),
-      name: `Always allow: ${decision.acceptWithExecpolicyAmendment.execpolicy_amendment.join(' ')}`,
-      kind: 'allow_always'
+      name: `Always allow: ${command}`,
+      decision: 'acceptAlways',
+      label: 'allow_always_target',
+      labelTarget: command
     }
+  }
   const { host, action } = decision.applyNetworkPolicyAmendment.network_policy_amendment
   return {
     optionId: JSON.stringify(decision),
     name: `${action === 'allow' ? 'Always allow' : 'Always deny'} host: ${host}`,
-    kind: action === 'allow' ? 'allow_always' : 'reject_always'
+    decision: action === 'allow' ? 'acceptAlways' : 'decline',
+    label: action === 'allow' ? 'allow_always_host' : 'deny_always_host',
+    labelTarget: host
   }
 }
 
@@ -132,7 +146,7 @@ async function decision(call: CodexIncomingRequest, scope: RequestScope, file: b
   )
   if (scope.signal.aborted) return 'cancel'
   const index = options.findIndex(
-    (o) => o.optionId === answer.optionId && o.kind.startsWith(answer.approved ? 'allow_' : 'reject_')
+    (o) => o.optionId === answer.optionId && answer.approved === (o.decision !== 'decline' && o.decision !== 'cancel')
   )
   return decisions[index] ?? (answer.approved && decisions.includes('accept') ? 'accept' : 'decline')
 }
@@ -162,7 +176,11 @@ export function codexRequestHandlers(
                 itemId,
                 title: 'Codex: Permissions',
                 input: params,
-                options: [option('accept'), option('acceptForSession'), option('decline')]
+                options: [
+                  { ...option('accept'), name: 'Allow' },
+                  { ...option('acceptForSession'), name: 'Allow for session' },
+                  { ...option('decline'), name: 'Deny' }
+                ]
               },
               scope.signal
             )

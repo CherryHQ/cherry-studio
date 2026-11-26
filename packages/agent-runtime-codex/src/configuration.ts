@@ -54,7 +54,8 @@ const CODEX_EFFORT_LABELS: Record<string, string> = {
   medium: 'Medium',
   high: 'High',
   xhigh: 'Extra High',
-  max: 'Max'
+  max: 'Max',
+  ultra: 'Ultra'
 }
 
 function buildCodexThoughtLevelOptions(
@@ -185,7 +186,14 @@ function describeThread(
       options: efforts
     }
   }
-  return { id: thread.thread.id, params, info, collaboration: thread.collaborationMode?.mode }
+  return {
+    id: thread.thread.id,
+    params,
+    info,
+    modelContextWindow:
+      selected?.contextWindow ?? selected?.context_window ?? selected?.maxContextTokens ?? selected?.max_context_tokens,
+    collaboration: thread.collaborationMode?.mode
+  }
 }
 export type OpenThread = ReturnType<typeof describeThread>
 export function isMissingRollout(error: unknown) {

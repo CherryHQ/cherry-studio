@@ -50,7 +50,13 @@ export type CodexSessionEvent =
   | { type: 'compaction-start' }
   | { type: 'compaction-complete' }
   | { type: 'compaction-error'; error: string }
-  | { type: 'usage'; threadId: string; model?: string; usage: ReturnType<typeof turnUsage> }
+  | {
+      type: 'usage'
+      threadId: string
+      model?: string
+      usage: ReturnType<typeof turnUsage>
+      lastRequest: { turnId: string; inputTokens: number; modelContextWindow?: number }
+    }
 
 interface SessionHost extends InteractionHost {
   connect(args: string[], handlers: CodexClientHandlers): CodexAppServerConnection
@@ -320,14 +326,20 @@ export class CodexSession {
         if (!turn.id || params.turnId !== turn.id) return
         const parsed = tokenUsageUpdate.safeParse(params.tokenUsage)
         if (!parsed.success) return
-        const { total, last } = parsed.data
+        const { total, last, modelContextWindow } = parsed.data
         this.lastUsage = total
         turn.usageBaseline ??= subtractTokens(total, last)
         this.host.emit({
           type: 'usage',
           threadId: this.id,
           model: this.thread.info.activeModel?.id,
-          usage: turnUsage(total, turn.usageBaseline)
+          usage: turnUsage(total, turn.usageBaseline),
+          lastRequest: {
+            turnId: turn.id,
+            inputTokens: last.inputTokens,
+            modelContextWindow:
+              modelContextWindow && modelContextWindow > 0 ? modelContextWindow : this.thread.modelContextWindow
+          }
         })
         break
       }

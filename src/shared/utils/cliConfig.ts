@@ -247,7 +247,6 @@ export const FILE_CONFIGURED_CLI_TOOL_IDS = [
   ...MODEL_CONFIGURED_CLI_TOOL_IDS,
   CodeCli.OPENCLAW,
   CodeCli.DEEPSEEK_HARNESS,
-  'cursor',
   'kiro',
   CodeCli.QODER_CLI,
   'auggie',

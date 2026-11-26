@@ -129,7 +129,11 @@ export function LocalAgentConfigControl({
       .map((option) => {
         if (option.type !== 'select') return { kind: 'config' as const, option }
         const kind: 'mode' | 'thought' | 'config' =
-          option.id === mode?.id ? 'mode' : option.id === thoughtLevel?.id ? 'thought' : 'config'
+          option.role === 'mode' || option.id === mode?.id
+            ? 'mode'
+            : option.role === 'reasoning' || option.id === thoughtLevel?.id
+              ? 'thought'
+              : 'config'
         const translated = kind === 'mode' ? modeOptions : kind === 'thought' ? thoughtOptions : undefined
         if (!translated) return { kind, option }
         const translate = (choice: { value: string; name: string; description?: string | null }) => ({

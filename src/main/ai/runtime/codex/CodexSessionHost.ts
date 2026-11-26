@@ -16,6 +16,7 @@ import type { LocalAgentBrowserLease } from '../localAgent/LocalAgentMcpBridgeSe
 import { LocalAgentSessionRestoreError } from '../localAgent/LocalAgentSessionRestoreError'
 import { LocalConnection, type LocalSource } from '../localAgent/LocalConnection'
 import { localContent } from '../localAgent/localContent'
+import { resolveLocalModelContextWindow } from '../localAgent/modelContextWindow'
 import type { AgentRuntimeUserInput, AgentRuntimeCommand, AgentRuntimeConnectInput } from '../types'
 import { codexProcessHost } from './processHost'
 
@@ -199,14 +200,39 @@ export class CodexSessionHost extends LocalConnection {
       case 'disconnected':
         return this.dispose()
       case 'usage': {
+        const model = event.model ?? this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? ''
         const summary = LocalAgentTurnUsageSchema.safeParse({
           nativeSessionId: event.threadId,
-          model: event.model ?? null,
+          model: model || null,
           usage: event.usage,
           reportedAt: Date.now(),
           correlation: this.gateway ? 'gateway' : 'unknown'
         })
         if (summary.success) this.events.push({ type: 'local-turn-usage', summary: summary.data })
+        const { modelContextWindow, turnId, inputTokens } = event.lastRequest
+        const contextWindow = resolveLocalModelContextWindow(model, modelContextWindow)
+        this.events.push({
+          type: 'context-usage',
+          result: contextWindow
+            ? {
+                status: 'confirmed',
+                value: {
+                  model,
+                  revision: `${model}:${turnId}`,
+                  contextWindow,
+                  basis: 'last-request',
+                  used: { tokens: inputTokens, precision: 'reported' }
+                }
+              }
+            : {
+                status: 'unknown',
+                error: {
+                  operation: 'contextUsage',
+                  code: 'unknown-window',
+                  message: 'Context window size is unknown for this Codex model'
+                }
+              }
+        })
         return
       }
       case 'compaction-start':

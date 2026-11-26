@@ -9,7 +9,7 @@ const counts = z.object({
   reasoningOutputTokens: tokens,
   cacheWriteInputTokens: tokens.optional()
 })
-export const tokenUsageUpdate = z.object({ total: counts, last: counts })
+export const tokenUsageUpdate = z.object({ total: counts, last: counts, modelContextWindow: tokens.nullish() })
 export type TokenCounts = z.infer<typeof counts>
 
 export function subtractTokens(total: TokenCounts, previous: TokenCounts): TokenCounts {

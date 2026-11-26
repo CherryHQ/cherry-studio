@@ -753,4 +753,77 @@ describe('AskUserQuestionComposer', () => {
       }
     })
   })
+
+  it('groups Deny next to Submit on the right for elicitation forms and omits empty option lists', () => {
+    const request = makeRequest([
+      {
+        question: 'Confirm environment override',
+        header: 'Override',
+        options: [],
+        multiSelect: false
+      }
+    ])
+    request.input.elicitation = {
+      agentName: 'Pi',
+      message: 'Confirm environment override',
+      schema: {
+        type: 'object',
+        properties: {
+          env: { type: 'string', title: 'Environment' }
+        }
+      }
+    }
+
+    const { container } = render(<AskUserQuestionComposer request={request} onRespond={vi.fn()} />)
+
+    expect(container.querySelector('.min-h-24')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Enter your answer...')).toBeInTheDocument()
+
+    const denyButton = screen.getByRole('button', { name: 'agent.toolPermission.button.deny' })
+    const submitButton = screen.getByText('Submit')
+    expect(denyButton.parentElement).toBe(submitButton.parentElement)
+    expect(denyButton.parentElement).toHaveClass('ml-auto')
+    expect(denyButton.compareDocumentPosition(submitButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(denyButton).toHaveAttribute('variant', 'outline')
+  })
+
+  it('right-aligns Grok interviewActions, keeps long option labels unwrapped cleanly, and avoids solid emphasis when Submit is disabled', () => {
+    const longOptionLabel =
+      'Use full workspace sandbox isolation with strict domain allowlisting and explicit confirmation prompts'
+    const request = makeRequest([
+      {
+        question: 'Select execution policy',
+        header: 'Policy',
+        options: [
+          { label: longOptionLabel, description: 'Long policy option description' },
+          { label: 'Ask before running', description: 'Prompt for every command' }
+        ],
+        multiSelect: false
+      }
+    ])
+    request.input.responseMode = 'native-request'
+    request.input.interviewActions = ['discuss', 'skip-interview']
+
+    render(<AskUserQuestionComposer request={request} onRespond={vi.fn()} />)
+
+    const optionLabel = screen.getByText(longOptionLabel)
+    expect(optionLabel).toHaveClass('whitespace-pre-wrap')
+    expect(optionLabel).not.toHaveClass('truncate')
+
+    const submitButton = screen.getByText('Submit')
+    expect(submitButton).toBeDisabled()
+    expect(submitButton).toHaveAttribute('variant', 'ghost')
+    expect(submitButton).not.toHaveAttribute('variant', 'emphasis')
+
+    const interviewBar = screen.getByTestId('ask-user-question-interview-actions')
+    expect(interviewBar).toHaveClass('justify-end')
+    const interviewButtons = within(interviewBar).getAllByRole('button')
+    expect(interviewButtons.map((button) => button.textContent?.trim())).toEqual([
+      'Discuss first',
+      'Skip interview and plan'
+    ])
+    for (const button of interviewButtons) {
+      expect(button).toHaveAttribute('variant', 'outline')
+    }
+  })
 })

@@ -18,7 +18,11 @@ const model = z.looseObject({
   supportedReasoningEfforts: z
     .array(z.looseObject({ reasoningEffort: z.string(), description: z.string().optional() }))
     .optional(),
-  defaultReasoningEffort: z.string().optional()
+  defaultReasoningEffort: z.string().optional(),
+  contextWindow: z.number().int().positive().optional(),
+  context_window: z.number().int().positive().optional(),
+  maxContextTokens: z.number().int().positive().optional(),
+  max_context_tokens: z.number().int().positive().optional()
 })
 const skill = z.looseObject({
   name: z.string(),

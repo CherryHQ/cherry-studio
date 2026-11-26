@@ -24,6 +24,7 @@ import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { AgentSessionCostSnapshotSchema } from '@shared/ai/agentSessionCost'
 import {
   isLocalAgentPlaceholderTitle,
+  isLocalAllowDecision,
   type LocalAcpTool,
   type LocalAgentSelection,
   type LocalPermissionOption
@@ -49,6 +50,12 @@ import { bindAcpHarness } from './acpPresets'
 import { AcpProcess } from './AcpProcess'
 import { acpProtocolInfo } from './acpSessionInfo'
 import {
+  buildAntigravityUserInputRequest,
+  isAntigravityUserInputRequest,
+  mapAcpPermissionOptions,
+  resolveAntigravityUserInputOptionId
+} from './antigravityProtocol'
+import {
   acquireLocalAgentBrowserLease,
   isHostBrowserControlAllowed,
   isInjectedAcpAutomationTool,
@@ -59,11 +66,21 @@ import { stopLocalAgentProcess } from './localAgentProcess'
 import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
 import { LocalConnection } from './LocalConnection'
 import { acpContent } from './localContent'
+import { resolveLocalModelContextWindow } from './modelContextWindow'
 import { resolveConfiguredAcpModel } from './nativeModelConfig'
 import { buildStdioHttpMcpShimConfig } from './stdioHttpMcpShim'
 
 const logger = loggerService.withContext('AcpConnection')
 const HOST_ALLOW_SESSION_OPTION_ID = '__cherry_allow_session__'
+const HOST_SCOPED_PERMISSION_OPTIONS: LocalPermissionOption[] = [
+  { optionId: 'allow', decision: 'accept', label: 'allow', name: 'Allow' },
+  { optionId: 'allow_session', decision: 'acceptForSession', label: 'allow_session', name: 'Allow for session' },
+  { optionId: 'deny', decision: 'decline', label: 'deny', name: 'Deny' }
+]
+
+function isAcpThoughtLevelOption(option: NonNullable<AcpSessionConfiguration['configOptions']>[number]): boolean {
+  return option.type === 'select' && (option.category === 'thought_level' || option.category === 'thinking')
+}
 type Terminal = {
   child: ChildProcess
   tools: Set<string>
@@ -117,6 +134,8 @@ export class AcpConnection extends LocalConnection {
   private readonly approvedWrites: Array<{ path: string; content: string }> = []
   private readonly permissionGrants = createAcpSessionPermissionGrants()
   private readonly toolInputs = new Map<string, LocalAcpTool>()
+  private reportedContextUsageThisTurn = false
+  private hasContextUsageReading = false
 
   get inspectContextUsage() {
     return this.session?.inspectContextUsage
@@ -272,6 +291,16 @@ export class AcpConnection extends LocalConnection {
         }
         const id = params.toolCall.toolCallId
         const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
+        const isAntigravity = this.config.presetId === 'antigravity-acp'
+        if (isAntigravity && isAntigravityUserInputRequest(params)) {
+          const input = buildAntigravityUserInputRequest(params)
+          const answer = await this.approve(id, 'AskUserQuestion', input, signal)
+          if (this.abort.signal.aborted || signal.aborted) return { outcome: { outcome: 'cancelled' } }
+          const optionId = resolveAntigravityUserInputOptionId(params, answer.approved, answer.updatedInput)
+          const outcome = optionId ? { outcome: 'selected' as const, optionId } : { outcome: 'cancelled' as const }
+          if (this.active) this.result(id, outcome)
+          return { outcome }
+        }
         const knownTool = this.tools.has(id)
         const options = params.options
         const previousTool = this.toolInputs.get(id)
@@ -297,23 +326,10 @@ export class AcpConnection extends LocalConnection {
           selected = autoSelected
         } else {
           const allowOnceOption = options.find((o) => o.kind === 'allow_once')
-          // The host can retain a session grant even when the agent only offers allow_once.
-          const promptOptions: LocalPermissionOption[] =
-            !options.some((o) => o.kind === 'allow_always') && allowOnceOption
-              ? options.flatMap((o) =>
-                  o === allowOnceOption
-                    ? [
-                        o,
-                        {
-                          optionId: HOST_ALLOW_SESSION_OPTION_ID,
-                          name: 'Allow for session',
-                          label: 'allow_session' as const,
-                          kind: 'allow_always' as const
-                        }
-                      ]
-                    : [o]
-                )
-              : options
+          const promptOptions = mapAcpPermissionOptions(options, {
+            isAntigravity,
+            hostAllowSessionOptionId: HOST_ALLOW_SESSION_OPTION_ID
+          })
           const answer = await this.approve(
             id,
             `ACP: ${tool.title ?? 'Tool'}`,
@@ -329,13 +345,24 @@ export class AcpConnection extends LocalConnection {
           } else if (answer.approved && requested === HOST_ALLOW_SESSION_OPTION_ID && allowOnceOption) {
             selected = allowOnceOption
             grantedSession = true
+          } else if (typeof requested === 'string') {
+            selected = options.find(
+              (o) => o.optionId === requested && o.kind.startsWith(answer.approved ? 'allow_' : 'reject_')
+            )
+            if (!selected && answer.approved) {
+              // Fall back to allow_once rather than cancelling an approved turn if an option disappeared.
+              const matchedPrompt = promptOptions.find(
+                (o) => o.optionId === requested && isLocalAllowDecision(o.decision)
+              )
+              if (matchedPrompt?.decision === 'acceptForSession' && allowOnceOption) {
+                selected = allowOnceOption
+                grantedSession = true
+              }
+            }
           } else {
-            selected =
-              typeof requested === 'string'
-                ? options.find(
-                    (o) => o.optionId === requested && o.kind.startsWith(answer.approved ? 'allow_' : 'reject_')
-                  )
-                : options.find((o) => o.kind === (answer.approved ? 'allow_once' : 'reject_once'))
+            selected = answer.approved
+              ? (options.find((o) => o.kind === 'allow_once') ?? options.find((o) => o.kind === 'allow_always'))
+              : (options.find((o) => o.kind === 'reject_once') ?? options.find((o) => o.kind === 'reject_always'))
           }
         }
         const outcome = selected
@@ -398,16 +425,7 @@ export class AcpConnection extends LocalConnection {
               {
                 path: params.path,
                 content: params.content,
-                localPermissionOptions: [
-                  { optionId: 'allow', name: 'Allow', label: 'allow', kind: 'allow_once' },
-                  {
-                    optionId: 'allow_session',
-                    name: 'Allow for session',
-                    label: 'allow_session',
-                    kind: 'allow_always'
-                  },
-                  { optionId: 'deny', name: 'Deny', label: 'deny', kind: 'reject_once' }
-                ]
+                localPermissionOptions: HOST_SCOPED_PERMISSION_OPTIONS
               },
               signal
             )
@@ -445,16 +463,7 @@ export class AcpConnection extends LocalConnection {
                 args: params.args,
                 cwd: params.cwd ?? cwd,
                 env: params.env ?? [],
-                localPermissionOptions: [
-                  { optionId: 'allow', name: 'Allow', label: 'allow', kind: 'allow_once' },
-                  {
-                    optionId: 'allow_session',
-                    name: 'Allow for session',
-                    label: 'allow_session',
-                    kind: 'allow_always'
-                  },
-                  { optionId: 'deny', name: 'Deny', label: 'deny', kind: 'reject_once' }
-                ]
+                localPermissionOptions: HOST_SCOPED_PERMISSION_OPTIONS
               },
               signal
             )
@@ -469,7 +478,11 @@ export class AcpConnection extends LocalConnection {
           }
           const terminalId = randomUUID()
           const terminalCwd = params.cwd ?? cwd
-          const terminalEnv = { ...env, ...Object.fromEntries((params.env ?? []).map((e) => [e.name, e.value])) }
+          const terminalEnv = Object.fromEntries(
+            Object.entries({ ...env, ...Object.fromEntries((params.env ?? []).map((e) => [e.name, e.value])) }).filter(
+              (entry): entry is [string, string] => typeof entry[1] === 'string'
+            )
+          )
           const shell =
             params.args === undefined &&
             /\s/.test(params.command) &&
@@ -645,19 +658,24 @@ export class AcpConnection extends LocalConnection {
     initialLegacy?: AcpLiveSession['legacyModels']
   ) {
     const mode = options?.find((option) => option.category === 'mode' && option.type === 'select')
-    const thought = options?.find((option) => option.category === 'thought_level' && option.type === 'select')
+    const thought = options?.find(isAcpThoughtLevelOption)
     this.localSessionInfo.configOptions =
       options
         ?.filter((option) => option.type === 'select' || option.type === 'boolean')
-        .map(({ id, name, description, category, ...option }) => ({
-          id,
-          name,
-          description,
-          category,
-          ...(option.type === 'boolean'
-            ? { type: 'boolean' as const, currentValue: option.currentValue }
-            : { type: 'select' as const, currentValue: option.currentValue, options: option.options })
-        })) ?? undefined
+        .map((option) => {
+          const { id, name, description, category } = option
+          const role = option === mode ? ('mode' as const) : option === thought ? ('reasoning' as const) : undefined
+          return {
+            id,
+            name,
+            description,
+            category,
+            ...(role ? { role } : {}),
+            ...(option.type === 'boolean'
+              ? { type: 'boolean' as const, currentValue: option.currentValue }
+              : { type: 'select' as const, currentValue: option.currentValue, options: option.options })
+          }
+        }) ?? undefined
 
     if (mode?.type === 'select') {
       this.modeSource = 'config'
@@ -740,8 +758,12 @@ export class AcpConnection extends LocalConnection {
         })
         if (snapshot.success) this.events.push({ type: 'session-cost', snapshot: snapshot.data })
       }
-      if (used >= 0 && size > 0) {
-        const model = this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? ''
+      if (used < 0) return
+      const model = this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? ''
+      const contextWindow = size > 0 ? size : resolveLocalModelContextWindow(model)
+      if (contextWindow) {
+        this.reportedContextUsageThisTurn = true
+        this.hasContextUsageReading = true
         this.events.push({
           type: 'context-usage',
           result: {
@@ -749,7 +771,7 @@ export class AcpConnection extends LocalConnection {
             value: {
               model,
               revision: model,
-              contextWindow: size,
+              contextWindow,
               basis: 'current-context',
               used: { tokens: used, precision: 'reported' }
             }
@@ -891,11 +913,47 @@ export class AcpConnection extends LocalConnection {
     this.begin(input.message.id)
     this.planPart = undefined
     this.planId = undefined
+    this.reportedContextUsageThisTurn = false
     try {
       if (!this.session) throw new Error('ACP session is not connected')
       const model = this.localSessionInfo.activeModel?.id ?? null
       const { stopReason, usage, context } = await this.session.prompt(prompt, input.message.id)
-      if (context) this.events.push({ type: 'context-usage', result: { status: 'confirmed', value: context } })
+      if (context) {
+        this.reportedContextUsageThisTurn = true
+        this.hasContextUsageReading = true
+        this.events.push({ type: 'context-usage', result: { status: 'confirmed', value: context } })
+      } else if (!this.reportedContextUsageThisTurn) {
+        const contextWindow = usage ? resolveLocalModelContextWindow(model) : undefined
+        if (usage && contextWindow) {
+          this.hasContextUsageReading = true
+          this.events.push({
+            type: 'context-usage',
+            result: {
+              status: 'confirmed',
+              value: {
+                model: model ?? '',
+                revision: model ?? '',
+                contextWindow,
+                basis: 'last-request',
+                used: { tokens: usage.inputTokens, precision: 'reported' }
+              }
+            }
+          })
+        } else if (!this.hasContextUsageReading) {
+          this.hasContextUsageReading = true
+          this.events.push({
+            type: 'context-usage',
+            result: {
+              status: 'unsupported',
+              error: {
+                operation: 'contextUsage',
+                code: 'unsupported',
+                message: 'This agent does not report context usage'
+              }
+            }
+          })
+        }
+      }
       if (usage) {
         // ACP totals already include cached tokens.
         const cachedRead = usage.cachedReadTokens ?? 0
