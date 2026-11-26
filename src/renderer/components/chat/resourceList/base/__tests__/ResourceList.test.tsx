@@ -1095,6 +1095,7 @@ describe('ResourceList', () => {
     )
     await waitFor(() => expect(draggableRowOf(screen.getByText('session'))).not.toBeNull())
     const header = draggableRowOf(screen.getByText('session'))!
+    vi.useFakeTimers()
     const startsDrag = async (target: Element) => {
       const dispatch = (node: Element | Document, type: string, clientY: number) =>
         act(() => {
@@ -1112,10 +1113,10 @@ describe('ResourceList', () => {
         })
       dispatch(target, 'pointerdown', 10)
       dispatch(document, 'pointermove', 40)
-      await act(() => new Promise((resolve) => setTimeout(resolve, 10)))
+      await act(() => vi.advanceTimersByTimeAsync(10))
       const dragging = header.hasAttribute('data-dragging')
       dispatch(document, 'pointerup', 40)
-      await act(() => new Promise((resolve) => setTimeout(resolve, 10)))
+      await act(() => vi.advanceTimersByTimeAsync(10))
       return dragging
     }
 
