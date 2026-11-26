@@ -348,6 +348,11 @@ describe('hotfix release notes', () => {
     expect(() => extractHotfixReleaseNote(`${HOTFIX_BODY}\n\n${HOTFIX_BODY}`)).toThrow('at most one release-note block')
   })
 
+  it.each(['\n', '\r\n'])('rejects an empty hotfix note fence with line ending %j', (newline) => {
+    const body = ['```release-note', '```'].join(newline)
+    expect(() => extractHotfixReleaseNote(body)).toThrow('exact English and Chinese language markers')
+  })
+
   it('requires Chinese content in a provided Chinese description', () => {
     expect(() => extractHotfixReleaseNote(hotfixBody('[Chat] Fix the issue.', '[Chat] Fix the issue.'))).toThrow(
       'must contain Chinese content'
