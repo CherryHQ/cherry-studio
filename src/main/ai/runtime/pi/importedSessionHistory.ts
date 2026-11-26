@@ -18,7 +18,7 @@ function fingerprint(entries: readonly unknown[]) {
 }
 
 export function ensureImportedSessionHistory(sessionId: string): Promise<void> {
-  if (!getImportedHistoryState(sessionId)) return Promise.resolve()
+  if (!getImportedHistoryState(application.get('DbService').getDb(), sessionId)) return Promise.resolve()
   const existing = pending.get(sessionId)
   if (existing) return existing
   const work = initialize(sessionId).finally(() => pending.delete(sessionId))
@@ -27,7 +27,7 @@ export function ensureImportedSessionHistory(sessionId: string): Promise<void> {
 }
 
 async function initialize(sessionId: string): Promise<void> {
-  const state = getImportedHistoryState(sessionId)
+  const state = getImportedHistoryState(application.get('DbService').getDb(), sessionId)
   if (!state) return
   if (state.status === 'ready') {
     const token = agentSessionMessageService.getLastRuntimeResumeToken(sessionId)
@@ -89,7 +89,7 @@ async function initialize(sessionId: string): Promise<void> {
       throw new Error('history_corrupt')
     if (state.status === 'ready') {
       application.get('DbService').withWriteTx((tx) => {
-        const current = getImportedHistoryState(sessionId)
+        const current = getImportedHistoryState(tx, sessionId)
         if (current?.nativeSessionId === state.nativeSessionId)
           completeImportedHistoryTx(tx, sessionId, { ...current, nativePrefix: fingerprint(prefix) })
       })
