@@ -142,7 +142,10 @@ Runtimes reach the policy only through the `commandPolicy` barrel's `checkComman
 the command, its dialect (from the tool name), cwd, built-in role and the root's permission
 mode, and returns `deny`, `ask` (only in `auto`) or `allow`, the localized policy reason, card
 evidence and a `context` fingerprint. A runtime compares the fingerprint after a grant instead
-of re-deriving the policy inputs. The parser, semantic adapters, JSON document and the
+of re-deriving the policy inputs. The built-in Assistant's feedback-submission guard also uses
+the barrel's `resolveInvocationCommands`, which returns every command an invocation runs
+(wrapped, substituted and nested-shell commands included) and whether any part stayed
+unresolved; it makes no policy decision of its own. The parser, semantic adapters, JSON document and the
 built-in role's destructive-operation detector are private to the directory; lint rejects
 deep imports. Decisions are cached per command, dialect and role, because one call is
 checked by a hook, a permission callback and again after approval.
