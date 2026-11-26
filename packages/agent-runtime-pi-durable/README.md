@@ -59,6 +59,11 @@ normal completion does not discard accepted input. Explicit interruption still f
 the native cancellation scope. Read captured input facts to distinguish
 acceptance from placement and completion.
 
+The desktop mirrors the ordered native follow-up inbox after attachment and on inbox commits.
+Editing and reordering check the still-waiting entries inside a native transaction. An edit takes
+its native content and product text part to placement under the original submission ID. The desktop
+can reapply that part on reopen. Withdrawing one entry uses the native submission abort operation.
+
 Several inputs can share a native answer. Native `done` alone is insufficient: Durable also uses it for truncated output
 and tool-only termination. The adapter reads the actual assistant stop reason before reporting
 `completed`; truncation becomes `unanswered` with `output-truncated`. Native aborted submissions
@@ -87,7 +92,7 @@ confirm foreground completion. Native progress may remain unpersisted for up to 
 facts, including placed native-only inputs. Completion stays pending during admission, unresolved input,
 foreground work or compaction, and carries terminal inputs after their content. Revision and pending state stay private to the projection.
 A confirmed rejection releases only its temporary admission hold; unknown admission remains unresolved.
-Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; committed output after the unique logical user-input boundary of an unfinished placed input also remains live. Earlier answers, queued inputs and ambiguous boundaries remain historical. A returning preview receives a fresh local identity even when a resumed native task repeats its attempt number. State-only reads and updates use `ThreadFeed.state`. Native views append the same entry records, so
+Initial observation never replays earlier completion. A generation preview already active at attachment remains live for its product consumer; committed output after the unique logical user-input boundary of an unfinished placed input also remains live. Earlier answers, queued inputs and ambiguous boundaries remain historical. A returning preview receives a fresh local identity. When the host supplies saved source IDs, the restored snapshot aliases the saved preview to the same native task and generation attempt or to the task's interrupted output already committed in the active reply. State-only reads and updates use `ThreadFeed.state`. Native views append the same entry records, so
 the projection keeps its committed messages frozen and projects only appended entries. A tool
 result copies the parts array of its owning message once per batch. A generation correction reads
 the current assistant's content directly. A live tool view looks up committed calls by ID and

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "68d674a0-dd3c-4798-9a6e-a66c95d6e2d0",
-  "prevId": "8fdd5eed-2dd6-49a4-af14-aece74ba4a70",
+  "id": "36ebd5c5-1b9d-4c75-9dc2-2d7f450058e4",
+  "prevId": "a662b912-5300-498c-b2ed-925b2a0db0e2",
   "tables": {
     "agent": {
       "name": "agent",
@@ -652,6 +652,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "needs_recovery_check": {
+          "name": "needs_recovery_check",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -668,6 +676,14 @@
         }
       },
       "indexes": {
+        "agent_runtime_backend_recovery_idx": {
+          "name": "agent_runtime_backend_recovery_idx",
+          "columns": [
+            "id"
+          ],
+          "isUnique": false,
+          "where": "\"agent_runtime_backend\".\"needs_recovery_check\" = 1"
+        },
         "agent_runtime_backend_locator_uniq": {
           "name": "agent_runtime_backend_locator_uniq",
           "columns": [
@@ -1458,6 +1474,23 @@
             "\"id\" asc"
           ],
           "isUnique": false
+        },
+        "agent_session_message_reply_idx": {
+          "name": "agent_session_message_reply_idx",
+          "columns": [
+            "session_id",
+            "reply_id"
+          ],
+          "isUnique": false,
+          "where": "\"agent_session_message\".\"reply_id\" IS NOT NULL"
+        },
+        "agent_session_message_pending_reply_idx": {
+          "name": "agent_session_message_pending_reply_idx",
+          "columns": [
+            "session_id"
+          ],
+          "isUnique": false,
+          "where": "\"agent_session_message\".\"role\" = 'assistant' AND \"agent_session_message\".\"status\" = 'pending'"
         },
         "agent_session_message_status_idx": {
           "name": "agent_session_message_status_idx",
@@ -6704,6 +6737,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "active_node_id": {
           "name": "active_node_id",
           "type": "text",
@@ -6782,6 +6822,13 @@
             "assistant_id"
           ],
           "isUnique": false
+        },
+        "topic_group_id_idx": {
+          "name": "topic_group_id_idx",
+          "columns": [
+            "group_id"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -6791,6 +6838,19 @@
           "tableTo": "assistant",
           "columnsFrom": [
             "assistant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "topic_group_id_group_id_fk": {
+          "name": "topic_group_id_group_id_fk",
+          "tableFrom": "topic",
+          "tableTo": "group",
+          "columnsFrom": [
+            "group_id"
           ],
           "columnsTo": [
             "id"

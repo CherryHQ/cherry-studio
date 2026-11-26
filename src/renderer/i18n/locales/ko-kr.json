@@ -852,6 +852,7 @@
   "chat.input.followup_queue.pause": "자동 전송 일시 중지",
   "chat.input.followup_queue.remove": "제거",
   "chat.input.followup_queue.resume": "자동 전송 재개",
+  "chat.input.followup_queue.stale": "대기열이 변경되었습니다. 현재 대기열을 확인하고 다시 시도하세요.",
   "chat.input.followup_queue.steer": "방향 조정",
   "chat.input.followup_queue.title": "대기 중({{count}}개)",
   "chat.input.generate_image": "이미지 생성",

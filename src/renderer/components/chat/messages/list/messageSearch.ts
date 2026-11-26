@@ -92,7 +92,7 @@ function projectMessageSearchDocuments(
       message.role === 'assistant'
         ? projectCompletedMessageParts(entries, {
             keepIntermediateAssistantText: options.keepIntermediateAssistantText
-          }).resultEntries
+          }).items.flatMap((item) => (item.kind === 'part' ? [item.entry] : []))
         : entries
 
     return searchableEntries.flatMap((entry): MessageSearchDocument[] => {
