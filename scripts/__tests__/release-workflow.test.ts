@@ -934,6 +934,25 @@ describe('release publication state', () => {
     expect(bodyWithoutChanges).toContain('<summary>Release Notes</summary>\n\nEnglish notes\n\n</details>')
   })
 
+  it.each([
+    ['a missing Chinese marker', '<!--LANG:en-->\nEnglish notes\n<!--LANG:END-->', 'bilingual markers'],
+    [
+      'an empty English section',
+      '<!--LANG:en-->\n\n<!--LANG:zh-CN-->\n中文说明\n<!--LANG:END-->',
+      'non-empty English and Chinese sections'
+    ]
+  ])('rejects a release body with %s', (_case, notes, error) => {
+    expect(() =>
+      composeReleaseBody({
+        builderContent: builderYaml(notes),
+        generatedNotes: '',
+        productName: 'Cherry Studio',
+        repository: 'CherryHQ/cherry-studio',
+        tag: 'v1.2.0'
+      })
+    ).toThrow(error)
+  })
+
   it('accepts only an exact-head all-platform build with artifacts and no open release pull request', () => {
     expect(() =>
       validatePublishState({
