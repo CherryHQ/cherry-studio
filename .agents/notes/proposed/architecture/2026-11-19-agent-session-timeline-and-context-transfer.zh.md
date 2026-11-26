@@ -134,6 +134,8 @@ Main、SQLite 和 Renderer 失效通知沿用同一 part ID 寻址当前工具�
 
 新增 fork 只允许从成功结束的 Run 的受支持边界发起。同一 harness 的原生 fork 要求该边界有对应的原生 checkpoint。Renderer 仅在符合条件的边界提供 Fork，Main 在准备 fork 前拒绝 steer 消息及 Run 内部位置。
 
+Fork 和 edit 共用所选分支的 Run 历史投影，复用现有助手 ID、输入的 `replyId` 关联及已接纳的 `pos`。每个 Run 归拢原始输入和已投递的 steer，再按首条已接纳输入排列 Run。消息树选择分支，但不定义执行顺序或原生截止点。Fork 复制至选中边界的完整 Run，并排除已绑定但未投递的输入；没有接纳证据、也没有位置的旧历史仍可读取。Edit 拒绝 Run 内的 steer，使用前一个 Run 的 checkpoint，在同一事务中先按 Run 顺序重接当前路径，再替换目标 Run 及后续子树。保留更早 Run 的 ID、关联输入、checkpoint 和兄弟分支。
+
 原生来源明确替换时，将别名解析到原 `partId` 和位置。用户删除时，在删除事务中记录规范来源的重放抑制状态，避免该内容在恢复时复活。只有确认该来源无法再被重放时才清理这条记录。历史游标重置用于刷新读取视图，重放抑制用于约束 Timeline 写入。
 
 删除提交后，Main 通知实时 Timeline 所有者受影响的 part ID。所有者释放其正文引用、已接纳结果和索引，再向订阅端发布移除。当前根投影在成功提交后释放实时正文，会轮询上下文行以发现删除，也可能重读已存 part 做比较。切换后直接投递移除操作。在 Electron 中通过堆引用链验证释放结果。[RootMessageProjection](../../../../src/main/ai/agentSession/RootMessageProjection.ts)

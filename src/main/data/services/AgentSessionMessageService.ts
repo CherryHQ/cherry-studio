@@ -41,6 +41,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { unplacedAgentRunInputs, orderAgentSessionRuns } from '@data/services/agentSessionRunHistory'
 import { agentSessionReadModelEffects, agentSessionService } from '@data/services/AgentSessionService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
@@ -1246,7 +1247,7 @@ export class AgentSessionMessageService {
       .innerJoin(agentWorkspaceTable, eq(sessionTable.workspaceId, agentWorkspaceTable.id))
       .where(eq(sessionTable.id, sessionId))
       .get()!
-    const rows = readAgentSessionPath(tx, sessionId)
+    const rows = orderAgentSessionRuns(readAgentSessionPath(tx, sessionId))
     const index = rows.findIndex((row) => row.id === messageId)
     const user = rows[index]
     if (!user || user.role !== 'user' || user.delivery || source.session.type !== 'conversation')
@@ -1286,6 +1287,16 @@ export class AgentSessionMessageService {
   replaceEditBranchTx(tx: DbOrTx, sessionId: string, target: { messageId: string; version: string }): void {
     const snapshot = this.readEditVersionTx(tx, sessionId, target.messageId)
     if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
+    const root = ensureAgentSessionRootTx(tx, sessionId)
+    let parentId = root
+    for (const row of snapshot.rows) {
+      if (row.parentId !== parentId)
+        tx.update(sessionMessagesTable)
+          .set({ parentId })
+          .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, row.id)))
+          .run()
+      parentId = row.id
+    }
     const replaced = and(
       eq(sessionMessagesTable.sessionId, sessionId),
       inArray(sessionMessagesTable.id, agentSessionDescendantIds(sessionId, target.messageId))
@@ -1296,7 +1307,10 @@ export class AgentSessionMessageService {
       sessionId,
       rows.map((row) => row.id)
     )
-    tx.update(sessionTable).set({ activeNodeId: snapshot.user.parentId }).where(eq(sessionTable.id, sessionId)).run()
+    tx.update(sessionTable)
+      .set({ activeNodeId: snapshot.rows[snapshot.index - 1]?.id ?? root })
+      .where(eq(sessionTable.id, sessionId))
+      .run()
     tx.delete(sessionMessagesTable).where(replaced).run()
   }
 
@@ -1370,38 +1384,38 @@ export class AgentSessionMessageService {
     messageId: string,
     excludedIds: readonly string[] = []
   ): SessionMessage[] | undefined {
-    let rows = readAgentSessionPath(tx, sessionId, messageId, true)
-    const lastInput = tx
-      .select({ id: sessionMessagesTable.id, pos: sessionMessagesTable.pos })
-      .from(sessionMessagesTable)
-      .where(
-        and(
-          eq(sessionMessagesTable.sessionId, sessionId),
-          eq(sessionMessagesTable.replyId, messageId),
-          eq(sessionMessagesTable.role, 'user'),
-          isNotNull(sessionMessagesTable.pos)
-        )
-      )
-      .orderBy(desc(sessionMessagesTable.pos))
-      .limit(1)
-      .get()
-    if (lastInput) {
-      const path = readAgentSessionPath(tx, sessionId, lastInput.id, true)
-      const owner = path.findIndex((row) => row.id === messageId)
-      if (owner >= 0) rows = path.filter((row, index) => index <= owner || row.replyId === messageId)
-    }
-    if (!rows.some((row) => row.id === messageId)) return undefined
+    const active = readAgentSessionPath(tx, sessionId, undefined, true)
+    const branch = active.some((row) => row.id === messageId)
+      ? active
+      : readAgentSessionPath(tx, sessionId, this.branchTip(sessionId, messageId, tx), true)
+    const unplaced = unplacedAgentRunInputs(branch)
+    const rows = orderAgentSessionRuns(branch.filter((row) => !unplaced.has(row.id)))
+    const selected = rows.findIndex((row) => row.id === messageId)
+    if (selected < 0) return undefined
+    const end = rows.reduce((end, row, index) => (row.replyId === messageId ? Math.max(end, index) : end), selected)
     const excluded = new Set(excludedIds)
     return this.applyForkCheckpointsTx(
       tx,
       sessionId,
       messageId,
-      rows.filter(
-        (row) =>
-          !excluded.has(row.id) &&
-          (row.role !== 'user' || lastInput?.pos == null || row.pos == null || row.pos <= lastInput.pos)
-      )
+      rows.slice(0, end + 1).filter((row) => !excluded.has(row.id))
     )
+  }
+
+  readRunHistoryMetadataTx(tx: DbOrTx, sessionId: string) {
+    const head = getAgentSessionHead(tx, sessionId)
+    if (!head) return []
+    const rows = tx
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head))
+        )
+      )
+      .all()
+    return orderAgentSessionRuns(orderAgentSessionPath(rows, head))
   }
 
   private applyForkCheckpointsTx(

@@ -684,7 +684,7 @@ describe('AgentSessionMessageService', () => {
           .run()
       }
       const prefix = agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, selected.id)!
-      expect(prefix.map((row) => row.id)).toEqual([a.id, b.id, first.id, selected.id])
+      expect(prefix.map((row) => row.id)).toEqual([a.id, first.id, b.id, selected.id])
       await seedSession({ id: 'queued-fork-child', name: 'Child', orderKey: 'a1' })
       const copied = prefix.map((row) => ({
         ...row,
@@ -699,9 +699,9 @@ describe('AgentSessionMessageService', () => {
         `copied-${selected.id}`
       )!
       expect(restored.map((row) => row.data.parts?.[0])).toEqual(
-        ['A', 'B', 'A answer', 'B answer'].map((text) => ({ type: 'text', text }))
+        ['A', 'A answer', 'B', 'B answer'].map((text) => ({ type: 'text', text }))
       )
-      expect(restored.at(-1)?.parentId).toBe(`copied-${first.id}`)
+      expect(restored.at(-1)?.parentId).toBe(`copied-${b.id}`)
     })
 
     it('forks a whole Run with its steered inputs and preserves display positions under new IDs', async () => {

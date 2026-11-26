@@ -1,5 +1,4 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { alias, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
@@ -10,7 +9,6 @@ import {
   type AgentSessionCheckpoints,
   type AgentSessionContextRow
 } from '@data/db/schemas/agentSessionContext'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { DbOrTx } from '@data/db/types'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -19,6 +17,7 @@ import { agentSessionContextService } from './AgentSessionContextService'
 import { agentSessionMessageService } from './AgentSessionMessageService'
 import { agentSessionPathIds, ensureAgentSessionRootTx } from './agentSessionMessageTree'
 import type { AgentSessionMessageRecord } from './agentSessionMessageTree'
+import { unplacedAgentRunInputs } from './agentSessionRunHistory'
 import { agentSessionService } from './AgentSessionService'
 
 export class AgentSessionForkSourceError extends Error {
@@ -57,39 +56,23 @@ export class AgentSessionForkService {
 
   readHistoryBoundaries(sessionId: string, messageIds: readonly string[]) {
     if (!messageIds.length) return []
-    const parent = alias(agentSessionMessageTable, 'parent')
-    const parentRun = alias(agentSessionMessageTable, 'parent_run')
-    const anchor = (data: AnySQLiteColumn) =>
-      sql<unknown>`json_quote(json_extract(${data}, '$.runtimeAnchor'))`.mapWith((value: string): unknown =>
-        JSON.parse(value)
-      )
-    return application
-      .get('DbService')
-      .getDb()
-      .select({
-        id: agentSessionMessageTable.id,
-        role: agentSessionMessageTable.role,
-        replyId: agentSessionMessageTable.replyId,
-        status: agentSessionMessageTable.status,
-        delivery: agentSessionMessageTable.delivery,
-        anchor: anchor(agentSessionMessageTable.data),
-        parent: { id: parent.id, role: parent.role, status: parent.status, anchor: anchor(parent.data) },
-        parentRun: { id: parentRun.id, role: parentRun.role, status: parentRun.status, anchor: anchor(parentRun.data) }
-      })
-      .from(agentSessionMessageTable)
-      .leftJoin(parent, and(eq(parent.sessionId, sessionId), eq(parent.id, agentSessionMessageTable.parentId)))
-      .leftJoin(
-        parentRun,
-        and(
-          eq(parentRun.sessionId, sessionId),
-          eq(parent.role, 'user'),
-          eq(parentRun.id, parent.replyId),
-          eq(parentRun.role, 'assistant')
-        )
-      )
-      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), inArray(agentSessionMessageTable.id, messageIds)))
-      .all()
-      .map(({ parentRun, ...row }) => ({ ...row, parent: parentRun ?? row.parent }))
+    const rows = agentSessionMessageService.readRunHistoryMetadataTx(application.get('DbService').getDb(), sessionId)
+    const byId = new Map(rows.map((row) => [row.id, row]))
+    const unplaced = unplacedAgentRunInputs(rows)
+    const selected = new Set(messageIds)
+    return rows.flatMap((row, index) => {
+      if (!selected.has(row.id)) return []
+      const previous = rows[index - 1]
+      const parent = previous?.role === 'user' && previous.replyId ? (byId.get(previous.replyId) ?? previous) : previous
+      return [
+        {
+          ...row,
+          unplaced: unplaced.has(row.id),
+          anchor: row.data.runtimeAnchor,
+          parent: parent ? { ...parent, anchor: parent.data.runtimeAnchor } : null
+        }
+      ]
+    })
   }
 
   private readTx(tx: DbOrTx, sourceSessionId: string, messageId: string, excludedIds: readonly string[]) {

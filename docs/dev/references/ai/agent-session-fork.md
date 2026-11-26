@@ -40,8 +40,9 @@ Copied unfinished tool calls become terminal errors; they do not resume executio
 Placed steer inputs belonging to the selected Run are included even when their rows follow
 the assistant row. Copied inputs reference the new Run ID; copied parts receive new IDs
 and retain their timeline positions. Only the final display segment offers the Run fork action.
-Inputs placed after the selected Run's last admitted input are excluded from its copied
-prefix, even if queued tree ancestry includes them and they have since completed.
+Runs are ordered by their first admitted input. Fork includes only complete Runs
+through its selected boundary, regardless of queued tree ancestry. Bound inputs
+without an admitted position are excluded; genuine positionless legacy history remains.
 Publication reconnects the retained rows into the child branch.
 
 User workspaces remain shared. System workspaces copy their **current** files into
@@ -55,8 +56,9 @@ The operation journal records the intended native context before preparation. Th
 
 ## Edit and resend within a session
 
-**Edit and resend** replaces the selected input and removes its descendant subtree
-in one product transaction. It does not retain a new history version. The common
+**Edit and resend** replaces the selected Run's original input and its later descendants
+in one product transaction. The selected path is reconnected in Run order first, so
+queued tree ancestry cannot remove an earlier completed Run. It does not retain a new history version. The common
 prefix, existing sibling branches outside that subtree, and independent fork sessions remain unchanged.
 Desktop asks for confirmation when saving an edit, before changing displayed history or dispatching the replacement. Cancelling keeps the draft and original messages.
 Hiding or closing the originating view invalidates its pending confirmation, even if the same session is shown again before the dialog is answered.
@@ -66,9 +68,8 @@ that binding and do not overwrite the original prefix rows.
 
 For the first input, an empty prefix records a fresh intended native identity;
 Pi creates that context on dispatch. A nonempty prefix requires a valid native
-checkpoint immediately before the edited input. When that predecessor is a steered
-input, its owning completed Run supplies the native checkpoint; the steer itself
-remains ineligible for editing. Editing is rejected while the session has unsettled work,
+checkpoint from the preceding Run in execution order. In-Run steer inputs remain
+ineligible for editing. Editing is rejected while the session has unsettled work,
 including outgoing cross-session deliveries. Inputs accepted inside a Run cannot use its final
 checkpoint as their preceding edit boundary. Failed preparation or publication preserves the original tree.
 Pi Durable noninitial edits publish the native fork's allocated product context identity and remapped checkpoints in the replacement input transaction. First-input edits reserve a fresh empty backend/context and create native storage only on dispatch. Native numeric IDs are local to a store, so publication and recovery check the exact context rather than matching an unrelated backend's token.

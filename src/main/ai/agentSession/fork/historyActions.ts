@@ -40,10 +40,12 @@ export function inspectForkBoundary(
 
 export function getEditFailure(
   driver: CheckpointReader | undefined,
-  target: Pick<AgentSessionMessageRow, 'role' | 'delivery'> & Partial<Pick<AgentSessionMessageRow, 'replyId'>>,
+  target: Pick<AgentSessionMessageRow, 'role' | 'delivery'> &
+    Partial<Pick<AgentSessionMessageRow, 'replyId'>> & { unplaced?: boolean },
   parent: HistoryBoundary | null
 ): AgentSessionHistoryActions['edit'] {
   if (target.role !== 'user' || target.delivery) return 'invalid_target'
-  if (!driver || !parent || (target.replyId && target.replyId === parent.id)) return 'checkpoint_unsupported'
+  if (target.unplaced || !driver || !parent || (target.replyId && target.replyId === parent.id))
+    return 'checkpoint_unsupported'
   return parent.role === 'root' || inspectForkBoundary(driver, parent).reason === null ? null : 'checkpoint_unsupported'
 }

@@ -108,6 +108,148 @@ describe('Agent fork publication', () => {
     await rm(directory, { recursive: true, force: true })
   })
 
+  it.each(['commit', 'write failed'])(
+    'edits queued C from Run B without removing the earlier completed Run: %s',
+    async (outcome) => {
+      const root = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.id, messageId))
+        .get()!.parentId!
+      const input = (text: string, parentId: string) =>
+        agentSessionMessageService.saveMessage({
+          sessionId,
+          parentId,
+          message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text }] } }
+        })
+      const a = input('A', root)
+      const b = input('B', messageId)
+      const steer = input('S', b.id)
+      const c = input('C', steer.id)
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ parentId: a.id })
+        .where(eq(agentSessionMessageTable.id, messageId))
+        .run()
+      const reply = (text: string, parentId: string) =>
+        agentSessionMessageService.saveMessage({
+          sessionId,
+          parentId,
+          runtimeResumeToken: 'native-parent',
+          runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native-parent', leafId: text } },
+          message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text }] } }
+        })
+      const rb = reply('B reply', c.id)
+      const rc = reply('C reply', rb.id)
+      const sibling = input('Independent sibling', rb.id)
+      for (const [row, pos, owner] of [
+        [a, 1, messageId],
+        [steer, 2, messageId],
+        [b, 3, rb.id],
+        [c, 4, rc.id]
+      ] as const) {
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ pos, replyId: owner })
+          .where(eq(agentSessionMessageTable.id, row.id))
+          .run()
+      }
+      dbh.db.update(agentSessionTable).set({ activeNodeId: rc.id }).where(eq(agentSessionTable.id, sessionId)).run()
+      beforeForkResult = async (input) => {
+        expect(input.checkpoint).toMatchObject({ leafId: 'B reply' })
+      }
+      const version = agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, c.id).version
+      const before = dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, sessionId))
+        .all()
+      const operation = new AgentSessionForkOperations().edit(
+        sessionId,
+        { messageId: c.id, version },
+        async () => {},
+        (tx, nativeSessionId) => {
+          const saved = agentSessionMessageService.saveMessagesTx(tx, {
+            sessionId,
+            messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Edited C' }] } }]
+          })[0]
+          reservePiBranchTx(tx, sessionId, saved.id, nativeSessionId)
+          if (outcome === 'write failed') throw new Error('write failed')
+          return saved.id
+        }
+      )
+      if (outcome === 'write failed') {
+        await expect(operation).rejects.toThrow('write failed')
+        expect(
+          dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, sessionId)).all()
+        ).toEqual(before)
+        return
+      }
+      const next = await operation
+      const kept = agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, next).prefix
+      expect(agentSessionMessageService.getSessionMessage(sessionId, sibling.id).data.parts).toEqual([
+        { type: 'text', text: 'Independent sibling' }
+      ])
+      expect(kept.map((row) => row.id)).toEqual([a.id, messageId, steer.id, b.id, rb.id])
+      expect(agentSessionMessageService.getSessionMessage(sessionId, b.id).replyId).toBe(rb.id)
+      expect(agentSessionMessageService.getSessionMessage(sessionId, rb.id).data.parts).toEqual([
+        { type: 'text', text: 'B reply' }
+      ])
+      expect(
+        dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, rc.id)).get()
+      ).toBeUndefined()
+    }
+  )
+
+  it('forks a Run without a bound unplaced queue input while retaining positionless legacy input', async () => {
+    const context = preparePiBranch(sessionId, undefined, 'native-parent')
+    const input = (text: string) =>
+      agentSessionMessageService.saveMessage({
+        sessionId,
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text }] } }
+      })
+    const legacy = input('Legacy')
+    const local = input('/compact')
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ inputContextId: context.id, data: { locallyHandled: true } })
+      .where(eq(agentSessionMessageTable.id, local.id))
+      .run()
+    replaceAgentSessionMessagePartsTx(dbh.db, {
+      sessionId,
+      messageId: local.id,
+      timestampMs: Date.now(),
+      parts: [{ type: 'text', text: '/compact' }]
+    })
+    const b = input('B')
+    const queued = input('Unplaced D')
+    const rb = agentSessionMessageService.saveMessage({
+      sessionId,
+      runtimeResumeToken: 'native-parent',
+      runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native-parent', leafId: 'B' } },
+      message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'B reply' }] } }
+    })
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ pos: 2, replyId: rb.id })
+      .where(eq(agentSessionMessageTable.id, b.id))
+      .run()
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ inputContextId: context.id })
+      .where(eq(agentSessionMessageTable.id, queued.id))
+      .run()
+    const child = await new AgentSessionForkOperations().fork(sessionId, rb.id)
+    const texts = agentSessionMessageService
+      .listSessionMessages(child)
+      .items.flatMap((row) => row.data.parts?.filter((part) => part.type === 'text').map((part) => part.text) ?? [])
+    expect(texts).toContain('Legacy')
+    expect(texts).toContain('/compact')
+    expect(texts).toContain('B reply')
+    expect(texts).not.toContain('Unplaced D')
+    expect(agentSessionMessageService.getSessionMessage(sessionId, legacy.id).pos).toBeNull()
+  })
+
   it('publishes an independent child without app_state and keeps its files after source deletion', async () => {
     const createdAt = Date.now()
     const now = vi.spyOn(Date, 'now').mockReturnValue(createdAt)
