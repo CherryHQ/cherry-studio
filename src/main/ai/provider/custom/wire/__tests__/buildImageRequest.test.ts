@@ -1,3 +1,4 @@
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { describe, expect, it } from 'vitest'
 
 import { splitParamValues } from '../../../../utils/imageOptions'
@@ -316,6 +317,145 @@ describe('buildVendorProviderOptions — MiniMax image API', () => {
         response_format: 'base64',
         prompt_optimizer: true,
         aigc_watermark: true
+      }
+    })
+  })
+})
+
+describe('buildVendorProviderOptions — OpenAI-compatible generic adapter', () => {
+  function buildCompatOptions(deliveryKey: string, paramValues: Record<string, unknown>) {
+    const { structured, vendorBag } = splitParamValues(paramValues)
+    const registration = WIRE_REGISTRY['openai-compatible'] ?? DEFAULT_DIFFUSION_REGISTRATION
+    return {
+      structured,
+      providerOptions: buildVendorProviderOptions(deliveryKey, paramValues, registration, vendorBag)
+    }
+  }
+
+  it('maps OpenAI image fields to snake_case alongside diffusion fields and passthrough extras', () => {
+    const { providerOptions } = buildCompatOptions('custom-relay', {
+      numImages: 2,
+      size: '1024x1536',
+      quality: 'high',
+      background: 'transparent',
+      moderation: 'low',
+      style: 'vivid',
+      complexity: 'low',
+      outputFormat: 'webp',
+      seed: 42,
+      negativePrompt: 'blurry',
+      numInferenceSteps: 25,
+      guidanceScale: 4.5,
+      promptEnhancement: false,
+      cfg: 7.5
+    })
+
+    expect(providerOptions).toEqual({
+      'custom-relay': {
+        quality: 'high',
+        background: 'transparent',
+        moderation: 'low',
+        style: 'vivid',
+        complexity: 'low',
+        output_format: 'webp',
+        seed: 42,
+        negative_prompt: 'blurry',
+        num_inference_steps: 25,
+        guidance_scale: 4.5,
+        prompt_enhancement: false,
+        cfg: 7.5
+      }
+    })
+    expect(providerOptions['custom-relay']).not.toHaveProperty('outputFormat')
+    expect(providerOptions['custom-relay']).not.toHaveProperty('n')
+    expect(providerOptions['custom-relay']).not.toHaveProperty('size')
+    expect(providerOptions).not.toHaveProperty('openai-compatible')
+  })
+
+  it('sends snake_case vendor params and seed in the /images/generations JSON body via @ai-sdk/openai-compatible', async () => {
+    const paramValues = {
+      numImages: 2,
+      size: '1024x1536',
+      quality: 'high',
+      background: 'transparent',
+      moderation: 'low',
+      outputFormat: 'webp',
+      seed: 42,
+      cfg: 7.5
+    }
+    const { structured, providerOptions } = buildCompatOptions('custom-relay', paramValues)
+
+    const requests: Array<{ url: string; body: Record<string, unknown> }> = []
+    const model = createOpenAICompatible({
+      baseURL: 'https://custom-relay.example/v1',
+      apiKey: 'test-key',
+      name: 'custom-relay',
+      fetch: async (input, init) => {
+        requests.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>
+        })
+        return new Response(JSON.stringify({ data: [{ b64_json: 'QUJD' }] }), {
+          headers: { 'content-type': 'application/json' }
+        })
+      }
+    }).imageModel('gpt-image-1')
+
+    await model.doGenerate({
+      prompt: 'a fox',
+      n: structured.n ?? 1,
+      size: structured.size as `${number}x${number}`,
+      aspectRatio: undefined,
+      seed: structured.seed,
+      files: undefined,
+      mask: undefined,
+      providerOptions
+    })
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0].url).toBe('https://custom-relay.example/v1/images/generations')
+    expect(requests[0].body).toEqual({
+      model: 'gpt-image-1',
+      prompt: 'a fox',
+      n: 2,
+      size: '1024x1536',
+      quality: 'high',
+      background: 'transparent',
+      moderation: 'low',
+      output_format: 'webp',
+      seed: 42,
+      cfg: 7.5
+    })
+    expect(requests[0].body).not.toHaveProperty('outputFormat')
+  })
+
+  it("drops 'auto' and unset fields instead of leaking them via passthrough, while keeping falsy values", () => {
+    expect(
+      buildCompatOptions('custom-relay', {
+        quality: 'auto',
+        background: 'auto',
+        moderation: 'auto',
+        style: 'auto',
+        complexity: 'auto',
+        outputFormat: 'auto',
+        negativePrompt: '',
+        seed: undefined
+      }).providerOptions
+    ).toEqual({})
+
+    expect(
+      buildCompatOptions('custom-relay', {
+        seed: 0,
+        guidanceScale: 0,
+        promptEnhancement: false,
+        cfg: 0
+      }).providerOptions
+    ).toEqual({
+      'custom-relay': {
+        seed: 0,
+        guidance_scale: 0,
+        prompt_enhancement: false,
+        cfg: 0
       }
     })
   })

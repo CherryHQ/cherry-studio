@@ -25,6 +25,8 @@ const EXPECTED_WIRE: Record<string, string> = {
   background: 'background',
   moderation: 'moderation',
   style: 'style',
+  complexity: 'complexity',
+  outputFormat: 'output_format',
   // Formerly AIHUBMIX_SNAKE_CASE_KEYS (canonical entries) + doubao body fields
   safetyTolerance: 'safety_tolerance',
   personGeneration: 'person_generation',

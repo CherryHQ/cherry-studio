@@ -79,6 +79,27 @@ export const OPENAI_WIRE_PROFILE: WireProfile = {
 }
 
 /**
+ * Generic OpenAI-compatible adapter (`@ai-sdk/openai-compatible`).
+ * Unlike `@ai-sdk/openai`, `OpenAICompatibleImageModel` spreads
+ * `providerOptions[<provider>]` verbatim into `/images/generations` and
+ * `/images/edits` with no camelCase→snake_case conversion. Forwarding the
+ * OpenAI image fields (`background`, `moderation`, `style`, `complexity`,
+ * `outputFormat`) alongside the diffusion fields (`negativePrompt`, `seed`, …)
+ * applies catalog `wireName` (`outputFormat` → `output_format`) and `skipValue`
+ * (dropping `'auto'`/blank), while `passthrough` preserves unmapped vendor-bag
+ * fields (e.g. `cfg`).
+ */
+export const OPENAI_COMPATIBLE_WIRE_PROFILE: WireProfile = {
+  forward: [
+    ...new Set<CanonicalParamKey>([
+      ...(DIFFUSION_WIRE_PROFILE.forward ?? []),
+      ...(OPENAI_WIRE_PROFILE.forward ?? []),
+      'outputFormat'
+    ])
+  ]
+}
+
+/**
  * aihubmix aggregator. Reproduces the `aihubmix` emitter: the OpenAI image body
  * PLUS `seed` (aihubmix's backends — Doubao Seedream / Qwen-Image / FLUX / iRAG /
  * Ideogram — mostly accept `seed`, unlike OpenAI's own model). Dual-keyed under
@@ -246,6 +267,7 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   openrouter: { profile: OPENROUTER_WIRE_PROFILE },
   openai: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   'openai-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
+  'openai-compatible': { profile: OPENAI_COMPATIBLE_WIRE_PROFILE, passthrough: true },
   azure: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   'azure-responses': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   huggingface: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },

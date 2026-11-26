@@ -340,7 +340,7 @@ cross-field contract at the renderer and main boundaries:
 
 ### Add a vendor
 
-- OpenAI-compatible → nothing custom: the `DEFAULT_DIFFUSION_REGISTRATION` engine + `@ai-sdk/openai-compatible` cover it.
+- OpenAI-compatible → nothing custom: `WIRE_REGISTRY['openai-compatible']` (`OPENAI_COMPATIBLE_WIRE_PROFILE` + `passthrough: true`) + `@ai-sdk/openai-compatible` cover it.
 - Native SDK (OpenAI/Google) → register a `WireProfile` with the right delivery flags (`dualOpenAI` / `also` / `passthrough`).
 - Bespoke / async wire shape → implement an `ImageGenerationTransport`, register it on the provider's `imageModel(...)`, and read canonical camelCase params + `input.modelDescriptor`.
 

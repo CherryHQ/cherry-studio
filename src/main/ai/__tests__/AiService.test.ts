@@ -1333,6 +1333,98 @@ describe('AiService', () => {
     expect(callOptions.providerOptions).not.toHaveProperty('openai-compatible')
   })
 
+  it('maps OpenAI image params to snake_case and retains seed for custom openai-compatible providers', async () => {
+    const customProviderId = 'custom-openai-compatible'
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'openai-compatible',
+        providerOptionsKey: customProviderId,
+        providerSettings: {},
+        modelId: 'gpt-image-1'
+      }
+    })
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateImage({
+      uniqueModelId: `${customProviderId}::gpt-image-1`,
+      cleanupPolicy: 'manual',
+      prompt: 'a sunset',
+      paramValues: {
+        quality: 'high',
+        background: 'transparent',
+        moderation: 'low',
+        outputFormat: 'webp',
+        seed: 42,
+        size: '1024x1536',
+        numImages: 2,
+        cfg: 7.5
+      }
+    })
+
+    const callOptions = mockGenerateImage.mock.calls[0]?.[2] as {
+      n?: number
+      size?: string
+      seed?: number
+      providerOptions?: Record<string, Record<string, unknown>>
+    }
+    expect(callOptions.n).toBe(2)
+    expect(callOptions.size).toBe('1024x1536')
+    expect(callOptions.seed).toBe(42)
+    expect(callOptions.providerOptions).toEqual({
+      [customProviderId]: {
+        quality: 'high',
+        background: 'transparent',
+        moderation: 'low',
+        output_format: 'webp',
+        seed: 42,
+        cfg: 7.5
+      }
+    })
+    expect(callOptions.providerOptions?.[customProviderId]).not.toHaveProperty('outputFormat')
+    expect(callOptions.providerOptions).not.toHaveProperty('openai-compatible')
+  })
+
+  it("omits 'auto' and unset image params for custom openai-compatible providers", async () => {
+    const customProviderId = 'custom-openai-compatible'
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'openai-compatible',
+        providerOptionsKey: customProviderId,
+        providerSettings: {},
+        modelId: 'gpt-image-1'
+      }
+    })
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateImage({
+      uniqueModelId: `${customProviderId}::gpt-image-1`,
+      cleanupPolicy: 'manual',
+      prompt: 'a sunset',
+      paramValues: {
+        quality: 'auto',
+        background: 'auto',
+        moderation: 'auto',
+        outputFormat: 'auto',
+        size: 'auto'
+      }
+    })
+
+    const callOptions = mockGenerateImage.mock.calls[0]?.[2] as {
+      size?: string
+      providerOptions?: Record<string, Record<string, unknown>>
+    }
+    expect(callOptions.size).toBeUndefined()
+    expect(callOptions.providerOptions).toBeUndefined()
+  })
+
   describe('Seedream 5.5 request gate', () => {
     const target = 'doubao-seedream-5-5'
     const polluted = {
