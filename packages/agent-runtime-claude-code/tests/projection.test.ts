@@ -539,9 +539,7 @@ it('removes an all-duplicate streamed snapshot using earlier same-API reasoning'
   expect(projection.feed.snapshot.messages.flatMap((m) => m.parts).filter((p) => p.type === 'text')).toHaveLength(0)
   expect(projection.feed.snapshot.messages.some((m) => m.id.startsWith('live:'))).toBe(false)
   expect(projection.feed.snapshot.messages.every((m) => m.parts.length > 0)).toBe(true)
-  expect(
-    projection.committed({ content: [], legacy: {}, retracted: [] }).content.every((m) => m.parts.length > 0)
-  ).toBe(true)
+  expect(projection.committed().content.every((m) => m.parts.length > 0)).toBe(true)
   await projection.close()
 })
 
