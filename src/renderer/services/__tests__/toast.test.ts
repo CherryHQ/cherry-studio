@@ -67,3 +67,24 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
   await shown.action!.onClick()
   expect(retry).toHaveBeenCalledOnce()
 })
+
+it('shows tool_concurrency as a non-retryable warning with the upstream error details', () => {
+  const retry = vi.fn().mockResolvedValue(false)
+  const key = toast.errorFromException(
+    {
+      name: 'Error',
+      message: '400 due to tool use concurrency issues.',
+      stack: null,
+      streamStage: 'response-stream'
+    },
+    { provider: { id: 'appo-deepseek', name: 'Appo DeepSeek' }, actions: { retry } }
+  )
+  const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
+  expect(shown).toMatchObject({
+    type: 'warning',
+    title: enUS['error.diagnosis.tool_concurrency'],
+    details: '400 due to tool use concurrency issues.',
+    action: undefined
+  })
+  expect(retry).not.toHaveBeenCalled()
+})

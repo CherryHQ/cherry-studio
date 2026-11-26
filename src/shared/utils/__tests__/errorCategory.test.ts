@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { classifyErrorCategory, isProxyErrorMessage, isQuotaErrorMessage } from '../errorCategory'
+import { classifyErrorCategory, extractHttpStatus, isProxyErrorMessage, isQuotaErrorMessage } from '../errorCategory'
 
 describe('classifyErrorCategory unusable API responses', () => {
   const text =
@@ -577,5 +577,64 @@ describe('request body buffer limit', () => {
     'Failed to buffer the request body: connection closed'
   ])('does not infer a request size rejection from %s', (text) => {
     expect(classifyErrorCategory({ text })).not.toBe('payload')
+  })
+})
+
+describe('classifyErrorCategory tool concurrency rejection (#25031)', () => {
+  const reported = '400 due to tool use concurrency issues.'
+
+  it.each([400, undefined])('classifies the reported body as tool_concurrency with status %s', (status) => {
+    expect(classifyErrorCategory({ text: reported, status })).toBe('tool_concurrency')
+  })
+
+  it.each([
+    '{"error":{"code":"tool_use_concurrency","message":"Tool use concurrency error"}}',
+    'tool-use-concurrency',
+    'Parallel tool calls are not supported by this model',
+    'Concurrent tool calls are not supported',
+    'parallel_tool_calls is not supported',
+    'This model does not support parallel tool calls',
+    "Provider doesn't support concurrent tool calling",
+    'PARALLEL TOOL USE IS NOT SUPPORTED'
+  ])('recognizes concurrency-refusal wording variant: %s', (text) => {
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('tool_concurrency')
+    expect(classifyErrorCategory({ text })).toBe('tool_concurrency')
+  })
+
+  it.each([
+    'Invalid tool definition: missing parameters',
+    'parallel_tool_calls must be a boolean',
+    'Too many concurrent requests',
+    '400 Bad Request'
+  ])('does not swallow unrelated 400 or status-less text: %s', (text) => {
+    expect(classifyErrorCategory({ text, status: 400 })).toBe('bad_request')
+    expect(classifyErrorCategory({ text })).toBe('unknown')
+  })
+
+  it.each(['ECONNRESET', 'stream interrupted', 'net::ERR_CONNECTION_CLOSED'])(
+    'keeps stream-flavoured failures in stream: %s',
+    (text) => {
+      expect(classifyErrorCategory({ text })).toBe('stream')
+    }
+  )
+
+  it('preserves HTTP 5xx, 429, 409, and finishReason precedence over tool_concurrency', () => {
+    expect(classifyErrorCategory({ text: reported, status: 500 })).toBe('server')
+    expect(classifyErrorCategory({ text: reported, status: 503 })).toBe('server')
+    expect(classifyErrorCategory({ text: reported, status: 429 })).toBe('rate_limit')
+    expect(classifyErrorCategory({ text: reported, status: 409 })).toBe('unknown')
+    expect(classifyErrorCategory({ text: reported, status: 400, finishReason: 'safety' })).toBe('content')
+  })
+
+  it.each([
+    ['400 due to tool use concurrency issues.', 400],
+    ['400: {"error":{"message":"bad"}}', 400],
+    ['422 Unprocessable Entity', 422],
+    ['400 ms timeout', undefined],
+    ['400ms timeout', undefined],
+    ['500 tokens exceeded', undefined],
+    ['Connection timed out after 500 ms', undefined]
+  ] as const)('extractHttpStatus(%j) -> %s', (text, expected) => {
+    expect(extractHttpStatus(text)).toBe(expected)
   })
 })

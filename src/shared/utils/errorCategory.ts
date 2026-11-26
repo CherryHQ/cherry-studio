@@ -7,6 +7,7 @@ import { isContextOverflowMessage } from '@cherrystudio/ai-core/contextOverflow'
 export const ERROR_CATEGORIES = [
   'auth',
   'bad_request',
+  'tool_concurrency',
   'permission',
   'region',
   'model',
@@ -40,11 +41,11 @@ export function isErrorCategory(value: unknown): value is ErrorCategory {
  * Recover an HTTP status from free text. Only for sources without a structured status
  * (CLI stderr, stored job errors); callers holding a real status field must pass that instead.
  * The number must sit in HTTP syntax (`HTTP 429`, `API Error: 403`, `Request rejected (429)`,
- * `API error (401)`, or a leading `403:`), so durations are ignored.
+ * `API error (401)`, or a leading `403:` / `400 <message>`), so durations and counts are ignored.
  */
 export function extractHttpStatus(text: string): number | undefined {
   const match =
-    /(?:\bHTTP(?:\/\d+(?:\.\d+)?)?\s+|\bAPI Error:\s*)([45]\d{2})\b|\b(?:Request rejected|API error) \(([45]\d{2})\)|^\s*([45]\d{2}):/i.exec(
+    /(?:\bHTTP(?:\/\d+(?:\.\d+)?)?\s+|\bAPI Error:\s*)([45]\d{2})\b|\b(?:Request rejected|API error) \(([45]\d{2})\)|^\s*([45]\d{2})(?::|\s+(?!(?:ms|s|sec|secs|second|seconds|min|mins|minute|minutes|hr|hrs|hour|hours|kb|mb|gb|bytes?|tokens?|chars?|characters?|lines?|items?|files?|retries|attempts?)\b)\S)/i.exec(
       text
     )
   return match ? Number(match[1] ?? match[2] ?? match[3]) : undefined
@@ -124,6 +125,9 @@ export interface ErrorCategoryInput {
   status?: number
   finishReason?: string
 }
+
+const TOOL_CONCURRENCY_PATTERN =
+  /\btool[_ -]use[_ -]concurrency\b|\b(?:parallel|concurrent)[_ -]tool[_ -](?:calls?|calling|use)\s+(?:is|are)\s+not\s+supported\b|\b(?:does\s+not|doesn't|do\s+not|don't)\s+support\s+(?:parallel|concurrent)[_ -]tool[_ -](?:calls?|calling|use)\b/
 
 export function classifyErrorCategory({ text, status, finishReason }: ErrorCategoryInput): ErrorCategory {
   switch (finishReason?.toLowerCase()) {
@@ -230,6 +234,11 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
       /(?:^|\n|"(?:code|omlx_code)"\s*:\s*")prefill_memory_exceeded(?=\n|$|")/.test(msg))
   ) {
     return 'prefill_memory'
+  }
+
+  // Some providers/models reject parallel tool calls with HTTP 400; retrying unchanged cannot succeed.
+  if ((status === undefined || status === 400) && TOOL_CONCURRENCY_PATTERN.test(msg)) {
+    return 'tool_concurrency'
   }
 
   // Context length exceeded

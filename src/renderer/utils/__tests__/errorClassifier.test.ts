@@ -953,3 +953,83 @@ it('uses the terminal structured quota identity ahead of copied retry text, pres
   ])
   expect(classifyError(unmarkedTerminal).category).toBe('rate_limit')
 })
+
+describe('Work runtime HTTP 4xx in response stream (#25031)', () => {
+  it.each([
+    '400 Invalid tool definition: missing parameters',
+    '400: {"error":{"message":"Unsupported tool parameter"}}',
+    'API Error: 400 Provider returned error'
+  ])('classifies flattened HTTP 400 %s in response stream as bad_request, not stream', (message) => {
+    expect(
+      classifyError(makeError({ name: 'Error', message, streamStage: 'response-stream' }), 'appo-deepseek')
+    ).toEqual({
+      category: 'bad_request',
+      i18nKey: 'error.diagnosis.bad_request',
+      navTarget: '/settings/provider?id=appo-deepseek'
+    })
+  })
+
+  it('classifies flattened HTTP 403 in response stream as permission, not stream', () => {
+    expect(
+      classifyError(
+        makeError({ name: 'Error', message: '403: {"message":"Access denied"}', streamStage: 'response-stream' }),
+        'appo-deepseek'
+      )
+    ).toEqual({
+      category: 'permission',
+      i18nKey: 'error.diagnosis.permission',
+      navTarget: '/settings/provider?id=appo-deepseek'
+    })
+  })
+
+  it.each([
+    makeError({
+      name: 'AI_APICallError',
+      message: 'Unprocessable Entity',
+      statusCode: 422,
+      streamStage: 'response-stream'
+    }),
+    makeError({
+      name: 'Error',
+      message: '422 Unprocessable Entity: invalid tool schema',
+      streamStage: 'response-stream'
+    })
+  ])('does not mislabel deterministic HTTP 4xx (%j) in response stream as stream', (error) => {
+    expect(classifyError(error, 'appo-deepseek')).toEqual({
+      category: 'unknown',
+      i18nKey: 'error.diagnosis.unknown',
+      navTarget: null
+    })
+  })
+
+  it('keeps duration-only response-stream failures in stream', () => {
+    expect(
+      classifyError(
+        makeError({ name: 'Error', message: '400 ms elapsed before disconnect', streamStage: 'response-stream' })
+      )
+    ).toEqual({
+      category: 'stream',
+      i18nKey: 'error.diagnosis.stream',
+      navTarget: null
+    })
+  })
+
+  it.each([
+    makeError({
+      name: 'Error',
+      message: '400 due to tool use concurrency issues.',
+      streamStage: 'response-stream'
+    }),
+    makeError({
+      name: 'AI_APICallError',
+      message: '400 due to tool use concurrency issues.',
+      statusCode: 400
+    })
+  ])('routes tool concurrency refusal (%j) to tool_concurrency with provider settings navTarget', (error) => {
+    expect(classifyError(error, 'appo-deepseek')).toEqual({
+      category: 'tool_concurrency',
+      i18nKey: 'error.diagnosis.tool_concurrency',
+      navTarget: '/settings/provider?id=appo-deepseek'
+    })
+  })
+})

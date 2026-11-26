@@ -10,6 +10,7 @@ import { getSafeProviderErrorMessage } from './providerError'
 
 const reasons: Partial<Record<ErrorCategory, AiFailureReason>> = {
   auth: 'auth',
+  tool_concurrency: 'invalid_input',
   permission: 'permission',
   region: 'region',
   model: 'model_not_found',
