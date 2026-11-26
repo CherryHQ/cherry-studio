@@ -1,6 +1,3 @@
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Tests for useMcpRuntimeStatus (read-only useSharedCacheValue observer,
  * issue #17050) and useMcpRuntimeStatusMap (multi-key useSharedCacheSelector).
@@ -11,6 +8,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * observable outcomes: reference-stable defaults, cache wins over default,
  * and no default materialization into the main-owned keys.
  */
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
 
 import { useMcpRuntimeStatus, useMcpRuntimeStatusMap } from '../useMcpRuntimeStatus'

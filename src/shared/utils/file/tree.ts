@@ -97,6 +97,7 @@ export type DirectoryTreeOptions = z.infer<typeof DirectoryTreeOptionsSchema>
  * don't double-apply.
  */
 export type TreeMutationEvent =
+  | { readonly type: 'status'; readonly coverage: 'stale' | 'unavailable' }
   | {
       readonly type: 'added'
       readonly path: string

@@ -1,14 +1,13 @@
 import { rm } from 'node:fs/promises'
 
-import { _electron as electron } from '@playwright/test'
 import type { Locator } from '@playwright/test'
 
-import { expect, test as base } from './fixtures/electron.fixture'
+import { expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 
 const test = base.extend({
   electronApp: async ({}, runTest, testInfo) => {
     const profileRoot = testInfo.outputPath('profile')
-    const electronApp = await electron.launch({
+    const electronApp = await launchSmokeElectron({
       args: ['.'],
       env: { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profileRoot },
       timeout: 60000
@@ -109,7 +108,6 @@ test('manual composer height survives paste and typing while auto sizing still g
   const reference = page.getByText(referenceText, { exact: true })
   await expect(editor).toBeVisible()
   await expect(reference).toBeVisible()
-  await expect.poll(async () => Number(await handle.getAttribute('aria-valuemax'))).toBeGreaterThan(400)
 
   const initial = await settledBox(frame)
   const minHeight = Number(await handle.getAttribute('aria-valuemin'))

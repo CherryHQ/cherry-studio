@@ -1,210 +1,102 @@
-import { MockApplicationUtils } from '@test-mocks/main/application'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { setupTestDatabase } from '@test-helpers/db'
+import { beforeEach, describe, expect, it } from 'vitest'
 
-const {
-  getConversationByIdMock,
-  listSessionMessagesMock,
-  getSessionMessageMock,
-  updateSessionMessageMock,
-  deleteSessionMessageMock
-} = vi.hoisted(() => ({
-  getConversationByIdMock: vi.fn(),
-  listSessionMessagesMock: vi.fn(),
-  getSessionMessageMock: vi.fn(),
-  updateSessionMessageMock: vi.fn(),
-  deleteSessionMessageMock: vi.fn()
-}))
-
-vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: {
-    listSessionMessages: listSessionMessagesMock,
-    getSessionMessage: getSessionMessageMock,
-    updateSessionMessage: updateSessionMessageMock,
-    deleteSessionMessage: deleteSessionMessageMock
-  }
-}))
-
-vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: {
-    getConversationById: getConversationByIdMock
-  }
-}))
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { DEFER_TOOL_OUTPUT_BYTES } from '@main/utils/messageOutputProjection'
+import { isDeferredToolOutput } from '@shared/ai/transport'
+import { AgentSessionMessageEntitySchema } from '@shared/data/api/schemas/agentSessionMessages'
 
 import { agentSessionMessageHandlers } from '../agentSessionMessages'
 
-describe('agentSessionMessageHandlers', () => {
+describe('Agent session message reads', () => {
+  const dbh = setupTestDatabase()
+  const sessionId = 'conversation'
+  const detail = agentSessionMessageHandlers['/agent-sessions/:sessionId/messages/:messageId']
+  const list = agentSessionMessageHandlers['/agent-sessions/:sessionId/messages']
+
   beforeEach(() => {
-    vi.clearAllMocks()
-    MockApplicationUtils.setService('AgentSessionRuntimeService', {
-      getHistoryActions: () =>
-        new Map([
-          ['assistant-message', { fork: 'legacy_history', edit: 'invalid_target' }],
-          ['user-message', { fork: 'not_turn_boundary', edit: 'checkpoint_unsupported' }]
-        ])
-    })
-    // `getConversationById` is synchronous; scope violations throw inline.
-    getConversationByIdMock.mockReturnValue({ id: 'session-1' })
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'work', name: 'Work', path: '/work', type: 'user', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values([
+        { id: sessionId, workspaceId: 'work', name: 'Conversation', orderKey: 'a0' },
+        { id: 'background', type: 'background', workspaceId: 'work', name: 'Background', orderKey: 'a1' }
+      ])
+      .run()
   })
 
-  describe('/agent-sessions/:sessionId/messages', () => {
-    it('replaces an oversized assistant tool output with a reference, leaving the stored data alone', async () => {
-      const output = { content: 'x'.repeat(64 * 1024) }
-      const assistant = {
-        id: 'assistant-message',
+  it('reads one render-ready row with the same actions, sibling order and compact tool output as its branch page', async () => {
+    const user = agentSessionMessageService.saveMessage({ sessionId, message: { role: 'user', data: { parts: [] } } })
+    const output = 'x'.repeat(DEFER_TOOL_OUTPUT_BYTES + 128)
+    const reply = agentSessionMessageService.saveMessage({
+      sessionId,
+      parentId: user.id,
+      message: {
         role: 'assistant',
+        status: 'success',
         data: {
           parts: [
-            { type: 'text', text: 'answer' },
-            { type: 'dynamic-tool', toolCallId: 'tool-call-1', state: 'output-available', input: {}, output }
+            {
+              type: 'dynamic-tool',
+              toolCallId: 'call',
+              toolName: 'Read',
+              state: 'output-available',
+              input: {},
+              output
+            }
           ]
         }
       }
-      const user = { id: 'user-message', role: 'user', data: { parts: [{ type: 'dynamic-tool', output: 'keep' }] } }
-      listSessionMessagesMock.mockReturnValueOnce({ items: [assistant, user], nextCursor: undefined })
-
-      const result = (await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
-        params: { sessionId: 'session-1' },
-        query: { deferToolOutputs: true }
-      })) as unknown as { items: { data: { parts: unknown[] } }[] }
-
-      expect(result.items[0].data.parts[1]).toEqual({
-        type: 'dynamic-tool',
-        toolCallId: 'tool-call-1',
-        state: 'output-available',
-        input: {},
-        output: {
-          $deferredToolResult: {
-            topicId: 'agent-session:session-1',
-            messageId: 'assistant-message',
-            toolCallId: 'tool-call-1',
-            revision: expect.any(String)
-          }
-        }
-      })
-      expect(result.items[1]).toMatchObject(user)
-      expect(result.items[0]).toHaveProperty('historyActions', { fork: 'legacy_history', edit: 'invalid_target' })
-      expect(assistant.data.parts[1]).toMatchObject({ output })
-      const replaced = {
-        ...assistant,
-        data: { parts: [{ ...assistant.data.parts[1], output: { content: 'y'.repeat(64 * 1024) } }] }
-      }
-      listSessionMessagesMock.mockReturnValueOnce({ items: [replaced], nextCursor: undefined })
-      const next = await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
-        params: { sessionId: 'session-1' },
-        query: { deferToolOutputs: true }
-      })
-      if (!('items' in next)) throw new Error('Expected a message page')
-      expect(next.items[0].data.parts![0]).not.toEqual(result.items[0].data.parts[1])
     })
-
-    it('leaves a small tool output inline so no round trip is needed to render it', async () => {
-      const assistant = {
-        id: 'assistant-message',
-        role: 'assistant',
-        data: {
-          parts: [{ type: 'dynamic-tool', toolCallId: 'tool-call-1', state: 'output-available', output: { a: 1 } }]
-        }
-      }
-      listSessionMessagesMock.mockReturnValueOnce({ items: [assistant], nextCursor: undefined })
-
-      const result = (await agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
-        params: { sessionId: 'session-1' },
-        query: { deferToolOutputs: true }
-      })) as unknown as { items: unknown[] }
-
-      expect(result.items[0]).toMatchObject(assistant)
+    const sibling = agentSessionMessageService.saveMessage({
+      sessionId,
+      parentId: user.id,
+      message: { role: 'assistant', status: 'success', data: { parts: [] } }
     })
-
-    it('returns stored tool outputs verbatim unless the caller opts in', async () => {
-      const output = { content: 'x'.repeat(64 * 1024) }
-      const assistant = {
-        id: 'assistant-message',
-        role: 'assistant',
-        data: {
-          parts: [{ type: 'dynamic-tool', toolCallId: 'tool-call-1', state: 'output-available', output }]
-        }
-      }
-      const response = { items: [assistant], nextCursor: undefined }
-      listSessionMessagesMock.mockReturnValueOnce(response)
-
-      // Default read is verbatim, so a read-modify-write caller cannot persist a trimmed copy.
-      await expect(
-        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
-          params: { sessionId: 'session-1' }
-        })
-      ).resolves.toEqual({
-        ...response,
-        items: [{ ...assistant, historyActions: { fork: 'legacy_history', edit: 'invalid_target' } }]
-      })
-    })
-
-    it('hides the message list of a session outside the conversation scope', async () => {
-      getConversationByIdMock.mockImplementationOnce(() => {
-        throw new Error('not found')
-      })
-
-      await expect(
-        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages'].GET({
-          params: { sessionId: 'session-bg' }
-        })
-      ).rejects.toThrow('not found')
-
-      expect(listSessionMessagesMock).not.toHaveBeenCalled()
+    const params = { sessionId, messageId: reply.id }
+    const query = { deferToolOutputs: true }
+    const compact = AgentSessionMessageEntitySchema.parse(await detail.GET({ params, query }))
+    const page = await list.GET({ params, query: { ...query, messageId: reply.id, limit: 1 } })
+    if (!('items' in page)) throw new Error('Expected a message page')
+    expect(page.items).toEqual([compact])
+    expect(compact.siblings).toEqual(expect.arrayContaining([reply.id, sibling.id]))
+    expect(compact.historyActions).toEqual({ fork: 'unsupported_checkpoint', edit: 'invalid_target' })
+    const part = compact.data.parts?.[0]
+    expect(part?.type === 'dynamic-tool' && isDeferredToolOutput(part.output)).toBe(true)
+    await expect(detail.GET({ params })).resolves.toMatchObject({ data: { parts: [{ output }] } })
+    expect(page.nextCursor).toBeTruthy()
+    await expect(list.GET({ params, query: { cursor: page.nextCursor, limit: 1 } })).resolves.toMatchObject({
+      items: [{ id: user.id }]
     })
   })
 
-  describe('/agent-sessions/:sessionId/messages/:messageId', () => {
-    it('reads and updates a message within its Agent session', async () => {
-      const existing = { id: 'message-1', data: { parts: [] } }
-      const data = { parts: [{ type: 'text' as const, text: 'updated' }] }
-      const updated = { id: 'message-1', data }
-      getSessionMessageMock.mockReturnValueOnce(existing)
-      updateSessionMessageMock.mockReturnValueOnce(updated)
-
-      await expect(
-        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages/:messageId'].GET({
-          params: { sessionId: 'session-1', messageId: 'message-1' }
-        })
-      ).resolves.toBe(existing)
-
-      await expect(
-        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages/:messageId'].PATCH({
-          params: { sessionId: 'session-1', messageId: 'message-1' },
-          body: { data }
-        })
-      ).resolves.toBe(updated)
-
-      expect(updateSessionMessageMock).toHaveBeenCalledWith('session-1', 'message-1', { data })
+  it('reads the saved edit and rejects a patch attempting to set terminal status', async () => {
+    const row = agentSessionMessageService.saveMessage({ sessionId, message: { role: 'user', data: { parts: [] } } })
+    const params = { sessionId, messageId: row.id }
+    const data = { parts: [{ type: 'text' as const, text: 'edited' }] }
+    await detail.PATCH({ params, body: { data } })
+    expect((await detail.GET({ params })).data).toEqual(data)
+    await expect(detail.PATCH({ params, body: { status: 'success' } as never })).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR'
     })
+    expect((await detail.GET({ params })).data).toEqual(data)
+  })
 
-    it('rejects an invalid message update before calling the service', async () => {
-      await expect(
-        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages/:messageId'].PATCH({
-          params: { sessionId: 'session-1', messageId: 'message-1' },
-          body: { status: 'success' }
-        } as never)
-      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
-
-      expect(updateSessionMessageMock).not.toHaveBeenCalled()
+  it('keeps background messages outside every conversation endpoint', async () => {
+    const message = agentSessionMessageService.saveMessage({
+      sessionId: 'background',
+      message: { role: 'assistant', data: { parts: [] } }
     })
-
-    it('refuses to read, update, or delete messages of a background session', async () => {
-      getConversationByIdMock.mockImplementation(() => {
-        throw new Error('not found')
-      })
-      const call = (method: 'GET' | 'PATCH' | 'DELETE') =>
-        agentSessionMessageHandlers['/agent-sessions/:sessionId/messages/:messageId'][method]({
-          params: { sessionId: 'session-bg', messageId: 'message-1' },
-          body: { data: { parts: [] } }
-        } as never)
-
-      await expect(call('GET')).rejects.toThrow('not found')
-      await expect(call('PATCH')).rejects.toThrow('not found')
-      await expect(call('DELETE')).rejects.toThrow('not found')
-
-      expect(getSessionMessageMock).not.toHaveBeenCalled()
-      expect(updateSessionMessageMock).not.toHaveBeenCalled()
-      expect(deleteSessionMessageMock).not.toHaveBeenCalled()
-    })
+    const params = { sessionId: 'background', messageId: message.id }
+    await expect(list.GET({ params })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(detail.GET({ params, query: { deferToolOutputs: true } })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(detail.PATCH({ params, body: { data: { parts: [] } } })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(detail.DELETE({ params })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(agentSessionMessageService.getSessionMessage(params.sessionId, params.messageId).id).toBe(message.id)
   })
 })

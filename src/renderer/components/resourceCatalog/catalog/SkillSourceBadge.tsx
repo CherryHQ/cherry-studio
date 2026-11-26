@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 import { parseSkillSourceUrl } from '@shared/utils/skillMarketplace'
 
 const SOURCE_LABEL_KEYS: Record<string, string> = {
@@ -11,7 +12,15 @@ const SOURCE_LABEL_KEYS: Record<string, string> = {
   zip: 'settings.skills.source.zip'
 }
 
-export function SkillSourceBadge({ source, sourceUrl }: { source: string; sourceUrl?: string | null }) {
+export function SkillSourceBadge({
+  source,
+  sourceUrl,
+  className
+}: {
+  source: string
+  sourceUrl?: string | null
+  className?: string
+}) {
   const { t } = useTranslation()
   const labelKey = SOURCE_LABEL_KEYS[source]
   const label = labelKey ? t(labelKey) : source
@@ -20,7 +29,10 @@ export function SkillSourceBadge({ source, sourceUrl }: { source: string; source
   return (
     <Badge
       variant="secondary"
-      className="shrink-0 border-0 bg-info-subtle px-1.5 py-px font-normal text-info-subtle-foreground text-xs">
+      className={cn(
+        'shrink-0 border-0 bg-info-subtle px-1.5 py-px font-normal text-info-subtle-foreground text-xs',
+        className
+      )}>
       {source === 'marketplace' && sourceRegistry ? `${label} · ${sourceRegistry}` : label}
     </Badge>
   )

@@ -31,7 +31,7 @@ Each task row shows its name, followed by its owning Agent and schedule. The sec
 
 The right-side header contains the task name, execution summary, run selector, and applicable history actions. It replaces the Agent, model, and workspace controls on this page only. Message sender information and the conversation composer remain unchanged. Selecting a task or collapsing a group does not start an execution.
 
-Task conversations stay out of ordinary Agent topic lists and recent-topic restoration. After deleting a task, restoring one of its conversations from the Recycle Bin returns it to its owning Agent as an ordinary topic. Restoring a conversation does not recreate the task or change its historical run records.
+Task conversations stay out of desktop ordinary Agent topic lists and recent-topic restoration. Remote session discovery includes them so existing mobile clients can open scheduled results. The internal session-list query requires an explicit `ordinary` or `all-conversations` scope. After deleting a task, restoring one of its conversations from the Recycle Bin returns it to its owning Agent as an ordinary topic. Restoring a conversation does not recreate the task or change its historical run records.
 
 ## Conversation selection
 
@@ -42,6 +42,8 @@ Task conversations stay out of ordinary Agent topic lists and recent-topic resto
 - A new execution offers an explicit switch; it does not replace the conversation being read or edited. Switching tasks invalidates the previous lookup.
 - Conversation messages, tools, approvals, and busy-state protection use the existing Agent chat runtime. Leaving the page does not stop scheduling.
 
+A task that reuses a session reads the General Settings compression threshold when it runs. Native compaction keeps the same session. If a reused run ends with a context-limit error, the next fire can start fresh. Earlier run records still open their original sessions.
+
 ## Read and command boundaries
 
 `GET /agent-tasks` accepts optional `status`: `active`, `paused`, `completed`, or `missed`, or a non-empty list of those states. Paused requests `['paused', 'missed']` and receives one combined ordering, total, and page. Omission preserves the existing unfiltered list. The service derives and filters status before counting and slicing; it still scans candidate schedules in the main process.
@@ -49,6 +51,8 @@ Task conversations stay out of ordinary Agent topic lists and recent-topic resto
 Each of the three task groups returns at most 50 items per page, for at most 150 displayed tasks. Group pagination, retries, and collapse are independent; state changes preserve the selected task and conversation. Only the selected task loads execution history and conversation messages. Log pages use the existing job service's SQL limit, offset, and count. Run summaries and Agent names use batch reads; the page adds no polling timer.
 
 Creation, pause, resume, explicit execution, editing, and deletion use the existing `ai.agent.task.*` commands. Opening the menu does not execute a command. Conversation messages do not update the task prompt or schedule.
+
+The [remote Task API](../../../../packages/remote-protocol/README.md#task-queries) reads these same business owners through an independent public schema. Its run status preserves queued work and pending cancellation, while desktop logs retain their existing presentation. No second task store is maintained.
 
 ## Shortcut upgrades
 

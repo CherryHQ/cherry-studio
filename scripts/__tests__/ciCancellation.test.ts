@@ -66,6 +66,7 @@ async function cleanup(
   } = {}
 ) {
   const workflow = parse(readFileSync('.github/workflows/ci-cancel-closed-pr.yml', 'utf8'))
+  // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
   const pr = structuredClone(options.pr ?? closedPr)
   const listRuns = () => {}
   const listPulls = () => {}
@@ -85,12 +86,14 @@ async function cleanup(
           current.conclusion = 'cancelled'
         },
         async getWorkflowRun({ run_id }: { run_id: number }) {
+          // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
           return { data: structuredClone(runs.find((item) => item.id === run_id)) }
         }
       },
       pulls: {
         list: listPulls,
         async get() {
+          // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
           return { data: structuredClone(pr) }
         }
       }

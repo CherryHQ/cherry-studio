@@ -182,7 +182,7 @@ describe('EntitySelector', () => {
         />
       )
       openPopover()
-      const input = screen.getByPlaceholderText('Search') as HTMLInputElement
+      const input = screen.getByPlaceholderText<HTMLInputElement>('Search')
       expect(input.value).toBe('bet')
       fireEvent.change(input, { target: { value: 'gam' } })
       expect(onSearchChange).toHaveBeenCalledWith('gam')
@@ -523,7 +523,7 @@ describe('EntitySelector', () => {
         />
       )
       openPopover()
-      const input = screen.getByPlaceholderText('Search') as HTMLInputElement
+      const input = screen.getByPlaceholderText<HTMLInputElement>('Search')
       expect(document.activeElement).toBe(input)
     })
 
@@ -541,7 +541,7 @@ describe('EntitySelector', () => {
         />
       )
       openPopover()
-      const input = screen.getByPlaceholderText('Search') as HTMLInputElement
+      const input = screen.getByPlaceholderText<HTMLInputElement>('Search')
       expect(document.activeElement).not.toBe(input)
     })
 
@@ -574,7 +574,7 @@ describe('EntitySelector', () => {
 
       render(<RerenderHarness />)
       openPopover()
-      const input = screen.getByPlaceholderText('Search 0') as HTMLInputElement
+      const input = screen.getByPlaceholderText<HTMLInputElement>('Search 0')
       await waitFor(() => expect(document.activeElement).toBe(input), { timeout: 200 })
 
       const filterToggle = screen.getByRole('button', { pressed: false })

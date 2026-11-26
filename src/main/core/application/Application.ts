@@ -612,7 +612,7 @@ export class Application {
    * @param name - Service name from ServiceRegistry
    */
   public getExisting<K extends keyof ServiceRegistry>(name: K): ServiceRegistry[K] | undefined {
-    return this.container.getInstance(name) as ServiceRegistry[K] | undefined
+    return this.container.getInstance<ServiceRegistry[K]>(name)
   }
 
   /**

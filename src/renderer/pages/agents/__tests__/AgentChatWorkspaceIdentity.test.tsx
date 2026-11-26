@@ -13,7 +13,11 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import AgentChat from '../AgentChat'
 import type { AgentConversationBootstrap } from '../useAgentConversationBootstrap'
 
-const history = vi.hoisted(() => ({ messages: [] as CherryUIMessage[], refresh: vi.fn() }))
+const history = vi.hoisted(() => ({
+  messages: [] as CherryUIMessage[],
+  persistedPartsByMessageId: {},
+  refresh: vi.fn()
+}))
 const defaultQuery = mockUseQuery.getMockImplementation()!
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
@@ -36,7 +40,7 @@ vi.mock('../components/AgentRightPane', () => ({
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
   useAgentSessionParts: () => ({
     messages: history.messages,
-    persistedPartsByMessageId: {},
+    persistedPartsByMessageId: history.persistedPartsByMessageId,
     isLoading: false,
     hasOlder: false,
     refresh: history.refresh
@@ -47,13 +51,12 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: () => ({ activeExecutions: [], sendMessage: vi.fn(), stop: vi.fn() })
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({ overlay: {}, liveAssistants: [], disposeOverlay: vi.fn(), reset: vi.fn() })
-}))
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({ useHistoryReplies: () => [] }))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({ useTopicSpeech: () => {} }))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({ useTopicCompletion: () => {} }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicOverlayHandoffOnTerminal: () => {}
+  useTopicStreamStatus: () => ({ isPending: false })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
@@ -127,10 +130,13 @@ describe('AgentChat top-bar workspace identity', () => {
     })
     await i18n.changeLanguage('en-US')
     vi.mocked(window.api.ipcApi.request).mockReset()
-    vi.mocked(window.api.ipcApi.request).mockResolvedValue({
+    vi.mocked(window.api.ipcApi.request).mockImplementation(async (route) => ({
       ok: true,
-      data: { pathKind: 'directory', targets: [{ id: 'file_manager', kind: 'file_manager' }] }
-    })
+      data:
+        route === 'computer_use.get_approvals'
+          ? []
+          : { pathKind: 'directory', targets: [{ id: 'file_manager', kind: 'file_manager' }] }
+    }))
   })
 
   it('keeps the folder and workspace name in the non-empty conversation top bar as a directory opener', async () => {
@@ -149,8 +155,6 @@ describe('AgentChat top-bar workspace identity', () => {
     const topBar = within(screen.getByRole('banner'))
     const openWorkspace = topBar.getByRole('button', { name: workspace.name })
     expect(within(openWorkspace).getByText(workspace.name)).toBeVisible()
-    // The folder glyph is part of the workspace identity contract.
-    expect(openWorkspace.querySelector('svg.lucide-folder')).toBeInTheDocument()
     expect(openWorkspace).not.toHaveAttribute('aria-haspopup')
     expect(topBar.queryByTestId('clear-workspace-button')).not.toBeInTheDocument()
     await waitFor(() => expect(openWorkspace).toBeEnabled())

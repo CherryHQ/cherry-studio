@@ -6,6 +6,7 @@ export type { MainDispatchRequest } from './context/dispatch'
 export { ChannelAdapterListener } from './listeners/ChannelAdapterListener'
 export { PersistenceListener } from './listeners/PersistenceListener'
 export { SseListener } from './listeners/SseListener'
+export { StreamReplyText } from './listeners/StreamReplyText'
 export { TraceFlushListener } from './listeners/TraceFlushListener'
 export { WebContentsListener } from './listeners/WebContentsListener'
 export type { MessageRuntimeTimingSink } from './MessageRuntimeTimingCollector'
@@ -18,6 +19,9 @@ export {
 export type {
   ActiveStream,
   AiStreamSource,
+  AgentPartChange,
+  AgentMessageStreamSource,
+  ExecutionPart,
   MessageStreamEvent,
   AiStreamAttachRequest,
   AiStreamAttachResponse,

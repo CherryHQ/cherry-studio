@@ -369,6 +369,22 @@ describe('AskUserQuestionComposer', () => {
     expect(onRespond).not.toHaveBeenCalled()
   })
 
+  it.each([1, 2])('dismisses the request after skipping all %i questions', async (questionCount) => {
+    const user = userEvent.setup()
+    const request = makeRequest(questions.slice(0, questionCount))
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+
+    for (const question of request.input.questions) {
+      expect(screen.getByRole('heading', { name: question.question })).toBeInTheDocument()
+      expect(onRespond).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Skip' }))
+    }
+
+    expect(onRespond).toHaveBeenCalledExactlyOnceWith({ match: request.match, approved: false })
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeDisabled()
+  })
+
   it('submits the final selected option when earlier questions were skipped', async () => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     render(<AskUserQuestionComposer request={makeRequest()} onRespond={onRespond} />)
@@ -562,5 +578,49 @@ describe('AskUserQuestionComposer', () => {
     expect(screen.getByRole('heading', { name: 'Choose logger' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Winston/ })).toHaveAttribute('aria-pressed', 'false')
     expect(onRespond).not.toHaveBeenCalled()
+  })
+
+  it('switches Skip to Next when multi-select options are selected on a non-final question and submits them', async () => {
+    const user = userEvent.setup()
+    const multiSelectQuestions = [{ ...questions[0], multiSelect: true }, questions[1]]
+    const request = makeRequest(multiSelectQuestions)
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeInTheDocument()
+    expect(screen.queryByText('Next')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Winston/ }))
+    await user.click(screen.getByRole('button', { name: /Pino/ }))
+
+    // Matched by text: the header pagination control also carries a "Next" aria-label.
+    expect(screen.getByText('Next')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument()
+    expect(onRespond).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: /Winston/ }))
+    await user.click(screen.getByRole('button', { name: /Pino/ }))
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeInTheDocument()
+    expect(screen.queryByText('Next')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Winston/ }))
+    await user.click(screen.getByRole('button', { name: /Pino/ }))
+    await user.click(screen.getByText('Next'))
+
+    expect(screen.getByRole('heading', { name: 'Add context' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Bunyan/ }))
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: request.match,
+      approved: true,
+      updatedInput: {
+        questions: multiSelectQuestions,
+        answers: {
+          'Choose logger': 'Winston, Pino',
+          'Add context': 'Bunyan'
+        }
+      }
+    })
   })
 })

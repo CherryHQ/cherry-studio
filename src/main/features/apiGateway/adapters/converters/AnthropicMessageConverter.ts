@@ -16,7 +16,7 @@ import type {
   Tool as AnthropicTool,
   ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
-import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
+import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { jsonSchema, tool } from 'ai'
 
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -24,6 +24,7 @@ import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types
 import type { Provider } from '@shared/data/types/provider'
 import { isGemini3ModelId } from '@shared/utils/model'
 
+import type { ReasoningCacheReaders } from '../../reasoningCache'
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { mapAnthropicThinkingToProviderOptions } from './providerOptionsMapper'
 
@@ -67,13 +68,6 @@ function nextUIMessageId(): string {
   return `gateway-msg-${Date.now()}-${uiMessageSeq++}`
 }
 
-/**
- * Sanitize value for JSON serialization
- */
-function sanitizeJson(value: unknown): JSONValue {
-  return JSON.parse(JSON.stringify(value))
-}
-
 /** An Anthropic image block as a `file` UI part (undefined for unknown sources). */
 function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | undefined {
   if (source.type === 'base64') {
@@ -113,7 +107,8 @@ function toolResultImageAnchor(toolCallId: string, index: number): string {
  */
 function toolResultToOutput(
   toolCallId: string,
-  content: NonNullable<ToolResultBlockParam['content']>
+  content: NonNullable<ToolResultBlockParam['content']>,
+  toProviderToolName: (name: string) => string
 ): ToolResultConversion {
   if (typeof content === 'string') return { output: content, relocatedParts: [] }
   const lines: string[] = []
@@ -122,6 +117,8 @@ function toolResultToOutput(
   for (const block of content) {
     if (block.type === 'text') {
       lines.push(block.text)
+    } else if (block.type === 'tool_reference') {
+      lines.push(`Tool available: ${toProviderToolName(block.tool_name)}`)
     } else if (block.type === 'image') {
       const file = imageBlockToFilePart(block.source)
       if (file) {
@@ -157,29 +154,16 @@ function systemMessages(content: MessageCreateParams['system'] | MessageParam['c
 type AgentInputMessage = MessageParam | { role: 'system'; content: MessageParam['content'] }
 
 /**
- * Reasoning cache interface for storing provider-specific reasoning state
- */
-export interface ReasoningCache {
-  get(key: string): unknown
-  set(key: string, value: unknown): void
-}
-
-/**
  * Anthropic Message Converter
  *
  * Converts Anthropic MessageCreateParams to AI SDK format for unified processing.
  */
 export class AnthropicMessageConverter implements IMessageConverter<MessageCreateParams> {
-  private googleReasoningCache?: ReasoningCache
-  private openRouterReasoningCache?: ReasoningCache
   private mappedTools?: MessageCreateParams['tools']
   private readonly providerToolNames = new Map<string, string>()
   private readonly clientToolNames = new Map<string, string>()
 
-  constructor(options?: { googleReasoningCache?: ReasoningCache; openRouterReasoningCache?: ReasoningCache }) {
-    this.googleReasoningCache = options?.googleReasoningCache
-    this.openRouterReasoningCache = options?.openRouterReasoningCache
-  }
+  constructor(private readonly caches: ReasoningCacheReaders = {}) {}
 
   /**
    * Convert Anthropic MessageCreateParams to AI SDK `CherryUIMessage[]`.
@@ -212,7 +196,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       for (const block of msg.content) {
         if (block.type === 'tool_result') {
           toolResults.set(block.tool_use_id, {
-            ...toolResultToOutput(block.tool_use_id, block.content ?? ''),
+            ...toolResultToOutput(block.tool_use_id, block.content ?? '', (name) => this.toProviderToolName(name)),
             isError: block.is_error === true,
             providerMetadata: cacheProviderOptions(block) ?? {}
           })
@@ -321,14 +305,14 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     if (model && isGemini3ModelId(toApiModelId(model))) {
       // Gemini 3 rejects a replayed functionCall whose signature is missing; the
       // Anthropic wire format has nowhere to carry it, so restore it from the cache.
-      const thoughtSignature = this.googleReasoningCache?.get(`google-${toolCallId}`)
+      const thoughtSignature = this.caches.googleReasoningCache?.get(`google-${toolCallId}`)
       if (typeof thoughtSignature === 'string') {
         options.google = { thoughtSignature }
       }
     }
-    const reasoningDetails = this.openRouterReasoningCache?.get(`openrouter-${toolCallId}`)
+    const reasoningDetails = this.caches.openRouterReasoningCache?.get(`openrouter-${toolCallId}`)
     if (reasoningDetails) {
-      options.openrouter = { reasoning_details: sanitizeJson(reasoningDetails) || [] }
+      options.openrouter = { reasoning_details: reasoningDetails }
     }
     return Object.keys(options).length > 0 ? options : undefined
   }
