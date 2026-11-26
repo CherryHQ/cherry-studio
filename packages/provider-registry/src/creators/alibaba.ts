@@ -59,6 +59,7 @@ export default defineCreator({
     { pattern: '^qwen3[.-][5-7](?!\\d)', budget: { min: 0, max: 81920 }, template: true },
     { pattern: 'qwen3-(?!max)(?!\\d+[.-]max).*$', budget: { min: 1024, max: 38912 }, template: true },
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
+    { pattern: '^qwen4-max$' },
     { pattern: '^qwen3.*thinking' },
     { pattern: 'qwq|qvq' },
     { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen-?3[.-][5-9](?!\\d)' },
@@ -75,6 +76,29 @@ export default defineCreator({
     { pattern: '^(?!.*(?:coder|instruct))qwen-?3-(?:vl|omni|next)' }
   ],
   models: [
+    {
+      id: 'qwen4-max',
+      name: 'Qwen4 Max',
+      family: 'qwen-max',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'video-recognition', 'structured-output'],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1_000_000,
+      maxOutputTokens: 262_144,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 1.5 },
+        output: { currency: 'USD', perMillionTokens: 4.5 },
+        cacheRead: { currency: 'USD', perMillionTokens: 0.075 },
+        cacheWrite: { currency: 'USD', perMillionTokens: 1.875 }
+      },
+      reasoning: {
+        controls: [
+          { kind: 'effort', values: ['low', 'high', 'xhigh'], default: 'high' },
+          { kind: 'budget', min: 1, max: 262_144 },
+          { kind: 'toggle', default: true }
+        ]
+      }
+    },
     {
       id: 'qwen3-5-4b',
       name: 'Qwen3.5 4B',

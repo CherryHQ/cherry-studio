@@ -335,6 +335,28 @@ describe('ProviderRegistryService', () => {
     }
   })
 
+  it('projects CherryIN exact prices and endpoints into the selectable models', () => {
+    const dataPath = new URL('../../../../../packages/provider-registry/data/', import.meta.url)
+    const readCatalog = (filename: string) => JSON.parse(readFileSync(new URL(filename, dataPath), 'utf8'))
+    mockReadModels.mockReturnValue(readCatalog('models.json'))
+    mockReadProviderModels.mockReturnValue(readCatalog('provider-models.json'))
+    mockReadProviders.mockReturnValue(readCatalog('providers.json'))
+
+    const models = providerRegistryService.listProviderRegistryModels({ providerId: 'cherryin' })
+    expect(models.find(({ apiModelId }) => apiModelId === 'qwen/qwen4-max')).toMatchObject({
+      contextWindow: 1_000_000,
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+    })
+    expect(models.find(({ apiModelId }) => apiModelId === 'deepseek/deepseek-v3.2(free)')?.pricing?.input).toEqual({
+      currency: 'USD',
+      perMillionTokens: 0
+    })
+    expect(models.find(({ apiModelId }) => apiModelId === 'qwen/z-image-turbo')?.pricing?.perImage).toMatchObject({
+      price: 0.013698630137,
+      unit: 'image'
+    })
+  })
+
   describe('createCustomModel', () => {
     it('exposes Qwen 3.8 Flash Next effort tiers for a compatible custom provider', () => {
       const model = createCustomModel('strata', 'qwen3.8-flash-next')

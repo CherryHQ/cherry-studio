@@ -1,5 +1,5 @@
 import type { ProviderModelOverride } from '../schemas/provider-models'
-import { defineProvider } from './types'
+import { defineProvider, type ProviderModelOffer } from './types'
 import { modeWire } from './wires'
 
 const claudeWebToolModels = [
@@ -101,6 +101,149 @@ const qwenAudioCompatibilityOverrides = [
   }
 ] satisfies Array<Partial<ProviderModelOverride>>
 
+const zeroPrice = { currency: 'USD', perMillionTokens: 0 } as const
+const freePricing = {
+  input: zeroPrice,
+  output: zeroPrice,
+  cacheRead: zeroPrice,
+  cacheWrite: zeroPrice,
+  inputTokenTiers: []
+}
+const freeImagePricing = { ...freePricing, perImage: { currency: 'USD', price: 0, unit: 'image' } } as const
+const unknownTokenPrice = { currency: 'USD', perMillionTokens: null } as const
+const chatEndpoints = ['openai-chat-completions', 'anthropic-messages'] as const
+const anthropicFirst = ['anthropic-messages', 'openai-chat-completions'] as const
+const responsesEndpoints = ['openai-responses', 'anthropic-messages'] as const
+
+const freeOffers = [
+  {
+    apiModelId: 'tencent/hunyuan-mt-7b(free)',
+    name: 'Hunyuan MT 7B (Free)',
+    endpointTypes: [...chatEndpoints],
+    inputModalities: ['text'],
+    outputModalities: ['text']
+  },
+  {
+    apiModelId: 'deepseek/deepseek-ocr(free)',
+    name: 'DeepSeek OCR (Free)',
+    endpointTypes: ['openai-chat-completions']
+  },
+  {
+    apiModelId: 'agent/qwen3-coder-30b-a3b-instruct(free)',
+    modelId: 'qwen3-coder-30b-a3b-instruct-free',
+    name: 'Qwen3 Coder 30B A3B Instruct (Free, Agent)',
+    limits: { contextWindow: 262_144 },
+    endpointTypes: [...anthropicFirst]
+  },
+  { apiModelId: 'baai/bge-m3(free)', endpointTypes: ['openai-embeddings'] },
+  {
+    apiModelId: 'deepseek/deepseek-v3.2(free)',
+    modelId: 'deepseek-v3-2',
+    limits: { contextWindow: 128_000 },
+    endpointTypes: [...anthropicFirst],
+    reasoningContracts: { 'openai-chat-completions': { wire: deepSeekThinkingWire } }
+  },
+  {
+    apiModelId: 'agent/deepseek-v3.2(free)',
+    modelId: 'deepseek-v3-2',
+    limits: { contextWindow: 128_000 },
+    endpointTypes: [...anthropicFirst],
+    reasoningContracts: { 'openai-chat-completions': { wire: deepSeekThinkingWire } }
+  },
+  { apiModelId: 'qwen/qwen3-reranker-0.6b(free)', endpointTypes: ['jina-rerank'] },
+  { apiModelId: 'BAAI/bge-reranker-v2-m3(free)', endpointTypes: ['jina-rerank'] },
+  {
+    apiModelId: 'bytedance/seed-oss-36b-instruct(free)',
+    endpointTypes: [...chatEndpoints],
+    limits: { contextWindow: 512_000 }
+  },
+  {
+    apiModelId: 'qwen/qwen3-30b-a3b-instruct-2507(free)',
+    modelId: 'qwen3-30b-a3b-instruct',
+    endpointTypes: [...chatEndpoints]
+  },
+  { apiModelId: 'qwen/qwen3-embedding-0.6b(free)', endpointTypes: ['openai-embeddings'] },
+  {
+    apiModelId: 'qwen/qwen3-vl-30b-a3b-instruct(free)',
+    endpointTypes: [...chatEndpoints],
+    modelId: 'qwen3-vl-30b-a3b-instruct'
+  },
+  {
+    apiModelId: 'qwen/qwen3-coder-30b-a3b-instruct(free)',
+    modelId: 'qwen3-coder-30b-a3b-instruct',
+    endpointTypes: [...chatEndpoints]
+  }
+] satisfies ProviderModelOffer[]
+
+const imageOffers = [
+  { apiModelId: 'qwen/qwen-image-2.0-pro', name: 'Qwen Image 2.0 Pro', price: 0.068493150685 },
+  { apiModelId: 'qwen/qwen-image-plus', name: 'Qwen Image Plus', price: 0.027397260274 },
+  { apiModelId: 'qwen/qwen-image-2.0', name: 'Qwen Image 2.0', price: 0.027397260274 },
+  { apiModelId: 'bytedance/seedream-4.0', name: 'Seedream 4.0', price: 0.027397260274 },
+  { apiModelId: 'qwen/z-image-turbo', name: 'Z-Image Turbo', price: 0.013698630137 }
+]
+
+const chatOffers = [
+  {
+    apiModelId: 'qwen/qwen4-max',
+    limits: { contextWindow: 1_000_000 },
+    endpointTypes: [...chatEndpoints],
+    pricing: {
+      input: { currency: 'USD', perMillionTokens: 1.5 },
+      output: { currency: 'USD', perMillionTokens: 4.5 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.075 },
+      cacheWrite: { currency: 'USD', perMillionTokens: 1.875 }
+    }
+  },
+  {
+    apiModelId: 'google/gemini-3-pro-preview',
+    modelId: 'gemini-3-pro-preview',
+    name: 'Gemini 3 Pro Preview',
+    limits: { contextWindow: 1_000_000 },
+    endpointTypes: ['google-generate-content', ...chatEndpoints],
+    inputModalities: ['text', 'image', 'video', 'audio'],
+    outputModalities: ['text'],
+    capabilities: {
+      add: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'audio-recognition', 'file-input']
+    }
+  },
+  {
+    apiModelId: 'openai/o1-mini',
+    name: 'OpenAI o1-mini',
+    limits: { contextWindow: 128_000 },
+    endpointTypes: [...chatEndpoints],
+    capabilities: { add: ['reasoning'] }
+  },
+  {
+    apiModelId: 'x-ai/grok-4.2-agents',
+    name: 'Grok 4.2 Agents',
+    endpointTypes: ['openai-chat-completions', 'openai-responses'],
+    inputModalities: ['text', 'image'],
+    capabilities: { add: ['reasoning', 'image-recognition'] }
+  },
+  {
+    apiModelId: 'minimax/minimax-m2.1--lightning',
+    modelId: 'minimax-m2-1',
+    name: 'MiniMax M2.1 Lightning',
+    limits: { contextWindow: 200_000 },
+    endpointTypes: [...anthropicFirst]
+  },
+  ...['5', '5.1', '5.2', '5.3'].map(
+    (version): ProviderModelOffer => ({
+      apiModelId: `openai/gpt-${version}-chat`,
+      name: `GPT-${version} Chat`,
+      limits: { contextWindow: 128_000 },
+      endpointTypes: [...responsesEndpoints],
+      ...(version === '5.3'
+        ? { capabilities: { add: ['function-call'] } }
+        : {
+            inputModalities: ['text', 'image'],
+            capabilities: { add: ['function-call', 'image-recognition', 'file-input'] }
+          })
+    })
+  )
+] satisfies ProviderModelOffer[]
+
 export default defineProvider({
   id: 'cherryin',
   name: 'CherryIN',
@@ -161,6 +304,50 @@ export default defineProvider({
       capabilities: { remove: ['structured-output'] }
     },
     ...deepSeekModelOverrides,
-    ...qwenAudioCompatibilityOverrides
+    ...qwenAudioCompatibilityOverrides.map((offer): ProviderModelOffer => {
+      switch (offer.apiModelId) {
+        case 'qwen/qwen3.5-4b(free)':
+        case 'qwen/qwen3.5-35b-a3b(free)':
+          return { ...offer, pricing: freePricing, endpointTypes: [...chatEndpoints] }
+        case 'qwen/qwen3.5-9b(free)':
+          return { ...offer, pricing: freePricing, endpointTypes: ['openai-chat-completions'] }
+        default:
+          return offer
+      }
+    }),
+    ...freeOffers.map((offer) => ({ ...offer, pricing: freePricing })),
+    ...[
+      {
+        apiModelId: 'qwen/qwen-image-edit-2509(free)',
+        modelId: 'qwen-image-edit-2509-free',
+        name: 'Qwen Image Edit 2509 (Free)'
+      },
+      { apiModelId: 'kwai-kolors/kolors(free)' },
+      { apiModelId: 'qwen/qwen-image(free)' },
+      { apiModelId: 'qwen/qwen-image-edit(free)' }
+    ].map(
+      (offer): ProviderModelOffer => ({
+        ...offer,
+        pricing: freeImagePricing,
+        endpointTypes: ['openai-image-generation']
+      })
+    ),
+    ...imageOffers.map(
+      ({ apiModelId, name, price }): ProviderModelOffer => ({
+        apiModelId,
+        name,
+        endpointTypes: ['openai-image-generation'],
+        inputModalities: ['text'],
+        outputModalities: ['image'],
+        capabilities: { add: ['image-generation'] },
+        imageGeneration: { modes: { generate: { supports: {} } } },
+        pricing: {
+          input: unknownTokenPrice,
+          output: unknownTokenPrice,
+          perImage: { currency: 'USD', price, unit: 'image' }
+        }
+      })
+    ),
+    ...chatOffers
   ]
 })

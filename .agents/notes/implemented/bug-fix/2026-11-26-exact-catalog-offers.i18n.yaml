@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-26-exact-catalog-offers.md
+2026-11-26-exact-catalog-offers.md: 70857d1d2980e2c7e11464fef2f96d0eec3ab804
+2026-11-26-exact-catalog-offers.zh.md: 53975a2f0627b71a821ae65f63f656704fcf7a34

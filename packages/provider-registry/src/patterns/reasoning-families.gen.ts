@@ -31,6 +31,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'qwen-max-latest$', budget: { min: 0, max: 81920 }, template: true },
   { pattern: '^qwen3[.-][5-7](?!\\d)', budget: { min: 0, max: 81920 }, template: true },
   { pattern: 'qwen3-(?!max)(?!\\d+[.-]max).*$', budget: { min: 1024, max: 38912 }, template: true },
+  { pattern: '^qwen4-max$' },
   { pattern: '^qwen3.*thinking' },
   { pattern: 'qwq|qvq' },
   { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen-?3[.-][5-9](?!\\d)' },

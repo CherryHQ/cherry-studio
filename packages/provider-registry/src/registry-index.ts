@@ -1,6 +1,18 @@
 import type { ModelConfig } from './schemas/model'
 import type { ProviderModelOverride } from './schemas/provider-models'
-import { colonVariantTagToHyphen, extractParameterSize, normalizeModelId } from './utils/normalize'
+import {
+  colonVariantTagToHyphen,
+  extractParameterSize,
+  normalizeModelId,
+  normalizeVersionSeparators
+} from './utils/normalize'
+
+function canonicalVariantPriority(override: ProviderModelOverride): number {
+  const { apiModelId, modelId } = override
+  if (!apiModelId || apiModelId === modelId) return 2
+  const apiName = apiModelId.slice(apiModelId.lastIndexOf('/') + 1).toLowerCase()
+  return normalizeVersionSeparators(apiName) === modelId ? 1 : 0
+}
 
 export class ModelIndex {
   private modelById: Map<string, ModelConfig> = new Map()
@@ -45,9 +57,19 @@ export class ProviderModelIndex {
 
   constructor(overrides: readonly ProviderModelOverride[]) {
     for (const pm of overrides) {
+      const providerOffers = this.overridesByProvider.get(pm.providerId) ?? []
+      providerOffers.push(pm)
+      this.overridesByProvider.set(pm.providerId, providerOffers)
+      if (pm.apiModelId) this.overrideByApiKey.set(`${pm.providerId}::${pm.apiModelId}`, pm)
+
+      if (pm.providerId === 'cherryin' && pm.apiModelId?.endsWith('(free)')) {
+        // CherryIN bills tagged offers independently from their normalized model.
+        continue
+      }
       const key = `${pm.providerId}::${pm.modelId}`
-      // A dated API variant must not displace the canonical self variant.
-      if (!this.overrideByKey.has(key) || pm.apiModelId === pm.modelId) {
+      const priority = canonicalVariantPriority(pm)
+      const current = this.overrideByKey.get(key)
+      if (!current || priority > canonicalVariantPriority(current)) {
         this.overrideByKey.set(key, pm)
       }
       const normKey = `${pm.providerId}::${normalizeModelId(pm.modelId)}`
@@ -55,12 +77,11 @@ export class ProviderModelIndex {
         this.overrideByNormKey.set(normKey, pm)
       }
       const sizedNormKey = `${pm.providerId}::${normalizeModelId(pm.modelId, { keepParameterSize: true })}`
-      if (!this.overrideBySizedNormKey.has(sizedNormKey) || pm.apiModelId === pm.modelId) {
+      const sizedCurrent = this.overrideBySizedNormKey.get(sizedNormKey)
+      if (!sizedCurrent || priority > canonicalVariantPriority(sizedCurrent)) {
         this.overrideBySizedNormKey.set(sizedNormKey, pm)
       }
       if (pm.apiModelId) {
-        const apiKey = `${pm.providerId}::${pm.apiModelId}`
-        this.overrideByApiKey.set(apiKey, pm)
         const normApiKey = `${pm.providerId}::${normalizeModelId(pm.apiModelId)}`
         if (!this.overrideByNormApiKey.has(normApiKey)) {
           this.overrideByNormApiKey.set(normApiKey, pm)
@@ -70,19 +91,13 @@ export class ProviderModelIndex {
           this.overrideBySizedNormApiKey.set(sizedNormApiKey, pm)
         }
       }
-      let arr = this.overridesByProvider.get(pm.providerId)
-      if (!arr) {
-        arr = []
-        this.overridesByProvider.set(pm.providerId, arr)
-      }
-      arr.push(pm)
     }
   }
 
   findOverride(providerId: string, modelId: string): ProviderModelOverride | null {
     const key = `${providerId}::${modelId}`
     // Exact API IDs win over normalized keys that may collide across model sizes.
-    const exact = this.overrideByKey.get(key) ?? this.overrideByApiKey.get(key)
+    const exact = this.overrideByApiKey.get(key) ?? this.overrideByKey.get(key)
     if (exact) return exact
 
     const sizedModelId = normalizeModelId(modelId, { keepParameterSize: true })

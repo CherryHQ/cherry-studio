@@ -107,6 +107,31 @@ describe('portable registry', () => {
     )
     expect(registry.findOverride('cherryin', 'qwen/qwen3.5-9b')?.modelId).toBe('qwen3-5-9b')
   })
+
+  it('keeps CherryIN free prices on the exact free IDs', () => {
+    const registry = createRegistry(bundledCatalog)
+    const free = registry.findOverride('cherryin', 'deepseek/deepseek-v3.2(free)')
+
+    expect(free).toMatchObject({
+      apiModelId: 'deepseek/deepseek-v3.2(free)',
+      pricing: {
+        input: { perMillionTokens: 0 },
+        output: { perMillionTokens: 0 },
+        cacheRead: { perMillionTokens: 0 }
+      }
+    })
+    expect(registry.findOverride('cherryin', 'deepseek/deepseek-v3.2')?.pricing).toBeUndefined()
+    expect(registry.findOverride('cherryin', 'qwen/qwen3.5-4b')).toBeNull()
+  })
+
+  it('resolves CherryIN generation models with their advertised per-image prices', () => {
+    const registry = createRegistry(bundledCatalog)
+    expect(registry.findOverride('cherryin', 'qwen/z-image-turbo')).toMatchObject({
+      endpointTypes: ['openai-image-generation'],
+      imageGeneration: { modes: { generate: { supports: {} } } },
+      pricing: { perImage: { price: 0.013698630137, currency: 'USD', unit: 'image' } }
+    })
+  })
 })
 
 describe('parseModelSnapshot', () => {

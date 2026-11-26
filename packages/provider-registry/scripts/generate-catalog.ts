@@ -64,6 +64,7 @@ const { values: args } = parseArgs({
     write: { type: 'boolean' },
     report: { type: 'boolean' },
     model: { type: 'string', multiple: true },
+    provider: { type: 'string' },
     'providers-only': { type: 'boolean' }
   }
 })
@@ -553,13 +554,6 @@ function buildProviderModels(
     seen.add(k)
     rows.push(o)
   }
-  // md-derived rows key on `modelId`; templates expand into matching rows without replacing upstream identity.
-  const addModel = (o: any): void => {
-    const k = `${o.providerId} ${o.modelId} ${variantsKey(o)}`
-    if (seen.has(k)) return
-    seen.add(k)
-    rows.push(o)
-  }
   for (const p of PROVIDERS) {
     const modelTemplates = p.modelTemplates ?? []
     const matchedTemplates = new Set<(typeof modelTemplates)[number]>()
@@ -567,18 +561,28 @@ function buildProviderModels(
     const src = p.modelsDevProvider ? (md[p.modelsDevProvider]?.models ?? {}) : {}
     for (const [apiModelId, m] of Object.entries(src)) {
       if (p.modelsDevProvider && isModelsDevRoutingAlias(p.modelsDevProvider, apiModelId)) continue
-      const meta = parseMdEntry(m)
-      if (!meta?.pricing) continue // no pricing → runtime resolves to base, no row needed
+      const parsed = parseMdEntry(m)
+      if (!parsed?.pricing) continue // no pricing → runtime resolves to base, no row needed
+      const meta = finalizeMeta(parsed)
       const modelId = canonOf(apiModelId)
       if (!modelId) continue
       const template = modelTemplates.find((override) => override.modelId === modelId)
       if (template) matchedTemplates.add(template)
-      const row: any = { providerId: p.id, modelId, apiModelId, pricing: meta.pricing, ...template }
+      const row: any = {
+        providerId: p.id,
+        modelId,
+        apiModelId,
+        pricing: meta.pricing,
+        ...(meta.contextWindow || meta.maxOutputTokens
+          ? { limits: { contextWindow: meta.contextWindow, maxOutputTokens: meta.maxOutputTokens } }
+          : {}),
+        ...template
+      }
       if (!baseIds.has(modelId)) {
         if (!meta.name) continue
         row.name ??= meta.name // vendor-exclusive → standalone
       }
-      addModel(row)
+      addOverride(row)
     }
     for (const template of modelTemplates) {
       if (!matchedTemplates.has(template)) addOverride({ providerId: p.id, ...template })
@@ -595,7 +599,7 @@ function buildProviderModels(
 
     const exact =
       rows.find((row) => row.providerId === 'openrouter' && row.apiModelId === entry.id) ??
-      rows.find((row) => row.providerId === 'openrouter' && row.modelId === modelId)
+      rows.find((row) => row.providerId === 'openrouter' && row.modelId === modelId && !row.apiModelId)
     if (exact) {
       exact.reasoningContracts = mergeOpenRouterReasoningContracts(support, exact.reasoningContracts)
       continue
@@ -648,13 +652,41 @@ function buildProviderModels(
     // row in place so its pricing and the image catalog's controls coexist instead of first-wins
     // deduplication silently dropping one side.
     if (existing) Object.assign(existing, imageRow)
-    else addModel(imageRow)
+    else addOverride(imageRow)
   }
   rows.sort((a, b) => `${a.providerId} ${a.modelId}`.localeCompare(`${b.providerId} ${b.modelId}`))
   return { overrides: rows }
 }
 
 void (async () => {
+  if (args.provider) {
+    const provider = PROVIDERS.find(({ id }) => id === args.provider)
+    if (
+      !provider ||
+      provider.modelsDevProvider ||
+      provider.modelTemplates?.length ||
+      args.model ||
+      args['providers-only']
+    ) {
+      throw new Error('--provider requires a provider with source-declared offers and no other scope options')
+    }
+    if (!WRITE) return
+
+    const { models } = JSON.parse(fs.readFileSync(MODELS_PATH, 'utf8'))
+    const { overrides } = JSON.parse(fs.readFileSync(PROVIDER_MODELS_PATH, 'utf8'))
+    const providerModels = buildProviderModels({}, {}, {}, new Set(models.map((model: { id: string }) => model.id)))
+    const selected = [
+      ...overrides.filter((row: { providerId: string }) => row.providerId !== provider.id),
+      ...providerModels.overrides.filter((row) => row.providerId === provider.id)
+    ].sort((a, b) => `${a.providerId} ${a.modelId}`.localeCompare(`${b.providerId} ${b.modelId}`))
+    const errors = getServiceTierCatalogErrors(buildProviders(), selected)
+    if (errors.length > 0) throw new Error(`Invalid service tier catalog:\n${errors.join('\n')}`)
+
+    fs.writeFileSync(PROVIDER_MODELS_PATH, stampAndSerialize({ overrides: selected }))
+    const byId = new Map<string, any>(models.map((model: { id: string }) => [model.id, model]))
+    fs.writeFileSync(SERVER_TOOL_MODELS_GEN_PATH, buildServerToolModelsGen(byId))
+    return
+  }
   if (args['providers-only']) {
     if (WRITE) {
       const { models } = JSON.parse(fs.readFileSync(MODELS_PATH, 'utf8'))

@@ -166,6 +166,14 @@ pnpm exec oxfmt --write packages/provider-registry/data/*.json packages/provider
 The selected model must exist in the newly generated catalog; unknown IDs fail
 without writing artifacts. Omit `--model` for the usual full upstream refresh.
 
+For a provider whose offers are declared in source, refresh its offers and
+tool eligibility with `--provider`.
+
+```bash
+pnpm --filter @cherrystudio/provider-registry exec tsx scripts/generate-catalog.ts --write --provider cherryin
+pnpm exec oxfmt --write packages/provider-registry/data/provider-models.json packages/provider-registry/src/patterns/server-tool-models.gen.ts
+```
+
 From the monorepo root:
 
 ```bash
