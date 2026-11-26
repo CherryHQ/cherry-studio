@@ -2921,13 +2921,15 @@ describe('desktop Pi Durable connection', () => {
       for (const input of queued) expect(connection.followUp({ message: input })).toBe(true)
       await Promise.all(submitted)
       release()
-      await expect.poll(() => gaps).toContain('overflow')
+      // Windows CI needs a larger poll budget: persisting 120 inputs plus
+      // overflow recovery and two sequential answers exceeds the 1 s default.
+      await expect.poll(() => gaps, { timeout: 15_000 }).toContain('overflow')
       held.open()
 
-      await expect.poll(() => text(events)).toContain('answer-1 ')
+      await expect.poll(() => text(events), { timeout: 15_000 }).toContain('answer-1 ')
       // Answering every queued input only adds runtime; Stop withdraws the rest.
       await connection.interrupt()
-      await done(events)
+      await done(events, 10_000)
       expect(text(events)).toContain('first answer-0 answer-1 ')
       expect(events.filter((event) => event.type === 'error')).toEqual([])
     }
