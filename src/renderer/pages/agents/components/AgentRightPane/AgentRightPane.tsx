@@ -1492,6 +1492,8 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
         <AgentContextUsageSummary
           usage={contextUsage.usage}
           percentage={contextUsage.percentage}
+          measuredAt={contextUsage.measuredAt}
+          unavailableReason={contextUsage.unavailableReason}
           showCategories={false}
           className="shrink-0 border-b border-border-subtle px-4 py-2"
         />
@@ -1783,7 +1785,13 @@ function AgentDetailsContent() {
   const actions = useAgentRightPaneActions()
   const details = useAgentSessionDetails()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage } = useAgentSessionContextUsage(sessionId, meta.model)
+  const {
+    usage,
+    percentage,
+    measuredAt,
+    unavailableReason,
+    status: contextUsageStatus
+  } = useAgentSessionContextUsage(sessionId, meta.model)
   const cost = useAgentSessionCost(sessionId)
   const compaction = useAgentSessionCompaction(sessionId)
   const desktopControls = use(DesktopControlsContext)
@@ -1811,6 +1819,9 @@ function AgentDetailsContent() {
               cost={cost}
               usage={usage}
               percentage={percentage}
+              status={contextUsageStatus}
+              measuredAt={measuredAt}
+              unavailableReason={unavailableReason}
               isCompacting={compaction.status === 'compacting'}
               className="py-2"
             />

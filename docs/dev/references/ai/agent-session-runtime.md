@@ -107,8 +107,10 @@ and history opening do not generate host predictions; a resident result can be r
 Each runtime package implements passive `ThreadHandle.contextUsage()` and publishes the same
 result through `context.changed` and snapshots. Main forwards the common result into a
 thread-scoped cache; renderer code does not parse native SDK categories or infer model capacity.
-Connection replacement, model changes and compaction invalidate cached readings. Late reads
-from an old connection cannot overwrite the new context, and child caches use child handles.
+Model changes, compaction, reset, and history/branch edits invalidate cached readings;
+same-model connection disconnects and transient post-turn refresh failures retain the last
+confirmed reading with its measurement timestamp. Late reads from an old connection cannot
+overwrite the new context, and child caches use child handles.
 
 The full model window is distinct from input limits and compaction thresholds. Counts state
 whether they are reported or estimated. Partial breakdowns are not rescaled to match a total,

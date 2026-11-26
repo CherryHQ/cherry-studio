@@ -207,7 +207,8 @@ export class ClaudeOwner {
     if (native !== undefined) return native
     const declared = this.runtime.contextWindow
     const normalize = (id: string) => id.replace(/\[1m\]$/i, '')
-    return declared && normalize(declared.model) === normalize(model) ? declared.tokens : undefined
+    if (declared && normalize(declared.model) === normalize(model)) return declared.tokens
+    return this.contextWindows.get(normalize(model))
   }
 
   async contextUsage(projection: ClaudeProjection): Promise<OperationResult<ThreadContextUsage>> {
@@ -642,7 +643,10 @@ export class ClaudeOwner {
     }
     if (message.type === 'result' && 'modelUsage' in message)
       for (const [model, usage] of Object.entries(message.modelUsage))
-        if (usage.contextWindow > 0) this.contextWindows.set(model, usage.contextWindow)
+        if (usage.contextWindow > 0) {
+          this.contextWindows.set(model, usage.contextWindow)
+          this.contextWindows.set(model.replace(/\[1m\]$/i, ''), usage.contextWindow)
+        }
     if (!agentId && message.type === 'stream_event') {
       const event = message.event
       const usage =

@@ -407,6 +407,7 @@ type AgentSessionRuntimeEntry = {
   persistedMessageIds?: Set<string>
   contextUsageEpoch?: number
   contextUsageModel?: ExecutionId
+  lastConfirmedContextUsageAt?: number
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -529,7 +530,10 @@ export class AgentSessionRuntimeService extends BaseService {
       async () => {
         this.assertSessionEditable(sessionId, true)
         const entry = this.entries.get(sessionId)
-        if (entry) await this.closeRuntimeConnection(this.closeConnection(entry), entry, true)
+        if (entry) {
+          this.invalidateContextUsage(entry)
+          await this.closeRuntimeConnection(this.closeConnection(entry), entry, true)
+        }
         await this.closeSession(sessionId)
       },
       persist
@@ -978,6 +982,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const entry = this.entries.get(sessionId)
     if (entry?.branchHead && !agentSessionMessageService.sharesBranch(sessionId, entry.branchHead, messageId)) {
       this.assertSessionEditable(sessionId)
+      this.invalidateContextUsage(entry)
       await this.closeSession(sessionId)
     }
     this.selectRecoveredRoot(sessionId, messageId)
@@ -1028,7 +1033,10 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.sessionTraceId = input.traceId ?? existing.sessionTraceId
       existing.agentId = input.agentId
       existing.agentType = input.agentType
-      existing.modelId = input.modelId
+      if (existing.modelId !== input.modelId) {
+        existing.modelId = input.modelId
+        this.invalidateContextUsage(existing)
+      }
       existing.interactionWindowId = undefined
       existing.messageSnapshot = messageSnapshot
       existing.branchHead = input.assistantMessageId
@@ -3530,6 +3538,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private invalidateContextUsage(entry: AgentSessionRuntimeEntry): void {
     entry.prediction?.controller.abort()
     entry.contextUsageEpoch = (entry.contextUsageEpoch ?? 0) + 1
+    delete entry.lastConfirmedContextUsageAt
     application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
   }
 
@@ -3546,9 +3555,36 @@ export class AgentSessionRuntimeService extends BaseService {
   private persistContextUsage(entry: AgentSessionRuntimeEntry, result: AgentSessionContextUsage['result']): void {
     if (!this.isCurrentEntry(entry)) return
     if (entry.contextUsageModel !== entry.modelId) return
-    application
-      .get('CacheService')
-      .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), { modelId: entry.modelId, result })
+    const cache = application.get('CacheService')
+    const key = AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId)
+    if (result.status === 'confirmed') {
+      if (result.value.used) entry.lastConfirmedContextUsageAt = Date.now()
+      else delete entry.lastConfirmedContextUsageAt
+      cache.setShared(key, { modelId: entry.modelId, result })
+      return
+    }
+    const invalidatesPrior =
+      result.status === 'unsupported' ||
+      result.error.code === 'compacted' ||
+      result.error.code === 'reset' ||
+      result.error.code === 'model-changed'
+    if (!invalidatesPrior) {
+      const existing = cache.getShared(key)
+      if (existing?.modelId === entry.modelId && existing.result.status === 'confirmed' && existing.result.value.used) {
+        if (!existing.stale || existing.measuredAt === undefined) {
+          cache.setShared(key, {
+            modelId: entry.modelId,
+            result: existing.result,
+            stale: true,
+            measuredAt: existing.measuredAt ?? entry.lastConfirmedContextUsageAt ?? Date.now()
+          })
+        }
+        return
+      }
+    } else {
+      delete entry.lastConfirmedContextUsageAt
+    }
+    cache.setShared(key, { modelId: entry.modelId, result })
   }
 
   /**
@@ -3674,6 +3710,7 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     if (!this.isCurrentEntry(entry) || (connection && this.currentConnection(entry) !== connection)) return
     this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-finished' })
+    this.refreshContextUsage(entry, connection)
     this.refreshIdleTimer(entry)
   }
 
@@ -3840,12 +3877,19 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
-    this.invalidateContextUsage(entry)
+    entry.prediction?.controller.abort()
+    entry.contextUsageEpoch = (entry.contextUsageEpoch ?? 0) + 1
+    const cache = application.get('CacheService')
+    const usageKey = AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId)
+    const cachedUsage = cache.getShared(usageKey)
+    if (cachedUsage?.modelId && cachedUsage.modelId !== entry.modelId) {
+      delete entry.lastConfirmedContextUsageAt
+      cache.deleteShared(usageKey)
+    }
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-finished' })
     }
-    const cache = application.get('CacheService')
     if (connection.changeFollowups) cache.setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), [])
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})

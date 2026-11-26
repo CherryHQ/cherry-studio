@@ -5033,6 +5033,76 @@ describe('AgentSessionRuntimeService', () => {
         result: unavailable
       })
     })
+
+    it('retains the last confirmed reading with measuredAt when a post-turn refresh fails transiently and keeps it after disconnect', async () => {
+      const events = createAsyncQueue<any>()
+      const confirmed = reading(42)
+      const transientFailure = {
+        status: 'unknown' as const,
+        error: { operation: 'contextUsage', code: 'native-error', message: 'Subprocess exited' }
+      }
+      const cache = new Map<string, any>()
+      mocks.cacheSetShared.mockImplementation((key: string, value: any) => {
+        cache.set(key, value)
+      })
+      mocks.cacheGetShared.mockImplementation((key: string) => cache.get(key))
+      mocks.cacheDeleteShared.mockImplementation((key: string) => {
+        cache.delete(key)
+      })
+
+      const getContextUsage = vi.fn().mockResolvedValueOnce(confirmed).mockResolvedValueOnce(transientFailure)
+      const connection = {
+        events: events.iterable,
+        send: vi.fn(),
+        close: vi.fn(async () => {
+          events.end()
+        }),
+        getContextUsage
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        connect: vi.fn().mockResolvedValue(connection),
+        validateSession: vi.fn()
+      })
+
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const stream = openChunkStream(service, {
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() =>
+        expect(cache.get('agent.session.context_usage.session-1')).toEqual({
+          modelId: baseTurnInput.modelId,
+          result: confirmed
+        })
+      )
+
+      events.push({ type: 'turn-complete' })
+      await expect(reader.read()).resolves.toMatchObject({ done: true })
+      await vi.waitFor(() => expect(getContextUsage).toHaveBeenCalledTimes(2))
+      await vi.waitFor(() =>
+        expect(cache.get('agent.session.context_usage.session-1')).toMatchObject({
+          modelId: baseTurnInput.modelId,
+          result: confirmed,
+          stale: true,
+          measuredAt: expect.any(Number)
+        })
+      )
+
+      events.end()
+      await vi.waitFor(() => expect(getEntry(service).connectionLoop).toBeUndefined())
+      expect(mocks.cacheDeleteShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1')
+      expect(cache.get('agent.session.context_usage.session-1')).toMatchObject({
+        modelId: baseTurnInput.modelId,
+        result: confirmed,
+        stale: true
+      })
+    })
   })
 
   it('enters native OpenCode Plan and returns to Build through the shared permission menu', async () => {
