@@ -1385,7 +1385,7 @@ describe('AiService', () => {
         providerId: 'openai-compatible',
         providerOptionsKey: customProviderId,
         providerSettings: {},
-        modelId: 'gpt-image-2-6-sunburst'
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
       }
     })
     mockGenerateImage.mockResolvedValue({ images: [] })
