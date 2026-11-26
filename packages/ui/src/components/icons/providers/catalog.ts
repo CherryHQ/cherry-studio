@@ -167,7 +167,7 @@ import { TngIcon } from './tng'
 import { TogetherIcon } from './together'
 import { TokendanceIcon } from './tokendance'
 import { TwitterIcon } from './twitter'
-import { UberllmIcon } from './uberllm/uberllm'
+import { MartllmIcon } from './martllm/martllm'
 import { UpstageIcon } from './upstage'
 import { VercelIcon } from './vercel'
 import { VertexaiIcon } from './vertexai'
@@ -345,7 +345,7 @@ export const PROVIDER_ICON_CATALOG = {
   together: TogetherIcon,
   tokendance: TokendanceIcon,
   twitter: TwitterIcon,
-  uberllm: UberllmIcon,
+  martllm: MartllmIcon,
   upstage: UpstageIcon,
   vercel: VercelIcon,
   vertexai: VertexaiIcon,

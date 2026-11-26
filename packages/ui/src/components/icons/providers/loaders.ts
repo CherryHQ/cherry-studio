@@ -167,7 +167,7 @@ export const PROVIDER_ICON_LOADERS = {
   together: () => import('./together').then(({ TogetherIcon }) => TogetherIcon),
   tokendance: () => import('./tokendance').then(({ TokendanceIcon }) => TokendanceIcon),
   twitter: () => import('./twitter').then(({ TwitterIcon }) => TwitterIcon),
-  uberllm: () => import('./uberllm/uberllm').then(({ UberllmIcon }) => UberllmIcon),
+  martllm: () => import('./martllm/martllm').then(({ MartllmIcon }) => MartllmIcon),
   upstage: () => import('./upstage').then(({ UpstageIcon }) => UpstageIcon),
   vercel: () => import('./vercel').then(({ VercelIcon }) => VercelIcon),
   vertexai: () => import('./vertexai').then(({ VertexaiIcon }) => VertexaiIcon),

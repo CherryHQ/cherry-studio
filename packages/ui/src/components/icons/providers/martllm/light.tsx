@@ -1,7 +1,7 @@
 import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
-const UberllmLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
+const MartllmLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 32 32" {...props}>
     <rect width={32} height={32} fill="#5B4EE6" rx={8} />
     <path
@@ -14,5 +14,5 @@ const UberllmLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
     <circle cx={10} cy={16} r={2.2} fill="#fff" />
   </svg>
 )
-export { UberllmLight }
-export default UberllmLight
+export { MartllmLight }
+export default MartllmLight

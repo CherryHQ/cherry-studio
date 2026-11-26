@@ -814,27 +814,27 @@
     {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "UberLLM - AI model provider",
+      "description": "MartLLM - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "https://api.uberllm.dev"
+          "baseUrl": "https://api.martllm.com"
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.uberllm.dev"
+          "baseUrl": "https://api.martllm.com"
         }
       },
-      "id": "uberllm",
+      "id": "martllm",
       "metadata": {
         "website": {
-          "apiKey": "https://uberllm.dev/dashboard/keys",
-          "docs": "https://uberllm.dev/docs",
-          "models": "https://uberllm.dev/models",
-          "official": "https://uberllm.dev"
+          "apiKey": "https://martllm.com/dashboard/keys",
+          "docs": "https://martllm.com/docs",
+          "models": "https://martllm.com/models",
+          "official": "https://martllm.com"
         }
       },
-      "name": "UberLLM"
+      "name": "MartLLM"
     },
     {
       "availableInEditions": ["global", "cn"],

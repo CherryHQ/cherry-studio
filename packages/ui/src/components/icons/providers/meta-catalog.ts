@@ -164,7 +164,7 @@ import { meta as tngMeta } from './tng/meta'
 import { meta as togetherMeta } from './together/meta'
 import { meta as tokendanceMeta } from './tokendance/meta'
 import { meta as twitterMeta } from './twitter/meta'
-import { meta as uberllmMeta } from './uberllm/meta'
+import { meta as martllmMeta } from './martllm/meta'
 import { meta as upstageMeta } from './upstage/meta'
 import { meta as vercelMeta } from './vercel/meta'
 import { meta as vertexaiMeta } from './vertexai/meta'
@@ -342,7 +342,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   together: togetherMeta,
   tokendance: tokendanceMeta,
   twitter: twitterMeta,
-  uberllm: uberllmMeta,
+  martllm: martllmMeta,
   upstage: upstageMeta,
   vercel: vercelMeta,
   vertexai: vertexaiMeta,

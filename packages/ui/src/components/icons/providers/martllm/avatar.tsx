@@ -2,15 +2,15 @@ import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/a
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type IconAvatarProps } from '../../types'
-import { UberllmLight } from './light'
+import { MartllmLight } from './light'
 
-export function UberllmAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
+export function MartllmAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
   return (
     <Avatar
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground">
-        <UberllmLight style={{ width: size, height: size }} />
+        <MartllmLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

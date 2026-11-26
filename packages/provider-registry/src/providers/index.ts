@@ -62,7 +62,7 @@ import p_together from './together'
 import p_tokendance from './tokendance'
 import p_tokenhub from './tokenhub'
 import type { Provider } from './types'
-import p_uberllm from './uberllm'
+import p_martllm from './martllm'
 import p_vertexai from './vertexai'
 import p_voyageai from './voyageai'
 import p_xirang from './xirang'
@@ -92,7 +92,7 @@ export const PROVIDERS: Provider[] = [
   p_ollama,
   p_radeon_cloud,
   p_tokendance,
-  p_uberllm,
+  p_martllm,
   p_new_api,
   p_lmstudio,
   p_litellm,
