@@ -853,6 +853,7 @@
   "chat.input.followup_queue.pause": "Pauză trimitere automată",
   "chat.input.followup_queue.remove": "Elimină",
   "chat.input.followup_queue.resume": "Reluare trimitere automată",
+  "chat.input.followup_queue.stale": "Coada s-a modificat. Verificați coada curentă și încercați din nou.",
   "chat.input.followup_queue.steer": "Trimite în tura curentă",
   "chat.input.followup_queue.title": "În coadă ({{count}})",
   "chat.input.generate_image": "Generează imagine",

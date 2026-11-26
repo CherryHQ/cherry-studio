@@ -853,6 +853,7 @@
   "chat.input.followup_queue.pause": "暂停自动发送",
   "chat.input.followup_queue.remove": "移除",
   "chat.input.followup_queue.resume": "恢复自动发送",
+  "chat.input.followup_queue.stale": "队列已变化，请查看当前队列后重试。",
   "chat.input.followup_queue.steer": "插入消息",
   "chat.input.followup_queue.title": "排队中 ({{count}})",
   "chat.input.generate_image": "生成图片",

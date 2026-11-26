@@ -853,6 +853,7 @@
   "chat.input.followup_queue.pause": "Sospendi invio automatico",
   "chat.input.followup_queue.remove": "Rimuovi",
   "chat.input.followup_queue.resume": "Riprendi invio automatico",
+  "chat.input.followup_queue.stale": "La coda è cambiata. Controllala e riprova.",
   "chat.input.followup_queue.steer": "invia al turno attuale",
   "chat.input.followup_queue.title": "In coda ({{count}})",
   "chat.input.generate_image": "Genera immagine",

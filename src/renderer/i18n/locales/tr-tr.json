@@ -853,6 +853,7 @@
   "chat.input.followup_queue.pause": "Otomatik göndermeyi duraklat",
   "chat.input.followup_queue.remove": "Kaldır",
   "chat.input.followup_queue.resume": "Otomatik göndermeyi sürdür",
+  "chat.input.followup_queue.stale": "Kuyruk değişti. Güncel kuyruğu kontrol edip yeniden deneyin.",
   "chat.input.followup_queue.steer": "yönlendir",
   "chat.input.followup_queue.title": "Kuyrukta ({{count}})",
   "chat.input.generate_image": "Görsel oluştur",

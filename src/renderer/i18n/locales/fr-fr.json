@@ -853,6 +853,7 @@
   "chat.input.followup_queue.pause": "Mettre en pause l'envoi automatique",
   "chat.input.followup_queue.remove": "Retirer",
   "chat.input.followup_queue.resume": "Reprise de l'envoi automatique",
+  "chat.input.followup_queue.stale": "La file d’attente a changé. Vérifiez-la et réessayez.",
   "chat.input.followup_queue.steer": "Envoyer dans le tour en cours",
   "chat.input.followup_queue.title": "Mis en file d’attente ({{count}})",
   "chat.input.generate_image": "Générer une image",
