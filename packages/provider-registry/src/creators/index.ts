@@ -18,7 +18,9 @@ import black_forest_labs from './black-forest-labs'
 import bria from './bria'
 import bytedance from './bytedance'
 import cogito from './cogito'
+import cognition from './cognition'
 import cohere from './cohere'
+import cursor from './cursor'
 import deepseek from './deepseek'
 import elevenlabs from './elevenlabs'
 import google from './google'
@@ -83,8 +85,10 @@ export const CREATORS: Creator[] = [
   black_forest_labs,
   bria,
   bytedance,
+  cognition,
   cogito,
   cohere,
+  cursor,
   deepseek,
   elevenlabs,
   google,

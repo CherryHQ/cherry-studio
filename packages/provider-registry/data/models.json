@@ -6959,6 +6959,172 @@
       "ownedBy": "bytedance"
     },
     {
+      "capabilities": ["function-call", "reasoning"],
+      "family": "swe",
+      "id": "swe-1-6",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "SWE-1.6",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "cognition"
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "family": "swe",
+      "id": "swe-1-7",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "SWE-1.7",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "cognition"
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "family": "swe",
+      "id": "swe-2",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "SWE-2",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "cognition",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["medium", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["medium", "high", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "family": "swe",
+      "id": "swe-2-1",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "SWE-2.1",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "cognition",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "medium",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "defaultEffort": "medium",
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "family": "swe",
+      "id": "swe-2-1-ultrafast",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "SWE-2.1 Ultrafast",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "cognition",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 25
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "default": "medium",
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "defaultEffort": "medium",
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "family": "swe",
+      "id": "swe-2-flash",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "SWE-2 Flash",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "cognition",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.125
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["medium", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["medium", "high", "max"]
+      }
+    },
+    {
       "capabilities": ["function-call"],
       "contextWindow": 131072,
       "id": "c4ai-aya-expanse-32b",
@@ -7480,6 +7646,58 @@
       "metadata": {},
       "name": "Tiny Aya Water",
       "ownedBy": "cohere"
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 200000,
+      "family": "composer",
+      "id": "composer-2-5",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Composer 2.5",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "cursor",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call"],
+      "contextWindow": 200000,
+      "family": "composer",
+      "id": "composer-2-5-fast",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Composer 2.5 Fast",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "cursor",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        }
+      }
     },
     {
       "capabilities": ["function-call", "structured-output"],
@@ -24490,5 +24708,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "f11806299d64478c"
+  "version": "bc8875f1bb3b81cc"
 }
