@@ -87,12 +87,32 @@ export interface KnowledgeSearchUnit {
   text: string
 }
 
+/** Business-owned evidence used to validate a decision against the disposable index. */
+export interface KnowledgeIndexGovernanceBinding {
+  unitId: string
+  materialId: string
+  sourceContentHash: string
+  charStart: number
+  charEnd: number
+  originalText: string
+  excluded: boolean
+  /** Corrections stay suppressed until a later layer can publish matching lexical/vector revisions. */
+  pendingOverride: boolean
+}
+
+export interface KnowledgeIndexSearchExclusions {
+  unitIds: string[]
+  materialIds: string[]
+}
+
 export interface KnowledgeIndexSearchInput {
   queryText: string
   /** Pre-computed query embedding. Required for 'hybrid'/'vector'; ignored for 'bm25'. */
   queryEmbedding?: number[]
   mode: KnowledgeIndexSearchMode
   topK: number
+  /** Trusted Main policy, applied within every lane before LIMIT or RRF candidate selection. */
+  exclusions?: KnowledgeIndexSearchExclusions
   /** RRF weight for the vector list in 'hybrid' (0 = pure BM25, 1 = pure vector). Default 0.5. */
   alpha?: number
 }

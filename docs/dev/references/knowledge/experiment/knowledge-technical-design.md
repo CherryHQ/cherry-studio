@@ -170,7 +170,14 @@ or return a Promise from an index transaction callback.
 `KnowledgeQueryService` chooses BM25 for a base without an embedding model and
 hybrid for a vector-capable base. It then filters candidates through completed
 same-base items, optionally reranks, trims to `documentCount ?? 10`, applies the
-threshold only to relevance scores, and assigns ranks.
+threshold only to relevance scores, and assigns ranks. Main-owned governance
+exclusions are applied in every SQL lane before candidate limits and hybrid
+fusion. Exact source/unit mismatches pause the affected material; pending
+corrections suppress their unit rather than expose an unprepared revision.
+The query service revalidates durable revisions and governed index bindings
+before reranking and return, failing with a retryable conflict on change rather
+than automatically repeating provider work. See the [governance reference](../chunk-governance-storage.md)
+for remaining mutation, publication, review and restore boundaries.
 
 Concept reads resolve `material.relative_path`, revalidate item visibility, and
 read the material's full `content.text`. The organization tree is built from the
