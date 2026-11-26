@@ -2162,31 +2162,36 @@ export class AgentSessionRuntimeService extends BaseService {
     this.isShuttingDown = true
     for (const listener of [...this.shutdownListeners]) listener()
     this.startupRecovery.resolve()
-    await Promise.allSettled([...this.replyRecoveries, this.recovery])
-    await this.forks.cancel()
-    this.disposeEditInputs()
-    const streamManager = application.get('AiStreamManager')
-    for (const entry of this.allEntries()) {
-      if (this.liveTurn(entry)) streamManager.abort(entry.topicId, 'agent-session-runtime-stop')
-    }
-    await this.closeAll()
-    try {
-      toolApprovalRegistry.clear('agent-session-runtime-stop')
-    } catch (error) {
-      logger.warn('Failed to clear agent runtime approvals during stop', { error })
-    }
     // LifecycleManager allows 5s before `stop timed out — proceeding` and
     // orphans _doStop mid-teardown (#23421: closeQuery/query.return +
     // subprocess exit + pending connectionAttempt overruns the budget).
-    // Bound the whole teardown (including an edit waiting on native close via
-    // `forks.cancel()`) so shutdown settles instead of racing the process exit.
-    // Late work keeps its ownership: `closeRuntimeConnection` skips
-    // `failedClosures` poisoning while shutting down, and a late connect
-    // self-closes against `entry.closing` (#23519 review).
+    // Bound the whole teardown (including recovery waits and an edit waiting
+    // on native close via `forks.cancel()`) so shutdown settles instead of
+    // racing the process exit. Late work keeps its ownership:
+    // `closeRuntimeConnection` skips `failedClosures` poisoning while
+    // shutting down, and a late connect self-closes against `entry.closing`
+    // (#23519 review inv_d7958f4abc8bb073: recovery/cancel/close each run
+    // once inside this deadline).
     let stopTimer: ReturnType<typeof setTimeout> | undefined
     try {
       await Promise.race([
-        Promise.all([this.forks.cancel(), this.closeAll()]).finally(() => {
+        (async () => {
+          const pendingRecovery = [...this.replyRecoveries]
+          if (this.recovery) pendingRecovery.push(this.recovery)
+          await Promise.allSettled(pendingRecovery)
+          await this.forks.cancel()
+          this.disposeEditInputs()
+          const streamManager = application.get('AiStreamManager')
+          for (const entry of this.allEntries()) {
+            if (this.liveTurn(entry)) streamManager.abort(entry.topicId, 'agent-session-runtime-stop')
+          }
+          await this.closeAll()
+          try {
+            toolApprovalRegistry.clear('agent-session-runtime-stop')
+          } catch (error) {
+            logger.warn('Failed to clear agent runtime approvals during stop', { error })
+          }
+        })().finally(() => {
           if (stopTimer) clearTimeout(stopTimer)
         }),
         new Promise<void>((resolve) => {
@@ -2206,16 +2211,44 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onDestroy(): Promise<void> {
     this.isShuttingDown = true
-    await Promise.allSettled([...this.replyRecoveries, this.recovery])
-    childTimelines.subscriptions.dispose()
-    await this.forks.cancel()
-    this._onApprovalRequested.dispose()
-    this.disposeEditInputs()
-    await this.closeAll()
+    for (const listener of [...this.shutdownListeners]) listener()
+    this.startupRecovery.resolve()
+    // Same 4s bound as onStop: recovery, cancellation, and close waits each
+    // run once inside the deadline so an edit already waiting on native close
+    // cannot hold destroy past Lifecycle's budget (#23519 review
+    // inv_d7958f4abc8bb073).
+    let destroyTimer: ReturnType<typeof setTimeout> | undefined
     try {
-      toolApprovalRegistry.clear('agent-session-runtime-destroy')
-    } catch (error) {
-      logger.warn('Failed to clear agent runtime approvals during destroy', { error })
+      await Promise.race([
+        (async () => {
+          const pendingRecovery = [...this.replyRecoveries]
+          if (this.recovery) pendingRecovery.push(this.recovery)
+          await Promise.allSettled(pendingRecovery)
+          childTimelines.subscriptions.dispose()
+          await this.forks.cancel()
+          this._onApprovalRequested.dispose()
+          this.disposeEditInputs()
+          await this.closeAll()
+          try {
+            toolApprovalRegistry.clear('agent-session-runtime-destroy')
+          } catch (error) {
+            logger.warn('Failed to clear agent runtime approvals during destroy', { error })
+          }
+        })().finally(() => {
+          if (destroyTimer) clearTimeout(destroyTimer)
+        }),
+        new Promise<void>((resolve) => {
+          destroyTimer = setTimeout(() => {
+            const seen = new Set([...this.entries.keys(), ...this.closingSessions.keys()])
+            logger.warn('AgentSessionRuntimeService closeAll timed out during destroy — proceeding', {
+              sessions: seen.size
+            })
+            resolve()
+          }, 4000)
+        })
+      ])
+    } finally {
+      if (destroyTimer) clearTimeout(destroyTimer)
     }
     this._onTurnTerminal.dispose()
     this._onRuntimeIdle.dispose()
