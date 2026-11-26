@@ -107,6 +107,8 @@ const RECENT_TOPIC_LIMIT = 5
 const STATS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 export class AssistantDataService {
+  private readonly memoryAccessRevoked = new Emitter<string>()
+  readonly onMemoryAccessRevoked = this.memoryAccessRevoked.event
   private readonly changed = new Emitter<readonly string[]>()
   readonly onChanged = this.changed.event
 
@@ -707,6 +709,7 @@ export class AssistantDataService {
     })
 
     logger.info('Updated assistant', { id, changes: Object.keys(dto) })
+    if (settingsPatch?.enableSharedMemory === false) this.memoryAccessRevoked.fire(id)
     this.notifyReadModelChange([id], 'projection')
 
     return rowToAssistant(row, nextRelations, modelName, this.getAvatarIds([id]).get(id))
@@ -789,6 +792,7 @@ export class AssistantDataService {
     }
     topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership', { deleted: true })
     this.notifyReadModelChange([id], 'membership')
+    this.memoryAccessRevoked.fire(id)
     pinService.notifyPurged()
 
     logger.info(options.permanent === true ? 'Permanently deleted assistant' : 'Moved assistant to Recycle Bin', {
@@ -840,6 +844,7 @@ export class AssistantDataService {
 
     this.notifyReadModelChange([id], 'membership')
     logger.info('Restored assistant', { id })
+    this.memoryAccessRevoked.fire(id)
     const relations = this.getRelationIdsByAssistantIds([id])
     return rowToAssistant(
       row,
