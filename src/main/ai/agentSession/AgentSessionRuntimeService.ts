@@ -335,6 +335,7 @@ type AgentSessionRuntimeEntry = {
   /** Follow-up placements waiting for the current reply to open; each starts its own reply, in order. */
   deferredPlacements?: (readonly string[])[]
   recoveryHeadless?: boolean
+  compactionAnchorId?: string
   /** Native answers can arrive while their queued placement still awaits a reply. */
   pendingRunCheckpoints?: Map<string, RuntimeForkAnchor>
   /** Pending input outcomes share one aggregate per Run provisionally settled by a queued placement. */
@@ -3043,6 +3044,12 @@ export class AgentSessionRuntimeService extends BaseService {
     trigger: AgentSessionCompactionTrigger | undefined
   ): void {
     this.invalidateContextUsage(entry)
+    entry.compactionAnchorId = crypto.randomUUID()
+    this.deliverRuntimeChunk(entry, {
+      type: 'data-compaction-anchor',
+      id: entry.compactionAnchorId,
+      data: { status: 'compacting', phase: 'agent-session', trigger, startedAt: new Date().toISOString() }
+    })
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: true })
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
       status: 'compacting',
@@ -3101,16 +3108,14 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
-    this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
-
-    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
-    if (anchor && turn && this.isTurnLive(entry, turn)) {
+    if (anchor || entry.compactionAnchorId)
       this.deliverRuntimeChunk(entry, {
         type: 'data-compaction-anchor',
-        id: crypto.randomUUID(),
-        data: anchor
+        id: entry.compactionAnchorId ?? crypto.randomUUID(),
+        data: anchor ?? { status: 'skipped', phase: 'agent-session' }
       })
-    }
+    delete entry.compactionAnchorId
+    this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
 
     // Completed-run metrics ride the `data-compaction-anchor` chunk above (the UI's source); the cache
     // state only tracks `status`. A no-anchor success (which can follow the boundary, or arrive on its
@@ -3139,6 +3144,13 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private settleCompactionError(entry: AgentSessionRuntimeEntry, error?: string): void {
+    if (entry.compactionAnchorId)
+      this.deliverRuntimeChunk(entry, {
+        type: 'data-compaction-anchor',
+        id: entry.compactionAnchorId,
+        data: { status: 'skipped', phase: 'agent-session' }
+      })
+    delete entry.compactionAnchorId
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
     if (error) logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
     application

@@ -1,7 +1,10 @@
+import { isHiddenPart, isTimelineMarkerPart } from '@renderer/components/chat/messages/blocks/messagePartPresentation'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 export interface AgentTimelineRow {
   id: string
+  kind?: 'content' | 'marker' | 'interrupted'
+  showHeader?: boolean
   message: CherryUIMessage
   parts: CherryMessagePart[]
   partIds?: readonly string[]
@@ -29,7 +32,7 @@ export function projectAgentTimeline(
       rows.push({ row: { id: message.id, message, parts: current.parts, partIds: ids }, anchor: index, order: -1 })
       return
     }
-    const groups: { anchor: number; parts: CherryMessagePart[]; ids: string[] }[] = []
+    const groups: { anchor: number; kind: 'content' | 'marker'; parts: CherryMessagePart[]; ids: string[] }[] = []
     current.parts.forEach((part, partIndex) => {
       const pos = current.partPositions?.[partIndex]
       let anchor = index
@@ -38,29 +41,56 @@ export function projectAgentTimeline(
           if (boundary.pos >= pos) break
           anchor = Math.max(anchor, boundary.index)
         }
+      const kind = isTimelineMarkerPart(part) ? 'marker' : 'content'
       let group = groups.at(-1)
-      if (!group || group.anchor !== anchor) {
-        group = { anchor, parts: [], ids: [] }
+      if (!group || group.anchor !== anchor || group.kind !== kind || kind === 'marker') {
+        group = { anchor, kind, parts: [], ids: [] }
         groups.push(group)
       }
       group.parts.push(part)
       group.ids.push(ids[partIndex])
     })
-    if (!groups.length) groups.push({ anchor: index, parts: [], ids: [] })
-    groups.forEach((group, part) =>
+    if (!groups.length && message.metadata?.status !== 'paused')
+      groups.push({ anchor: index, kind: 'content', parts: [], ids: [] })
+    const contents = groups.filter((group) => group.kind === 'content')
+    const firstContent = contents[0]
+    const visible = contents.filter((group) => group.parts.some((part) => !isHiddenPart(part)))
+    groups.forEach((group) =>
       rows.push({
         anchor: group.anchor,
         order: index,
         row: {
-          id: part === 0 ? message.id : `${message.id}:part:${group.ids[0]}`,
+          id:
+            group.kind === 'marker'
+              ? `${message.id}:marker:${group.ids[0]}`
+              : group === firstContent
+                ? message.id
+                : `${message.id}:part:${group.ids[0]}`,
+          kind: group.kind,
+          showHeader: group === visible[0],
           message,
           parts: group.parts,
           partIds: group.ids,
           sourceMessageId: message.id,
-          isRunBoundary: part === groups.length - 1
+          isRunBoundary: group === visible.at(-1)
         }
       })
     )
+    if (message.metadata?.status === 'paused')
+      rows.push({
+        anchor: groups.at(-1)?.anchor ?? index,
+        order: index,
+        row: {
+          id: `${message.id}:interrupted`,
+          kind: 'interrupted',
+          showHeader: false,
+          message,
+          parts: [],
+          partIds: [],
+          sourceMessageId: message.id,
+          isRunBoundary: false
+        }
+      })
   })
   return rows
     .sort((a, b) => a.anchor - b.anchor || a.order - b.order)
@@ -69,6 +99,8 @@ export function projectAgentTimeline(
       return before &&
         before.message === row.message &&
         before.isRunBoundary === row.isRunBoundary &&
+        before.kind === row.kind &&
+        before.showHeader === row.showHeader &&
         before.parts.length === row.parts.length &&
         before.parts.every((part, index) => part === row.parts[index]) &&
         before.partIds?.length === row.partIds?.length &&

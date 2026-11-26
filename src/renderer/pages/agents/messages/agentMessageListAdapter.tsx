@@ -261,7 +261,11 @@ export function useAgentMessageListProviderValue({
     const active = new Set(streamingLayers.liveMessageIds)
     return {
       historyPartsByMessageId: timeline.parts,
-      liveMessageIds: timeline.rows.filter((row) => active.has(row.sourceMessageId ?? row.id)).map((row) => row.id)
+      liveMessageIds: timeline.rows
+        .filter(
+          (row) => row.kind !== 'marker' && row.kind !== 'interrupted' && active.has(row.sourceMessageId ?? row.id)
+        )
+        .map((row) => row.id)
     }
   }, [streamingLayers, timeline])
   const visibleRows = useMemo(
@@ -277,6 +281,8 @@ export function useAgentMessageListProviderValue({
           ...toMessageListItem(row.message, { assistantId: resolvedAgentId, topicId: topic.id }),
           id: row.id,
           partIds: row.partIds,
+          presentation: row.kind,
+          showHeader: row.showHeader,
           ...(row.sourceMessageId && { parentId: null }),
           sourceMessageId: row.sourceMessageId,
           isRunBoundary: row.isRunBoundary,
@@ -491,8 +497,12 @@ export function useAgentMessageListProviderValue({
           ? {
               ...messageTail,
               messageId:
-                timeline.rows.findLast((row) => (row.sourceMessageId ?? row.id) === messageTail.messageId)?.id ??
-                messageTail.messageId
+                timeline.rows.findLast(
+                  (row) =>
+                    row.kind !== 'marker' &&
+                    row.kind !== 'interrupted' &&
+                    (row.sourceMessageId ?? row.id) === messageTail.messageId
+                )?.id ?? messageTail.messageId
             }
           : undefined,
       afterMessages: normalInteractionsEnabled ? afterMessages : undefined,

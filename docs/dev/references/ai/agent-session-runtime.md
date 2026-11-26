@@ -371,8 +371,15 @@ The first segment retains the Run's message ID; later keys combine the Run ID wi
 first part ID. `sourceMessageId` retains the durable owner for approvals, usage and fork. Only the
 last segment exposes the completed Run's fork boundary and statistics. Existing open text and tools
 stay in their original segment; a steer never cuts a string or moves a tool into a new parent.
+Only the first visible content segment owns the Run identity header; subsequent segments keep their
+body and tool parents without repeating it. Boundary compaction parts are separate marker rows with
+no assistant header, action footer or selection checkbox. In-loop compaction remains inside its process
+group. A paused Run projects one stable interrupted marker from its persisted terminal status.
+
 The segment layout selects stable part IDs from the shared projection reader. Text and tool progress
 continue through keyed part subscriptions; only new membership or a baseline changes the list projection.
+Compaction start and completion update one DataUIPart ID at one position. An unchanged or cancelled
+compaction settles that part as skipped; the marker does not become an assistant reply.
 
 A message page whose input references an older Run expands through that Run and its intervening
 inputs. Its cursor follows the expanded boundary. The requested limit bounds the initial window;

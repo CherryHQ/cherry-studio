@@ -78,3 +78,61 @@ describe('Agent timeline display', () => {
     expect(rows[1].parts).toEqual(text.parts)
   })
 })
+
+it('assigns one identity header and one action boundary across all content segments of a Run', () => {
+  const rows = projectAgentTimeline([input('prompt', 1), run, input('steer', 4)], (message) => message)
+  expect(rows.filter((row) => row.showHeader).map((row) => row.id)).toEqual(['run'])
+  expect(rows.filter((row) => row.isRunBoundary).map((row) => row.id)).toEqual(['run:part:answer'])
+})
+
+it('projects a compaction-only reply as a marker without an assistant identity or action boundary', () => {
+  const compact: CherryUIMessage = {
+    id: 'compact',
+    role: 'assistant',
+    partIds: ['fold'],
+    partPositions: [2],
+    parts: [
+      { type: 'data-compaction-anchor', id: 'native-fold', data: { phase: 'agent-session', status: 'compacting' } }
+    ]
+  }
+  const before = projectAgentTimeline([input('command', 1), compact, input('steer', 3)], (message) => message)
+  expect(before.map((row) => [row.id, row.kind])).toEqual([
+    ['command', undefined],
+    ['compact:marker:fold', 'marker'],
+    ['steer', undefined]
+  ])
+  expect(before.filter((row) => row.showHeader || row.isRunBoundary)).toEqual([])
+  const done: CherryUIMessage = {
+    ...compact,
+    parts: [{ type: 'data-compaction-anchor', id: 'native-fold', data: { phase: 'agent-session', status: 'done' } }]
+  }
+  expect(projectAgentTimeline([input('command', 1), done, input('steer', 3)], (message) => message)[1].id).toBe(
+    before[1].id
+  )
+})
+
+it('preserves an existing content segment when a marker and a continuation arrive, and adds one paused boundary', () => {
+  const original: CherryUIMessage = {
+    ...run,
+    partIds: run.partIds!.slice(0, 2),
+    parts: run.parts.slice(0, 2),
+    partPositions: [2, 3]
+  }
+  const before = projectAgentTimeline([original], (message) => message)
+  const after: CherryUIMessage = {
+    ...original,
+    metadata: { status: 'paused' },
+    partIds: [...original.partIds!, 'fold', 'next'],
+    partPositions: [2, 3, 4, 5],
+    parts: [
+      ...original.parts,
+      { type: 'data-compaction-anchor', data: { status: 'done', phase: 'agent-session' } },
+      { type: 'text', text: 'Continuation' }
+    ]
+  }
+  const rows = projectAgentTimeline([after], (message) => message, before)
+  expect(rows.map((row) => row.id)).toEqual(['run', 'run:marker:fold', 'run:part:next', 'run:interrupted'])
+  expect(rows[0].partIds).toEqual(before[0].partIds)
+  expect(rows.filter((row) => row.showHeader)).toHaveLength(1)
+  expect(rows.at(-1)?.kind).toBe('interrupted')
+})

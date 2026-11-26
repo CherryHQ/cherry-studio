@@ -1585,3 +1585,21 @@ it.each(['before', 'after'] as const)(
     expect(saved.data.parts?.[0]).toEqual(text('', 'Partial answer').parts[0])
   }
 )
+
+it('publishes compaction progress and completion on one part without moving its timeline position', async () => {
+  const changes: AgentPartChange[] = []
+  const f = await fixture(undefined, false, 'pi', 0, (change) => changes.push(change))
+  await f.emit({ type: 'compaction-start', trigger: 'manual' })
+  const added = changes.find((part) => part.type === 'part-add')
+  expect(added).toMatchObject({ part: { type: 'data-compaction-anchor', data: { status: 'compacting' } } })
+  expect(storedParts(f.reply.id)).toEqual([])
+  await f.emit({ type: 'compaction-complete', anchor: { phase: 'agent-session', status: 'done' } })
+  expect(changes).toContainEqual(
+    expect.objectContaining({
+      type: 'part-put',
+      partId: added && 'partId' in added ? added.partId : undefined,
+      part: expect.objectContaining({ data: { phase: 'agent-session', status: 'done' } })
+    })
+  )
+  expect(storedParts(f.reply.id)).toHaveLength(1)
+})
