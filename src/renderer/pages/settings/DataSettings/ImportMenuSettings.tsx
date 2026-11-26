@@ -1,7 +1,7 @@
-import { type FC } from 'react'
+import type { FC, PropsWithChildren, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, InfoTooltip, RowFlex } from '@cherrystudio/ui'
+import { Avatar, AvatarImage, Button, InfoTooltip, RowFlex } from '@cherrystudio/ui'
 import workbuddyIcon from '@renderer/assets/images/apps/workbuddy.png'
 import { CliIcon } from '@renderer/components/icons/CliIcon'
 import {
@@ -18,6 +18,17 @@ import { CodeCli } from '@shared/types/codeCli'
 import { AgentImportPopup } from './AgentImportPopup'
 import ImportPopup from './ImportPopup'
 import LocalHistoryImportPopup from './LocalHistoryImportPopup'
+
+function HistoryImportTitle({ icon, children }: PropsWithChildren<{ icon: ReactNode }>) {
+  return (
+    <SettingRowTitle className="gap-4">
+      <Avatar aria-hidden="true" className="size-7 rounded-[32%] bg-muted ring-1 ring-border">
+        {icon}
+      </Avatar>
+      {children}
+    </SettingRowTitle>
+  )
+}
 
 const ImportMenuOptions: FC = () => {
   const { t } = useTranslation()
@@ -70,40 +81,36 @@ const ImportMenuOptions: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-import-local-claude-code" className="scroll-mt-6 py-4">
-          <SettingRowTitle className="gap-4">
-            <CliIcon id={CodeCli.CLAUDE_CODE} />
+          <HistoryImportTitle icon={<CliIcon id={CodeCli.CLAUDE_CODE} />}>
             {t('history_import.source.claude_code')}
-          </SettingRowTitle>
+          </HistoryImportTitle>
           <Button variant="outline" onClick={() => void LocalHistoryImportPopup.show({ source: 'claude-code' })}>
             {t('history_import.start')}
           </Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-import-local-codex" className="scroll-mt-6 py-4">
-          <SettingRowTitle className="gap-4">
-            <CliIcon id={CodeCli.OPENAI_CODEX} />
+          <HistoryImportTitle icon={<CliIcon id={CodeCli.OPENAI_CODEX} />}>
             {t('history_import.source.codex')}
-          </SettingRowTitle>
+          </HistoryImportTitle>
           <Button variant="outline" onClick={() => void LocalHistoryImportPopup.show({ source: 'codex' })}>
             {t('history_import.start')}
           </Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-import-local-opencode" className="scroll-mt-6 py-4">
-          <SettingRowTitle className="gap-4">
-            <CliIcon id={CodeCli.OPEN_CODE} />
+          <HistoryImportTitle icon={<CliIcon id={CodeCli.OPEN_CODE} />}>
             {t('history_import.source.opencode')}
-          </SettingRowTitle>
+          </HistoryImportTitle>
           <Button variant="outline" onClick={() => void LocalHistoryImportPopup.show({ source: 'opencode' })}>
             {t('history_import.start')}
           </Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-import-local-workbuddy" className="scroll-mt-6 py-4">
-          <SettingRowTitle className="gap-4">
-            <img src={workbuddyIcon} alt="" className="size-7 shrink-0 scale-125" />
+          <HistoryImportTitle icon={<AvatarImage src={workbuddyIcon} alt="" className="scale-125" />}>
             {t('history_import.source.workbuddy')}
-          </SettingRowTitle>
+          </HistoryImportTitle>
           <Button
             variant="outline"
             disabled={!import.meta.env.DEV}
@@ -114,10 +121,9 @@ const ImportMenuOptions: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-data-import-local-dsh" className="scroll-mt-6 py-4">
-          <SettingRowTitle className="gap-4">
-            <CliIcon id={CodeCli.DEEPSEEK_HARNESS} />
+          <HistoryImportTitle icon={<CliIcon id={CodeCli.DEEPSEEK_HARNESS} />}>
             {t('code.cli_tools.deepseek_harness')}
-          </SettingRowTitle>
+          </HistoryImportTitle>
           <Button
             variant="outline"
             disabled={!import.meta.env.DEV}
