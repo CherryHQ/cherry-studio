@@ -35,6 +35,16 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { RuntimeForkInput, RuntimeForkResult } from './fork'
 import type { RuntimeWorkspaceRelocation } from './workspaceRelocation'
 
+export interface UnavailableNativeContext {
+  status: 'native-context-unavailable'
+  context: AgentSessionContextRow
+  reason: string
+}
+
+export function unavailableNativeContext(context: AgentSessionContextRow, reason: string): UnavailableNativeContext {
+  return { status: 'native-context-unavailable', context, reason }
+}
+
 /**
  * Agent-session usage has exactly one capture owner per runtime route.
  * Direct/external SDK routes emit per-assistant-message invocation records;

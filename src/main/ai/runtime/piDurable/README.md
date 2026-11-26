@@ -49,6 +49,10 @@ interrupted association write without guessing by history or replacing a missing
 Creation initializes and closes a private staging store before exclusively publishing
 its final path. An initialization failure before publication leaves the same reservation
 retryable. Reopening checks identity and never creates or replaces a SQLite file.
+When a new turn encounters a missing bound file or conversation, the driver detaches
+the lost branch binding and opens a fresh store through the normal creation path.
+The [Session history reader](../../../../../docs/dev/references/ai/agent-session-runtime.md#first-submission-without-native-history)
+supplies the selected branch's reference context.
 
 Pi Durable owns its transcript, task graph, submissions and behavior records. Product
 messages retain display history. For a branch without previous native input, the Session host
@@ -155,6 +159,8 @@ covers boot delivery recovery, including a Session that cannot connect.
 `durableMcp.test.ts` runs an actual linked MCP server through the native tool loop.
 The storage and child-projection suites cover strict reopen, interrupted binding
 recovery and asynchronous archive reconciliation.
+The desktop connection suite verifies continuation from retained branch messages after
+losing a branch binding, bound store, or conversation, and ordinary native reuse after reopening.
 
 `tests/e2e/smoke/piDurableTurnAuthority.test.ts` runs the built Electron app against a local mock
 provider: a queued follow-up, steer, Stop with subagent content and the next message, and killing

@@ -193,7 +193,10 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
             if (!config || closed) return undefined
             const owner = build(config, sessionId, false)
             try {
-              await owner.refresh(sessionId)
+              if (!(await owner.refresh(sessionId))) {
+                live.delete(owner)
+                return undefined
+              }
             } catch (error) {
               live.delete(owner)
               throw error

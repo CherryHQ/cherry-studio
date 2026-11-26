@@ -6,6 +6,8 @@
  */
 
 import type { JSONArray } from '@ai-sdk/provider'
+import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages'
+import type { ProviderMetadata } from 'ai'
 
 import { application } from '@application'
 
@@ -56,4 +58,5 @@ export const openRouterReasoningCache: IReasoningCache<JSONArray> = {
 export interface ReasoningCacheReaders {
   googleReasoningCache?: Pick<typeof googleReasoningCache, 'get'>
   openRouterReasoningCache?: Pick<typeof openRouterReasoningCache, 'get'>
+  getReplayMetadata?: (block: ContentBlockParam) => ProviderMetadata | null | undefined
 }

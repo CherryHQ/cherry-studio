@@ -51,6 +51,7 @@ import type {
   AgentRuntimeTraceContext,
   AgentRuntimeCommand
 } from '../types'
+import { type UnavailableNativeContext, unavailableNativeContext } from '../types'
 import type { DurableBackend, DurableRoot } from './DurableBackend'
 import type { prepareDurableBranch } from './durableContext'
 import { saveDurableRequest } from './durableRequest'
@@ -145,7 +146,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.access = access
   }
 
-  async start(recoverChildren: readonly string[] = []): Promise<this> {
+  async start(recoverChildren: readonly string[] = []): Promise<this | UnavailableNativeContext> {
     const { owner, root } = this.access!
     this.desktop = root.desktop
     this.context = root.context
@@ -169,6 +170,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       backendId: runtimeId(this.context.backendId),
       id: runtimeId(this.context.nativeThreadId!)
     })
+    if (opened.status === 'rejected' && opened.error.code === 'not-found')
+      return unavailableNativeContext(root.context, opened.error.message)
     if (opened.status !== 'confirmed') throw new Error(opened.error.message)
     this.handle = opened.value
     this.context = contexts.bindContext(this.context.id, this.handle.thread.id)
