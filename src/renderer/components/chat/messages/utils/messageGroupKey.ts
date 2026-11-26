@@ -39,7 +39,7 @@ export function withHistoricalProcessGroups(
         continue
       }
       const layout = projectCompletedMessageParts(parts.map((part, index) => ({ part, index })))
-      if (layout.resultEntries.length || layout.reportEntries.length) {
+      if (layout.items.some((item) => item.kind === 'part') || layout.reportEntries.length) {
         groupId = undefined
         continue
       }

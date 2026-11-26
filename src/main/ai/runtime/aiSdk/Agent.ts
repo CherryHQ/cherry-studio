@@ -381,7 +381,15 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         params.mediaCapabilities,
         params.tools,
         params.toolResultMediaCapabilities,
-        params.contextOwner !== 'caller' && usesAnthropicMessagesSdk(params.providerId)
+        {
+          preserveSignedGeminiWhitespace: true,
+          preserveEmptyAnthropicThinking:
+            params.contextOwner !== 'caller' &&
+            usesAnthropicMessagesSdk(params.providerId, {
+              endpointType: params.endpointType,
+              sdkConfig: { modelId: params.modelId }
+            })
+        }
       )
       let hasUsedProvidedMessageId = false
 

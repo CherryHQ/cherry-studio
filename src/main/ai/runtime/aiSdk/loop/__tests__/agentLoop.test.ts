@@ -684,6 +684,7 @@ describe('Agent', () => {
     expect(result?.messages?.map((message) => message.role)).toEqual(['tool', 'user'])
     expect(result?.messages?.[1]).toEqual({
       role: 'user',
+      providerOptions: { cherry: { toolResultMedia: true } },
       content: [
         { type: 'text', text: '[tool-result attachment call_id="call-1" image=1]' },
         { type: 'image', image: 'BASE64', mediaType: 'image/png' }
