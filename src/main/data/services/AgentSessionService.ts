@@ -1002,13 +1002,6 @@ export class AgentSessionService {
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     const effects = agentSessionReadModelEffects([id], 'projection')
-    if (result.reassigned) {
-      effects.push({
-        endpoint: '/agent-sessions/:sessionId/messages',
-        kind: 'projection',
-        routeParams: { sessionId: id }
-      })
-    }
     if (result.artifactOwnershipChanged) effects.push({ endpoint: '/agents/:agentId/artifacts', kind: 'membership' })
     notifyDataApiDataChange(effects)
     this.sessionUpdated.fire({ sessionId: id })
@@ -1019,12 +1012,7 @@ export class AgentSessionService {
     tx: DbOrTx,
     id: string,
     patch: UpdateAgentSessionDto
-  ): {
-    row: SessionRow | undefined
-    clearedTaskScheduleIds: string[]
-    reassigned: boolean
-    artifactOwnershipChanged: boolean
-  } {
+  ): { row: SessionRow | undefined; clearedTaskScheduleIds: string[]; artifactOwnershipChanged: boolean } {
     const [current] = tx
       .select({
         agentId: sessionsTable.agentId,
@@ -1035,8 +1023,7 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
-    if (!current)
-      return { row: undefined, clearedTaskScheduleIds: [], reassigned: false, artifactOwnershipChanged: false }
+    if (!current) return { row: undefined, clearedTaskScheduleIds: [], artifactOwnershipChanged: false }
     if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
     if (patch.model !== undefined && patch.model !== null && !isUniqueModelId(patch.model)) {
       throw DataApiErrorFactory.invalidOperation('update session', `unknown model: ${patch.model}`)
@@ -1099,7 +1086,7 @@ export class AgentSessionService {
         .run()
       artifactOwnershipChanged = result.changes > 0
     }
-    return { row, clearedTaskScheduleIds, reassigned, artifactOwnershipChanged }
+    return { row, clearedTaskScheduleIds, artifactOwnershipChanged }
   }
 
   /**

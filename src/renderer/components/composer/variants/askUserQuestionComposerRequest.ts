@@ -8,6 +8,7 @@ import {
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { APPROVAL_REQUESTED } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
+import { messagePartEntries, type MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 export type AskUserQuestionComposerRequest = {
@@ -34,11 +35,11 @@ function getToolName(part: AskUserQuestionToolPart): string {
 }
 
 export function findLatestPendingAskUserQuestionRequest(
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
 ): AskUserQuestionComposerRequest | null {
   let latest: AskUserQuestionComposerRequest | null = null
 
-  for (const [messageId, parts] of Object.entries(partsByMessageId)) {
+  for (const [messageId, parts] of messagePartEntries(partsByMessageId)) {
     for (const part of parts) {
       if (!isToolUIPart(part as UIMessagePart<never, never>)) continue
 

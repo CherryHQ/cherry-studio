@@ -225,7 +225,7 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
 }
 
 test.describe('Pi Durable turn authority in Electron', () => {
-  test('settles a streamed reply without reloading older Agent history', async ({ mainWindow: page }) => {
+  test('appends and settles a streamed reply without reloading older Agent history', async ({ mainWindow: page }) => {
     test.setTimeout(180_000)
     const server = await startMockChatServer()
     const route = routeRequests(server)
@@ -254,14 +254,27 @@ test.describe('Pi Durable turn authority in Electron', () => {
       await page.mouse.wheel(0, 10_000)
       await expect(chat.message('HISTORY_REPLY_25_END')).toBeVisible()
 
+      await page.evaluate(() => {
+        if (!window.__CHERRY_DATA_API_DEVTOOLS__) throw new Error('DataApi request recorder is unavailable')
+        window.__CHERRY_DATA_API_DEVTOOLS__.setOptions({ capturePayloads: true })
+        window.__CHERRY_DATA_API_DEVTOOLS__.clear()
+      })
       await chat.send('HANDOFF_REGRESSION_PROMPT')
       const reply = await route.next('HANDOFF_REGRESSION_PROMPT')
       reply.sendText('HANDOFF_PARTIAL ')
       await expect(chat.message('HANDOFF_PARTIAL')).toBeVisible()
-      await page.evaluate(() => {
-        if (!window.__CHERRY_DATA_API_DEVTOOLS__) throw new Error('DataApi request recorder is unavailable')
-        window.__CHERRY_DATA_API_DEVTOOLS__.clear()
-      })
+      const listPath = `/agent-sessions/${session.sessionId}/messages`
+      const appendedReads = await page.evaluate(
+        (path) =>
+          window
+            .__CHERRY_DATA_API_DEVTOOLS__!.snapshot()
+            .filter((event) => event.method === 'GET' && event.path === path)
+            .map(({ query }) => query),
+        listPath
+      )
+      expect(appendedReads).toEqual([expect.objectContaining({ limit: 50 })])
+      expect(appendedReads[0]).not.toHaveProperty('cursor', expect.any(String))
+      await page.evaluate(() => window.__CHERRY_DATA_API_DEVTOOLS__!.clear())
 
       reply.complete('HANDOFF_FINAL')
       await expect(chat.message('HANDOFF_FINAL')).toBeVisible()
@@ -272,7 +285,6 @@ test.describe('Pi Durable turn authority in Electron', () => {
           text: has('HANDOFF_FINAL')
         })
 
-      const listPath = `/agent-sessions/${session.sessionId}/messages`
       const historyGets = () =>
         page.evaluate(
           (path) =>

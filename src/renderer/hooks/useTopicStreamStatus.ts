@@ -4,12 +4,8 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { loggerService } from '@logger'
 import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
-import type { CherryUIMessage } from '@shared/data/types/message'
-
-const logger = loggerService.withContext('useTopicStreamStatus')
 
 interface TopicStreamStatusView {
   status: TopicStreamStatus | undefined
@@ -64,13 +60,9 @@ export function useTopicAwaitingApproval(topicId: string): boolean {
   return classifyTurn(entry?.status).isAwaitingApproval
 }
 
-// Fire `refresh` once when a live turn pauses for approval. The final
-// done/error/aborted handoff is owned by the page-level overlay handoff so it
-// can refresh before dropping live overlay parts.
-export function useTopicDbRefreshOnAwaitingApproval(
-  topicId: string,
-  refresh: (messageIds: readonly string[]) => Promise<unknown>
-): void {
+// Fire `refresh` once when a live turn pauses for approval.
+// useHistoryReplies handles settled attempts once history can display them.
+export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: () => Promise<unknown>): void {
   const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   const status = entry?.status
   const refreshRef = useRef(refresh)
@@ -81,45 +73,9 @@ export function useTopicDbRefreshOnAwaitingApproval(
     const prev = previous?.topicId === topicId ? previous.status : undefined
     prevRef.current = { status, topicId }
     if (classifyTurn(prev).isStreamLive && classifyTurn(status).isAwaitingApproval) {
-      void refreshRef.current(getExecutionMessageIds(entry?.awaitingApprovalAnchors)).catch(() => {
+      void refreshRef.current().catch(() => {
         // Caller logs; the invalidation signal must not throw out of the effect.
       })
     }
-  }, [entry?.awaitingApprovalAnchors, status, topicId])
-}
-
-/**
- * Refresh history before disposing settled overlays, including terminal baselines on attachment.
- * Approval cards stay live; the overlay reset preserves active attempts and unresolved writes.
- */
-export function useTopicOverlayHandoffOnTerminal(
-  topicId: string,
-  onHandoff: (messageIds: readonly string[]) => Promise<void> | void,
-  liveAssistants: readonly CherryUIMessage[] = []
-): void {
-  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
-  const status = entry?.status
-  const onHandoffRef = useRef(onHandoff)
-  onHandoffRef.current = onHandoff
-  const prevRef = useRef<
-    { status: typeof status; topicId: string; executions: ActiveExecution[] | undefined } | undefined
-  >(undefined)
-  useEffect(() => {
-    const previous = prevRef.current
-    const prev = previous?.topicId === topicId ? previous.status : undefined
-    prevRef.current = { status, topicId, executions: entry?.activeExecutions }
-    const next = classifyTurn(status)
-    if ((classifyTurn(prev).isStreamLive || liveAssistants.length > 0) && next.isTerminal && !next.isAwaitingApproval) {
-      void (async () => {
-        const anchorIds = getExecutionMessageIds(previous?.topicId === topicId ? previous.executions : undefined)
-        await onHandoffRef.current([...new Set([...anchorIds, ...liveAssistants.map((message) => message.id)])])
-      })().catch((error) => {
-        logger.warn('Topic overlay handoff failed', error as Error, { topicId })
-      })
-    }
-  }, [entry?.activeExecutions, liveAssistants, status, topicId])
-}
-
-function getExecutionMessageIds(executions: readonly ActiveExecution[] | undefined): string[] {
-  return executions?.flatMap(({ anchorMessageId }) => (anchorMessageId ? [anchorMessageId] : [])) ?? []
+  }, [status, topicId])
 }

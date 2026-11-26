@@ -195,6 +195,15 @@ describe('isClaudeFixedSamplingModel', () => {
     ['claude-sonnet-5[1m]', true],
     ['claude-haiku-5-1', true],
     ['claude-haiku-5-1[1m]', true],
+    ['  CLAUDE-OPUS-4-8 [1M]  ', true],
+    ['claude-opus-4-7-20260101[1m]', true],
+    ['anthropic/claude-haiku-5-1 [1m]', true],
+    ['claude-fable-latest[1m]  ', true],
+    ['claude-sonnet-4-5[1m]', false],
+    ['claude-opus-4-1[1m]', false],
+    ['CLAUDE-SONNET-4-5 [1M]', false],
+    ['gpt-4o[1m]', false],
+    ['claude-sonnet-4-5', false],
     ['claude-3-5-sonnet', false],
     ['gpt-4o', false]
   ])('classifies %s as %s', (apiModelId, expected) => {

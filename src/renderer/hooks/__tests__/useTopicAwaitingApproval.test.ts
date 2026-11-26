@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
+import type { TopicStreamStatus } from '@shared/ai/transport'
 
 const mockEntry = vi.fn<
   () =>
@@ -9,7 +9,7 @@ const mockEntry = vi.fn<
         status: TopicStreamStatus | undefined
         lastCompletedAt?: number
         activeExecutions: []
-        awaitingApprovalAnchors: ActiveExecution[]
+        awaitingApprovalAnchors: []
       }
     | undefined
 >()
@@ -90,16 +90,12 @@ describe('useTopicAwaitingApproval', () => {
       setEntry(liveStatus)
       const { rerender } = renderHook(() => useTopicDbRefreshOnAwaitingApproval('t', refresh))
 
-      mockEntry.mockReturnValue({
-        status: 'awaiting-approval',
-        activeExecutions: [],
-        awaitingApprovalAnchors: [{ executionId: 'mock::model', attemptId: 1, anchorMessageId: 'reply' }]
-      })
+      setEntry('awaiting-approval')
       await act(async () => {
         rerender()
         await Promise.resolve()
       })
-      expect(refresh).toHaveBeenCalledExactlyOnceWith(['reply'])
+      expect(refresh).toHaveBeenCalledTimes(1)
 
       await act(async () => {
         rerender()

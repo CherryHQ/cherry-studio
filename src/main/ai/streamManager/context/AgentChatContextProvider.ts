@@ -383,7 +383,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       const persisted = await runtime.editSession(
         validated.sessionId,
         req.editTarget,
-        (tx, nativeSessionId, nativeContextId) => {
+        (tx, nativeSessionId, nativeContextId, sourceBackendId) => {
           validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
           const result = this.persistDispatchTx(
             tx,
@@ -399,7 +399,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           if (validated.agentType === 'pi')
             reservePiBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
           else if (validated.agentType === 'claude-code')
-            reserveClaudeBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
+            reserveClaudeBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId, sourceBackendId)
           else if (validated.agentType === 'pi-durable')
             reserveDurableBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId, nativeContextId)
           if (validated.agentType !== 'pi-durable' || nativeContextId)
@@ -412,13 +412,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           return result
         }
       )
-      notifyDataApiDataChange([
-        {
-          endpoint: '/agent-sessions/:sessionId/messages',
-          kind: 'projection',
-          routeParams: { sessionId: validated.sessionId }
-        }
-      ])
+      this.notifyReservedMessages(persisted)
       return this.activateDispatch(persisted, subscriber)
     }
 
@@ -470,15 +464,19 @@ export class AgentChatContextProvider implements ChatContextProvider {
       onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
       return reserved
     })
+    this.notifyReservedMessages(persisted)
+    return this.activateDispatch(persisted, subscriber)
+  }
+
+  private notifyReservedMessages({ validated, savedMessages }: PersistedAgentDispatch): void {
     notifyDataApiDataChange([
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'membership',
         routeParams: { sessionId: validated.sessionId },
-        entityIds: persisted.savedMessages.map((message) => message.id)
+        entityIds: savedMessages.map(({ id }) => id)
       }
     ])
-    return this.activateDispatch(persisted, subscriber)
   }
 }
 
