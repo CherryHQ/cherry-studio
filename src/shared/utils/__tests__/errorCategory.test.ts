@@ -626,6 +626,7 @@ describe('classifyErrorCategory AI SDK tool-input parse failures (#25237, #25401
   })
 
   it.each([
+    [400, 'bad_request'],
     [401, 'auth'],
     [429, 'rate_limit'],
     [500, 'server']
@@ -636,6 +637,18 @@ describe('classifyErrorCategory AI SDK tool-input parse failures (#25237, #25401
         text: 'Invalid input for tool write: JSON parsing failed: Text: {"path": "/workspace/doc.md"'
       })
     ).toBe(category)
+  })
+
+  it('keeps HTTP 400 request JSON parsing rejections as bad_request', () => {
+    expect(classifyErrorCategory({ status: 400, text: 'Request body JSON parsing failed' })).toBe('bad_request')
+    expect(classifyErrorCategory({ status: 400, text: 'JSON parsing failed: unexpected EOF' })).toBe('bad_request')
+  })
+
+  it('classifies large multiline whitespace-heavy errors in linear time', () => {
+    const text = `Claude Code failed:\n${' \n'.repeat(50_000)}unexpected exit`
+    const startedAt = performance.now()
+    expect(classifyErrorCategory({ text })).toBe('unknown')
+    expect(performance.now() - startedAt).toBeLessThan(100)
   })
 
   it('keeps a content-filter finish reason ahead of tool-input parse wording', () => {

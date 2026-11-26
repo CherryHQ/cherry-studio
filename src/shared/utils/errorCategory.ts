@@ -125,6 +125,31 @@ export interface ErrorCategoryInput {
   finishReason?: string
 }
 
+const TOOL_INPUT_HEADER_MARKER = 'invalid input for tool '
+const TOOL_INPUT_HEADER_PREFIX_LIMIT = 512
+
+// Linear bounded scan so large multiline errors never trigger regex backtracking.
+function hasToolInputParseHeader(msg: string): boolean {
+  const head = msg.slice(0, TOOL_INPUT_HEADER_PREFIX_LIMIT)
+  const idx = head.indexOf(TOOL_INPUT_HEADER_MARKER)
+  if (idx === -1) return false
+  let cursor = idx - 1
+  while (cursor >= 0 && (head[cursor] === ' ' || head[cursor] === '\t')) cursor -= 1
+  if (cursor >= 0 && head[cursor] !== ':' && head[cursor] !== '\n' && head[cursor] !== '\r') return false
+  const afterMarker = head.slice(idx + TOOL_INPUT_HEADER_MARKER.length)
+  const colon = afterMarker.indexOf(':')
+  if (colon <= 0) return false
+  const name = afterMarker.slice(0, colon)
+  if (name.includes('\n') || name.includes('\r')) return false
+  const reason = afterMarker.slice(colon + 1).trimStart()
+  for (const phrase of ['json parsing failed', 'type validation failed']) {
+    if (!reason.startsWith(phrase)) continue
+    const next = reason[phrase.length]
+    if (next === undefined || !/[a-z0-9_]/.test(next)) return true
+  }
+  return false
+}
+
 export function classifyErrorCategory({ text, status, finishReason }: ErrorCategoryInput): ErrorCategory {
   switch (finishReason?.toLowerCase()) {
     case 'content-filter':
@@ -140,13 +165,11 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   }
 
   const msg = (text ?? '').toLowerCase()
+  const noHttpErrorStatus = status === undefined || (status >= 200 && status < 300)
 
   // AI SDK tool-input errors embed the raw model payload, whose text can match unrelated
   // keywords ("safety", "timeout", "unauthorized"); classify the header before prose rules.
-  if (
-    (status === undefined || (status >= 200 && status < 300)) &&
-    /(?:^|[:\n]\s*)invalid input for tool [^\r\n:]+:\s*(?:json parsing failed|type validation failed)\b/.test(msg)
-  ) {
+  if (noHttpErrorStatus && hasToolInputParseHeader(msg)) {
     return 'parse'
   }
 
@@ -417,7 +440,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('parse error') ||
     (!requestParseFailure && msg.includes('failed to parse')) ||
     msg.includes('json parse') ||
-    msg.includes('json parsing failed') ||
+    (noHttpErrorStatus && msg.includes('json parsing failed')) ||
     msg.includes('invalid json') ||
     msg.includes('malformed json') ||
     msg.includes('invalid input: expected object, received undefined') ||

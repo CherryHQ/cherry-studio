@@ -180,6 +180,7 @@ describe('ErrorBlock', () => {
       }
 
       await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+      await act(() => vi.dynamicImportSettled())
       expect(await screen.findByText('Provider returned an incomplete response')).toBeInTheDocument()
       expect(mocks.request).toHaveBeenCalledExactlyOnceWith(
         'ai.text.generate',

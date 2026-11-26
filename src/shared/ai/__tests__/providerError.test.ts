@@ -533,12 +533,29 @@ describe('tool-input parse diagnostics (#25237, #25401)', () => {
     )
   })
 
-  it('rejects container-shaped tool names instead of echoing them', () => {
-    expect(
-      getSafeProviderErrorMessage({
-        message: 'Invalid input for tool {"secret":"value"}: JSON parsing failed: Text: {"a":1'
+  it('falls back to a generic parse diagnostic for container-shaped or path-like tool names', () => {
+    for (const toolName of [
+      '{"secret":"value"}',
+      '/Users/alice/workspace/secret.ts',
+      'C:\\Users\\alice\\repo\\secret.ts',
+      'tool with spaces'
+    ]) {
+      const jsonMessage = getSafeProviderErrorMessage({
+        message: `Invalid input for tool ${toolName}: JSON parsing failed: Text: {"a":1`
       })
-    ).toBe('')
+      expect(jsonMessage).toBe('Invalid JSON data. Retry or check the provider endpoint and model.')
+      expect(jsonMessage).not.toContain('alice')
+      expect(jsonMessage).not.toContain('secret')
+
+      const validationMessage = getSafeProviderErrorMessage({
+        message: `Invalid input for tool ${toolName}: Type validation failed: Value: {"a":1}`
+      })
+      expect(validationMessage).toBe(
+        'Type validation failed: unexpected data structure. Check the provider endpoint and model.'
+      )
+      expect(validationMessage).not.toContain('alice')
+      expect(validationMessage).not.toContain('secret')
+    }
   })
 
   it('serializes nested InvalidToolInputError as a payload-free parse diagnostic', () => {
