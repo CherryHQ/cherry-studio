@@ -3,7 +3,7 @@ import { expect } from '@playwright/test'
 
 import type { RegressionApp } from '../RegressionApp'
 import { ensureCustomChatProvider, selectVisibleModel } from './models'
-import { selectSidebarApp } from './navigation'
+import { selectSidebarApp, showConversationSidebar } from './navigation'
 import { closeSettings } from './settings'
 
 export function customAssistantName(app: RegressionApp): string {
@@ -23,7 +23,8 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
   await closeSettings(page)
   await selectSidebarApp(page, 'Chat')
   const chatView = page.locator('[data-ui~="chat.view"]:visible').first()
-  const assistant = chatView.getByText(name, { exact: true }).first()
+  const topics = await showConversationSidebar(chatView)
+  const assistant = topics.getByText(name, { exact: true }).first()
 
   if (!(await assistant.isVisible().catch(() => false))) {
     await chatView.getByRole('button', { name: 'Add Assistant', exact: true }).click({ noWaitAfter: true })
@@ -43,19 +44,12 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
     }
 
     const manual = dialog.getByRole('button', { name: 'Manual create', exact: true })
-    if (await manual.isVisible().catch(() => false)) {
+    const usesEntryView = await manual.isVisible()
+    if (usesEntryView) {
       await manual.click()
       await expect(dialog.getByRole('button', { name: 'Next', exact: true })).toBeVisible()
     }
 
-    // Step 1: avatar is cosmetic, so a missing emoji entry must not fail the fixture.
-    const avatar = dialog.locator('[aria-label="Choose avatar"]')
-    if (await avatar.isVisible().catch(() => false)) {
-      await avatar.click()
-      const emoji = page.locator('button[aria-label="star-struck"]').first()
-      if (await emoji.isVisible().catch(() => false)) await emoji.click()
-      else await page.keyboard.press('Escape')
-    }
     await dialog.locator('[aria-label="Model"]').click()
     await selectVisibleModel(page, app.config.customProvider.chatModel, providerId)
     await dialog.getByRole('button', { name: 'Next', exact: true }).click()
@@ -66,9 +60,26 @@ export async function ensureCustomAssistant(app: RegressionApp, page: Page): Pro
       .fill('You must always include the exact phrase ASSISTANT_PROMPT_PASS in every response.')
     await dialog.getByRole('button', { name: 'Next', exact: true }).click()
     await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+    if (usesEntryView) {
+      await dialog.getByRole('button', { name: 'Start conversation', exact: true }).click()
+      await expect(dialog).toBeHidden()
+    }
   } else {
     await assistant.click({ noWaitAfter: true })
   }
 
   await expect(assistant).toBeVisible()
+}
+
+export async function linkAssistantKnowledge(page: Page, name: string): Promise<void> {
+  await page
+    .getByRole('dialog', { name: 'Edit Assistant', exact: true })
+    .getByRole('button', { name: /^Knowledge:/ })
+    .click()
+  const knowledge = page.getByRole('dialog', { name: 'Knowledge', exact: true })
+  const link = knowledge.getByRole('switch', { name, exact: true })
+  await link.setChecked(true)
+  await expect(link).toBeChecked()
+  await knowledge.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(knowledge).toBeHidden()
 }

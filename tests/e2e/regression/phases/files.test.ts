@@ -26,7 +26,7 @@ import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { expect, test } from '../fixture'
 import { createRtfPreviewFixtures } from '../fixtures/rtfPreviewFixtures'
 import { openAttachmentPicker, submitChatMarker } from '../helpers/chat'
-import { selectSidebarApp } from '../helpers/navigation'
+import { selectSidebarApp, showConversationSidebar } from '../helpers/navigation'
 import { openSettingsSection } from '../helpers/settings'
 import { collectVirtualizedText } from '../helpers/virtualList'
 
@@ -193,8 +193,9 @@ test(...caseDefinition('MP-150'), async ({ app, mainWindow }, testInfo) => {
       TopicSchema.parse(topic.data)
       await page.reload()
       await selectSidebarApp(page, 'Chat')
-      const group = page
-        .locator('[data-ui~="chat.view"]:visible [data-ui~="chat.group-header"][data-ui~="part:context-menu-trigger"]')
+      const topics = await showConversationSidebar(page.locator('[data-ui~="chat.view"]:visible').first())
+      const group = topics
+        .locator('[data-ui~="chat.group-header"][data-ui~="part:context-menu-trigger"]')
         .filter({ hasText: 'MP150 RTF assistant' })
       await group.hover()
       const expand = group.getByRole('button', { name: 'Expand', exact: true })

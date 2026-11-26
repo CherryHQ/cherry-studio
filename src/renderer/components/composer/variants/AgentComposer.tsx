@@ -97,6 +97,7 @@ import { excludeComposerDraftTokens } from '../composerDraft'
 import type { ComposerInputFilePreviewAction } from '../filePreview'
 import { createComposerFolderToken } from '../folderToken'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
+import { NativeQueuedFollowups } from '../NativeQueuedFollowups'
 import { ProviderQuotaNotice } from '../ProviderQuotaNotice'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -188,6 +189,7 @@ export interface AgentComposerSendBody {
   reasoningEffort?: ThinkingOption
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
+  followUp?: boolean
 }
 
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
@@ -1462,7 +1464,8 @@ const AgentComposerInner = ({
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
-  const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(useAgentSessionStreamTopic(sessionId))
+  const runtimeTopicId = useAgentSessionStreamTopic(sessionId)
+  const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(runtimeTopicId)
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
@@ -1829,6 +1832,9 @@ const AgentComposerInner = ({
                   description={compaction.error}
                 />
               )}
+              {nativeFollowUp && !launchOptions?.editing ? (
+                <NativeQueuedFollowups key={runtimeTopicId} topicId={runtimeTopicId} />
+              ) : null}
               {queuedFollowups.length > 0 ? (
                 <QueuedFollowupsDock
                   items={queuedFollowups}

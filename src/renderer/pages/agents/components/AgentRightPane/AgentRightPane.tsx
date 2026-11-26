@@ -1318,8 +1318,17 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     (input: AgentToolFlowOpenInput) => actions.openAgentToolFlow(input, true),
     [actions.openAgentToolFlow]
   )
+  const streamTopicId = useAgentSessionStreamTopic(meta.sessionId)
+  const target = useMemo(
+    () =>
+      meta.sessionId && archiveSessionId
+        ? { kind: 'child' as const, sessionId: meta.sessionId, toolCallId }
+        : { kind: 'topic' as const, topicId: streamTopicId },
+    [archiveSessionId, meta.sessionId, streamTopicId, toolCallId]
+  )
   const providerValue = useAgentMessageListProviderValue({
     topic,
+    projectionTarget: target,
     messages,
     partsByMessageId,
     assistantProfile: { name: title },
@@ -1360,14 +1369,6 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     [childActivity, providerValue, t]
   )
 
-  const streamTopicId = useAgentSessionStreamTopic(meta.sessionId)
-  const target = useMemo(
-    () =>
-      meta.sessionId && archiveSessionId
-        ? { kind: 'child' as const, sessionId: meta.sessionId, toolCallId }
-        : { kind: 'topic' as const, topicId: streamTopicId },
-    [archiveSessionId, meta.sessionId, streamTopicId, toolCallId]
-  )
   const partReader = useMemo(() => messageProjectionService.partsFor(target), [target])
   return (
     <ProjectionReaderProvider reader={partReader}>

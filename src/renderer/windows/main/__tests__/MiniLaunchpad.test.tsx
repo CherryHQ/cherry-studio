@@ -58,7 +58,7 @@ describe('mini launchpad', () => {
     const user = userEvent.setup()
     render(<Harness />)
     await user.click(screen.getByRole('button', { name: '应用' }))
-    await user.click(await screen.findByRole('button', { name: '翻译' }))
+    await user.click(await screen.findByText('翻译'))
     expect(screen.getByLabelText('destination')).toHaveTextContent('/app/translate')
     expect(screen.queryByRole('dialog', { name: '启动台' })).not.toBeInTheDocument()
   })
@@ -71,11 +71,11 @@ describe('mini launchpad', () => {
 
     await user.type(search, 'ZSK')
     expect(screen.getByRole('button', { name: '知识库' })).toBeVisible()
-    expect(screen.queryByRole('button', { name: '翻译' })).not.toBeInTheDocument()
+    expect(screen.queryByText('翻译')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '清空搜索' }))
     expect(search).toHaveValue('')
     expect(search).toHaveFocus()
-    expect(screen.getByRole('button', { name: '翻译' })).toBeVisible()
+    expect(screen.getByText('翻译')).toBeVisible()
 
     await user.type(search, 'cwbb')
     expect(screen.queryByRole('button', { name: '知识库' })).not.toBeInTheDocument()

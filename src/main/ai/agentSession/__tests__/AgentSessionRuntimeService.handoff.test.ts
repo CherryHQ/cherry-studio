@@ -748,28 +748,24 @@ it('waits for final observations before close persists a failed reply, and retri
   expect(contexts.context(f.context.id).checkpointMapping?.root?.sources['native-A']?.messageId).toBe(a?.id)
 })
 
-it('retains a steer reply and early approval across preparation failure without contaminating its predecessor', async () => {
+// A same-execution steer must not need a new assistant insert or reattach to deliver approval.
+it('keeps steer output, early approval and usage on the original run without preparing another reply', async () => {
   const f = await fixture({ redirect: true })
-  const finishB = f.openB()
+  const finish = f.openB()
   await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
   await f.project('native-B', 'BEFORE_STEER')
   const steer = messages.saveMessage({
     sessionId: 'root',
-    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Steer S' }] } }
+    message: {
+      role: 'user',
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'Steer S' }] }
+    }
   })
-  const authored = { ...snapshot, name: 'Steer author' }
-  f.service.enqueueUserMessage('root', steer, { messageSnapshot: authored })
-  authored.name = 'Changed after submission'
-  f.blockPersistence()
   failReplyWrites()
+  f.service.enqueueUserMessage('root', steer, { messageSnapshot: { ...snapshot, name: 'Edited' } })
   await f.emit({ type: 'steer-boundary', inputIds: [steer.id] })
-  await f.persistenceEntered
-  await f.emit({
-    type: 'tool-input-available',
-    toolCallId: 's-tool',
-    toolName: 'Bash',
-    input: { command: 'pwd' }
-  })
+  await f.emit({ type: 'tool-input-available', toolCallId: 's-tool', toolName: 'Bash', input: { command: 'pwd' } })
   await f.emit({
     type: 'tool-approval-request',
     request: {
@@ -783,32 +779,23 @@ it('retains a steer reply and early approval across preparation failure without 
   f.record('response-S')
   await f.emit({ type: 'response-start', responseId: 'response-S' })
   await f.project('native-S', 'AFTER_STEER')
-  f.persistenceGate.resolve()
-  await finishB()
-  await vi.waitFor(() => expect(f.failures).toHaveLength(1))
-  expect(JSON.stringify(messages.getSessionMessage('root', f.replyB.id).data.parts)).toContain('BEFORE_STEER')
-  expect(JSON.stringify(messages.getSessionMessage('root', f.replyB.id).data.parts)).not.toContain('AFTER_STEER')
-  expect(contexts.context(f.context.id).checkpointMapping?.root?.sources['native-S']).toBeUndefined()
-  expect(f.starts).toHaveLength(0)
-
-  dbh.sqlite.exec('DROP TRIGGER fail_reply')
+  expect(messages.replyTo('root', steer.id)?.id).toBe(f.replyB.id)
+  expect(f.failures).toEqual([])
   await f.emit({ type: 'turn-complete' })
-  await vi.waitFor(() => expect(f.starts).toHaveLength(1))
-  const replyS = f.starts[0].request.messageId!
-  f.service.markTurnTerminal('root', 'success', f.handle.turnId)
-  expect(f.service.isSessionBusy('root')).toBe(true)
-  expect(f.service.getInteractionState('root').currentTurn).toBe('interactive')
-  await f.open(f.starts[0])()
-  const saved = messages.getSessionMessage('root', replyS)
-  expect(saved.messageSnapshot?.name).toBe('Steer author')
-  expect(saved.status).toBe('error')
+  await finish()
+  const saved = messages.getSessionMessage('root', f.replyB.id)
+  expect(saved.status).toBe('success')
+  expect(saved.messageSnapshot).toEqual(snapshot)
   expect(saved.data.parts).toContainEqual(expect.objectContaining({ type: 'text', text: 'AFTER_STEER' }))
   expect(saved.data.parts).toContainEqual(expect.objectContaining({ toolCallId: 's-tool' }))
-  expect(contexts.context(f.context.id).checkpointMapping?.root?.sources['native-S']?.messageId).toBe(replyS)
+  expect(contexts.context(f.context.id).checkpointMapping?.root?.sources['native-S']?.messageId).toBe(f.replyB.id)
   expect(
     dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, 'response-S')).get()
-  ).toMatchObject({ messageId: replyS, totalTokens: 120 })
-  expect(f.sent).toEqual([f.user.id])
+  ).toMatchObject({ messageId: f.replyB.id, totalTokens: 120 })
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.role, 'assistant')).all()
+  ).toHaveLength(1)
+  expect(f.starts).toEqual([])
 })
 
 it('keeps queued input unwritten through nested pause holds, then sends it once with its frozen author', async () => {
@@ -1117,4 +1104,69 @@ it('restores a reply from its bound input before any projection checkpoint exist
   expect(messages.getSessionMessage('root', nextReply.id).data.parts).toEqual(
     expect.arrayContaining([expect.objectContaining({ type: 'text', text: 'NEXT_OUTPUT' })])
   )
+})
+
+it('opens a distinct Run for an accepted input placed after native completion without resending it', async () => {
+  const f = await fixture({ redirect: true })
+  const firstDone = f.openB()
+  await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+  const next = messages.saveMessage({
+    sessionId: 'root',
+    parentId: f.replyB.id,
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Next request' }] } }
+  })
+  f.service.enqueueUserMessage('root', next)
+  await f.emit({ type: 'turn-complete' })
+  await firstDone()
+  const nextAnchor = { checkpoint: { runtime: 'pi', runtimeSessionId: 'original', leafId: 'answer-B' } }
+  await f.emit({ type: 'run-checkpoint', contextId: f.context.id, inputId: next.id, forkAnchor: nextAnchor })
+  await f.emit({ type: 'run-started', inputIds: [next.id] })
+  await vi.waitFor(() => expect(f.starts).toHaveLength(1))
+  const nextRunId = f.starts[0].request.messageId!
+  expect(nextRunId).not.toBe(f.replyB.id)
+  const nextDone = f.open(f.starts[0])
+  const anchor = { checkpoint: { runtime: 'pi', runtimeSessionId: 'original', leafId: 'answer-A' } }
+  await f.emit({ type: 'run-checkpoint', contextId: 'another-context', inputId: f.user.id, forkAnchor: anchor })
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, f.replyB.id)).get()!.data
+  ).not.toHaveProperty('runtimeAnchor')
+  await f.emit({ type: 'run-checkpoint', contextId: f.context.id, inputId: f.user.id, forkAnchor: anchor })
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, f.replyB.id)).get()!.data
+  ).toMatchObject({ runtimeAnchor: anchor })
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, nextRunId)).get()!.data
+  ).not.toHaveProperty('runtimeAnchor')
+  await f.project('next-answer', 'Next answer')
+  await f.emit({ type: 'turn-complete' })
+  await nextDone()
+  expect(messages.replyTo('root', next.id)?.id).toBe(nextRunId)
+  expect(messages.getSessionMessage('root', nextRunId)).toMatchObject({
+    status: 'success',
+    data: { parts: [{ type: 'text', text: 'Next answer', state: 'done' }] }
+  })
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, nextRunId)).get()!.data
+  ).toMatchObject({ runtimeAnchor: nextAnchor })
+  expect(f.sent).toEqual([f.user.id])
+})
+
+// A precise native answer position must survive the later session-wide completion head.
+it('saves an active Run checkpoint without terminating its stream or replacing it with the idle head', async () => {
+  const f = await fixture()
+  const finish = f.openB()
+  await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+  const anchor = { checkpoint: { runtime: 'pi', runtimeSessionId: 'original', leafId: 'exact-answer' } }
+  const metadataWrite = vi.spyOn(messages, 'saveRunCheckpoint').mockImplementationOnce(() => {
+    throw new Error('Metadata write unavailable')
+  })
+  onTestFinished(() => metadataWrite.mockRestore())
+  await f.emit({ type: 'run-checkpoint', contextId: f.context.id, inputId: f.user.id, forkAnchor: anchor })
+  expect(messages.getSessionMessage('root', f.replyB.id).status).toBe('pending')
+  await f.project('answer', 'Final body')
+  await f.emit({ type: 'turn-complete', forkAnchor: { checkpoint: { runtime: 'pi', leafId: 'later-idle-head' } } })
+  await finish()
+  const row = dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, f.replyB.id)).get()!
+  expect(row.status).toBe('success')
+  expect(row.data).toMatchObject({ runtimeAnchor: anchor })
 })
