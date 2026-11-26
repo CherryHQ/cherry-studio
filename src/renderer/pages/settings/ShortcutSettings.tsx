@@ -337,6 +337,15 @@ const ShortcutSettings: FC = () => {
       return
     }
 
+    // Re-saving an identical binding issues no preference change, so the main
+    // process would not retry registration. Keep an existing system-conflict
+    // indicator instead of clearing it without a retry.
+    if (isBindingEqual(record.preference.binding, binding) && record.preference.enabled) {
+      if (systemConflictKey === record.key) {
+        return
+      }
+    }
+
     setConflictLabel(null)
     try {
       clearSystemConflict(record.key)
@@ -353,6 +362,14 @@ const ShortcutSettings: FC = () => {
   }
 
   const handleKeyDown = async (event: ReactKeyboardEvent, record: (typeof shortcuts)[number]) => {
+    // Let bare Tab (or Shift+Tab) move focus so keyboard users can reach the
+    // manual Alt+Space button. Bare Tab is never a valid shortcut (it requires
+    // a modifier), so this removes no recordable combination; modified Tab
+    // such as Ctrl+Tab still falls through to recording.
+    if ((event.key === 'Tab' || event.code === 'Tab') && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      return
+    }
+
     event.preventDefault()
     event.stopPropagation()
 
@@ -523,10 +540,11 @@ const ShortcutSettings: FC = () => {
             )}
             onKeyDown={(event) => void handleKeyDown(event, record)}
             onKeyUp={(event) => {
-              // Swallow key release while recording so a captured Alt combination
-              // cannot bubble out and summon the Windows system menu afterwards.
+              // Prevent the default release behavior (e.g. the Windows system
+              // menu) without stopping propagation, so global listeners such
+              // as number-shortcut hints still observe the modifier release
+              // and can reset.
               event.preventDefault()
-              event.stopPropagation()
             }}
             onBlur={(event) => {
               const isUndoClick = (event.relatedTarget as HTMLElement)?.closest(

@@ -541,5 +541,80 @@ describe('ShortcutSettings shortcut recorder', () => {
 
       expect(screen.queryByRole('button', { name: 'settings.shortcuts.use_alt_space' })).not.toBeInTheDocument()
     })
+
+    it('lets bare Tab move focus instead of recording it', () => {
+      const parentKeyDown = vi.fn()
+      shortcutsMock.shortcuts = [makeShowAppShortcut()]
+      renderShortcutSettings(parentKeyDown)
+
+      fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+      const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
+
+      fireEvent.keyDown(recorder, { key: 'Tab', code: 'Tab', bubbles: true })
+
+      expect(parentKeyDown).toHaveBeenCalled()
+      expect(shortcutsMock.updatePreference).not.toHaveBeenCalled()
+    })
+
+    it('still records modified keys such as Ctrl+Shift+K', async () => {
+      shortcutsMock.shortcuts = [makeShowAppShortcut()]
+      renderShortcutSettings()
+
+      fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+      const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
+
+      fireEvent.keyDown(recorder, { key: 'K', code: 'KeyK', ctrlKey: true, shiftKey: true, bubbles: true })
+
+      await waitFor(() => {
+        expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.window.show', {
+          binding: ['CommandOrControl', 'Shift', 'K'],
+          enabled: true
+        })
+      })
+    })
+
+    it('lets key release bubble so number-hint listeners can reset', () => {
+      const windowKeyUp = vi.fn()
+      window.addEventListener('keyup', windowKeyUp)
+      try {
+        shortcutsMock.shortcuts = [makeShowAppShortcut()]
+        renderShortcutSettings()
+
+        fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+        const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
+
+        fireEvent.keyUp(recorder, { key: 'Control', code: 'ControlLeft', bubbles: true })
+
+        expect(windowKeyUp).toHaveBeenCalled()
+      } finally {
+        window.removeEventListener('keyup', windowKeyUp)
+      }
+    })
+
+    it('keeps the system conflict visible when re-saving the identical Alt+Space binding', async () => {
+      const rule = REGISTERED_KEYBINDINGS.find((item) => item.command === 'app.window.show')!
+      shortcutsMock.shortcuts = [
+        {
+          ...makeShowAppShortcut(),
+          keybinding: rule,
+          preference: { binding: ['Alt', 'Space'], enabled: true },
+          defaultPreference: { binding: [], enabled: false }
+        }
+      ]
+      renderShortcutSettings()
+
+      const conflictCallback = (registrationConflictMock.mock.calls as unknown as unknown[][])[0]?.[0] as
+        | ((payload: { key: string; hasConflict: boolean }) => void)
+        | undefined
+      expect(conflictCallback).toBeDefined()
+      conflictCallback?.({ key: 'shortcut.app.window.show', hasConflict: true })
+
+      // Enter recording from the saved binding display, then retry the same assignment.
+      fireEvent.click(screen.getByText('Alt'))
+      fireEvent.click(screen.getByRole('button', { name: 'settings.shortcuts.use_alt_space' }))
+
+      expect(shortcutsMock.updatePreference).not.toHaveBeenCalled()
+      expect(screen.getByText('settings.shortcuts.occupied_by_other_application')).toBeInTheDocument()
+    })
   })
 })
