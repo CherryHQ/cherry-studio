@@ -324,6 +324,13 @@ product completion while that reply has undrained results. Empty display task li
 release do not settle it; confirmed result drainage, ordered content and final persistence do.
 Before terminal persistence begins, an error or pause replaces held intermediate success;
 later success cannot erase that failure or pause. Events after settlement cannot reopen the reply.
+The executing reply has a 30-minute runtime-event inactivity deadline, including held success
+with non-empty or unknown pending results. Unexpected event-stream EOF fails an unresolved reply
+immediately, including during approval waits. Failure retains received content and the assistant
+identity, withdraws queued follow-ups and deferred placements, and detaches the connection before
+asynchronous close. Normal terminal persistence still completes. Recovery requires an explicit user
+retry after reviewing possible tool side effects; the host never automatically resubmits execution.
+
 The model still chooses foreground/background through the native tool arguments. A resident command
 can retain the connection without holding a reply open. A notification without proven ownership
 cannot reopen a settled reply.
@@ -1336,6 +1343,32 @@ history is unavailable. See [Agent Session Fork](./agent-session-fork.md) for th
 separate publication and file-resource recovery path.
 
 ## Idle and shutdown
+
+`REPLY_INACTIVITY_TIMEOUT_MS` bounds the currently executing reply to 30 minutes without
+qualifying runtime events, starting when its stream opens, including connection setup. Message
+content/projections, response metadata and usage, tool input/output, retries, background task and
+result activity, autonomous ownership, compaction and steer boundaries renew it. `input-state`
+renews only for the current connection context with placement or an outcome. Held `turn-complete`
+success renews it; terminal handoff disarms it. Unknown pending results remain held until confirmed
+drainage or an error; timeout never fabricates drainage.
+
+Context usage reads, command catalogs, resume tokens, admission-only input facts, queue edits,
+renderer attachment, outbound commands and status publication do not renew the deadline. Only the
+native execution owner is supervised; suspended/deferred replies and idle background occupancy
+have no independent timer. Entry, reply, watchdog and connection-generation fences reject stale
+callbacks. Connection attachment preserves the current deadline.
+
+Confirmed `stream` or `message` human approvals observed on the same connection generation pause
+the deadline, using the public approval registry facts without requiring a context ID. After the
+last applicable approval resolves or aborts, the reply receives a fresh 30 minutes. The manager's
+existing two-hour approval backstop remains in effect. Unexpected EOF still fails immediately.
+A genuinely silent foreground tool running for 30 minutes also fails; there is no tool exemption.
+
+This execution bound is separate from the five-minute idle-resource TTL below and the existing
+120-minute `CHAT_STREAM_IDLE_TIMEOUT_MS` product-stream backstop. Stop, close, entry replacement,
+shutdown, destruction and terminal persistence handoff clear the watchdog. Native connection close
+remains asynchronous and retains its existing 20-second bound, close barrier and failure tracking;
+a hanging close cannot delay the visible inactivity/EOF error. Neither failure automatically retries.
 
 After a turn reaches terminal state, the runtime entry becomes `idle`.
 For a short idle window it keeps:

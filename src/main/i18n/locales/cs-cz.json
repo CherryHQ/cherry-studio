@@ -50,6 +50,8 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "Některé zakázané nástroje z předchozího běhového prostředí nelze převést. Před spuštěním znovu nastavte přístup agenta k nástrojům.",
   "agent.session.run_status.busy": "Relace agenta je zaneprázdněna. Zkuste to znovu za chvíli.",
   "agent.session.run_status.unavailable": "Relace agenta již není dostupná.",
+  "agent.session.runtime.connection_ended": "Spojení s běhovým prostředím bylo neočekávaně ukončeno. Generování odpovědi bylo zastaveno; před dalším pokusem zkontrolujte dopady použitých nástrojů.",
+  "agent.session.runtime.inactive": "Běhové prostředí nevykazuje žádnou aktivitu po dobu {{minutes}} min. Generování odpovědi bylo zastaveno; před dalším pokusem zkontrolujte dopady použitých nástrojů.",
   "agent.session.workspace_status.inaccessible": "Cesta k pracovnímu prostoru není přístupná: {{path}}",
   "agent.session.workspace_status.missing": "Cesta k pracovnímu prostoru neexistuje: {{path}}",
   "agent.session.workspace_status.not_directory": "Cesta k pracovnímu prostoru není adresář: {{path}}",

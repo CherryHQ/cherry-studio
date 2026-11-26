@@ -50,6 +50,8 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "無法對應舊執行環境的部分停用工具。請重新設定此智能體的工具存取權限後再執行。",
   "agent.session.run_status.busy": "智能體工作階段忙碌中，請稍後再試。",
   "agent.session.run_status.unavailable": "智能體工作階段已無法使用。",
+  "agent.session.runtime.connection_ended": "執行環境連線意外中斷，回覆已停止。重試前請檢查工具操作是否已生效。",
+  "agent.session.runtime.inactive": "執行環境已連續 {{minutes}} 分鐘沒有活動，回覆已停止。重試前請檢查工具操作是否已生效。",
   "agent.session.workspace_status.inaccessible": "工作區路徑無法存取：{{path}}",
   "agent.session.workspace_status.missing": "工作區路徑不存在：{{path}}",
   "agent.session.workspace_status.not_directory": "工作區路徑不是資料夾：{{path}}",

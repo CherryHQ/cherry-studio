@@ -50,6 +50,8 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "Não foi possível associar algumas ferramentas desativadas do ambiente anterior. Reconfigure o acesso às ferramentas deste agente antes de o executar.",
   "agent.session.run_status.busy": "A sessão do Agent está ocupada. Tente novamente dentro de instantes.",
   "agent.session.run_status.unavailable": "A sessão do Agent já não está disponível.",
+  "agent.session.runtime.connection_ended": "A ligação ao ambiente de execução terminou inesperadamente. A geração da resposta foi interrompida; verifique os efeitos das ações das ferramentas antes de tentar novamente.",
+  "agent.session.runtime.inactive": "Não houve atividade no ambiente de execução durante {{minutes}} minutos. A geração da resposta foi interrompida; verifique os efeitos das ações das ferramentas antes de tentar novamente.",
   "agent.session.workspace_status.inaccessible": "O caminho do espaço de trabalho não está acessível: {{path}}",
   "agent.session.workspace_status.missing": "O caminho do espaço de trabalho não existe: {{path}}",
   "agent.session.workspace_status.not_directory": "O caminho do espaço de trabalho não é uma pasta: {{path}}",

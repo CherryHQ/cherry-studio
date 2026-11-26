@@ -50,6 +50,8 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "Unele instrumente dezactivate din mediul anterior nu au putut fi asociate. Reconfigurați accesul acestui agent la instrumente înainte de a-l rula.",
   "agent.session.run_status.busy": "Sesiunea Agent este ocupată. Încercați din nou în curând.",
   "agent.session.run_status.unavailable": "Sesiunea Agent nu mai este disponibilă.",
+  "agent.session.runtime.connection_ended": "Conexiunea cu mediul de execuție s-a încheiat în mod neașteptat. Generarea răspunsului a fost oprită; verificați efectele acțiunilor instrumentelor înainte de a încerca din nou.",
+  "agent.session.runtime.inactive": "Nu s-a înregistrat activitate în mediul de execuție timp de {{minutes}} minute. Generarea răspunsului a fost oprită; verificați efectele acțiunilor instrumentelor înainte de a încerca din nou.",
   "agent.session.workspace_status.inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
   "agent.session.workspace_status.missing": "Calea către spațiul de lucru nu există: {{path}}",
   "agent.session.workspace_status.not_directory": "Calea spațiului de lucru nu este un director: {{path}}",

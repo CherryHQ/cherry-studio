@@ -50,6 +50,8 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "Einige deaktivierte Werkzeuge der vorherigen Laufzeit konnten nicht zugeordnet werden. Konfigurieren Sie den Werkzeugzugriff dieses Agenten vor dem Start neu.",
   "agent.session.run_status.busy": "Die Agent-Sitzung ist beschäftigt. Bitte versuchen Sie es in Kürze erneut.",
   "agent.session.run_status.unavailable": "Die Agent-Sitzung ist nicht mehr verfügbar.",
+  "agent.session.runtime.connection_ended": "Die Verbindung zur Laufzeitumgebung wurde unerwartet beendet. Die Antwort wurde gestoppt; prüfen Sie vor einem erneuten Versuch, welche Auswirkungen die Werkzeugaufrufe hatten.",
+  "agent.session.runtime.inactive": "Seit {{minutes}} Minuten gibt es keine Aktivität in der Laufzeitumgebung. Die Antwort wurde gestoppt; prüfen Sie vor einem erneuten Versuch, welche Auswirkungen die Werkzeugaufrufe hatten.",
   "agent.session.workspace_status.inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
   "agent.session.workspace_status.missing": "Arbeitsbereichspfad existiert nicht: {{path}}",
   "agent.session.workspace_status.not_directory": "Der Workspace-Pfad ist kein Verzeichnis: {{path}}",

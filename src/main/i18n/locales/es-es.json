@@ -50,6 +50,8 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "No se pudieron asignar algunas herramientas desactivadas del entorno anterior. Reconfigure el acceso a las herramientas de este agente antes de ejecutarlo.",
   "agent.session.run_status.busy": "La sesión del Agent está ocupada. Inténtalo de nuevo en breve.",
   "agent.session.run_status.unavailable": "La sesión del Agent ya no está disponible.",
+  "agent.session.runtime.connection_ended": "La conexión con el entorno de ejecución se cerró inesperadamente. La respuesta se ha detenido; revisa los efectos de las acciones de las herramientas antes de volver a intentarlo.",
+  "agent.session.runtime.inactive": "No ha habido actividad en el entorno de ejecución durante {{minutes}} minutos. La respuesta se ha detenido; revisa los efectos de las acciones de las herramientas antes de volver a intentarlo.",
   "agent.session.workspace_status.inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
   "agent.session.workspace_status.missing": "La ruta del espacio de trabajo no existe: {{path}}",
   "agent.session.workspace_status.not_directory": "La ruta del espacio de trabajo no es una carpeta: {{path}}",

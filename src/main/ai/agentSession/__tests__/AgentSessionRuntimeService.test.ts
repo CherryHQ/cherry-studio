@@ -9,8 +9,11 @@ import { defaultServiceInstances } from '@test-mocks/main/application'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
+import { runtimeId } from '@cherrystudio/agent-runtime'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import type * as ForkDataModule from '@data/services/AgentSessionForkService'
 import type * as SessionMessageModule from '@data/services/AgentSessionMessageService'
@@ -114,6 +117,7 @@ vi.mock('../relocateSystemWorkspaces', () => ({
 vi.mock('@data/services/AgentSessionService', async (importOriginal) => {
   const actual = await importOriginal<typeof SessionModule>()
   return {
+    ...actual,
     agentSessionService: Object.assign(Object.create(actual.agentSessionService), {
       getById: mocks.getSessionById,
       ensureTraceId: mocks.ensureTraceId
@@ -141,6 +145,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     retireAbandonedApproval: mocks.retireAbandonedApproval,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
     getNativeSessionId: vi.fn(),
+    hasContextModelInput: () => true,
     captureHead: () => 'branch-head',
     branchTip: (_sessionId: string, messageId: string) => messageId,
     linkReply: vi.fn(),
@@ -185,7 +190,7 @@ vi.mock('@application', async () => {
 
 const realFs = await vi.importActual<typeof FsPromises>('node:fs/promises')
 const { AgentSessionForkOperations } = await import('../fork')
-const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
+const { AgentSessionRuntimeService, REPLY_INACTIVITY_TIMEOUT_MS } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
 const { toolApprovalRegistry } = await import('../../toolApproval/ToolApprovalRegistry')
 const baseTurnInput = {
@@ -7112,6 +7117,510 @@ describe('AgentSessionRuntimeService', () => {
     )
     expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
     expect(service.isSessionBusy('session-1')).toBe(false)
+  })
+  describe('reply inactivity watchdog', () => {
+    const N = REPLY_INACTIVITY_TIMEOUT_MS
+    const dbh = setupTestDatabase()
+    let contextId: string
+    let service: InstanceType<typeof AgentSessionRuntimeService>
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+      service = new AgentSessionRuntimeService()
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: 'workspace-1', name: 'Work', type: 'user', path: '/test/work', orderKey: 'a0' })
+        .run()
+      dbh.db
+        .insert(agentSessionTable)
+        .values({ id: 'session-1', workspaceId: 'workspace-1', name: 'Session', orderKey: 'a0' })
+        .run()
+      const backend = contexts.ensureBackendTx(
+        dbh.db,
+        { version: 1, kind: 'claude-code', configDir: '/test/claude' },
+        'bound'
+      )
+      contextId = contexts.reserveBranchTx(dbh.db, {
+        sessionId: 'session-1',
+        backendId: backend.id,
+        anchorMessageId: 'root'
+      }).id
+    })
+
+    afterEach(async () => {
+      await service.closeSession('session-1')
+      vi.useRealTimers()
+    })
+
+    async function openReply(connectGate?: Promise<AgentRuntimeConnection>, assistantMessageId = 'assistant-1') {
+      const events = createAsyncQueue<AgentRuntimeEvent>()
+      const connection = {
+        contextId,
+        events: events.iterable,
+        send: vi.fn(),
+        close: events.close,
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        validateSession() {},
+        connect: async () => connectGate ?? connection
+      })
+      const handle = service.beginTurn({ ...baseTurnInput, assistantMessageId, userMessage: userMessage('user-1') })
+      const source = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: handle.abortController.signal
+      })
+      const observed: any[] = []
+      const consumed = (async () => {
+        for await (const event of source.stream) observed.push(event)
+      })()
+      await vi.advanceTimersByTimeAsync(0)
+      const entry = getEntry(service)
+      const turn = entry.currentTurn
+      const errors = () => observed.filter((event) => event.type === 'error')
+      const push = async (event: AgentRuntimeEvent) => {
+        events.push(event)
+        await vi.advanceTimersByTimeAsync(0)
+      }
+      const acknowledgeError = async () => {
+        expect(errors()).toHaveLength(1)
+        await consumed
+        terminalListener(handle).onError({ isTopicDone: true })
+        expect(service.isSessionBusy('session-1')).toBe(false)
+      }
+      return { entry, turn, handle, source, connection, events, observed, errors, push, consumed, acknowledgeError }
+    }
+
+    async function holdSuccess(fixture: Awaited<ReturnType<typeof openReply>>, unknown = false) {
+      if (!unknown)
+        (service as any).applyRuntimeStateEvent(fixture.entry, {
+          type: 'reply-results',
+          turn: fixture.turn,
+          toolCallIds: ['task-call']
+        })
+      await fixture.push({
+        type: 'background-results',
+        result: unknown
+          ? { status: 'unknown', error: { operation: 'backgroundResults', code: 'missing', message: 'Unknown origin' } }
+          : { status: 'confirmed', value: ['task-call'] }
+      })
+      await fixture.push({ type: 'turn-complete' })
+      expect(fixture.entry.runtimeState.execution.reply.delivery.kind).toBe('open')
+    }
+
+    // These tests catch silence retaining execution ownership without a visible terminal error.
+    it('fails an open silent reply once at N, never at N−1, and settles only once', async () => {
+      const f = await openReply()
+      const terminals: unknown[] = []
+      service.onTurnTerminal((event) => terminals.push(event))
+      await vi.advanceTimersByTimeAsync(N - 1)
+      expect(f.errors()).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      expect(f.errors()).toMatchObject([{ error: { message: expect.stringContaining('30') } }])
+      expect(f.entry.runtimeState.execution.reply.delivery.kind).toBe('awaiting-persistence')
+      await f.acknowledgeError()
+      terminalListener(f.handle).onError({ isTopicDone: true })
+      await vi.advanceTimersByTimeAsync(N)
+      expect(f.errors()).toHaveLength(1)
+      expect(terminals).toHaveLength(1)
+    })
+
+    it('fails held success with non-empty pending results on the same reply and retains content', async () => {
+      const f = await openReply()
+      const projection = new RootMessageProjection(contextId, { lastPos: 0 })
+      f.entry.rootProjections = new Map([[contextId, projection]])
+      await f.push({
+        type: 'message-projection',
+        projection: {
+          contextId,
+          messages: [{ id: 'native-1', role: 'assistant', parts: [{ type: 'text', text: 'Kept output' }] }],
+          live: ['native-1'],
+          removed: [],
+          replaces: {}
+        }
+      })
+      await holdSuccess(f)
+      await vi.advanceTimersByTimeAsync(N - 1)
+      expect(f.errors()).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      expect(f.entry.currentTurn.assistantMessageId).toBe('assistant-1')
+      expect(f.entry.currentTurn.projection.parts('assistant-1')).toContainEqual({ type: 'text', text: 'Kept output' })
+      expect(f.entry.runtimeState.execution.reply.pendingResultToolCallIds).toEqual(['task-call'])
+      expect(f.entry.runtimeState.execution.reply.terminal.status).toBe('error')
+      await f.acknowledgeError()
+    })
+
+    it('fails held success with unknown results at N instead of treating undefined as drained', async () => {
+      const f = await openReply()
+      await holdSuccess(f, true)
+      expect(f.entry.runtimeState.execution.reply.pendingResultToolCallIds).toBeUndefined()
+      await vi.advanceTimersByTimeAsync(N - 1)
+      expect(f.errors()).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      expect(f.entry.currentTurn).toBe(f.turn)
+      await f.acknowledgeError()
+    })
+
+    it('renews on background task activity while parent text and usage stay frozen', async () => {
+      const f = await openReply()
+      await holdSuccess(f)
+      await vi.advanceTimersByTimeAsync(N - 1)
+      await f.push({
+        type: 'background-task-event',
+        data: { event: 'progress', taskId: 'task-1', status: 'in_progress', description: 'Working' }
+      })
+      await vi.advanceTimersByTimeAsync(N - 1)
+      expect(f.errors()).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      await f.acknowledgeError()
+    })
+
+    it('does not renew for context usage, queue edits, context refresh, or renderer attachment', async () => {
+      const f = await openReply()
+      await vi.advanceTimersByTimeAsync(N - 1)
+      await f.push({ type: 'context-usage', result: contextReading(12) })
+      service.enqueueUserMessage('session-1', userMessage('queued'))
+      service.enqueueUserMessage('session-1', userMessage('queued-2'))
+      await f.push({ type: 'followup-queue', queue: [] })
+      await f.push({
+        type: 'input-state',
+        contextId,
+        input: { inputId: runtimeId<'input'>('queued'), facts: ['accepted', 'queued'] }
+      })
+      mocks.getInteractionWindow.mockReturnValue('window-12')
+      mocks.getWindow.mockReturnValue({})
+      service.getMcpInteractionHost('session-1')
+      service.refreshContextUsageOnDemand('session-1')
+      expect(f.errors()).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      await f.acknowledgeError()
+    })
+
+    async function requestApproval(
+      f: Awaited<ReturnType<typeof openReply>>,
+      approvalId = 'approval-watchdog',
+      signal?: AbortSignal
+    ) {
+      toolApprovalRegistry.register({
+        approvalId,
+        sessionId: 'session-1',
+        toolCallId: approvalId,
+        toolName: 'Bash',
+        originalInput: {},
+        resolve: () => {},
+        signal
+      })
+      await f.push({
+        type: 'tool-approval-request',
+        request: {
+          approvalId,
+          toolCallId: approvalId,
+          toolName: 'Bash',
+          input: {},
+          presentation: 'stream'
+        }
+      })
+    }
+
+    it('pauses for a confirmed approval and grants a fresh interval after the last answer', async () => {
+      const f = await openReply()
+      await vi.advanceTimersByTimeAsync(N - 1)
+      await requestApproval(f)
+      await requestApproval(f, 'approval-second')
+      await vi.advanceTimersByTimeAsync(N * 2)
+      expect(f.errors()).toEqual([])
+      service.respondToolApproval('approval-watchdog', { approved: true })
+      await vi.advanceTimersByTimeAsync(N)
+      expect(f.errors()).toEqual([])
+      service.respondToolApproval('approval-second', { approved: true })
+      await vi.advanceTimersByTimeAsync(N - 1)
+      expect(f.errors()).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      await f.acknowledgeError()
+    })
+
+    it('resumes after approval abort and reconciles an immediately rejected approval', async () => {
+      await (service as any).onInit()
+      const f = await openReply()
+      const abort = new AbortController()
+      await requestApproval(f, 'aborted-approval', abort.signal)
+      await vi.advanceTimersByTimeAsync(N)
+      abort.abort()
+      await vi.advanceTimersByTimeAsync(N - 1)
+      await f.push({
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'already-rejected',
+          toolCallId: 'rejected-call',
+          toolName: 'Bash',
+          input: {},
+          presentation: 'stream'
+        }
+      })
+      await vi.advanceTimersByTimeAsync(1)
+      await f.acknowledgeError()
+    })
+
+    it('grants a fresh interval when a confirmed approval is immediately rejected during handling', async () => {
+      const f = await openReply()
+      await vi.advanceTimersByTimeAsync(N - 1)
+      toolApprovalRegistry.register({
+        approvalId: 'rejected-approval',
+        sessionId: 'session-1',
+        toolCallId: 'rejected-call',
+        toolName: 'Bash',
+        originalInput: {},
+        presentation: 'message',
+        resolve() {}
+      })
+      mocks.saveMessage.mockImplementationOnce(() => {
+        throw new Error('Cannot persist approval card')
+      })
+      await f.push({
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'rejected-approval',
+          toolCallId: 'rejected-call',
+          toolName: 'Bash',
+          input: {},
+          presentation: 'message'
+        }
+      })
+      expect(toolApprovalRegistry.peek('rejected-approval')).toBeUndefined()
+      await vi.advanceTimersByTimeAsync(N - 1)
+      expect(f.errors()).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      await f.acknowledgeError()
+    })
+
+    it('does not exempt an approval recorded on another connection generation', async () => {
+      const f = await openReply()
+      await requestApproval(f)
+      f.entry.observedApprovals.get('approval-watchdog').connection = { events: [], close() {}, send() {} }
+      f.entry.observedApprovals.get('approval-watchdog').generation = 'old-generation'
+      await f.push({ type: 'context-usage', result: contextReading(12) })
+      await vi.advanceTimersByTimeAsync(N)
+      await f.acknowledgeError()
+    })
+
+    it('rechecks public approval facts when the timer fires', async () => {
+      const f = await openReply()
+      toolApprovalRegistry.register({
+        approvalId: 'late-approval',
+        sessionId: 'session-1',
+        toolCallId: 'late-call',
+        toolName: 'Bash',
+        originalInput: {},
+        resolve() {}
+      })
+      f.entry.observedApprovals = new Map([
+        ['late-approval', { connection: f.connection, generation: f.entry.connectionGeneration }]
+      ])
+      await vi.advanceTimersByTimeAsync(N)
+      expect(f.errors()).toEqual([])
+      service.respondToolApproval('late-approval', { approved: true })
+      await vi.advanceTimersByTimeAsync(N)
+      await f.acknowledgeError()
+    })
+
+    it('fails immediately on EOF while a reply is unresolved', async () => {
+      const f = await openReply()
+      f.events.end()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(f.errors()).toMatchObject([{ error: { message: expect.stringContaining('ended unexpectedly') } }])
+      await f.acknowledgeError()
+    })
+
+    it('fails held success immediately on EOF even during approval wait', async () => {
+      const f = await openReply()
+      await holdSuccess(f)
+      await requestApproval(f)
+      f.events.end()
+      await vi.advanceTimersByTimeAsync(0)
+      await f.acknowledgeError()
+    })
+
+    it('does not fail EOF after terminal handoff or settlement', async () => {
+      const f = await openReply()
+      await f.push({ type: 'turn-complete' })
+      f.events.end()
+      await vi.advanceTimersByTimeAsync(N)
+      expect(f.errors()).toEqual([])
+      expect(f.entry.runtimeState.execution.reply.delivery.kind).toBe('awaiting-persistence')
+      terminalListener(f.handle).onDone({})
+      expect(service.isSessionBusy('session-1')).toBe(false)
+    })
+
+    it('does not fail deliberate Stop or close even when the event source ends', async () => {
+      const f = await openReply()
+      await service.stopSession('session-1', 'user-requested')
+      await vi.advanceTimersByTimeAsync(N)
+      expect(f.errors()).toEqual([])
+      const next = await openReply()
+      await service.closeSession('session-1')
+      await vi.advanceTimersByTimeAsync(N)
+      expect(next.errors()).toEqual([])
+    })
+
+    it('does not restart supervision of a retained reply after Stop confirmation', async () => {
+      const f = await openReply()
+      Object.assign(f.connection, { retainOnStop: true, interrupt: async () => {} })
+      const stopped = service.stopSession('session-1', 'user-requested')
+      await f.push({ type: 'stop-confirmed' })
+      await stopped
+      await f.push({ type: 'background-task-event', data: { event: 'progress', taskId: 'stopped-task' } })
+      await vi.advanceTimersByTimeAsync(N)
+      expect(f.errors()).toEqual([])
+      expect(f.entry.replyInactivityWatchdog).toBeUndefined()
+      f.events.end()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(f.errors()).toEqual([])
+    })
+
+    it('withdraws queued follow-ups and deferred placements before failure persistence can launch them', async () => {
+      const f = await openReply()
+      service.enqueueUserMessage('session-1', userMessage('queued'))
+      f.entry.deferredPlacements = [['queued-native']]
+      expect(f.entry.runtimeState.queue).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(N)
+      expect(f.entry.runtimeState.queue).toEqual([])
+      expect(f.entry.deferredPlacements).toBeUndefined()
+      await f.acknowledgeError()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(f.connection.send.mock.calls.map(([input]) => input.message.id)).toEqual(['user-1'])
+      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    })
+
+    it('fences a stale callback from a successor reply and connection', async () => {
+      const timerSpy = vi.spyOn(globalThis, 'setTimeout')
+      const f = await openReply()
+      const watchdog = f.entry.replyInactivityWatchdog
+      const callback =
+        timerSpy.mock.calls[timerSpy.mock.results.findIndex((result) => result.value === watchdog.timer)][0]
+      await f.push({ type: 'turn-complete' })
+      terminalListener(f.handle).onDone({})
+      const successor = await openReply()
+      callback()
+      expect(successor.entry.replyInactivityWatchdog).not.toBe(watchdog)
+      expect(successor.errors()).toEqual([])
+      await vi.advanceTimersByTimeAsync(N - 1)
+      expect(successor.errors()).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      await successor.acknowledgeError()
+      timerSpy.mockRestore()
+    })
+
+    it('never supervises idle retained background occupancy without an open reply', async () => {
+      const f = await openReply()
+      await f.push({ type: 'turn-complete' })
+      terminalListener(f.handle).onDone({})
+      await f.push({ type: 'background-work-state', active: true })
+      await vi.advanceTimersByTimeAsync(N * 2)
+      expect(f.errors()).toEqual([])
+      expect(f.entry.replyInactivityWatchdog).toBeUndefined()
+    })
+
+    it('bounds silence during connection setup without granting a new interval on attach', async () => {
+      const gate = createDeferred<AgentRuntimeConnection>()
+      const f = await openReply(gate.promise)
+      await vi.advanceTimersByTimeAsync(N - 1)
+      expect(f.errors()).toEqual([])
+      gate.resolve(f.connection)
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(1)
+      await f.acknowledgeError()
+    })
+
+    it('fails before connection setup finishes and discards its late connection', async () => {
+      const gate = createDeferred<AgentRuntimeConnection>()
+      const f = await openReply(gate.promise)
+      await vi.advanceTimersByTimeAsync(N)
+      await f.acknowledgeError()
+      gate.resolve(f.connection)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(f.connection.send).not.toHaveBeenCalled()
+      expect(f.entry.connection).toBeUndefined()
+    })
+
+    it('does not wait for a hanging native close before failing visibly', async () => {
+      const f = await openReply()
+      const closing = createDeferred<void>()
+      f.connection.close.mockImplementationOnce(() => closing.promise)
+      await vi.advanceTimersByTimeAsync(N)
+      await f.acknowledgeError()
+      expect(f.entry.connection).toBeUndefined()
+      expect(() => service.assertSessionEditable('session-1')).toThrow()
+      closing.resolve()
+      f.events.end()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(() => service.assertSessionEditable('session-1')).not.toThrow()
+    })
+
+    it('ignores terminal input-state from another context but renews the current context', async () => {
+      const f = await openReply()
+      await vi.advanceTimersByTimeAsync(N - 1)
+      await f.push({
+        type: 'input-state',
+        contextId: 'other-context',
+        input: { inputId: runtimeId<'input'>('other'), facts: [], outcome: 'completed' }
+      })
+      expect(f.errors()).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      await f.acknowledgeError()
+      const next = await openReply()
+      await vi.advanceTimersByTimeAsync(N - 1)
+      await next.push({
+        type: 'input-state',
+        contextId,
+        input: { inputId: runtimeId<'input'>('user-1'), facts: [], outcome: 'completed' }
+      })
+      await vi.advanceTimersByTimeAsync(N - 1)
+      expect(next.errors()).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      await next.acknowledgeError()
+    })
+
+    describe('empty reply persistence', () => {
+      it('persists an empty timed-out assistant placeholder as error on the same row', async () => {
+        const { agentSessionMessageService: realMessages } = await vi.importActual<typeof SessionMessageModule>(
+          '@data/services/AgentSessionMessageService'
+        )
+        mocks.saveMessage.mockImplementation(realMessages.saveMessage.bind(realMessages))
+        dbh.db.insert(userProviderTable).values({ providerId: 'claude-code', name: 'Claude', orderKey: 'a0' }).run()
+        dbh.db
+          .insert(userModelTable)
+          .values({
+            id: baseTurnInput.modelId,
+            providerId: 'claude-code',
+            modelId: 'claude-sonnet-4-5',
+            presetModelId: 'claude-sonnet-4-5',
+            orderKey: 'a0'
+          })
+          .run()
+        const assistantId = randomUUID()
+        realMessages.saveMessage({
+          sessionId: 'session-1',
+          message: { id: assistantId, role: 'assistant', status: 'pending', data: { parts: [] } }
+        })
+        const f = await openReply(undefined, assistantId)
+        await vi.advanceTimersByTimeAsync(N)
+        const result = {
+          modelId: baseTurnInput.modelId,
+          error: { name: 'Error', message: f.errors()[0].error.message },
+          finalMessage: { id: assistantId, role: 'assistant', parts: [] },
+          isTopicDone: true
+        }
+        await persistenceListener(f.handle).onError(result)
+        await f.acknowledgeError()
+        expect(realMessages.getSessionMessage('session-1', assistantId)).toMatchObject({
+          id: assistantId,
+          status: 'error',
+          data: { parts: [expect.objectContaining({ type: 'data-error' })] }
+        })
+      })
+    })
   })
 })
 

@@ -50,6 +50,8 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "Nie udało się zmapować niektórych wyłączonych narzędzi z poprzedniego środowiska wykonawczego. Skonfiguruj ponownie dostęp do narzędzi dla tego agenta przed jego uruchomieniem.",
   "agent.session.run_status.busy": "Sesja agenta jest zajęta. Spróbuj ponownie za chwilę.",
   "agent.session.run_status.unavailable": "Sesja agenta nie jest już dostępna.",
+  "agent.session.runtime.connection_ended": "Połączenie ze środowiskiem wykonawczym zostało nieoczekiwanie zakończone. Generowanie odpowiedzi zostało zatrzymane; przed ponowną próbą sprawdź skutki działań narzędzi.",
+  "agent.session.runtime.inactive": "Brak aktywności środowiska wykonawczego od {{minutes}} min. Generowanie odpowiedzi zostało zatrzymane; przed ponowną próbą sprawdź skutki działań narzędzi.",
   "agent.session.workspace_status.inaccessible": "Ścieżka obszaru roboczego jest niedostępna: {{path}}",
   "agent.session.workspace_status.missing": "Ścieżka obszaru roboczego nie istnieje: {{path}}",
   "agent.session.workspace_status.not_directory": "Ścieżka obszaru roboczego nie jest katalogiem: {{path}}",

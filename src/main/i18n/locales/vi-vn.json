@@ -50,6 +50,8 @@
   "agent.session.pi.legacy_tool_policy_unresolved": "Không thể ánh xạ một số công cụ đã tắt của môi trường chạy trước. Hãy cấu hình lại quyền truy cập công cụ của tác tử này trước khi chạy.",
   "agent.session.run_status.busy": "Phiên Agent đang bận. Vui lòng thử lại sau ít phút.",
   "agent.session.run_status.unavailable": "Phiên Agent không còn khả dụng.",
+  "agent.session.runtime.connection_ended": "Kết nối với môi trường thực thi đã kết thúc ngoài dự kiến. Quá trình tạo phản hồi đã dừng; hãy kiểm tra tác động của các thao tác do công cụ thực hiện trước khi thử lại.",
+  "agent.session.runtime.inactive": "Môi trường thực thi không có hoạt động trong {{minutes}} phút. Quá trình tạo phản hồi đã dừng; hãy kiểm tra tác động của các thao tác do công cụ thực hiện trước khi thử lại.",
   "agent.session.workspace_status.inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
   "agent.session.workspace_status.missing": "Đường dẫn không gian làm việc không tồn tại: {{path}}",
   "agent.session.workspace_status.not_directory": "Đường dẫn không gian làm việc không phải là thư mục: {{path}}",
