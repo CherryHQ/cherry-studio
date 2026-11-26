@@ -82,6 +82,29 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it('keeps the resolved replay route across credential and fetch changes and changes it for a new endpoint URL', async () => {
+    const provider = makeProvider({ id: 'openai', defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
+    const model = makeModel({ providerId: 'openai', apiModelId: 'gpt-4o' })
+    const build = async (baseURL: string, apiKey: string) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValueOnce({
+        config: { providerId: 'openai-compatible', providerSettings: { baseURL, apiKey, fetch: vi.fn() } },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      return buildAgentParams({
+        request: { conversation: CONVERSATION, contextOwner: 'caller' },
+        signal: undefined,
+        provider,
+        model
+      })
+    }
+    const first = await build('https://relay.test/a/v1', 'fixture-a')
+    const rotated = await build('https://relay.test/a/v1', 'fixture-b')
+    const moved = await build('https://relay.test/b/v1', 'fixture-b')
+    expect(first.replayRouteId).toBeTruthy()
+    expect(rotated.replayRouteId).toBe(first.replayRouteId)
+    expect(moved.replayRouteId).not.toBe(first.replayRouteId)
+  })
+
   it('sends only selected MCP guidance to the provider and suppresses it for tool-disabled requests', async () => {
     const server = { id: 'docs', name: 'Documents', isActive: true, disabledTools: [], disabledAutoApproveTools: [] }
     const toolId = 'mcp__docs__read'

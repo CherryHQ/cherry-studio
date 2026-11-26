@@ -12,6 +12,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode'
 import { ClaudeCodeSessionStateService } from '@main/ai/runtime/claudeCode/ClaudeCodeSessionStateService'
 import { surfaceExitPlanModeInput } from '@main/ai/runtime/claudeCode/hooks'
@@ -714,28 +715,20 @@ function savedUser(parentId: string, value: string) {
   })
 }
 
-// Inputs queued before their replies exist sit above those replies, so row ancestry names the wrong input.
-it('links each steered input to the reply opened for it', async () => {
-  let next: StartRuntimeTurnInput | undefined
-  MockApplicationUtils.setService('AiStreamManager', {
-    startRuntimeTurn: (input: StartRuntimeTurnInput) => {
-      next = input
-    }
-  })
+// Only native placement associates an input with the executing Run.
+it('links a placed steer to the active run while a pending input remains unowned', async () => {
   const f = await fixture()
   await f.project([text('first', 'Original answer')])
   const first = savedUser(f.reply.id, 'First steer')
   f.service.enqueueUserMessage('root', first)
-  const second = savedUser(first.id, 'Second steer')
-  f.service.enqueueUserMessage('root', second)
+  const second = savedUser(first.id, 'Still queued')
+  f.service.enqueueUserMessage('root', second, { followUp: true })
   await f.emit({ type: 'steer-boundary', inputIds: [first.id] })
-  const result: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage, isTopicDone: false }
-  await f.handle.listeners[0].onDone(result)
-  await f.handle.listeners[1].onDone(result)
-  await expect.poll(() => next).toBeDefined()
-
-  expect(messages.replyTo('root', first.id)?.id).toBe(next!.request.messageId)
+  expect(messages.replyTo('root', first.id)?.id).toBe(f.reply.id)
   expect(messages.replyTo('root', second.id)).toBeUndefined()
+  expect(messages.getSessionMessage('root', f.reply.id).status).toBe('pending')
+  await f.emit({ type: 'turn-complete' })
+  await f.done
 })
 
 // Two queued inputs leave Q2 -> Q3 -> A2 -> A3; closing during A3 must resume Q3 in A3, not in A2.
@@ -941,7 +934,7 @@ it.each([
     application.get('DbService').withWriteTx((tx) => messages.bindInputContextTx(tx, 'root', followup.id, f.context.id))
   expect(f.service.inspect('root')?.pendingMessageCount).toBe(0)
 
-  await f.emit({ type: 'steer-boundary', inputIds: [followup.id] })
+  await f.emit({ type: 'run-started', inputIds: [followup.id] })
   const first = await f.done
   await f.handle.listeners[0].onDone({ status: 'success', finalMessage: first.finalMessage, isTopicDone: false })
   await f.handle.listeners[1].onDone({ status: 'success', finalMessage: first.finalMessage, isTopicDone: false })
@@ -967,9 +960,9 @@ it('gives a Durable placement its own reply when it arrives before the previous 
   f.service.enqueueUserMessage('root', second, { followUp: true })
   f.service.enqueueUserMessage('root', third, { followUp: true })
 
-  await f.emit({ type: 'steer-boundary', inputIds: [second.id], followUp: true })
+  await f.emit({ type: 'run-started', inputIds: [second.id] })
   await f.project([text('second', 'Second answer')])
-  await f.emit({ type: 'steer-boundary', inputIds: [third.id], followUp: true })
+  await f.emit({ type: 'run-started', inputIds: [third.id] })
   const first = await f.done
   const result: StreamDoneResult = { status: 'success', finalMessage: first.finalMessage, isTopicDone: false }
   await f.handle.listeners[0].onDone(result)
@@ -1016,7 +1009,7 @@ it('saves a truncated answer as an output-limit error after its follow-up was pl
   await f.project([text('first', 'First answer')])
   const followup = savedUser(f.reply.id, 'Second question')
   f.service.enqueueUserMessage('root', followup, { followUp: true })
-  await f.emit({ type: 'steer-boundary', inputIds: [followup.id], followUp: true })
+  await f.emit({ type: 'run-started', inputIds: [followup.id] })
   const first = await f.done
   const result: StreamDoneResult = { status: 'success', finalMessage: first.finalMessage, isTopicDone: false }
   await f.handle.listeners[0].onDone(result)
@@ -1107,7 +1100,7 @@ it('opens a new reply when a queued Durable input starts native work', async () 
 })
 
 // The native successor can publish before the preceding reply has committed and created its row.
-it('retains a reserved steer reply until its stream takes ownership', async () => {
+it('retains a newly started queued run until its stream takes ownership', async () => {
   let next: StartRuntimeTurnInput | undefined
   MockApplicationUtils.setService('AiStreamManager', {
     startRuntimeTurn: (input: StartRuntimeTurnInput) => {
@@ -1122,7 +1115,7 @@ it('retains a reserved steer reply until its stream takes ownership', async () =
     message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Revised requirement' }] } }
   })
   f.service.enqueueUserMessage('root', followup)
-  await f.emit({ type: 'steer-boundary', inputIds: [followup.id] })
+  await f.emit({ type: 'run-started', inputIds: [followup.id] })
   const first = await f.done
   await f.project([text('second', 'Continuation before handoff')])
   const result: StreamDoneResult = { status: 'success', finalMessage: first.finalMessage, isTopicDone: false }
@@ -1299,4 +1292,346 @@ it.each([false, true])('retains approval=%s through native results, persistence 
     removed: []
   })
   expect(restored.parts(f.reply.id)).toEqual([expected])
+})
+
+it('releases unplaced inputBinding when recovering an unresolved steer across reconnect and skips already-placed bindings', async () => {
+  dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
+  dbh.db
+    .insert(userModelTable)
+    .values({
+      id: 'test::model',
+      providerId: 'test',
+      modelId: 'model',
+      name: 'Model',
+      capabilities: [],
+      supportsStreaming: true,
+      orderKey: 'a0'
+    })
+    .run()
+  dbh.db
+    .insert(agentTable)
+    .values({ id: 'agent', type: 'pi', name: 'Agent', instructions: '', model: 'test::model', orderKey: 'a0' })
+    .run()
+  dbh.db
+    .insert(agentWorkspaceTable)
+    .values({ id: 'workspace', name: 'Workspace', path: '/test', type: 'user', orderKey: 'a0' })
+    .run()
+  dbh.db
+    .insert(agentSessionTable)
+    .values({ id: 'root', agentId: 'agent', workspaceId: 'workspace', name: 'Root', orderKey: 'a0', lastPos: 0 })
+    .run()
+
+  const context = preparePiBranch('root')
+  const firstUser = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'First' }] } }
+  })
+  const firstReply = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+  })
+  const unplacedSteer = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Unplaced steer' }] } }
+  })
+  const placedSteer = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Placed steer' }] } }
+  })
+
+  const q1 = new AsyncEventQueue<AgentRuntimeEvent>()
+  const q2 = new AsyncEventQueue<AgentRuntimeEvent>()
+  const sentOnSecond: string[] = []
+  let firstCallbacks: Parameters<Parameters<typeof runtimeDriverRegistry.register>[0]['connect']>[0] | undefined
+  runtimeDriverRegistry.register({
+    type: 'pi',
+    validateSession: () => {},
+    connect: vi
+      .fn()
+      .mockImplementationOnce(async (connectInput) => {
+        firstCallbacks = connectInput
+        return {
+          contextId: context.id,
+          events: q1,
+          send: ({ message }) => {
+            prepareNativeSubmission('root', message.id, context.id, 'reject')
+          },
+          redirect: ({ message }) => {
+            prepareNativeSubmission('root', message.id, context.id, 'steer')
+            firstCallbacks?.onInputPrepared?.(message.id, context.id)
+            return true
+          },
+          close: async () => q1.close()
+        }
+      })
+      .mockImplementationOnce(async () => ({
+        contextId: context.id,
+        events: q2,
+        send: ({ message }) => {
+          prepareNativeSubmission('root', message.id, context.id, 'reject')
+          sentOnSecond.push(message.id)
+        },
+        lookupInput: async () => ({
+          status: 'unknown',
+          error: { operation: 'lookup-input', code: 'unavailable', message: 'unavailable' }
+        }),
+        reconcile: async () => 'current',
+        close: async () => q2.close()
+      }))
+  })
+
+  const service = new AgentSessionRuntimeService()
+  onTestFinished(async () => {
+    await service.closeSession('root')
+    runtimeDriverRegistry.clearForTest()
+  })
+  const starts: StartRuntimeTurnInput[] = []
+  MockApplicationUtils.setService('AiStreamManager', {
+    startRuntimeTurn: (input: StartRuntimeTurnInput) => {
+      starts.push(input)
+    },
+    drainRuntimeReply: async () => {}
+  })
+
+  const handle = service.beginTurn({
+    sessionId: 'root',
+    topicId: 'agent-session:root',
+    agentId: 'agent',
+    agentType: 'pi',
+    modelId: 'test::model',
+    assistantMessageId: firstReply.id,
+    userMessage: firstUser
+  })
+  const source = service.openTurnStream({
+    sessionId: 'root',
+    turnId: handle.turnId,
+    signal: handle.abortController.signal
+  })
+  if (source.kind !== 'messages') throw new Error('Expected message source')
+  const reader = source.stream.getReader()
+  await reader.read()
+  await vi.waitFor(() => expect(messages.inputBinding('root', firstUser.id)?.contextId).toBe(context.id))
+
+  service.enqueueUserMessage('root', unplacedSteer)
+  service.enqueueUserMessage('root', placedSteer)
+  expect(messages.inputBinding('root', unplacedSteer.id)?.contextId).toBe(context.id)
+  expect(messages.inputBinding('root', placedSteer.id)?.contextId).toBe(context.id)
+  // Simulate native placement persisted in DB for placedSteer before connection loss.
+  messages.saveInputTimelinePosition('root', placedSteer.id, context.id, 1)
+
+  await service.closeSession('root')
+  await (service as any).ensureConnection((service as any).entries.get('root'))
+
+  await vi.waitFor(() => expect(starts).toHaveLength(1))
+  expect((service as any).entries.get('root')?.pendingInputs?.size ?? 0).toBe(0)
+  expect(starts[0].taskIds).toEqual([unplacedSteer.id])
+
+  const runtime = starts[0].request.runtime
+  if (runtime?.kind !== 'agent-session') throw new Error('Expected agent-session runtime')
+  const recoveredSource = service.openTurnStream({
+    sessionId: 'root',
+    turnId: runtime.turnId,
+    signal: starts[0].abortController!.signal
+  })
+  if (recoveredSource.kind !== 'messages') throw new Error('Expected message source')
+  const recoveredReader = recoveredSource.stream.getReader()
+  await recoveredReader.read()
+  await vi.waitFor(() => expect(sentOnSecond).toEqual([unplacedSteer.id]))
+  expect(messages.inputBinding('root', unplacedSteer.id)?.contextId).toBe(context.id)
+  expect(messages.replyTo('root', unplacedSteer.id)?.id).toBe(starts[0].request.messageId)
+  await reader.cancel().catch(() => undefined)
+  await recoveredReader.cancel().catch(() => undefined)
+})
+
+// A redirect changes the input, not the native execution or its durable output owner.
+it('keeps steered inputs, late tool results and new output in one run until native terminal', async () => {
+  const f = await fixture()
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  const call = { type: 'dynamic-tool' as const, toolCallId: 'held', toolName: 'bash', input: { command: 'sleep 1' } }
+  const running = { id: 'tool', role: 'assistant' as const, parts: [{ ...call, state: 'input-available' as const }] }
+  await f.project([text('before', 'Before steer'), running])
+  const toolBefore = f.views.at(-1)!.partIds![1]
+  const first = savedUser(f.reply.id, 'First steer')
+  f.service.enqueueUserMessage('root', first)
+  await f.emit({ type: 'steer-boundary', inputIds: [first.id] })
+  const second = savedUser(first.id, 'Second steer')
+  f.service.enqueueUserMessage('root', second)
+  await f.emit({ type: 'steer-boundary', inputIds: [second.id] })
+  const completed = { ...running, parts: [{ ...call, state: 'output-available' as const, output: 'done' }] }
+  await f.project([completed, text('after', 'After steer')])
+
+  expect(messages.replyTo('root', first.id)?.id).toBe(f.reply.id)
+  expect(messages.replyTo('root', second.id)?.id).toBe(f.reply.id)
+  expect(messages.getSessionMessage('root', f.reply.id).status).toBe('pending')
+  expect(f.views.at(-1)?.parts).toEqual([
+    ...text('', 'Before steer').parts,
+    ...completed.parts,
+    ...text('', 'After steer').parts
+  ])
+  const toolAfter = dbh.db
+    .select()
+    .from(agentSessionMessagePartTable)
+    .all()
+    .find((part) => part.payload.type === 'dynamic-tool')
+  expect(toolAfter).toMatchObject({ id: toolBefore, messageId: f.reply.id, pos: 2 })
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.role, 'assistant')).all()
+  ).toHaveLength(1)
+  await f.emit({ type: 'turn-complete' })
+  const result: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  for (const listener of f.handle.listeners) await listener.onDone(result)
+  expect(messages.getSessionMessage('root', f.reply.id)).toMatchObject({ status: 'success' })
+  expect(f.connections.sent).toEqual([f.user.id])
+})
+
+it.each([
+  { outcome: 'aborted', status: 'paused' },
+  { outcome: undefined, status: 'paused' },
+  { outcome: 'completed', status: 'success' },
+  { outcome: 'failed', status: 'error' }
+] as const)(
+  'settles a stopped Run with a completed original input and a $outcome steer as $status',
+  async ({ outcome, status }) => {
+    MockApplicationUtils.setService('AiStreamManager', {
+      drainRuntimeReply: async () => {},
+      pauseRuntimeTurn: () => false
+    })
+    const f = await fixture(async () => {}, true, 'pi-durable')
+    const terminals: string[] = []
+    f.service.onTurnTerminal((event) => void terminals.push(event.status))
+    await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+    const steer = savedUser(f.reply.id, 'Steer before Stop')
+    f.service.enqueueUserMessage('root', steer)
+    await f.emit({ type: 'steer-boundary', inputIds: [steer.id] })
+    await f.project([text('answer', 'Partial steered answer')])
+    await f.emit({
+      type: 'input-state',
+      contextId: f.context.id,
+      input: { inputId: runtimeId(f.user.id), facts: ['accepted', 'placed'], outcome: 'completed' }
+    })
+    f.handle.abortController.abort('user-requested')
+    const paused: StreamPausedResult = {
+      status: 'paused',
+      isTopicDone: true,
+      finalMessage: (await f.done).finalMessage
+    }
+    for (const listener of f.handle.listeners) await listener.onPaused(paused)
+    const stopping = f.service.stopSession('root', 'user-requested')
+    await f.emit({
+      type: 'input-state',
+      contextId: f.context.id,
+      input: { inputId: runtimeId(steer.id), facts: ['accepted', 'placed'], ...(outcome && { outcome }) }
+    })
+    await f.emit({ type: 'turn-complete', status: 'paused' })
+    await f.emit({ type: 'stop-confirmed' })
+    await stopping
+    const saved = messages.getSessionMessage('root', f.reply.id)
+    expect(saved.status).toBe(status)
+    expect(saved.data.parts?.[0]).toEqual(text('', 'Partial steered answer').parts[0])
+    expect(terminals).toEqual([status])
+  }
+)
+
+it.each(['before', 'after'] as const)(
+  'settles a followed Run once when its input outcomes arrive %s the next execution starts',
+  async (reported) => {
+    MockApplicationUtils.setService('AiStreamManager', {
+      startRuntimeTurn: () => {},
+      drainRuntimeReply: async () => {}
+    })
+    const f = await fixture(undefined, false, 'pi-durable')
+    const terminals: string[] = []
+    f.service.onTurnTerminal((event) => {
+      if (event.assistantMessageId === f.reply.id && event.boundary === 'turn') terminals.push(event.status)
+    })
+    await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+    await f.project([text('answer', 'Partial answer')])
+    const steer = savedUser(f.reply.id, 'Correction')
+    f.service.enqueueUserMessage('root', steer)
+    await f.emit({ type: 'steer-boundary', inputIds: [steer.id] })
+    const failed: AgentRuntimeEvent = {
+      type: 'input-state',
+      contextId: f.context.id,
+      input: {
+        inputId: runtimeId(f.user.id),
+        facts: ['accepted', 'placed'],
+        outcome: 'unanswered',
+        error: { operation: 'input', code: 'output-truncated', message: 'Output limit reached' }
+      }
+    }
+    if (reported === 'before') await f.emit(failed)
+    const queued = savedUser(steer.id, 'Next execution')
+    f.service.enqueueUserMessage('root', queued, { followUp: true })
+    await f.emit({ type: 'run-started', inputIds: [queued.id] })
+    const result: StreamDoneResult = {
+      status: 'success',
+      finalMessage: (await f.done).finalMessage,
+      isTopicDone: false
+    }
+    for (const listener of f.handle.listeners) await listener.onDone(result)
+    if (reported === 'after') await f.emit(failed)
+    expect(messages.getSessionMessage('root', f.reply.id).status).toBe('success')
+    const aborted: AgentRuntimeEvent = {
+      type: 'input-state',
+      contextId: f.context.id,
+      input: { inputId: runtimeId(steer.id), facts: ['accepted', 'placed'], outcome: 'aborted' }
+    }
+    await f.emit(aborted)
+    await f.emit(aborted)
+    await vi.waitFor(() => expect(terminals).toEqual(['error']))
+    const saved = messages.getSessionMessage('root', f.reply.id)
+    expect(saved.status).toBe('error')
+    expect(saved.data.parts?.filter((part) => part.type === 'data-error')).toHaveLength(1)
+    expect(saved.data.parts?.[0]).toEqual(text('', 'Partial answer').parts[0])
+  }
+)
+
+it('publishes compaction progress and completion on one part without moving its timeline position', async () => {
+  const changes: AgentPartChange[] = []
+  const f = await fixture(undefined, false, 'pi', 0, (change) => changes.push(change))
+  await f.emit({ type: 'compaction-start', trigger: 'manual' })
+  const added = changes.find((part) => part.type === 'part-add')
+  expect(added).toMatchObject({ part: { type: 'data-compaction-anchor', data: { status: 'compacting' } } })
+  expect(storedParts(f.reply.id)).toEqual([])
+  await f.emit({ type: 'compaction-complete', anchor: { phase: 'agent-session', status: 'done' } })
+  expect(changes).toContainEqual(
+    expect.objectContaining({
+      type: 'part-put',
+      partId: added && 'partId' in added ? added.partId : undefined,
+      part: expect.objectContaining({ data: { phase: 'agent-session', status: 'done' } })
+    })
+  )
+  expect(storedParts(f.reply.id)).toHaveLength(1)
+})
+
+it('persists a terminal compaction marker when closing and reopening during compaction', async () => {
+  const changes: AgentPartChange[] = []
+  const f = await fixture(undefined, false, 'pi-durable', 0, (change) => changes.push(change))
+  await f.emit({ type: 'run-started', inputIds: [f.user.id] })
+  await f.project([text('before-close', 'Before compaction')])
+  await f.emit({ type: 'compaction-start', trigger: 'manual' })
+  const added = changes.find((part) => part.type === 'part-add')!
+  if (added.type !== 'part-add') throw new Error('Missing compaction part')
+  await f.service.closeSession('root')
+  const result: StreamPausedResult = { status: 'paused', finalMessage: f.views.at(-1)! }
+  for (const listener of f.handle.listeners) await listener.onPaused(result)
+  const saved = messages.getSessionMessage('root', f.reply.id)
+  expect(saved.status).toBe('paused')
+  expect(saved.data.parts).toContainEqual(
+    expect.objectContaining({
+      type: 'data-compaction-anchor',
+      data: expect.objectContaining({ status: 'skipped' })
+    })
+  )
+  const reopened = new RootMessageProjection(f.context.id, { lastPos: messages.lastTimelinePosition('root') })
+  expect(reopened.replyEntries(f.reply.id)).toContainEqual(
+    expect.objectContaining({
+      partId: added.partId,
+      pos: added.placement?.pos,
+      payload: expect.objectContaining({
+        type: 'data-compaction-anchor',
+        data: expect.objectContaining({ status: 'skipped' })
+      })
+    })
+  )
 })

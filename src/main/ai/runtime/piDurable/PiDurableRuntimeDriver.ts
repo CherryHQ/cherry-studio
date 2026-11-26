@@ -1,9 +1,12 @@
+import type { Cursor } from '@earendil-works/pi-durable'
+
 import { application } from '@application'
 import type { DurableRecoveryWork } from '@cherrystudio/agent-runtime-pi-durable'
 import type { AgentRuntimeBackendRow } from '@data/db/schemas/agentRuntimeBackend'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
+import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -11,7 +14,7 @@ import { SequencerByKey } from '@shared/utils/async'
 
 import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
 import { AgentSessionForkError, type RuntimeForkInput } from '../fork'
-import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver } from '../types'
+import { type AgentRuntimeConnectInput, type AgentSessionRuntimeDriver, unavailableNativeContext } from '../types'
 import { DurableBackend, type DurableRoot } from './DurableBackend'
 import { prepareDurableBranch } from './durableContext'
 import { forkDurable } from './durableFork'
@@ -107,6 +110,30 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
       let root: AgentSessionContextRow
       let request: AgentRuntimeConnectInput
       try {
+        let cursor: Cursor | undefined
+        let blockedWithdrawal = false
+        do {
+          const page = await storage.scanSubmissions({ status: 'unanswered' }, 128, cursor, BACKGROUND_CONTEXT)
+          if (!canWrite()) return
+          for (const record of page.items) {
+            if (
+              record.type !== 'input' ||
+              record.status !== 'unanswered' ||
+              record.reason !== 'aborted' ||
+              record.entry !== undefined ||
+              !record.requestId
+            )
+              continue
+            const root = contexts.rootForThread(backend.id, String(record.conversationId))
+            if (!root || messages.inputBinding(root.sessionId, record.requestId)?.contextId !== root.id) continue
+            if (blockedSessions.has(root.sessionId)) {
+              blockedWithdrawal = true
+            } else if (!messages.replyTo(root.sessionId, record.requestId)) {
+              messages.markUserMessageUnsent(root.sessionId, record.requestId, root.id)
+            }
+          }
+          cursor = page.next
+        } while (cursor)
         work = await DurableBackend.readWork(backend.id, storage)
         const roots = [...new Set(work.roots.values())].map((id) => contexts.rootForThread(backend.id, id))
         if (!roots.length) {
@@ -124,7 +151,7 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
               await session.close(BACKGROUND_CONTEXT)
             }
           }
-          if (canWrite()) contexts.markRecoveryCheck(backend.id, false)
+          if (!blockedWithdrawal && canWrite()) contexts.markRecoveryCheck(backend.id, false)
           return
         }
         if (roots.some((binding) => !binding || blockedSessions.has(binding.sessionId))) return
@@ -133,12 +160,31 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
       } finally {
         await storage.close(BACKGROUND_CONTEXT)
       }
-      if (canWrite()) await this.open(this.slot(backend.id), request, root, work)
+      if (canWrite()) {
+        const opened = await this.open(this.slot(backend.id), request, root, work)
+        if ('status' in opened) throw new Error(opened.reason)
+      }
     })
   }
 
-  connect(input: AgentRuntimeConnectInput) {
+  async connect(input: AgentRuntimeConnectInput) {
     const context = prepareDurableBranch(input.sessionId, input.branchHead)
+    const opened = await this.connectBranch(input, context)
+    if (!('status' in opened)) return opened
+    // An idle reopen may be waiting for an already-admitted delivery to resume.
+    if (input.headless === undefined) throw new Error(opened.reason)
+    logger.warn('Rebuilding a missing Durable context from session messages', {
+      sessionId: input.sessionId,
+      contextId: context.id,
+      reason: opened.reason
+    })
+    const replacement = prepareDurableBranch(input.sessionId, input.branchHead, context.id)
+    const rebuilt = await this.connectBranch(input, replacement)
+    if ('status' in rebuilt) throw new Error(rebuilt.reason)
+    return rebuilt
+  }
+
+  private connectBranch(input: AgentRuntimeConnectInput, context: AgentSessionContextRow) {
     return this.operations.queue(context.backendId, () => this.open(this.slot(context.backendId), input, context))
   }
 
@@ -150,11 +196,14 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
   ) {
     const existing = slot.connections.get(context.id)
     if (existing) return existing
+    const current = contexts.context(context.id)
+    if (!current.anchorMessageId) return unavailableNativeContext(context, 'Durable branch binding was replaced')
     contexts.markRecoveryCheck(context.backendId, true)
-    const created = slot.owner ? undefined : await DurableBackend.open(input, context, recovery)
+    const created = slot.owner ? undefined : await DurableBackend.open(input, current, recovery)
+    if (created && 'status' in created) return created
     const owner = (slot.owner ??= created!.owner)
     this.backends.set(context.backendId, slot)
-    const root = created?.root ?? (await owner.prepare(input, context))
+    const root = created?.root ?? (await owner.prepare(input, current))
     const preparing: PiDurableRuntimeConnection[] = []
     let inPreparation = true
     const attach = async (host: DurableRoot) => {
@@ -180,20 +229,24 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
       slot.connections.set(id, connection)
       preparing.push(connection)
       const children = created?.recovery.roots
-      await connection.start(
+      const opened = await connection.start(
         children
           ? [...children]
               .filter(([child, parent]) => child !== parent && parent === host.context.nativeThreadId)
               .map(([child]) => child)
           : []
       )
-
-      return connection
+      if ('status' in opened) await connection.close()
+      return opened
     }
     try {
       const requested = await attach(root)
+      if ('status' in requested) return requested
       for (const host of created?.pending ?? []) {
-        if (host.context.id !== context.id) this.adopt(host, await attach(host))
+        if (host.context.id === context.id) continue
+        const attached = await attach(host)
+        if ('status' in attached) throw new Error(attached.reason)
+        this.adopt(host, attached)
       }
       if (recovery) this.adopt(root, requested)
       if (created) {
