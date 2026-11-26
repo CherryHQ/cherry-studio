@@ -6,7 +6,7 @@ English | [中文](2026-11-02-local-agent-history-import.zh.md)
 
 ## Problem
 
-Users accumulate conversations in Claude Code, Codex, OpenCode, and WorkBuddy outside Cherry Studio. They need to review those conversations and continue work in the recorded working directory.
+Users accumulate conversations in Claude Code, Codex, OpenCode, WorkBuddy, and DeepSeek Harness (DSH) outside Cherry Studio. They need to review those conversations and continue work in the recorded working directory.
 
 [Issue #22728](https://github.com/CherryHQ/cherry-studio/issues/22728) describes this source-import capability. Users choose an existing Agent as the destination. Each source conversation becomes a separate Agent Session with its own working-directory binding. It overlaps with the preview and workspace mapping in [#19002](https://github.com/CherryHQ/cherry-studio/issues/19002), without restoring external permissions, pending actions, or file snapshots.
 
@@ -28,6 +28,7 @@ Keep one primary action, Import selected conversations. It runs read-only valida
 | Codex | User-selected existing Agent | One Agent Session per selected source conversation |
 | OpenCode | User-selected existing Agent | One Agent Session per selected source conversation |
 | WorkBuddy | User-selected existing Agent | One Agent Session per selected source conversation |
+| DSH | User-selected existing Pi Durable Agent | One Agent Session per selected source conversation |
 
 Require the user to choose one existing Agent for each import batch. All selected source conversations become separate sessions under that Agent. Different sources may share a target Agent. Use its stable ID, not its name or the source name. The importer never creates an Agent or changes its name, instructions, model, permissions, or other configuration.
 
@@ -62,7 +63,7 @@ Use `agent`, `agent_session`, `agent_session_message`, and `agent_workspace`. An
 | [AgentWorkspaceService](../../../../src/main/data/services/AgentWorkspaceService.ts) | Reuse `findOrCreateByPathTx` and `createSystemWorkspaceForSessionTx` |
 | [AgentSessionMessageService](../../../../src/main/data/services/AgentSessionMessageService.ts) | Add an import-specific batch contract for historical timestamps, source identity, and order |
 
-The first version preserves original timestamps. Store message provenance in app_state and project it onto the message read model. WorkBuddy uses `provenance.sourceOrder` for a fixed imported prefix; native continuation follows under `createdAt, id`. Pagination, anchors, edit/fork boundaries, export, and Pi initialization use this order. Other sources retain their current ordering and timestamp rejection. The observed rollback sample does not establish how often rollback occurs.
+The first version preserves original timestamps. Store message provenance in app_state and project it onto the message read model. WorkBuddy and DSH use `provenance.sourceOrder` for a fixed imported prefix; native continuation follows under `createdAt, id`. Pagination, anchors, edit/fork boundaries, export, and Pi initialization use this order. Other sources retain their current ordering and timestamp rejection. The observed rollback sample does not establish how often rollback occurs.
 
 Future source timestamps are rejected during preview and before any commit writes. Check the maximum timestamp across all messages, not the last record. If it equals the current millisecond, wait outside the transaction and recheck. Display, date filtering and global search use original timestamps. Preview uses the minimum/maximum time; imported session activity uses the maximum.
 
@@ -73,7 +74,7 @@ Reuse the Agent Session list, search, lifecycle, and data-change notification pa
 Use one adapter per source and one Main-owned import coordinator:
 
 ```ts
-type Source = 'claude-code' | 'codex' | 'opencode' | 'workbuddy'
+type Source = 'claude-code' | 'codex' | 'opencode' | 'workbuddy' | 'dsh'
 
 interface HistorySourceAdapter {
   source: Source
@@ -117,6 +118,7 @@ Return per-session outcomes: imported, already present, failed, or not processed
 | Codex | Resolve titles from `session_index.jsonl`; discover supported histories under `sessions` and `archived_sessions` within `CODEX_HOME` or `~/.codex` | The index is not a complete inventory; distinguish message payloads from events and support only verified history layouts |
 | OpenCode | Open the selected `opencode.db` read-only; read sessions, messages, parts, and directory in a consistent read transaction | Detect schema/version; include committed WAL data; never migrate, checkpoint, change journal mode, or create source-side files |
 | WorkBuddy | Join the desktop `workbuddy.db` session index with `projects/<project-key>/<session-id>.jsonl`; read the recorded cwd | Windows desktop 5.9.3 and its observed 2.165.0 runtime supply initial evidence; cloud indexes alone are insufficient; ordering remains a prerequisite |
+| DSH | Read JSONL across consecutive compressed frames and use the session header ID and cwd | Observed archive formats v0, v3 and v4 require complete archive validation |
 
 Claude Code documents [session storage](https://code.claude.com/docs/en/agent-sdk/sessions) and [SDK session readers](https://code.claude.com/docs/en/agent-sdk/typescript#getsessionmessages). Classify every raw record as a message, metadata, a known non-message event, or a diagnosed unsupported/broken record.
 
@@ -217,9 +219,19 @@ The 2026-11-06 decision retains independent source order but moves provenance fr
 
 Create synthetic fixtures for the observed schema and each supported record shape. Cover missing/cloud-only history, changed index/transcript pairs, duplicate IDs, envelope lookalikes, tool errors, interrupted history, playground workspaces, and the five backward intervals. Declare unsupported attachments, branches, and child histories separately. Verify through the existing Pi continuation and renderer paths after implementation; none of those product checks was run during this research.
 
+### DeepSeek Harness local archives
+
+The Windows sample used to design the reader contained eight archives for five session IDs. Three IDs had conversation events and two had only settings or lifecycle records. One ID had all three observed archive formats: v0 (`session.jsonl.zstd`), v3 and v4 (`session.v3.jsonl.zstd` and `session.v4.jsonl.zstd`). Each archive starts with a session header and contains multiple Zstandard frames. A reference decoder read 1,827 JSONL records across these copies. Node 24.14.0's `createZstdDecompress()` returned only the header for each sampled archive. Verify the final event against a multi-frame reference in the packaged runtime.
+
+Discover archives under `sessions/<project>/<session>/` relative to the existing `external.deepseek_harness.config` path (normally `~/.dsh`) or the manually selected root. Read the archive even when the derived cache at `storages/session_projcache` is missing. Take identity and `cwd` from the header. Group copies by header ID. Compare their normalized visible history in source order, including tool results and inherited context. When one complete supported copy covers the others, select it once. Report divergent histories on that session. The filename version alone cannot establish which copy contains the full conversation.
+
+Use `session/title` and the shared title fallback. Preserve genuine `user/message` content and completed `assistant/message` records, including readable reasoning. Use recoverable stream fragments when the final message is missing. Match fragments to their message and `tool/result` records to their `tool/call` by source IDs and turn/step boundaries. Keep the answer and inert tool history in one task group, with attachments as references. For a derived session with `parentSession`, use its `session/end-seed` boundary and event references to include the inherited context visible in that session exactly once. Keep unrelated parent or sibling events out of the transcript. Request snapshots, permission settings and title-generation requests are operational metadata.
+
+Decode consecutive frames through the end of the archive. Apply the shared limits to compressed input, decompressed JSONL and normalized output, and honor cancellation while reading. Preserve readable conversation content from unfamiliar records as labeled history and count skipped or degraded records. A truncated archive or a conflicting identity blocks that session without reserving its ID. Revalidate the copies used to select its history before committing. A changed archive requires a fresh preview. Other valid sessions can commit and the repaired session can be retried. The DSH settings entry uses the shared dialog and an existing Pi Durable Agent. DeepSeek account export ZIPs retain their separate import route.
+
 ### Filtering non-conversation sessions
 
-Filter confirmed internal review and setup-only sessions before showing import candidates. This is a source-session eligibility rule, separate from hiding the preamble inside an imported conversation. The initial scope is Codex Guardian review and Claude Code histories without a real user task. Keep existing imported sessions and source files intact.
+Filter confirmed internal review and setup-only sessions before showing import candidates. This is a source-session eligibility rule, separate from hiding the preamble inside an imported conversation. The initial scope is Codex Guardian reviews, Claude Code histories without a real user task, and DSH archives containing only known setup or lifecycle events. Keep existing imported sessions and source files intact.
 
 Use three classification results: retain as a conversation candidate, exclude with a reason, or undecided. Undecided sessions remain visible and use the existing validation diagnostics. Missing metadata, unknown versions, malformed records, incomplete parent chains, and read limits do not prove that a session has no user task. Do not filter by title, message count, transcript length, or tool density.
 
@@ -227,6 +239,7 @@ Use three classification results: retain as a conversation candidate, exclude wi
 |---|---|---|
 | Codex Guardian review | A validated `session_meta.payload.source.subagent.other` equals `guardian` | Exclude as `codex_guardian_review`, even after a title change or when synthetic user-role messages exist |
 | Claude Code setup-only history | A completely read, recognized transcript has no real user task on any recoverable branch, with all user-role records classified | Exclude as `claude_no_user_task` |
+| DSH settings-only archive | Decode to EOF and verify that copies of this ID contain only setup or lifecycle events | Exclude the session and count it in the source exclusions |
 | Uncertain or mixed evidence | A title-only match, unrecognized content, conflicting copies, or an unresolved branch | Keep the candidate for normal validation; do not guess an exclusion |
 
 For Codex, the text “Guardian review” is not sufficient evidence. Keep ordinary chats with that title and ordinary `thread_spawn` subagents. Group physical files by source ID before filtering. If copies disagree about source type, retain the conflict rather than dropping one copy and making the other look valid. Only verified metadata layouts qualify. Local read-only inspection found the Guardian marker in 39 of 86 rollout files, all from `0.164.0-alpha.11.1`; this is evidence for that layout, not all Codex versions.
@@ -337,7 +350,7 @@ Extend [ImportMenuSettings](../../../../src/renderer/pages/settings/DataSettings
 
 Data changes belong to the Agent Session, message, and workspace owners identified above; the Agent owner supplies destination validation. Extend session schemas and typed message provenance. Runtime history initialization belongs to the runtime host and the selected runtime's adapter. Include path registration, owner-managed state, backup compatibility, and post-commit notifications with their owning changes.
 
-This bilingual Spec is the bottom documentation PR. After explicit human Approval on its current head, implement four source layers sequentially with gh-stack:
+This bilingual Spec is the bottom documentation PR. After explicit human approval of its current head, add DSH above the four existing implementation layers in this gh-stack order.
 
 ```text
 main
@@ -346,6 +359,7 @@ main
   <- codex/local-history-import/codex
   <- codex/local-history-import/opencode
   <- codex/local-history-import/workbuddy
+  <- codex/local-history-import/dsh
 ```
 
 | Layer | Source | Complete slice | Regression scope |
@@ -353,9 +367,10 @@ main
 | 1 | Claude Code | Shared UI/contracts, target Agent selection, directory rules, app_state storage, atomic writer, supported target-runtime history initialization, and Claude reader | Complete import and continuation; no pre-confirmation writes; no duplicates |
 | 2 | Codex | Index and history versions, event deduplication, thread identity, and cwd | Codex plus affected Claude behavior |
 | 3 | OpenCode | Schema detection, consistent read-only database reader, ordering, and directory | OpenCode plus affected earlier sources |
-| 4 | WorkBuddy | Verified desktop index/transcript join, record and directory mapping, with the ordering prerequisite resolved | WorkBuddy and the complete four-source contract |
+| 4 | WorkBuddy | Verified desktop index/transcript join, record and directory mapping, with the ordering prerequisite resolved | WorkBuddy plus affected earlier sources |
+| 5 | DSH | Consecutive-frame decoding, same-ID copy selection, message and inherited-context mapping | Real DSH archives, shared import flow and first Pi Durable continuation |
 
-Common foundations ship with layer 1, not a fifth implementation layer. Retain Spec PR #23406 and draft implementation PRs #23441, #23442, #23443, and #23626. Update the Spec first, change shared storage in #23441, and adapt each source in its owning layer. Rebase upward with gh-stack and revise PR descriptions. Do not close and recreate these PRs or add a top-layer reversal. The 2026-11-06 request updates documentation only; implementation follows separately.
+Layer 1 owns the shared foundations. Update Spec PR #23406 and sync draft implementation PRs #23441, #23442, #23443 and #23626. Open a separate draft for DSH against the updated WorkBuddy branch.
 
 Each implementation PR targets the preceding branch and maps its verified AC IDs to this Spec. Changes to shared lower-layer behavior go back to their owner, followed by upstack rebase and affected verification. Material Spec changes require renewed Approval. Use `gh stack view --json` to verify topology. Keep this note proposed until cumulative evidence covers every AC; then the final layer transitions it to implemented.
 
@@ -386,7 +401,7 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 - AC6 — Missing, inaccessible, and foreign-platform directories require mapping or skipping, without silent fallback. Offer mapping only when it can make the session importable; terminal failures show no ineffective directory choices. (verification: unit, renderer and Electron directory fixtures)
 - AC7 — An existing imported identity blocks repeated and concurrent imports across target Agents, including when archived. Changed source paths or versions still return already imported. Permanent deletion releases the identity. Agent names do not affect ownership. (verification: unit concurrency, archive/restore, deletion, and changed-copy fixtures)
 - AC8 — Empty input, cancelled previews, all-duplicate batches, and failed transactions leave no empty session or workspace and do not create or alter Agent configuration. (verification: unit state and source-directory comparisons)
-- AC9 — Preserve original times and store source order in app_state. WorkBuddy history precedes native continuation; other sources retain their time-order rules. Persistence, paging, anchors, forks, export, and reload agree without new tables, columns, or indexes. Preview and commit reject future times using the maximum across all messages. (verification: controlled-time adapter and database fixtures, renderer paging/reload)
+- AC9 — Preserve original times and store source order in app_state. WorkBuddy and DSH history precedes native continuation; other sources retain their time-order rules. Persistence, paging, anchors, forks, export, and reload agree without new tables, columns, or indexes. Preview and commit reject future times using the maximum across all messages. (verification: controlled-time adapter and database fixtures, renderer paging/reload)
 - AC10 — Invalid JSON and unknown records have actionable locations/reasons while recoverable messages still import. A separate error dialog groups failures by session. Definitively unimportable sessions show only terminal reasons, without unrelated branch/directory choices or retry; offer only Close when no recoverable selections remain. (verification: unit mixed-record fixtures, renderer error/recovery cases and Electron)
 - AC11 — A failed session rolls back atomically while valid sessions in the batch are saved. Retry includes only unresolved, recoverable selections and does not duplicate successes. Cancellation retains committed sessions and starts no subsequent session. (verification: unit fault injection/cancellation and renderer mixed-batch retry)
 - AC12 — For a new import, changed sources/directories, a changed or deleted target, incompatible runtimes, or expired previews require renewed selection/preview. Foreign-window tokens and substituted target IDs are rejected. Already imported identities skip content-version comparison. (verification: unit and renderer boundary checks)
@@ -397,8 +412,8 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 - AC17 — First continuation uses the selected Agent's configuration and includes imported history before the new user message in model input, including accepted clock-skew cases; unsupported target runtimes are explained before import, and initialization failures are retryable without duplicated history. (verification: unit captured model input with controlled time, target-runtime compatibility, and recovery faults)
 - AC18 — Preserve native search, editing, single-message deletion, forks, trash, and restore. Forks copy message provenance to new IDs but not session import identity. Edits preserve surviving provenance; message/tail/session/Agent deletion cleans related state atomically. Initialization retries never resurrect deleted content. (verification: unit existing data-service integration, native edit/fork and initialization-retry fixtures)
 - AC19 — The final import implementation introduces no schema migration. Existing full/slim backups retain required app_state records, messages, ownership, and workspaces. Missing native history is reliably rebuilt or continuation explicitly blocked. Old draft profiles remain untouched; their direct backup conversion is not promised. (verification: schema-diff check, populated-database import and backup/restore fixtures)
-- AC20 — All enabled sources satisfy path mapping and read-only access on Windows, macOS, and Linux, with simulated and native evidence distinguished. WorkBuddy delivers all three together for a declared OS/distribution, architecture, and source-version matrix. Each platform verifies discovery, read-only SQLite/WAL access, packaged native loading, import/reopen, and Pi continuation. Synthetic tests do not replace native evidence; an unverified platform keeps the WorkBuddy slice incomplete. (verification: unit platform cases, real source-layout checks, and platform-native packaged Electron)
-- AC21 — The Spec is followed by four gh-stack implementation layers ordered Claude Code, Codex, OpenCode, WorkBuddy, each with a scoped diff. (verification: docs gate and gh stack topology/diff inspection)
+- AC20 — All enabled sources satisfy path mapping and read-only access on Windows, macOS, and Linux, with simulated and native evidence distinguished. WorkBuddy delivers all three together for a declared OS/distribution, architecture, and source-version matrix. Each platform verifies discovery, read-only SQLite/WAL access, packaged native loading, import/reopen, and Pi continuation. Synthetic tests do not replace native evidence; an unverified platform keeps the WorkBuddy slice incomplete. Enable DSH after native checks on the declared Windows, macOS and Linux combinations cover packaged multi-frame decoding, import, reopen and first Pi Durable continuation. (verification: unit platform cases, real source-layout checks, and platform-native packaged Electron)
+- AC21 — The Spec is followed by five gh-stack implementation layers ordered Claude Code, Codex, OpenCode, WorkBuddy and DSH, each with a scoped diff. (verification: docs gate and gh stack topology/diff inspection)
 - AC22 — Imported assistant headers use the current destination Agent's name/avatar, including old imports and Agent renames, while retaining the source model. Source conversation titles do not appear as authors; ordinary Cherry author snapshots remain unchanged. (verification: renderer author/provenance/capture cases and Electron)
 - AC23 — After loading the actual beginning and finding the first real user message, hide only earlier imported setup records. Partial pages, later records, stored history and continuation context remain intact. Image export applies the same preamble rule. (verification: renderer paging/projection/capture cases and Electron)
 - AC24 — Codex sessions with a verified Guardian source marker are excluded before candidate display and cannot bypass filtering through an old selection. Renaming them does not change classification; title-only matches, ordinary subagents and conflicting copies are not silently excluded. (verification: versioned adapter fixtures and coordinator revalidation)
@@ -408,6 +423,10 @@ Each implementation PR targets the preceding branch and maps its verified AC IDs
 - AC28 — WorkBuddy preserves user/assistant content, readable quotes, source reasoning, inert tool call/result order, and interrupted/error state. Literal tags, duplicated projections, metadata, and snapshots neither erase user text nor create duplicate messages or executable actions. (verification: adapter normalization, renderer projection, and Pi captured-input fixtures)
 - AC29 — A selected WorkBuddy index row and transcript form one fingerprinted preview dependency set. Changes invalidate that preview; unrelated row changes do not. Source stores remain unchanged, WAL commits are included, and cancellation/limits create no partial imported session. (verification: read-only SQLite/file fixtures and coordinator state checks)
 - AC30 — WorkBuddy accepts observed backward tool intervals when the source chain is valid, without changing original times. Shared reads, pagination, forks, export, and Pi continuation use app_state source order through the message read model. Missing ancestors and ambiguous chains block new imports. Platform evidence remains a separate gate. (verification: ordering fixtures, renderer, Pi captured history, and Electron)
+- AC31 — Discovery groups supported DSH archives by header ID with or without the project cache. A migrated copy yields one candidate. Only verified settings-only histories are filtered. Unexplained differences remain visible for that session. (verification: versioned discovery fixtures and a real archive inventory)
+- AC32 — DSH preserves readable text, reasoning, tool calls and results in source order. Completed messages and their chunks appear once, as does the inherited context visible in a derived session. Operational records never become user tasks. (verification: adapter fixtures and paginated message reads)
+- AC33 — A multi-frame DSH fixture imports its final event. Mixed unknown and readable records yield a usable transcript and accurate diagnostics. Truncation, changed copies and identity conflicts create no partial session. Repair and retry succeed without duplicating other committed sessions. (verification: multi-frame reader, preview revalidation and transactional retry fixtures)
+- AC34 — A selected DSH conversation reopens under the chosen Pi Durable Agent with its title, mapped workspace, original times where available and stable page order. The first follow-up includes prior questions, answers and tool results. Historical tools remain inert. (verification: isolated Electron import of a real tool conversation and a derived session, reopen/paging and captured first model input)
 
 Use `setupTestDatabase()` for database cases and explicit affected-test paths per layer. Native platform checks are not replaced by platform simulations. These criteria are future product verification, not evidence supplied by this documentation PR.
 
@@ -416,7 +435,7 @@ Use `setupTestDatabase()` for database cases and explicit affected-test paths pe
 | Risk or open choice | Required resolution |
 |---|---|
 | Target runtime compatibility | Use the selected Agent's runtime; define and verify its history initializer before enabling selection, without silently changing Agent configuration |
-| Timestamp rollback or source clock ahead | Preserve WorkBuddy source order; other sources retain rollback rejection. Reject future times before commit |
+| Timestamp rollback or source clock ahead | Preserve WorkBuddy and DSH source order; other sources retain rollback rejection. Reject future times before commit |
 | Missing directories | Resolve before inserting messages because existing sessions with messages cannot change workspace |
 | Native-file/database consistency | Use persistent initialization markers, stable native identity, validated output, and retry recovery |
 | WorkBuddy and upstream drift | Initial Windows desktop evidence exists; add synthetic boundary fixtures and platform evidence before enabling support |
@@ -427,6 +446,6 @@ Use `setupTestDatabase()` for database cases and explicit affected-test paths pe
 | Large inputs | Establish line, session, and batch limits from fixtures before exposing import |
 | Required provenance in app_state | Restrict ownership to one module; preserve backups and atomic cleanup. Check query plans and prevent per-message lookups |
 | Backup restoration | Preserve identity through existing full/slim backups; no new merge capability |
-| Overlap with #19002 | Reuse shared preview and mapping capabilities where appropriate; retain the four-source implementation sequence |
+| Overlap with #19002 | Reuse shared preview and mapping capabilities where appropriate; retain the five-source implementation sequence |
 
 The first version fixes Pi targets, unchanged source timestamps, inert tools, and existing backup restoration. Session identity and message source order move to app_state. Reimports skip active and archived matches; permanent deletion permits reimport. Native editing, deletion, and forks remain supported. Incremental sync is separate work. This revision updates the existing Spec and stack rather than replacing their PRs. Keep the Spec proposed and the WorkBuddy production entry disabled until required platform evidence is complete; #22728 remains incomplete.
