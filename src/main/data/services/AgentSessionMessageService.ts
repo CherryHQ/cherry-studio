@@ -2110,10 +2110,14 @@ export class AgentSessionMessageService {
       if (keptParts.size === parts.length) return false
       const nativeBound = Boolean(existing.inputContextId || existing.data.nativeSessionId)
       if (nativeBound && existing.data.detachedFileEntryIds?.includes(fileEntryId)) return false
-      const { parts: _parts, ...stored } = existing.data
+      const stored: Record<string, unknown> = { ...existing.data }
+      delete stored.parts
       const storedData: AgentSessionMessageStoredData = nativeBound
-        ? { ...stored, detachedFileEntryIds: [...(existing.data.detachedFileEntryIds ?? []), fileEntryId] }
-        : stored
+        ? ({
+            ...stored,
+            detachedFileEntryIds: [...(existing.data.detachedFileEntryIds ?? []), fileEntryId]
+          } as AgentSessionMessageStoredData)
+        : (stored as AgentSessionMessageStoredData)
       const updatedAt = Date.now()
       if (!nativeBound) this.invalidateForkPrefixTx(tx, sessionId, messageId)
       tx.update(sessionMessagesTable)
