@@ -36,17 +36,24 @@ export function reserveDurableBranchTx(
   })
 }
 
-export function prepareDurableBranch(sessionId: string, messageId?: string) {
+export function prepareDurableBranch(sessionId: string, messageId?: string, missingContextId?: string) {
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
-    const existing = contexts.branchTx(tx, sessionId, messageId ?? root)
+    const anchorMessageId = messageId ?? root
+    const existing = contexts.branchTx(tx, sessionId, anchorMessageId)
     if (existing) {
       if (contexts.backendTx(tx, existing.backendId).locator.kind !== 'pi-durable')
         throw new Error('The selected branch belongs to another runtime')
-      return existing
+      if (existing.id !== missingContextId) return existing
+      contexts.detachBranchTx(tx, existing.id)
     }
     const backend = allocateDurableBackendTx(tx)
-    return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: messageId ?? root })
+    return contexts.reserveBranchTx(tx, {
+      sessionId,
+      backendId: backend.id,
+      anchorMessageId: existing?.anchorMessageId ?? anchorMessageId,
+      checkpointMapping: { referenceHistory: true }
+    })
   })
 }

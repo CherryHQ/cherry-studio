@@ -66,6 +66,11 @@ type MessageListProviderValue = {
 - `actions`: executable capabilities, such as loading older messages, selecting an active branch, deleting a message group, or regenerating a message.
 - `meta`: environment and non-command display metadata, such as assistant profile or export filename.
 
+Agent display segments carry a canonical source identity separately from their row IDs. The first
+content segment renders the Run header; the final content segment owns its actions and statistics.
+Timeline markers bypass the assistant frame and are not selectable messages. Toggling the identity
+slot keeps the body node and its focused or expanded tool descendants mounted.
+
 Shared UI components should treat missing actions as unavailable capabilities. Do not add `isAgent`, `isHome`, `mode`, or other page-mode booleans to shared components.
 
 ## Adapter Rules
