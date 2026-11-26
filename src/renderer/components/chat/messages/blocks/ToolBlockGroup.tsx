@@ -22,6 +22,8 @@ import { BeatLoader } from 'react-spinners'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useProjectionPart, useProjectionPartValue } from '@renderer/hooks/agent/useProjectionPart'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -31,9 +33,20 @@ import MessageTools from '../tools/MessageTools'
 import { AgentToolsType } from '../tools/shared/agentToolTypes'
 import { getEffectiveStatus, type ToolStatus } from '../tools/shared/GenericTools'
 import ToolHeader, { getReadableToolActivity } from '../tools/ToolHeader'
-import { isToolPartAwaitingApproval, type ToolRenderItem, type ToolResponseLike } from '../tools/toolResponse'
+import {
+  buildToolResponseFromPart,
+  isToolPartAwaitingApproval,
+  type ToolRenderItem,
+  type ToolResponseLike
+} from '../tools/toolResponse'
 import BlockErrorFallback from './BlockErrorFallback'
-import { PartsContext, PartsProvider, usePartsMap } from './MessagePartsContext'
+import {
+  PartsContext,
+  PartsProvider,
+  ToolPartScopeProvider,
+  useMessagePartsScopeId,
+  usePartsMap
+} from './MessagePartsContext'
 import { PlaceholderShimmerText } from './PlaceholderShimmerText'
 import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -46,16 +59,14 @@ function isToolGroupItemCompleted(status: ToolResponseLike['status'] | undefined
 
 // Calculate actual waiting state for a tool item (not depending on hooks).
 // AI-SDK-v6 ToolUIPart state (`approval-requested`) is the sole source of truth.
-function getItemIsWaiting(item: ToolRenderItem, partsMap: Record<string, CherryMessagePart[]> | null): boolean {
+function getItemIsWaiting(item: ToolRenderItem, partsMap: MessagePartRows | null): boolean {
   if (item.toolResponse.status !== 'pending') return false
+  if (item.part && 'state' in item.part) return item.part.state === 'approval-requested'
   return isToolPartAwaitingApproval(partsMap, item.toolResponse.toolCallId)
 }
 
 // Get effective UI status for an item
-function getItemEffectiveStatus(
-  item: ToolRenderItem,
-  partsMap: Record<string, CherryMessagePart[]> | null
-): ToolStatus {
+function getItemEffectiveStatus(item: ToolRenderItem, partsMap: MessagePartRows | null): ToolStatus {
   const isWaiting = getItemIsWaiting(item, partsMap)
   return getEffectiveStatus(item.toolResponse?.status, isWaiting)
 }
@@ -268,6 +279,7 @@ function shouldBypassHeaderStabilization(
 
 interface ToolBlockGroupHeaderContentProps {
   items: ToolRenderItem[]
+  count?: number
   activityLabel?: React.ReactNode
   activityIcon?: React.ReactNode
   elapsedText?: React.ReactNode
@@ -338,6 +350,10 @@ function getToolTitle(
     : `${activity.label} ${activity.description}`
 }
 
+export function getToolFoldTitle(item: ToolRenderItem, t: ReturnType<typeof useTranslation>['t']) {
+  return getToolTitle(item.toolResponse, 'done', t, false)
+}
+
 function getSemanticToolTitle(
   candidate: Extract<ToolHeaderCandidate, { kind: 'tool' }>,
   t: ReturnType<typeof useTranslation>['t']
@@ -348,6 +364,7 @@ function getSemanticToolTitle(
 const DynamicToolBlockGroupHeaderContent = React.memo(
   ({
     items,
+    count = items.length,
     activityLabel,
     activityIcon,
     elapsedText,
@@ -362,7 +379,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
     const { t } = useTranslation()
     const partsMap = usePartsMap()
     const allCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
-    const fallbackLabel = summary ?? t('message.tools.groupHeader', { count: items.length })
+    const fallbackLabel = summary ?? t('message.tools.groupHeader', { count })
     const nextCandidate = React.useMemo<ToolHeaderCandidate>(() => {
       if (preferSummary) {
         return { key: `summary:${String(fallbackLabel)}`, kind: 'summary', label: fallbackLabel }
@@ -515,6 +532,7 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
     activityLabel,
     elapsedText,
     items,
+    count = items.length,
     preferSummary,
     showContentIcon,
     showLatestWhenComplete,
@@ -522,7 +540,7 @@ export const ToolBlockGroupHeaderContent = React.memo((props: ToolBlockGroupHead
     summaryIcon
   } = props
   const allCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
-  const fallbackLabel = summary ?? t('message.tools.groupHeader', { count: items.length })
+  const fallbackLabel = summary ?? t('message.tools.groupHeader', { count })
 
   if (preferSummary || (allCompleted && !showLatestWhenComplete && !activityLabel)) {
     return (
@@ -571,7 +589,7 @@ interface ToolBlockGroupContentProps {
   scrollRef?: React.RefObject<HTMLDivElement | null>
 }
 
-const ToolBlockGroupRow = ({ item }: { item: ToolRenderItem }) => {
+export const ToolBlockGroupRow = ({ item }: { item: ToolRenderItem }) => {
   const intent = getToolIntent(item.toolResponse.arguments)
   return (
     <div data-block-id={item.id} className="w-full">
@@ -582,7 +600,7 @@ const ToolBlockGroupRow = ({ item }: { item: ToolRenderItem }) => {
         </p>
       )}
       <ErrorBoundary fallbackComponent={BlockErrorFallback}>
-        <MessageTools toolResponse={item.toolResponse} />
+        <ScopedToolItem item={item} />
       </ErrorBoundary>
     </div>
   )
@@ -601,7 +619,7 @@ function foldSameKindCalls(items: ToolRenderItem[], kindOf: (item: ToolRenderIte
 
 export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlockGroupContentProps) => {
   const { t } = useTranslation()
-  const kindOf = (item: ToolRenderItem) => getToolTitle(item.toolResponse, 'done', t, false)
+  const kindOf = (item: ToolRenderItem) => getToolFoldTitle(item, t)
   return (
     <div ref={scrollRef} className="tool-block-group-content flex w-full flex-col gap-2">
       {foldSameKindCalls(items, kindOf).map((fold) =>
@@ -622,15 +640,34 @@ export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlock
 })
 ToolBlockGroupContent.displayName = 'ToolBlockGroupContent'
 
-interface ToolBlockGroupProps {
+const ScopedToolItem = React.memo(function ScopedToolItem({ item }: { item: ToolRenderItem }) {
+  const messageId = useMessagePartsScopeId()
+  const part = useProjectionPart(item.id, item.part)
+  const response = part && part !== item.part ? buildToolResponseFromPart(part, item.id) : item.toolResponse
+  return (
+    <ToolPartScopeProvider messageId={messageId} part={part}>
+      <MessageTools toolResponse={response ?? item.toolResponse} />
+    </ToolPartScopeProvider>
+  )
+})
+
+const isStreamingThought = (part: CherryMessagePart | undefined) =>
+  part?.type === 'reasoning' && part.state === 'streaming'
+
+export interface ToolGroupSummary {
+  candidates: ToolRenderItem[]
+  count: number
+}
+type ToolBlockGroupProps = {
   children?: React.ReactNode
   defaultExpanded?: boolean
   isLiveProgress?: boolean
-  isThinking?: boolean
-  items: ToolRenderItem[]
-  /** A fixed header for a fold of same-kind calls, in place of the latest call's title. */
+  thinkingPart?: { part: CherryMessagePart; partId?: string }
   title?: string
-}
+} & (
+  | { items: ToolRenderItem[]; header?: never }
+  | { header: ToolGroupSummary; items?: never; children: React.ReactNode }
+)
 
 const ToolGroupPartsBoundary = React.memo(
   ({ allItemsCompleted, children }: { allItemsCompleted: boolean; children: React.ReactNode }) => {
@@ -646,10 +683,13 @@ export const ToolBlockGroup = React.memo(
     children,
     defaultExpanded = false,
     isLiveProgress: isLiveProgressProp,
-    isThinking = false,
-    items,
+    thinkingPart,
+    items: allItems,
+    header,
     title
   }: ToolBlockGroupProps) => {
+    const items = header ? header.candidates : allItems
+    const isThinking = useProjectionPartValue(thinkingPart?.partId, thinkingPart?.part, isStreamingThought)
     const { t } = useTranslation()
     // A fold can start at its parent group's first call, so it keeps its own disclosure key.
     const [isExpanded, setIsExpanded] = useMessageDisclosureState(
@@ -679,6 +719,7 @@ export const ToolBlockGroup = React.memo(
               <div className="min-w-0 overflow-hidden">
                 <ToolBlockGroupHeaderContent
                   items={items}
+                  count={header?.count}
                   activityLabel={isThinking ? t('message.tools.thinkingHeader') : undefined}
                   activityIcon={
                     isThinking ? <Brain aria-hidden="true" className={TOOL_GROUP_ICON_CLASS_NAME} /> : undefined
@@ -696,7 +737,7 @@ export const ToolBlockGroup = React.memo(
               data-testid="child-tool-group-content"
               className="px-0 pt-2 pb-0 text-inherit"
               contentClassName="text-inherit motion-safe:data-[state=open]:[animation-duration:200ms] motion-safe:data-[state=closed]:[animation-duration:160ms] motion-reduce:animate-none">
-              {children ?? <ToolBlockGroupContent items={items} />}
+              {children ?? (allItems && <ToolBlockGroupContent items={allItems} />)}
             </AccordionContent>
           </AccordionItem>
         </Accordion>

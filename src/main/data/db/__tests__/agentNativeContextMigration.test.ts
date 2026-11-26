@@ -50,7 +50,18 @@ function assertArchive(
     string,
     unknown
   >
-  expect(row).toMatchObject(before as Record<string, unknown>)
+  // 0037 moves the body into ordered part rows; every other column must survive unchanged.
+  const { data: beforeData, ...beforeColumns } = before as Record<string, unknown>
+  const { parts, ...metadata } = JSON.parse(beforeData as string) as { parts: unknown[] }
+  expect(row).toMatchObject(beforeColumns)
+  expect(JSON.parse(row.data as string)).toEqual(metadata)
+  expect(
+    (
+      dbh.sqlite
+        .prepare('SELECT payload FROM agent_session_message_part WHERE message_id = ? ORDER BY seq')
+        .all(messageId) as Array<{ payload: string }>
+    ).map((part) => JSON.parse(part.payload))
+  ).toEqual(parts)
   expect(dbh.sqlite.prepare('SELECT * FROM agent_session_message_file_ref').get()).toEqual(attachment)
   expect(
     dbh.sqlite
@@ -83,5 +94,31 @@ describe('native context migrate-forward', () => {
     expect(
       (dbh.sqlite.pragma('table_info(agent_session_message)') as { name: string }[]).map((column) => column.name)
     ).not.toContain('submission')
+  })
+})
+
+describe('agent backend recovery migrate-forward', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0047_agent_session_reply_and_recovery' })
+
+  it('marks only previously bound Pi Durable backends and preserves a completed recovery on restart', () => {
+    const insert = dbh.sqlite.prepare(
+      'INSERT INTO agent_runtime_backend (id, locator, state, created_at, updated_at) VALUES (?, ?, ?, 1, 1)'
+    )
+    insert.run('bound', JSON.stringify({ version: 1, kind: 'pi-durable', fileName: 'existing' }), 'bound')
+    insert.run('creating', JSON.stringify({ version: 1, kind: 'pi-durable', fileName: 'new' }), 'creating')
+    insert.run('claude', JSON.stringify({ version: 1, kind: 'claude-code', configDir: 'config' }), 'bound')
+    insert.run('pi', JSON.stringify({ version: 1, kind: 'pi' }), 'bound')
+
+    applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
+    expect(dbh.sqlite.prepare('SELECT id, needs_recovery_check FROM agent_runtime_backend ORDER BY id').all()).toEqual([
+      { id: 'bound', needs_recovery_check: 1 },
+      { id: 'claude', needs_recovery_check: 0 },
+      { id: 'creating', needs_recovery_check: 0 },
+      { id: 'pi', needs_recovery_check: 0 }
+    ])
+
+    dbh.sqlite.prepare("UPDATE agent_runtime_backend SET needs_recovery_check = 0 WHERE id = 'bound'").run()
+    applyMigrations(dbh.db, resolve('migrations/sqlite-drizzle'))
+    expect(dbh.sqlite.prepare('SELECT id FROM agent_runtime_backend WHERE needs_recovery_check = 1').all()).toEqual([])
   })
 })

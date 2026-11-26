@@ -60,6 +60,26 @@ describe('stripUnsupportedModelParams', () => {
     })
   })
 
+  it('omits sampling parameters for a custom Claude model with a spaced 1M marker', () => {
+    const apiModelId = 'claude-opus-4-8-fast [1M]'
+    const model = makeModel({ id: `custom-proxy::${apiModelId}`, providerId: 'custom-proxy', apiModelId })
+    const settings = makeSampling({ temperature: 0.7, enableTopP: true, topP: 0.9 })
+    const params = {
+      standardParams: { temperature: 0.7, topP: 0.9, topK: 40 },
+      providerOptions: { openai: { temperature: 0.7, top_p: 0.9 } },
+      bodyParams: { temperature: 0.7, top_p: 0.9, top_k: 40, max_tokens: 4096 }
+    }
+
+    expect(getTemperature(settings, model, OFF_REASONING)).toBeUndefined()
+    expect(getTopP(settings, model, OFF_REASONING)).toBeUndefined()
+    expect(filterStandardParams({ topK: 40, maxOutputTokens: 4096 }, model)).toEqual({ maxOutputTokens: 4096 })
+    expect(stripUnsupportedModelParams(params, model)).toEqual({
+      standardParams: {},
+      providerOptions: { openai: {} },
+      bodyParams: { max_tokens: 4096 }
+    })
+  })
+
   it('preserves top-k overrides for a Claude model that supports sampling', () => {
     const params = {
       standardParams: { topK: 5 },

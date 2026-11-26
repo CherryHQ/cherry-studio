@@ -99,7 +99,9 @@ export function buildAgentMcpServers(
       servers[mcpId] = {
         id: legacyServer.id,
         name: mcpId,
-        connect: serveAgentMcpServer(() => createMcpBridgeServer(mcpId, legacyServer, { interactionContext }))
+        connect: serveAgentMcpServer(() =>
+          createMcpBridgeServer(mcpId, legacyServer, { interactionContext, audience: 'model' })
+        )
       }
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })

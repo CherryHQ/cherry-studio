@@ -15,9 +15,9 @@ import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite
 import { expect, it } from 'vitest'
 
 import { createScriptedHost } from '@cherrystudio/agent-behavior'
-import { runtimeId, type OperationResult } from '@cherrystudio/agent-runtime'
+import { runtimeId, type OperationResult, type ProductInputState, type Thread } from '@cherrystudio/agent-runtime'
 
-import { createPiDurableRuntime } from '../src'
+import { createPiDurableRuntime, readDurableInput } from '../src'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -36,7 +36,8 @@ it('closes a blocked shared-behavior child with an admitted steer without cancel
   })
   let childStarted = false
   let parentRequests = 0
-  let watch = false
+  let childThread: Thread | undefined
+  let intent: ProductInputState | undefined
   let queued: SubmissionRecord | undefined
   const step: FauxResponseStep = async (context, options) => {
     const input = context.messages.findLast((message) => message.role === 'user')
@@ -65,22 +66,22 @@ it('closes a blocked shared-behavior child with an admitted steer without cancel
         return new Proxy(storage, {
           get(target, key) {
             if (key === 'commit')
-              return (...[batches, receive, context]: Parameters<Storage['commit']>) =>
-                target.commit(
-                  batches,
-                  (index, seq) => {
-                    receive(index, seq)
-                    if (watch)
-                      for (const write of batches[index])
-                        if (
-                          write.type === 'submission' &&
-                          write.value.type === 'input' &&
-                          write.value.status === 'queued'
-                        )
-                          queued = write.value
-                  },
-                  context
-                )
+              return async (...[batches, receive, context]: Parameters<Storage['commit']>) => {
+                const admission =
+                  childThread &&
+                  batches
+                    .flat()
+                    .find(
+                      (write) =>
+                        write.type === 'submission' && write.value.type === 'input' && write.value.status === 'queued'
+                    )
+                if (admission?.type === 'submission' && childThread) {
+                  intent = await readDurableInput(target, childThread, runtimeId('steer'))
+                }
+                const result = await target.commit(batches, receive, context)
+                if (admission?.type === 'submission') queued = admission.value
+                return result
+              }
             const value = Reflect.get(target, key)
             return typeof value === 'function' ? value.bind(target) : value
           }
@@ -114,9 +115,10 @@ it('closes a blocked shared-behavior child with an admitted steer without cancel
     await root.input.submit({ inputId: runtimeId('root'), text: 'Start a child', whenBusy: 'reject' })
     await expect.poll(() => childStarted).toBe(true)
     const child = confirmed(await root.durable.openChild('spawn')).handle
-    watch = true
+    childThread = child.thread
     steering = child.input.submit({ inputId: runtimeId('steer'), text: 'Queued correction', whenBusy: 'steer' })
     await expect.poll(() => queued?.status).toBe('queued')
+    expect(intent).toEqual({ inputId: 'steer', facts: ['dispatch-started'] })
     const accepted = queued!
     let ended: OperationResult<void> | undefined
     const closing = runtime.shutdown().then((result) => {
@@ -132,6 +134,12 @@ it('closes a blocked shared-behavior child with an admitted steer without cancel
     }
     const storage = await openNodeSqliteStorage(file)
     try {
+      expect(await readDurableInput(storage, child.thread, runtimeId('steer'))).toMatchObject({
+        inputId: 'steer',
+        nativeInput: { session: child.thread, id: String(accepted.id) },
+        facts: ['accepted', 'queued']
+      })
+      expect(await readDurableInput(storage, root.thread, runtimeId('steer'))).toBeUndefined()
       const saved = await storage.scanSubmissions(
         { conversationId: accepted.conversationId },
         256,

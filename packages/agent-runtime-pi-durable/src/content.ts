@@ -1,175 +1,250 @@
-import type { Message } from '@earendil-works/pi-ai'
-import type { EntryRecord } from '@earendil-works/pi-durable'
+import { copyJson, isJsonValue } from '@earendil-works/chord/json'
+import type { AssistantMessage, ToolResultMessage, UserMessage } from '@earendil-works/pi-ai'
+import type { EntryRecord, LiveState, ToolSlot } from '@earendil-works/pi-durable'
 
-import { immutable, projectNestedTool, runtimeId, type RuntimeMessage } from '@cherrystudio/agent-runtime'
+import { immutable, projectNestedTool, snapshotToolPart, type RuntimeMessage } from '@cherrystudio/agent-runtime'
+
+import { productInputId } from './inputLookup'
+
+type ToolPart = Extract<RuntimeMessage['parts'][number], { type: 'dynamic-tool' }>
+type AvailableTool = Extract<ToolPart, { state: 'output-available' }>
+type CompletedTool = (AvailableTool & { preliminary: false }) | Extract<ToolPart, { state: 'output-error' }>
+type NativePart = Exclude<(UserMessage | AssistantMessage)['content'], string>[number]
+type ToolLocation = { message: number; index: number }
 
 /** Stable committed identities; consumers never decode native entry IDs from these keys. */
 export const entryMessageId = (entry: EntryRecord, index: number): string => `entry:${entry.id}:${index}`
 
+export function messagePart(part: NativePart, state: 'streaming' | 'done'): RuntimeMessage['parts'][number] {
+  switch (part.type) {
+    case 'text':
+      return {
+        type: 'text',
+        text: part.text,
+        state,
+        ...(part.textSignature && { providerMetadata: { pi: { textSignature: part.textSignature } } })
+      }
+    case 'thinking':
+      return {
+        type: 'reasoning',
+        text: part.thinking,
+        state,
+        ...(part.thinkingSignature && { providerMetadata: { pi: { thinkingSignature: part.thinkingSignature } } })
+      }
+    case 'image':
+      return { type: 'file', mediaType: part.mimeType, url: `data:${part.mimeType};base64,${part.data}` }
+    case 'toolCall':
+      return {
+        type: 'dynamic-tool',
+        toolCallId: part.id,
+        toolName: part.name,
+        state: state === 'done' ? 'input-available' : 'input-streaming',
+        input: part.arguments
+      }
+  }
+}
+
+export function previewMessage(id: string, content: AssistantMessage['content']): RuntimeMessage {
+  return {
+    id,
+    role: 'assistant',
+    metadata: { completeness: 'partial' },
+    parts: content.map((part) => messagePart(part, 'streaming'))
+  }
+}
+
 export class ContentProjection {
-  readonly messages: RuntimeMessage[] = []
-  readonly responseIds: Record<string, string> = {}
-  get legacy(): Record<string, { messageId: string; parts: number[] }> {
-    const legacy: Record<string, { messageId: string; parts: number[] }> = {}
-    for (const message of this.messages) {
-      const parts: number[] = []
-      message.parts.forEach((part, index) => {
-        if (part.type === 'dynamic-tool')
-          legacy[`${message.id}:call:${part.toolCallId}`] = { messageId: message.id, parts: [index] }
-        else parts.push(index)
-      })
-      legacy[message.id] = { messageId: message.id, parts }
-    }
-    return legacy
-  }
-  private readonly calls = new Map<string, { message: number; index: number }>()
-  /** Messages created or copied since the last seal; all others are shared and must be copied before a write. */
-  private readonly writable = new Set<RuntimeMessage>()
+  private sealedLength: number
+  private readonly edited: number[] = []
 
-  /** Continue from this projection without changing the messages it already shares. */
-  fork(): ContentProjection {
-    const next = new ContentProjection()
-    next.messages.push(...this.messages)
-    Object.assign(next.responseIds, this.responseIds)
-    for (const [id, call] of this.calls) next.calls.set(id, call)
-    return next
+  private constructor(
+    private readonly messages: RuntimeMessage[],
+    private readonly calls = new Map<string, ToolLocation>()
+  ) {
+    this.sealedLength = messages.length
   }
 
-  /** Freeze written messages so later forks and publications share them by reference. */
-  seal(): void {
-    if (!this.writable.size) return
-    this.messages.forEach((message, index) => {
-      if (this.writable.has(message)) this.messages[index] = immutable(message)
-    })
-    this.writable.clear()
+  static empty(): ContentProjection {
+    return new ContentProjection([])
   }
 
-  entry(entry: EntryRecord): void {
-    // Imported history already has product-owned display records; native entries supply context only.
-    if (entry.kind === 'cherry.imported-history') return
-    if (entry.kind === 'cherry.reference-context') return
-    for (const [index, message] of (entry.model ?? []).entries()) {
-      this.message(message, entryMessageId(entry, index), 'complete')
-      const inputId = (entry.data as { cherryInputId?: string })?.cherryInputId
-      if (message.role === 'user' && inputId) {
-        const value = this.write(this.messages.length - 1)
-        value.metadata = { ...value.metadata!, inputId: runtimeId(inputId) }
+  forkArchive(): ContentProjection {
+    return new ContentProjection(this.seal().slice(), new Map(this.calls))
+  }
+
+  seal(): readonly RuntimeMessage[] {
+    for (const index of this.edited) this.messages[index] = immutable(this.messages[index])
+    this.edited.length = 0
+    for (; this.sealedLength < this.messages.length; this.sealedLength++)
+      this.messages[this.sealedLength] = immutable(this.messages[this.sealedLength])
+    return this.messages
+  }
+
+  entry(entry: EntryRecord, responseIds?: Map<string, string>): void {
+    if (!entry.model || entry.kind === 'cherry.imported-history' || entry.kind === 'cherry.reference-context') return
+    for (const [index, message] of entry.model.entries()) {
+      if (message.role === 'system') continue
+      if (message.role === 'toolResult') {
+        this.result(message)
+        continue
       }
+      const id = entryMessageId(entry, index)
+      const metadata: NonNullable<RuntimeMessage['metadata']> = { completeness: 'complete' }
+      if (message.role === 'user') {
+        const inputId = productInputId(entry.data)
+        if (inputId) metadata.inputId = inputId
+      } else {
+        if (responseIds && message.responseId) responseIds.set(message.responseId, id)
+        if (message.stopReason === 'error')
+          metadata.error = {
+            operation: 'input',
+            code: 'model-error',
+            message: message.errorMessage ?? 'Durable response ended: error'
+          }
+      }
+      this.append(message, id, metadata)
     }
   }
 
-  message(message: Message, id: string, completeness: 'partial' | 'complete'): void {
-    if (message.role === 'assistant' && message.responseId) this.responseIds[message.responseId] = id
-    if (message.role === 'system') return
-    if (message.role === 'toolResult') {
-      for (const record of message.nestedCalls?.calls ?? []) this.nested(message.toolCallId, projectNestedTool(record))
-      this.result(
-        message.toolCallId,
-        {
-          content: message.content,
-          nestedCalls: message.nestedCalls,
-          ...(message.details !== undefined && { details: message.details }),
-          isError: message.isError
-        },
-        message.isError
-      )
-      return
-    }
-    const value: RuntimeMessage = { id, role: message.role, parts: [], metadata: { completeness } }
-    if (message.role === 'assistant' && message.stopReason === 'error' && completeness === 'complete')
-      value.metadata!.error = {
-        operation: 'input',
-        code: 'model-error',
-        message: message.errorMessage ?? 'Durable response ended: error'
-      }
-    const state = completeness === 'complete' ? 'done' : 'streaming'
-    if (typeof message.content === 'string') value.parts.push({ type: 'text', text: message.content, state })
-    else
-      for (const part of message.content) {
-        if (part.type === 'text')
-          value.parts.push({
-            type: 'text',
-            text: part.text,
-            state,
-            ...(part.textSignature && { providerMetadata: { pi: { textSignature: part.textSignature } } })
+  private append(
+    message: UserMessage | AssistantMessage,
+    id: string,
+    metadata: NonNullable<RuntimeMessage['metadata']>
+  ): void {
+    const owner = this.messages.length
+    const state = metadata.completeness === 'partial' ? 'streaming' : 'done'
+    const parts: RuntimeMessage['parts'] =
+      typeof message.content === 'string'
+        ? [{ type: 'text', text: message.content, state }]
+        : message.content.map((part, index) => {
+            if (part.type === 'toolCall') this.calls.set(part.id, { message: owner, index })
+            return messagePart(part, state)
           })
-        if (part.type === 'thinking')
-          value.parts.push({
-            type: 'reasoning',
-            text: part.thinking,
-            state,
-            ...(part.thinkingSignature && { providerMetadata: { pi: { thinkingSignature: part.thinkingSignature } } })
-          })
-        if (part.type === 'image')
-          value.parts.push({ type: 'file', mediaType: part.mimeType, url: `data:${part.mimeType};base64,${part.data}` })
-        if (part.type === 'toolCall') {
-          this.calls.set(part.id, { message: this.messages.length, index: value.parts.length })
-          value.parts.push({
-            type: 'dynamic-tool',
-            toolCallId: part.id,
-            toolName: part.name,
-            state: completeness === 'complete' ? 'input-available' : 'input-streaming',
-            input: part.arguments
-          })
-        }
-      }
-    this.messages.push(value)
-    this.writable.add(value)
-  }
-
-  nested(parentCallId: string, part: RuntimeMessage['parts'][number]): void {
-    if (part.type !== 'dynamic-tool') return
-    const parent = this.calls.get(parentCallId)
-    if (!parent) return
-    const existing = this.calls.get(part.toolCallId)
-    const message = this.write(parent.message)
-    const index = existing?.index ?? message.parts.length
-    message.parts[index] = part
-    this.calls.set(part.toolCallId, { message: parent.message, index })
+    this.messages.push({ id, role: message.role, metadata, parts })
   }
 
   private write(index: number): RuntimeMessage {
     const message = this.messages[index]
-    if (this.writable.has(message)) return message
-    const copy = { ...message, parts: [...message.parts] }
+    if (!Object.isFrozen(message)) return message
+    const copy = { ...message, parts: message.parts.slice() }
     this.messages[index] = copy
-    this.writable.add(copy)
+    this.edited.push(index)
     return copy
   }
 
-  private result(callId: string, output: unknown, error: boolean, preliminary = false): void {
+  private putNested(owner: number, part: ToolPart, existing: ToolLocation | undefined): void {
+    const message = this.write(owner)
+    if (existing?.message === owner) {
+      message.parts[existing.index] = part
+      return
+    }
+    this.calls.set(part.toolCallId, { message: owner, index: message.parts.length })
+    message.parts.push(part)
+  }
+
+  tool(callId: string): (ToolLocation & { id: string; part: ToolPart }) | undefined {
     const owner = this.calls.get(callId)
     if (!owner) return
-    const part = this.messages[owner.message].parts[owner.index]
-    if (part.type !== 'dynamic-tool') return
-    const base = {
-      type: 'dynamic-tool' as const,
-      toolName: part.toolName,
-      toolCallId: part.toolCallId,
-      input: part.input,
-      callProviderMetadata: part.callProviderMetadata
-    }
-    this.write(owner.message).parts[owner.index] = error
-      ? {
-          ...base,
-          state: 'output-error',
-          errorText: this.errorText(output),
-          resultProviderMetadata: { pi: { result: JSON.parse(JSON.stringify(output)) } }
-        }
-      : { ...base, state: 'output-available', output, preliminary }
+    const message = this.messages[owner.message]
+    const part = message.parts[owner.index]
+    if (part.type === 'dynamic-tool') return { ...owner, id: message.id, part }
   }
 
-  private errorText(output: unknown): string {
-    const content = (output as { content?: { type: string; text?: string }[] }).content
-    return (
-      content
-        ?.filter((part) => part.type === 'text')
-        .map((part) => part.text)
-        .join('\n') ?? String(output)
+  result(result: ToolResultMessage): { id: string; index: number; part: CompletedTool } | undefined {
+    const tool = this.tool(result.toolCallId)
+    if (!tool) return
+    const output = immutable({
+      content: result.content,
+      ...(result.nestedCalls && { nestedCalls: result.nestedCalls }),
+      ...(result.details !== undefined && { details: result.details }),
+      isError: result.isError
+    })
+    for (const record of output.nestedCalls?.calls ?? [])
+      this.putNested(tool.message, projectNestedTool(record, providerResult), this.calls.get(record.id))
+    const part = completedToolOutput(tool.part, output)
+    this.write(tool.message).parts[tool.index] = part
+    return { id: tool.id, index: tool.index, part }
+  }
+
+  liveMessages(live: LiveState | undefined, previewId: string | undefined): readonly RuntimeMessage[] {
+    const messages = this.seal()
+    const assistant = live?.generation?.message
+    if (
+      !live?.tools?.some((slot) => hasToolProgress(slot) || slot.nestedCalls?.calls.length) &&
+      !live?.nestedTools?.some((slot) => !slot.summary)
     )
+      return assistant && previewId ? [...messages, previewMessage(previewId, assistant.content)] : messages
+    const draft = new ContentProjection(messages.slice())
+    if (assistant && previewId) draft.append(assistant, previewId, { completeness: 'partial' })
+    const location = (id: string) => draft.calls.get(id) ?? this.calls.get(id)
+    const nested = (parentId: string, part: ToolPart) => {
+      const parent = location(parentId)
+      if (parent) draft.putNested(parent.message, part, location(part.toolCallId))
+    }
+    const progress = (id: string, text: string) => {
+      const owner = location(id)
+      if (!owner) return
+      const part = draft.messages[owner.message].parts[owner.index]
+      if (part.type === 'dynamic-tool') draft.write(owner.message).parts[owner.index] = previewToolOutput(part, text)
+    }
+    for (const slot of live.tools ?? []) {
+      if (hasToolProgress(slot)) progress(slot.callId, slot.output)
+    }
+    for (const slot of live.tools ?? [])
+      for (const record of slot.nestedCalls?.calls ?? []) nested(slot.callId, projectNestedTool(record, providerResult))
+    for (const slot of live.nestedTools ?? []) {
+      if (slot.summary) continue
+      nested(slot.parentCallId, {
+        type: 'dynamic-tool',
+        toolName: slot.name,
+        toolCallId: slot.callId,
+        state: 'input-available',
+        input: slot.arguments,
+        callProviderMetadata: { pi: { parentToolCallId: slot.parentCallId, nested: true } }
+      })
+      if (slot.output !== undefined) progress(slot.callId, slot.output)
+      for (const child of slot.nestedCalls?.calls ?? []) nested(slot.callId, projectNestedTool(child, providerResult))
+    }
+    return draft.seal()
   }
+}
 
-  progress(callId: string, text: string): void {
-    this.result(callId, { content: [{ type: 'text', text }] }, false, true)
-  }
+function hasToolProgress(slot: ToolSlot): slot is ToolSlot & { output: string } {
+  return slot.output !== undefined && slot.taskId !== undefined && slot.entry === undefined
+}
+
+function toolCallFields({ toolCallId, toolName, input, callProviderMetadata }: ToolPart) {
+  return { type: 'dynamic-tool' as const, toolCallId, toolName, input, callProviderMetadata }
+}
+
+export function previewToolOutput(part: ToolPart, text: string): AvailableTool & { preliminary: true } {
+  return snapshotToolPart({
+    ...toolCallFields(part),
+    state: 'output-available' as const,
+    output: { content: [{ type: 'text', text }] },
+    preliminary: true
+  })
+}
+
+function providerResult(value: unknown) {
+  return isJsonValue(value) ? value : copyJson(value, { omitUndefinedProperties: true })
+}
+
+function completedToolOutput(
+  part: ToolPart,
+  output: Pick<ToolResultMessage, 'content' | 'nestedCalls' | 'details' | 'isError'>
+): CompletedTool {
+  const call = toolCallFields(part)
+  if (!output.isError)
+    return snapshotToolPart({ ...call, state: 'output-available' as const, output, preliminary: false })
+  const text: string[] = []
+  for (const block of output.content) if (block.type === 'text') text.push(block.text)
+  return snapshotToolPart({
+    ...call,
+    state: 'output-error' as const,
+    errorText: text.join('\n'),
+    resultProviderMetadata: {
+      pi: { result: providerResult(output) }
+    }
+  })
 }
