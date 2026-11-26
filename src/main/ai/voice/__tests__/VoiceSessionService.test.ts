@@ -1889,18 +1889,17 @@ describe('VoiceSessionService file and admission contract', () => {
   it('owner destruction releases failed deletion ownership for FileManager recovery', async () => {
     const input = await recording()
     makeCleanupEligible(input.fileEntryId)
-    const deletion = vi
-      .spyOn(files, 'deleteRetainedTemporaryEntry')
-      .mockRejectedValueOnce(Object.assign(new Error('denied'), { code: 'EPERM' }))
+    vi.spyOn(files, 'deleteRetainedTemporaryEntry').mockRejectedValueOnce(
+      Object.assign(new Error('denied'), { code: 'EPERM' })
+    )
+    const replacementOwner = owner()
 
     ;(a.webContents as unknown as EventEmitter).emit('destroyed')
-    await vi.waitFor(() => expect(deletion).toHaveBeenCalledWith(input.fileEntryId))
-    await vi.waitFor(async () => {
-      await files.runEntryCleanup()
-      expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
-    })
+    await vi.waitFor(() => expect(service.getState(replacementOwner).phase).toBe('idle'))
+    expect(fileEntryService.findById(input.fileEntryId)).not.toBeNull()
+    await files.runEntryCleanup()
+    expect(fileEntryService.findById(input.fileEntryId)).toBeNull()
 
-    const replacementOwner = owner()
     await service.startRecording(replacementOwner, {
       sessionId: input.sessionId,
       requestId: randomUUID(),
