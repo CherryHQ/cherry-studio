@@ -1025,8 +1025,8 @@ export function LocalAgentDetails({
         />
       )}
       <div className={cn('flex min-h-0 flex-1 flex-col', modelSavingClass)}>
-        <div className="shrink-0 overflow-y-hidden px-6 pt-3 pb-3 [scrollbar-color:transparent_transparent] [scrollbar-gutter:stable]">
-          <div className="mx-auto w-full max-w-3xl space-y-2.5">
+        <div className="shrink-0 overflow-y-hidden px-6 pt-3 pb-3">
+          <div className="mx-auto w-full max-w-5xl space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border-subtle bg-muted/30 px-3.5 py-2 text-xs text-muted-foreground">
               <div className="flex min-w-0 items-center gap-2">
                 <Info className="lucide-custom size-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -1281,7 +1281,7 @@ export function LocalAgentDetails({
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           {!editing && feedback && (
             <div className="shrink-0 px-6">
-              <div className="mx-auto max-w-3xl">{feedback}</div>
+              <div className="mx-auto w-full max-w-5xl">{feedback}</div>
             </div>
           )}
           {modelList ? (

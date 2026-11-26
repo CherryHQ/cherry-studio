@@ -31,14 +31,14 @@ export function LocalAgentModelTabs({
   return (
     <Tabs variant="underline" value={source} onValueChange={tabs.setSource} className="min-h-0 min-w-0 flex-1 gap-3">
       <div className="shrink-0 px-6">
-        <div className="mx-auto max-w-3xl">{header}</div>
+        <div className="mx-auto w-full max-w-5xl">{header}</div>
       </div>
       <TabsContent value={source} className="flex min-h-0 min-w-0 flex-col">
         <ScrollArea
           className="min-h-0 flex-1"
           viewportProps={{ ref: viewportRef }}
           contentProps={{ className: 'px-6 pb-6' }}>
-          <div className="mx-auto max-w-3xl space-y-3">{children}</div>
+          <div className="mx-auto w-full max-w-5xl space-y-3">{children}</div>
         </ScrollArea>
       </TabsContent>
     </Tabs>
