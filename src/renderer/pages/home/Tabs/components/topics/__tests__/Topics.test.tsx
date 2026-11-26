@@ -4337,6 +4337,46 @@ describe('Topics', () => {
     expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps topic order and persists nothing when dropped on its own assistant header', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    renderTopicList()
+    const originalRows = listedRowTexts()
+
+    await dragRow({ source: 'item:topic-c', target: 'group:topic:assistant:assistant-2', side: 'before' })
+
+    expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
+    expect(listedRowTexts()).toEqual(originalRows)
+  })
+
+  it('appends a topic dropped on another assistant header using the last topic anchor', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    renderTopicList({
+      assistantTopicsSource: createAssistantTopicsSource([
+        createApiTopic(),
+        createApiTopic({ id: 'topic-c', name: 'Gamma topic', assistantId: 'assistant-2', orderKey: 'c' }),
+        createApiTopic({ id: 'topic-d', name: 'Delta archive', assistantId: 'assistant-2', orderKey: 'd' })
+      ])
+    })
+
+    await dragRow({ source: 'item:topic-a', target: 'group:topic:assistant:assistant-2', side: 'before' })
+
+    await vi.waitFor(() =>
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledExactlyOnceWith('topic-a', {
+        assistantId: 'assistant-2',
+        anchor: { after: 'topic-d' }
+      })
+    )
+    const targetHeader = getByRowText('Beta Assistant')
+    for (const name of ['Gamma topic', 'Delta archive', 'Alpha topic']) {
+      const row = getTopicRow(name)
+      expect(targetHeader.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    }
+    const rows = listedRowTexts()
+    expect(rows.findIndex((text) => text.includes('Delta archive'))).toBeLessThan(
+      rows.findIndex((text) => text.includes('Alpha topic'))
+    )
+  })
+
   it('keeps assistant grouped topics stable during cross-group drag hover', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 

@@ -20,6 +20,7 @@ import {
 import { startTestHttpServer } from '@test-helpers/http/server'
 import { expect, it, vi } from 'vitest'
 
+import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { AsyncEventQueue } from '@shared/utils/async/AsyncEventQueue'
 
 import { forkClaudeSession } from '../claudeFork'
@@ -97,7 +98,7 @@ async function bounded<T>(promise: Promise<T>): Promise<T> {
   }
 }
 
-async function nativeProbe(options: Pick<Options, 'agents'> = {}) {
+async function nativeProbe(options: Pick<Options, 'agents' | 'tools' | 'allowedTools'> = {}) {
   const directory = await mkdtemp(path.join(tmpdir(), 'cherry-claude-contract-'))
   const cwd = path.join(directory, 'work')
   const config = path.join(directory, 'config')
@@ -482,6 +483,30 @@ it('places next-priority input at the parent tool boundary with both input ident
     const result = await probe.event((event) => event.type === 'result')
     if (result.type !== 'result') throw new Error('Missing root result')
     expect(result).toMatchObject({ is_error: false, user_message_uuids: expect.arrayContaining([firstId, nextId]) })
+  } finally {
+    await probe.close()
+  }
+})
+
+it('carries wrapped steer content across a built-in read tool boundary', async () => {
+  const probe = await nativeProbe({ tools: ['Read'], allowedTools: ['Read'] })
+  try {
+    const file = path.join(probe.cwd, 'steer.txt')
+    await writeFile(file, 'Test fixture')
+    const firstId = probe.send('Read the test fixture')
+    const first = await probe.request()
+    first.reply.block({ type: 'text', text: 'Before reading' })
+    await probe.event((event) => event.type === 'assistant' && event.user_message_uuid === firstId)
+    const revised = 'Handle the revised requirement'
+    const steerId = probe.send(wrapSteerReminder(revised), 'next')
+    await probe.event((event) => isQueued(event, steerId))
+    first.reply.block({ type: 'tool_use', id: 'toolu_read_steer', name: 'Read', input: { file_path: file } })
+    first.reply.finish('tool_use')
+    const afterRead = await probe.request()
+    expect(JSON.stringify(afterRead.body.messages)).toContain(revised)
+    afterRead.reply.block({ type: 'text', text: 'Handled the revised requirement' })
+    afterRead.reply.finish()
+    await probe.event((event) => event.type === 'result')
   } finally {
     await probe.close()
   }

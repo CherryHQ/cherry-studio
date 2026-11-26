@@ -434,6 +434,20 @@
       }
     },
     {
+      "id": "chat.message.quote_selection",
+      "titleKey": "chat.message.quote",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "Y"
+        ],
+        "when": "!input.focused && !webview.focused"
+      }
+    },
+    {
       "id": "chat.message.edit_last_user",
       "titleKey": "settings.shortcuts.edit_last_user_message",
       "categoryKey": "settings.shortcuts.chat",
@@ -877,7 +891,7 @@
     }
   ],
   "providers": {
-    "version": "0ba92b7095bbe4e6",
+    "version": "0ce6d5648cfaa54f",
     "count": 69,
     "entries": [
       {

@@ -406,7 +406,8 @@ vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
   }
 })
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
+vi.mock('@renderer/data/hooks/useCache', async () => ({
+  ...(await import('@test-mocks/renderer/useCache')).MockUseCache,
   // Mirrors the real seeding: a window-scoped key falls back to the initValue
   // (the persisted value) until an explicit write lands in the local tier.
   useCache: (key: string, initValue?: unknown) => [
@@ -537,7 +538,6 @@ vi.mock('@renderer/hooks/usePins', () => ({
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
     `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`,
   getChannelTypeIcon: vi.fn(() => undefined)
 }))
 

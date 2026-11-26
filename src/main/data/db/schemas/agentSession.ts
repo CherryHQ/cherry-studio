@@ -30,6 +30,7 @@ export const agentSessionTable = sqliteTable(
     isTaskReuseTarget: integer({ mode: 'boolean' }).notNull().default(false),
     traceId: text(),
     activeNodeId: text(),
+    lastPos: integer().notNull().default(0),
     ...orderKeyColumns,
     // Dedicated conversation activity time. Name, owner, workspace and order
     // changes must not move this column.
