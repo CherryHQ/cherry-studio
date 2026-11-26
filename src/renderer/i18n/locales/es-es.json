@@ -2682,6 +2682,7 @@
   "message.backup.cleanup_failed": "La copia de seguridad se completó, pero no se pudieron limpiar las copias antiguas.",
   "message.backup.failed": "Backup fallido",
   "message.backup.success": "Backup exitoso",
+  "message.chat.completion.interrupted": "Interrumpido",
   "message.chat.completion.paused": "Chat pausado",
   "message.citation": "{{count}} contenido citado",
   "message.citation_source": "Fuente de citación {{number}}",

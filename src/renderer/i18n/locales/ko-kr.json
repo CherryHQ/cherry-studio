@@ -2682,6 +2682,7 @@
   "message.backup.cleanup_failed": "백업은 완료되었지만 이전 백업을 정리하지 못했습니다.",
   "message.backup.failed": "백업 실패",
   "message.backup.success": "백업 성공",
+  "message.chat.completion.interrupted": "중단됨",
   "message.chat.completion.paused": "응답 생성이 일시 중지되었습니다",
   "message.citation": "인용 {{count}}개",
   "message.citation_source": "인용 출처 {{number}}",

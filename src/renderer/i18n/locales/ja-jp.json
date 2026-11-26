@@ -2682,6 +2682,7 @@
   "message.backup.cleanup_failed": "バックアップは完了しましたが、古いバックアップを削除できませんでした。",
   "message.backup.failed": "バックアップに失敗しました",
   "message.backup.success": "バックアップに成功しました",
+  "message.chat.completion.interrupted": "中断しました",
   "message.chat.completion.paused": "チャットの完了が一時停止されました",
   "message.citation": "{{count}}個の引用内容",
   "message.citation_source": "引用元 {{number}}",

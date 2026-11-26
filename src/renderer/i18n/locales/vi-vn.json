@@ -2682,6 +2682,7 @@
   "message.backup.cleanup_failed": "Đã sao lưu xong nhưng không thể dọn dẹp các bản sao lưu cũ.",
   "message.backup.failed": "Sao lưu thất bại",
   "message.backup.success": "Sao lưu thành công",
+  "message.chat.completion.interrupted": "Đã gián đoạn",
   "message.chat.completion.paused": "Đã tạm dừng hoàn tất trò chuyện",
   "message.citation": "{{count}} trích dẫn",
   "message.citation_source": "Nguồn trích dẫn {{number}}",
