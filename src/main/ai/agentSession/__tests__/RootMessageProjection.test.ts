@@ -998,13 +998,12 @@ it('retains an agent OCR notice across native message refresh and reload', () =>
   expect(f.projection.parts(id)).toContainEqual(notice)
   f.save(id)
 
-  const restored = new RootMessageProjection(f.context.id)
+  const restored = new RootMessageProjection(f.context.id, { lastPos: messages.lastTimelinePosition(f.sessionId) })
   restored.accept(f.update([text('native', 'The red apple is on the table. There are seven blue books.')]))
   messages.replaceMessageParts(f.sessionId, id, restored.parts(id), restored.checkpoint())
-  expect(new RootMessageProjection(f.context.id).parts(id)).toEqual([
-    notice,
-    ...text('', 'The red apple is on the table. There are seven blue books.').parts
-  ])
+  expect(
+    new RootMessageProjection(f.context.id, { lastPos: messages.lastTimelinePosition(f.sessionId) }).parts(id)
+  ).toEqual([notice, ...text('', 'The red apple is on the table. There are seven blue books.').parts])
 })
 
 // Child approvals have no native root part; their task attribution must survive projection.

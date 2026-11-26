@@ -82,7 +82,7 @@ it('requires projected tool results and separate control, snapshot and part hand
     'message-metadata' | 'tool-input-available' | 'data-retry'
   >()
   expectTypeOf<Exclude<AgentControlChunk, AgentRuntimeEvent>['type']>().toEqualTypeOf<
-    'start' | 'tool-approval-request' | 'data-agent-task-event' | 'data-compaction-anchor'
+    'start' | 'tool-approval-request' | 'data-agent-task-event' | 'data-compaction-anchor' | 'data-attachment-notice'
   >()
   expectTypeOf<Extract<AgentControlChunk, { type: 'message-metadata' }>>().not.toExtend<
     Parameters<RootMessageProjection['control']>[1]
