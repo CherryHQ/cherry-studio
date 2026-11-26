@@ -95,7 +95,7 @@ it('reuses the original backend after replacing the first reply', () => {
   const edited = application.get('DbService').withWriteTx((tx) => {
     const target = messages.readEditSnapshotTx(tx, sessionId, original.id)
     const sourceBackendId = contexts.branchTx(tx, sessionId, reply.id)?.backendId
-    messages.replaceEditBranchTx(tx, sessionId, { messageId: original.id, version: target.version })
+    messages.replaceEditBranchTx(tx, sessionId, target.plan)
     const edited = messages.saveMessage(
       { sessionId, message: { role: 'user', data: { parts: [{ type: 'text', text: 'Edited request' }] } } },
       { db: tx }

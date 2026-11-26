@@ -744,6 +744,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.clearAllMocks()
 })
 
@@ -2178,6 +2179,33 @@ describe('edit dialogs', () => {
     expect(updateAgentMock).not.toHaveBeenCalled()
   })
 
+  it('adds two Pi Durable built-in rows to the summary while a knowledge base is linked', async () => {
+    const user = userEvent.setup()
+    const agent: AgentDetail = {
+      ...PI_AGENT,
+      type: 'pi-durable',
+      knowledgeBaseIds: ['kb-1'],
+      disabledTools: ['mcp__cherry-tools__kb_search']
+    }
+    render(<AgentEditDialog open resource={agent} onOpenChange={vi.fn()} />)
+
+    const toolSummary = () => screen.getByRole('button', { name: /^Built-in tools:/ }).getAttribute('aria-label')
+    const [, enabled, total] = toolSummary()?.match(/Enabled (\d+) \/ (\d+)$/) ?? []
+    expect(Number(enabled)).toBe(Number(total) - 1)
+    await openSubPage(user, 'Built-in tools')
+    expect(screen.getByRole('switch', { name: 'Knowledge Search' })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Manage Knowledge' })).toBeChecked()
+
+    await back(user)
+    await openSubPage(user, 'Knowledge')
+    await user.click(screen.getByRole('switch', { name: 'Knowledge One' }))
+    await back(user)
+    expect(toolSummary()).toBe(`Built-in tools: Enabled ${Number(enabled) - 1} / ${Number(total) - 2}`)
+    await openSubPage(user, 'Built-in tools')
+    expect(screen.queryByRole('switch', { name: 'Knowledge Search' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Manage Knowledge' })).not.toBeInTheDocument()
+  })
+
   it('preserves a knowledge-base re-selection made while its removal is saving', async () => {
     let resolveFirstSave: (() => void) | undefined
     updateAgentMock.mockImplementationOnce(
@@ -2739,6 +2767,7 @@ describe('edit dialogs', () => {
   })
 
   it('persists the latest edit made while an earlier save is still in flight', async () => {
+    vi.useFakeTimers()
     let resolveFirstSave: (() => void) | undefined
     updateAssistantMock.mockImplementationOnce(
       () =>
@@ -2750,7 +2779,8 @@ describe('edit dialogs', () => {
 
     const nameInput = screen.getByLabelText('Name')
     fireEvent.change(nameInput, { target: { value: 'First Edit' } })
-    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    await act(() => vi.advanceTimersByTimeAsync(700))
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
     expect(updateAssistantMock).toHaveBeenNthCalledWith(1, {
       body: expect.objectContaining({ name: 'First Edit' })
     })
@@ -2758,11 +2788,11 @@ describe('edit dialogs', () => {
     // Keep editing while the first PATCH is still in flight.
     fireEvent.change(nameInput, { target: { value: 'Second Edit' } })
     // Let the debounce fire; the in-flight guard must queue — not drop — this edit.
-    await new Promise((resolve) => setTimeout(resolve, 700))
+    await act(() => vi.advanceTimersByTimeAsync(700))
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
 
-    resolveFirstSave?.()
-    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    await act(async () => resolveFirstSave?.())
+    expect(updateAssistantMock).toHaveBeenCalledTimes(2)
     expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
       body: expect.objectContaining({ name: 'Second Edit' })
     })

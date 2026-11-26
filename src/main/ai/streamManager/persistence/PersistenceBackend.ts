@@ -45,6 +45,9 @@ export function finalizeInterruptedParts(
   const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
   const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
   return parts.map((part) => {
+    if (part.type === 'data-compaction-anchor' && part.data.status === 'compacting')
+      return { ...part, data: { ...part.data, status: 'skipped' } }
+
     // A `text` part left `streaming` by a mid-response failure renders as a still-typing
     // cursor instead of the truncated sentence the user actually received.
     if (part.type === 'text') {
@@ -106,6 +109,7 @@ export function finalizeInterruptedParts(
  * and `reasoning` parts. The AI SDK accumulator can leave these behind at step
  * boundaries (e.g. a final text step that produced no output); persisting them
  * yields invisible message blocks that still inject layout spacing on render.
+ * Empty reasoning with provider replay state must survive storage.
  *
  * Returns the original array by reference when nothing is dropped, so a clean
  * turn keeps a stable identity (matching `finalizeInterruptedParts`).
@@ -113,7 +117,18 @@ export function finalizeInterruptedParts(
 export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessagePart[] {
   const filtered = parts.filter((part) => {
     if (part.type !== 'text' && part.type !== 'reasoning') return true
-    if (part.type === 'reasoning' && hasAnthropicThinkingCredential(part.providerMetadata)) return true
+    const reasoningDetails = part.providerMetadata?.openrouter?.reasoning_details
+    if (
+      part.type === 'reasoning' &&
+      (hasAnthropicThinkingCredential(part.providerMetadata) ||
+        (Array.isArray(reasoningDetails) && reasoningDetails.length > 0) ||
+        Object.values(part.providerMetadata ?? {}).some(
+          ({ reasoningEncryptedContent }) =>
+            typeof reasoningEncryptedContent === 'string' && reasoningEncryptedContent.length > 0
+        ))
+    ) {
+      return true
+    }
     return part.text.trim().length > 0
   })
   return filtered.length === parts.length ? parts : filtered

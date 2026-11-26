@@ -57,6 +57,7 @@ import type {
   AgentRuntimeCommand,
   AgentSessionUsageCapture
 } from '../types'
+import { type UnavailableNativeContext, unavailableNativeContext } from '../types'
 import { childTaskStatus } from './childTaskStatus'
 import { classifyPiFailure } from './failureFacts'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
@@ -132,7 +133,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   constructor(private readonly input: AgentRuntimeConnectInput) {}
 
-  async start(): Promise<this> {
+  async start(): Promise<this | UnavailableNativeContext> {
     const discovery = await capturePiConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
@@ -233,13 +234,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (finalSnapshot.signature !== initialSnapshot.signature)
       throw new Error('Pi configuration changed during startup')
     this.connectionSignature = initialSnapshot.signature
-    this.context = preparePiBranch(
-      this.input.sessionId,
-      this.input.branchHead,
-      this.input.resumeToken ?? this.input.nativeSessionId
-    )
+    const resume = messages.getLastRuntimeResumeToken(this.input.sessionId, this.input.branchHead)
+    this.context = preparePiBranch(this.input.sessionId, this.input.branchHead, resume ?? undefined, true)
     const nativeId = this.context.nativeThreadId
-    if (!nativeId || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(nativeId)) throw new Error('Invalid Pi session identity')
+    if (!nativeId || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(nativeId))
+      return unavailableNativeContext(this.context, 'Invalid Pi session identity')
     let files: string[]
     try {
       files = readdirSync(sessionDir).filter((file) => file.endsWith(`_${nativeId}.jsonl`))
@@ -247,21 +246,32 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       files = []
     }
-    if (files.length > 1) throw new Error('Pi session identity is ambiguous')
+    if (files.length > 1) return unavailableNativeContext(this.context, 'Pi session identity is ambiguous')
     if (
-      (this.context.bindingState === 'bound' || messages.hasContextInput(this.input.sessionId, this.context.id)) &&
-      files.length !== 1
+      !files.length &&
+      (this.context.bindingState === 'bound' ||
+        nativeId === resume ||
+        messages.hasContextInput(this.input.sessionId, this.context.id))
     )
-      throw new Error('Pi session history is missing')
-    if (files.length && !lstatSync(application.getPath('feature.agents.pi.sessions', files[0])).isFile())
-      throw new Error('Pi session must be a regular file')
-    const manager = files.length
-      ? pi.SessionManager.openExisting(
-          application.getPath('feature.agents.pi.sessions', files[0]),
-          nativeId,
-          workspacePath
-        )
-      : pi.SessionManager.create(workspacePath, sessionDir, { id: nativeId })
+      return unavailableNativeContext(this.context, 'Pi session history is missing')
+    const file = files[0] && application.getPath('feature.agents.pi.sessions', files[0])
+    let manager: ReturnType<typeof pi.SessionManager.create>
+    try {
+      if (file && !lstatSync(file).isFile())
+        return unavailableNativeContext(this.context, 'Pi session must be a regular file')
+      manager = file
+        ? pi.SessionManager.openExisting(file, nativeId, workspacePath)
+        : pi.SessionManager.create(workspacePath, sessionDir, { id: nativeId })
+    } catch (error) {
+      if (
+        file &&
+        error instanceof Error &&
+        ((error as NodeJS.ErrnoException).code === 'ENOENT' ||
+          error.message === 'Session identity or format does not match')
+      )
+        return unavailableNativeContext(this.context, error.message)
+      throw error
+    }
     const binding = await createPiGatewayModelBinding(
       this.input,
       initialSnapshot.provider,
