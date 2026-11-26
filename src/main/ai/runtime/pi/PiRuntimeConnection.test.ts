@@ -22,6 +22,8 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
@@ -38,6 +40,7 @@ import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
 import type { RetryPartData } from '@shared/data/types/uiParts'
+import { getRawModelId } from '@shared/utils/model'
 import { getSentryLogContext } from '@shared/utils/sentry'
 
 import {
@@ -893,6 +896,32 @@ describe('desktop Pi root connection', () => {
         endpointConfigs: { 'openai-chat-completions': { adapterFamily: 'openai-compatible' } }
       })
       snapshot.model = ModelSchema.parse({ ...snapshot.model, maxOutputTokens: 8192 })
+      // The binding resolves its model through the registry, so the fixture's rows must exist.
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: snapshot.provider.id,
+          name: snapshot.provider.name,
+          isEnabled: true,
+          defaultChatEndpoint: snapshot.provider.defaultChatEndpoint,
+          endpointConfigs: snapshot.provider.endpointConfigs,
+          orderKey: 'a0'
+        })
+        .run()
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: snapshot.model.id,
+          providerId: snapshot.provider.id,
+          modelId: getRawModelId(snapshot.model),
+          name: snapshot.model.name,
+          capabilities: snapshot.model.capabilities,
+          endpointTypes: snapshot.model.endpointTypes,
+          supportsStreaming: snapshot.model.supportsStreaming,
+          isEnabled: true,
+          orderKey: 'a0'
+        })
+        .run()
       const actual = await vi.importActual<typeof GatewayModelBinding>('./gatewayModelBinding')
       mocks.binding.mockImplementation(() =>
         actual.createPiGatewayModelBinding(input, snapshot.provider, snapshot.model)
