@@ -50,6 +50,19 @@ describe('change:scope', () => {
     })
   })
 
+  it('preserves a leading BOM in Git paths', () => {
+    const root = makeRepo()
+    const base = git(root, 'rev-parse', 'HEAD')
+    const plain = 'example.txt'
+    const withBom = '\uFEFFexample.txt'
+    fs.writeFileSync(path.join(root, plain), 'plain\n')
+    fs.writeFileSync(path.join(root, withBom), 'with BOM\n')
+    git(root, 'add', '--', plain, withBom)
+
+    const report = JSON.parse(execFileSync(process.execPath, [script, '--base', base], { cwd: root, encoding: 'utf8' }))
+    expect(report.paths.staged).toEqual([plain, withBom])
+  })
+
   it('requires an explicit base', () => {
     const root = makeRepo()
     expect(() => execFileSync(process.execPath, [script], { cwd: root, stdio: 'pipe' })).toThrow()
