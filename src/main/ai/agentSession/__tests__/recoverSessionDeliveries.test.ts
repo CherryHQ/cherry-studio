@@ -75,6 +75,7 @@ it('keeps the original delivery pending when its captured Durable target cannot 
   const recoverPendingReplies = vi.fn(async () => {})
   dbh.db.update(agentTable).set({ type: 'pi' }).run()
   MockApplicationUtils.setService('AgentSessionRuntimeService', {
+    whenStartupRecoverySettles: async () => {},
     onTurnTerminal: () => ({ dispose() {} }),
     onRuntimeIdle: () => ({ dispose() {} }),
     isSessionBusy: () => false,
@@ -92,6 +93,7 @@ it('keeps the original delivery pending when its captured Durable target cannot 
   })
 
   await service._doInit()
+  await service._doAllReady()
 
   await service.drainSessionQueues(['target'])
   expect(recoverPendingReplies).toHaveBeenCalledWith({

@@ -1,7 +1,6 @@
 import { and, eq, gte, lt, ne, sql, type SQL } from 'drizzle-orm'
 import * as z from 'zod'
 
-import { application } from '@application'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { appStateTable } from '@data/db/schemas/appState'
@@ -129,10 +128,8 @@ export function refreshImportedHistoryMessageCountTx(tx: DbOrTx, sessionId: stri
   }
 }
 
-export function getImportedHistoryState(sessionId: string): ImportedHistoryState | undefined {
-  const row = application
-    .get('DbService')
-    .getDb()
+export function getImportedHistoryState(db: DbOrTx, sessionId: string): ImportedHistoryState | undefined {
+  const row = db
     .select()
     .from(appStateTable)
     .where(eq(appStateTable.key, sessionPrefix + sessionId))
