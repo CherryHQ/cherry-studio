@@ -2518,7 +2518,7 @@ describe('AgentComposer', () => {
     expect(modelLabel).toHaveAttribute('title', 'Custom Model | My Custom Provider')
   })
 
-  it('routes new session shortcuts through the empty session action', () => {
+  it('routes the new session shortcut and slash action through the empty session handler', () => {
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -2535,29 +2535,13 @@ describe('AgentComposer', () => {
     mocks.shortcutHandlers.get('topic.create')?.()
 
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
+
+    const sessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.find((item) => item.label === 'agent.session.new')
+    sessionItem?.action?.({ context: {} as any, action: 'enter', item: sessionItem })
+    expect(onCreateEmptySession).toHaveBeenCalledTimes(2)
   })
 
-  it('routes classic-layout new session shortcuts through the empty session action', () => {
-    mocks.sessionLayout = 'classic'
-    const onCreateEmptySession = vi.fn()
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        onCreateEmptySession={onCreateEmptySession}
-        isStreaming={false}
-      />
-    )
-
-    mocks.shortcutHandlers.get('topic.create')?.()
-
-    expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
-  })
-
-  it('puts the classic-layout empty session action first in the toolbar and calls the explicit handler', () => {
+  it('opens a classic-layout empty session through the toolbar, slash action, and shortcut', () => {
     mocks.sessionLayout = 'classic'
     const onCreateEmptySession = vi.fn()
 
@@ -2590,34 +2574,12 @@ describe('AgentComposer', () => {
 
     expect(onCreateEmptySession).toHaveBeenCalledTimes(2)
 
+    mocks.shortcutHandlers.get('topic.create')?.()
+    expect(onCreateEmptySession).toHaveBeenCalledTimes(3)
+
     act(() => {
       mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
-  })
-
-  it('keeps the new session action at the far left and the tool menu at the far right of the left toolbar', () => {
-    const onCreateEmptySession = vi.fn()
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        onCreateEmptySession={onCreateEmptySession}
-        isStreaming={false}
-      />
-    )
-
-    const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
-
-    newSessionItem?.action?.({
-      context: {} as any,
-      action: 'enter',
-      item: newSessionItem
-    })
-
-    expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
   })
 
   // #20766: first paint highlights MCP from the agent's current bindings, before the panel opens.

@@ -30,7 +30,8 @@ const registryMocks = vi.hoisted(() => ({
   modelListRun: vi.fn(),
   modelConversationRun: vi.fn(),
   modelConversationConfirm: vi.fn(),
-  providerApiKeyRun: vi.fn()
+  providerApiKeyRun: vi.fn(),
+  providerRegistryRun: vi.fn()
 }))
 
 vi.mock('../registry', async () => {
@@ -51,6 +52,11 @@ vi.mock('../registry', async () => {
       'config-hardware-acceleration': {
         id: 'config-hardware-acceleration',
         run: registryMocks.hardwareAccelerationRun,
+        fixes: {}
+      },
+      'install-provider-registry-readable': {
+        id: 'install-provider-registry-readable',
+        run: registryMocks.providerRegistryRun,
         fixes: {}
       },
       'mcp-servers-connected': {
@@ -112,6 +118,7 @@ beforeEach(() => {
   registryMocks.modelListRun.mockResolvedValue({ status: 'pass' })
   registryMocks.modelConversationRun.mockResolvedValue({ status: 'pass' })
   registryMocks.providerApiKeyRun.mockResolvedValue({ status: 'pass' })
+  registryMocks.providerRegistryRun.mockResolvedValue({ status: 'pass' })
   registryMocks.modelConversationConfirm.mockResolvedValue({
     confirmation: {
       messageKey: 'settings.doctor.checks.provider-model-conversation.confirmation',
@@ -324,14 +331,23 @@ describe('DoctorService scopes', () => {
   })
 
   it('adds model connectivity to a conversation diagnosis without a full live sweep', async () => {
+    registryMocks.providerRegistryRun.mockResolvedValue({
+      status: 'warn',
+      attribution: 'user-fixable',
+      detail: { variant: 'unreadable', params: { file: 'providers.json' } }
+    })
     const started = await createReadyService().runContextualDiagnosis(chat)
     if (started.status !== 'completed') throw new Error('expected report')
+    expect(started.report.results).toContainEqual(
+      expect.objectContaining({ id: 'install-provider-registry-readable', status: 'warn', attribution: 'user-fixable' })
+    )
     const ids = [
       ...started.report.results.map((entry) => entry.id),
       ...(started.report.pendingChecks ?? []).map((pending) => pending.checkId)
     ]
     expect(ids).toEqual(
       expect.arrayContaining([
+        'install-provider-registry-readable',
         'network-online',
         'network-model-endpoint',
         'provider-model-list',

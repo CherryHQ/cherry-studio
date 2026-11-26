@@ -2432,7 +2432,9 @@ describe('desktop Pi Durable connection', () => {
       await expect.poll(() => steering !== undefined).toBe(true)
       expect(await steering).toBe(outcome === 'rejected' ? 'child is busy' : 'sent')
       if (outcome === 'acknowledged')
-        await expect.poll(() => JSON.stringify(view.snapshot().messages)).toContain('child continued answer')
+        await expect
+          .poll(() => JSON.stringify(view.snapshot().messages), CHILD_WAIT)
+          .toContain('child continued answer')
       await connection.drainChildWrites()
       const saved = order(savedChildView(contexts.context(contextId)).messages)
       expect(saved.answer).toBeGreaterThanOrEqual(0)
@@ -2714,7 +2716,7 @@ describe('desktop Pi Durable connection', () => {
         .messages.find((message) =>
           message.parts.some((part) => part.type === 'text' && part.text.startsWith('child prefix'))
         )
-    await expect.poll(answer).toMatchObject({
+    await expect.poll(answer, CHILD_WAIT).toMatchObject({
       metadata: { status: 'pending' },
       parts: expect.arrayContaining([{ type: 'text', text: 'child prefix', state: 'streaming' }])
     })
@@ -2769,7 +2771,7 @@ describe('desktop Pi Durable connection', () => {
     expect(store.getSnapshot(target)).toBe(baseline)
     read.mockRestore()
     write.mockRestore()
-    await expect.poll(answer).toMatchObject({
+    await expect.poll(answer, CHILD_WAIT).toMatchObject({
       id,
       metadata: { status: 'pending' },
       parts: expect.arrayContaining([{ type: 'text', text: 'child prefix suffix', state: 'streaming' }])
