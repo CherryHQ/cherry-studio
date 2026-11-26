@@ -15,7 +15,7 @@
 
 import { definePlugin } from '@cherrystudio/ai-core'
 import { assertPrimaryOllamaCallWithinWindow } from '@main/ai/messages/attachmentBudget'
-import { readOllamaWireNumCtx, usesOllamaWirePath } from '@main/ai/utils/ollamaRequestNumCtx'
+import { readOllamaWireNumCtx, usesOllamaWirePath, writeOllamaWireNumCtx } from '@main/ai/utils/ollamaRequestNumCtx'
 
 import type { RequestFeature } from '../feature'
 import type { RequestScope } from '../scope'
@@ -31,16 +31,23 @@ function createOllamaCapacityGuardPlugin(scope: RequestScope) {
       context.middlewares.push({
         specificationVersion: 'v3',
         transformParams: async ({ params }) => {
-          // The wire value is authoritative: it is what `num_ctx` the request really carries
-          // (a user-set smaller value or a later clamp can be below the frozen snapshot).
-          const wireNumCtx = readOllamaWireNumCtx(params.providerOptions ?? {}) ?? snapshot.numCtx
+          // Retry can restore the primary call options while retaining this fallback model.
+          // Reapply its frozen cap on every dispatch, preserving any smaller wire choice.
+          const wireNumCtx = Math.min(
+            readOllamaWireNumCtx(params.providerOptions ?? {}) ?? snapshot.numCtx,
+            snapshot.numCtx
+          )
+          const cappedParams = {
+            ...params,
+            providerOptions: writeOllamaWireNumCtx(params.providerOptions ?? {}, wireNumCtx)
+          }
           await assertPrimaryOllamaCallWithinWindow({
-            call: params,
+            call: cappedParams,
             provider: scope.provider,
             model: scope.model,
             ollamaNumCtx: { ...snapshot, numCtx: wireNumCtx }
           })
-          return params
+          return cappedParams
         }
       })
     }

@@ -160,6 +160,48 @@ describe('ollamaCapacityGuardFeature', () => {
     expect(doStream).toHaveBeenCalledOnce()
   })
 
+  it('clamps a restored primary wire option to the frozen fallback cap on every dispatch', async () => {
+    const doStream = vi.fn().mockResolvedValue({ stream: new ReadableStream() })
+    const { middlewares } = await middlewaresFor(scopeOf(snapshot))
+    const wrapped = wrapLanguageModel({ model: fakeModel(doStream), middleware: middlewares })
+
+    for (const numCtx of [4_096, 131_072]) {
+      await wrapped.doStream(callOf(100, { providerOptions: { ollama: { options: { num_ctx: numCtx } } } }))
+    }
+
+    expect(doStream).toHaveBeenCalledTimes(2)
+    for (const [call] of doStream.mock.calls) {
+      expect(call.providerOptions.ollama.options.num_ctx).toBe(4_096)
+    }
+  })
+
+  it('keeps the fallback cap after a transient retry restores primary options', async () => {
+    const primaryStream = vi
+      .fn()
+      .mockRejectedValue(
+        new APICallError({ message: 'auth', url: 'http://primary', requestBodyValues: {}, statusCode: 401 })
+      )
+    const fallbackStream = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new APICallError({ message: 'busy', url: 'http://fallback', requestBodyValues: {}, statusCode: 503 })
+      )
+      .mockResolvedValue({ stream: new ReadableStream() })
+    const { middlewares } = await middlewaresFor(scopeOf(snapshot))
+    const fallback = wrapLanguageModel({ model: fakeModel(fallbackStream, 'fallback'), middleware: middlewares })
+    const wrap = createRetryableWrap({
+      fallbacks: [
+        async () => ({ model: fallback, options: { providerOptions: { ollama: { options: { num_ctx: 4_096 } } } } })
+      ],
+      retryPolicy: { enabled: true, maxAttempts: 1, backoffEnabled: false, fallbackModelIds: ['ollama::fallback'] }
+    })!
+    await wrap(fakeModel(primaryStream, 'primary')).doStream(
+      callOf(100, { providerOptions: { ollama: { options: { num_ctx: 131_072 } } } })
+    )
+    expect(fallbackStream).toHaveBeenCalledTimes(2)
+    for (const [call] of fallbackStream.mock.calls) expect(call.providerOptions.ollama.options.num_ctx).toBe(4_096)
+  })
+
   it('leaves an uncapped window alone', async () => {
     const doStream = vi.fn().mockResolvedValue({ stream: new ReadableStream() })
     const { middlewares } = await middlewaresFor(scopeOf({ ...snapshot, numCtx: 32_768 }))
