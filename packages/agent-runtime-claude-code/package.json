@@ -16,8 +16,10 @@
     "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-claude-code/tsconfig.json"
   },
   "dependencies": {
+    "@ai-sdk/provider": "3.0.19",
     "@anthropic-ai/claude-agent-sdk": "0.3.311",
-    "@cherrystudio/agent-runtime": "workspace:*"
+    "@cherrystudio/agent-runtime": "workspace:*",
+    "ai": "6.0.185"
   },
   "devDependencies": {
     "@types/node": "^24.10.4",

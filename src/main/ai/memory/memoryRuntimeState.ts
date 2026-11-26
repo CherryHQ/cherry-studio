@@ -1,9 +1,9 @@
-import { and, eq, isNotNull, ne, or, sql } from 'drizzle-orm'
+import { and, eq, exists, isNotNull, ne, or, sql } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { application } from '@application'
 import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSessionMessagePartTable, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { appStateTable } from '@data/db/schemas/appState'
 import { messageTable } from '@data/db/schemas/message'
 import { topicMemoryKey, UNEXPOSED_TOPIC, UNVERIFIED_COPY } from '@data/services/utils/topicMemoryState'
@@ -47,7 +47,17 @@ function hasHistory(owner: MemoryRuntimeOwner): boolean {
           and(
             ne(table.role, 'root'),
             ne(table.role, 'user'),
-            or(ne(table.status, 'pending'), sql`json_array_length(${table.data}, '$.parts') > 0`)
+            or(
+              ne(table.status, 'pending'),
+              agent
+                ? exists(
+                    db
+                      .select({ id: agentSessionMessagePartTable.id })
+                      .from(agentSessionMessagePartTable)
+                      .where(eq(agentSessionMessagePartTable.messageId, agentSessionMessageTable.id))
+                  )
+                : sql`json_array_length(${messageTable.data}, '$.parts') > 0`
+            )
           ),
           agent ? isNotNull(agentSessionMessageTable.runtimeResumeToken) : isNotNull(messageTable.compactionSummary)
         )

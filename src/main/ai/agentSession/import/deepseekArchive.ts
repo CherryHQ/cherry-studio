@@ -13,6 +13,17 @@ const MAX_ENTRY_BYTES = 32 * 1024 * 1024
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 const MAX_TOTAL_BYTES = 1024 * 1024 * 1024
 
+function assertSafeZipPath(name: string) {
+  if (
+    !name ||
+    name.includes('\\') ||
+    name.startsWith('/') ||
+    /^[A-Za-z]:/.test(name) ||
+    name.split('/').some((part) => part === '..' || part === '.')
+  )
+    throw new Error('Unsafe ZIP path')
+}
+
 export async function openDeepseekArchive(file: string) {
   const fd = await promisify(open)(file, 'r')
   let release = () => promisify(close)(fd)
@@ -39,13 +50,7 @@ export async function openDeepseekArchive(file: string) {
       const mode = (entry.attr >>> 16) & 0xf000
       if ((mode !== 0 && mode !== 0x8000 && mode !== 0x4000) || entry.encrypted)
         throw new Error('Unsupported ZIP entry')
-      if (
-        entry.name.includes('\\') ||
-        entry.name.startsWith('/') ||
-        /^[A-Za-z]:/.test(entry.name) ||
-        entry.name.split('/').some((part) => part === '..' || part === '.')
-      )
-        throw new Error('Unsafe ZIP path')
+      assertSafeZipPath(entry.name)
       total += entry.size
       if (entry.size > MAX_ENTRY_BYTES || total > MAX_TOTAL_BYTES)
         throw new Error('DeepSeek archive exceeds extraction limits')
@@ -77,6 +82,30 @@ export async function openDeepseekArchive(file: string) {
       const name = `chat_sessions/${id}.json`
       if (!sessionNames.has(name)) throw new Error('Missing DeepSeek conversation')
       const raw = await json(name)
+      // Fragments this build doesn't model yet (e.g. agent-run stage records
+      // like PATTERN/RATIO/RESULTS) are dropped before validation, so a single
+      // bad fragment cannot abort the whole import.
+      const KNOWN_FRAGMENT_TYPES = new Set([
+        'REQUEST',
+        'RESPONSE',
+        'TEMPLATE_RESPONSE',
+        'CONTENT_RISK',
+        'THINK',
+        'FILE',
+        'TOOL_OPEN',
+        'TOOL_SEARCH',
+        'TOOL_IMAGE_SEARCH'
+      ])
+      const conversation = raw as { messages?: Array<{ fragments?: unknown[] }> } | null | undefined
+      if (Array.isArray(conversation?.messages)) {
+        for (const message of conversation.messages) {
+          if (!Array.isArray(message.fragments)) continue
+          message.fragments = message.fragments.filter((fragment) => {
+            const f = fragment as { type?: string } | null
+            return f != null && KNOWN_FRAGMENT_TYPES.has(f.type ?? '')
+          })
+        }
+      }
       let value: ReturnType<typeof parseDeepseekConversation>
       try {
         value = parseDeepseekConversation(raw)
@@ -86,11 +115,6 @@ export async function openDeepseekArchive(file: string) {
       if (value.id !== id || value.messages.length !== index.find((item) => item.id === id)?.message_count)
         throw new Error('DeepSeek index does not match conversation')
       const attachments = deepseekFiles(value)
-      if (
-        attachments.reduce((total, file) => total + (file.export_path === null ? 0 : file.file_size), 0) >
-        64 * 1024 * 1024
-      )
-        throw new Error('DeepSeek conversation attachments exceed memory limits')
       const filesById = new Map<string, (typeof attachments)[number]>()
       for (const attachment of attachments) {
         const previous = filesById.get(attachment.id)
@@ -103,11 +127,23 @@ export async function openDeepseekArchive(file: string) {
         )
           throw new Error('Conflicting DeepSeek attachment ID')
         filesById.set(attachment.id, attachment)
-        if (
-          attachment.export_path !== null &&
-          (!entries[attachment.export_path]?.isFile || entries[attachment.export_path].size !== attachment.file_size)
-        )
+      }
+
+      let attachmentBytes = 0
+      for (const attachment of attachments) {
+        const path = attachment.export_path
+        if (path === null) continue
+        assertSafeZipPath(path)
+        if (!Object.hasOwn(entries, path)) {
+          attachment.export_path = null
+          continue
+        }
+        const entry = entries[path]
+        if (!entry.isFile || entry.size !== attachment.file_size)
           throw new Error('Missing or invalid DeepSeek attachment')
+        attachmentBytes += entry.size
+        if (attachmentBytes > 64 * 1024 * 1024)
+          throw new Error('DeepSeek conversation attachments exceed memory limits')
       }
       return value
     }

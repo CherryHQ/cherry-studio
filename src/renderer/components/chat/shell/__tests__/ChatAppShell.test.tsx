@@ -89,6 +89,7 @@ type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
   exit?: unknown
   initial?: unknown
   layout?: unknown
+  layoutDependency?: unknown
   ref?: Ref<HTMLDivElement>
   transition?: unknown
 }
@@ -103,6 +104,7 @@ vi.mock('motion/react', () => {
         delete domProps.exit
         delete domProps.initial
         delete domProps.layout
+        delete domProps.layoutDependency
         delete domProps.transition
 
         return (
