@@ -1,6 +1,8 @@
 import { asc, desc, eq, ne } from 'drizzle-orm'
+import { once } from 'es-toolkit'
 
 import type { ProtoProviderConfig } from '@cherrystudio/provider-registry'
+import { bundledCatalog } from '@cherrystudio/provider-registry/data'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
@@ -60,7 +62,12 @@ export class PresetProviderSeeder implements ISeeder {
 
   private getLoader(): RegistryLoader {
     if (!this._loader) {
-      this._loader = new RegistryLoader(resolveRegistryPaths())
+      this._loader = new RegistryLoader(resolveRegistryPaths(), {
+        fallbacks: bundledCatalog,
+        onFallback: once(({ file, path, error }) => {
+          logger.warn('Using the in-bundle provider registry', { file, path, error })
+        })
+      })
     }
     return this._loader
   }

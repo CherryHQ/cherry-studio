@@ -155,7 +155,6 @@ export const providerRegistryReadable = defineDoctorCheck({
       [paths.providerModels, readProviderModelRegistry]
     ] as const
 
-    // Portable builds can legitimately run from temp. Unreadable registry files indicate an install problem.
     for (const [filePath, read] of files) {
       try {
         read(filePath)
@@ -166,16 +165,17 @@ export const providerRegistryReadable = defineDoctorCheck({
         const namespace = isPathInside(filePath, overrideRoot) ? 'override' : 'bundled'
         const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : ''
         return {
-          status: 'fail',
+          status: 'warn',
           attribution: 'user-fixable',
           detail: { variant: 'unreadable', params: { file } },
           actions: [{ kind: 'navigate', target: '/settings/about' }, { kind: 'report' }],
-          devMessage: `Provider registry file is unreadable: ${file} (namespace: ${namespace}, cause: ${cause})`,
+          devMessage: `Using the in-bundle provider registry for ${file} (namespace: ${namespace}, cause: ${cause})`,
           evidence: [
             { key: 'file', value: file, dataClass: 'public' },
             { key: 'namespace', value: namespace, dataClass: 'public' },
             { key: 'path', value: filePath, dataClass: 'local_only' },
             { key: 'bundledRoot', value: bundledRoot, dataClass: 'local_only' },
+            { key: 'usingBundledFallback', value: true, dataClass: 'public' },
             { key: 'resourcesUnderTempDir', value: isUnderTempDir(bundledRoot), dataClass: 'public' },
             { key: 'portable', value: isPortable, dataClass: 'public' },
             { key: 'cause', value: cause, dataClass: 'consent_required' }

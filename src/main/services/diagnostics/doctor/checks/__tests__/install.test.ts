@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { REGISTRY_FILES, REGISTRY_SCHEMA_VERSION } from '@cherrystudio/provider-registry/node'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import type * as Platform from '@main/core/platform'
 import { ScreenCaptureError } from '@main/services/screenshot'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
@@ -197,6 +198,7 @@ describe('install-provider-registry-readable', () => {
   })
 
   afterEach(() => {
+    providerRegistryService.clearCache()
     vi.restoreAllMocks()
     rmSync(fixtureRoot, { recursive: true })
   })
@@ -210,19 +212,23 @@ describe('install-provider-registry-readable', () => {
     unlinkSync(providers)
     writeFileSync(path.join(bundledRoot, 'models.json'), '{}')
 
+    expect(providerRegistryService.isRegistryProvider('openai')).toBe(true)
+    expect(providerRegistryService.getRegistryFallbacks()).toEqual([
+      { file: 'providers.json', path: providers, message: `Failed to load registry file: ${providers}` }
+    ])
+
     await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
-      status: 'fail',
+      status: 'warn',
       attribution: 'user-fixable',
       detail: { variant: 'unreadable', params: { file: 'providers.json' } },
       actions: [{ kind: 'navigate', target: '/settings/about' }, { kind: 'report' }],
-      devMessage: expect.stringContaining(
-        'Provider registry file is unreadable: providers.json (namespace: bundled, cause: ENOENT'
-      ),
       evidence: expect.arrayContaining([
         { key: 'file', value: 'providers.json', dataClass: 'public' },
         { key: 'namespace', value: 'bundled', dataClass: 'public' },
         { key: 'path', value: providers, dataClass: 'local_only' },
         { key: 'bundledRoot', value: bundledRoot, dataClass: 'local_only' },
+        { key: 'usingBundledFallback', value: true, dataClass: 'public' },
+        { key: 'resourcesUnderTempDir', value: true, dataClass: 'public' },
         { key: 'portable', value: false, dataClass: 'public' },
         { key: 'cause', value: expect.stringContaining('ENOENT'), dataClass: 'consent_required' }
       ])
@@ -233,7 +239,7 @@ describe('install-provider-registry-readable', () => {
     writeFileSync(path.join(bundledRoot, 'providers.json'), '{')
 
     await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
-      status: 'fail',
+      status: 'warn',
       detail: { variant: 'unreadable', params: { file: 'providers.json' } },
       evidence: expect.arrayContaining([
         { key: 'cause', value: expect.stringMatching(/\S/), dataClass: 'consent_required' }
@@ -241,11 +247,11 @@ describe('install-provider-registry-readable', () => {
     })
   })
 
-  it('rejects a syntactically valid models file with an invalid schema', async () => {
+  it('warns for a syntactically valid models file with an invalid schema', async () => {
     writeFileSync(path.join(bundledRoot, 'models.json'), '{"version":"test","models":{}}')
 
     await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
-      status: 'fail',
+      status: 'warn',
       detail: { variant: 'unreadable', params: { file: 'models.json' } }
     })
   })
@@ -267,11 +273,8 @@ describe('install-provider-registry-readable', () => {
     )
 
     await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
-      status: 'fail',
+      status: 'warn',
       detail: { variant: 'unreadable', params: { file: 'provider-models.json' } },
-      devMessage: expect.stringContaining(
-        'Provider registry file is unreadable: provider-models.json (namespace: override, cause: '
-      ),
       evidence: expect.arrayContaining([
         { key: 'namespace', value: 'override', dataClass: 'public' },
         { key: 'path', value: providerModels, dataClass: 'local_only' }
@@ -279,14 +282,14 @@ describe('install-provider-registry-readable', () => {
     })
   })
 
-  it('passes a healthy portable build in temp and records portable and temp evidence on failure', async () => {
+  it('passes a healthy portable build in temp and records portable and temp evidence in the warning', async () => {
     platform.isPortable = true
     await expect(providerRegistryReadable.run(ctx)).resolves.toEqual({ status: 'pass' })
 
     unlinkSync(path.join(bundledRoot, 'providers.json'))
 
     await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
-      status: 'fail',
+      status: 'warn',
       evidence: expect.arrayContaining([
         { key: 'resourcesUnderTempDir', value: true, dataClass: 'public' },
         { key: 'portable', value: true, dataClass: 'public' }

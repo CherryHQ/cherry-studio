@@ -10,7 +10,8 @@ import { readFileSync } from 'node:fs'
 
 import semver from 'semver'
 
-import { type CatalogManifest, REGISTRY_SCHEMA_VERSION } from './catalog'
+import { type CatalogManifest, type RegistryFileName, REGISTRY_SCHEMA_VERSION } from './catalog'
+import type { RegistryCatalog } from './registry'
 import { ModelIndex, ProviderModelIndex } from './registry-index'
 import type { ModelConfig } from './schemas/model'
 import { ModelListSchema } from './schemas/model'
@@ -75,6 +76,12 @@ export interface RegistryPaths {
   providerModels: string
 }
 
+export interface RegistryLoaderOptions {
+  idleTtlMs?: number
+  fallbacks?: Partial<RegistryCatalog>
+  onFallback?: (event: { file: RegistryFileName; path: string; error: unknown }) => void
+}
+
 /** Default idle TTL in milliseconds (30 seconds). */
 const DEFAULT_IDLE_TTL_MS = 30_000
 
@@ -97,12 +104,24 @@ export class RegistryLoader {
 
   private idleTimer: ReturnType<typeof setTimeout> | null = null
   private readonly idleTtlMs: number
+  private readonly options: RegistryLoaderOptions
 
   constructor(
     private readonly paths: RegistryPaths,
-    idleTtlMs?: number
+    options?: number | RegistryLoaderOptions
   ) {
-    this.idleTtlMs = idleTtlMs ?? DEFAULT_IDLE_TTL_MS
+    this.options = typeof options === 'number' ? { idleTtlMs: options } : (options ?? {})
+    this.idleTtlMs = this.options.idleTtlMs ?? DEFAULT_IDLE_TTL_MS
+  }
+
+  private read<T>(file: RegistryFileName, path: string, fallback: T | undefined, read: (path: string) => T): T {
+    try {
+      return read(path)
+    } catch (error) {
+      if (fallback === undefined) throw error
+      this.options.onFallback?.({ file, path, error })
+      return fallback
+    }
   }
 
   /** Reset the idle timer. Called on every public access. */
@@ -115,8 +134,9 @@ export class RegistryLoader {
   loadModels(): ModelConfig[] {
     this.touch()
     if (this.models) return this.models
-    const data = readModelRegistry(this.paths.models)
-    this.models = data.models ?? []
+    const data = this.read('models.json', this.paths.models, this.options.fallbacks?.models, readModelRegistry)
+    // Copy loaded arrays so callers cannot mutate the shared in-bundle arrays.
+    this.models = data.models?.slice() ?? []
     this.modelsVersion = data.version
     this.modelIndex = new ModelIndex(this.models)
     return this.models
@@ -126,8 +146,13 @@ export class RegistryLoader {
   loadProviders(): ProviderConfig[] {
     this.touch()
     if (this.providers) return this.providers
-    const data = readProviderRegistry(this.paths.providers)
-    this.providers = data.providers ?? []
+    const data = this.read(
+      'providers.json',
+      this.paths.providers,
+      this.options.fallbacks?.providers,
+      readProviderRegistry
+    )
+    this.providers = data.providers?.slice() ?? []
     this.providersVersion = data.version
     return this.providers
   }
@@ -136,8 +161,13 @@ export class RegistryLoader {
   loadProviderModels(): ProviderModelOverride[] {
     this.touch()
     if (this.providerModels) return this.providerModels
-    const data = readProviderModelRegistry(this.paths.providerModels)
-    this.providerModels = data.overrides ?? []
+    const data = this.read(
+      'provider-models.json',
+      this.paths.providerModels,
+      this.options.fallbacks?.providerModels,
+      readProviderModelRegistry
+    )
+    this.providerModels = data.overrides?.slice() ?? []
     this.providerModelsVersion = data.version
     this.overrideIndex = new ProviderModelIndex(this.providerModels)
     return this.providerModels

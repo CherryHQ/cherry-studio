@@ -49,6 +49,7 @@ import {
   stripDateSnapshot,
   stripVariantQuantDateSuffixes
 } from '@cherrystudio/provider-registry'
+import { bundledCatalog } from '@cherrystudio/provider-registry/data'
 import { type RegistryFileName, RegistryLoader } from '@cherrystudio/provider-registry/node'
 import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
@@ -744,23 +745,39 @@ function projectImageGenerationSupport(
  */
 class ProviderRegistryService {
   private loader: RegistryLoader | null = null
+  private readonly registryFallbacks = new Map<
+    RegistryFileName,
+    { file: RegistryFileName; path: string; message: string }
+  >()
 
   /** Lazily create the shared RegistryLoader instance. */
   private getLoader(): RegistryLoader {
     if (!this.loader) {
-      this.loader = new RegistryLoader(resolveRegistryPaths())
+      this.loader = new RegistryLoader(resolveRegistryPaths(), {
+        fallbacks: bundledCatalog,
+        onFallback: ({ file, path, error }) => {
+          logger.warn('Using the in-bundle provider registry', { file, path, error })
+          const message = error instanceof Error ? error.message : String(error)
+          this.registryFallbacks.set(file, { file, path, message })
+        }
+      })
     }
     return this.loader
   }
 
   clearCache(): void {
     this.loader = null
+    this.registryFallbacks.clear()
+  }
+
+  /** Most recent fallback per file since the last explicit cache clear. */
+  getRegistryFallbacks(): { file: RegistryFileName; path: string; message: string }[] {
+    return [...this.registryFallbacks.values()]
   }
 
   /**
    * Current version string of a registry file as the loader sees it
-   * (override-or-bundled), or `null` if unreadable. The remote updater uses this
-   * to decide whether a downloaded catalog is newer than what's on disk.
+   * (override, packaged file, or in-bundle fallback), or `null` if unavailable.
    */
   getCatalogVersion(file: RegistryFileName): string | null {
     try {
