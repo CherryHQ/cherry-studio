@@ -1,11 +1,11 @@
-import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
+import type { RunEditResolution, RunHistoryBoundary } from '@data/services/agentSessionRunHistory'
 import { RuntimeForkAnchorSchema, type RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentSessionRuntimeDriver } from '@main/ai/runtime/types'
 import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 
 type CheckpointReader = Pick<AgentSessionRuntimeDriver, 'type'> &
   Required<Pick<AgentSessionRuntimeDriver, 'isForkCheckpoint'>>
-type HistoryBoundary = Pick<AgentSessionMessageRow, 'role' | 'status'> & { anchor: unknown; id?: string }
+type HistoryBoundary = Omit<RunHistoryBoundary, 'id'> & { id?: string }
 
 export function resolveForkBoundary(
   driver: AgentSessionRuntimeDriver | undefined,
@@ -40,12 +40,12 @@ export function inspectForkBoundary(
 
 export function getEditFailure(
   driver: CheckpointReader | undefined,
-  target: Pick<AgentSessionMessageRow, 'role' | 'delivery'> &
-    Partial<Pick<AgentSessionMessageRow, 'replyId'>> & { unplaced?: boolean },
-  parent: HistoryBoundary | null
+  edit: RunEditResolution
 ): AgentSessionHistoryActions['edit'] {
-  if (target.role !== 'user' || target.delivery) return 'invalid_target'
-  if (target.unplaced || !driver || !parent || (target.replyId && target.replyId === parent.id))
-    return 'checkpoint_unsupported'
-  return parent.role === 'root' || inspectForkBoundary(driver, parent).reason === null ? null : 'checkpoint_unsupported'
+  if (edit.kind === 'invalid') return 'invalid_target'
+  if (edit.kind !== 'ready' || !driver || !edit.boundary) return 'checkpoint_unsupported'
+  const boundary = edit.boundary
+  return boundary.role === 'root' || inspectForkBoundary(driver, boundary).reason === null
+    ? null
+    : 'checkpoint_unsupported'
 }

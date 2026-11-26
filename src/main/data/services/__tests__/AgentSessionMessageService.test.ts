@@ -3920,6 +3920,37 @@ describe('AgentSessionMessageService', () => {
       expect(dbh.db.select().from(agentSessionToolOutputTable).all()).toEqual([])
     })
 
+    it('forks an earlier boundary without decoding later archived tool results', () => {
+      const earlier = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Earlier' }] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolName: 'Read',
+                toolCallId: 'later-large',
+                state: 'output-available',
+                input: {},
+                output: oversizedOutputA
+              }
+            ]
+          }
+        }
+      })
+      const decode = vi.spyOn(agentSessionToolOutputTable.output, 'mapFromDriverValue')
+      const prefix = agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, earlier.id)!
+      expect(prefix.map((row) => row.id)).toEqual([earlier.id])
+      expect(prefix[0].data.parts).toEqual([{ type: 'text', text: 'Earlier' }])
+      expect(decode).not.toHaveBeenCalled()
+    })
+
     it('splits oversized tool outputs into agent_session_tool_output while keeping deferred list reads compact and hydrating full reads', () => {
       const saved = agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,

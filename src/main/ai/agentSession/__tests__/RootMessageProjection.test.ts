@@ -382,7 +382,7 @@ it('recovers interleaved native parts by ID and admits a newly discovered source
   const timeline = { lastPos: 8 }
   expect(
     messages.settleRecoveredReply(
-      { sessionId, runId, contextId: f.context.id, inputIds: [user.id], timeline },
+      { sessionId, runId, contextId: f.context.id, inputIds: [user.id], placedInputIds: [user.id], timeline },
       'success',
       [text('previously-unseen', 'D'), { ...native, parts: [...text('', 'A2').parts, ...text('', 'B2').parts] }]
     )

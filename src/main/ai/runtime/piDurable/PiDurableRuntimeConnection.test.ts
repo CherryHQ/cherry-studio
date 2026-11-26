@@ -38,6 +38,7 @@ import type {
 } from '@cherrystudio/agent-runtime-pi-durable'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -3008,6 +3009,11 @@ describe('desktop Pi Durable connection', () => {
       }
       await done(events)
       await connection.close()
+      dbh.db
+        .update(agentSessionMessageTable)
+        .set({ pos: null })
+        .where(eq(agentSessionMessageTable.id, original.id))
+        .run()
       setScript([assistantReply('unexpected duplicate request')])
       BaseService.resetInstances()
       const service = new AgentSessionRuntimeService()
@@ -3019,7 +3025,9 @@ describe('desktop Pi Durable connection', () => {
       await service._doDestroy()
       const row = messages.getSessionMessage(input.sessionId, run.id)
       expect(row.status).toBe(reason === 'stop' ? 'success' : reason === 'aborted' ? 'paused' : 'error')
-      const recovered = messages.readForkPrefixTx(dbh.db, input.sessionId, run.id)!.find((row) => row.id === run.id)!
+      const prefix = messages.readForkPrefixTx(dbh.db, input.sessionId, run.id)!
+      expect(prefix.map((row) => row.id)).toContain(original.id)
+      const recovered = prefix.find((row) => row.id === run.id)!
       if (reason === 'stop') {
         expect(recovered.data.runtimeAnchor).toMatchObject({
           checkpoint: { runtime: 'pi-durable', entryId: expect.any(String) }

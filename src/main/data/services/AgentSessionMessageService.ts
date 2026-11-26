@@ -41,7 +41,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import { unplacedAgentRunInputs, orderAgentSessionRuns } from '@data/services/agentSessionRunHistory'
+import { resolveAgentSessionRunHistory, type RunEditPlan } from '@data/services/agentSessionRunHistory'
 import { agentSessionReadModelEffects, agentSessionService } from '@data/services/AgentSessionService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
@@ -201,7 +201,7 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
     'sessionId', ${sessionMessagesTable.sessionId},
     'role', ${sessionMessagesTable.role},
     'data', json_set(
-      json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.deliveryReplyAnchor', '$.locallyHandled'),
+      json_remove(json(${sessionMessagesTable.data}), '$.runtimeAnchor', '$.nativeSessionId', '$.deliveryReplyAnchor', '$.locallyHandled', '$.nativePlaced'),
       '$.parts',
       json((
         select json_group_array(json(ordered.payload)) from (
@@ -449,6 +449,7 @@ function publicMessageData(data: AgentSessionMessageData): AgentSessionMessageEn
   delete result.runtimeAnchor
   delete result.nativeSessionId
   delete result.deliveryReplyAnchor
+  delete result.nativePlaced
   delete result.locallyHandled
   return result
 }
@@ -598,6 +599,8 @@ function syncMessageToolOutputsTx(
       .run()
   }
 }
+
+const editVersion: unique symbol = Symbol('agent-session-edit-version')
 
 export class AgentSessionMessageService {
   private readonly branchSelected = new Emitter<{ sessionId: string; head: string }>()
@@ -914,6 +917,7 @@ export class AgentSessionMessageService {
       runId: string
       contextId: string
       inputIds: readonly string[]
+      placedInputIds: readonly string[]
       timeline?: { lastPos: number }
       forkAnchor?: RuntimeForkAnchor
     },
@@ -927,6 +931,12 @@ export class AgentSessionMessageService {
       const ids = new Set(inputIds)
       if (current.length !== ids.size || current.some((row) => row.contextId !== contextId || !ids.has(row.inputId)))
         return
+      const placed = target.placedInputIds.filter((id) => ids.has(id))
+      if (placed.length)
+        tx.update(sessionMessagesTable)
+          .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.nativePlaced', json('true'))` })
+          .where(and(eq(sessionMessagesTable.sessionId, sessionId), inArray(sessionMessagesTable.id, placed)))
+          .run()
       const context = agentSessionContextService.context(contextId)
       const checkpoint = context.checkpointMapping?.root
       const removed = new Set(checkpoint?.removed)
@@ -1231,12 +1241,27 @@ export class AgentSessionMessageService {
   }
 
   readEditSnapshotTx(tx: DbOrTx, sessionId: string, messageId: string) {
-    const { index, ...snapshot } = this.readEditVersionTx(tx, sessionId, messageId)
-    const prefix = this.applyForkCheckpointsTx(tx, sessionId, messageId, snapshot.rows.slice(0, index))
-    const last = prefix.at(-1)
-    const boundary =
-      last?.role === 'user' && last.replyId ? (prefix.find((row) => row.id === last.replyId) ?? last) : last
-    return { ...snapshot, prefix, boundary }
+    const snapshot = this.readEditVersionTx(tx, sessionId, messageId)
+    const byId = new Map(snapshot.rows.map((row) => [row.id, row]))
+    const prefix = this.applyForkCheckpointsTx(
+      tx,
+      sessionId,
+      messageId,
+      snapshot.plan.prefixIds.map((id) => byId.get(id)!)
+    )
+    const previous = prefix.find((row) => row.id === snapshot.plan.resolution.boundary?.id)
+    const boundary = previous
+      ? { id: previous.id, role: previous.role, status: previous.status, anchor: previous.data.runtimeAnchor }
+      : snapshot.plan.resolution.boundary
+    return {
+      session: snapshot.session,
+      workspace: snapshot.workspace,
+      user: snapshot.user,
+      version: snapshot.version,
+      plan: { ...snapshot.plan, [editVersion]: snapshot.version },
+      prefix,
+      boundary
+    }
   }
 
   private readEditVersionTx(tx: DbOrTx, sessionId: string, messageId: string) {
@@ -1247,9 +1272,11 @@ export class AgentSessionMessageService {
       .innerJoin(agentWorkspaceTable, eq(sessionTable.workspaceId, agentWorkspaceTable.id))
       .where(eq(sessionTable.id, sessionId))
       .get()!
-    const rows = orderAgentSessionRuns(readAgentSessionPath(tx, sessionId))
-    const index = rows.findIndex((row) => row.id === messageId)
-    const user = rows[index]
+    const resolution = this.readRunHistoryTx(tx, sessionId).edit(messageId)
+    if (resolution.kind !== 'ready')
+      throw new AgentSessionEditError(resolution.kind === 'invalid' ? 'invalid_target' : 'checkpoint_unsupported')
+    const rows = readAgentSessionPath(tx, sessionId)
+    const user = rows.find((row) => row.id === messageId)
     if (!user || user.role !== 'user' || user.delivery || source.session.type !== 'conversation')
       throw new AgentSessionEditError('invalid_target')
     if (
@@ -1279,27 +1306,24 @@ export class AgentSessionMessageService {
       ...source,
       rows,
       user,
-      index,
+      plan: resolution.plan,
       version: createHash('sha256').update(JSON.stringify({ source, rows })).digest('hex')
     }
   }
 
-  replaceEditBranchTx(tx: DbOrTx, sessionId: string, target: { messageId: string; version: string }): void {
-    const snapshot = this.readEditVersionTx(tx, sessionId, target.messageId)
-    if (snapshot.version !== target.version) throw new AgentSessionEditError('history_changed')
+  replaceEditBranchTx(tx: DbOrTx, sessionId: string, plan: RunEditPlan & { readonly [editVersion]: string }): void {
+    const snapshot = this.readEditVersionTx(tx, sessionId, plan.targetInputId)
+    if (snapshot.version !== plan[editVersion]) throw new AgentSessionEditError('history_changed')
     const root = ensureAgentSessionRootTx(tx, sessionId)
-    let parentId = root
-    for (const row of snapshot.rows) {
-      if (row.parentId !== parentId)
-        tx.update(sessionMessagesTable)
-          .set({ parentId })
-          .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, row.id)))
-          .run()
-      parentId = row.id
+    for (const change of plan.parentChanges) {
+      tx.update(sessionMessagesTable)
+        .set({ parentId: change.parentId ?? root })
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, change.messageId)))
+        .run()
     }
     const replaced = and(
       eq(sessionMessagesTable.sessionId, sessionId),
-      inArray(sessionMessagesTable.id, agentSessionDescendantIds(sessionId, target.messageId))
+      inArray(sessionMessagesTable.id, agentSessionDescendantIds(sessionId, plan.targetInputId))
     )
     const rows = tx.select({ id: sessionMessagesTable.id }).from(sessionMessagesTable).where(replaced).all()
     agentSessionContextService.removeRootMessagesTx(
@@ -1308,7 +1332,7 @@ export class AgentSessionMessageService {
       rows.map((row) => row.id)
     )
     tx.update(sessionTable)
-      .set({ activeNodeId: snapshot.rows[snapshot.index - 1]?.id ?? root })
+      .set({ activeNodeId: plan.retainedHeadId ?? root })
       .where(eq(sessionTable.id, sessionId))
       .run()
     tx.delete(sessionMessagesTable).where(replaced).run()
@@ -1384,38 +1408,46 @@ export class AgentSessionMessageService {
     messageId: string,
     excludedIds: readonly string[] = []
   ): SessionMessage[] | undefined {
-    const active = readAgentSessionPath(tx, sessionId, undefined, true)
-    const branch = active.some((row) => row.id === messageId)
-      ? active
-      : readAgentSessionPath(tx, sessionId, this.branchTip(sessionId, messageId, tx), true)
-    const unplaced = unplacedAgentRunInputs(branch)
-    const rows = orderAgentSessionRuns(branch.filter((row) => !unplaced.has(row.id)))
-    const selected = rows.findIndex((row) => row.id === messageId)
-    if (selected < 0) return undefined
-    const end = rows.reduce((end, row, index) => (row.replyId === messageId ? Math.max(end, index) : end), selected)
-    const excluded = new Set(excludedIds)
-    return this.applyForkCheckpointsTx(
-      tx,
-      sessionId,
-      messageId,
-      rows.slice(0, end + 1).filter((row) => !excluded.has(row.id))
-    )
-  }
-
-  readRunHistoryMetadataTx(tx: DbOrTx, sessionId: string) {
-    const head = getAgentSessionHead(tx, sessionId)
-    if (!head) return []
+    const plan = this.readRunHistoryTx(tx, sessionId, messageId).fork(messageId, excludedIds)
+    if (!plan) return undefined
     const rows = tx
       .select()
       .from(sessionMessagesTable)
-      .where(
-        and(
-          eq(sessionMessagesTable.sessionId, sessionId),
-          inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head))
-        )
-      )
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), inArray(sessionMessagesTable.id, [...plan.messageIds])))
       .all()
-    return orderAgentSessionRuns(orderAgentSessionPath(rows, head))
+    const byId = new Map(rows.map((row) => [row.id, row]))
+    const messages = hydrateAgentSessionMessageRowsTx(
+      tx,
+      attachAgentSessionMessagePartsTx(
+        tx,
+        plan.messageIds.map((id) => byId.get(id)!),
+        true
+      )
+    )
+    return this.applyForkCheckpointsTx(tx, sessionId, messageId, messages)
+  }
+
+  readRunHistoryTx(tx: DbOrTx, sessionId: string, messageId?: string) {
+    const activeHead = getAgentSessionHead(tx, sessionId)
+    const metadata = (head: string) =>
+      tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(
+          and(
+            eq(sessionMessagesTable.sessionId, sessionId),
+            inArray(sessionMessagesTable.id, agentSessionPathIds(sessionId, head))
+          )
+        )
+        .all()
+    let head = activeHead
+    let rows = head ? metadata(head) : []
+    if (messageId && !rows.some((row) => row.id === messageId)) {
+      if (!metadata(messageId).some((row) => row.id === messageId)) return resolveAgentSessionRunHistory([])
+      head = this.branchTip(sessionId, messageId, tx)
+      rows = metadata(head)
+    }
+    return resolveAgentSessionRunHistory(head ? orderAgentSessionPath(rows, head) : [])
   }
 
   private applyForkCheckpointsTx(
@@ -2652,6 +2684,7 @@ export class AgentSessionMessageService {
     if (existingRow) {
       if (existingRow.data.deliveryReplyAnchor) data.deliveryReplyAnchor = existingRow.data.deliveryReplyAnchor
       if (existingRow.data.nativeSessionId) data.nativeSessionId = existingRow.data.nativeSessionId
+      if (existingRow.data.nativePlaced) data.nativePlaced = true
       if (existingRow.data.locallyHandled) data.locallyHandled = true
       const { storedData, offloaded, retainedToolCallIds, hasDeferredInput } = this.extractMessageToolOutputs(
         sessionId,

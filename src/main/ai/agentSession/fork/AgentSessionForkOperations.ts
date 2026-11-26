@@ -106,16 +106,12 @@ export class AgentSessionForkOperations {
     if (source.version !== target.version) throw new AgentSessionEditError('history_changed')
     const agent = source.session.agentId ? agentService.getAgent(source.session.agentId) : undefined
     const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
-    const facts = agentSessionForkService.readHistoryBoundaries(sessionId, [target.messageId])[0]
-    const editFailure = facts
-      ? getEditFailure(
-          driver?.fork && driver.isForkCheckpoint
-            ? { type: driver.type, isForkCheckpoint: driver.isForkCheckpoint.bind(driver) }
-            : undefined,
-          facts,
-          facts.parent
-        )
-      : 'invalid_target'
+    const editFailure = getEditFailure(
+      driver?.fork && driver.isForkCheckpoint
+        ? { type: driver.type, isForkCheckpoint: driver.isForkCheckpoint.bind(driver) }
+        : undefined,
+      source.plan.resolution
+    )
     if (editFailure) throw new AgentSessionEditError(editFailure)
     // oxlint-disable-next-line no-restricted-globals -- Fork once: detach the selected prefix before rewriting IDs and metadata.
     const prefix = structuredClone(source.prefix)
@@ -128,7 +124,7 @@ export class AgentSessionForkOperations {
     try {
       if (prefix.length) {
         const row = source.boundary!
-        const boundary = resolveForkBoundary(driver, { ...row, anchor: row.data.runtimeAnchor })
+        const boundary = resolveForkBoundary(driver, row)
         if (boundary.reason) throw new AgentSessionEditError('checkpoint_unsupported')
         const { anchor } = boundary
         if (anchor.excludedMessageIds?.some((id) => prefix.some((row) => row.id === id)))
@@ -183,7 +179,7 @@ export class AgentSessionForkOperations {
         const sourceBackendId = sourceHead
           ? agentSessionContextService.branchTx(tx, sessionId, sourceHead)?.backendId
           : undefined
-        agentSessionMessageService.replaceEditBranchTx(tx, sessionId, target)
+        agentSessionMessageService.replaceEditBranchTx(tx, sessionId, source.plan)
         const result = persist(tx, nativeSessionId, nativeContextId, sourceBackendId)
         if (resources) {
           const checkpointMapping = Object.fromEntries(

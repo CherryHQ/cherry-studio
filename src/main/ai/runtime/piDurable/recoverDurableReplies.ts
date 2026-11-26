@@ -75,6 +75,7 @@ export async function recoverDurableReplies(
                 runId,
                 contextId,
                 inputIds: rows.map((row) => row.inputId),
+                placedInputIds: history?.placedInputIds ?? [],
                 timeline: liveTimeline?.(sessionId),
                 ...(history?.answerEntryId && {
                   forkAnchor: {

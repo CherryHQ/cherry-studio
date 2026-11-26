@@ -14,6 +14,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
+import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { replaceAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -108,7 +109,7 @@ describe('Agent fork publication', () => {
     await rm(directory, { recursive: true, force: true })
   })
 
-  it.each(['commit', 'write failed'])(
+  it.each(['commit', 'write failed', 'withdrawn'])(
     'edits queued C from Run B without removing the earlier completed Run: %s',
     async (outcome) => {
       const root = dbh.db
@@ -125,7 +126,16 @@ describe('Agent fork publication', () => {
       const a = input('A', root)
       const b = input('B', messageId)
       const steer = input('S', b.id)
-      const c = input('C', steer.id)
+      const withdrawn = outcome === 'withdrawn' ? input('Withdrawn Q', steer.id) : undefined
+      if (withdrawn) {
+        const context = agentSessionContextService.branchTx(dbh.db, sessionId, steer.id)!
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ inputContextId: context.id, status: 'paused' })
+          .where(eq(agentSessionMessageTable.id, withdrawn.id))
+          .run()
+      }
+      const c = input('C', withdrawn?.id ?? steer.id)
       dbh.db
         .update(agentSessionMessageTable)
         .set({ parentId: a.id })

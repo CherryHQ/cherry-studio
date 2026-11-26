@@ -43,7 +43,11 @@ and retain their timeline positions. Only the final display segment offers the R
 Runs are ordered by their first admitted input. Fork includes only complete Runs
 through its selected boundary, regardless of queued tree ancestry. Bound inputs
 without an admitted position are excluded; genuine positionless legacy history remains.
-Publication reconnects the retained rows into the child branch.
+Publication reconnects the retained rows into the child branch. The history resolver
+selects the prefix from metadata before loading its parts and archived tool results.
+An addressed nonactive branch uses its own history for action eligibility.
+Confirmed native placement recovered after a missed live event remains admission
+evidence even when the recovered Run ends in error or pauses.
 
 User workspaces remain shared. System workspaces copy their **current** files into
 the child's workspace; selecting an earlier turn does not restore historical file
@@ -72,6 +76,11 @@ checkpoint from the preceding Run in execution order. In-Run steer inputs remain
 ineligible for editing. Editing is rejected while the session has unsettled work,
 including outgoing cross-session deliveries. Inputs accepted inside a Run cannot use its final
 checkpoint as their preceding edit boundary. Failed preparation or publication preserves the original tree.
+Eligibility and native preparation share the resolver's edit resolution. Steer and
+known unplaced inputs cannot produce an edit plan. Withdrawn inputs cannot supply
+the preceding checkpoint. Product replacement consumes the read phase's opaque,
+readonly edit plan with its captured history version; a changed version rejects
+publication before any parent links or messages change. Unchanged links are not written.
 Pi Durable noninitial edits publish the native fork's allocated product context identity and remapped checkpoints in the replacement input transaction. First-input edits reserve a fresh empty backend/context and create native storage only on dispatch. Native numeric IDs are local to a store, so publication and recovery check the exact context rather than matching an unrelated backend's token.
 Neither edit/resend nor branch selection restores workspace files.
 

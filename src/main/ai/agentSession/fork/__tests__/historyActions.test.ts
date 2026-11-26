@@ -278,3 +278,26 @@ it('allows editing an ordinary input after a steered Run but refuses editing its
   expect(actions.get(next.id)?.edit).toBeNull()
   await expect(runtime.getEditTarget(sessionId, next.id)).resolves.toMatchObject({ messageId: next.id })
 })
+
+it('preserves fork actions for addressed rows when a sibling branch becomes active', () => {
+  const first = user('Shared')
+  const left = answer({ runtime: 'pi', runtimeSessionId: 'native', leafId: 'left' })
+  const before = readHistoryActions(sessionId, [left.id]).get(left.id)
+  const sibling = messages.saveMessage({
+    sessionId,
+    parentId: first.id,
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'Sibling' }] } }
+  })
+  const right = messages.saveMessage({
+    sessionId,
+    parentId: sibling.id,
+    runtimeAnchor: { checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'right' } },
+    message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Right' }] } }
+  })
+  messages.selectBranch(sessionId, right.id)
+  expect(messages.getSessionMessage(sessionId, left.id).id).toBe(left.id)
+  const page = messages.listSessionMessages(sessionId, { messageId: left.id, deferToolOutputs: true })
+  expect(page.items.some((row) => row.id === left.id)).toBe(true)
+  expect(readHistoryActions(sessionId, [left.id]).get(left.id)).toEqual(before)
+  expect(before?.fork).toBeNull()
+})

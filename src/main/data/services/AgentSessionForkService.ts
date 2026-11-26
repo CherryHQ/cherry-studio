@@ -17,7 +17,6 @@ import { agentSessionContextService } from './AgentSessionContextService'
 import { agentSessionMessageService } from './AgentSessionMessageService'
 import { agentSessionPathIds, ensureAgentSessionRootTx } from './agentSessionMessageTree'
 import type { AgentSessionMessageRecord } from './agentSessionMessageTree'
-import { unplacedAgentRunInputs } from './agentSessionRunHistory'
 import { agentSessionService } from './AgentSessionService'
 
 export class AgentSessionForkSourceError extends Error {
@@ -56,22 +55,11 @@ export class AgentSessionForkService {
 
   readHistoryBoundaries(sessionId: string, messageIds: readonly string[]) {
     if (!messageIds.length) return []
-    const rows = agentSessionMessageService.readRunHistoryMetadataTx(application.get('DbService').getDb(), sessionId)
-    const byId = new Map(rows.map((row) => [row.id, row]))
-    const unplaced = unplacedAgentRunInputs(rows)
-    const selected = new Set(messageIds)
-    return rows.flatMap((row, index) => {
-      if (!selected.has(row.id)) return []
-      const previous = rows[index - 1]
-      const parent = previous?.role === 'user' && previous.replyId ? (byId.get(previous.replyId) ?? previous) : previous
-      return [
-        {
-          ...row,
-          unplaced: unplaced.has(row.id),
-          anchor: row.data.runtimeAnchor,
-          parent: parent ? { ...parent, anchor: parent.data.runtimeAnchor } : null
-        }
-      ]
+    const db = application.get('DbService').getDb()
+    const active = agentSessionMessageService.readRunHistoryTx(db, sessionId)
+    return messageIds.flatMap((id) => {
+      const resolved = active.inspect(id) ?? agentSessionMessageService.readRunHistoryTx(db, sessionId, id).inspect(id)
+      return resolved ? [resolved] : []
     })
   }
 

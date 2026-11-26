@@ -62,6 +62,9 @@ export async function readDurableReply(
   }
   return {
     outcome,
+    placedInputIds: records.flatMap((record, index) =>
+      submissionState(thread, record, answer || undefined).facts.includes('placed') ? [inputs[index].inputId] : []
+    ),
     ...(outcome.outcome === 'completed' && primary.answer !== undefined && { answerEntryId: String(primary.answer) }),
     messages: content.seal().filter((message) => message.role === 'assistant')
   }
