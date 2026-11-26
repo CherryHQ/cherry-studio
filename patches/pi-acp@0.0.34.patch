@@ -1,8 +1,31 @@
 diff --git a/dist/index.js b/dist/index.js
-index 64758f0..45ce8f9 100755
+index 64758f027a38a7ecbe7d6e05e88edcc72ee9f193..52a3328520c80b784c067aeea54a97ab2c60bb68 100755
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -808,6 +808,28 @@ var SessionManager = class {
+@@ -720,6 +720,7 @@ function toToolCallLocations(args, cwd, line) {
+ }
+ var SessionManager = class {
+   sessions = /* @__PURE__ */ new Map();
++  createElicitation;
+   store = new SessionStore();
+   /** Dispose all sessions and their underlying pi subprocesses. */
+   disposeAll() {
+@@ -779,6 +780,7 @@ var SessionManager = class {
+       mcpServers: params.mcpServers,
+       proc,
+       conn: params.conn,
++      createElicitation: this.createElicitation,
+       fileCommands: params.fileCommands ?? []
+     });
+     this.sessions.set(sessionId, session);
+@@ -802,12 +804,35 @@ var SessionManager = class {
+       mcpServers: params.mcpServers,
+       proc: params.proc,
+       conn: params.conn,
++      createElicitation: this.createElicitation,
+       fileCommands: params.fileCommands ?? []
+     });
+     this.sessions.set(sessionId, session);
      return session;
    }
  };
@@ -31,7 +54,7 @@ index 64758f0..45ce8f9 100755
  var PiAcpSession = class {
    sessionId;
    cwd;
-@@ -822,6 +844,9 @@ var PiAcpSession = class {
+@@ -822,6 +847,9 @@ var PiAcpSession = class {
    cancelRequested = false;
    // Current in-flight turn (if any). Additional prompts are queued.
    pendingTurn = null;
@@ -41,7 +64,15 @@ index 64758f0..45ce8f9 100755
    turnQueue = [];
    // Track tool call statuses and ensure they are monotonic (pending -> in_progress -> completed).
    // Some pi events can arrive out of order (e.g. late toolcall_* deltas after execution starts),
-@@ -867,10 +892,10 @@ var PiAcpSession = class {
+@@ -847,6 +875,7 @@ var PiAcpSession = class {
+     this.mcpServers = opts.mcpServers;
+     this.proc = opts.proc;
+     this.conn = opts.conn;
++    this.createElicitation = opts.createElicitation;
+     this.fileCommands = opts.fileCommands ?? [];
+     this.proc.onEvent((ev) => this.handlePiEvent(ev));
+   }
+@@ -867,10 +896,10 @@ var PiAcpSession = class {
        content: { type: "text", text: this.startupInfo }
      });
    }
@@ -54,7 +85,7 @@ index 64758f0..45ce8f9 100755
        if (this.pendingTurn) {
          this.turnQueue.push(queued);
          this.emit({
-@@ -937,9 +962,16 @@ var PiAcpSession = class {
+@@ -937,9 +966,16 @@ var PiAcpSession = class {
      await this.flushEmits();
    }
    async settleTurn() {
@@ -74,7 +105,7 @@ index 64758f0..45ce8f9 100755
      this.pendingTurn = null;
      this.inAgentLoop = false;
      const next = this.turnQueue.shift();
-@@ -993,20 +1025,21 @@ var PiAcpSession = class {
+@@ -993,20 +1029,21 @@ var PiAcpSession = class {
    }
    startTurn(t) {
      this.cancelRequested = false;
@@ -102,7 +133,7 @@ index 64758f0..45ce8f9 100755
          }
          this.pendingTurn = null;
          this.inAgentLoop = false;
-@@ -1253,7 +1286,12 @@ var PiAcpSession = class {
+@@ -1253,7 +1290,12 @@ var PiAcpSession = class {
          });
          break;
        }
@@ -115,7 +146,7 @@ index 64758f0..45ce8f9 100755
          this.emit({
            sessionUpdate: "agent_message_chunk",
            content: {
-@@ -1264,6 +1302,7 @@ var PiAcpSession = class {
+@@ -1264,6 +1306,7 @@ var PiAcpSession = class {
          break;
        }
        case "auto_compaction_end": {
@@ -123,7 +154,7 @@ index 64758f0..45ce8f9 100755
          this.emit({
            sessionUpdate: "agent_message_chunk",
            content: {
-@@ -1281,6 +1320,16 @@ var PiAcpSession = class {
+@@ -1281,6 +1324,16 @@ var PiAcpSession = class {
          break;
        }
        case "agent_end": {
@@ -140,7 +171,44 @@ index 64758f0..45ce8f9 100755
          this.inAgentLoop = false;
          break;
        }
-@@ -1887,7 +1936,7 @@ function mergeCommands(a, b) {
+@@ -1307,14 +1360,28 @@ var PiAcpSession = class {
+       return;
+     }
+     if (method === "input" || method === "editor") {
+-      this.emit({
+-        sessionUpdate: "agent_message_chunk",
+-        content: {
+-          type: "text",
+-          text: `Pi ${method} UI request is not supported in ACP yet; cancelling it.`
+-        }
+-      });
+-      await this.proc.sendExtensionUiResponse({ id, cancelled: true });
++      let value;
++      if (this.createElicitation) {
++        const reply = await this.createElicitation({
++          sessionId: this.sessionId,
++          mode: "form",
++          message: ev.title,
++          requestedSchema: {
++            type: "object",
++            properties: {
++              value: { type: "string", title: ev.title, description: ev.placeholder, default: ev.prefill ?? "" }
++            },
++            required: ["value"]
++          }
++        });
++        if (reply.action === "accept") value = reply.content?.value;
++      } else {
++        this.emit({
++          sessionUpdate: "agent_message_chunk",
++          content: { type: "text", text: `Pi ${method} UI request requires ACP form support; cancelling it.` }
++        });
++      }
++      await this.proc.sendExtensionUiResponse(typeof value === "string" ? { id, value } : { id, cancelled: true });
+       return;
+     }
+     if (method === "notify") {
+@@ -1887,7 +1954,7 @@ function mergeCommands(a, b) {
    }
    return out;
  }
@@ -149,7 +217,7 @@ index 64758f0..45ce8f9 100755
  var PiAcpAgent = class {
    conn;
    sessions = new SessionManager();
-@@ -1973,6 +2022,13 @@ var PiAcpAgent = class {
+@@ -1973,9 +2040,19 @@ var PiAcpAgent = class {
        this.restoringSessions.delete(sessionId);
      }
    }
@@ -163,7 +231,13 @@ index 64758f0..45ce8f9 100755
    async initialize(params) {
      const supportedVersion = 1;
      const requested = params.protocolVersion;
-@@ -1989,6 +2045,7 @@ var PiAcpAgent = class {
++    this.sessions.createElicitation = params.clientCapabilities?.elicitation?.form
++      ? (request) => this.conn.unstable_createElicitation(request)
++      : undefined;
+     return {
+       protocolVersion: requested === supportedVersion ? requested : supportedVersion,
+       agentInfo: {
+@@ -1989,6 +2066,7 @@ var PiAcpAgent = class {
          supportsTerminalAuthMeta: params?.clientCapabilities?._meta?.["terminal-auth"] === true
        }),
        agentCapabilities: {
@@ -171,7 +245,7 @@ index 64758f0..45ce8f9 100755
          loadSession: true,
          mcpCapabilities: { http: false, sse: false },
          promptCapabilities: {
-@@ -2494,9 +2551,14 @@ ${JSON.stringify(stats, null, 2)}`;
+@@ -2494,9 +2572,14 @@ ${JSON.stringify(stats, null, 2)}`;
          return { stopReason: "end_turn" };
        }
      }
@@ -189,7 +263,7 @@ index 64758f0..45ce8f9 100755
    }
    async cancel(params) {
      const session = this.sessions.maybeGet(params.sessionId);
-@@ -2820,6 +2882,7 @@ async function getModelState(proc, pre) {
+@@ -2820,6 +2903,7 @@ async function getModelState(proc, pre) {
      }
    })();
    const model = state?.model;

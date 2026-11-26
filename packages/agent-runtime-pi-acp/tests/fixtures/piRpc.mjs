@@ -1,10 +1,15 @@
 #!/usr/bin/env node
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, writeFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 const emit = (value) => process.stdout.write(JSON.stringify(value) + '\n')
 const model = { id: 'fixture', provider: 'test', name: 'Fixture', contextWindow: 16000 }
 for await (const line of createInterface({ input: process.stdin })) {
   const request = JSON.parse(line)
+  if (request.type === 'extension_ui_response') {
+    writeFileSync('ui-response.json', JSON.stringify(request))
+    emit({ type: 'agent_settled' })
+    continue
+  }
   if (request.type === 'prompt' && request.message === 'request-error') {
     emit({
       type: 'response',
@@ -32,6 +37,16 @@ for await (const line of createInterface({ input: process.stdin })) {
   if (request.type === 'abort') emit({ type: 'agent_settled' })
   if (request.type === 'prompt') {
     const outcome = request.message
+    if (outcome === 'input' || outcome === 'editor') {
+      emit({
+        type: 'extension_ui_request',
+        id: 'extension-dialog',
+        method: outcome,
+        title: 'Release notes',
+        ...(outcome === 'input' ? { placeholder: 'Enter notes' } : { prefill: 'first\nsecond' })
+      })
+      continue
+    }
     const end = (stopReason) =>
       emit({
         type: 'agent_end',

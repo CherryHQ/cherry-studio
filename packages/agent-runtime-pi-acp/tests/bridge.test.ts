@@ -6,31 +6,86 @@ import path from 'node:path'
 import { Readable, Writable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 
-import { client, ndJsonStream } from '@agentclientprotocol/sdk'
+import { client, type CreateElicitationRequest, ndJsonStream } from '@agentclientprotocol/sdk'
 import { expect, it } from 'vitest'
 
 import { piAcpAdapter } from '../src/adapter'
 
+async function startBridge() {
+  const root = await mkdtemp(path.join(tmpdir(), 'pi-adapter-contract-'))
+  const fixture = fileURLToPath(new URL('./fixtures/piRpc.mjs', import.meta.url))
+  await mkdir(path.join(root, 'agent'))
+  await writeFile(path.join(root, 'agent', 'settings.json'), JSON.stringify({ quietStartup: true }))
+  const entry = process.env.PI_ADAPTER_TEST_ENTRY || createRequire(import.meta.url).resolve('pi-acp')
+  const statsLog = path.join(root, 'stats.log')
+  const child = spawn(process.execPath, [entry], {
+    env: {
+      ...process.env,
+      HOME: root,
+      PI_CODING_AGENT_DIR: path.join(root, 'agent'),
+      PI_ACP_PI_COMMAND: fixture,
+      PI_FIXTURE_STATS_LOG: statsLog
+    },
+    stdio: ['pipe', 'pipe', 'pipe']
+  })
+  return { root, statsLog, child }
+}
+
+it.skipIf(process.platform === 'win32').each([
+  { method: 'input', forms: true, action: 'accept', value: '' },
+  { method: 'editor', forms: true, action: 'accept', value: '  first\nsecond\n' },
+  { method: 'editor', forms: true, action: 'decline' },
+  { method: 'input', forms: true, action: 'cancel' },
+  { method: 'input', forms: false, action: 'cancel' }
+] as const)('answers the original Pi $method request (forms=$forms, action=$action)', async (scenario) => {
+  const { root, child } = await startBridge()
+  const forms: CreateElicitationRequest[] = []
+  const connection = client({ name: 'cherry-test' })
+    .onRequest('elicitation/create', ({ params }) => {
+      forms.push(params)
+      return scenario.action === 'accept'
+        ? { action: 'accept', content: { value: scenario.value } }
+        : { action: scenario.action }
+    })
+    .connect(ndJsonStream(Writable.toWeb(child.stdin), Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>))
+  try {
+    await connection.agent.request('initialize', {
+      protocolVersion: 1,
+      clientCapabilities: scenario.forms ? { elicitation: { form: {} } } : {}
+    })
+    const { sessionId } = await connection.agent.request('session/new', { cwd: root, mcpServers: [] })
+    await connection.agent.request('session/prompt', { sessionId, prompt: [{ type: 'text', text: scenario.method }] })
+    if (scenario.forms) {
+      expect(forms).toHaveLength(1)
+      expect(forms[0]).toMatchObject({
+        mode: 'form',
+        sessionId,
+        message: 'Release notes',
+        requestedSchema: {
+          properties: {
+            value: scenario.method === 'editor' ? { default: 'first\nsecond' } : { description: 'Enter notes' }
+          },
+          required: ['value']
+        }
+      })
+    } else expect(forms).toEqual([])
+    expect(JSON.parse(await readFile(path.join(root, 'ui-response.json'), 'utf8'))).toEqual({
+      type: 'extension_ui_response',
+      id: 'extension-dialog',
+      ...(scenario.action === 'accept' ? { value: scenario.value } : { cancelled: true })
+    })
+  } finally {
+    connection.close()
+    child.kill()
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 it.skipIf(process.platform === 'win32')(
   'reports final Pi failures without misclassifying recovered retries',
   async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'pi-adapter-contract-'))
-    const fixture = fileURLToPath(new URL('./fixtures/piRpc.mjs', import.meta.url))
-    await mkdir(path.join(root, 'agent'))
-    await writeFile(path.join(root, 'agent', 'settings.json'), JSON.stringify({ quietStartup: true }))
-    const entry = process.env.PI_ADAPTER_TEST_ENTRY || createRequire(import.meta.url).resolve('pi-acp')
-    const statsLog = path.join(root, 'stats.log')
+    const { root, statsLog, child } = await startBridge()
     const reads = async () => (await readFile(statsLog, 'utf8')).trim().split('\n').length
-    const child = spawn(process.execPath, [entry], {
-      env: {
-        ...process.env,
-        HOME: root,
-        PI_CODING_AGENT_DIR: path.join(root, 'agent'),
-        PI_ACP_PI_COMMAND: fixture,
-        PI_FIXTURE_STATS_LOG: statsLog
-      },
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
     const commandsReady = Promise.withResolvers<void>()
     let onRunning: (() => void) | undefined
     const connection = client({ name: 'cherry-test' })
