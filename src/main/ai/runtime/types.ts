@@ -14,6 +14,7 @@ import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
+import type { AgentSessionFollowup, AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
@@ -33,6 +34,16 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { RuntimeForkInput, RuntimeForkResult } from './fork'
 import type { RuntimeWorkspaceRelocation } from './workspaceRelocation'
+
+export interface UnavailableNativeContext {
+  status: 'native-context-unavailable'
+  context: AgentSessionContextRow
+  reason: string
+}
+
+export function unavailableNativeContext(context: AgentSessionContextRow, reason: string): UnavailableNativeContext {
+  return { status: 'native-context-unavailable', context, reason }
+}
 
 /**
  * Agent-session usage has exactly one capture owner per runtime route.
@@ -201,6 +212,7 @@ export type AgentRuntimeEvent =
    *  A runtime with `followUp()` also emits it when it places a queued input, after the content before it;
    *  `followUp` marks that placement, which starts its own run and so never joins another reply. */
   | { type: 'steer-boundary'; inputIds: readonly string[]; followUp?: true }
+  | { type: 'followup-queue'; queue: AgentSessionFollowup[] }
   | { type: 'input-submission'; contextId: string; result: SubmitResult }
   | { type: 'input-state'; contextId: string; input: ProductInputState }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
@@ -286,6 +298,7 @@ export interface AgentRuntimeConnection {
    * a refused submission reports `input-submission`. Returns false when no native work is running.
    */
   followUp?(input: AgentRuntimeCommand): boolean
+  changeFollowups?(change: AgentSessionFollowupChange): Promise<boolean>
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts, permission mode included, are patched in place before the

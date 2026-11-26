@@ -479,6 +479,22 @@ export const aiRequestSchemas = {
     input: z.strictObject({ sessionId: z.uuid(), messageId: z.uuid() }),
     output: z.strictObject({ messageId: z.uuid(), version: z.string(), parts: z.array(z.custom<CherryMessagePart>()) })
   }),
+  'ai.agent.session.change_followups': defineRoute({
+    input: z.strictObject({
+      topicId: z.string().min(1),
+      change: z.discriminatedUnion('type', [
+        z.strictObject({
+          type: z.literal('edit'),
+          inputId: z.uuid(),
+          revision: z.int().nonnegative(),
+          text: z.string()
+        }),
+        z.strictObject({ type: z.literal('reorder'), before: z.array(z.uuid()), after: z.array(z.uuid()) }),
+        z.strictObject({ type: z.literal('withdraw'), inputId: z.uuid() })
+      ])
+    }),
+    output: z.boolean()
+  }),
   'ai.agent.session.set_pending_input_count': defineRoute({
     input: z.strictObject({ sessionId: z.uuid(), count: z.number().int().nonnegative() }),
     output: z.void()

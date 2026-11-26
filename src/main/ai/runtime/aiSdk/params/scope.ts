@@ -36,6 +36,7 @@ export interface RequestScope extends ToolApplyScope {
   readonly provider: Provider
   readonly capabilities: ResolvedCapabilities | undefined
   readonly sdkConfig: SdkConfig
+  readonly replayRouteId: string
   readonly endpointType: EndpointType | undefined
   readonly aiSdkProviderId: AppProviderId
   readonly reasoningProfile: ResolvedReasoningProfile
