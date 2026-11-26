@@ -11,8 +11,9 @@ import type {
 import type { ConversationComposerPlacement } from '@renderer/components/composer/ConversationComposerStage'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { useAgentRightPaneActions } from './components/AgentRightPane'
 import AgentSessionMessages from './components/AgentSessionMessages'
@@ -27,7 +28,7 @@ interface AgentChatMainProps {
   messages: CherryUIMessage[]
   historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
   activeAgent: GetAgentResponse | undefined
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   isLoading: boolean

@@ -1,0 +1,28 @@
+diff --git a/dist/index.js b/dist/index.js
+index 944abc2652716a5047360c8abc2d48e700a3f3f8..6954a3b35fb2a4d906a9771d41f18afedfd8a565 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -80,8 +80,7 @@ function usePresence(present) {
+     }
+   });
+   React2.useEffect(() => {
+-    const currentAnimationName = getAnimationName(stylesRef.current);
+-    prevAnimationNameRef.current = state === "mounted" ? currentAnimationName : "none";
++    prevAnimationNameRef.current = state === "mounted" ? getAnimationName(stylesRef.current) : "none";
+   }, [state]);
+   (0, import_react_use_layout_effect.useLayoutEffect)(() => {
+     const styles = stylesRef.current;
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 0efe02a3c45790c11f94f71563bf1db7257b799f..0f49af0b4a88066252e6ec4ec923541f392ce3b4 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -44,8 +44,7 @@ function usePresence(present) {
+     }
+   });
+   React2.useEffect(() => {
+-    const currentAnimationName = getAnimationName(stylesRef.current);
+-    prevAnimationNameRef.current = state === "mounted" ? currentAnimationName : "none";
++    prevAnimationNameRef.current = state === "mounted" ? getAnimationName(stylesRef.current) : "none";
+   }, [state]);
+   useLayoutEffect(() => {
+     const styles = stylesRef.current;

@@ -49,7 +49,6 @@ export type ClaudeControl =
   | { type: 'background-results'; result: OperationResult<readonly string[]> }
   | { type: 'background-tasks'; tasks: BackgroundTask[] }
   | { type: 'background-task-event'; data: ClaudeTaskFact }
-  | { type: 'archive-changed' }
   | { type: 'compaction-start' }
   | {
       type: 'compaction-complete'
@@ -131,10 +130,7 @@ export class ClaudeControlState {
     return {
       active: this.isTurnActive,
       aborted: this.sawAbortedMessage,
-      backgroundTasks: this.backgroundTasks.map((task) => {
-        const toolCallId = this.backgroundTaskToolCallIds.get(task.run_id ?? task.task_id)
-        return toolCallId ? { ...task, toolCallId } : task
-      }),
+      backgroundTasks: this.readBackgroundTasks(),
       backgroundWorkActive: this.backgroundTasks.length > 0 || this.backgroundWorkReleasePending,
       backgroundResults: this.resultSources()
     }
@@ -254,7 +250,6 @@ export class ClaudeControlState {
         return
       case 'compact_boundary':
         this.handleCompactBoundarySystemMessage(message)
-        this.emit({ type: 'archive-changed' })
         return
       case 'session_state_changed':
         this.handleSessionStateChangedSystemMessage(message)
@@ -287,10 +282,17 @@ export class ClaudeControlState {
     }
     return undefined
   }
+  private readBackgroundTasks() {
+    return this.backgroundTasks.map((task) => {
+      const toolCallId = this.backgroundTaskToolCallIds.get(task.run_id ?? task.task_id)
+      return toolCallId ? { ...task, toolCallId } : task
+    })
+  }
+
   private publishBackgroundTasks(): void {
     this.emit({
       type: 'background-tasks',
-      tasks: this.snapshot.backgroundTasks
+      tasks: this.readBackgroundTasks()
     })
   }
 

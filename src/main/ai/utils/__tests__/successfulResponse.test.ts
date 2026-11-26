@@ -261,7 +261,7 @@ async function persistAndProject(result: Awaited<ReturnType<typeof runAgent>>, e
     topicId: 'topic-fixture',
     modelId: MODEL_ID,
     backend: {
-      kind: 'fixture',
+      kind: 'temp',
       persistAssistant(input) {
         // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         saved = structuredClone(input)
