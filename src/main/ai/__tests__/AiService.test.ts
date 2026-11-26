@@ -1214,7 +1214,7 @@ describe('AiService', () => {
     vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'newapi', providerOptionsKey: 'google', providerSettings: {}, modelId: 'nano-banana-2' }
     })
-    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
     )
@@ -1234,7 +1234,7 @@ describe('AiService', () => {
     vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'newapi', providerOptionsKey: 'newapi', providerSettings: {}, modelId: 'qwen-image' }
     })
-    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
     )
