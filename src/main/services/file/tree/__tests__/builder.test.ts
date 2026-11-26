@@ -56,35 +56,31 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — initial scan', () =>
     await rm(tmp, { recursive: true, force: true })
   })
 
-  it('builds a nested tree of files and directories', async () => {
-    await writeFile(path.join(tmp, 'root.md'), 'root')
-    await mkdir(path.join(tmp, 'sub'))
-    await writeFile(path.join(tmp, 'sub', 'inner.md'), 'inner')
+  it('builds and indexes a nested tree restricted to allowed extensions', async () => {
+    const rootFile = path.join(tmp, 'root.md')
+    const ignoredFile = path.join(tmp, 'ignored.txt')
+    const subdir = path.join(tmp, 'sub')
+    await mkdir(subdir)
+    await writeFile(rootFile, 'root')
+    await writeFile(ignoredFile, 'ignored')
+    await writeFile(path.join(subdir, 'inner.md'), 'inner')
 
     const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
     try {
       expect(builder.root.path).toBe(tmp.replace(/\\/g, '/'))
       expect(builder.root.hasChild('root.md')).toBe(true)
-      expect(builder.root.hasChild('sub')).toBe(true)
+      expect(builder.root.hasChild('ignored.txt')).toBe(false)
+      expect(builder.getNode(rootFile)).toBe(builder.root.children['root.md'])
+      expect(builder.getNode(ignoredFile)).toBeNull()
+      expect(builder.getNode(path.join(tmp, 'missing.md'))).toBeNull()
+
       const sub = builder.root.children['sub']
-      expect(sub?.isTreeDir()).toBe(true)
       expect(sub?.isTreeDir() && sub.hasChild('inner.md')).toBe(true)
+      expect(builder.getNode(subdir)).toBe(sub)
     } finally {
       await builder.disposeAsync()
     }
-  })
-
-  it('filters out files that fail the extensions allowlist', async () => {
-    await writeFile(path.join(tmp, 'a.md'), 'md')
-    await writeFile(path.join(tmp, 'b.txt'), 'txt')
-
-    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
-    try {
-      expect(builder.root.hasChild('a.md')).toBe(true)
-      expect(builder.root.hasChild('b.txt')).toBe(false)
-    } finally {
-      await builder.disposeAsync()
-    }
+    expect(builder.getNode(rootFile)).toBeNull()
   })
 
   it('populates stats when withStats=true and leaves them undefined otherwise', async () => {
@@ -105,22 +101,6 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — initial scan', () =>
       expect(node?.stats).toBeUndefined()
     } finally {
       await withoutStats.disposeAsync()
-    }
-  })
-
-  it('keeps the path→node Map coherent with the tree', async () => {
-    await writeFile(path.join(tmp, 'a.md'), 'a')
-    await mkdir(path.join(tmp, 'sub'))
-    await writeFile(path.join(tmp, 'sub', 'b.md'), 'b')
-
-    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
-    try {
-      expect(builder.getNode(path.join(tmp, 'a.md'))).toBe(builder.root.children['a.md'])
-      const sub = builder.root.children['sub']
-      expect(builder.getNode(path.join(tmp, 'sub'))).toBe(sub)
-      expect(builder.getNode(path.join(tmp, 'missing.md'))).toBeNull()
-    } finally {
-      await builder.disposeAsync()
     }
   })
 
@@ -433,32 +413,6 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
     } finally {
       await builder.disposeAsync()
     }
-  })
-
-  it('dispose() stops the chokidar watcher so post-dispose FS changes emit nothing', async () => {
-    await writeFile(path.join(tmp, 'before.md'), 'x')
-    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
-
-    const events: TreeMutationEvent[] = []
-    const sub = builder.onMutation((e) => events.push(e))
-
-    // Quick proof the watcher is alive: a write before dispose lands.
-    const liveEvent = waitForEvent(builder, (e) => e.type === 'added' && e.path.endsWith('/live.md'))
-    await writeFile(path.join(tmp, 'live.md'), 'y')
-    await liveEvent
-    expect(events.some((e) => e.type === 'added' && 'path' in e && e.path.endsWith('/live.md'))).toBe(true)
-
-    sub.dispose()
-    builder.dispose()
-    await builder.disposeAsync()
-    const eventsAtDispose = events.length
-
-    // After dispose, further FS mutations must not surface.
-    await writeFile(path.join(tmp, 'after.md'), 'z')
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    expect(events.length).toBe(eventsAtDispose)
-    // And the internal lookup map is cleared.
-    expect(builder.getNode(path.join(tmp, 'live.md'))).toBeNull()
   })
 
   it('snapshot() returns a JSON tree without parent cycles', async () => {

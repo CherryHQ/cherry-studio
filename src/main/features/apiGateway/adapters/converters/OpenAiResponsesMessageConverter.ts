@@ -86,15 +86,6 @@ function functionOutputToConversion(callId: string, output: FunctionCallOutput['
 }
 
 /**
- * The reasoning chain a client echoed back. `content` (`reasoning_text`) is the raw chain and
- * wins; `summary` is the fallback. Encrypted-only items retain their metadata with empty text.
- */
-function reasoningItemText(item: OpenAI.Responses.ResponseReasoningItem): string {
-  const content = item.content?.map((part) => part.text).join('') ?? ''
-  return content || (item.summary?.map((part) => part.text).join('') ?? '')
-}
-
-/**
  * Extended ResponseCreateParams with reasoning_effort
  */
 export type ResponsesCreateParams = ResponseCreateParams & {
@@ -152,18 +143,36 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
       // reasoning → assistant reasoning part. Emitted just ahead of the message or
       // function_call it belongs to, and `coalesceConsecutiveSameRole` merges the two.
       if ('type' in item && item.type === 'reasoning') {
-        const text = reasoningItemText(item)
-        if (text || item.id || item.encrypted_content) {
+        const raw =
+          item.content
+            ?.filter((part) => part.type === 'reasoning_text')
+            .map((part) => part.text)
+            .join('') ?? ''
+        const summary = item.summary?.map((part) => part.text).join('') ?? ''
+        if (raw || summary || item.id || item.encrypted_content) {
           const metadata = {
             itemId: item.id,
+            rawReasoningContent: false,
             ...(item.encrypted_content != null && { reasoningEncryptedContent: item.encrypted_content })
           }
-          const part: ReasoningUIPart = {
-            type: 'reasoning',
-            text,
-            providerMetadata: { openai: metadata, azure: metadata }
+          const parts: ReasoningUIPart[] = []
+          if (raw) {
+            const rawMetadata = { ...metadata, rawReasoningContent: true }
+            parts.push({
+              type: 'reasoning',
+              text: raw,
+              providerMetadata: { openai: rawMetadata, azure: rawMetadata, xai: rawMetadata }
+            })
           }
-          messages.push({ id: nextUIMessageId(), role: 'assistant', parts: [part] })
+          // Older gateway replies can mirror the same text in both fields.
+          if (!raw || (summary && summary !== raw)) {
+            parts.push({
+              type: 'reasoning',
+              text: summary,
+              providerMetadata: { openai: metadata, azure: metadata, xai: metadata }
+            })
+          }
+          messages.push({ id: nextUIMessageId(), role: 'assistant', parts })
         }
         continue
       }

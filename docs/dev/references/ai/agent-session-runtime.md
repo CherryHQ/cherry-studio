@@ -2,6 +2,7 @@
 description: Host/driver split for agent sessions — turn lifecycle, follow-up queue, resume tokens, and shared prompt materializer
 sources:
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
+  - src/renderer/pages/agents/messages
   - src/main/ai/agentSession/sessionHistory.ts
   - src/main/ai/agentSession/import
   - src/main/ai/agentSession/relocateSystemWorkspaces.ts
@@ -87,7 +88,7 @@ and history opening do not generate host predictions; a resident result can be r
 | `AgentChatContextProvider` | Validates the agent session, persists the user row (plus a pending assistant row on a fresh turn), and either starts a turn or enqueues a follow-up through the runtime. |
 | `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, and delivery quiescing. |
 | `AgentLifecycleService` | Coordinates archive, restore, purge, workspace deletion, and Agent-side backup quiescing; see [Agent Lifecycle](./agent-lifecycle.md). |
-| `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, original input contexts across connection replacement, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
+| `AgentSessionRuntimeService` | Owns the selected runtime entry and any other Pi Durable roots recovering in the same session. Each entry owns its connection, event consumer, turns, input contexts, persistence and idle timeout. |
 | `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional `redirect` (mid-turn steer), `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
@@ -280,9 +281,9 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    `connection.redirect({ message, systemReminder: true })`. The driver
    submits the immutable input to the native queue. Claude Code uses SDK
    `priority: 'next'`: native admission either folds it into the running turn
-   or starts a later turn. The host does not resend an accepted input. Its
-   `steer-boundary` carries input IDs from evidenced native request/response
-   membership, even if the preceding product turn has already settled. Claude's
+   or starts a later turn. The host does not resend an accepted input. A
+   `steer-boundary` carries input IDs joining the active Run from evidenced native request/response
+   membership. When the preceding native execution has already settled, `run-started` starts a new Run instead. Claude's
    correlated `requesting` status establishes this boundary before streamed content;
    `started` alone is not placement evidence.
    Pi consumes its own queue: unplaced inputs remaining after stop/error
@@ -294,13 +295,12 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    for an open turn. The steer shortcut still steers. Other runtimes keep busy-time Enter in the
    dock until the turn ends. Pi Durable submits
    it with its `follow-up` busy policy and persists it at once, so the queue survives a crash.
-   When Durable places the input, the driver emits `steer-boundary` after the preceding answer;
-   the host gives the input its own reply. The event's `followUp` flag marks such a placement: the
-   host holds it while a steer transition or reservation is pending, or while the current reply has
-   no open stream, so a later placement never joins an earlier reply. Steers still merge into one
-   continuation. The preceding reply settles as answered at the boundary; Durable reports its
-   input's outcome when the run ends, and the host then replaces a reply whose input did not
-   complete. An autonomous reply settles at that boundary, and a deferred user turn resumes
+   Its dock reflects the native waiting order and offers editing, reordering and withdrawal while queued.
+   When Durable places the input into a distinct execution, the driver emits `run-started` after the
+   preceding answer; the host gives the input its own Run. Main holds that handoff while the previous
+   reply has no open stream or another Run handoff is pending. The preceding reply settles as answered
+   at the boundary; Durable reports its admitted inputs' outcomes when the run ends, and Main
+   aggregates them before correcting that reply. An autonomous reply settles at that boundary, and a deferred user turn resumes
    there. A refused submission, or one that throws before it reaches the runtime, falls back to the
    host queue.
    An input queued before a restart has no entry-side context; the host reads its bound user
@@ -312,12 +312,11 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 
 Before dispatch, Main stores each pending steer's original message, snapshot and headless
 policy on the session entry. Drivers receive the native command and return input IDs. Pi and
-Durable placement callbacks reserve the reply synchronously before the next provider request.
-The later boundary transfers the complete input context once. Unknown admission survives
-disconnect on this entry; its successor looks up the recorded native context/binding without
-resending. Connection generations fence stale callbacks, not the lifetime of unresolved input.
+Durable placement callbacks associate inputs with the active Run synchronously before the next provider request.
+The later boundary consumes the pending input records without allocating another reply. Unknown admission survives
+disconnect on this entry. Its successor looks up the original context and product input ID. Connection generations fence stale callbacks, not the lifetime of unresolved input.
 Unavailable native evidence keeps the context unresolved. This retention covers a living
-process; the persisted native binding alone cannot recreate snapshot/headless attributes.
+process. Snapshot and headless attributes belong to the in-process pending steer.
 
 Background notification generations whose native source calls belong to an unfinished reply resume
 that reply and keep its assistant message ID. Main records intermediate native success but holds
@@ -349,16 +348,51 @@ scheduled, and other headless-owned work cannot absorb or be absorbed by a steer
 it must wait for its own turn so attribution and authorization remain attached to
 the work's provenance.
 
-When a steer **is** injected mid-turn, the driver emits a `steer-boundary` just
-before the model's post-steer assistant message. The host then **rolls** the
-assistant row: it finalises the pre-steer parts as one row (A1a), opens a fresh
-continuation row (A2), and replays the buffered post-steer chunks into A2 — so
-the steer user message sorts between the two assistant rows instead of dangling
-after the whole turn. `willContinueTopic()` keeps the topic stream alive across
-the roll (and across a mid-flight compaction) so the continuation carries the
-renderer listeners.
-The source row's terminal event is marked `row-roll`; lifecycle consumers must
-not treat it as completion of the work that continues in A2.
+When a steer **is** injected mid-run, its input joins the active `AgentSessionRun`: `runId` is the
+existing assistant row ID, and each admitted input's `replyId` points to it. Steer does not settle
+the Run, replace its frozen author/model/headless context, or open another stream. Existing parts
+retain their IDs, owner and timeline positions; late tool results update the same part. A native
+terminal settles this Run. A queued input starting a distinct execution gets another Run.
+
+The `run-handoff` state applies only to that next native execution. Its preceding reply's provisional
+terminal is still marked `row-roll`; delivery consumers wait for Durable's actual input outcomes.
+Run ownership does not create synthetic continuation assistant records. The durable input and part
+positions retain their order independently of the canonical assistant row.
+
+A `run-checkpoint` event identifies its owning Run through the stable input association and native
+context. Main retains evidence received before placement creates a reply, attaches it to an active
+Run, or updates only the private checkpoint of an already successful Run. A later session-wide
+completion cannot replace that exact answer position. Pi Durable obtains these positions from
+committed submission answers, independently of foreground inactivity; cold pending-reply recovery
+commits the same evidence with its terminal body. Receiving a checkpoint does not terminate a Run.
+
+Renderer derives display segments from placed input positions and each part's immutable position.
+The first segment retains the Run's message ID; later keys combine the Run ID with the segment's
+first part ID. `sourceMessageId` retains the durable owner for approvals, usage and fork. Only the
+last segment exposes the completed Run's fork boundary and statistics. Existing open text and tools
+stay in their original segment; a steer never cuts a string or moves a tool into a new parent.
+Only the first visible content segment owns the Run identity header; subsequent segments keep their
+body and tool parents without repeating it. Boundary compaction parts are separate marker rows with
+no assistant header, action footer or selection checkbox. In-loop compaction remains inside its process
+group. A paused Run projects one stable interrupted marker from its persisted terminal status,
+after both its last content and its latest placed input. Unplaced queue inputs and
+inputs owned by other Runs do not move that marker.
+
+The segment layout selects stable part IDs from the shared projection reader. Text and tool progress
+continue through keyed part subscriptions; only new membership or a baseline changes the list projection.
+Compaction start and completion update one DataUIPart ID at one position. An unchanged or cancelled
+compaction settles that part as skipped; the marker does not become an assistant reply.
+When an interrupted or failed Run is persisted, any remaining busy compaction marker
+also settles as skipped with its existing part ID and position, including during close.
+
+A message page whose input references an older Run expands through that Run and its intervening
+inputs. Its cursor follows the expanded boundary. The requested limit bounds the initial window;
+a Run crossing the seam can make the returned page larger. This preserves the same source order
+without a second dependency cache or losing later output owned by an older assistant record.
+
+Forking the completed Run copies its placed steer inputs, remaps their `replyId` to the copied Run,
+and preserves timeline positions with new part IDs. The fork marker belongs to the selected Run.
+An input accepted inside that Run cannot be edited against the Run's final native checkpoint.
 
 ## Cross-Session delivery
 
@@ -490,8 +524,9 @@ failed     permanent routing/admission failure; no automatic retry
 
 SQLite `accepted` rows are the only delivery queue. `AgentSessionDeliveryService` owns scheduling,
 state transitions, finalization, recovery, and shutdown coordination; `AgentSessionMessageService`
-provides synchronous transaction primitives for the message table. Busy, write-quiesced, and
-shutting-down targets remain `accepted` until a known wake event. A temporarily inaccessible
+provides synchronous transaction primitives for the message table. The startup delivery sweep
+waits for native recovery to claim resumable work. Busy, write-quiesced, and shutting-down
+targets remain `accepted` until a known wake event. A temporarily inaccessible
 workspace also remains `accepted` instead of destroying durable intent; missing paths and permanent
 permission failures are routing errors. Workspace probes are time-bounded so an unreachable mount
 cannot hold backup quiescing indefinitely, and repeated checks share the same underlying non-abortable
@@ -510,7 +545,7 @@ request row: receiver Session, delivery_in_reply_to = NULL
 result row:  caller Session,   delivery_in_reply_to = request.id
 ```
 
-The result row stores a frozen projection of the terminal assistant output in its own `data.parts`
+The result row stores a frozen projection of the terminal assistant output in its own message parts
 and keeps `sourceMessageId` only as non-authoritative provenance, without a foreign key. Do not use
 a reference-only result: Agent Session messages are editable and deletable, Session deletion
 cascades their messages, and FTS/UI/export read row-local data. A source reference would therefore
@@ -598,9 +633,11 @@ indexed `delivery_turn_ref`:
   evidence of deletion, not proof that execution never started;
 - placeholder still `pending` — execution may already have produced external side effects;
   terminalize interrupted parts, discard the Session resume token, finalize `interrupted`, and do
-  not rerun the Agent. A `pi-durable` request whose input Durable admitted is the exception: Durable
-  owns its outcome, so the placeholder stays `pending` and the delivery owner opens that Session.
-  Durable resumes or settles the input, and the reply's terminal event finalizes the delivery;
+  not rerun the Agent. For a request bound to Pi Durable, Main reads the original native store.
+  A terminal receipt settles the reply, and unfinished native work resumes through its owning runtime.
+  If the original idle thread confirms that none of the reply's inputs were submitted, the delivery
+  is interrupted and the next request can proceed. An unreadable store or ambiguous legacy input
+  keeps the delivery pending;
 - placeholder terminal — run only the idempotent finalizer.
 
 The generic pending-assistant sweep excludes rows referenced by `delivery_turn_ref`; therefore its
@@ -625,7 +662,7 @@ boundary prevents model text that imitates an envelope from changing trusted rou
 ## Starting the next runtime turn
 
 `agentSessionRuntimeState` decides when a queued input or reserved reply can start.
-A queued successor waits for the current reply's terminal persistence. A steer successor
+A queued successor waits for the current reply's terminal persistence. A native Run successor
 waits for its source row to persist; a deferred user reply waits for both the autonomous
 reply's persistence and the native ownership release. Suspension must finish before a
 replacement stream opens. Async launch completion only releases its captured launch target;
@@ -633,7 +670,7 @@ it cannot choose another reply or settle a newer one.
 
 Before asynchronous preparation, each reply has a `turnId`, assistant message ID, input,
 frozen model/author/headless context, and its own delivery, admission, control buffer and
-native terminal facts. `prepareReply()` handles queued, steer, autonomous and resumed replies:
+native terminal facts. `prepareReply()` handles queued, autonomous and resumed replies; same-Run steers reuse the open stream:
 
 1. save a reserved assistant placeholder with its preallocated ID;
 2. refresh trace context, then recheck the captured reply and session;
@@ -691,22 +728,26 @@ the shared prefix's original context. Confirmed native progress marks the
 binding as `bound`; the product message tree owns the published branch head.
 
 For Pi, root execution uses the common Runtime's `create/open/observe/input.submit` path.
-Main keeps three private identities on the user message: the captured `inputContextId`, the
-evidenced `nativeInputId` and `replyId`, the reply Main opened for it. Queued inputs are saved
-before their replies, so row ancestry cannot stand in for `replyId`. Connections consume native receipts and outcomes; response projection
-persists content and its source mapping. Explicit non-admission releases an unconfirmed binding,
-while an unknown result retains it without automatic resubmission. Observation snapshots establish the live
-projection baseline and never replace or replay the product archive. Lost observations fail closed.
+The user row ID identifies the input. Main records the dispatch target in `inputContextId` and
+the reply it opened in `replyId`. A steer can be saved before its reply. Native `placed` evidence
+assigns its timeline position once. Pi Durable accepts the product ID as its request key.
+For child commands, the original parent records which child submission key it selected.
+Stop and recovery query that submission on its original conversation. Older rows may supply
+a saved `nativeInputId` for lookup on the same conversation. Explicit non-admission releases
+the attempted target. Uncertain inputs retain their target. Native snapshots establish the content
+baseline. Only pending product replies need their native outcomes at attachment.
 A bound or previously submitted context requires exactly one existing native file with the expected
-ID. A missing or ambiguous file is an error, not permission to recreate from display history.
+ID. Missing or ambiguous history is reported to the driver before input dispatch. The driver can
+open a replacement context with the selected branch's reference history.
 Only a never-submitted intent can stay unflushed; local commands persist their native state before
 acknowledgement, even without a model prompt. Resume tokens are published after native persistence.
 On startup, the runtime owner terminalizes abandoned Pi product placeholders without clearing native
 identities or replaying their inputs. Rows owned by persisted delivery turns remain with delivery recovery.
 `pi-durable` placeholders stay `pending`: when the Session reopens, Durable continues a resumed input
 in the reply its `replyId` names, and an input that already has a Durable outcome rebuilds its reply from
-committed entries with that outcome. Delivery recovery ends a recovered delivery turn as an error
-when its Session cannot connect, because no runtime can then resume it.
+committed entries with that outcome. Delivery recovery retains the original target when reconnection
+fails and native admission is uncertain. A delivery whose unavailable context has been detached
+can reach an error outcome.
 
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
@@ -774,10 +815,9 @@ settings does not invalidate a warm Query's gateway identity. Explicit external
 CLI subscription login retains native authentication. See the gateway's
 [internal endpoint policy](../api-gateway/README.md#internal-listener-for-cherry-consumers).
 
-Root content passes through `ThreadMessageProjection` and `RootMessageProjection`.
-Observation values are frozen and shared, so a repeated snapshot reuses the previous view of every
-message whose source object is unchanged without decorating it again; an explicit refresh still
-re-decorates its messages.
+`RootMessageProjection` resolves sources to parts and applies live changes. Pi and Pi Durable
+root observers capture a single native source when reconciling structure. Their Main adapter
+keeps weak identities for repeated sources and decorates changed snapshots at the boundary.
 Native replacements retain product ownership across steer boundaries; explicit
 retractions persist with the context checkpoint. The runtime adapter preserves ordered
 AI SDK message parts, including tool output, reasoning signatures, files and citations.
@@ -786,27 +826,39 @@ tombstones in the same database transaction. Cached checkpoints cannot overwrite
 tombstones; live projections and reconnect recovery exclude deleted owners, including
 older dangling checkpoints, so replay cannot attach deleted content to a later reply.
 Main adds Cherry display metadata before publishing `CherryUIMessage`.
+`RootMessageProjection` also keeps a stable part ID beside each part: tool parts by `toolCallId`,
+data parts by their own ID, and other native parts by their position in the native source message.
+While the reply row is `pending`, each part that reaches its own completion (finished text or
+reasoning, a final tool result, a non-transient data part) is saved alone by part ID; streaming
+deltas write nothing. Terminal persistence reuses those IDs, so it adds the remaining parts and
+container status/statistics without rewriting parts already saved. A settled or deleted reply
+rejects late part saves.
 All Agent drivers use the `messages` source for the entire execution. `RootMessageProjection`
-owns host approval and data-part display; `pipeMessageStream` forwards its body with
-execution metadata and never accumulates a second text/tool body. Publishing, listeners and persistence receive the same
-`CherryUIMessage`. The package's `ClaudeControlState` owns native lifecycle interpretation;
+owns host approval and data-part display. The host opens the stream and produces
+approval, compaction and task display controls from runtime events. A runtime failure
+reaches the stream as a typed error. A statistics update can reach the stream before
+any body exists. Only a content-bearing control needs access to the root projection.
+The content callback publishes accepted body changes. Legacy listeners and terminal
+persistence can read a message view from the root owner. The package's
+`ClaudeControlState` owns native lifecycle interpretation;
 Main's `ClaudeRuntimeState` only maps typed facts to product events. `ClaudeMessageMetadata`
 decorates normalized SDK messages without retaining content or constructing an archive. No Claude chunk adapter remains.
-Child attachment reads the native archive once to recover its actual prompt, which the live SDK
-feed omits. Subsequent content follows the observer; there is no transcript polling loop.
+A foreground child publishes its opening user message on the live SDK stream. A background
+child publishes the original `task_started.prompt` as its first input, keyed by its thread ID.
+Both appear before the child answers. When native history is restored, its opening message UUID
+resolves to the same product row and parts. Attaching to a live child reads only its observed content.
 
 Each child uses its own `ChildThreadProjection`, context and archive, including
 nested children under their immediate parent. Parent completion and window detach
 do not stop child persistence. Its committed projection persists across archive reads, so a read
-redecorates only changed messages, and it writes the checkpoint, input bindings and response owners only
-when they change. It saves a message only when it differs from its stored row as that row reads back from
+redecorates only changed messages. It persists changes to the checkpoint and response owners. A live
+product input change records placement directly on that input’s captured context. It saves a message only when it differs from its stored row as that row reads back from
 JSON, where undefined fields are absent, so reopening a child rewrites nothing. Claude no longer writes child bodies into the
 parent's background-flow parts; saved historical flows remain readable.
-After a failed cold attachment, Claude retries the saved session-scoped native binding
-when it belongs to the current backend. The root's native creation lookup need not retain
-a nested or historical child's origin; retrying that existing access never resubmits its task.
+Claude execution restores a nested child through its saved native binding. The product
+archive stays readable if native attachment fails.
 Root and child views both use `ai.projection.*`, without a renderer runtime allowlist.
-The child view's `canSubmit` comes from native `ThreadHandle.input` availability.
+The archived child view derives `canSubmit` from the bound native identity and backend kind.
 Claude children remain observation-only; parent Agent/SendMessage tools own their continuation.
 Root projection also retains compact task lifecycle state on the spawning tool's
 message, so completion can update a settled parent without copying the child report.
@@ -1047,14 +1099,22 @@ that needs approval waits for the root session's responder, or is blocked when
 nobody can respond. Command approvals refresh the effective tool input and policy evidence even when a native
 part already exists in the root reply, so the composer shows the operation awaiting consent.
 
-Runtime content uses whole native SDK messages. Pi and Claude decode deltas once at
+Runtime baselines use whole native SDK messages. Pi and Claude decode deltas once at
 the adapter source; Durable materializes committed native view revisions directly.
 Tool results and preliminary progress update the originating tool part, while activity
 and input outcomes remain separate facts within the same captured delivery. Concrete observations
 include aliases and live/history provenance with their content. Delivery modes and Durable commit
 revisions stay internal; consumers receive the captured body, input outcomes and completion facts.
-Input facts retain native input bindings without duplicating product reply identity. Initial baselines do not replay
-completion or charges; overflow recovery retains unseen control facts after their matching body.
+
+Pi Durable publishes text and reasoning blocks as `message.text-open`, `message.text-append`, and `message.text-finish` when the native preview and committed block establish the change. Root and child owners resolve the native source to a stable part ID. The root saves a positioned block on completion. Attach and recovery baselines include the accumulated text and part IDs.
+
+Pi Durable publishes output-only previews and matching single-tool result receipts as `message.tool-output`. Root and child owners can forward the changed tool by `partId` using `part-put`. The child owner builds detail references and calculates result invalidation on the archive rows before grouping their parts into replies. The live owner serves the latest result until the archive accepts it.
+
+Adapters that receive cumulative native messages publish ordered `message.parts` edits for the affected source. Text and reasoning use `open`, `append` and `finish`. `put` carries a changed non-text part. Main preserves the accepted parts outside those positions. A source first appears through a baseline or `message.reconcile`, which also carries authoritative corrections, metadata changes and source aliases. Tool replacements pass through acceptance even when the stable tool-call identity is unchanged. The compact renderer publication and detail invalidation follow [Execution Overlay](./execution-overlay.md#publication).
+
+Pi and Pi Durable route text-only edit batches as ordered native part operations for roots and children. Opening a block carries its provider metadata. Their root facets capture runtime facts alongside the events selected by the feed. A generic batch containing a non-text replacement can reconcile the affected source. Before saving a continuation, the child owner drains the observations already published so the preceding answer keeps its place in the archive.
+
+Product input changes carry the submitted ID. Autonomous native work uses its native reference. The first baseline establishes the current view. Overflow recovery retains unseen control facts after their matching body.
 Main never fetches mutable alias state later or guesses whether a snapshot is live. Claude's
 package also owns permission denial, native archives and SDK invocation aggregation; its Main
 decorator retains only display metadata. Main still freezes pricing and owns usage attribution.
@@ -1074,16 +1134,11 @@ renderer. Parent parts retain task metadata and the navigation entry; they no lo
 carry child output. Foreground completion can continue the same child in the background.
 User stop still observes the shared ownership rules; closing a panel only detaches its subscriber.
 
-Child attachment waits for the shared root connection, then calls the concrete
-`openChild(toolCallId, signal?)`. The package owns pending creation and returns its stable creation
-origin, actual parent and access together. Main joins concurrent attachment through one child
-resource record. Failed creation or owner closure ends the wait; parent reply completion does not
-close independently running children. Failed attachment releases its lease and can retry, while
-failed final persistence retains the resource and its unflushed output. A finished child (idle
-with a run result and no input without an outcome) that no viewer subscribes to is flushed and
-released, keeping only its origin and context ID; opening its panel, messaging it or a native
-resume attaches it again. A detached or
-destroyed window cannot install a late subscription. Archive reconciliation preserves product IDs
+Opening a child panel reads a page of its product archive and subscribes to the active
+writer. A panel opened before creation receives a new baseline when the writer appears.
+A finished Durable child flushes and releases its native handle once its commands have
+drained, even with an open panel. Explicit input reopens its original context. Detached
+windows release their subscriptions. Archive reconciliation preserves product IDs
 and orders evidenced rows by committed native history followed by live content, correcting saved
 parent links when necessary; rows outside current native/live coverage remain retained in place.
 
@@ -1102,8 +1157,8 @@ its archive cannot open as an independent writable root. Public projection code 
 
 `PiDurableRuntimeDriver` owns one native backend per store and connections borrow root accesses. `DurableBackend` installs the same `agent-behavior` rules and routes host ports by the native conversation ownership tree through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
 question cards and tool rendering. Native SQLite owns execution history and task state;
-the existing backend/context tables bind it to product sessions. Strict identity checks
-prevent a missing store from silently becoming a fresh conversation.
+the existing backend/context tables bind it to product sessions. Reopen validates the existing
+native identity. A new turn can start a fresh context when the bound history is missing.
 Pi Durable renders the Pi SDK's global and workspace-ancestor context files before each
 model request, so changes and removals replace the previously shown project instructions.
 
@@ -1123,7 +1178,7 @@ from idle activity or an empty product-input map.
 Native submission and assistant metadata carry the consuming run's stable identity.
 Ordinary steer may start a later run after normal completion; it has no run-only constraint.
 Background continuation keeps the child identity. Independent continuation of a completed
-foreground child is rejected because native tool ownership is immutable. Successful committed boundaries support ownerless same-storage desktop forks; each root retains its own model options, approvals, extensions and environment. Before shared recovery resumes unfinished roots, their stored request selections and Main projection consumers are restored. Final release closes the backend once and drains observations before product writers stop. Edit and resend retains sibling-message branches, preparing an ownerless native fork at the predecessor or a fresh context for the first input. File rewind and `vcc_recall` remain unavailable. See the
+foreground child is rejected because native tool ownership is immutable. Successful committed boundaries support ownerless same-storage desktop forks; each root retains its own model options, approvals, extensions and environment. Before shared recovery resumes unfinished roots, their stored request selections and Main projection consumers are restored. Selecting a recovered root reuses its consumer. While that Run drains, its projection, stop and approval commands use the topic assigned at admission. A subsequent foreground Run enters through the session topic and reconciles the requested model and tools before sending. Final release closes the backend once and drains observations before product writers stop. Edit and resend retains sibling-message branches, preparing an ownerless native fork at the predecessor or a fresh context for the first input. File rewind and `vcc_recall` remain unavailable. See the
 [driver README](../../../../src/main/ai/runtime/piDurable/README.md) for storage and recovery boundaries.
 
 ### Pi code mode
@@ -1171,10 +1226,11 @@ Closing a connection emits `session_shutdown` before disposing the SDK session.
 
 ## Managed workspace relocation
 
-At startup, `AgentSessionRuntimeService` registers runtime drivers, repairs relocated
-system workspaces, then performs fork, crash-message, delivery, and native-session
-recovery. BeforeReady database initialization already precedes this WhenReady hook;
-relocation does not add a second lifecycle service or cross-phase dependencies.
+During initialization, `AgentSessionRuntimeService` registers the drivers, repairs relocated
+workspaces and fork operations, and settles interrupted Pi runs. The delivery service owns
+startup reconciliation of its queue. Once all services are ready, Main reads unresolved
+Durable replies from their original native stores and commits verified outcomes. Each
+marked backend with runnable work installs its writers before resuming its scheduler.
 
 `relocateSystemWorkspaces` owns the workspace repair and file publication journal.
 Each driver's `workspaceRelocation` capability owns its artifact allowlist, native
@@ -1217,9 +1273,14 @@ prefixes. A Main-only `locallyHandled` acknowledgement retains native ownership 
 excluding the local input and reply from model history. The product prefix remains available
 for the next model submission after a local command or reopening. Once native model input
 has been submitted, subsequent inputs and reopening reuse the ordinary native conversation.
-Known native identities follow their existing recovery rules; a missing native store is
-never silently replaced with product history. This path creates no native-history files,
-rebuild state or historical checkpoints and does not inspect import provenance.
+A branch with a missing or unusable native context can use the same prefix. The
+driver detaches the failed binding and reserves a new native context at the branch
+anchor in one transaction. Pi Durable also allocates a new backend. The branch's
+replacement binding takes precedence over resume tokens stored on historical
+messages. An input submitted to the replacement may drop its previous native input
+identity once its original context is detached. Historical messages remain available
+for display. Reference history creates no historical checkpoints and does not depend
+on import provenance.
 
 ## DeepSeek Agent history import
 
@@ -1306,15 +1367,19 @@ callers can intentionally use assistant prefill.
 
 ## Native resume failures
 
-Claude Code surfaces native resume failures, including missing conversations and
-duplicate tool-use IDs. The adapter does not discard the resume token and replay
-the pending input into a fresh conversation. Native history and its recovery
-semantics belong to the harness.
+Claude Code and Pi first try the selected branch's binding. If the binding is
+missing, a resume token persisted on the branch can reconnect an existing native
+transcript. The driver uses the [reference history](#first-submission-without-native-history)
+when no original transcript can be opened by a trusted identity. Pi also rebuilds
+when multiple files claim that identity and preserves those files. Claude Code
+distinguishes a missing transcript from a read failure. Backend or storage access
+failures propagate to the caller. These checks run before the new input is submitted.
 
-Forked sessions use the same persisted native resume-token path as other Agent
-sessions. Cherry does not rebuild their context from visible messages when native
-history is unavailable. See [Agent Session Fork](./agent-session-fork.md) for the
-separate publication and file-resource recovery path.
+For Pi Durable, a new turn rebuilds when the bound store or conversation is missing.
+An idle reopen of a missing bound context reports the failure and preserves uncertain native
+admission. Forked sessions use the same resume rules as other
+sessions of their runtime. See
+[Agent Session Fork](./agent-session-fork.md) for publication and file-resource recovery.
 
 ## Idle and shutdown
 
@@ -1342,8 +1407,10 @@ already finished but background work remains. A `retainOnStop` connection (Pi Du
 interrupted but not closed: Stop withdraws queued follow-ups, and the host marks each withdrawn user
 message `paused`, which the transcript shows as not sent with Resend and Edit. The connection's `stopping`
 occupancy keeps the session busy and holds later input until the connection emits
-`stop-confirmed`. If the native input completed or failed before the stop landed, its outcome replaces the
-paused reply, unless a background run continued that reply after its input ended. `onTurnTerminal`
+`stop-confirmed`. After stop confirmation, Main checks every input admitted to the stopped Run. A completed original
+input cannot replace the paused status while a steered input was aborted or remains unresolved.
+Confirmed failures take precedence; success requires every admitted input to have completed. A
+background continuation does not inherit its finished triggering input's outcome. `onTurnTerminal`
 fires once for the stopped reply, after that decision. A failed or unconfirmed stop (20 s, including
 the native interrupt call) falls back to closing. Durable shutdown preserves ordinary
 unfinished root tasks; explicit interruption cancels them. Reopen applies shared behavior's

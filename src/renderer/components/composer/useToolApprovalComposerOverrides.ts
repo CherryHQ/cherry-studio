@@ -3,6 +3,7 @@ import { type ComponentType, useEffect, useMemo } from 'react'
 
 import { isAskUserQuestionToolName } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import { type MessagePartRows, messagePartEntries, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { ComposerOverride } from './ComposerContext'
@@ -14,11 +15,11 @@ import {
   createPermissionRequestComposerOverride,
   type PermissionRequestComposerProps
 } from './variants/PermissionRequestComposer'
-import { findNextPendingPermissionRequest } from './variants/permissionRequestComposerRequest'
+import { findNextPendingPermissionRequest, isPendingApprovalPart } from './variants/permissionRequestComposerRequest'
 
 type ToolApprovalComposerOverridesOptions = {
   topicId?: string
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   /** Database message parts, before live overlays or optimistic projections. */
   persistedPartsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
@@ -53,22 +54,30 @@ export function useToolApprovalComposerOverrides({
     }
   }, [persistedPartsByMessageId])
 
-  const settledHistoryParts = useMemo<Record<string, CherryMessagePart[]> | null>(() => {
-    if (!streamingLayers) return null
-
-    const liveMessageIdSet = new Set(streamingLayers.liveMessageIds)
-    const historyParts: Record<string, CherryMessagePart[]> = {}
-    for (const [messageId, parts] of Object.entries(streamingLayers.historyPartsByMessageId)) {
-      if (!liveMessageIdSet.has(messageId)) historyParts[messageId] = parts
+  const history = streamingLayers?.historyPartsByMessageId
+  const historyWithApprovals = useMemo(() => {
+    const candidates: [string, CherryMessagePart[]][] = []
+    if (history) {
+      for (const [id, parts] of messagePartEntries(history)) {
+        if (parts.some(isPendingApprovalPart)) {
+          candidates.push([id, parts])
+        }
+      }
     }
-    return historyParts
-  }, [streamingLayers])
-  const currentParts = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    return candidates
+  }, [history])
+  const liveIds = streamingLayers?.liveMessageIds
+  const settledHistoryParts = useMemo(() => {
+    if (!liveIds) return null
+    const live = new Set(liveIds)
+    return Object.fromEntries(historyWithApprovals.filter(([id]) => !live.has(id)))
+  }, [historyWithApprovals, liveIds])
+  const currentParts = useMemo<MessagePartRows>(() => {
     if (!streamingLayers) return partsByMessageId
 
     const liveParts: Record<string, CherryMessagePart[]> = {}
     for (const messageId of streamingLayers.liveMessageIds) {
-      const parts = partsByMessageId[messageId]
+      const parts = messagePartsAt(partsByMessageId, messageId)
       if (parts) liveParts[messageId] = parts
     }
     return liveParts

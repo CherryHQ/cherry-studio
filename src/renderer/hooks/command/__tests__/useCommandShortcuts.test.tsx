@@ -49,6 +49,16 @@ describe('useCommandShortcuts', () => {
     })
   })
 
+  it('lists Quote in the chat group independently of the active selection', () => {
+    mocks.context = { 'input.focused': true }
+    const { result } = renderHook(() => useCommandShortcuts())
+    expect(result.current.shortcuts.find((item) => item.command === 'chat.message.quote_selection')).toMatchObject({
+      group: 'chat',
+      label: 'chat.message.quote',
+      preference: { binding: ['CommandOrControl', 'Shift', 'Y'], enabled: true }
+    })
+  })
+
   it('retains feature availability filtering independently of keyboard focus', () => {
     mocks.context = { 'feature.selection.enabled': false }
     const { result, rerender } = renderHook(() => useCommandShortcuts())
