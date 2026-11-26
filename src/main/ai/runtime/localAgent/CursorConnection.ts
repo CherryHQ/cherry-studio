@@ -1,9 +1,8 @@
 import { openCursorSession, sendCursorTurn, type Run, type SDKAgent } from '@cherrystudio/agent-runtime-cursor'
-import { getShellEnv } from '@main/utils/shellEnv'
 
 import type { AgentRuntimeUserInput } from '../types'
+import { getCursorApiKey } from './authStatus'
 import { acquireLocalAgentBrowserLease } from './browserBridge'
-import { cursorWorkspaceTools } from './cursorTools'
 import type { LocalAgentBrowserLease } from './LocalAgentMcpBridgeService'
 import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
 import { LocalConnection } from './LocalConnection'
@@ -12,15 +11,12 @@ import { localContent } from './localContent'
 export class CursorConnection extends LocalConnection {
   private agent?: SDKAgent
   private browser?: LocalAgentBrowserLease
-  private cwd = ''
   private mode: 'plan' | 'default' = 'default'
-  private env: NodeJS.ProcessEnv = {}
   private pendingRun?: Promise<Run>
 
   async start(cwd: string, resume?: string): Promise<this> {
-    this.cwd = cwd
-    this.env = { ...(await getShellEnv(this.abort.signal)), ...this.config.env }
-    const apiKey = this.env.CURSOR_API_KEY
+    const apiKey = await getCursorApiKey(this.config, this.abort.signal)
+    this.abort.signal.throwIfAborted()
     const model = this.config.nativeModel || 'auto'
     this.localSessionInfo.activeModel = { id: model }
     this.localSessionInfo.images = true
@@ -87,22 +83,7 @@ export class CursorConnection extends LocalConnection {
     this.begin(input.message.id)
     const signal = AbortSignal.any([this.abort.signal, this.turnAbort.signal])
     try {
-      const tools = cursorWorkspaceTools({
-        cwd: this.cwd,
-        env: this.env,
-        signal,
-        isReadOnly: () => this.mode === 'plan',
-        start: (id, name, args) => {
-          this.endContent()
-          this.tool(id, name, args)
-        },
-        approve: (id, name, args) => {
-          this.endContent()
-          return this.approve(id, name, args, signal)
-        },
-        finish: (id, text, failed) => this.result(id, text, failed)
-      })
-      this.pendingRun = sendCursorTurn(agent, prompt, this.mode === 'plan' ? 'plan' : 'agent', tools, {
+      this.pendingRun = sendCursorTurn(agent, prompt, this.mode === 'plan' ? 'plan' : 'agent', {
         append: (kind, text) => {
           if (!signal.aborted) this.content(text, kind)
         },

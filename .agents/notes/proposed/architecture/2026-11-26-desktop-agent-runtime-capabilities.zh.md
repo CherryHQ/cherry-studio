@@ -12,9 +12,9 @@ Status: proposed
 
 每个输入操作绑定到实际能执行它的访问，保留输入 ID 和原生接纳结果。只读访问省略提交入口。插话说明空闲时的行为，原生后续输入说明能否在重启后恢复。交付结果未知时保留原目标。Main 负责派发。Pi Durable 持久化已接纳的后续输入；缺少原生持久排队能力时，草稿留在输入框现有待发队列。跨 harness 契约由[公共 runtime 包](../../../../packages/agent-runtime/README.md)持有。
 
-本机 Agent 的发现、安装和启动共用现有 shared 预设中的组件声明。Pi CLI 的安装标识与恢复已有会话所用的协议彼此独立。Main 拥有进程、终端登录、授权与产品归账。本机 Pi 通过随应用分发的 ACP 桥运行，内建 Pi 走 SDK，Claude 走 Claude 包，普通 ACP 走[现有适配器](../../../../packages/agent-runtime-acp/README.md)。保留显式 ACP 命令和 Codex App Server 路由。实时 part 与能力变化只读取相关来源。切换旧会话恢复路径前必须确认原生历史身份。
+本机 Agent 的发现、安装和启动共用现有 shared 预设中的组件声明。Pi CLI 的安装标识与恢复已有会话所用的协议彼此独立。Main 拥有进程、终端登录、宿主权限与产品归账。本机 Pi 通过随应用分发的 ACP 桥运行，内建 Pi 走 SDK，Claude 走 Claude 包，普通 ACP 走[现有适配器](../../../../packages/agent-runtime-acp/README.md)。保留显式 ACP 命令和 Codex App Server 路由。实时 part 与能力变化只读取相关来源。切换旧会话恢复路径前必须确认原生历史身份。
 
-Pi 和 Grok 的私有 ACP 操作由各自的包实现。Cursor 新会话、模型目录和登录由本地 SDK 管理。Main 提供绑定到本轮的工具，写入、编辑与执行命令都要经过 Cherry 针对本次参数和当前轮次的审批。SDK 只能使用宿主工具和已配置的浏览器租约。Cursor SDK 随应用分发，会话用 SDK 的 agent ID 恢复。
+Pi 和 Grok 的私有 ACP 操作由各自的包实现。随应用分发的 Cursor SDK 管理登录、模型目录和会话，在选定工作区运行标准工具，并执行原生工具权限策略。Cherry 请求启用 Cursor Auto-review，按需提供浏览器 MCP 租约，并使用 SDK 的 agent ID 恢复会话。
 
 ## Alternatives considered
 
@@ -34,7 +34,7 @@ Pi 和 Grok 的私有 ACP 操作由各自的包实现。Cursor 新会话、模�
 - AC10 — 选项、资源目录、指定边界的历史操作、用量与子任务控制分别依赖其 owner 的证据。(verification: unit)
 - AC11 — 厂商扩展只执行协商并实现的操作，分别处理交付未知和明确未接纳。(verification: unit)
 - AC12 — 清理冗余 reader 与组件声明后，打包产物的管理、启动与恢复入口正常工作。(verification: packaged artifact)
-- AC13 — Cursor 新会话无需 CLI 即可通过 SDK 打开，Cursor 不提供 CLI 管理或 ACP 启动入口。SDK 使用自己的 agent ID 恢复会话。拒绝、取消或只读状态下的工具调用不能写文件或启动进程。（验证：单元测试和 Electron）
+- AC13 — Cursor 无需 CLI 即可在选定工作区创建会话，并按 SDK 的 agent ID 恢复会话。两条路径均可使用所选模型的标准工具集。聊天按原始调用 ID 展示工具调用和原生权限错误。（验证：单元测试和 Electron）
 
 ## Risks
 

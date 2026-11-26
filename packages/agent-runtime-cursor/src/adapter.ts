@@ -1,16 +1,14 @@
 import {
   Agent,
   Cursor,
-  emptyFs,
   type AgentOptions,
   type McpServerConfig,
   type SDKAgent,
-  type SDKCustomTool,
   type SDKUserMessage,
   type SendOptions
 } from '@cursor/sdk'
 
-export type { Run, SDKAgent, SDKCustomTool, SDKUserMessage } from '@cursor/sdk'
+export type { Run, SDKAgent, SDKUserMessage } from '@cursor/sdk'
 
 export async function listCursorModels(apiKey?: string) {
   const models = await Cursor.models.list({ apiKey })
@@ -39,18 +37,16 @@ export function openCursorSession(input: {
   const options: AgentOptions = {
     apiKey: input.apiKey,
     model: { id: input.model },
-    tools: ['mcp', 'read', 'grep'],
     mcpServers: input.browser ? { automation: input.browser } : {},
-    local: { cwd: input.cwd, fs: emptyFs(), settingSources: [] }
+    local: { cwd: input.cwd, autoReview: true }
   }
   return input.agentId ? Agent.resume(input.agentId, options) : Agent.create(options)
 }
 
 export function sendCursorTurn(
-  agent: SDKAgent,
+  agent: Pick<SDKAgent, 'send'>,
   prompt: SDKUserMessage,
   mode: 'plan' | 'agent',
-  customTools: Record<string, SDKCustomTool>,
   host: {
     append(kind: 'text' | 'reasoning', text: string): void
     toolStarted(id: string, name: string, args: Record<string, unknown>): void
@@ -62,12 +58,12 @@ export function sendCursorTurn(
     if (update.type === 'thinking-delta') host.append('reasoning', update.text)
     if (update.type !== 'tool-call-started' && update.type !== 'tool-call-completed') return
     const tool = update.toolCall
-    if (tool.type === 'read' || tool.type === 'grep') {
-      host.toolStarted(update.callId, tool.type === 'read' ? 'Read' : 'Grep', tool.args)
-    } else if (tool.type === 'mcp' && tool.args.providerIdentifier === 'automation' && tool.args.toolName) {
-      host.toolStarted(update.callId, `mcp__automation__${tool.args.toolName}`, tool.args.args ?? {})
+    if (tool.type === 'mcp') {
+      const { providerIdentifier, toolName, args } = tool.args
+      const name = providerIdentifier && toolName ? `mcp__${providerIdentifier}__${toolName}` : (toolName ?? 'MCP')
+      host.toolStarted(update.callId, name, args ?? {})
     } else {
-      return
+      host.toolStarted(update.callId, tool.type.charAt(0).toUpperCase() + tool.type.slice(1), tool.args)
     }
     if (update.type === 'tool-call-completed' && tool.result) {
       const result = tool.result
@@ -78,5 +74,5 @@ export function sendCursorTurn(
       )
     }
   }
-  return agent.send(prompt, { mode, onDelta, local: { customTools } })
+  return agent.send(prompt, { mode, onDelta })
 }

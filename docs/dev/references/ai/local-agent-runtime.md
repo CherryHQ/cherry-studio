@@ -62,11 +62,12 @@ are preserved.
   Persisted messages retain author and native model attribution when available.
 - Cursor uses the bundled TypeScript SDK for login, model discovery and session recovery.
   The Agent stores the selected SDK model ID and passes it to both create and resume.
-  The SDK mounts each run's private `/tmp` over an empty virtual filesystem. Native
-  Read and Grep can read MCP output stored there. Cherry's host tools operate on the
-  selected workspace. Writes, edits and commands require approval of the individual call.
-  Plan mode blocks those operations after a mode change as well as before approval.
-  The optional browser endpoint keeps its session-scoped lease. Session recovery uses the SDK agent ID. [Cursor SDK documentation](https://cursor.com/docs/api/sdk/typescript)
+  Both use the session workspace as the SDK's local working directory. Cursor supplies the
+  selected model's standard tools and enforces their native permissions, including file
+  edits, deletion and shell execution. Cherry can supply a per-agent `CURSOR_API_KEY`.
+  The native shell uses the SDK environment. Cherry requests Cursor Auto-review and passes
+  the selected Agent or Plan mode with each turn. The optional browser MCP endpoint keeps its
+  session-scoped lease. Recovery uses the SDK agent ID. [Cursor SDK documentation](https://cursor.com/docs/api/sdk/typescript)
 - For CLI-backed routes the CLI owns authentication, project settings, MCP and Skills. Local turns use
   native resources and controls. Main rejects Cherry knowledge scopes for these turns.
 - When host browser control is enabled, interactive sessions expose Cherry Studio's
@@ -201,7 +202,7 @@ recovery link.
 | Driver | Resume identity | Model control | Approval protocol |
 | --- | --- | --- | --- |
 | Claude Code | SDK session ID | SDK model catalog or CLI default | SDK `canUseTool` |
-| Cursor SDK | Local SDK agent ID | SDK model catalog or Auto | Cherry approves workspace edits and program execution |
+| Cursor SDK | Local SDK agent ID | SDK model catalog or Auto | Cursor native tool permissions and Auto-review when available |
 | Codex | App Server thread ID | `model/list` or CLI default | Native decisions and permission requests |
 | ACP | ACP session ID | Model config option or legacy `session/set_model` | Original option IDs and scopes |
 

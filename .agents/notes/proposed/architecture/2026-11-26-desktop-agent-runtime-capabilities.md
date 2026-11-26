@@ -12,9 +12,9 @@ The composer chooses a durable follow-up queue by agent type. The desktop connec
 
 Bind each input operation to the access that can execute it. Keep the caller's input ID and native admission result. A read-only access exposes no submission. A steering operation specifies the idle behavior; a native follow-up specifies whether it survives restart. An uncertain handoff retains its original target. Main owns dispatch. Pi Durable persists admitted follow-ups. For runtimes without durable admission, editable drafts stay in the existing composer queue. Place cross-harness contracts in the [runtime package](../../../../packages/agent-runtime/README.md).
 
-Discovery, installation and launch share desktop component declarations in the existing shared presets. The Pi CLI installation identity is independent of the protocol used to open an existing session. Keep process ownership, terminal login, permissions and product billing in Main. Run installed Pi through the bundled ACP bridge, embedded Pi through its SDK, Claude through the Claude package and standard ACP through [the existing adapter](../../../../packages/agent-runtime-acp/README.md). Preserve explicit ACP commands and the Codex App Server route. Live part and capability changes read only the affected source. Old local identities must resolve to the original native history before switching the restoration path.
+Discovery, installation and launch share desktop component declarations in the existing shared presets. The Pi CLI installation identity is independent of the protocol used to open an existing session. Keep process ownership, terminal login, host permissions and product billing in Main. Run installed Pi through the bundled ACP bridge, embedded Pi through its SDK, Claude through the Claude package and standard ACP through [the existing adapter](../../../../packages/agent-runtime-acp/README.md). Preserve explicit ACP commands and the Codex App Server route. Live part and capability changes read only the affected source. Old local identities must resolve to the original native history before switching the restoration path.
 
-Pi and Grok implement their private ACP operations in their own packages. For Cursor, the local SDK owns new sessions, model discovery and sign-in. Main supplies turn-scoped tools. Writes, edits and commands need a Cherry approval bound to their arguments and the live turn. Present only host tools and the configured browser lease. Distribute Cursor with the app and resume with its SDK agent ID.
+Pi and Grok implement their private ACP operations in their own packages. The bundled Cursor SDK owns sign-in, model discovery and sessions. It runs its standard tools in the selected workspace and enforces native tool permissions. Cherry requests Cursor Auto-review, supplies the optional browser MCP lease and resumes sessions by SDK agent ID.
 
 ## Alternatives considered
 
@@ -34,7 +34,7 @@ A provider-wide boolean cannot express read-only child access, a volatile queue 
 - AC10 — Options, resource catalogs, targeted history operations, usage and child control require evidence from their respective owners. (verification: unit)
 - AC11 — A provider extension executes only a negotiated and implemented operation, with unknown delivery distinct from explicit non-admission. (verification: unit)
 - AC12 — Packaged management, launch and restoration paths work after removing superseded readers and component declarations. (verification: packaged artifact)
-- AC13 — A new Cursor chat uses the SDK without a CLI. Cursor has no CLI management or ACP launch route. The SDK resumes its own agent ID. A denied, cancelled or read-only host tool call cannot mutate a file or start a process. (verification: unit and Electron)
+- AC13 — Cursor creates and resumes chats by SDK agent ID in the selected workspace without a CLI. The selected model's standard toolset is available in both paths. Tool calls and native permission errors appear in the chat under the original call ID. (verification: unit and Electron)
 
 ## Risks
 

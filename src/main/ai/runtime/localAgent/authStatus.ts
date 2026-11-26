@@ -40,8 +40,8 @@ function parseNativeStatus(presetId: string, output: string): AuthStatus {
   return 'unknown'
 }
 
-export async function getCursorApiKey(config: LocalAgentConfiguration) {
-  return config.env.CURSOR_API_KEY ?? (await getShellEnv()).CURSOR_API_KEY
+export async function getCursorApiKey(config: LocalAgentConfiguration, signal?: AbortSignal) {
+  return config.env.CURSOR_API_KEY ?? (await getShellEnv(signal)).CURSOR_API_KEY
 }
 
 export async function getLocalAgentAuthStatus(config: LocalAgentConfiguration): Promise<AuthStatus> {
