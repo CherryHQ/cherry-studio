@@ -1,0 +1,7 @@
+data: {"id":"response-1","object":"chat.completion.chunk","created":1,"model":"anthropic/claude-fixture","choices":[{"index":0,"delta":{"role":"assistant","content":"Visible reply"},"finish_reason":null}]}
+
+data: {"id":"response-1","object":"chat.completion.chunk","created":1,"model":"anthropic/claude-fixture","choices":[{"index":0,"delta":{"reasoning_details":[{"type":"reasoning.encrypted","id":"reasoning-1","format":"anthropic-claude-v1","data":"ciphertext"}]},"finish_reason":"stop"}]}
+
+data: [DONE]
+
+: end of stream

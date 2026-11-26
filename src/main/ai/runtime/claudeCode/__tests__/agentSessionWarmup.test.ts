@@ -2246,7 +2246,7 @@ describe('deriveConnectionConfig', () => {
     expect(secondSelection.config.rebuildSignature).toBe(firstSelection.config.rebuildSignature)
   })
 
-  it('keeps permission mode live-only while disabled tools also require a rebuild', async () => {
+  it('rebuilds across Plan Only and disabled tool changes while other permission mode changes stay live', async () => {
     const base = await deriveSignature()
 
     mocks.getAgent.mockReturnValue({
@@ -2265,6 +2265,19 @@ describe('deriveConnectionConfig', () => {
       mcps: []
     })
     expect(base.live.toolPolicy.permissionMode).toBeNull()
+
+    const plan = await deriveConnectionConfig(
+      'session-1',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      false,
+      'plan'
+    )
+    if (!plan.ok) throw new Error('expected Plan Only configuration')
+    expect(plan.config.rebuildSignature).not.toBe(policyChanged.rebuildSignature)
 
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

@@ -2379,11 +2379,11 @@ export default function ComposerSurfaceRuntime({
   const compactControls = renderCompactControls?.(inputAdapter, unifiedPanelControl)
   const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
   const sendAction = showPauseButton ? (
-    <Tooltip content={t('chat.input.pause')} placement="top">
+    <Tooltip content={t('chat.input.pause')} placement="top" asChild>
       <button
         data-ui="chat.composer.action.pause"
         type="button"
-        className="text-error flex size-7.5 items-center justify-center rounded-full hover:bg-accent"
+        className="text-error flex size-7.5 shrink-0 items-center justify-center rounded-full hover:bg-accent"
         aria-label={t('chat.input.pause')}
         onClick={() => void onPause()}>
         <CirclePause size={20} />

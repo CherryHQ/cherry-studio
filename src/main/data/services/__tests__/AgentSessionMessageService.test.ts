@@ -545,6 +545,40 @@ describe('AgentSessionMessageService', () => {
   })
 
   describe('native fork persistence', () => {
+    it('adds a late Run checkpoint without replacing parts and ignores duplicate or non-success checkpoints', () => {
+      const anchor = { checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'answer' } }
+      for (const status of ['success', 'pending', 'paused', 'error'] as const) {
+        const run = agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          message: { role: 'assistant', status, data: { parts: [{ type: 'text', text: 'Saved answer' }] } }
+        })
+        const before = dbh.db
+          .select()
+          .from(agentSessionMessagePartTable)
+          .where(eq(agentSessionMessagePartTable.messageId, run.id))
+          .all()
+        notifyDataApiDataChangeMock.mockClear()
+        agentSessionMessageService.saveRunCheckpoint(SESSION_ID, run.id, anchor)
+        const row = dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, run.id)).get()!
+        if (status === 'success') {
+          expect(row.data).toMatchObject({ runtimeAnchor: anchor })
+          expect(notifyDataApiDataChangeMock.mock.calls.flat(2)).toContainEqual(
+            expect.objectContaining({ entityIds: [run.id] })
+          )
+          notifyDataApiDataChangeMock.mockClear()
+          agentSessionMessageService.saveRunCheckpoint(SESSION_ID, run.id, anchor)
+        } else expect(row.data).not.toHaveProperty('runtimeAnchor')
+        expect(notifyDataApiDataChangeMock.mock.calls).toEqual([])
+        expect(
+          dbh.db
+            .select()
+            .from(agentSessionMessagePartTable)
+            .where(eq(agentSessionMessagePartTable.messageId, run.id))
+            .all()
+        ).toEqual(before)
+      }
+    })
+
     it.each(['cherry-claw', 'claude-code', 'pi'])(
       'matches a Claude checkpoint against the effective runtime of a stored %s agent',
       async (storedType) => {
@@ -628,6 +662,145 @@ describe('AgentSessionMessageService', () => {
         }
       }
     )
+
+    it('excludes later queued inputs beyond a queued native cutoff and reconnects the copied prefix', async () => {
+      const save = (role: 'user' | 'assistant', text: string) =>
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          message: { role, status: 'success', data: { parts: [{ type: 'text', text }] } }
+        })
+      const a = save('user', 'A')
+      const b = save('user', 'B')
+      const c = save('user', 'C')
+      const first = save('assistant', 'A answer')
+      const selected = save('assistant', 'B answer')
+      const later = save('assistant', 'C answer')
+      for (const [index, input] of [a, b, c].entries()) {
+        agentSessionMessageService.linkReply(SESSION_ID, [input.id], [first, selected, later][index].id)
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ pos: index + 1 })
+          .where(eq(agentSessionMessageTable.id, input.id))
+          .run()
+      }
+      const prefix = agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, selected.id)!
+      expect(prefix.map((row) => row.id)).toEqual([a.id, first.id, b.id, selected.id])
+      await seedSession({ id: 'queued-fork-child', name: 'Child', orderKey: 'a1' })
+      const copied = prefix.map((row) => ({
+        ...row,
+        id: `copied-${row.id}`,
+        partIds: row.partIds?.map((id) => `copied-${id}`),
+        replyId: row.replyId ? `copied-${row.replyId}` : null
+      }))
+      agentSessionMessageService.insertForkMessagesTx(dbh.db, 'queued-fork-child', copied)
+      const restored = agentSessionMessageService.readForkPrefixTx(
+        dbh.db,
+        'queued-fork-child',
+        `copied-${selected.id}`
+      )!
+      expect(restored.map((row) => row.data.parts?.[0])).toEqual(
+        ['A', 'A answer', 'B', 'B answer'].map((text) => ({ type: 'text', text }))
+      )
+      expect(restored.at(-1)?.parentId).toBe(`copied-${b.id}`)
+    })
+
+    it('forks a whole Run with its steered inputs and preserves display positions under new IDs', async () => {
+      await seedAgent('steered-fork-agent', 'Steered fork')
+      dbh.db
+        .update(agentSessionTable)
+        .set({ agentId: 'steered-fork-agent' })
+        .where(eq(agentSessionTable.id, SESSION_ID))
+        .run()
+      const directory = await mkdtemp(path.join(tmpdir(), 'steered-run-fork-'))
+      const getPath = vi
+        .spyOn(application, 'getPath')
+        .mockImplementation((_key, filename) => (filename ? path.join(directory, filename) : directory))
+      const checkpoint = {
+        runtime: 'claude-code' as const,
+        runtimeSessionId: 'native-parent',
+        messageUuid: ASSISTANT_MESSAGE_ID,
+        configDir: directory
+      }
+      runtimeDriverRegistry.register({
+        type: 'claude-code',
+        validateSession() {},
+        async connect() {
+          throw new Error('Fork must not dispatch a new Run')
+        },
+        isForkCheckpoint: (value) => ClaudeForkCheckpointSchema.safeParse(value).success,
+        async fork(input) {
+          return {
+            resumeToken: 'native-child',
+            checkpoints: input.checkpoints.map((value) => ({ ...value, runtimeSessionId: 'native-child' })),
+            publish: []
+          }
+        }
+      })
+      try {
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Prompt' }] } }
+        })
+        const run = agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          runtimeResumeToken: 'native-parent',
+          runtimeAnchor: { checkpoint },
+          partIds: ['run-before', 'run-after'],
+          positions: new Map([
+            ['run-before', 2],
+            ['run-after', 6]
+          ]),
+          message: {
+            role: 'assistant',
+            status: 'success',
+            data: {
+              parts: [
+                { type: 'text', text: 'Before steer' },
+                { type: 'text', text: 'After steer' }
+              ]
+            }
+          }
+        })
+        const steer = agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Steered input' }] } }
+        })
+        agentSessionMessageService.linkReply(SESSION_ID, [steer.id], run.id)
+        dbh.db.update(agentSessionMessageTable).set({ pos: 5 }).where(eq(agentSessionMessageTable.id, steer.id)).run()
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          message: {
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'Queued outside cutoff' }] }
+          }
+        })
+        prepareClaudeBranch(SESSION_ID, directory, 'native-parent', run.id)
+        const child = await new AgentSessionForkOperations().fork(SESSION_ID, run.id)
+        const rows = agentSessionMessageService
+          .listSessionMessages(child, { deferToolOutputs: true })
+          .items.toReversed()
+        expect(rows.map((row) => row.role)).toEqual(['user', 'assistant', 'user'])
+        expect(rows[2]).toMatchObject({
+          pos: 5,
+          replyId: rows[1].id,
+          data: { parts: [{ type: 'text', text: 'Steered input' }] }
+        })
+        expect(rows[1].id).not.toBe(run.id)
+        expect(rows[1].partPositions).toEqual([2, 6, 7])
+        expect(rows[1].partIds).toHaveLength(3)
+        expect(rows[1].partIds).not.toContain('run-before')
+        expect(rows[1].data.parts?.at(-1)).toMatchObject({
+          type: 'data-agent-session-fork',
+          data: { sourceSessionId: SESSION_ID }
+        })
+        expect(agentSessionMessageService.lastTimelinePosition(child)).toBe(7)
+      } finally {
+        getPath.mockRestore()
+        runtimeDriverRegistry.clearForTest()
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
 
     it.each(['edit', 'delete'])('preserves earlier checkpoints at the same timestamp on %s', (operation) => {
       const rows = [
@@ -890,7 +1063,12 @@ describe('AgentSessionMessageService', () => {
         targetSessionId: journal.targetSessionId,
         createdAt: journal.createdAt,
         excludedIds: [],
-        messages: source.messages.map((row) => ({ ...row, id: FILE_ENTRY_ID, runtimeResumeToken: 'child-token' }))
+        messages: source.messages.map((row) => ({
+          ...row,
+          partIds: undefined,
+          id: FILE_ENTRY_ID,
+          runtimeResumeToken: 'child-token'
+        }))
       })
       expect(agentSessionService.getById('fork-child').workspaceId).toBe(source.workspace.id)
       expect(agentSessionService.getById('fork-child').name).toBe(expectedName)
@@ -913,7 +1091,7 @@ describe('AgentSessionMessageService', () => {
           targetSessionId: 'fork-grandchild',
           createdAt: journal.createdAt,
           excludedIds: [],
-          messages: childSource.messages.map((row) => ({ ...row, id: 'grandchild-message' }))
+          messages: childSource.messages.map((row) => ({ ...row, partIds: undefined, id: 'grandchild-message' }))
         })
         expect(agentSessionService.getById('fork-grandchild').name).toBe('test(3)')
         commitData({
@@ -922,7 +1100,7 @@ describe('AgentSessionMessageService', () => {
           targetSessionId: 'fork-sibling',
           createdAt: journal.createdAt,
           excludedIds: [],
-          messages: source.messages.map((row) => ({ ...row, id: 'sibling-message' }))
+          messages: source.messages.map((row) => ({ ...row, partIds: undefined, id: 'sibling-message' }))
         })
         expect(agentSessionService.getById('fork-sibling').name).toBe('test(4)')
         expect(agentSessionService.getById('fork-child').name).toBe('test(2)')
@@ -2597,6 +2775,80 @@ describe('AgentSessionMessageService', () => {
     expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
   })
 
+  it('keeps a paginated steer with its Run and intervening inputs and restores their timeline positions', () => {
+    const prompt = agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Prompt' }] } }
+    })
+    const run = agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      partIds: ['before', 'after-first', 'after-second'],
+      positions: new Map([
+        ['before', 2],
+        ['after-first', 4],
+        ['after-second', 6]
+      ]),
+      message: {
+        role: 'assistant',
+        status: 'success',
+        data: {
+          parts: [
+            { type: 'text', text: 'Before' },
+            { type: 'text', text: 'After first' },
+            { type: 'text', text: 'After second' }
+          ]
+        }
+      }
+    })
+    const first = agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'First steer' }] } }
+    })
+    const second = agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Second steer' }] } }
+    })
+    agentSessionMessageService.linkReply(SESSION_ID, [first.id, second.id], run.id)
+    dbh.db.update(agentSessionMessageTable).set({ pos: 3 }).where(eq(agentSessionMessageTable.id, first.id)).run()
+    dbh.db.update(agentSessionMessageTable).set({ pos: 5 }).where(eq(agentSessionMessageTable.id, second.id)).run()
+    const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 1, deferToolOutputs: true })
+    expect(page.items.map((message) => message.id)).toEqual([second.id, first.id, run.id])
+    expect(page.items[0]).toMatchObject({ replyId: run.id, pos: 5 })
+    expect(page.items[1]).toMatchObject({ replyId: run.id, pos: 3 })
+    expect(page.items[2]).toMatchObject({
+      partIds: ['before', 'after-first', 'after-second'],
+      partPositions: [2, 4, 6]
+    })
+    const older = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 1, cursor: page.nextCursor })
+    expect(older.items.map((message) => message.id)).toEqual([prompt.id])
+  })
+
+  it('publishes the first native placement so an already visible input can become a timeline boundary', () => {
+    const input = agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Steer' }] } }
+    })
+    const context = prepareClaudeBranch(SESSION_ID, '/test/placement')
+    application
+      .get('DbService')
+      .withWriteTx((tx) => agentSessionMessageService.bindInputContextTx(tx, SESSION_ID, input.id, context.id))
+    notifyDataApiDataChangeMock.mockClear()
+    const pos = agentSessionMessageService.saveInputTimelinePosition(SESSION_ID, input.id, context.id, 10)
+    expect(pos).toBe(11)
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, input.id).pos).toBe(pos)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId: SESSION_ID },
+        entityIds: [input.id]
+      }
+    ])
+    notifyDataApiDataChangeMock.mockClear()
+    expect(agentSessionMessageService.saveInputTimelinePosition(SESSION_ID, input.id, context.id)).toBeUndefined()
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+  })
+
   it('falls back to the newest page when list pagination receives a malformed cursor', async () => {
     insertAgentSessionMessages(dbh.db, [
       {
@@ -3666,6 +3918,63 @@ describe('AgentSessionMessageService', () => {
       expect(JSON.stringify(page).length).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
       expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts).toEqual(parts)
       expect(dbh.db.select().from(agentSessionToolOutputTable).all()).toEqual([])
+    })
+
+    it('reads a fork prefix beyond the shipped SQLite bind limit in resolver order', () => {
+      const root = agentSessionMessageService.captureHead(SESSION_ID)
+      const ids = Array.from({ length: 32766 }, (_, index) => `large-prefix-${index}`)
+      dbh.db.transaction((tx) => {
+        for (let start = 0; start < ids.length; start += 500)
+          tx.insert(agentSessionMessageTable)
+            .values(
+              ids.slice(start, start + 500).map((id, offset) => ({
+                id,
+                sessionId: SESSION_ID,
+                parentId: ids[start + offset - 1] ?? root,
+                role: 'assistant',
+                status: 'success',
+                data: {}
+              }))
+            )
+            .run()
+        tx.update(agentSessionTable)
+          .set({ activeNodeId: ids.at(-1)! })
+          .where(eq(agentSessionTable.id, SESSION_ID))
+          .run()
+      })
+      const prefix = agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, ids.at(-1)!)!
+      expect(prefix.map((row) => row.id)).toEqual(ids)
+    }, 20000)
+
+    it('forks an earlier boundary without decoding later archived tool results', () => {
+      const earlier = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Earlier' }] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolName: 'Read',
+                toolCallId: 'later-large',
+                state: 'output-available',
+                input: {},
+                output: oversizedOutputA
+              }
+            ]
+          }
+        }
+      })
+      const decode = vi.spyOn(agentSessionToolOutputTable.output, 'mapFromDriverValue')
+      const prefix = agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, earlier.id)!
+      expect(prefix.map((row) => row.id)).toEqual([earlier.id])
+      expect(prefix[0].data.parts).toEqual([{ type: 'text', text: 'Earlier' }])
+      expect(decode).not.toHaveBeenCalled()
     })
 
     it('splits oversized tool outputs into agent_session_tool_output while keeping deferred list reads compact and hydrating full reads', () => {

@@ -1014,6 +1014,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
  * Unlike SWR's bound mutator, a captured writer keeps targeting the query that
  * created it after the mounted hook switches keys. It never revalidates; use
  * the query's regular `mutate` or `refresh` for SWR request lifecycle behavior.
+ * Pass the pages read before a server request as `expectedPages` to publish a replacement only if the cache is still idle and unchanged.
  */
 export function useWriteInfiniteCache<TPath extends ApiPath>(
   path: CursorPaginatedPath<TPath>,
@@ -1027,7 +1028,10 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
   )
 
   return useCallback(
-    async (value: InfiniteCacheValue<ResponseForPath<TPath, 'GET'>>) => {
+    async (
+      value: InfiniteCacheValue<ResponseForPath<TPath, 'GET'>>,
+      expectedPages?: ResponseForPath<TPath, 'GET'>[]
+    ) => {
       type Page = ResponseForPath<TPath, 'GET'>
 
       const collectPageEntries = (cachedPages: Page[] | undefined) => {
@@ -1043,6 +1047,19 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
           previousPage = page as CursorPaginationResponse<unknown>
         }
         return entries
+      }
+
+      if (expectedPages) {
+        const [get, publish] = createCacheHelper<Page[]>(cache, infiniteCacheKey)
+        const current = get()
+        if (current.isValidating || current.data !== expectedPages || !Array.isArray(value)) return
+        for (const { page, serializedKey } of collectPageEntries(value)) {
+          const [getPage, publishPage] = createCacheHelper<Page>(cache, serializedKey)
+          if (getPage().data !== page) publishPage({ data: page })
+        }
+        const next = { data: value, _l: value.length }
+        publish(next)
+        return value
       }
 
       let didCommit = false
