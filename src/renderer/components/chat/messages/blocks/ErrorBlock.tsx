@@ -212,7 +212,18 @@ const MessageErrorInfo: React.FC<{
     }
     if (isUnattributedClaudeCodeExit(error)) return getClaudeCodeExitMessage(error, t)
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
-  }, [appOwnedErrorKey, classification.i18nKey, error, localModelFailure, providerId, t])
+  }, [
+    appOwnedErrorKey,
+    classification.i18nKey,
+    error,
+    errorI18nKey,
+    cherryCloudQuotaRejection,
+    hasAppOwnedI18nKey,
+    i18n,
+    localModelFailure,
+    providerId,
+    t
+  ])
 
   const canDiagnose =
     dataCollectionEnabled &&
