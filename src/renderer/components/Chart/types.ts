@@ -37,11 +37,20 @@ export interface CartesianChartOptionExtension extends ChartTooltipOptionExtensi
   yAxis?: ChartAxisOption
 }
 
+export interface ChartClickParams {
+  seriesIndex?: number
+  seriesId?: string
+  dataIndex: number
+  name?: string
+  timelineIndex?: number
+}
+
 interface ChartPropsBase {
   ariaLabel: string
   className?: string
   loading?: boolean
   loadingLabel?: string
+  onDataPointClick?: (params: ChartClickParams) => void
 }
 
 interface CartesianChartSeries {

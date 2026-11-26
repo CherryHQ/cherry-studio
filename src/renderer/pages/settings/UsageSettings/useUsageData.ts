@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from 'react'
 
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@renderer/data/hooks/useDataApi'
 import type {
+  AiUsageRecordGroupFilter,
   AiUsageRecordListSortBy,
   AiUsageRecordSortOrder,
   AiUsageRecordStatsBucket
@@ -149,32 +150,47 @@ interface UseUsageEntriesDataOptions {
   currency: Currency | undefined
   sortBy: AiUsageRecordListSortBy
   sortOrder: AiUsageRecordSortOrder
+  groupFilter?: AiUsageRecordGroupFilter
 }
 
-export function useUsageEntriesData({ windowRange, currency, sortBy, sortOrder }: UseUsageEntriesDataOptions) {
+export function useUsageEntriesData({
+  windowRange,
+  currency,
+  sortBy,
+  sortOrder,
+  groupFilter
+}: UseUsageEntriesDataOptions) {
   const queryCurrency = currency ?? CURRENCY.USD
   const entriesQuery = useMemo(
     () => ({
       sortBy,
       sortOrder,
       ...(sortBy === 'cost' ? { costCurrency: queryCurrency } : {}),
+      ...groupFilter,
       ...toQueryRange(windowRange)
     }),
-    [queryCurrency, sortBy, sortOrder, windowRange]
+    [groupFilter, queryCurrency, sortBy, sortOrder, windowRange]
   )
-  const { pages, isLoading, isRefreshing, hasNext, loadNext, refresh, reset } = useInfiniteQuery('/ai-usage-records', {
-    query: entriesQuery,
-    limit: ENTRY_PAGE_SIZE,
-    swrOptions: { keepPreviousData: true }
-  })
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, reset } = useInfiniteQuery(
+    '/ai-usage-records',
+    {
+      query: entriesQuery,
+      limit: ENTRY_PAGE_SIZE,
+      swrOptions: { keepPreviousData: true }
+    }
+  )
   const entries = useInfiniteFlatItems(pages)
   const total = pages[0]?.total ?? 0
 
+  const entriesQueryKey = JSON.stringify(entriesQuery)
+  const prevEntriesQueryKeyRef = useRef(entriesQueryKey)
   const resetRef = useRef(reset)
   resetRef.current = reset
   useEffect(() => {
+    if (prevEntriesQueryKeyRef.current === entriesQueryKey) return
+    prevEntriesQueryKeyRef.current = entriesQueryKey
     resetRef.current()
-  }, [queryCurrency, sortBy, sortOrder, windowRange.from, windowRange.to])
+  }, [entriesQueryKey])
 
   const refreshEntries = useMemo(
     () =>
@@ -192,6 +208,7 @@ export function useUsageEntriesData({ windowRange, currency, sortBy, sortOrder }
     total,
     isLoading,
     isRefreshing,
+    error: pages.length === 0 ? error : undefined,
     hasNext,
     loadNext
   }
