@@ -1,18 +1,18 @@
 {
-  "topicId": "52bb7752-6801-4b72-96fe-84c33a39bad6",
+  "topicId": "ecfd1555-f5b2-4ddf-a761-6fa1816da18a",
   "model": "claude-opus-4-6",
   "requests": [
     {
       "id": 1,
-      "openedAt": 4587.2065,
-      "closedAt": 4609.407834
+      "openedAt": 4867.06975,
+      "closedAt": 4887.23925
     },
     {
       "id": 2,
-      "openedAt": 5090.781917,
-      "closedAt": 5097.101584
+      "openedAt": 5374.05275,
+      "closedAt": 5379.995916
     }
   ],
   "errors": [],
-  "profile": "/Volumes/cherrydev/development/cherry-studio/worktrees/.tasks/issue-24996/profile-e2e"
+  "profile": "/tmp/cs-e2e-PMKbkf/profiles/authenticated"
 }
