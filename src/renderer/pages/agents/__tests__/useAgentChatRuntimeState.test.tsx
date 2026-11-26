@@ -36,6 +36,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
   revalidate: vi.fn(),
+  refreshReservedMessages: vi.fn(),
   deleteSessionMessage: vi.fn(),
   useAgentSessionParts: vi.fn(),
   useChatWithHistory: vi.fn(),
@@ -652,6 +653,7 @@ describe('useAgentChatRuntimeState', () => {
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
     mocks.refresh.mockResolvedValue([assistantMessage])
     mocks.revalidate.mockResolvedValue(undefined)
+    mocks.refreshReservedMessages.mockResolvedValue(undefined)
     mocks.deleteSessionMessage.mockResolvedValue(undefined)
     mocks.chatStop.mockResolvedValue(undefined)
     mocks.sendTurn.mockReset()
@@ -668,6 +670,7 @@ describe('useAgentChatRuntimeState', () => {
       refresh: mocks.refresh,
       displayIndex: (id: string) => (id === assistantMessage.id ? 0 : undefined),
       revalidate: mocks.revalidate,
+      refreshReservedMessages: mocks.refreshReservedMessages,
       deleteMessage: mocks.deleteSessionMessage
     })
     mocks.useChatWithHistory.mockReturnValue({
@@ -736,6 +739,41 @@ describe('useAgentChatRuntimeState', () => {
     expect(mocks.useTopicCompletion.mock.lastCall?.[0]).toBe(topic)
     expect(mocks.controllerOptions.mock.lastCall?.[0].ensureConversation()).toEqual({
       topicId: 'agent-session:session-1'
+    })
+  })
+
+  it.each([true, undefined])('carries a composer follow-up intent (%s) to the stream request', async (followUp) => {
+    const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+      '@renderer/hooks/useConversationTurnController'
+    )
+    mocks.controllerOptions.mockImplementation(useConversationTurnController)
+    mocks.streamOpen.mockImplementationOnce(async (request: { followUp?: boolean }) => {
+      expect(request.followUp).toBe(followUp)
+      return { mode: 'injected', activeExecutions: [], reservedMessages: [] }
+    })
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        agentType: 'pi-durable',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      expect(
+        await result.current.sendMessage(
+          { text: 'Next input' },
+          {
+            body: {
+              agentId: 'agent-1',
+              sessionId: 'session-1',
+              userMessageParts: [{ type: 'text', text: 'Next input' }],
+              ...(followUp ? { followUp } : {})
+            }
+          }
+        )
+      ).toBe(true)
     })
   })
 
@@ -945,7 +983,7 @@ describe('useAgentChatRuntimeState', () => {
           activeExecutions: [execution],
           reservedMessages: [assistantMessage]
         })
-        mocks.revalidate.mockImplementationOnce(
+        mocks.refreshReservedMessages.mockImplementationOnce(
           () =>
             new Promise((_resolve, reject) => {
               finishStartup = () => reject(new Error('compact startup failed'))

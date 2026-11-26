@@ -852,6 +852,7 @@
   "chat.input.followup_queue.pause": "หยุดส่งอัตโนมัติ",
   "chat.input.followup_queue.remove": "ลบ",
   "chat.input.followup_queue.resume": "ส่งอัตโนมัติต่อ",
+  "chat.input.followup_queue.stale": "คิวมีการเปลี่ยนแปลง โปรดตรวจสอบคิวปัจจุบันแล้วลองอีกครั้ง",
   "chat.input.followup_queue.steer": "สั่งงาน",
   "chat.input.followup_queue.title": "อยู่ในคิว ({{count}})",
   "chat.input.generate_image": "สร้างรูปภาพ",

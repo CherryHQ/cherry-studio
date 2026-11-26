@@ -852,6 +852,7 @@
   "chat.input.followup_queue.pause": "Pausar envio automático",
   "chat.input.followup_queue.remove": "Remover",
   "chat.input.followup_queue.resume": "Retomar envio automático",
+  "chat.input.followup_queue.stale": "A fila mudou. Verifique a fila atual e tente novamente.",
   "chat.input.followup_queue.steer": "Enviar para o turno atual",
   "chat.input.followup_queue.title": "Na fila ({{count}})",
   "chat.input.generate_image": "Gerar imagem",

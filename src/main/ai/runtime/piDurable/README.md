@@ -13,6 +13,8 @@ request options and usage callbacks even when their Cherry Provider is the same.
 The desktop Harness disables native provider retries for roots and children. The shared
 [gateway binding](../pi/README.md#model-requests) uses `ai-retry` before the first content chunk.
 A final failure retains its upstream error; later user input can start a new run.
+The patched Harness applies its native retry budget and backoff to generation interrupted
+by host exit so reopened work can resume.
 
 `durableDesktop.ts` installs native coding tools, codemode and tool search, Cherry's
 prompt and selected skills. `durableMcp.ts` connects Cherry-selected MCP servers through
@@ -72,8 +74,8 @@ snapshots, activity changes and input changes.
 An `aborted` outcome, including one caused by user Stop, settles the turn as paused; `failed` and
 `unanswered` outcomes report an error carrying their native reason.
 A message sent while native work runs is submitted with Durable's `follow-up` busy policy and
-persisted at once. The Work composer sends it immediately instead of holding it in its follow-up
-dock, because the descriptor declares `nativeFollowUp`; the connection has no single-submission gate and Main keeps no queue for it. Durable places it at the next run
+persisted at once. The Work composer sends it immediately when the descriptor declares
+`nativeFollowUp` and displays the native waiting order in the follow-up dock. Durable places it at the next run
 boundary, in the same batch as the preceding answer. The connection announces the placement with
 `steer-boundary` after that batch's projection, so the preceding answer stays in its reply and Main
 opens a new one. The event marks the placement as a follow-up: Main holds it while the previous reply
@@ -124,7 +126,9 @@ cancellation and ownership semantics.
   with a terminal status is not rebuilt. At startup Main reads terminal native evidence by the original input and
   commits the recovered body to the corresponding product Run. The driver owns one scheduler per
   physical store with unfinished work. It installs the affected roots and child writers before
-  resuming and keeps unresolved stores eligible for another recovery.
+  resuming and keeps unresolved stores eligible for another recovery. Startup also restores the unsent
+  status of inputs withdrawn before placement by matching the submission request ID to the user
+  message bound to the native root. This works for stores with no remaining work.
 - Closing a child panel only detaches its projection subscription.
 
 Background continuation keeps one child identity. Independent continuation of an ended

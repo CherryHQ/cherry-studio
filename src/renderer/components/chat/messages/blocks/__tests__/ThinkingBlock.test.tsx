@@ -297,6 +297,51 @@ describe('ThinkingBlock', () => {
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
       expect(getContentContainer()).not.toHaveAttribute('hidden')
     })
+
+    it('should auto-expand streaming thinking and auto-collapse when thinking ends', () => {
+      mockRenderConfig.thoughtAutoCollapse = true
+      const block = createThinkingBlock({ status: 'streaming' })
+      const { rerender } = renderThinkingBlock(block)
+
+      // Live thinking stays followable even though the auto-collapse default is collapsed.
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
+
+      rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+
+      // After thinking ends the block falls back to the cached collapsed default.
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+    })
+
+    it('should keep streaming thinking expanded when auto-collapse is disabled', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock({ status: 'streaming' })
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+
+      rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
+    })
+
+    it('should respect a manual collapse during streaming after thinking ends', () => {
+      mockRenderConfig.thoughtAutoCollapse = true
+      const block = createThinkingBlock({ status: 'streaming' })
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+
+      fireEvent.click(getToggleButton())
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+
+      rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+    })
   })
 
   describe('layout and readability', () => {

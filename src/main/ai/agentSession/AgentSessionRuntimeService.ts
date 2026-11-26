@@ -52,6 +52,7 @@ import {
   type AgentSessionEditDraft,
   type AgentSessionEditTarget
 } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_FOLLOWUPS_CACHE_KEY, type AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
@@ -315,6 +316,7 @@ type AgentSessionRuntimeEntry = {
   }
   /** Follow-up placements waiting for the current reply to open; each starts its own reply, in order. */
   deferredPlacements?: (readonly string[])[]
+  recoveryHeadless?: boolean
   /** Inputs whose reply a follow-up placement settled before Durable reported their outcome, mapped to that reply. */
   followedReplies?: Map<string, string>
   interactionWindowId?: string
@@ -466,7 +468,7 @@ export class AgentSessionRuntimeService extends BaseService {
   editSession<T>(
     sessionId: string,
     target: AgentSessionEditTarget,
-    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string, sourceBackendId?: string) => T
   ): Promise<T> {
     this.assertSessionEditable(sessionId)
     const editing = this.forks.edit(
@@ -537,11 +539,16 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly secondaryRoots = new Map<string, AgentSessionRuntimeEntry>()
 
   private recoveryDue = false
+  private readonly startupRecovery = Promise.withResolvers<void>()
   private readonly replyRecoveries = new Set<Promise<void>>()
 
   protected override onAllReady(): Promise<void> {
     this.recoveryDue = true
-    return this.resumeRecovery()
+    return this.resumeRecovery().finally(() => this.startupRecovery.resolve())
+  }
+
+  whenStartupRecoverySettles(): Promise<void> {
+    return this.startupRecovery.promise
   }
 
   private resumeRecovery(): Promise<void> {
@@ -784,6 +791,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const execution = entry.runtimeState.execution
     return (
       execution.kind === 'steer-transition' ||
+      (execution.kind === 'autonomous-turn' &&
+        !['open', 'awaiting-persistence', 'settled'].includes(execution.reply.delivery.kind)) ||
       (execution.kind === 'turn' &&
         (execution.reservation !== undefined ||
           !['open', 'awaiting-persistence'].includes(execution.reply.delivery.kind)))
@@ -1121,6 +1130,15 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch {
       return null
     }
+  }
+
+  async changeFollowups(topicId: string, change: AgentSessionFollowupChange): Promise<boolean> {
+    if (!isAgentSessionTopic(topicId) || this.isWriteQuiesced || this.isShuttingDown) return false
+    const sessionId = extractAgentSessionId(topicId)
+    this.assertSessionWritable(sessionId)
+    const entry = this.entryForContext(sessionId, extractAgentContextId(topicId))
+    if (!entry || entry.topicId !== topicId || entry.closing || entry.stopping) return false
+    return (await this.currentConnection(entry)?.changeFollowups?.(change)) ?? false
   }
 
   async listSessionCommands(sessionId: string): Promise<AgentSessionSlashCommand[]> {
@@ -2082,6 +2100,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
+    this.startupRecovery.resolve()
     await Promise.allSettled([...this.replyRecoveries, this.recovery])
     await this.forks.cancel()
     this.disposeEditInputs()
@@ -2089,12 +2108,12 @@ export class AgentSessionRuntimeService extends BaseService {
     for (const entry of this.allEntries()) {
       if (this.liveTurn(entry)) streamManager.abort(entry.topicId, 'agent-session-runtime-stop')
     }
+    await this.closeAll()
     try {
       toolApprovalRegistry.clear('agent-session-runtime-stop')
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during stop', { error })
     }
-    await this.closeAll()
   }
 
   protected async onDestroy(): Promise<void> {
@@ -2180,6 +2199,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     if (foreground) this.entries.set(input.sessionId, entry)
     else this.secondaryRoots.set(context.id, entry)
+    entry.recoveryHeadless = input.headless
     const attemptId = uuidv7()
     entry.connectionGeneration = attemptId
     this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
@@ -2680,6 +2700,15 @@ export class AgentSessionRuntimeService extends BaseService {
           entry.pendingInputs?.delete(event.result.inputId)
         break
       }
+      case 'followup-queue':
+        for (const { id, revision, parts } of event.queue) {
+          const pending = revision > 0 ? entry.pendingInputs?.get(id) : undefined
+          if (pending && pending.generation === entry.connectionGeneration) {
+            pending.input.message.data.parts = parts
+          }
+        }
+        application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), event.queue)
+        break
       case 'input-state':
         if (event.input.facts.includes('locally-handled'))
           markLocalInput(entry.sessionId, event.contextId, event.input.inputId)
@@ -2797,8 +2826,12 @@ export class AgentSessionRuntimeService extends BaseService {
           entry.runtimeState.execution.kind === 'autonomous-turn'
         )
           break
+        const recoveredInput = event.recoveredInputId
         const headless =
-          !!entry.secondaryContextId || this.getInteractionState(entry.sessionId).userResponse === 'unavailable'
+          !!entry.secondaryContextId ||
+          (recoveredInput
+            ? entry.recoveryHeadless !== false
+            : this.getInteractionState(entry.sessionId).userResponse === 'unavailable')
         const saved =
           assistantMessageId && assistantMessageId !== source?.assistantMessageId
             ? agentSessionMessageService.getSessionMessage(entry.sessionId, assistantMessageId)
@@ -2807,8 +2840,10 @@ export class AgentSessionRuntimeService extends BaseService {
         const turn = createSessionTurn({
           ...this.connectionTarget(entry),
           modelId: background ? modelId : entry.modelId,
-          taskIds: [],
-          userMessage: createSyntheticUserMessage(entry.sessionId),
+          taskIds: recoveredInput ? [recoveredInput] : [],
+          userMessage: recoveredInput
+            ? agentSessionMessageService.getSessionMessage(entry.sessionId, recoveredInput)
+            : createSyntheticUserMessage(entry.sessionId),
           parentId: entry.branchHead,
           messageSnapshot: background
             ? (saved?.messageSnapshot ?? source?.messageSnapshot ?? entry.messageSnapshot)
@@ -3313,6 +3348,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-finished' })
     }
     const cache = application.get('CacheService')
+    if (connection.changeFollowups) cache.setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), [])
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
   }
@@ -3849,7 +3885,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   getInteractionState(sessionId: string, contextId?: string): AgentSessionInteractionState {
-    const entry = this.entries.get(sessionId)
+    const entry = this.entryForContext(sessionId, contextId)
     if (!entry || (contextId && this.currentConnection(entry)?.contextId !== contextId))
       return { currentTurn: 'none', userResponse: 'unavailable' }
 

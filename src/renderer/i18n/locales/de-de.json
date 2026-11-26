@@ -852,6 +852,7 @@
   "chat.input.followup_queue.pause": "Automatisches Senden pausieren",
   "chat.input.followup_queue.remove": "Entfernen",
   "chat.input.followup_queue.resume": "Auto-Send fortsetzen",
+  "chat.input.followup_queue.stale": "Die Warteschlange hat sich geändert. Prüfe sie und versuche es erneut.",
   "chat.input.followup_queue.steer": "In aktuelle Runde senden",
   "chat.input.followup_queue.title": "In Warteschlange ({{count}})",
   "chat.input.generate_image": "Bild generieren",
