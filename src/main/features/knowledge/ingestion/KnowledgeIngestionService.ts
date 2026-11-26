@@ -126,14 +126,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
    */
   private readonly pendingEnqueues = new Map<string, Set<string>>()
 
-  private getPendingEnqueueIds(baseId: string): Set<string> {
-    return this.pendingEnqueues.get(baseId) ?? new Set<string>()
-  }
-
-  private getPendingEnqueueCount(baseId: string): number {
-    return this.getPendingEnqueueIds(baseId).size
-  }
-
   private addPendingEnqueues(baseId: string, itemIds: string[]): void {
     if (itemIds.length === 0) {
       return
