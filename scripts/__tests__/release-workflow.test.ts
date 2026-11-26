@@ -348,6 +348,11 @@ describe('hotfix release notes', () => {
     expect(() => extractHotfixReleaseNote(`${HOTFIX_BODY}\n\n${HOTFIX_BODY}`)).toThrow('at most one release-note block')
   })
 
+  it('ignores an inline release-note opener inside a shell example', () => {
+    const body = ['```sh', '# Example opener: ```release-note', '```'].join('\n')
+    expect(extractHotfixReleaseNote(body)).toBeNull()
+  })
+
   it.each(['\n', '\r\n'])('rejects an empty hotfix note fence with line ending %j', (newline) => {
     const body = ['```release-note', '```'].join(newline)
     expect(() => extractHotfixReleaseNote(body)).toThrow('exact English and Chinese language markers')

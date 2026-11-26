@@ -11,6 +11,7 @@ import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, 
 
 import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
 
+import { isSignedGeminiWhitespace } from './geminiTextSignature'
 import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
@@ -339,7 +340,7 @@ export async function toModelMessages(
   caps?: MediaCapabilities,
   tools?: ToolSet,
   toolResultCaps?: MediaCapabilities,
-  preserveEmptyAnthropicThinking = false
+  options: { preserveEmptyAnthropicThinking?: boolean; preserveSignedGeminiWhitespace?: boolean } = {}
 ): Promise<ModelMessage[]> {
   const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
   const shaped = restoreLegacyToolStepBoundaries(
@@ -351,10 +352,15 @@ export async function toModelMessages(
   // blank-reasoning filter for other adapters, which can reject those blocks.
   const replayable = shaped.map((message) => {
     const parts = message.parts.filter((part) => {
-      if (message.role === 'assistant' && part.type === 'text') return part.text.trim().length > 0
+      if (message.role === 'assistant' && part.type === 'text') {
+        return (
+          part.text.trim().length > 0 ||
+          (options.preserveSignedGeminiWhitespace && isSignedGeminiWhitespace(part.text, part.providerMetadata))
+        )
+      }
       if (part.type !== 'reasoning' || part.text.trim().length > 0) return true
       return (
-        preserveEmptyAnthropicThinking ||
+        options.preserveEmptyAnthropicThinking ||
         typeof part.providerMetadata?.cherry?.replayRouteId === 'string' ||
         typeof part.providerMetadata?.anthropic?.signature !== 'string'
       )

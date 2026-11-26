@@ -1259,6 +1259,71 @@ describe('toolSchemaCompatibilityFeature', () => {
     expect(declaration.parameters.properties.clickCount).toEqual({ anyOf: [{ type: 'number' }, { type: 'number' }] })
   })
 
+  it('sends tools whose const or enum the Google adapter would reject, keeping the values in the description', async () => {
+    const requests: Array<{
+      tools: Array<{
+        functionDeclarations: Array<{ name: string; parameters: { properties: Record<string, unknown> } }>
+      }>
+    }> = []
+    const captureFetch: typeof globalThis.fetch = async (_input, init) => {
+      requests.push(JSON.parse(String(init?.body)))
+      return Response.json({ error: { message: 'captured' } }, { status: 400 })
+    }
+    const model = wrapLanguageModel({
+      model: createGoogleGenerativeAI({ apiKey: 'test-key', fetch: captureFetch })('gemini-3.5-flash'),
+      middleware: await getMiddleware({
+        aiSdkProviderId: 'google',
+        endpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      })
+    })
+
+    await expect(
+      generateText({
+        model,
+        prompt: 'hello',
+        maxRetries: 0,
+        tools: {
+          search: tool({
+            inputSchema: jsonSchema({
+              type: 'object',
+              properties: {
+                mode: { type: 'number', const: 'auto' },
+                cursor: { type: 'string', const: null },
+                scope: { type: ['string', 'null'], const: null },
+                filter: { const: { kind: 'all' }, description: 'Filter.' },
+                tags: { const: ['a'] },
+                empty: { enum: [] },
+                status: { type: 'string', enum: ['ready', 'busy'] },
+                level: { enum: [1, 2, null] },
+                flag: { enum: [true, null] },
+                optional: {
+                  anyOf: [
+                    { type: 'string', enum: ['a'] },
+                    { type: 'null', enum: [null] }
+                  ]
+                }
+              }
+            })
+          })
+        }
+      })
+    ).rejects.toMatchObject({ name: 'AI_APICallError' })
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0].tools[0].functionDeclarations[0].parameters.properties).toEqual({
+      mode: { type: 'number', description: 'Required value (JSON): "auto".' },
+      cursor: { type: 'string', description: 'Required value (JSON): null.' },
+      scope: { type: 'string', description: 'Required value (JSON): null.', nullable: true },
+      filter: { type: 'object', description: 'Filter. Required value (JSON): {"kind":"all"}.' },
+      tags: { type: 'string', description: 'Required value (JSON): ["a"].' },
+      empty: { type: 'string', description: 'Original enum values (JSON): [].' },
+      status: { type: 'string', enum: ['ready', 'busy'] },
+      level: { type: 'integer', nullable: true },
+      flag: { type: 'boolean', nullable: true },
+      optional: { type: 'string', enum: ['a'], nullable: true }
+    })
+  })
+
   // Gemini's function-declaration proto has no `propertyNames` /
   // `additionalProperties` fields (issue #20939) — they 400 the whole
   // request as `Unknown name ... Cannot find field`.

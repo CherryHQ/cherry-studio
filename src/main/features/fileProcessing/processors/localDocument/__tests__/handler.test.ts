@@ -321,9 +321,43 @@ describe('localDocumentToMarkdownHandler', () => {
       ).resolves.toEqual({ kind: 'markdown', markdownContent: 'page one\n\npage two\n\npage three' })
     })
 
+    it('falls back to pdfjs text layer when anydoc rejects a text-layer PDF as malformed', async () => {
+      getTextMock
+        .mockResolvedValueOnce({
+          total: 3,
+          pages: [
+            { num: 1, text: 'one' },
+            { num: 2, text: 'two' },
+            { num: 3, text: 'three' }
+          ]
+        })
+        .mockResolvedValueOnce({
+          total: 3,
+          pages: [
+            { num: 1, text: '  Page one text \n' },
+            { num: 2, text: '   \n\t ' },
+            { num: 3, text: '\nPage three text  ' }
+          ]
+        })
+      const prepared = await prepareBackground()
+      toMarkdownBytesMock.mockRejectedValueOnce(
+        anydocError('malformed', "malformed document: couldn't parse input: invalid file trailer")
+      )
+      const reportProgress = vi.fn()
+
+      await expect(prepared.execute({ signal: new AbortController().signal, reportProgress })).resolves.toEqual({
+        kind: 'markdown',
+        markdownContent: 'Page one text\n\nPage three text'
+      })
+
+      expect(recognizeMock).not.toHaveBeenCalled()
+      expect(getScreenshotMock).not.toHaveBeenCalled()
+      expect(reportProgress).toHaveBeenLastCalledWith(100)
+      expect(destroyMock).toHaveBeenCalledTimes(2)
+    })
+
     it.each([
       ['encrypted', 'document is encrypted'],
-      ['malformed', 'malformed document: invalid PDF structure'],
       ['unsupported', 'unsupported input: unrecognized file content: name the format explicitly'],
       ['unsupported', 'unsupported input: PDF has no extractable text (Scanned, 0 pages): OCR is required'],
       ['io', 'io error: permission denied'],
