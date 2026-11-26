@@ -2289,7 +2289,7 @@ export class AgentSessionMessageService {
   }
 
   /** A `paused` user message is one the runtime withdrew before the agent received it. */
-  markUserMessageUnsent(sessionId: string, messageId: string): void {
+  markUserMessageUnsent(sessionId: string, messageId: string, contextId?: string): void {
     const changed = application.get('DbService').withWriteTx((tx) =>
       tx
         .update(sessionMessagesTable)
@@ -2299,7 +2299,14 @@ export class AgentSessionMessageService {
             eq(sessionMessagesTable.sessionId, sessionId),
             eq(sessionMessagesTable.id, messageId),
             eq(sessionMessagesTable.role, 'user'),
-            eq(sessionMessagesTable.status, 'success')
+            eq(sessionMessagesTable.status, 'success'),
+            contextId
+              ? and(
+                  eq(sessionMessagesTable.inputContextId, contextId),
+                  isNull(sessionMessagesTable.replyId),
+                  isNull(sessionMessagesTable.deliveryStatus)
+                )
+              : undefined
           )
         )
         .run()

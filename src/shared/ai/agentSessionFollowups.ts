@@ -27,7 +27,7 @@ function splitFollowupText(part: TextPart) {
     const prompt = token.promptText
     const embedded = prompt && part.text.startsWith(prompt, offset) ? prompt : ''
     cursor = offset + embedded.length
-    return { token, offset: text.length, embedded }
+    return { token, embedded }
   })
   return { text: text + part.text.slice(cursor), composer, anchors }
 }
@@ -41,15 +41,15 @@ export function readFollowupText(parts: readonly CherryMessagePart[]): string {
 export function replaceFollowupText(part: TextPart, text: string): TextPart {
   const previous = splitFollowupText(part)
   if (!previous.composer) return { ...part, text }
-  let cursor = 0
-  let content = ''
-  const tokens = previous.anchors.map(({ token, offset, embedded }) => {
-    const next = offset === previous.text.length ? text.length : Math.min(offset, text.length)
-    content += text.slice(cursor, next)
-    cursor = next
+  if (text === previous.text) return part
+  let content = text
+  const tokens = previous.anchors.map(({ token, embedded }) => {
     const textOffset = content.length
-    content += embedded
-    return { ...token, textOffset }
+    if (!embedded) return { ...token, textOffset }
+    // Include the separator in the managed span so the editor restores the typed text exactly.
+    const promptText = content && !embedded.startsWith('\n') ? `\n${embedded}` : embedded
+    content += promptText
+    return { ...token, textOffset, promptText }
   })
-  return withCherryMeta({ ...part, text: content + text.slice(cursor) }, { composer: { ...previous.composer, tokens } })
+  return withCherryMeta({ ...part, text: content }, { composer: { ...previous.composer, tokens } })
 }

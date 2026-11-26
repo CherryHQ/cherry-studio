@@ -23,6 +23,7 @@ interface QueuedFollowupsDockProps {
   onEdit: (id: string) => void
   onRemove: (id: string) => void
   onReorder: (nextItems: FollowupQueueItem[]) => void
+  onDragStart?: () => void
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
   steerDisabledReason?: string
 }
@@ -147,6 +148,7 @@ export function QueuedFollowupsDock({
   onEdit,
   onRemove,
   onReorder,
+  onDragStart,
   isSteerDisabled,
   steerDisabledReason
 }: QueuedFollowupsDockProps) {
@@ -240,6 +242,12 @@ export function QueuedFollowupsDock({
               items={items}
               getId={(item) => item.id}
               onReorder={onReorder}
+              onDragStateChange={
+                onDragStart &&
+                ((dragging) => {
+                  if (dragging) onDragStart()
+                })
+              }
               direction="vertical"
               gap={4}
               renderItem={(item, _index, { dragging }) => (

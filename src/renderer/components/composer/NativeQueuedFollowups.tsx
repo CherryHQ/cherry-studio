@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
@@ -23,6 +23,7 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({ topic
   const queue = useSharedCacheValue(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(topicId))
   const [edit, setEdit] = useState<{ item: AgentSessionFollowup; text: string }>()
   const [saving, setSaving] = useState(false)
+  const dragOrder = useRef<string[]>(undefined)
   const items = useMemo(
     () =>
       (queue ?? []).map(({ id, parts }) => {
@@ -53,13 +54,18 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({ topic
           if (item) setEdit({ item, text: readFollowupText(item.parts) })
         }}
         onRemove={(inputId) => void change({ type: 'withdraw', inputId })}
-        onReorder={(next) =>
-          void change({
-            type: 'reorder',
-            before: items.map(({ id }) => id),
-            after: next.map(({ id }) => id)
-          })
-        }
+        onDragStart={() => {
+          dragOrder.current = items.map(({ id }) => id)
+        }}
+        onReorder={(next) => {
+          const before = dragOrder.current
+          dragOrder.current = undefined
+          if (!before || before.length !== items.length || items.some(({ id }, index) => id !== before[index])) {
+            toast.warning(t('chat.input.followup_queue.stale'))
+            return
+          }
+          void change({ type: 'reorder', before, after: next.map(({ id }) => id) })
+        }}
       />
       {edit ? (
         <Dialog open onOpenChange={(open) => !open && !saving && setEdit(undefined)}>
