@@ -145,6 +145,7 @@ interface AgentMessageListParams {
   navigateToForkSource?: NavigateToForkSource
   imageActionConsumer?: 'capture'
   scrollToBottomOnSend?: boolean
+  presentation?: MessageListState['renderConfig']['presentation']
   messageNavigation: string
   workspacePath?: string
   messageTail?: MessageListState['messageTail']
@@ -215,6 +216,7 @@ export function useAgentMessageListProviderValue({
   navigateToForkSource,
   imageActionConsumer,
   scrollToBottomOnSend = false,
+  presentation = 'standard',
   messageNavigation,
   workspacePath,
   messageTail,
@@ -458,14 +460,16 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId, t, notifyError]
   )
-  const agentRenderConfig = useMemo(
+  const agentRenderConfig = useMemo<MessageListState['renderConfig']>(
     () => ({
       ...renderConfig,
+      presentation,
+      messageStyle: presentation === 'simplified' ? 'bubble' : renderConfig.messageStyle,
       keepIntermediateAssistantText: true,
       expandToolSteps: false,
       expandLiveToolSteps: true
     }),
-    [renderConfig]
+    [presentation, renderConfig]
   )
   const state = useMemo<MessageListState>(
     () => ({
@@ -474,7 +478,7 @@ export function useAgentMessageListProviderValue({
       messages: messageItems,
       partsByMessageId: displayPartsByMessageId,
       streamingLayers: displayStreamingLayers,
-      activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
+      activeTurnStatus: normalInteractionsEnabled && presentation === 'standard' ? renderActiveTurnStatus : undefined,
       messageTail: normalInteractionsEnabled ? messageTail : undefined,
       afterMessages: normalInteractionsEnabled ? afterMessages : undefined,
       isInitialLoading: isLoading && messageItems.length === 0,
@@ -504,6 +508,7 @@ export function useAgentMessageListProviderValue({
       messageTail,
       afterMessages,
       normalInteractionsEnabled,
+      presentation,
       displayPartsByMessageId,
       renderActiveTurnStatus,
       agentRenderConfig,

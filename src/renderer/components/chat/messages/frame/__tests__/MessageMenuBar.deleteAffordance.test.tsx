@@ -1,10 +1,12 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
 import type { RefObject } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
+import { CommandSharedPreferencesContext } from '@renderer/hooks/command'
 import en from '@renderer/i18n/locales/en-us.json'
 import type { Topic } from '@renderer/types/topic'
 
@@ -45,7 +47,8 @@ const canDeleteMessage = (message: MessageListItem) => message.role !== 'assista
 function renderToolbar(
   role: MessageListItem['role'],
   policy?: MessageListActions['canDeleteMessage'],
-  confirm = false
+  confirm = false,
+  variant?: 'context'
 ) {
   const message: MessageListItem = {
     id: `${role}-1`,
@@ -77,17 +80,33 @@ function renderToolbar(
     actions,
     meta: { selectionLayer: false }
   }
+  const messageContainerRef = { current: null as HTMLDivElement | null }
+  const menu = (
+    <MessageMenuBar
+      message={message}
+      isLastMessage
+      forceVisible
+      isAssistantMessage={role === 'assistant'}
+      isProcessing={false}
+      messageContainerRef={messageContainerRef as RefObject<HTMLDivElement>}
+      variant={variant}
+    />
+  )
   render(
     <I18nextProvider i18n={i18n}>
       <MessageListProvider value={value}>
-        <MessageMenuBar
-          message={message}
-          isLastMessage
-          forceVisible
-          isAssistantMessage={role === 'assistant'}
-          isProcessing={false}
-          messageContainerRef={{ current: null } as unknown as RefObject<HTMLDivElement>}
-        />
+        {variant === 'context' ? (
+          <CommandSharedPreferencesContext value={{ menuPresentationMode: 'cherry', shortcutPreferences: {} }}>
+            <SelectionContextMenu>
+              <div>
+                <div ref={messageContainerRef}>Message content{menu}</div>
+                <p>Outside the message</p>
+              </div>
+            </SelectionContextMenu>
+          </CommandSharedPreferencesContext>
+        ) : (
+          menu
+        )}
       </MessageListProvider>
     </I18nextProvider>
   )
@@ -95,6 +114,17 @@ function renderToolbar(
 }
 
 describe('MessageMenuBar delete affordance', () => {
+  it('copies a protected assistant reply from its context menu without showing a footer or Delete action', async () => {
+    const { actions } = renderToolbar('assistant', canDeleteMessage, false, 'context')
+    expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull()
+    fireEvent.contextMenu(screen.getByText('Outside the message'))
+    expect(screen.queryByRole('menuitem', { name: 'Copy' })).toBeNull()
+    fireEvent.contextMenu(screen.getByText('Message content'))
+    expect(screen.queryByRole('menuitem', { name: 'Delete' })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy' }))
+    await waitFor(() => expect(actions.copyText).toHaveBeenCalledWith('hello', expect.anything()))
+  })
+
   it('offers no Delete button for a completed Agent assistant reply while keeping Copy', () => {
     const { actions, deleteMessage } = renderToolbar('assistant', canDeleteMessage)
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()

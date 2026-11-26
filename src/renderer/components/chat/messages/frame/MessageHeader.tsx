@@ -96,6 +96,7 @@ const MessageHeader: FC<Props> = memo(
     const actions = useMessageListActions()
     const meta = useMessageListMeta()
     const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
+    const simplified = renderConfig.presentation === 'simplified'
     const selection = useMessageListSelection()
     const userName = renderConfig.userName
     const assistantProfile = meta.assistantProfile
@@ -177,23 +178,29 @@ const MessageHeader: FC<Props> = memo(
     return (
       <div
         className={`message-header group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
-        {toggleAuthorProfile ? (
-          <button
-            type="button"
-            aria-label={t('chat.profile_pane.open', { name: authorName || username })}
-            onClick={toggleAuthorProfile}
-            className="shrink-0 cursor-pointer rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring">
-            {assistantAvatar}
-          </button>
-        ) : isAssistantMessage ? (
-          assistantAvatar
-        ) : (
-          <MessageAvatar avatar={userAvatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
-        )}
+        {!simplified &&
+          (toggleAuthorProfile ? (
+            <button
+              type="button"
+              aria-label={t('chat.profile_pane.open', { name: authorName || username })}
+              onClick={toggleAuthorProfile}
+              className="shrink-0 cursor-pointer rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring">
+              {assistantAvatar}
+            </button>
+          ) : isAssistantMessage ? (
+            assistantAvatar
+          ) : (
+            <MessageAvatar avatar={userAvatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
+          ))}
         <div
           className={hasBodySlot ? 'message-body-column flex min-h-0 min-w-0 flex-1 flex-col' : 'flex min-w-0 flex-1'}>
           <div className="flex w-full min-w-0 items-center gap-1.5">
-            <span className="truncate font-medium text-muted-foreground text-sm leading-5">{username}</span>
+            {(!simplified || showModelIdentity) && (
+              <span
+                className={`truncate font-medium text-sm leading-5 ${simplified && isAssistantMessage ? 'text-foreground' : 'text-muted-foreground'}`}>
+                {username}
+              </span>
+            )}
 
             {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
             {isAssistantMessage && message.turnOrigin?.kind === 'goal-round' && (

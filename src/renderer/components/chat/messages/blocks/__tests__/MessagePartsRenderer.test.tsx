@@ -1,5 +1,5 @@
 import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { SWRConfig } from 'swr'
@@ -483,6 +483,107 @@ describe('MessagePartsRenderer', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+  })
+
+  it('shows the reply and file in a simplified list alongside a list with process details', () => {
+    const parts = [
+      { type: 'reasoning', text: 'Internal thinking', state: 'done' },
+      toolPart('read'),
+      { type: 'file', mediaType: 'image/png', url: 'https://example.test/result.png' },
+      { type: 'text', text: '…' },
+      toolPart('write'),
+      { type: 'text', text: 'Here is your result.' }
+    ] as CherryMessagePart[]
+    render(
+      <>
+        <section aria-label="Reply">
+          {renderPartsTree(parts, msg(), {}, { ...defaultMessageRenderConfig, presentation: 'simplified' })}
+        </section>
+        <section aria-label="Details">
+          {renderPartsTree(parts, msg({ id: 'child-message', topicId: 'child-topic' }))}
+        </section>
+      </>
+    )
+
+    const reply = within(screen.getByRole('region', { name: 'Reply' }))
+    expect(reply.getByText('Here is your result.')).toBeVisible()
+    expect(reply.getByTestId('mock-image-block')).toBeVisible()
+    expect(reply.queryByText('…')).not.toBeInTheDocument()
+    expect(reply.queryByTestId('completed-process-trigger')).not.toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: 'Details' })).getByTestId('completed-process-trigger')
+    ).toBeVisible()
+  })
+
+  it('shows the final failure without the failed tool trace', () => {
+    renderParts(
+      [
+        toolPart('read', 'output-error'),
+        { type: 'data-error', data: { name: 'AgentRuntimeError', message: 'Could not open this file' } }
+      ] as CherryMessagePart[],
+      msg({ status: 'error' }),
+      {},
+      { ...defaultMessageRenderConfig, presentation: 'simplified' }
+    )
+
+    expect(screen.getByTestId('mock-error-block')).toHaveAttribute('data-error-message', 'Could not open this file')
+    expect(screen.queryByTestId('completed-process-trigger')).not.toBeInTheDocument()
+  })
+
+  it('shows a plain waiting state for addressed tool work and keeps a later approval actionable', async () => {
+    const ipc = projectionIpc()
+    const store = new MessageProjectionService()
+    const target = { kind: 'topic', topicId: 't' } as const
+    const stop = store.subscribe(target, () => {})
+    const attachment = ipc.attachments[0]
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'Bash',
+      toolCallId: 'command',
+      state: 'input-available',
+      input: { command: 'pwd' }
+    } as const
+    const row = { id: 'msg-1', role: 'assistant' as const, partIds: ['command-part'], parts: [part] }
+    try {
+      await act(async () => attachment.resolve({ ...target, revision: 0, executions: [], messages: [row] }))
+      activateTurn('streaming')
+      render(
+        <ProjectionReaderProvider reader={store.partsFor(target)}>
+          {renderPartsTree(
+            row.parts,
+            msg({ status: 'pending', partIds: row.partIds }),
+            {},
+            {
+              ...defaultMessageRenderConfig,
+              presentation: 'simplified'
+            }
+          )}
+        </ProjectionReaderProvider>
+      )
+      expect(screen.getByRole('status')).toBeVisible()
+      expect(screen.queryByTestId('live-tool-group')).not.toBeInTheDocument()
+
+      act(() =>
+        ipc.emit(attachment.subscriptionId, {
+          kind: 'topic',
+          type: 'parts',
+          revision: 1,
+          patches: [
+            {
+              type: 'part-put',
+              partId: 'command-part',
+              part: { ...part, state: 'approval-requested', approval: { id: 'approval-1' } }
+            }
+          ]
+        })
+      )
+      activateTurn('awaiting-approval')
+      expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'Bash')
+      expect(screen.queryByTestId('live-tool-group')).not.toBeInTheDocument()
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    } finally {
+      stop()
+    }
   })
 
   describe('leaf rendering', () => {
@@ -2356,38 +2457,42 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByText('child text')).toBeNull()
     })
 
-    it('renders report artifacts after the final message content and not as an inline tool', () => {
-      const openArtifactFile = vi.fn()
-      renderParts(
-        [
-          { type: 'text', text: 'before tool' },
-          {
-            type: 'dynamic-tool',
-            toolCallId: 'report',
-            toolName: 'mcp__cherry-tools__report_artifacts',
-            state: 'output-available',
-            input: {
-              summary: 'Created final outputs',
-              artifacts: [{ path: 'dist/report.md', description: 'Report' }]
+    it.each(['standard', 'simplified'] as const)(
+      'renders report artifacts as results with %s presentation',
+      (presentation) => {
+        const openArtifactFile = vi.fn()
+        renderParts(
+          [
+            { type: 'text', text: 'before tool' },
+            {
+              type: 'dynamic-tool',
+              toolCallId: 'report',
+              toolName: 'mcp__cherry-tools__report_artifacts',
+              state: 'output-available',
+              input: {
+                summary: 'Created final outputs',
+                artifacts: [{ path: 'dist/report.md', description: 'Report' }]
+              },
+              output: {}
             },
-            output: {}
-          },
-          { type: 'text', text: 'final answer' }
-        ] as unknown as CherryMessagePart[],
-        msg(),
-        { openArtifactFile }
-      )
+            { type: 'text', text: 'final answer' }
+          ] as unknown as CherryMessagePart[],
+          msg(),
+          { openArtifactFile },
+          { ...defaultMessageRenderConfig, presentation }
+        )
 
-      expect(screen.getByText('report.md')).toBeInTheDocument()
-      expect(screen.queryByTestId('mock-message-tools')).toBeNull()
-      expect(
-        screen.getByText('final answer').compareDocumentPosition(screen.getByText('report.md')) &
-          Node.DOCUMENT_POSITION_FOLLOWING
-      ).toBeTruthy()
+        expect(screen.getByText('report.md')).toBeInTheDocument()
+        expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+        expect(
+          screen.getByText('final answer').compareDocumentPosition(screen.getByText('report.md')) &
+            Node.DOCUMENT_POSITION_FOLLOWING
+        ).toBeTruthy()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
-      expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')
-    })
+        fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
+        expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')
+      }
+    )
   })
 
   describe('active layout', () => {

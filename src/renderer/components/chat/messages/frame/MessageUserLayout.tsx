@@ -24,17 +24,19 @@ export function MessageUserLayout({ children }: { children: ReactNode }) {
           {!bubble && <div className="mb-2 font-semibold text-sm">{config.userName || t('common.you')}</div>}
           {children}
         </div>
-        <MessageAvatar
-          avatar={meta.userProfile?.avatar ?? ''}
-          className={bubble ? 'mt-1.5' : undefined}
-          onClick={
-            actions.openUserProfile
-              ? () => {
-                  void actions.openUserProfile?.()
-                }
-              : undefined
-          }
-        />
+        {config.presentation !== 'simplified' && (
+          <MessageAvatar
+            avatar={meta.userProfile?.avatar ?? ''}
+            className={bubble ? 'mt-1.5' : undefined}
+            onClick={
+              actions.openUserProfile
+                ? () => {
+                    void actions.openUserProfile?.()
+                  }
+                : undefined
+            }
+          />
+        )}
       </div>
     </div>
   )

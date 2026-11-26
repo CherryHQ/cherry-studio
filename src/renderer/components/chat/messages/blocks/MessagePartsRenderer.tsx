@@ -103,6 +103,7 @@ import MessageImageBlock, { type MessageImageSource } from './MessageImageBlock'
 import {
   findOpenTextTailIndex,
   isHiddenPart,
+  isProcessDetailPart,
   isProcessToolPart,
   isReasoningMessagePart,
   isResultPart,
@@ -110,7 +111,8 @@ import {
   type LiveMessagePartLayoutItem,
   type PartEntry,
   projectCompletedMessageParts,
-  projectLiveMessageParts
+  projectLiveMessageParts,
+  projectResultsOnly
 } from './messagePartLayouts'
 import { ToolPartScopeProvider, useMessageParts, useMessagePartsScopeId } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
@@ -412,7 +414,7 @@ const EMPTY_CITATION_PROJECTIONS: ReadonlyMap<CherryMessagePart, ResolvedCitatio
 const EMPTY_HIDDEN_COMPOSER_TOKENS: ReadonlySet<ComposerMessageToken> = new Set()
 const EMPTY_EXPANDED_TEXT_PART_IDS: ReadonlySet<string> = new Set()
 
-function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
+function groupPartEntries(entries: readonly PartEntry[], groupTools = true): GroupedEntry[] {
   return entries.reduce<GroupedEntry[]>((acc, entry) => {
     const { part } = entry
 
@@ -423,7 +425,7 @@ function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
       } else {
         acc.push([entry])
       }
-    } else if (isToolUIPart(part)) {
+    } else if (groupTools && isToolUIPart(part)) {
       if (isAskUserQuestionToolName(getToolName(part))) {
         acc.push(entry)
         return acc
@@ -1547,6 +1549,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   collapseHistory,
   entries,
   hasTrailingContent,
+  hideProcessDetails,
   isActive,
   liveLayout,
   isStreamLive,
@@ -1558,6 +1561,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   collapseHistory: boolean
   entries: readonly PartEntry[]
   hasTrailingContent: boolean
+  hideProcessDetails: boolean
   isActive: boolean
   liveLayout?: PartLayout
   isStreamLive: boolean
@@ -1584,8 +1588,9 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   const openTextTailIndex = isActive && isStreamLive && !liveLayout ? findOpenTextTailIndex(entries) : null
 
   const completedLayout = useMemo(
-    () => (isActive ? null : projectCompletedMessageParts(entries, { keepIntermediateAssistantText })),
-    [entries, isActive, keepIntermediateAssistantText]
+    () =>
+      isActive || hideProcessDetails ? null : projectCompletedMessageParts(entries, { keepIntermediateAssistantText }),
+    [entries, hideProcessDetails, isActive, keepIntermediateAssistantText]
   )
   const completedRenderOptions = useMemo(
     () => ({ ...renderOptions, settleActiveTools: true, settleStreamingReasoning: true }),
@@ -1603,10 +1608,12 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   const addressedResults = useMemo(() => concat(liveLayout?.kept, liveLayout?.tail), [liveLayout])
   const results = useMemo(
     () =>
-      completedLayout
-        ? groupPartEntries(completedLayout.resultEntries)
-        : liveResultItems.flatMap((item) => (item.kind === 'part' ? [item.entry] : [])),
-    [completedLayout, liveResultItems]
+      hideProcessDetails
+        ? groupPartEntries(entries, false)
+        : completedLayout
+          ? groupPartEntries(completedLayout.resultEntries)
+          : liveResultItems.flatMap((item) => (item.kind === 'part' ? [item.entry] : [])),
+    [completedLayout, entries, hideProcessDetails, liveResultItems]
   )
   const resultContent = (
     <MessageResultParts
@@ -1620,6 +1627,8 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
       options={isActive ? activeResultRenderOptions : completedRenderOptions}
     />
   )
+  if (hideProcessDetails) return resultContent
+
   if (isActive) {
     return (
       <>
@@ -1741,6 +1750,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
 
 interface MessagePartsRendererContentProps extends Props {
   collapseCompletedToolHistory: boolean
+  hideProcessDetails: boolean
   isActiveTurnProcessing: boolean
   isStreamLive: boolean
   keepIntermediateAssistantText: boolean
@@ -1789,6 +1799,7 @@ function PendingPartContent({
 
 const MessagePartsRendererContent = React.memo(function MessagePartsRendererContent({
   collapseCompletedToolHistory,
+  hideProcessDetails,
   hoistAttachments,
   isActiveTurnProcessing,
   isStreamLive,
@@ -1866,8 +1877,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     })
   }, [auxiliary, messageParts, message.partIds])
   const placeholderStatus = useMemo(
-    () => liveLayout?.status ?? getProcessingPlaceholderStatus(partEntries),
-    [liveLayout?.status, partEntries]
+    () => (hideProcessDetails ? 'preparing' : (liveLayout?.status ?? getProcessingPlaceholderStatus(partEntries))),
+    [hideProcessDetails, liveLayout?.status, partEntries]
   )
   const nextReportArtifactToolResponses = useMemo(
     () => getReportArtifactToolResponses(partEntries, message.id),
@@ -1920,7 +1931,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const readOnlyFilePreviews = useStableReadOnlyFilePreviews(nextReadOnlyFilePreviews)
   const subagentEntries = useMemo(
     () =>
-      openAgentToolFlow
+      openAgentToolFlow && !hideProcessDetails
         ? displayProjection.entries.filter((entry) => {
             if (!isToolUIPart(entry.part)) return false
             const name = getCachedToolProjection(entry.part, entry.partId ?? `${message.id}-part-${entry.index}`)
@@ -1928,7 +1939,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
             return name === AgentToolsType.Agent || name === AgentToolsType.Task
           })
         : [],
-    [displayProjection.entries, message.id, openAgentToolFlow]
+    [displayProjection.entries, hideProcessDetails, message.id, openAgentToolFlow]
   )
   const taskStatus = subagentEntries.length ? React.use(SubagentStatusContext) : undefined
   const subagentStatuses = subagentEntries.map(({ part, partId, index }) => {
@@ -1953,10 +1964,15 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   }, [viewingSubagent, setSubagentsExpanded])
   const subagentContentId = React.useId()
   const displayEntries = useMemo(() => {
+    if (hideProcessDetails) {
+      return projectResultsOnly(displayProjection.entries, isActiveTurnProcessing).filter(
+        (entry) => !isReportArtifactEntry(entry, message.id)
+      )
+    }
     if (!subagentEntries.length) return displayProjection.entries
     const subtasks = new Set(subagentEntries)
     return displayProjection.entries.filter((entry) => !subtasks.has(entry))
-  }, [displayProjection.entries, subagentEntries])
+  }, [displayProjection.entries, hideProcessDetails, isActiveTurnProcessing, message.id, subagentEntries])
   const hasVisibleNonArtifactEntry = useMemo(
     () =>
       displayEntries.some(
@@ -1966,12 +1982,12 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
   const projectedLiveItems = useMemo(
     () =>
-      isActiveTurnProcessing && !liveLayout
+      isActiveTurnProcessing && !liveLayout && !hideProcessDetails
         ? projectLiveMessageParts(displayEntries, { keepIntermediateAssistantText }).filter(
             (item) => item.kind !== 'part' || !isReportArtifactEntry(item.entry, message.id)
           )
         : [],
-    [displayEntries, isActiveTurnProcessing, keepIntermediateAssistantText, liveLayout, message.id]
+    [displayEntries, hideProcessDetails, isActiveTurnProcessing, keepIntermediateAssistantText, liveLayout, message.id]
   )
   // A process group can contain parts newer than the intermediate prose rendered after it.
   const liveTail = useMemo(
@@ -1982,6 +1998,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     [projectedLiveItems]
   )
   const showTrailingPlaceholder =
+    !hideProcessDetails &&
     isStreamLive &&
     (liveLayout ? liveLayout.trailingAnswer : liveTail?.kind === 'part' && isSubstantiveAnswerPart(liveTail.entry.part))
   // Settled tool parts keep their identity across streaming chunks, so citations only re-resolve
@@ -2043,7 +2060,11 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   ) : null
 
   const empty =
-    !liveLayout?.visible && !hasVisibleNonArtifactEntry && !canRenderReportArtifacts && !subagentEntries.length
+    !liveLayout?.visible &&
+    !hasVisibleNonArtifactEntry &&
+    !canRenderReportArtifacts &&
+    !subagentEntries.length &&
+    !(hideProcessDetails && sessionToolResponses.length > 0)
   const pendingIds = useMemo(
     () =>
       !empty || !isActiveTurnProcessing
@@ -2057,22 +2078,17 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
             ),
     [displayEntries, empty, isActiveTurnProcessing, liveLayout]
   )
+  const renderTurnStatus = (fallback: React.ReactNode) =>
+    hideProcessDetails ? fallback : <MessageCompactionStatus messageId={message.id} fallback={fallback} />
   const emptyPlaceholder = empty && isActiveTurnProcessing && (
-    <AnimatePresence mode="sync">
-      <MessageCompactionStatus messageId={message.id} fallback={<ActiveTurnStatusView fallback={placeholder} />} />
-    </AnimatePresence>
+    <AnimatePresence mode="sync">{renderTurnStatus(<ActiveTurnStatusView fallback={placeholder} />)}</AnimatePresence>
   )
   if (empty && !pendingIds.length) {
     if (isActiveTurnProcessing) return emptyPlaceholder
-    return (
-      <MessageCompactionStatus
-        messageId={message.id}
-        fallback={
-          message.role === 'assistant' && message.status === 'paused' ? (
-            <ChatMarkdown block={{ id: `${message.id}-paused`, content: '', status: 'paused' }} />
-          ) : null
-        }
-      />
+    return renderTurnStatus(
+      message.role === 'assistant' && message.status === 'paused' ? (
+        <ChatMarkdown block={{ id: `${message.id}-paused`, content: '', status: 'paused' }} />
+      ) : null
     )
   }
 
@@ -2083,6 +2099,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         collapseHistory={collapseCompletedToolHistory}
         entries={displayEntries}
         hasTrailingContent={liveTail?.kind === 'part'}
+        hideProcessDetails={hideProcessDetails}
         isActive={isActiveTurnProcessing}
         liveLayout={liveLayout}
         isStreamLive={isStreamLive}
@@ -2162,14 +2179,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
           </div>
         </AnimatedBlockWrapper>
       )}
-      <MessageCompactionStatus
-        messageId={message.id}
-        fallback={
-          isActiveTurnProcessing ? (
-            <ActiveTurnStatusView fallback={showTrailingPlaceholder ? placeholder : null} />
-          ) : null
-        }
-      />
+      {renderTurnStatus(
+        isActiveTurnProcessing ? <ActiveTurnStatusView fallback={showTrailingPlaceholder ? placeholder : null} /> : null
+      )}
     </AnimatePresence>
   )
   return (
@@ -2341,12 +2353,13 @@ function useAddressedMessageParts(
   row: ProjectionRowReader | undefined,
   reader: ProjectionPartReader | undefined,
   keepIntermediateAssistantText: boolean,
+  hideProcessDetails: boolean,
   hoistAttachments?: boolean
 ) {
   const { openAgentToolFlow, openFile, previewInputFile, previewFile } = useMessageListActions()
   const { t } = useTranslation()
   const hoistFiles = !!(openFile || previewInputFile || previewFile)
-  const hasTaskList = !!openAgentToolFlow
+  const hasTaskList = !!openAgentToolFlow && !hideProcessDetails
   const project = useMemo(
     () =>
       projectAddressedLayout((partId) => {
@@ -2354,6 +2367,10 @@ function useAddressedMessageParts(
         if (!part || hasPartParentToolCallId(part)) return { layout: EMPTY_LAYOUT }
         const entry: AddressedEntry = { key: partId, part }
         const source = isCitationSourcePart(part)
+        if (hideProcessDetails && isProcessDetailPart(part)) {
+          const process = part.type === 'reasoning' || isToolUIPart(part) ? 'process' : undefined
+          return { layout: source ? { side: single(partId, entry) } : EMPTY_LAYOUT, first: process, last: process }
+        }
         if (isHiddenPart(part))
           return {
             layout: source || part.type === 'data-agent-task-event' ? { side: single(partId, entry) } : EMPTY_LAYOUT
@@ -2372,7 +2389,7 @@ function useAddressedMessageParts(
         const report = !!response && isReportArtifactsToolResponse(response)
         const kind: HistoryRun['kind'] = report
           ? 'barrier'
-          : part.type === 'reasoning' || isProcessToolPart(part)
+          : !hideProcessDetails && (part.type === 'reasoning' || isProcessToolPart(part))
             ? 'process'
             : isImageFilePart(part)
               ? 'images'
@@ -2407,7 +2424,7 @@ function useAddressedMessageParts(
         const meaningful = part.type === 'reasoning' || isToolUIPart(part) ? 'process' : 'content'
         return { layout: result, first: meaningful, last: meaningful }
       }),
-    [hasTaskList, hoistAttachments, hoistFiles, keepIntermediateAssistantText, reader, t]
+    [hasTaskList, hideProcessDetails, hoistAttachments, hoistFiles, keepIntermediateAssistantText, reader, t]
   )
   const tree = React.useSyncExternalStore(row?.subscribe ?? noSubscription, row?.getSnapshot ?? noLayout)
   const layout = tree && project(tree)
@@ -2420,7 +2437,8 @@ const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) =>
   const messageParts = useMessageParts(message.id)
   const { isActiveTurnProcessing, isStreamLive } = useMessageListItemActivityState(message)
   const priorCitationParts = useMessagePriorCitationParts(message.id)
-  const { collapseCompletedToolHistory, keepIntermediateAssistantText } = useMessageRenderConfig()
+  const { collapseCompletedToolHistory, keepIntermediateAssistantText, presentation } = useMessageRenderConfig()
+  const hideProcessDetails = presentation === 'simplified'
 
   const reader = React.use(ProjectionPartContext)
   const layouts = React.use(ProjectionLayoutContext)
@@ -2429,6 +2447,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) =>
     row,
     reader,
     keepIntermediateAssistantText,
+    hideProcessDetails,
     hoistAttachments
   )
   const currentParts = useMemo(
@@ -2442,6 +2461,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) =>
     <ProjectionPartContext value={isActiveTurnProcessing ? reader : undefined}>
       <MessagePartsRendererContent
         collapseCompletedToolHistory={collapseCompletedToolHistory}
+        hideProcessDetails={hideProcessDetails}
         keepIntermediateAssistantText={keepIntermediateAssistantText}
         hoistAttachments={hoistAttachments}
         isActiveTurnProcessing={isActiveTurnProcessing}

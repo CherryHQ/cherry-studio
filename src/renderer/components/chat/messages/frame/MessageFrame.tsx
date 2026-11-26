@@ -82,6 +82,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
 
   const messageFont = renderConfig.messageFont
   const fontSize = renderConfig.fontSize
+  const simplified = renderConfig.presentation === 'simplified'
   const messageStyle = renderConfig.messageStyle
 
   const messageContainerRef = useRef<HTMLDivElement>(null)
@@ -117,8 +118,10 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   const isApprovalAnchor = activityState.isApprovalAnchor
   const showMenuBar = !hideMenuBar && !isEditing && !isStreamTarget && !isApprovalAnchor
   const isUserBubbleMessage = messageStyle === 'bubble' && !isAssistantMessage && !isMultiSelectMode
-  const showAssistantFooterActions = showMenuBar && isAssistantMessage
-  const showUserFooterActions = showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage
+  const showContextMenu = simplified && showMenuBar && !isMultiSelectMode
+  const showAssistantFooterActions = showMenuBar && isAssistantMessage && !simplified
+  const showUserFooterActions =
+    showMenuBar && !isAssistantMessage && !isMultiSelectMode && !isUserBubbleMessage && !simplified
   const keepAssistantFooterVisible = isLatestAssistantMessage || isMessageMenuOpen
   const assistantFooterVisibilityClass = keepAssistantFooterVisible
     ? 'opacity-100'
@@ -230,7 +233,12 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
       ) : (
         <div
           data-ui="part:message-content"
-          className={messageContentClassName}
+          className={cn(
+            messageContentClassName,
+            simplified &&
+              isAssistantMessage &&
+              'w-fit rounded-3xl bg-muted/60 px-4 py-3 empty:hidden [&_.markdown>p:last-child]:mb-0!'
+          )}
           style={{ ...messageContentStyle, overflowY: 'visible' }}>
           {messageBody}
         </div>
@@ -294,14 +302,17 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage,
           'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--border)]': isEditing,
-          'cursor-pointer': isMultiSelectMode
+          'cursor-pointer': isMultiSelectMode,
+          'focus-visible:inset-ring-1 focus-visible:inset-ring-ring': showContextMenu
         })
       )}
       aria-disabled={isEditing ? true : undefined}
+      tabIndex={showContextMenu ? 0 : undefined}
       ref={messageContainerRef}
       onClickCapture={handleMessageSelectClick}>
       {isUserBubbleMessage ? (
         <UserBubbleMessage
+          simplified={simplified}
           message={message}
           isLastMessage={isLastMessage}
           isGrouped={isGrouped}
@@ -322,6 +333,19 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           showModelIdentity={showModelIdentity}
           contentSlot={plainMessageContent}
           footerSlot={userFooter ?? assistantFooter}
+        />
+      )}
+      {showContextMenu && (
+        <MessageMenuBar
+          message={message}
+          isLastMessage={isLastMessage}
+          isAssistantMessage={isAssistantMessage}
+          isGrouped={isGrouped}
+          isProcessing={isProcessing}
+          messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+          onStartEditing={canStartEditing ? handleStartEditing : undefined}
+          onSelectContext={onSelectContext}
+          variant="context"
         />
       )}
     </div>
@@ -360,6 +384,7 @@ const UnsentMessageNotice: FC<{ message: MessageListItem }> = ({ message }) => {
 }
 
 const UserBubbleMessage = ({
+  simplified,
   message,
   isLastMessage,
   isGrouped,
@@ -371,6 +396,7 @@ const UserBubbleMessage = ({
   fontSize,
   isEditing
 }: {
+  simplified: boolean
   message: MessageListItem
   isLastMessage: boolean
   isGrouped?: boolean
@@ -415,7 +441,10 @@ const UserBubbleMessage = ({
         <div
           data-ui="part:message-content"
 
-          className="message-content-container mt-0 max-w-full rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!"
+          className={cn(
+            'message-content-container mt-0 max-w-full rounded-[10px] bg-muted px-4 py-2.5 empty:hidden has-[.code-block]:w-full [&_.block-wrapper:last-child>*:last-child]:mb-0! [&_.markdown>p:last-child]:mb-0!',
+            simplified && 'rounded-3xl text-foreground'
+          )}
           style={{
             fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
             fontSize,
@@ -427,7 +456,7 @@ const UserBubbleMessage = ({
         </div>
         <UnsentMessageNotice message={message} />
       </MessageUserLayout>
-      {!isEditing && (
+      {!isEditing && !simplified && (
         <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-xs leading-none text-foreground-tertiary">
           <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>
             <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>

@@ -267,6 +267,7 @@ export interface AnchorMessage {
 
 export interface MessageRenderConfig {
   subagentListTitle?: string
+  presentation?: 'standard' | 'simplified'
   userName: string
   narrowMode: boolean
   messageStyle: ChatMessageStyle

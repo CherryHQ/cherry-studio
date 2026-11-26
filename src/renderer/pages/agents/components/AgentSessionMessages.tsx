@@ -13,6 +13,7 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ProjectionReaderProvider } from '@renderer/hooks/agent/ProjectionReaderProvider'
 import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useSession } from '@renderer/hooks/agent/useSession'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { messageProjectionService } from '@renderer/services/aiTransport'
 import type { GetAgentResponse } from '@renderer/types/agent'
@@ -91,6 +92,7 @@ const AgentSessionMessages = ({
   respondToolApproval,
   navigateToForkSource
 }: Props) => {
+  const minimalMode = useMinimalMode()
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const streamTopicId = useAgentSessionStreamTopic(sessionId)
@@ -183,6 +185,7 @@ const AgentSessionMessages = ({
     respondToolApproval,
     navigateToForkSource,
     scrollToBottomOnSend: true,
+    presentation: minimalMode?.enabled && minimalMode.isHome ? 'simplified' : 'standard',
     messageNavigation,
     workspacePath: workspacePath ?? session?.workspace?.path,
     messageTail,
