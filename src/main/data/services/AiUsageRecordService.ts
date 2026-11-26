@@ -1433,10 +1433,10 @@ export class AiUsageRecordService {
     return getMessageUsageProjectionTx(application.get('DbService').getDb(), ref)
   }
 
-  refreshMessageProjection(ref: MessageRef): void {
+  refreshMessageProjection(ref: MessageRef, { publishDataChange = true } = {}): void {
     try {
       const rebuilt = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
-      if (rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
+      if (publishDataChange && rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
     } catch (err) {
       logger.error('refreshMessageProjection failed', err as Error, ref)
     }

@@ -148,6 +148,7 @@ export function buildPathRegistry() {
 
     // Isolated preload for site `<webview>` guests. Local mini apps keep their capability bridge.
     'feature.webview.preload_file': path.join(app.getAppPath(), 'out/preload/webview.js'),
+    'feature.mcp.app_preload_file': path.join(app.getAppPath(), 'out/preload/mcpAppGuest.js'),
 
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
@@ -469,6 +470,7 @@ const NO_ENSURE = [
   'feature.pdfjs.cmaps',
   'feature.pdfjs.standard_fonts',
   'feature.webview.preload_file',
+  'feature.mcp.app_preload_file',
   'feature.code_cli.skills.builtin',
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
