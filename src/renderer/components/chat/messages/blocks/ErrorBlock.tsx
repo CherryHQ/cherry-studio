@@ -1,9 +1,10 @@
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
@@ -134,7 +135,10 @@ const MessageErrorInfo: React.FC<{
     useMessageListActions()
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
-  const [aiSummary, setAiSummary] = useState<string>('')
+  const [dataCollectionEnabled] = usePreference('app.privacy.data_collection.enabled')
+  const [aiSummary, setAiSummary] = useState('')
+  const [diagnosisError, setDiagnosisError] = useState('')
+  const [isDiagnosing, setIsDiagnosing] = useState(false)
 
   const errorMessage = error?.message ?? undefined
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
@@ -175,44 +179,32 @@ const MessageErrorInfo: React.FC<{
     t
   ])
 
-  useEffect(() => {
-    if (
-      claudeCodeExitCategory !== undefined ||
-      hasAppOwnedI18nKey ||
-      classification.category !== 'unknown' ||
-      !errorMessage ||
-      !error ||
-      !diagnoseMessageError
-    )
-      return
-    let cancelled = false
-    diagnoseMessageError({
-      message,
-      partId,
-      error,
-      language: i18n.language
-    })
-      .then((result) => {
-        const summary = typeof result === 'string' ? result : (result?.summary ?? '')
-        if (!cancelled && summary) setAiSummary(summary)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
+  const canDiagnose =
+    dataCollectionEnabled &&
+    claudeCodeExitCategory === undefined &&
+    !hasAppOwnedI18nKey &&
+    classification.category === 'unknown' &&
+    !!errorMessage &&
+    !!diagnoseMessageError
+
+  const onDiagnose = async (event: React.MouseEvent) => {
+    event.stopPropagation()
+    if (!canDiagnose || !error || !diagnoseMessageError || isDiagnosing) return
+
+    setIsDiagnosing(true)
+    setAiSummary('')
+    setDiagnosisError('')
+    try {
+      const result = await diagnoseMessageError({ message, partId, error, language: i18n.language })
+      setAiSummary(typeof result === 'string' ? result : (result?.summary ?? ''))
+    } catch (diagnosisFailure) {
+      setDiagnosisError(
+        diagnosisFailure instanceof Error ? diagnosisFailure.message : t('error.diagnosis.free_model_unavailable')
+      )
+    } finally {
+      setIsDiagnosing(false)
     }
-    // Intentionally exclude `error` from deps — its identity changes per render
-    // but the action input's scalar message/language fields are both stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    claudeCodeExitCategory,
-    classification.category,
-    diagnoseMessageError,
-    errorMessage,
-    hasAppOwnedI18nKey,
-    i18n.language,
-    message,
-    partId
-  ])
+  }
 
   const onRemoveErrorPart = useCallback(
     (e: React.MouseEvent) => {
@@ -277,7 +269,9 @@ const MessageErrorInfo: React.FC<{
         <div className="flex shrink-0 items-center justify-center text-error">
           <AlertTriangle size={15} className="lucide-custom" />
         </div>
-        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || localizedErrorMessage}</div>
+        <div className="pr-5 font-medium text-[13px] leading-[1.4]">
+          {(canDiagnose && aiSummary) || localizedErrorMessage}
+        </div>
       </div>
 
       {/* Description */}
@@ -287,8 +281,19 @@ const MessageErrorInfo: React.FC<{
         {cherryCloudQuotaText || <ErrorMessage error={error} category={classification.category} />}
       </div>
 
+      {canDiagnose && diagnosisError && (
+        <p role="status" className="mt-2 ml-5.75 text-xs text-muted-foreground">
+          {diagnosisError}
+        </p>
+      )}
+
       {/* Footer */}
       <div className="mt-2.5 ml-5.75 flex items-center gap-2">
+        {canDiagnose && (
+          <Button size="sm" type="button" variant="outline" disabled={isDiagnosing} onClick={onDiagnose}>
+            {t(isDiagnosing ? 'error.diagnosis.ai_loading' : 'error.diagnosis.ai_button')}
+          </Button>
+        )}
         {canNavigate && (
           <Button
             size="sm"

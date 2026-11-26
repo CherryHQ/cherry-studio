@@ -8,7 +8,7 @@ import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from 
 import { classNames } from '@renderer/utils/style'
 
 import { useMessageParts } from '../blocks/MessagePartsContext'
-import { useOptionalMessageCaptureLease } from '../list/MessageCaptureLeaseContext'
+import { useOptionalMessageMountLease } from '../list/MessageMountLeaseContext'
 import {
   useMessageListActions,
   useMessageListSelection,
@@ -62,7 +62,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
   const renderConfig = useMessageRenderConfig()
-  const messageCaptureLease = useOptionalMessageCaptureLease()
+  const messageMountLease = useOptionalMessageMountLease()
   const menuConfig = messageUi.menuConfig ?? defaultMessageMenuConfig
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const translateLanguages = useMemo(() => messageUi.translationLanguages ?? [], [messageUi.translationLanguages])
@@ -99,8 +99,8 @@ const MessageMenuBar: FC<Props> = (props) => {
       messageParts,
       messageForExport,
       messageContainerRef,
-      acquireMessageCaptureLease: messageCaptureLease?.acquireMessageCaptureLease,
-      getRenderedMessageElement: messageCaptureLease?.getRenderedMessageElement,
+      acquireMessageCaptureLease: messageMountLease?.acquireMessageMountLease,
+      getRenderedMessageElement: messageMountLease?.getRenderedMessageElement,
       mainTextContent,
       selection,
       menuConfig,
@@ -138,7 +138,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       menuConfig,
       message,
       messageContainerRef,
-      messageCaptureLease,
+      messageMountLease,
       messageUi.getTranslationLanguageLabel,
       messageUi.translationLanguagesStatus,
       messageForExport,
