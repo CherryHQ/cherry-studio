@@ -25,6 +25,19 @@ describe('computeScrollAnchor', () => {
     ).toBeNull()
   })
 
+  it('returns null when resting at the real bottom even in reading mode', () => {
+    expect(
+      computeScrollAnchor({
+        following: false,
+        atBottom: true,
+        scrollOffset: 1234,
+        topIndex: 4,
+        getKeyAtIndex: () => 'g4',
+        getOffsetAtIndex: () => 0
+      })
+    ).toBeNull()
+  })
+
   it('returns null when the top-most item is out of range', () => {
     expect(
       computeScrollAnchor({
@@ -246,5 +259,60 @@ describe('useScrollPositionMemory', () => {
 
     act(() => result.current.save())
     expect(cacheService.set).not.toHaveBeenCalled()
+  })
+
+  it('saves null when resting at the real bottom in reading mode and reopens at the latest turn', () => {
+    const { result, unmount } = renderHook(() => useScrollPositionMemory(buildInputs()))
+    flushRaf()
+    enterFollowingAfterRestore.mockClear()
+
+    // Simulate jumping to the last turn in reading mode (following=false),
+    // where scrollTop rests at realBottom while an earlier turn is at topIndex.
+    following = false
+    scroller.scrollTop = 599
+    handle.findItemIndex.mockReturnValue(1)
+    handle.getItemOffset.mockReturnValue(400)
+    act(() => result.current.save(true))
+
+    expect(cacheService.set).toHaveBeenCalledWith('chat.scroll_anchor.t1', null)
+
+    // Reopening the topic restores to the end in following mode rather than
+    // restoring an earlier top-of-viewport turn anchor.
+    unmount()
+    renderHook(() => useScrollPositionMemory(buildInputs()))
+    flushRaf()
+
+    expect(handle.scrollToIndex).toHaveBeenCalledWith(2, { align: 'end', offset: 24 })
+    expect(enterFollowingAfterRestore).toHaveBeenCalledTimes(1)
+    expect(enterReadingForRestore).not.toHaveBeenCalled()
+  })
+
+  it('respects getBottomInset when deciding whether reading mode rests at the real bottom', () => {
+    // Freeze spacer adds 120px below the real bottom (effective bottom = 1000 - 120 - 400 = 480).
+    const { result } = renderHook(() => useScrollPositionMemory(buildInputs({ getBottomInset: () => 120 })))
+    flushRaf()
+
+    following = false
+    scroller.scrollTop = 480
+    handle.findItemIndex.mockReturnValue(1)
+    handle.getItemOffset.mockReturnValue(350)
+    act(() => result.current.save(true))
+
+    expect(cacheService.set).toHaveBeenCalledWith('chat.scroll_anchor.t1', null)
+  })
+
+  it('saves null in reading mode when content fits inside a measured viewport (realBottom === 0)', () => {
+    const { result } = renderHook(() => useScrollPositionMemory(buildInputs()))
+    flushRaf()
+
+    following = false
+    scroller.scrollHeight = 300
+    scroller.clientHeight = 400
+    scroller.scrollTop = 0
+    handle.findItemIndex.mockReturnValue(0)
+    handle.getItemOffset.mockReturnValue(0)
+    act(() => result.current.save(true))
+
+    expect(cacheService.set).toHaveBeenCalledWith('chat.scroll_anchor.t1', null)
   })
 })

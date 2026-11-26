@@ -741,7 +741,8 @@ export function useChatVirtualizerRuntime<T>({
     enterFollowingAfterRestore,
     enterReadingForRestore,
     settleReadingRestore,
-    isAnimating: smoothScroll.isAnimating
+    isAnimating: smoothScroll.isAnimating,
+    getBottomInset: () => bottomFollowInsetRef.current
   })
 
   // ---- ResizeObserver: viewport freeze + auto-stick --------------------
@@ -1056,6 +1057,7 @@ export function useChatVirtualizerRuntime<T>({
         if (!readNavigationActiveRef.current) return
         readNavigationActiveRef.current = false
         takeUserControl('navigation', getPreferredAnchor?.() ?? null)
+        saveScrollPosition(true)
       }
 
       if (behavior === 'smooth') {
@@ -1068,9 +1070,17 @@ export function useChatVirtualizerRuntime<T>({
         }
         el.scrollTop = target
         takeUserControl('navigation', getPreferredAnchor?.() ?? null)
+        saveScrollPosition(true)
       }
     },
-    [clampToReachable, prepareReadingNavigation, smoothScroll, suppressNextAutoscrollConfirm, takeUserControl]
+    [
+      clampToReachable,
+      prepareReadingNavigation,
+      saveScrollPosition,
+      smoothScroll,
+      suppressNextAutoscrollConfirm,
+      takeUserControl
+    ]
   )
 
   const scrollToBottom = useCallback(() => {
