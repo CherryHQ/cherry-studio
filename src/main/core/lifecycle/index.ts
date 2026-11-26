@@ -11,6 +11,7 @@ export {
   type ConditionContext,
   type DependencyNode,
   type ErrorStrategy,
+  FatalStartupError,
   type LifecycleEvent,
   type LifecycleEventPayload,
   LifecycleEvents,

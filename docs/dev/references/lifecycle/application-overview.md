@@ -61,7 +61,7 @@ setupQuitHandlers()                      ← before-quit (preventQuit gate) + wi
             └── allReady()               ← notify all services the system is fully ready
 ```
 
-If a `fail-fast` service throws during bootstrap, a dialog is shown offering Exit or Restart.
+If a `fail-fast` service throws during bootstrap, a dialog generally offers Exit or Restart. If the database has a migration newer than this build bundles, the dialog prompts the user to update Cherry Studio and offers Quit.
 
 ## Shutdown Flow
 

@@ -1,3 +1,5 @@
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+
 /**
  * Bootstrap phase enumeration
  * Determines when a service should be initialized relative to app.whenReady()
@@ -86,6 +88,17 @@ export interface TeardownSummary {
  * Error handling strategy for lifecycle operations
  */
 export type ErrorStrategy = 'fail-fast' | 'graceful' | 'custom'
+
+/** A startup failure with localized user guidance for which restarting cannot help. */
+export class FatalStartupError extends Error {
+  constructor(
+    message: string,
+    public readonly localize: (language: LanguageVarious) => string
+  ) {
+    super(message)
+    this.name = 'FatalStartupError'
+  }
+}
 
 /**
  * Error thrown when a fail-fast service fails to initialize.
