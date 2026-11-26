@@ -1,10 +1,15 @@
 name: E2E Regression Test
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('E2E Regression · {0} · {1}{2}', inputs.ref, inputs.task, inputs.op_id != '' && format(' [op:{0}]', inputs.op_id) || '') || format('E2E Regression (scheduled) {0}', github.sha) }}
 
 on:
   schedule:
     - cron: "45 19 * * *" # 03:45 BJ Time — daily full regression on main
   workflow_dispatch:
     inputs:
+      op_id:
+        description: "Optional dispatch correlation id, 16 lowercase hex chars; echoed as a trailing [op:<id>] run-title marker"
+        type: string
+        default: ""
       ref:
         description: "Branch in this repository or a v* release tag to test"
         required: true
@@ -22,6 +27,9 @@ on:
         description: "Desktop regression modules or focused tasks (all = full regression)"
         required: true
         default: "all"
+        type: string
+      smoke_specs:
+        description: "Comma-separated smoke spec names without .test.ts (blank = all)"
         type: string
 permissions:
   contents: read
@@ -44,6 +52,16 @@ jobs:
       prepare_mcp: ${{ steps.suite.outputs.prepare_mcp }}
       smoke: ${{ steps.suite.outputs.smoke }}
     steps:
+      - name: Validate dispatch correlation id
+        if: github.event_name == 'workflow_dispatch' && inputs.op_id != ''
+        shell: bash
+        env:
+          QA_OP_ID: ${{ inputs.op_id }}
+        run: |
+          if ! [[ "$QA_OP_ID" =~ ^[0-9a-f]{16}$ ]]; then
+            echo "op_id must be 16 lowercase hex characters" >&2
+            exit 1
+          fi
       - &checkout-controller
         name: Checkout workflow controller
         uses: actions/checkout@v7
@@ -728,13 +746,23 @@ jobs:
         shell: bash
         working-directory: target-app
         env:
+          SMOKE_SPECS: ${{ inputs.smoke_specs }}
           PLAYWRIGHT_HTML_OUTPUT_DIR: ${{ runner.temp }}/cherry-regression/report/smoke
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/cherry-regression/report/smoke-results.json
           PLAYWRIGHT_HTML_OPEN: never
         run: |
           export E2E_RIPGREP_BIN="$(node -e 'process.stdout.write(require("node:path").resolve("resources/binaries", `${process.platform}-${process.arch}`, process.platform === "win32" ? "rg.exe" : "rg"))')"
+          filters=()
+          if [[ -n "$SMOKE_SPECS" ]]; then
+            [[ "$SMOKE_SPECS" =~ ^[a-zA-Z0-9-]+(,[a-zA-Z0-9-]+)*$ ]] || { echo "Invalid smoke spec list"; exit 1; }
+            IFS=, read -ra specs <<< "$SMOKE_SPECS"
+            for spec in "${specs[@]}"; do
+              [[ -f "$GITHUB_WORKSPACE/tests/e2e/smoke/$spec.test.ts" ]] || { echo "Unknown smoke spec: $spec"; exit 1; }
+              filters+=('(^|[/\\])'"$spec"'[.]test[.]ts$')
+            done
+          fi
           node "$GITHUB_WORKSPACE/node_modules/@playwright/test/cli.js" test --config "$GITHUB_WORKSPACE/playwright.config.ts" \
-            --output "$RUN_DIR/evidence/smoke" --reporter=html,json --retries=0
+            --output "$RUN_DIR/evidence/smoke" --reporter=html,json --retries=0 "${filters[@]}"
 
       - name: Upload standalone smoke report and evidence
         if: always() && (steps.smoke.outcome == 'success' || steps.smoke.outcome == 'failure')

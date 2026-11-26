@@ -247,6 +247,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
         selectionRef.current = { start: draft.text.length, end: draft.text.length }
         props.onTextChange(draft.text)
         updateTokens(draft.tokens)
+        return true
       },
       toggleExpanded: (expanded) => props.onExpandedChange(expanded ?? !props.isExpanded),
       removeToken: (tokenId) => updateTokens((props.draftTokens ?? []).filter((token) => token.id !== tokenId)),

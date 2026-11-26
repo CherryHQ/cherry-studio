@@ -3,6 +3,8 @@ import type { Editor } from '@tiptap/core'
 import { Selection, TextSelection } from '@tiptap/pm/state'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ activeCodeTheme: 'one-light' })
 }))
@@ -171,25 +173,34 @@ describe('useRichEditor markdown paste', () => {
     expect(nodeTypes).toContain('codeBlock')
   })
 
-  // Notes rely on this: they hide the image command but keep paste, and the pinned `manual` cleanup
-  // policy is what makes writing into the user's notes folder safe.
-  it('persists a pasted image as a pinned entry when image insertion is enabled', async () => {
+  it.each([
+    ['/tmp/notes with spaces/paste #1.png', 'file:///tmp/notes%20with%20spaces/paste%20%231.png'],
+    ['/tmp/notes )private/paste.png', 'file:///tmp/notes%20%29private/paste.png'],
+    ['C:\\Notes Folder\\paste #1.png', 'file:///C:/Notes%20Folder/paste%20%231.png']
+  ])('reopens a pasted managed image stored at %s', async (path, url) => {
     vi.mocked(window.api.file.createInternalEntry).mockResolvedValue({
       id: 'entry-1',
       name: 'Pasted Image',
       ext: 'png'
     } as never)
-    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValue('/tmp/pasted.png' as never)
+    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValue(AbsoluteFilePathSchema.parse(path))
 
-    const { result } = renderHook(() => useRichEditor({ initialContent: '', autoFocus: false }))
+    const onChange = vi.fn<(markdown: string) => void>()
+    const { result, unmount } = renderHook(() => useRichEditor({ initialContent: '', autoFocus: false, onChange }))
 
     await act(async () => {
-      pasteImage(getEditor(result))
+      const editor = getEditor(result)
+      editor.view.dom.dispatchEvent(new FocusEvent('focus'))
+      pasteImage(editor)
     })
-    // The paste is only observable once the whole async persist chain settles; letting it straddle
-    // the end of the test would land the call on the next test's spy.
-    await waitFor(() => expect(countImageNodes(getEditor(result))).toBe(1))
+    await waitFor(() => expect(onChange.mock.lastCall?.[0]).toContain(url))
+    const savedMarkdown = onChange.mock.lastCall![0]
+    unmount()
 
+    const reopened = renderHook(() => useRichEditor({ initialContent: savedMarkdown, autoFocus: false }))
+    expect(getEditor(reopened.result).getJSON().content).toContainEqual(
+      expect.objectContaining({ type: 'image', attrs: expect.objectContaining({ src: url }) })
+    )
     expect(window.api.file.createInternalEntry).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'bytes', cleanupPolicy: 'manual' })
     )

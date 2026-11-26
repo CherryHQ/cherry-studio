@@ -51,6 +51,7 @@ import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
+import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
@@ -96,6 +97,7 @@ import type { ComposerInputFilePreviewAction } from '../filePreview'
 import { createComposerFolderToken } from '../folderToken'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { NotificationPrimingBanner } from '../NotificationPrimingBanner'
+import { NativeQueuedFollowups } from '../NativeQueuedFollowups'
 import { ProviderQuotaNotice } from '../ProviderQuotaNotice'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -187,6 +189,7 @@ export interface AgentComposerSendBody {
   reasoningEffort?: ThinkingOption
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
+  followUp?: boolean
 }
 
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
@@ -650,6 +653,16 @@ const AgentComposerInner = ({
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
+  const requestCommands = useCallback(() => {
+    if (agent?.type === 'claude-code' && sessionId)
+      void ipcApi
+        .request('ai.agent.session.commands', { sessionId })
+        .catch((error) => logger.warn('Could not load session commands', { error }))
+  }, [agent?.type, sessionId])
+  const usingSlash = text.startsWith('/')
+  useEffect(() => {
+    if (usingSlash) requestCommands()
+  }, [usingSlash, requestCommands])
   const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
   const nativeFollowUp = !!agent && AGENT_RUNTIME_CAPABILITIES[agent.type].nativeFollowUp
   const [isDirectSending, setIsDirectSending] = useState(false)
@@ -1084,7 +1097,7 @@ const AgentComposerInner = ({
     })
   }, [refreshAvailableSkills])
 
-  useComposerQuoteInsertion(actionsRef)
+  useComposerQuoteInsertion(actionsRef, sessionTopicId, !launchOptions?.editing)
   useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
   useComposerPrefill(actionsRef, {
     topicId: sessionTopicId,
@@ -1448,7 +1461,8 @@ const AgentComposerInner = ({
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
-  const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(sessionTopicId)
+  const runtimeTopicId = useAgentSessionStreamTopic(sessionId)
+  const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(runtimeTopicId)
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
@@ -1653,7 +1667,10 @@ const AgentComposerInner = ({
         id: 'slash-commands',
         label: slashCommandsLabel,
         icon: <Terminal size={18} aria-hidden />,
-        onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+        onSelect: ({ unifiedPanelControl }) => {
+          requestCommands()
+          unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+        }
       },
       {
         id: ComposerPanelSymbol.McpStatus,
@@ -1664,7 +1681,15 @@ const AgentComposerInner = ({
           unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }
     ]
-  }, [handleCreateEmptySession, hasNewSessionAction, mcpToolbarActive, screenshotEnabled, startScreenshot, t])
+  }, [
+    handleCreateEmptySession,
+    hasNewSessionAction,
+    mcpToolbarActive,
+    requestCommands,
+    screenshotEnabled,
+    startScreenshot,
+    t
+  ])
 
   const renderQuickPanelShortcuts = useCallback(
     ({
@@ -1804,6 +1829,9 @@ const AgentComposerInner = ({
                   description={compaction.error}
                 />
               )}
+              {nativeFollowUp && !launchOptions?.editing ? (
+                <NativeQueuedFollowups key={runtimeTopicId} topicId={runtimeTopicId} />
+              ) : null}
               {queuedFollowups.length > 0 ? (
                 <QueuedFollowupsDock
                   items={queuedFollowups}
