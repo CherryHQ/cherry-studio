@@ -166,6 +166,7 @@ describe('durable publication filesystem failures', () => {
         actual.linkSync(source, destination)
       })
     const root = await prepareDurableRoot(contextId)
+    if ('status' in root) throw new Error(root.reason)
     await root.storage.close(BACKGROUND_CONTEXT)
     await markedStore()
     preservedAside()

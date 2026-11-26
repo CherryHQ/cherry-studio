@@ -1078,15 +1078,27 @@ export class AgentSessionMessageService {
     this.assertActiveSession(tx, sessionId)
     const row = this.findExistingMessageRow(tx, sessionId, messageId)
     if (!row || row.role !== 'user') throw new Error('Input binding requires a retained user message')
-    const context = tx
-      .select({ sessionId: agentSessionContextTable.sessionId })
-      .from(agentSessionContextTable)
-      .where(eq(agentSessionContextTable.id, contextId))
-      .get()
-    if (context?.sessionId !== sessionId) throw new Error('Input context does not belong to this session')
-    if (row.inputContextId) throw new Error('Message already bound; create a new input')
+    const context = tx.select().from(agentSessionContextTable).where(eq(agentSessionContextTable.id, contextId)).get()
+    if (!context?.anchorMessageId || context.sessionId !== sessionId)
+      throw new Error('Input context is unavailable for this session')
+    if (row.inputContextId) {
+      const previous = tx
+        .select()
+        .from(agentSessionContextTable)
+        .where(eq(agentSessionContextTable.id, row.inputContextId))
+        .get()
+      if (!context.checkpointMapping?.referenceHistory || previous?.anchorMessageId || previous?.parentContextId)
+        throw new Error('Message already bound; create a new input')
+    }
     tx.update(sessionMessagesTable)
-      .set({ inputContextId: contextId })
+      .set({
+        inputContextId: contextId,
+        nativeInputId: null,
+        data:
+          row.inputContextId && row.data.locallyHandled
+            ? sql`json_remove(${sessionMessagesTable.data}, '$.locallyHandled')`
+            : undefined
+      })
       .where(eq(sessionMessagesTable.id, messageId))
       .run()
     return row
@@ -2344,7 +2356,11 @@ export class AgentSessionMessageService {
 
   getLastRuntimeResumeToken(sessionId: string, messageId?: string): string | null {
     const db = application.get('DbService').getDb()
-    const path = this.nativePath(sessionId, messageId)
+    const head = messageId ?? getAgentSessionHead(db, sessionId)
+    const context = head && agentSessionContextService.branchTx(db, sessionId, head)
+    if (context && context.checkpointMapping?.referenceHistory)
+      return context.bindingState === 'bound' ? context.nativeThreadId : null
+    const path = this.nativePath(sessionId, head ?? undefined)
     for (const row of path.toReversed()) {
       if (row.runtimeResumeToken) return row.runtimeResumeToken
       if (row.nativeSessionId) {

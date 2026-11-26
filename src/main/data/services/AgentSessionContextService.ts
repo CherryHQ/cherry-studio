@@ -1,6 +1,7 @@
 import path from 'node:path'
 
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { v4 as uuid } from 'uuid'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -123,7 +124,14 @@ class AgentSessionContextService {
       .select({ context: contexts })
       .from(contexts)
       .innerJoin(sessions, eq(sessions.id, contexts.sessionId))
-      .where(and(eq(contexts.backendId, backendId), isNull(contexts.parentContextId), isNull(sessions.deletedAt)))
+      .where(
+        and(
+          eq(contexts.backendId, backendId),
+          isNull(contexts.parentContextId),
+          isNotNull(contexts.anchorMessageId),
+          isNull(sessions.deletedAt)
+        )
+      )
       .all()
       .map((row) => row.context)
   }
@@ -269,6 +277,31 @@ class AgentSessionContextService {
       WHERE c.session_id = ${sessionId} AND c.anchor_message_id = path.id LIMIT 1
     `)
     return anchor && tx.select().from(contexts).where(eq(contexts.id, anchor.id)).get()
+  }
+
+  detachBranchTx(tx: DbOrTx, contextId: string): void {
+    // Retain the context row for historical input and child archive references.
+    tx.update(contexts)
+      .set({ anchorMessageId: null, nativeThreadId: null, bindingState: 'pending', updatedAt: Date.now() })
+      .where(eq(contexts.id, contextId))
+      .run()
+  }
+
+  rebuildFileBranch(context: AgentSessionContextRow): AgentSessionContextRow {
+    return application.get('DbService').withWriteTx((tx) => {
+      const anchorMessageId = context.anchorMessageId!
+      const current = this.branchTx(tx, context.sessionId, anchorMessageId)
+      if (!current) throw new Error('The branch no longer exists')
+      if (current.id !== context.id) return current
+      this.detachBranchTx(tx, context.id)
+      return this.reserveBranchTx(tx, {
+        sessionId: context.sessionId,
+        backendId: context.backendId,
+        anchorMessageId,
+        nativeThreadId: uuid(),
+        checkpointMapping: { referenceHistory: true }
+      })
+    })
   }
 
   publishBranchTx(tx: DbOrTx, sessionId: string, nativeId: string, checkpointMapping: Record<string, unknown>): void {
