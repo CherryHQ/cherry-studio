@@ -543,5 +543,47 @@ describe('ShortcutService', () => {
       expect(event.preventDefault).not.toHaveBeenCalled()
       expect(commandServiceMock.execute).not.toHaveBeenCalled()
     })
+
+    it('restores the previous binding when an Alt+Space replacement is rejected', async () => {
+      stubWindows()
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+        binding: ['Alt', 'A'],
+        enabled: true
+      })
+
+      await (service as any).onInit()
+
+      expect(globalShortcutMock.register).toHaveBeenCalledWith('Alt+A', expect.any(Function))
+
+      // Alt+Space is held by another app; the replacement must not stick.
+      globalShortcutMock.register.mockImplementation((accelerator: string) => accelerator !== 'Alt+Space')
+      windowManagerMock.broadcastToType.mockClear()
+      globalShortcutMock.register.mockClear()
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+        binding: ['Alt', 'Space'],
+        enabled: true
+      })
+
+      // The failed save reports a conflict, then the service restores the
+      // previous working preference on a microtask.
+      expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith(
+        WindowType.Main,
+        IpcChannel.Shortcut_RegistrationConflict,
+        {
+          key: 'shortcut.app.window.show',
+          accelerator: 'Alt+Space',
+          hasConflict: true
+        }
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('shortcut.app.window.show')).toEqual({
+        binding: ['Alt', 'A'],
+        enabled: true
+      })
+      expect(globalShortcutMock.register).toHaveBeenCalledWith('Alt+A', expect.any(Function))
+    })
   })
 })

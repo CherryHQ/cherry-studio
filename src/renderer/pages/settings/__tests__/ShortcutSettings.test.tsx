@@ -556,6 +556,41 @@ describe('ShortcutSettings shortcut recorder', () => {
       expect(shortcutsMock.updatePreference).not.toHaveBeenCalled()
     })
 
+    it('still records Shift+Tab as a shortcut instead of moving focus', async () => {
+      shortcutsMock.shortcuts = [makeShowAppShortcut()]
+      renderShortcutSettings()
+
+      fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+      const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
+
+      fireEvent.keyDown(recorder, { key: 'Tab', code: 'Tab', shiftKey: true, bubbles: true })
+
+      await waitFor(() => {
+        expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.window.show', {
+          binding: ['Shift', 'Tab'],
+          enabled: true
+        })
+      })
+    })
+
+    it('closes the editor when focus leaves both the recorder and the assignment button', () => {
+      shortcutsMock.shortcuts = [makeShowAppShortcut()]
+      renderShortcutSettings()
+
+      fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+      const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
+      const assignButton = screen.getByRole('button', { name: 'settings.shortcuts.use_alt_space' })
+
+      // Tabbing from the recorder to the assignment button keeps editing open.
+      fireEvent.blur(recorder, { relatedTarget: assignButton })
+      expect(screen.getByRole('button', { name: 'settings.shortcuts.use_alt_space' })).toBeInTheDocument()
+
+      // Tabbing past the assignment button closes the editor.
+      fireEvent.blur(assignButton, { relatedTarget: document.body })
+
+      expect(screen.queryByRole('button', { name: 'settings.shortcuts.use_alt_space' })).not.toBeInTheDocument()
+    })
+
     it('still records modified keys such as Ctrl+Shift+K', async () => {
       shortcutsMock.shortcuts = [makeShowAppShortcut()]
       renderShortcutSettings()

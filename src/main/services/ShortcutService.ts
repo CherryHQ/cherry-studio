@@ -76,6 +76,8 @@ export class ShortcutService extends BaseService {
   private guestInputCleanups = new Map<WebContents, () => void>()
   private conflictedKeys = new Set<CommandShortcutPreferenceKey<CommandId>>()
   private registeredAccelerators = new Map<string, RegisteredShortcut>()
+  private lastGoodPreferences = new Map<CommandShortcutPreferenceKey<CommandId>, PreferenceShortcutType>()
+  private pendingReverts = new Set<CommandShortcutPreferenceKey<CommandId>>()
 
   protected async onInit() {
     this.registerBuiltInHandlers()
@@ -246,6 +248,7 @@ export class ShortcutService extends BaseService {
       return toContextValue(preferenceService.get(key as PreferenceKeyType))
     }
 
+    const currentPrefs = new Map<CommandShortcutPreferenceKey<CommandId>, PreferenceShortcutType | undefined>()
     for (const rule of globalKeybindings) {
       const command = findCommandDefinition(rule.command)
       if (!command || !evaluateContextExpr(command.enablement, context)) {
@@ -253,6 +256,11 @@ export class ShortcutService extends BaseService {
       }
 
       const rawPref = preferenceService.get(rule.preferenceKey) as PreferenceShortcutType | undefined
+      currentPrefs.set(
+        rule.preferenceKey,
+        rawPref ? { binding: [...rawPref.binding], enabled: rawPref.enabled } : rawPref
+      )
+
       const resolved = resolveCommandKeybinding({
         command: rule.command,
         preference: rawPref,
@@ -298,7 +306,10 @@ export class ShortcutService extends BaseService {
       }
     }
 
-    // Register new or changed shortcuts
+    // Register new or changed shortcuts, tracking per-key failures so a rejected
+    // replacement can restore the previous working preference instead of leaving
+    // a dead binding saved.
+    const failedKeys = new Set<CommandShortcutPreferenceKey<CommandId>>()
     for (const [accelerator, { key, handler, window: win }] of desired) {
       if (!this.registeredAccelerators.has(accelerator)) {
         try {
@@ -316,12 +327,65 @@ export class ShortcutService extends BaseService {
           } else {
             logger.warn(`Failed to register shortcut ${accelerator}: accelerator is held by another application`)
             this.markRegistrationConflict(key, accelerator)
+            failedKeys.add(key)
           }
         } catch (error) {
           logger.error(`Failed to register shortcut ${accelerator}`, error as Error)
           this.markRegistrationConflict(key, accelerator)
+          failedKeys.add(key)
         }
       }
+    }
+
+    for (const [key, current] of currentPrefs) {
+      if (failedKeys.has(key)) {
+        this.revertFailedReplacement(key, current)
+      } else {
+        if (current) {
+          this.lastGoodPreferences.set(key, { binding: [...current.binding], enabled: current.enabled })
+        } else {
+          this.lastGoodPreferences.delete(key)
+        }
+        this.pendingReverts.delete(key)
+      }
+    }
+  }
+
+  private isSameShortcutPreference(
+    a: PreferenceShortcutType | undefined,
+    b: PreferenceShortcutType | undefined
+  ): boolean {
+    if (!a || !b) return a === b
+    return (
+      a.enabled === b.enabled && a.binding.length === b.binding.length && a.binding.every((v, i) => v === b.binding[i])
+    )
+  }
+
+  /**
+   * Restores the last successfully registered preference when a replacement
+   * accelerator is rejected (e.g. Alt+Space held by another app). Without this,
+   * the failed binding stays saved while the previous working binding (e.g.
+   * Alt+A) is already unregistered, leaving a shortcut that does nothing.
+   */
+  private revertFailedReplacement(
+    key: CommandShortcutPreferenceKey<CommandId>,
+    current: PreferenceShortcutType | undefined
+  ): void {
+    const lastGood = this.lastGoodPreferences.get(key)
+    if (!lastGood || !current || this.isSameShortcutPreference(current, lastGood)) return
+    if (this.pendingReverts.has(key)) return
+    this.pendingReverts.add(key)
+    try {
+      const preferenceService = application.get('PreferenceService')
+      void Promise.resolve()
+        .then(() => preferenceService.set(key, { binding: [...lastGood.binding], enabled: lastGood.enabled }))
+        .catch((error) => {
+          logger.error(`Failed to restore previous shortcut preference for ${key}`, error as Error)
+          this.pendingReverts.delete(key)
+        })
+    } catch (error) {
+      logger.error(`Failed to restore previous shortcut preference for ${key}`, error as Error)
+      this.pendingReverts.delete(key)
     }
   }
 
@@ -345,6 +409,8 @@ export class ShortcutService extends BaseService {
     this.mainWindow = null
     this.registeredWindows.clear()
     this.conflictedKeys.clear()
+    this.lastGoodPreferences.clear()
+    this.pendingReverts.clear()
   }
 
   private markRegistrationConflict(key: CommandShortcutPreferenceKey<CommandId>, accelerator: string): void {

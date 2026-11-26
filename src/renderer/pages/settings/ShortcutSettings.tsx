@@ -362,11 +362,18 @@ const ShortcutSettings: FC = () => {
   }
 
   const handleKeyDown = async (event: ReactKeyboardEvent, record: (typeof shortcuts)[number]) => {
-    // Let bare Tab (or Shift+Tab) move focus so keyboard users can reach the
-    // manual Alt+Space button. Bare Tab is never a valid shortcut (it requires
-    // a modifier), so this removes no recordable combination; modified Tab
-    // such as Ctrl+Tab still falls through to recording.
-    if ((event.key === 'Tab' || event.code === 'Tab') && !event.ctrlKey && !event.altKey && !event.metaKey) {
+    // Let bare Tab move focus so keyboard users can reach the manual
+    // Alt+Space button. Bare Tab is never a valid shortcut (it requires a
+    // modifier), so this removes no recordable combination; Shift+Tab stays
+    // recordable (['Shift', 'Tab']) and modified Tab such as Ctrl+Tab still
+    // falls through to recording.
+    if (
+      (event.key === 'Tab' || event.code === 'Tab') &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.metaKey &&
+      !event.shiftKey
+    ) {
       return
     }
 
@@ -534,7 +541,7 @@ const ShortcutSettings: FC = () => {
             type="button"
             variant="ghost"
             className={cn(
-              'h-8 w-36 rounded-lg border-border-subtle bg-background text-center text-sm',
+              'shortcut-recorder-btn h-8 w-36 rounded-lg border-border-subtle bg-background text-center text-sm',
               !pendingDisplay && 'text-muted-foreground',
               hasConflict && 'border-error-border focus-visible:border-error-border'
             )}
@@ -565,6 +572,16 @@ const ShortcutSettings: FC = () => {
                 size="sm"
                 className="shortcut-alt-space-btn h-7 px-2 text-xs shadow-none"
                 onMouseDown={(event) => event.preventDefault()}
+                onBlur={(event) => {
+                  // Tabbing past the assignment button leaves both editing
+                  // controls, so close the editor. Stay open when focus moves
+                  // back to the recorder (Shift+Tab) or stays on the button.
+                  const next = event.relatedTarget as HTMLElement | null
+                  if (next?.closest('.shortcut-recorder-btn, .shortcut-alt-space-btn')) {
+                    return
+                  }
+                  clearEditingState()
+                }}
                 onClick={() => handleUseAltSpace(record)}>
                 {t('settings.shortcuts.use_alt_space')}
               </Button>
