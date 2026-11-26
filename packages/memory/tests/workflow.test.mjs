@@ -4,7 +4,7 @@ import test from 'node:test'
 import { createMemoryEngine, createMemorySearchTurn } from '../dist/index.mjs'
 import { engineHost } from './engine-host.mjs'
 
-test('an admitted batch is saved, organized, recalled, cleared and recovered', async () => {
+void test('an admitted batch is saved, organized, recalled, cleared and recovered', async () => {
   let { engine, session, ports, access, approve } = engineHost()
   const read = await session.read('MEMORY.md')
   await session.commit([{ kind: 'write', receipt: read.receipt, content: 'seed' }], async (changes) => {

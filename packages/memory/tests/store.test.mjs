@@ -4,7 +4,7 @@ import test from 'node:test'
 import { MemoryStore } from '../dist/index.mjs'
 import { fixture } from './host.mjs'
 
-test('a rejected final authorization leaves original bytes intact', async () => {
+void test('a rejected final authorization leaves original bytes intact', async () => {
   const { store, files, approve, access } = fixture()
   const { receipt } = await store.read(access, 'MEMORY.md')
   await assert.rejects(
@@ -24,7 +24,7 @@ test('a rejected final authorization leaves original bytes intact', async () => 
   )
 })
 
-test('a fresh store recovers the committed part of a failed batch', async () => {
+void test('a fresh store recovers the committed part of a failed batch', async () => {
   const { store, storage, backup, files, approve, access } = fixture()
   const writes = await Promise.all(
     ['MEMORY.md', '.memories/topic.md'].map(async (path) => ({
@@ -48,7 +48,7 @@ test('a fresh store recovers the committed part of a failed batch', async () => 
   await restarted.recover(access, preview.token, approve)
   assert.equal(files.size, 0)
 })
-test('changing the file set during approval invalidates the exact proposal', async () => {
+void test('changing the file set during approval invalidates the exact proposal', async () => {
   const { store, access, files } = fixture()
   const { receipt } = await store.read(access, 'MEMORY.md')
   await assert.rejects(
