@@ -23,6 +23,11 @@ export function projectAgentTimeline(
       message.role === 'user' && message.timeline?.pos != null ? [{ pos: message.timeline.pos, index }] : []
     )
     .sort((a, b) => a.pos - b.pos)
+  const latestRunInputs = new Map<string, number>()
+  messages.forEach((message, index) => {
+    if (message.role === 'user' && message.timeline?.pos != null && message.timeline.replyId)
+      latestRunInputs.set(message.timeline.replyId, index)
+  })
   const old = new Map(previous.map((row) => [row.id, row]))
   const rows: { row: AgentTimelineRow; anchor: number; order: number }[] = []
   messages.forEach((message, index) => {
@@ -78,7 +83,7 @@ export function projectAgentTimeline(
     )
     if (message.metadata?.status === 'paused')
       rows.push({
-        anchor: groups.at(-1)?.anchor ?? index,
+        anchor: Math.max(groups.at(-1)?.anchor ?? index, latestRunInputs.get(message.id) ?? index),
         order: index,
         row: {
           id: `${message.id}:interrupted`,

@@ -56,9 +56,15 @@ export class AgentSessionForkService {
   readHistoryBoundaries(sessionId: string, messageIds: readonly string[]) {
     if (!messageIds.length) return []
     const db = application.get('DbService').getDb()
-    const active = agentSessionMessageService.readRunHistoryTx(db, sessionId)
+    const histories = [agentSessionMessageService.readRunHistoryTx(db, sessionId)]
     return messageIds.flatMap((id) => {
-      const resolved = active.inspect(id) ?? agentSessionMessageService.readRunHistoryTx(db, sessionId, id).inspect(id)
+      for (const history of histories) {
+        const resolved = history.inspect(id)
+        if (resolved) return [resolved]
+      }
+      const history = agentSessionMessageService.readRunHistoryTx(db, sessionId, id)
+      histories.push(history)
+      const resolved = history.inspect(id)
       return resolved ? [resolved] : []
     })
   }

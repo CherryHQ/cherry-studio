@@ -1410,11 +1410,13 @@ export class AgentSessionMessageService {
   ): SessionMessage[] | undefined {
     const plan = this.readRunHistoryTx(tx, sessionId, messageId).fork(messageId, excludedIds)
     if (!plan) return undefined
-    const rows = tx
-      .select()
-      .from(sessionMessagesTable)
-      .where(and(eq(sessionMessagesTable.sessionId, sessionId), inArray(sessionMessagesTable.id, [...plan.messageIds])))
-      .all()
+    const rows = chunk([...plan.messageIds], 500).flatMap((ids) =>
+      tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.sessionId, sessionId), inArray(sessionMessagesTable.id, ids)))
+        .all()
+    )
     const byId = new Map(rows.map((row) => [row.id, row]))
     const messages = hydrateAgentSessionMessageRowsTx(
       tx,

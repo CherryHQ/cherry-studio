@@ -1603,3 +1603,35 @@ it('publishes compaction progress and completion on one part without moving its 
   )
   expect(storedParts(f.reply.id)).toHaveLength(1)
 })
+
+it('persists a terminal compaction marker when closing and reopening during compaction', async () => {
+  const changes: AgentPartChange[] = []
+  const f = await fixture(undefined, false, 'pi-durable', 0, (change) => changes.push(change))
+  await f.emit({ type: 'run-started', inputIds: [f.user.id] })
+  await f.project([text('before-close', 'Before compaction')])
+  await f.emit({ type: 'compaction-start', trigger: 'manual' })
+  const added = changes.find((part) => part.type === 'part-add')!
+  if (added.type !== 'part-add') throw new Error('Missing compaction part')
+  await f.service.closeSession('root')
+  const result: StreamPausedResult = { status: 'paused', finalMessage: f.views.at(-1)! }
+  for (const listener of f.handle.listeners) await listener.onPaused(result)
+  const saved = messages.getSessionMessage('root', f.reply.id)
+  expect(saved.status).toBe('paused')
+  expect(saved.data.parts).toContainEqual(
+    expect.objectContaining({
+      type: 'data-compaction-anchor',
+      data: expect.objectContaining({ status: 'skipped' })
+    })
+  )
+  const reopened = new RootMessageProjection(f.context.id, { lastPos: messages.lastTimelinePosition('root') })
+  expect(reopened.replyEntries(f.reply.id)).toContainEqual(
+    expect.objectContaining({
+      partId: added.partId,
+      pos: added.placement?.pos,
+      payload: expect.objectContaining({
+        type: 'data-compaction-anchor',
+        data: expect.objectContaining({ status: 'skipped' })
+      })
+    })
+  )
+})

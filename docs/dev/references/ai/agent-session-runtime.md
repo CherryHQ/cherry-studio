@@ -374,12 +374,16 @@ stay in their original segment; a steer never cuts a string or moves a tool into
 Only the first visible content segment owns the Run identity header; subsequent segments keep their
 body and tool parents without repeating it. Boundary compaction parts are separate marker rows with
 no assistant header, action footer or selection checkbox. In-loop compaction remains inside its process
-group. A paused Run projects one stable interrupted marker from its persisted terminal status.
+group. A paused Run projects one stable interrupted marker from its persisted terminal status,
+after both its last content and its latest placed input. Unplaced queue inputs and
+inputs owned by other Runs do not move that marker.
 
 The segment layout selects stable part IDs from the shared projection reader. Text and tool progress
 continue through keyed part subscriptions; only new membership or a baseline changes the list projection.
 Compaction start and completion update one DataUIPart ID at one position. An unchanged or cancelled
 compaction settles that part as skipped; the marker does not become an assistant reply.
+When an interrupted or failed Run is persisted, any remaining busy compaction marker
+also settles as skipped with its existing part ID and position, including during close.
 
 A message page whose input references an older Run expands through that Run and its intervening
 inputs. Its cursor follows the expanded boundary. The requested limit bounds the initial window;

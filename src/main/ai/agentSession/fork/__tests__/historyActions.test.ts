@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -300,4 +300,32 @@ it('preserves fork actions for addressed rows when a sibling branch becomes acti
   expect(page.items.some((row) => row.id === left.id)).toBe(true)
   expect(readHistoryActions(sessionId, [left.id]).get(left.id)).toEqual(before)
   expect(before?.fork).toBeNull()
+})
+
+it('resolves a page of inactive-branch actions with a bounded number of database reads', () => {
+  const shared = user('Shared')
+  const selected = Array.from({ length: 50 }, (_, index) => {
+    user(`Left ${index}`)
+    return answer({ runtime: 'pi', runtimeSessionId: 'native', leafId: `left-${index}` }).id
+  })
+  const right = messages.saveMessage({
+    sessionId,
+    parentId: shared.id,
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'Right' }] } }
+  })
+  messages.selectBranch(sessionId, right.id)
+  const reads = vi.spyOn(dbh.sqlite, 'prepare')
+  try {
+    readHistoryActions(sessionId, selected.slice(0, 1))
+    const singleRowReads = reads.mock.calls.filter(([sql]) => /^select|^with/i.test(sql.trim())).length
+    reads.mockClear()
+    const actions = readHistoryActions(sessionId, selected)
+    expect(actions.size).toBe(50)
+    expect([...actions.values()].every((action) => action.fork === null)).toBe(true)
+    expect(reads.mock.calls.filter(([sql]) => /^select|^with/i.test(sql.trim())).length).toBeLessThanOrEqual(
+      singleRowReads + 2
+    )
+  } finally {
+    reads.mockRestore()
+  }
 })

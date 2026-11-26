@@ -136,3 +136,26 @@ it('preserves an existing content segment when a marker and a continuation arriv
   expect(rows.filter((row) => row.showHeader)).toHaveLength(1)
   expect(rows.at(-1)?.kind).toBe('interrupted')
 })
+
+it.each([true, false])('places interruption after the latest admitted input of its Run, content=%s', (hasContent) => {
+  const paused: CherryUIMessage = {
+    id: 'run',
+    role: 'assistant',
+    metadata: { status: 'paused' },
+    partIds: hasContent ? ['text'] : [],
+    partPositions: hasContent ? [2] : [],
+    parts: hasContent ? [{ type: 'text', text: 'Before steer', state: 'done' }] : []
+  }
+  const steer = { ...input('steer', 3), timeline: { pos: 3, replyId: 'run' } }
+  const queued = { ...input('queued'), timeline: { replyId: 'run' } }
+  const other = { ...input('other', 4), timeline: { pos: 4, replyId: 'other-run' } }
+  const rows = projectAgentTimeline([input('prompt', 1), paused, steer, queued, other], (message) => message)
+  expect(rows.map((row) => row.id)).toEqual([
+    'prompt',
+    ...(hasContent ? ['run'] : []),
+    'steer',
+    'run:interrupted',
+    'queued',
+    'other'
+  ])
+})

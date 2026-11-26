@@ -45,6 +45,9 @@ export function finalizeInterruptedParts(
   const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
   const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
   return parts.map((part) => {
+    if (part.type === 'data-compaction-anchor' && part.data.status === 'compacting')
+      return { ...part, data: { ...part.data, status: 'skipped' } }
+
     // A `text` part left `streaming` by a mid-response failure renders as a still-typing
     // cursor instead of the truncated sentence the user actually received.
     if (part.type === 'text') {

@@ -3920,6 +3920,32 @@ describe('AgentSessionMessageService', () => {
       expect(dbh.db.select().from(agentSessionToolOutputTable).all()).toEqual([])
     })
 
+    it('reads a fork prefix beyond the shipped SQLite bind limit in resolver order', () => {
+      const root = agentSessionMessageService.captureHead(SESSION_ID)
+      const ids = Array.from({ length: 32766 }, (_, index) => `large-prefix-${index}`)
+      dbh.db.transaction((tx) => {
+        for (let start = 0; start < ids.length; start += 500)
+          tx.insert(agentSessionMessageTable)
+            .values(
+              ids.slice(start, start + 500).map((id, offset) => ({
+                id,
+                sessionId: SESSION_ID,
+                parentId: ids[start + offset - 1] ?? root,
+                role: 'assistant',
+                status: 'success',
+                data: {}
+              }))
+            )
+            .run()
+        tx.update(agentSessionTable)
+          .set({ activeNodeId: ids.at(-1)! })
+          .where(eq(agentSessionTable.id, SESSION_ID))
+          .run()
+      })
+      const prefix = agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, ids.at(-1)!)!
+      expect(prefix.map((row) => row.id)).toEqual(ids)
+    }, 20000)
+
     it('forks an earlier boundary without decoding later archived tool results', () => {
       const earlier = agentSessionMessageService.saveMessage({
         sessionId: SESSION_ID,

@@ -46,6 +46,8 @@ without an admitted position are excluded; genuine positionless legacy history r
 Publication reconnects the retained rows into the child branch. The history resolver
 selects the prefix from metadata before loading its parts and archived tool results.
 An addressed nonactive branch uses its own history for action eligibility.
+An action page reuses each resolved branch across its rows. Prefix message reads
+are batched below the SQLite parameter limit and reassembled in resolver order.
 Confirmed native placement recovered after a missed live event remains admission
 evidence even when the recovered Run ends in error or pauses.
 
