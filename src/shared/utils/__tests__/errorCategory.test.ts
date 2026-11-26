@@ -598,3 +598,52 @@ describe('request body buffer limit', () => {
     expect(classifyErrorCategory({ text })).not.toBe('payload')
   })
 })
+
+describe('classifyErrorCategory AI SDK tool-input parse failures (#25237, #25401)', () => {
+  it.each([
+    'Invalid input for tool write: JSON parsing failed: Text: {"path": "/workspace/doc.md", "content": "# Heading\\nUnclosed',
+    'Invalid input for tool AskUserQuestion: JSON parsing failed: Text: {"questions": [{"description": "截断内容',
+    'Invalid input for tool write: JSON parsing failed.',
+    'Invalid input for tool write: Type validation failed: Value: {"path": 123}.\nError message: Expected string',
+    'JSON parsing failed: Text: {"partial": true'
+  ])('classifies tool-input parse wording as parse: %s', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('parse')
+    expect(classifyErrorCategory({ text, status: 200 })).toBe('parse')
+  })
+
+  it('keeps the tool-input parse diagnosis when embedded payload prose mentions other error keywords', () => {
+    const text =
+      'Invalid input for tool write: JSON parsing failed: Text: {"path": "/workspace/guide.md", "content": "# Safety, Network Timeout, Unauthorized, Forbidden, Rate Limit, Quota, OCR, Embedding'
+
+    expect(classifyErrorCategory({ text })).toBe('parse')
+  })
+
+  it('classifies a retry-prefixed tool-input parse failure as parse', () => {
+    const text =
+      'Failed after 2 attempts. Last error: Invalid input for tool write: JSON parsing failed: Text: {"content": "network timeout"'
+
+    expect(classifyErrorCategory({ text })).toBe('parse')
+  })
+
+  it.each([
+    [401, 'auth'],
+    [429, 'rate_limit'],
+    [500, 'server']
+  ] as const)('keeps structured HTTP %i ahead of tool-input parse wording', (status, category) => {
+    expect(
+      classifyErrorCategory({
+        status,
+        text: 'Invalid input for tool write: JSON parsing failed: Text: {"path": "/workspace/doc.md"'
+      })
+    ).toBe(category)
+  })
+
+  it('keeps a content-filter finish reason ahead of tool-input parse wording', () => {
+    expect(
+      classifyErrorCategory({
+        finishReason: 'safety',
+        text: 'Invalid input for tool write: JSON parsing failed: Text: {"path": "/workspace/doc.md"'
+      })
+    ).toBe('content')
+  })
+})

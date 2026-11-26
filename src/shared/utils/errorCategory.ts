@@ -141,6 +141,15 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
 
   const msg = (text ?? '').toLowerCase()
 
+  // AI SDK tool-input errors embed the raw model payload, whose text can match unrelated
+  // keywords ("safety", "timeout", "unauthorized"); classify the header before prose rules.
+  if (
+    (status === undefined || (status >= 200 && status < 300)) &&
+    /(?:^|[:\n]\s*)invalid input for tool [^\r\n:]+:\s*(?:json parsing failed|type validation failed)\b/.test(msg)
+  ) {
+    return 'parse'
+  }
+
   // Geo-block responses often use HTTP 403, so region signals must win over auth.
   if (
     msg.includes('unsupported_country') ||
@@ -408,6 +417,7 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     msg.includes('parse error') ||
     (!requestParseFailure && msg.includes('failed to parse')) ||
     msg.includes('json parse') ||
+    msg.includes('json parsing failed') ||
     msg.includes('invalid json') ||
     msg.includes('malformed json') ||
     msg.includes('invalid input: expected object, received undefined') ||

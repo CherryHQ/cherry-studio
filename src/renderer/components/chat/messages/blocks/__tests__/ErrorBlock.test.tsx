@@ -1121,4 +1121,50 @@ required service tier.`
     fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
+
+  // #25237 / #25401: AI SDK tool-input JSON parse failures must report an invalid AI response
+  // naming the tool and parse failure instead of blaming network/stream stability.
+  it.each([
+    {
+      language: 'en-US' as const,
+      toolName: 'write',
+      toolInput: '{"path": "/workspace/doc.md", "content": "# Private draft mentioning network timeout'
+    },
+    {
+      language: 'zh-CN' as const,
+      toolName: 'AskUserQuestion',
+      toolInput: '{"questions": [{"description": "私密草稿截断内容'
+    }
+  ])(
+    'renders parse diagnosis and safe tool failure detail for $toolName ($language)',
+    ({ language, toolName, toolInput }) => {
+      const catalog = language === 'en-US' ? enUS : zhCN
+      mocks.language = language
+      mocks.translations = new Map(Object.entries(catalog))
+
+      const { container } = render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{
+            name: 'AI_InvalidToolInputError',
+            message: `Invalid input for tool ${toolName}: JSON parsing failed: Text: ${toolInput}`,
+            toolName,
+            toolInput,
+            stack: null,
+            streamStage: 'response-stream'
+          }}
+          message={message}
+        />
+      )
+
+      expect(screen.getByText(catalog['error.diagnosis.parse'], { exact: true })).toBeInTheDocument()
+      expect(
+        screen.getByText(`Invalid input for tool ${toolName}: JSON parsing failed.`, { exact: true })
+      ).toBeInTheDocument()
+      expect(screen.queryByText(catalog['error.diagnosis.stream'], { exact: true })).not.toBeInTheDocument()
+      expect(screen.queryByText(catalog['error.diagnosis.network'], { exact: true })).not.toBeInTheDocument()
+      expect(screen.queryByText(catalog['error.diagnosis.go_to_settings'], { exact: true })).not.toBeInTheDocument()
+      expect(container).not.toHaveTextContent(toolInput)
+    }
+  )
 })

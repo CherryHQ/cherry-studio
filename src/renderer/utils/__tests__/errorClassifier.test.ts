@@ -1034,3 +1034,61 @@ describe('isUnattributedClaudeCodeExit', () => {
     expect(isUnattributedClaudeCodeExit()).toBe(false)
   })
 })
+
+describe('classifyError AI SDK tool-input parse failures (#25237, #25401)', () => {
+  it.each([
+    [
+      'serialized AI_InvalidToolInputError in response stream',
+      makeError({
+        name: 'AI_InvalidToolInputError',
+        message:
+          'Invalid input for tool write: JSON parsing failed: Text: {"path": "/workspace/doc.md", "content": "# Safety & Network Timeout',
+        cause: null,
+        toolName: 'write',
+        toolInput: '{"path": "/workspace/doc.md", "content": "# Safety & Network Timeout',
+        streamStage: 'response-stream'
+      })
+    ],
+    [
+      'serialized AI_InvalidToolInputError with custom cause wording in response stream',
+      makeError({
+        name: 'AI_InvalidToolInputError',
+        message: 'Invalid input for tool write: missing required path',
+        cause: null,
+        toolName: 'write',
+        toolInput: '{}',
+        streamStage: 'response-stream'
+      })
+    ],
+    [
+      'StreamError carrying tool-input parse diagnostic in response stream',
+      makeError({
+        name: 'StreamError',
+        message: 'Invalid input for tool AskUserQuestion: JSON parsing failed.',
+        streamStage: 'response-stream'
+      })
+    ],
+    [
+      'AI_ToolCallRepairError wrapping AI_InvalidToolInputError in response stream',
+      makeError({
+        name: 'AI_ToolCallRepairError',
+        message: 'Error repairing tool call: repair failed',
+        cause: null,
+        streamStage: 'response-stream',
+        originalError: makeError({
+          name: 'AI_InvalidToolInputError',
+          message: 'Invalid input for tool write: JSON parsing failed: Text: {"path": "/workspace/doc.md"',
+          cause: null,
+          toolName: 'write',
+          toolInput: '{"path": "/workspace/doc.md"'
+        })
+      })
+    ]
+  ])('classifies %s as parse instead of stream interruption', (_label, error) => {
+    expect(classifyError(error, 'silicon')).toEqual({
+      category: 'parse',
+      i18nKey: 'error.diagnosis.parse',
+      navTarget: null
+    })
+  })
+})

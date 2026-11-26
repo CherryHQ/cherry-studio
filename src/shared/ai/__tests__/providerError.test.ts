@@ -1,4 +1,11 @@
-import { APICallError, EmptyResponseBodyError, JSONParseError, RetryError, TypeValidationError } from 'ai'
+import {
+  APICallError,
+  EmptyResponseBodyError,
+  InvalidToolInputError,
+  JSONParseError,
+  RetryError,
+  TypeValidationError
+} from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import type { SerializedError } from '../../types/error'
@@ -500,5 +507,74 @@ describe('status-prefixed provider JSON messages (#25526)', () => {
         message: 'API Error: 400 {"error":{"message":"{\\"prompt\\":\\"private\\"}"}}'
       })
     ).toBe('')
+  })
+})
+
+describe('tool-input parse diagnostics (#25237, #25401)', () => {
+  it('preserves the tool name and parse reason without leaking embedded payload text', () => {
+    const longMarkdown = `# Private Plan\n${'x'.repeat(20_000)}`
+    const writeMessage = `Invalid input for tool write: JSON parsing failed: Text: {"path": "/workspace/secret.md", "content": "${longMarkdown}`
+    const askMessage =
+      'Invalid input for tool AskUserQuestion: JSON parsing failed: Text: {"questions": [{"description": "private novel draft'
+    const validationMessage =
+      'Invalid input for tool write: Type validation failed: Value: {"path": 123, "content": "private"}.\nError message: Expected string'
+
+    expect(getSafeProviderErrorMessage({ message: writeMessage })).toBe(
+      'Invalid input for tool write: JSON parsing failed.'
+    )
+    expect(getSafeProviderErrorMessage({ message: askMessage })).toBe(
+      'Invalid input for tool AskUserQuestion: JSON parsing failed.'
+    )
+    expect(getSafeProviderErrorMessage({ message: validationMessage })).toBe(
+      'Invalid input for tool write: Type validation failed.'
+    )
+    expect(getSafeProviderErrorMessage({ message: JSON.stringify(askMessage) })).toBe(
+      'Invalid input for tool AskUserQuestion: JSON parsing failed.'
+    )
+  })
+
+  it('rejects container-shaped tool names instead of echoing them', () => {
+    expect(
+      getSafeProviderErrorMessage({
+        message: 'Invalid input for tool {"secret":"value"}: JSON parsing failed: Text: {"a":1'
+      })
+    ).toBe('')
+  })
+
+  it('serializes nested InvalidToolInputError as a payload-free parse diagnostic', () => {
+    const sentinel = 'PRIVATE_MARKDOWN_9f3'
+    const cause = new JSONParseError({
+      text: `{"path":"/workspace/secret.md","content":"${sentinel}`,
+      cause: new SyntaxError(`Unterminated string near ${sentinel}`)
+    })
+    const toolError = new InvalidToolInputError({ toolName: 'write', toolInput: cause.text, cause })
+    const retry = new RetryError({
+      message: `Failed after 1 attempt. Last error: ${toolError.message}`,
+      reason: 'maxRetriesExceeded',
+      errors: [toolError]
+    })
+
+    const serializedDirect = serializeNestedProviderError(toolError)
+    expect(serializedDirect).toMatchObject({
+      name: 'AI_InvalidToolInputError',
+      message: 'Invalid input for tool write: JSON parsing failed.',
+      providerErrorCategory: 'parse',
+      toolName: 'write',
+      stack: null,
+      cause: null
+    })
+    expect(serializedDirect).not.toHaveProperty('toolInput')
+    expect(JSON.stringify(serializedDirect)).not.toContain(sentinel)
+
+    const serializedRetry = serializeNestedProviderError(retry)
+    expect(serializedRetry).toMatchObject({
+      lastError: {
+        name: 'AI_InvalidToolInputError',
+        message: 'Invalid input for tool write: JSON parsing failed.',
+        providerErrorCategory: 'parse',
+        toolName: 'write'
+      }
+    })
+    expect(JSON.stringify(serializedRetry)).not.toContain(sentinel)
   })
 })
