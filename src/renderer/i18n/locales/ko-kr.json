@@ -2670,6 +2670,7 @@
   "message.api.check.model.title": "감지에 사용할 모델을 선택하세요",
   "message.api.connection.failed": "연결 실패",
   "message.api.connection.success": "연결 성공",
+  "message.attachment_notice.image_ocr": "이 모델은 이미지 입력을 지원하지 않아 {{names}}은(는) OCR로 추출한 텍스트로 전송되었습니다. 이미지를 직접 전송하려면 비전을 지원하는 모델을 선택하거나 공급자 설정에서 이 모델의 비전을 활성화하세요.",
   "message.attachments.pasted_image": "붙여넣은 이미지",
   "message.attachments.pasted_text": "붙여넣은 텍스트",
   "message.backup.cleanup_failed": "백업은 완료되었지만 이전 백업을 정리하지 못했습니다.",
