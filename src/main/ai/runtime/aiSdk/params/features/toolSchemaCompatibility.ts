@@ -7,8 +7,9 @@
  * Strict tools additionally lose validation keywords outside the sampling
  * grammar subset accepted by Anthropic and OpenAI (issue #18037).
  *
- * Explicit root objects gain missing `properties: {}` (issue #21957), a
- * validation-neutral change that preserves `additionalProperties` semantics.
+ * Non-object, untyped, `$ref`, and combinator root schemas are normalized to an
+ * explicit `type: 'object'` schema with a `properties` map (issue #21957,
+ * #25073), preserving `$defs`/`definitions` and `additionalProperties` semantics.
  *
  * Native Gemini replaces non-string `enum`/`const` with their bare type and
  * expands type arrays because its Schema proto requires concrete types.
@@ -41,6 +42,7 @@ import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import { normalizeRootObjectSchema } from '@main/ai/utils/toolSchema'
 import { ENDPOINT_TYPE, isUniqueModelId } from '@shared/data/types/model'
 import { isGeminiModel } from '@shared/utils/model'
 
@@ -156,24 +158,6 @@ function dropKeywords(node: JSONSchema7, keywords: ReadonlySet<string>): JSONSch
 
 function stripKeywords(schema: JSONSchema7Definition, keywords: ReadonlySet<string>): JSONSchema7Definition {
   return mapSchemas(schema, (node) => dropKeywords(node, keywords))
-}
-
-/**
- * Some OpenAI-compatible validators reject the whole request when a function's
- * `parameters` is an object schema without a `properties` member — a
- * parameterless MCP tool from a Go-SDK server serializes as
- * `{ "type": "object", "additionalProperties": false }` (issue #21957).
- * Adding the empty map is validation-neutral: a missing `properties` and `{}`
- * declare the same empty property set, `additionalProperties` keeps its
- * meaning, and the original schema still validates tool calls locally.
- * A root `$ref` is left alone because providers (the pinned Google adapter)
- * merge root siblings over the referenced definition, so an empty `properties`
- * map would erase the referenced parameters.
- */
-function addMissingProperties(node: JSONSchema7Definition): JSONSchema7Definition {
-  if (typeof node !== 'object' || Array.isArray(node)) return node
-  if (node.type !== 'object' || node.$ref !== undefined || Object.hasOwn(node, 'properties')) return node
-  return { ...node, properties: {} }
 }
 
 /** The single simple type shared by every value, if one exists. */
@@ -350,14 +334,14 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
       transformedTools.push(tool)
       continue
     }
-    if (isGeminiEndpoint && hasIncompatibleGeminiArray(tool.inputSchema)) {
+    let inputSchema: JSONSchema7Definition = normalizeRootObjectSchema(tool.inputSchema)
+    if (isGeminiEndpoint && hasIncompatibleGeminiArray(inputSchema)) {
       changed = true
       droppedTools.push(tool.name)
       continue
     }
     const keywords = tool.strict === true ? STRICT_UNSUPPORTED : new Set(ALWAYS_UNSUPPORTED)
-    let inputSchema = stripKeywords(tool.inputSchema, keywords)
-    inputSchema = addMissingProperties(inputSchema)
+    inputSchema = stripKeywords(inputSchema, keywords)
     if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
     if (isGeminiEndpoint || isChatGeminiModel) {
       inputSchema = mapSchemas(inputSchema, (node) => {
