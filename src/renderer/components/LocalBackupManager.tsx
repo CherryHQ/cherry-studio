@@ -182,7 +182,12 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       toast.success(t('settings.data.local.backup.manager.restore.success'))
       onClose() // Close the modal
     } catch (error) {
-      toast.error(getLocalizedBackupErrorMessage(error, 'settings.data.local.backup.manager.restore.error'))
+      void popup.error({
+        title: t('settings.data.local.backup.manager.restore.error'),
+        content: getLocalizedBackupErrorMessage(error, 'settings.data.local.backup.manager.restore.error'),
+        centered: true,
+        maskClosable: false
+      })
     } finally {
       setRestoring(false)
     }

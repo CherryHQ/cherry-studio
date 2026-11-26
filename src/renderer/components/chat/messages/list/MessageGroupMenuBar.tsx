@@ -7,6 +7,7 @@ import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 
@@ -87,12 +88,13 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   const isFailedMessage = (m: MessageListItem) => {
     if (m.role !== 'assistant') return false
-    const parts = partsMap?.[m.id]
+    const parts = messagePartsAt(partsMap, m.id)
     return m.status === 'error' || m.status === 'paused' || parts?.length === 0
   }
 
   const hasFailedMessages =
-    !!actions.regenerateMessage && messages.some((m) => isFailedMessage(m) && m.status !== 'pending')
+    !!(actions.regenerateMessage || actions.regenerateMessageUsingModel) &&
+    messages.some((m) => isFailedMessage(m) && m.status !== 'pending')
 
   const handleRetryAll = async () => {
     const retryableMessages = messages.filter((m) => isFailedMessage(m) && m.status !== 'pending')
@@ -102,7 +104,15 @@ const MessageGroupMenuBar: FC<Props> = ({
 
     for (const msg of candidates) {
       try {
-        await actions.regenerateMessage?.(msg.id)
+        // Candidates are the newest failure of each model. Retry one with its own model so the
+        // attempt keeps that reply's identity instead of collapsing every model onto the
+        // composer's current selection.
+        const modelId = resolveUniqueModelId(msg.modelId, msg.model ?? msg.messageSnapshot?.model)
+        if (modelId && actions.regenerateMessageUsingModel) {
+          await actions.regenerateMessageUsingModel(msg.id, modelId)
+        } else {
+          await actions.regenerateMessage?.(msg.id)
+        }
       } catch (e) {
         failedCount++
         lastError = e

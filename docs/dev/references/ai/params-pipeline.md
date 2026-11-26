@@ -5,6 +5,11 @@ sources:
   - src/main/ai/runtime/aiSdk/params/buildAgentParams.ts
   - src/main/ai/runtime/aiSdk/params/feature.ts
   - src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts
+  - src/main/ai/runtime/aiSdk/params/features/providerStateReplay.ts
+  - src/main/ai/runtime/aiSdk/params/features/conversationStateReplay.ts
+  - src/main/ai/runtime/aiSdk/params/features/geminiHistorySignatureReplay.ts
+  - src/main/ai/runtime/aiSdk/params/features/anthropicThinkingBinding.ts
+  - src/main/ai/runtime/aiSdk/params/features/openrouterReasoning.ts
   - src/main/ai/runtime/aiSdk/params/features/qwenAnthropicWebTools.ts
   - src/main/ai/runtime/aiSdk/params/features/toolSchemaCompatibility.ts
 ---
@@ -19,7 +24,9 @@ into everything `Agent.stream()` needs:
 
 ```ts
 interface BuiltAgentParams {
-  sdkConfig: SdkConfig             // providerId + providerSettings + modelId
+  sdkConfig: SdkConfig              // providerId + providerSettings + modelId
+  endpointType: EndpointType | undefined
+  replayRouteId: string
   tools: ToolSet | undefined        // active + meta-tools after defer
   plugins: AiPlugin<any, any>[]     // model-adapter plugins (ordered)
   system: string | undefined        // assembled system prompt
@@ -67,6 +74,32 @@ custom relays. Recognition is a compatibility heuristic that leaves opaque alias
 unrecognized. Normalization can relax the constraints sent to the provider. MCP
 tools still validate against the original schema, and gateway callers validate
 their own tools.
+
+On `google-generate-content`, any tool `enum` or `const` the Google adapter would
+still reject moves into the description with a warning naming the tool, so one
+tool schema cannot abort the whole request.
+
+Chat records the provider connection, protocol, SDK adapter, wire model, and
+Base URL with replayable state. `buildAgentParams` derives the route ID once
+from the resolved SDK configuration for use by replay middleware and retries.
+Credential rotation and request-local fetch wrappers do not change the route
+ID. Generate Content, Messages, Chat Completions,
+Responses, and Ollama Chat use the same route comparison. The endpoint adapter
+owns the wire representation, including signed blocks, plaintext thinking,
+encrypted reasoning, and Responses item references.
+
+Completed turns retain ordinary text and tool pairs when their tagged state is
+omitted on a new route. The saved history can replay again on the original
+route. Older Gemini 3 and 4 text and tool calls can use the recorded provider and
+model identity. The native and compatible Gemini paths suppress signature
+backfill for marked tool calls. A tool result in the active turn stays on the
+route that produced its required state, including when that route was a Chat
+fallback.
+
+Gateway-backed Claude Code keeps native history ownership and opts into route
+checking for state matched from its Agent session checkpoint. The Gateway selects
+a required continuation route before conversion and passes its identity to the
+SDK for validation.
 
 ## RequestFeature
 
@@ -143,6 +176,21 @@ Features must never mutate the scope. The scope IS shared across all features
 for a single request, so any added field becomes part of the contract — keep it
 minimal. After feature collection, the pipeline may still refine the
 request-local `sdkConfig.providerSettings.fetch` before returning it.
+
+## Anthropic thinking replay
+
+For Cherry-managed requests to the first-party Claude Messages API, the
+Anthropic adapter opts into `drop_block` when a supported model in adaptive
+thinking mode receives historical signed or redacted thinking. The SDK adds
+the beta header. Claude evaluates each signature and discards failing blocks.
+An explicit binding policy takes precedence. Compatible endpoints keep their
+existing request options.
+
+Completed signed and redacted thinking remains available for replay even
+when the display text is empty. When in-flight compaction or its sliding
+window cuts the prompt, Anthropic Messages adapters, including that route in
+CherryIN and AiHubMix, omit the affected thinking from the rewritten prompt and
+keep the surrounding content.
 
 ## Pipeline order
 
@@ -226,6 +274,10 @@ installed with the filtered body parameters; capturing them earlier would let
 body passthrough bypass the final capability check. Service tier values override
 custom body values, and SDK-produced fields override both.
 
+On Responses requests, a flat assistant custom parameter named
+`reasoning_effort` uses the SDK reasoning option. The SDK serializes it as
+`reasoning.effort`. Chat Completions retains its top-level request field.
+
 For an eligible HTTP Fast request, the final builder removes conflicting tier
 options from the selected SDK namespace and sends the provider-declared
 `service_tier` through the same body-passthrough path. This avoids adapter
@@ -239,6 +291,13 @@ such as `snake_case` keys that an adapter schema does not recognize. Provider
 namespace bags remain exclusive to `providerOptions`, non-JSON requests are
 left unchanged, and SDK-produced body fields take precedence over custom
 parameters.
+
+For Anthropic Messages, each model attempt applies flat assistant custom
+`tool_choice` strings (`auto`, `none`, `any`, and `required`) through AI SDK
+middleware before serialization. The middleware supplies a default only when
+the current step has tools and supplies no explicit choice. This also applies
+when a retry switches to an Anthropic Messages model. Object values continue
+through request-body passthrough.
 
 ## Where to read more
 

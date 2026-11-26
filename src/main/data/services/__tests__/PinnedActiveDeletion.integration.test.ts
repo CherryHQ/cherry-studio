@@ -1,6 +1,6 @@
 import '@data/services/AgentSessionMessageService'
 import '@data/services/MessageService'
-import { seedSessionRoot, setupTestDatabase, withRoot } from '@test-helpers/db'
+import { insertAgentSessionMessages, seedSessionRoot, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
@@ -14,6 +14,7 @@ import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import { agentService } from '@data/services/AgentService'
+import { attachAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
@@ -117,35 +118,32 @@ describe('pinned active permanent deletion', () => {
         { id: 'unrelated-session', workspaceId: 'workspace', name: 'Unrelated session', orderKey: 'a3' }
       ])
       .run()
-    dbh.db
-      .insert(agentSessionMessageTable)
-      .values([
-        {
-          id: ACTIVE_MESSAGE,
-          sessionId: 'active-session',
-          parentId: seedSessionRoot(dbh.db, 'active-session'),
-          role: 'user',
-          data: { parts: [{ type: 'text', text: 'active session body' }] },
-          status: 'success'
-        },
-        {
-          id: OTHER_MESSAGE,
-          sessionId: 'other-session',
-          parentId: seedSessionRoot(dbh.db, 'other-session'),
-          role: 'user',
-          data: { parts: [{ type: 'text', text: 'other session body' }] },
-          status: 'success'
-        },
-        {
-          id: ARCHIVED_MESSAGE,
-          sessionId: 'archived-session',
-          parentId: seedSessionRoot(dbh.db, 'archived-session'),
-          role: 'user',
-          data: { parts: [{ type: 'text', text: 'archived session body' }] },
-          status: 'success'
-        }
-      ])
-      .run()
+    insertAgentSessionMessages(dbh.db, [
+      {
+        id: ACTIVE_MESSAGE,
+        sessionId: 'active-session',
+        parentId: seedSessionRoot(dbh.db, 'active-session'),
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'active session body' }] },
+        status: 'success'
+      },
+      {
+        id: OTHER_MESSAGE,
+        sessionId: 'other-session',
+        parentId: seedSessionRoot(dbh.db, 'other-session'),
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'other session body' }] },
+        status: 'success'
+      },
+      {
+        id: ARCHIVED_MESSAGE,
+        sessionId: 'archived-session',
+        parentId: seedSessionRoot(dbh.db, 'archived-session'),
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'archived session body' }] },
+        status: 'success'
+      }
+    ])
   }
 
   function pin(entityType: 'topic' | 'session', entityId: string): void {
@@ -312,7 +310,10 @@ describe('pinned active permanent deletion', () => {
 
     expect(sessionIds()).toEqual(['active-session', 'archived-session', 'other-session', 'unrelated-session'])
     expect(
-      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, ACTIVE_MESSAGE)).get()?.data
+      attachAgentSessionMessagePartsTx(
+        dbh.db,
+        dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, ACTIVE_MESSAGE)).all()
+      )[0]?.data
     ).toMatchObject({ parts: [{ type: 'text', text: 'active session body' }] })
     expect(dbh.db.select({ entityId: pinTable.entityId }).from(pinTable).all()).toEqual([
       { entityId: 'active-session' }
@@ -364,8 +365,10 @@ describe('pinned active permanent deletion', () => {
         .all()
     ).toEqual([])
     expect(
-      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, ARCHIVED_MESSAGE)).get()
-        ?.data
+      attachAgentSessionMessagePartsTx(
+        dbh.db,
+        dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, ARCHIVED_MESSAGE)).all()
+      )[0]?.data
     ).toMatchObject({ parts: [{ type: 'text', text: 'archived session body' }] })
     expect(
       dbh.db

@@ -19,7 +19,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { ExportMessages, MessageExportTarget } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 
 const logger = loggerService.withContext('useMessageSelectionController')
 
@@ -27,7 +27,7 @@ interface UseMessageSelectionControllerParams {
   topicId: string
   exportMessages?: ExportMessages
   messages: MessageListItem[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   deleteMessage?: MessageListActions['deleteMessage']
   canDeleteMessage?: MessageListActions['canDeleteMessage']
   saveTextFile?: MessageListActions['saveTextFile']
@@ -155,6 +155,8 @@ export function useMessageSelectionController({
           (message) =>
             // Mirrors MessageFrame's isContextBoundary early return — no checkbox is rendered there.
             !message.isContextBoundary &&
+            message.presentation !== 'marker' &&
+            message.presentation !== 'interrupted' &&
             // Hidden fold-layout siblings of multi-model groups; remove if multi-select ever unhides them (PRD D6).
             !(message.role === 'assistant' && message.siblingsGroupId != null && message.isActiveBranch === false)
         )

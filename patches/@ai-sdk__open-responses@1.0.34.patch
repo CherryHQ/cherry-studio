@@ -1,27 +1,41 @@
 diff --git a/dist/index.js b/dist/index.js
-index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..83f10a1a770adb5049c62db0e8ba1dfeb980c939 100644
+index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..d6199cd4bbb2a2c30c9db23692f4802446fcded6 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -89,9 +89,18 @@ async function convertToOpenResponsesInput({
+@@ -89,9 +89,32 @@ async function convertToOpenResponsesInput({
        }
        case "assistant": {
          const assistantContent = [];
 +        const reasoningItems = [];
++        const reasoningItemsById = /* @__PURE__ */ new Map();
          const toolCalls = [];
          for (const part of content) {
            switch (part.type) {
 +            case "reasoning": {
-+              reasoningItems.push({
-+                type: "reasoning",
-+                summary: [],
-+                content: [{ type: "reasoning_text", text: part.text }]
-+              });
++              const metadata = part.providerOptions?.openai;
++              const itemId = typeof metadata?.itemId === "string" ? metadata.itemId : undefined;
++              const previous = itemId ? reasoningItemsById.get(itemId) : undefined;
++              const item = previous ?? { type: "reasoning", summary: [] };
++              if (!previous) {
++                reasoningItems.push(item);
++                if (itemId) reasoningItemsById.set(itemId, item);
++              }
++              if (typeof metadata?.reasoningEncryptedContent === "string") {
++                item.encrypted_content = metadata.reasoningEncryptedContent;
++              }
++              if (part.text.length > 0) {
++                if (metadata?.rawReasoningContent === false) {
++                  item.summary.push({ type: "summary_text", text: part.text });
++                } else {
++                  (item.content ??= []).push({ type: "reasoning_text", text: part.text });
++                }
++              }
 +              break;
 +            }
              case "text": {
                assistantContent.push({ type: "output_text", text: part.text });
                break;
-@@ -108,6 +117,9 @@ async function convertToOpenResponsesInput({
+@@ -108,6 +131,9 @@ async function convertToOpenResponsesInput({
              }
            }
          }
@@ -31,7 +45,47 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..83f10a1a770adb5049c62db0e8ba1dfe
          if (assistantContent.length > 0) {
            input.push({
              type: "message",
-@@ -497,6 +509,7 @@ var OpenResponsesLanguageModel = class {
+@@ -252,6 +278,16 @@ var openResponsesOptionsSchema = (0, import_provider_utils3.lazySchema)(
+ );
+
+ // src/responses/open-responses-language-model.ts
++function reasoningMetadata(item) {
++  return {
++    openai: {
++      itemId: item.id,
++      ...(typeof item.encrypted_content === "string" && {
++        reasoningEncryptedContent: item.encrypted_content
++      })
++    }
++  };
++}
+ var OpenResponsesLanguageModel = class {
+   constructor(modelId, config) {
+     this.specificationVersion = "v3";
+@@ -373,14 +409,19 @@ var OpenResponsesLanguageModel = class {
+     let hasToolCalls = false;
+     for (const part of response.output) {
+       switch (part.type) {
+-        // TODO AI SDK 7 adjust reasoning in the specification to better support the reasoning structure from open responses.
+         case "reasoning": {
+-          for (const contentPart of (_a = part.content) != null ? _a : []) {
++          const providerMetadata = reasoningMetadata(part);
++          const parts = part.content ?? [];
++          for (const contentPart of parts) {
+             content.push({
+               type: "reasoning",
+-              text: contentPart.text
++              text: contentPart.text,
++              providerMetadata
+             });
+           }
++          if (parts.length === 0 && typeof part.encrypted_content === "string") {
++            content.push({ type: "reasoning", text: "", providerMetadata });
++          }
+           break;
+         }
+         case "message": {
+@@ -497,6 +538,7 @@ var OpenResponsesLanguageModel = class {
        usage.raw = responseUsage;
      };
      let isActiveReasoning = false;
@@ -39,7 +93,7 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..83f10a1a770adb5049c62db0e8ba1dfe
      let hasToolCalls = false;
      let finishReason = {
        unified: "other",
-@@ -567,6 +580,7 @@ var OpenResponsesLanguageModel = class {
+@@ -567,6 +609,7 @@ var OpenResponsesLanguageModel = class {
                  id: chunk.item.id
                });
                isActiveReasoning = true;
@@ -47,9 +101,16 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..83f10a1a770adb5049c62db0e8ba1dfe
              } else if (chunk.type === "response.reasoning_text.delta") {
                const reasoningChunk = chunk;
                controller.enqueue({
-@@ -577,8 +591,11 @@ var OpenResponsesLanguageModel = class {
+@@ -575,10 +618,17 @@ var OpenResponsesLanguageModel = class {
+                 delta: reasoningChunk.delta
+               });
              } else if (chunk.type === "response.output_item.done" && chunk.item.type === "reasoning") {
-               controller.enqueue({ type: "reasoning-end", id: chunk.item.id });
+-              controller.enqueue({ type: "reasoning-end", id: chunk.item.id });
++              controller.enqueue({
++                type: "reasoning-end",
++                id: chunk.item.id,
++                providerMetadata: reasoningMetadata(chunk.item)
++              });
                isActiveReasoning = false;
 +              activeReasoningId = null;
              } else if (chunk.type === "response.output_item.added" && chunk.item.type === "message") {
@@ -59,7 +120,7 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..83f10a1a770adb5049c62db0e8ba1dfe
              } else if (chunk.type === "response.output_text.delta") {
                controller.enqueue({
                  type: "text-delta",
-@@ -606,8 +623,8 @@ var OpenResponsesLanguageModel = class {
+@@ -606,8 +656,8 @@ var OpenResponsesLanguageModel = class {
              }
            },
            flush(controller) {
@@ -71,29 +132,43 @@ index 74fedcb995ae1955ba56b5bfd39e3f9785f90385..83f10a1a770adb5049c62db0e8ba1dfe
              controller.enqueue({
                type: "finish",
 diff --git a/dist/index.mjs b/dist/index.mjs
-index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..9636569f9016ffd81929b82531a2b7900329c9fb 100644
+index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..9b66fa789b28cb213725ee1b8d15db1c06b3d70f 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -75,9 +75,18 @@ async function convertToOpenResponsesInput({
+@@ -75,9 +75,32 @@ async function convertToOpenResponsesInput({
        }
        case "assistant": {
          const assistantContent = [];
 +        const reasoningItems = [];
++        const reasoningItemsById = /* @__PURE__ */ new Map();
          const toolCalls = [];
          for (const part of content) {
            switch (part.type) {
 +            case "reasoning": {
-+              reasoningItems.push({
-+                type: "reasoning",
-+                summary: [],
-+                content: [{ type: "reasoning_text", text: part.text }]
-+              });
++              const metadata = part.providerOptions?.openai;
++              const itemId = typeof metadata?.itemId === "string" ? metadata.itemId : undefined;
++              const previous = itemId ? reasoningItemsById.get(itemId) : undefined;
++              const item = previous ?? { type: "reasoning", summary: [] };
++              if (!previous) {
++                reasoningItems.push(item);
++                if (itemId) reasoningItemsById.set(itemId, item);
++              }
++              if (typeof metadata?.reasoningEncryptedContent === "string") {
++                item.encrypted_content = metadata.reasoningEncryptedContent;
++              }
++              if (part.text.length > 0) {
++                if (metadata?.rawReasoningContent === false) {
++                  item.summary.push({ type: "summary_text", text: part.text });
++                } else {
++                  (item.content ??= []).push({ type: "reasoning_text", text: part.text });
++                }
++              }
 +              break;
 +            }
              case "text": {
                assistantContent.push({ type: "output_text", text: part.text });
                break;
-@@ -94,6 +103,9 @@ async function convertToOpenResponsesInput({
+@@ -94,6 +117,9 @@ async function convertToOpenResponsesInput({
              }
            }
          }
@@ -103,7 +178,47 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..9636569f9016ffd81929b82531a2b790
          if (assistantContent.length > 0) {
            input.push({
              type: "message",
-@@ -486,6 +498,7 @@ var OpenResponsesLanguageModel = class {
+@@ -241,6 +267,16 @@ var openResponsesOptionsSchema = lazySchema2(
+ );
+
+ // src/responses/open-responses-language-model.ts
++function reasoningMetadata(item) {
++  return {
++    openai: {
++      itemId: item.id,
++      ...(typeof item.encrypted_content === "string" && {
++        reasoningEncryptedContent: item.encrypted_content
++      })
++    }
++  };
++}
+ var OpenResponsesLanguageModel = class {
+   constructor(modelId, config) {
+     this.specificationVersion = "v3";
+@@ -362,14 +398,19 @@ var OpenResponsesLanguageModel = class {
+     let hasToolCalls = false;
+     for (const part of response.output) {
+       switch (part.type) {
+-        // TODO AI SDK 7 adjust reasoning in the specification to better support the reasoning structure from open responses.
+         case "reasoning": {
+-          for (const contentPart of (_a = part.content) != null ? _a : []) {
++          const providerMetadata = reasoningMetadata(part);
++          const parts = part.content ?? [];
++          for (const contentPart of parts) {
+             content.push({
+               type: "reasoning",
+-              text: contentPart.text
++              text: contentPart.text,
++              providerMetadata
+             });
+           }
++          if (parts.length === 0 && typeof part.encrypted_content === "string") {
++            content.push({ type: "reasoning", text: "", providerMetadata });
++          }
+           break;
+         }
+         case "message": {
+@@ -486,6 +527,7 @@ var OpenResponsesLanguageModel = class {
        usage.raw = responseUsage;
      };
      let isActiveReasoning = false;
@@ -111,7 +226,7 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..9636569f9016ffd81929b82531a2b790
      let hasToolCalls = false;
      let finishReason = {
        unified: "other",
-@@ -556,6 +569,7 @@ var OpenResponsesLanguageModel = class {
+@@ -556,6 +598,7 @@ var OpenResponsesLanguageModel = class {
                  id: chunk.item.id
                });
                isActiveReasoning = true;
@@ -119,9 +234,16 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..9636569f9016ffd81929b82531a2b790
              } else if (chunk.type === "response.reasoning_text.delta") {
                const reasoningChunk = chunk;
                controller.enqueue({
-@@ -566,8 +580,11 @@ var OpenResponsesLanguageModel = class {
+@@ -564,10 +607,17 @@ var OpenResponsesLanguageModel = class {
+                 delta: reasoningChunk.delta
+               });
              } else if (chunk.type === "response.output_item.done" && chunk.item.type === "reasoning") {
-               controller.enqueue({ type: "reasoning-end", id: chunk.item.id });
+-              controller.enqueue({ type: "reasoning-end", id: chunk.item.id });
++              controller.enqueue({
++                type: "reasoning-end",
++                id: chunk.item.id,
++                providerMetadata: reasoningMetadata(chunk.item)
++              });
                isActiveReasoning = false;
 +              activeReasoningId = null;
              } else if (chunk.type === "response.output_item.added" && chunk.item.type === "message") {
@@ -131,7 +253,7 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..9636569f9016ffd81929b82531a2b790
              } else if (chunk.type === "response.output_text.delta") {
                controller.enqueue({
                  type: "text-delta",
-@@ -595,8 +612,8 @@ var OpenResponsesLanguageModel = class {
+@@ -595,8 +645,8 @@ var OpenResponsesLanguageModel = class {
              }
            },
            flush(controller) {
@@ -143,42 +265,63 @@ index c3b70bc3a46afbe82f704939e4b1ccc6d47706ee..9636569f9016ffd81929b82531a2b790
              controller.enqueue({
                type: "finish",
 diff --git a/src/responses/convert-to-open-responses-input.ts b/src/responses/convert-to-open-responses-input.ts
-index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..4e36fecc5c4a6afddf54a067db4ab5a96ee84617 100644
+index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..b5e3b84ab7882ae6364acd9cf16b5be0f366453f 100644
 --- a/src/responses/convert-to-open-responses-input.ts
 +++ b/src/responses/convert-to-open-responses-input.ts
-@@ -9,6 +9,7 @@ import type {
+@@ -9,8 +9,13 @@ import type {
    OpenResponsesRequestBody,
    OutputTextContentParam,
    RefusalContentParam,
 +  ReasoningItemParam,
  } from './open-responses-api';
- 
+
++type ReplayReasoningItem = ReasoningItemParam & {
++  content?: Array<{ type: 'reasoning_text'; text: string }>;
++};
++
  export async function convertToOpenResponsesInput({
-@@ -80,10 +81,20 @@ export async function convertToOpenResponsesInput({
+   prompt,
+ }: {
+@@ -80,10 +85,35 @@ export async function convertToOpenResponsesInput({
          const assistantContent: Array<
            OutputTextContentParam | RefusalContentParam
          > = [];
-+        const reasoningItems: Array<ReasoningItemParam> = [];
++        const reasoningItems: ReplayReasoningItem[] = [];
++        const reasoningItemsById = new Map<string, ReplayReasoningItem>();
          const toolCalls: Array<FunctionCallItemParam> = [];
- 
+
          for (const part of content) {
            switch (part.type) {
 +            case 'reasoning': {
-+              // Subset Responses servers replay the chain of thought itself (backport of 2.0.27).
-+              reasoningItems.push({
-+                type: 'reasoning',
-+                summary: [],
-+                content: [{ type: 'reasoning_text', text: part.text }],
-+              });
++              const metadata = part.providerOptions?.openai;
++              const itemId =
++                typeof metadata?.itemId === 'string' ? metadata.itemId : undefined;
++              const previous = itemId ? reasoningItemsById.get(itemId) : undefined;
++              const item: ReplayReasoningItem =
++                previous ?? { type: 'reasoning', summary: [] };
++              if (!previous) {
++                reasoningItems.push(item);
++                if (itemId) reasoningItemsById.set(itemId, item);
++              }
++              if (typeof metadata?.reasoningEncryptedContent === 'string') {
++                item.encrypted_content = metadata.reasoningEncryptedContent;
++              }
++              if (part.text.length > 0) {
++                if (metadata?.rawReasoningContent === false) {
++                  item.summary.push({ type: 'summary_text', text: part.text });
++                } else {
++                  (item.content ??= []).push({ type: 'reasoning_text', text: part.text });
++                }
++              }
 +              break;
 +            }
              case 'text': {
                assistantContent.push({ type: 'output_text', text: part.text });
                break;
-@@ -104,6 +115,10 @@ export async function convertToOpenResponsesInput({
+@@ -104,6 +134,10 @@ export async function convertToOpenResponsesInput({
            }
          }
- 
+
 +        for (const reasoningItem of reasoningItems) {
 +          input.push(reasoningItem);
 +        }
@@ -187,18 +330,68 @@ index 2e06c35c5d13146dbb42ba9bbe61828bb4bd1a66..4e36fecc5c4a6afddf54a067db4ab5a9
          if (assistantContent.length > 0) {
            input.push({
 diff --git a/src/responses/open-responses-language-model.ts b/src/responses/open-responses-language-model.ts
-index 2650edaed75f2bb981f584f702b5da2894241b70..af2fed1ef181330385afa93a1adba20f4d87a135 100644
+index 2650edaed75f2bb981f584f702b5da2894241b70..bb5d3242d4b473efa6f0567ab3215d81bdb2243e 100644
 --- a/src/responses/open-responses-language-model.ts
 +++ b/src/responses/open-responses-language-model.ts
-@@ -338,6 +338,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -27,12 +27,24 @@ import {
+   type OpenResponsesRequestBody,
+   type OpenResponsesResponseBody,
+   type OpenResponsesChunk,
++  type ReasoningBody,
+   type ToolChoiceParam,
+ } from './open-responses-api';
+ import { mapOpenResponsesFinishReason } from './map-open-responses-finish-reason';
+ import type { OpenResponsesConfig } from './open-responses-config';
+ import { openResponsesOptionsSchema } from './open-responses-options';
+
++function reasoningMetadata(item: ReasoningBody) {
++  return {
++    openai: {
++      itemId: item.id,
++      ...(typeof item.encrypted_content === 'string' && {
++        reasoningEncryptedContent: item.encrypted_content
++      })
++    }
++  };
++}
++
+ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+   readonly specificationVersion = 'v3';
+
+@@ -197,17 +209,21 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+
+     for (const part of response.output!) {
+       switch (part.type) {
+-        // TODO AI SDK 7 adjust reasoning in the specification to better support the reasoning structure from open responses.
+         case 'reasoning': {
+-          for (const contentPart of part.content ?? []) {
++          const providerMetadata = reasoningMetadata(part);
++          const parts = part.content ?? [];
++          for (const contentPart of parts) {
+             content.push({
+               type: 'reasoning',
+               text: contentPart.text,
++              providerMetadata
+             });
+           }
++          if (parts.length === 0 && typeof part.encrypted_content === 'string') {
++            content.push({ type: 'reasoning', text: '', providerMetadata });
++          }
+           break;
+         }
+-
+         case 'message': {
+           for (const contentPart of part.content) {
+             content.push({
+@@ -338,6 +354,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
      };
- 
+
      let isActiveReasoning = false;
 +    let activeReasoningId: string | null = null;
      let hasToolCalls = false;
      let finishReason: LanguageModelV3FinishReason = {
        unified: 'other',
-@@ -440,6 +441,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -440,6 +457,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
                  id: chunk.item.id,
                });
                isActiveReasoning = true;
@@ -206,15 +399,22 @@ index 2650edaed75f2bb981f584f702b5da2894241b70..af2fed1ef181330385afa93a1adba20f
              } else if (
                (chunk as { type: string }).type ===
                'response.reasoning_text.delta'
-@@ -459,6 +461,7 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -457,8 +475,13 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+               chunk.type === 'response.output_item.done' &&
+               chunk.item.type === 'reasoning'
              ) {
-               controller.enqueue({ type: 'reasoning-end', id: chunk.item.id });
+-              controller.enqueue({ type: 'reasoning-end', id: chunk.item.id });
++              controller.enqueue({
++                type: 'reasoning-end',
++                id: chunk.item.id,
++                providerMetadata: reasoningMetadata(chunk.item)
++              });
                isActiveReasoning = false;
 +              activeReasoningId = null;
              }
- 
+
              // Text events
-@@ -467,6 +470,12 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -467,6 +490,12 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
                chunk.item.type === 'message'
              ) {
                controller.enqueue({ type: 'text-start', id: chunk.item.id });
@@ -227,9 +427,9 @@ index 2650edaed75f2bb981f584f702b5da2894241b70..af2fed1ef181330385afa93a1adba20f
              } else if (chunk.type === 'response.output_text.delta') {
                controller.enqueue({
                  type: 'text-delta',
-@@ -501,8 +510,9 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
+@@ -501,8 +530,9 @@ export class OpenResponsesLanguageModel implements LanguageModelV3 {
            },
- 
+
            flush(controller) {
 -            if (isActiveReasoning) {
 -              controller.enqueue({ type: 'reasoning-end', id: 'reasoning-0' });
@@ -237,5 +437,5 @@ index 2650edaed75f2bb981f584f702b5da2894241b70..af2fed1ef181330385afa93a1adba20f
 +              // Upstream hardcodes 'reasoning-0'; the step assembler only knows the real id.
 +              controller.enqueue({ type: 'reasoning-end', id: activeReasoningId });
              }
- 
+
              controller.enqueue({
