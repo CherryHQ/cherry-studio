@@ -783,6 +783,22 @@ describe('AgentRightPane', () => {
     }))
   })
 
+  it('requests a missing context reading when session details are opened', async () => {
+    const user = userEvent.setup()
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+      </TestAgentRightPane>
+    )
+
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.agent.session.refresh_context_usage', expect.anything())
+
+    await user.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.details' }))
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.session.refresh_context_usage', { sessionId: 'session-a' })
+    expect(screen.getByText('agent.right_pane.info.context_details.unavailable')).toBeVisible()
+  })
+
   it('navigates repeatedly within one file and clears locations for a plain open', async () => {
     resolveArtifactPaneFileSelectionMock.mockImplementation((workspacePath: string, filePath: string) => ({
       workspacePath,
@@ -2473,7 +2489,7 @@ describe('AgentRightPane', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Native child transcript is unavailable')
     expect(screen.getByRole('heading', { name: 'agent.right_pane.info.context_usage' })).toBeInTheDocument()
-    expect(screen.getByText('common.unknown')).toBeVisible()
+    expect(screen.getByText('agent.right_pane.info.context_details.unavailable')).toBeVisible()
     expect(screen.queryByRole('meter')).toBeNull()
     expect(screen.queryByRole('button', { name: 'chat.input.send' })).toBeNull()
     expect(ipcRequestMock).toHaveBeenCalledWith('ai.projection.attach', {

@@ -18,6 +18,7 @@ import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionCostSnapshot } from '@shared/ai/agentSessionCost'
+import type { AgentSessionFollowup, AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { ExecutionId } from '@shared/ai/executionIdentity'
@@ -41,6 +42,16 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { RuntimeForkInput, RuntimeForkResult } from './fork'
 import type { RuntimeWorkspaceRelocation } from './workspaceRelocation'
+
+export interface UnavailableNativeContext {
+  status: 'native-context-unavailable'
+  context: AgentSessionContextRow
+  reason: string
+}
+
+export function unavailableNativeContext(context: AgentSessionContextRow, reason: string): UnavailableNativeContext {
+  return { status: 'native-context-unavailable', context, reason }
+}
 
 /**
  * Agent-session usage has exactly one capture owner per runtime route.
@@ -99,8 +110,8 @@ export interface AgentRuntimeConnectInput {
   trace?: AgentRuntimeTraceContext
   /**
    * Synchronous host hook fired when a pending steer is actually injected. The host uses this
-   * before the SDK can issue its next provider request to reserve the continuation correlation;
-   * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
+   * before the SDK can issue its next provider request to associate the input with its active Run;
+   * the later `steer-boundary` confirms placement without creating another execution.
    */
   onSteerInjected?: (inputIds: readonly string[]) => void
 }
@@ -205,6 +216,8 @@ export type AgentRuntimeEvent =
       }
     }
   | { type: 'resume-token'; token: string }
+  /** The stable input association identifies the owning Run, including a deferred placement. */
+  | { type: 'run-checkpoint'; contextId: string; inputId: string; forkAnchor: RuntimeForkAnchor }
   /** `paused`: native evidence that the turn was aborted, such as a recorded user stop. */
   | {
       type: 'turn-complete'
@@ -212,13 +225,10 @@ export type AgentRuntimeEvent =
       status?: 'paused'
       finishReason?: FinishReason
     }
-  /** A steer was injected mid-turn (PreToolUse/PostToolBatch hook) and the model is about to emit its post-steer
-   *  assistant message. Marks where the host should roll the assistant message: finalise the
-   *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
-   *  steer user message sorts between them instead of dangling after the whole turn.
-   *  A runtime with `followUp()` also emits it when it places a queued input, after the content before it;
-   *  `followUp` marks that placement, which starts its own run and so never joins another reply. */
-  | { type: 'steer-boundary'; inputIds: readonly string[]; followUp?: true }
+  /** Steered inputs join the current Run. A native follow-up can start a distinct Run. */
+  | { type: 'steer-boundary'; inputIds: readonly string[] }
+  | { type: 'run-started'; inputIds: readonly string[] }
+  | { type: 'followup-queue'; queue: AgentSessionFollowup[] }
   | { type: 'input-state'; contextId: string; input: ProductInputState }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
@@ -306,6 +316,7 @@ export interface AgentRuntimeConnection {
   readonly compactWithInstructions?: true
   /** Reconcile the captured context without submitting or resuming native execution. */
   lookupInput?(contextId: string, inputId: string): Promise<OperationResult<InputLookup>>
+  changeFollowups?(change: AgentSessionFollowupChange): Promise<boolean>
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts, permission mode included, are patched in place before the

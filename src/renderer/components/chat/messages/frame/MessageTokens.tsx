@@ -43,7 +43,7 @@ function AssistantMessageTokens({
     enabled: isDetailsOpen && message.stats?.runtimeTiming !== undefined,
     query: {
       messageKind,
-      messageId: message.id,
+      messageId: message.sourceMessageId ?? message.id,
       sortBy: 'createdAt',
       sortOrder: 'asc'
     },

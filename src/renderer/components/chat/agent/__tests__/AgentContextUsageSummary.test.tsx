@@ -130,6 +130,32 @@ describe('AgentContextUsageSummary', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
+  it('reads resource names only when their group is expanded', async () => {
+    const readName = vi.fn(() => 'mcp__docs__search_docs')
+    renderSummary({
+      usage: {
+        ...usage,
+        resources: [
+          {
+            id: 'search',
+            category: 'mcp-tools',
+            get name() {
+              return readName()
+            }
+          }
+        ]
+      },
+      percentage: 20
+    })
+
+    expect(screen.getByText('20%')).toBeVisible()
+    expect(readName).not.toHaveBeenCalled()
+    await expandSummary()
+    expect(readName).not.toHaveBeenCalled()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'MCP tools 1' }))
+    expect(screen.getByText('docs · Search Docs')).toBeVisible()
+  })
+
   it('uses the window denominator, retains reserves, and excludes deferred tools from occupancy', async () => {
     renderSummary({ usage, percentage: 20 })
     await expandSummary()
@@ -166,9 +192,9 @@ describe('AgentContextUsageSummary', () => {
     expect(within(meter).queryByTitle(/Deferred/)).not.toBeInTheDocument()
   })
 
-  it('shows unknown after compaction instead of a zero-percent meter', () => {
+  it('shows that usage is unavailable after compaction without a zero-percent meter', () => {
     renderSummary({ usage: { ...usage, used: undefined }, percentage: null })
-    expect(screen.getByText('Unknown')).toBeInTheDocument()
+    expect(screen.getByText('No usage data')).toBeInTheDocument()
     expect(screen.queryByRole('meter')).not.toBeInTheDocument()
   })
 

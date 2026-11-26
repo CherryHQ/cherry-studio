@@ -2,8 +2,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { loggerService } from '@logger'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
@@ -11,12 +10,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { isUniqueModelId } from '@shared/data/types/model'
 
 import { listEntries, reclaimStale } from '../orphanSessionReclaim'
-import type {
-  AgentRuntimeConnectInput,
-  AgentRuntimeConnection,
-  AgentSessionRuntimeDriver,
-  OrphanSessionReclaimOptions
-} from '../types'
+import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver, OrphanSessionReclaimOptions } from '../types'
 import { classifyPiFailure } from './failureFacts'
 import { PiForkCheckpointSchema } from './forkCheckpoint'
 import { forkPiSession } from './piFork'
@@ -54,20 +48,21 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
     await prepareAgentSessionWorkspaceDirectory(session)
   }
 
-  async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
+  async connect(input: AgentRuntimeConnectInput) {
     if (!isUniqueModelId(input.modelId)) throw new Error('Provider model required')
-    const migration = getRetiredAgentSessionMigration(application.get('DbService').getDb(), input.sessionId)
     await ensureRetiredSessionHistory(input.sessionId)
-    const migratedInput = migration
-      ? {
-          ...input,
-          resumeToken: agentSessionMessageService.getLastRuntimeResumeToken(input.sessionId) ?? undefined,
-          nativeSessionId: undefined
-        }
-      : input
-    const connection = new PiRuntimeConnection(migratedInput)
+    const connection = new PiRuntimeConnection(input)
     try {
-      return await connection.start()
+      const opened = await connection.start()
+      if (!('status' in opened)) return opened
+      await connection.close()
+      contexts.rebuildFileBranch(opened.context)
+      logger.warn('Rebuilding Pi context from session messages', { sessionId: input.sessionId, reason: opened.reason })
+      const replacement = new PiRuntimeConnection(input)
+      const rebuilt = await replacement.start()
+      if (!('status' in rebuilt)) return rebuilt
+      await replacement.close()
+      throw new Error(rebuilt.reason)
     } catch (error) {
       logAiFailure(logger, 'Pi startup failed', error, 'agent.pi.start', classifyPiFailure(error))
       throw error
@@ -78,7 +73,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
    * pi keeps one flat `{timestamp}_{resumeToken}.jsonl` per session generation
    * (see `resolveResumeTokenSessionFile`), so the token is the stem after the
    * FIRST `_` — the timestamp pi owns has none, but a token legally can. Every
-   * file for a claimed token is kept; ambiguous identities fail closed when opening.
+   * file for a claimed token is kept, including files that share an ambiguous identity.
    */
   async reclaimOrphanSessions(
     keptResumeTokens: ReadonlySet<string>,

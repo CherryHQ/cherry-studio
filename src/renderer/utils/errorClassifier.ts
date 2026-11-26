@@ -69,6 +69,14 @@ export function getClaudeCodeExitInfo(error?: SerializedError): ClaudeCodeExitIn
   }
 }
 
+export function isUnattributedClaudeCodeExit(error?: SerializedError): boolean {
+  const exit = getClaudeCodeExitInfo(error)
+  if (!exit || exit.category !== 'unknown' || !exit.reference.trim()) return false
+
+  if (exit.exitCode !== undefined) return Number.isSafeInteger(exit.exitCode) && exit.exitCode !== 0
+  return error?.processExitCode == null && !!exit.exitSignal?.trim()
+}
+
 /**
  * Errors nested inside a serialized AI SDK wrapper may be partial. Readers tolerate absent
  * `message`/`stack` while preserving normalized provider facts when present.
@@ -215,7 +223,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     navTarget: navTargetFor(category, providerSuffix)
   })
 
-  if (!error) return classify('unknown')
+  if (!error || error.errorSource === 'local') return classify('unknown')
 
   if (
     /model is not supported when using Codex with a ChatGPT account/i.test(

@@ -9,6 +9,7 @@ import {
   use,
   useCallback,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -31,6 +32,7 @@ import {
   HoverCardTrigger,
   Tooltip
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import { KeyedMessageActivityStore } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
 import MessageList from '@renderer/components/chat/messages/MessageList'
@@ -145,6 +147,7 @@ import { useAgentSessionDetails } from './useAgentSessionDetails'
 
 // ── Agent-specific composition over the generic right panel ─────────────────
 
+const logger = loggerService.withContext('AgentRightPane')
 const FLOW_TAB_PREFIX = 'flow:'
 const FILES_PANE_ID = 'files'
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
@@ -1319,8 +1322,17 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     (input: AgentToolFlowOpenInput) => actions.openAgentToolFlow(input, true),
     [actions.openAgentToolFlow]
   )
+  const streamTopicId = useAgentSessionStreamTopic(meta.sessionId)
+  const target = useMemo(
+    () =>
+      meta.sessionId && archiveSessionId
+        ? { kind: 'child' as const, sessionId: meta.sessionId, toolCallId }
+        : { kind: 'topic' as const, topicId: streamTopicId },
+    [archiveSessionId, meta.sessionId, streamTopicId, toolCallId]
+  )
   const providerValue = useAgentMessageListProviderValue({
     topic,
+    projectionTarget: target,
     messages,
     partsByMessageId,
     assistantProfile: { name: title },
@@ -1361,14 +1373,6 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     [childActivity, providerValue, t]
   )
 
-  const streamTopicId = useAgentSessionStreamTopic(meta.sessionId)
-  const target = useMemo(
-    () =>
-      meta.sessionId && archiveSessionId
-        ? { kind: 'child' as const, sessionId: meta.sessionId, toolCallId }
-        : { kind: 'topic' as const, topicId: streamTopicId },
-    [archiveSessionId, meta.sessionId, streamTopicId, toolCallId]
-  )
   const partReader = useMemo(() => messageProjectionService.partsFor(target), [target])
   return (
     <ProjectionReaderProvider reader={partReader}>
@@ -1770,13 +1774,26 @@ function AgentProfileRightPanel({ scope }: RightPanelComponentProps<AgentRightPa
 
 function AgentDetailsContent() {
   const meta = useAgentRightPaneMeta()
+  const { sessionId } = meta
   const actions = useAgentRightPaneActions()
   const details = useAgentSessionDetails()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage, status: contextUsageStatus } = useAgentSessionContextUsage(meta.sessionId, meta.model)
-  const cost = useAgentSessionCost(meta.sessionId)
-  const compaction = useAgentSessionCompaction(meta.sessionId)
+  const { usage, percentage, status: contextUsageStatus } = useAgentSessionContextUsage(sessionId, meta.model)
+  const cost = useAgentSessionCost(sessionId)
+  const compaction = useAgentSessionCompaction(sessionId)
   const desktopControls = use(DesktopControlsContext)
+  const refreshMissingUsage = useEffectEvent(async (sessionId: string) => {
+    if (percentage !== null || compaction.status === 'compacting') return
+    try {
+      await ipcApi.request('ai.agent.session.refresh_context_usage', { sessionId })
+    } catch (error) {
+      logger.warn('Could not refresh context usage', { sessionId, error })
+    }
+  })
+  useEffect(() => {
+    if (sessionId) void refreshMissingUsage(sessionId)
+  }, [sessionId])
+
   return (
     <div key={meta.sessionId}>
       <AgentSessionDetailsSections

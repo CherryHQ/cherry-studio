@@ -39,11 +39,9 @@ export async function acpContent(
           inline: () => inlineFileContent(part),
           unsupported: (kind) =>
             new Error(
-              t(
-                kind === 'image'
-                  ? 'agent.session.attachment.image_unsupported'
-                  : 'agent.session.attachment.audio_unsupported'
-              )
+              kind === 'image'
+                ? t('agent.session.attachment.image_unsupported')
+                : t('agent.session.attachment.audio_unsupported')
             ),
           async linkedSize() {
             const metadata = path && (await stat(path).catch(() => undefined))

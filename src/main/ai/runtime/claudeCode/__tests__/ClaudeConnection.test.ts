@@ -149,8 +149,8 @@ it('sends successive turns to the selected CLI in one SDK session with the local
     const sent = wire.inputs.at(-1)!
     expect(sent.session_id).toBe(options.sessionId)
     expect(sent.uuid).toBe(turn.message.id)
-    wire.send(assistantMessage(sent.session_id, [{ type: 'text', text, citations: null }]))
-    wire.send(result(sent.session_id, sent.uuid!, { stop_reason: 'max_tokens' }))
+    wire.send(assistantMessage(sent.session_id!, [{ type: 'text', text, citations: null }]))
+    wire.send(result(sent.session_id!, sent.uuid!, { stop_reason: 'max_tokens' }))
     await expect.poll(() => events.filter((event) => event.type === 'turn-complete')).toHaveLength(wire.inputs.length)
   }
   expect(events).toContainEqual({ type: 'turn-complete', finishReason: 'length' })
@@ -167,8 +167,8 @@ it('keeps a background result separate from the submitted turn and surfaces its 
   await connection.send(input('work'))
   await expect.poll(() => wire.inputs.length).toBe(1)
   const sent = wire.inputs[0]
-  wire.send(result(sent.session_id, randomUUID(), { origin: { kind: 'task-notification', runId: 'old-task' } }))
-  wire.send(result(sent.session_id, sent.uuid!, { api_error_status: 429, result: 'Rate limited' }))
+  wire.send(result(sent.session_id!, randomUUID(), { origin: { kind: 'task-notification', runId: 'old-task' } }))
+  wire.send(result(sent.session_id!, sent.uuid!, { api_error_status: 429, result: 'Rate limited' }))
   await expect
     .poll(() => events.find((event) => event.type === 'error'))
     .toMatchObject({ error: { message: 'Rate limited' } })
@@ -209,7 +209,7 @@ it('keeps scheduled execution read-only and fails a turn denied by the CLI', asy
   await expect.poll(() => wire.inputs.length).toBe(1)
   const sent = wire.inputs[0]
   wire.send(
-    result(sent.session_id, sent.uuid!, {
+    result(sent.session_id!, sent.uuid!, {
       permission_denials: [{ tool_use_id: 'write-1', tool_name: 'Write', tool_input: {} }]
     })
   )
@@ -236,6 +236,7 @@ it('applies session permissions and effort on the active query and still asks in
     { command: 'pwd' },
     {
       toolUseID: 'first',
+      requestId: 'first',
       signal,
       suggestions: [{ type: 'addRules', rules: [{ toolName: 'Bash' }], behavior: 'allow', destination: 'userSettings' }]
     }
@@ -249,7 +250,9 @@ it('applies session permissions and effort on the active query and still asks in
     updatedInput: { command: 'pwd' },
     updatedPermissions: [{ destination: 'session' }]
   })
-  await expect(canUseTool('Bash', { command: 'pwd' }, { toolUseID: 'again', signal })).resolves.toEqual({
+  await expect(
+    canUseTool('Bash', { command: 'pwd' }, { toolUseID: 'again', requestId: 'again', signal })
+  ).resolves.toEqual({
     behavior: 'allow',
     updatedInput: { command: 'pwd' }
   })
@@ -259,7 +262,7 @@ it('applies session permissions and effort on the active query and still asks in
   await connection.setThoughtLevel('claude-effort', 'high')
   expect(connection.localSessionInfo.thoughtLevel?.currentValue).toBe('high')
   await connection.setThoughtLevel('claude-effort', 'default')
-  const question = canUseTool('AskUserQuestion', {}, { signal, toolUseID: 'question' })
+  const question = canUseTool('AskUserQuestion', {}, { signal, toolUseID: 'question', requestId: 'question' })
   toolApprovalRegistry.dispatch(await approval('question'), { approved: true, updatedInput: { answer: 'yes' } })
   await expect(question).resolves.toMatchObject({ behavior: 'allow', updatedInput: { answer: 'yes' } })
   expect(spawn).toHaveBeenCalledTimes(1)

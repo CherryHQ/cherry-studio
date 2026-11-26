@@ -523,6 +523,8 @@ const CodeViewer = ({
     overscan: 20,
     scrollMargin,
     enabled: !expanded || scrollParent !== null,
+    // Let code blocks sharing the message viewport commit in the same batch.
+    useFlushSync: !isViewportOwned(scrollParent),
     observeElementOffset: (instance, callback) => {
       const element = instance.scrollElement
       const onOffset = observeCodeViewportOffset(instance, callback)

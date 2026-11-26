@@ -70,7 +70,7 @@ export function getLocalAgentModelStorage(presetId: string | undefined) {
       nativeSelection: preset.protocol === 'acp' ? 'agent' : file.nativeSelection
     } as const
   }
-  if (preset?.protocol === 'cursor' || preset?.protocol === 'acp' || presetId === undefined) {
-    return { type: 'agent' } as const
-  }
+  return preset?.protocol === 'cursor' || preset?.protocol === 'acp' || presetId === undefined
+    ? ({ type: 'agent' } as const)
+    : undefined
 }

@@ -73,6 +73,8 @@ export type ResourceListDragCapabilities = {
   items?: boolean
   itemSameGroup?: boolean
   itemCrossGroup?: boolean
+  /** A same-group header release is a no-op (see GroupedSortableVirtualListDragCapabilities). */
+  itemOwnGroupHeaderNoop?: boolean
 }
 
 export type ResourceListItemReorderPayload = {

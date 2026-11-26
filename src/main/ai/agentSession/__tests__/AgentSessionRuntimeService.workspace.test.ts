@@ -103,7 +103,7 @@ function setup(protocol: 'acp' | 'codex', pauseFirst = false) {
   vi.spyOn(driver, 'connect').mockImplementation(async (input) => {
     const connection = await connect(input)
     connections.push(connection)
-    const push = connection.events as { push: (event: AgentRuntimeEvent) => void }
+    const push = connection.events as unknown as { push: (event: AgentRuntimeEvent) => void }
     const original = push.push.bind(push)
     push.push = (event) => {
       events.push(event)

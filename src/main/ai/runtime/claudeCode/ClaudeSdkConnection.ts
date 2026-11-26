@@ -124,6 +124,7 @@ export abstract class ClaudeSdkConnection<
     | { state: 'opening'; pending: Promise<ClaudeChildResource | undefined> }
     | { state: 'attached' | 'closing'; resource: ClaudeChildResource }
   >()
+  private runActive = false
   protected closing = false
   private closePromise?: Promise<void>
   /** Keep the effective child environment for native checkpoint capture. */
@@ -154,8 +155,8 @@ export abstract class ClaudeSdkConnection<
 
   abstract reconcile(input: Parameters<AgentRuntimeConnection['reconcile']>[0]): Promise<AgentRuntimeReconcileResult>
 
-  protected prepareContext(env: Options['env'], nativeId?: string, anchor?: string) {
-    return prepareClaudeBranch(this.input.sessionId, resolveClaudeConfigDirectory(env), nativeId, anchor)
+  protected prepareContext(env: Options['env'], nativeId?: string, anchor?: string, opening = false) {
+    return prepareClaudeBranch(this.input.sessionId, resolveClaudeConfigDirectory(env), nativeId, anchor, opening)
   }
 
   protected async startSdk(
@@ -238,6 +239,7 @@ export abstract class ClaudeSdkConnection<
     })
     const operation = this.handle?.claude.input?.followUp
     if (!operation) throw new Error('Claude follow-up is unavailable')
+    this.runActive = true
     const result = await operation.submit({ inputId: draft.inputId, content: sdkMessage.message.content })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
@@ -572,9 +574,11 @@ export abstract class ClaudeSdkConnection<
       )
     }
     if (control.type === 'input-boundary') {
-      this.eventQueue.push({ type: 'steer-boundary', inputIds: control.inputIds })
+      this.eventQueue.push({ type: this.runActive ? 'steer-boundary' : 'run-started', inputIds: control.inputIds })
+      this.runActive = true
       this.currentSources.clear()
     } else if (control.type === 'autonomous-turn-state' && control.state === 'started') {
+      this.runActive = true
       this.currentSources.clear()
     } else if (control.type === 'session') {
       if (contextId !== this.context?.id) return
@@ -601,6 +605,7 @@ export abstract class ClaudeSdkConnection<
       logger.warn(control.message, { detail: control.detail })
     } else if (control.type === 'result') {
       if (control.sessionId !== this.handle?.claude.sessionId) return
+      if (control.terminal || control.failure) this.runActive = false
       if (control.failure) {
         const error = new ClaudeCodeResultError(control.failure)
         logAiFailure(logger, 'Claude Code result failed', error, 'agent.claude.prompt', classifyClaudeFailure(error))

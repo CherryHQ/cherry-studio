@@ -222,6 +222,11 @@ export interface RemoveMessageErrorPartInput {
 }
 
 export interface MessageListItem {
+  /** Durable owner when this row is a segment of an execution. */
+  sourceMessageId?: string
+  isRunBoundary?: boolean
+  presentation?: 'content' | 'marker' | 'interrupted'
+  showHeader?: boolean
   partIds?: readonly string[]
   id: string
   role: CherryUIMessage['role']
@@ -471,8 +476,6 @@ export interface MessageListActions {
     target: MessageExportTarget
   ) => void | Promise<void>
   deleteSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
-  /** Deletes every loaded, selectable message older than `messageId`, after confirmation. */
-  deleteMessagesBefore?: (messageId: string) => void | Promise<void>
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
   canEditMessage?: (message: MessageListItem) => boolean

@@ -415,7 +415,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       const persisted = await runtime.editSession(
         validated.sessionId,
         req.editTarget,
-        (tx, nativeSessionId, nativeContextId) => {
+        (tx, nativeSessionId, nativeContextId, sourceBackendId) => {
           validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
           const result = this.persistDispatchTx(
             tx,
@@ -431,7 +431,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           if (validated.agentType === 'pi')
             reservePiBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
           else if (validated.agentType === 'claude-code')
-            reserveClaudeBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
+            reserveClaudeBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId, sourceBackendId)
           else if (validated.agentType === 'pi-durable')
             reserveDurableBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId, nativeContextId)
           if (validated.agentType !== 'pi-durable' || nativeContextId)

@@ -310,7 +310,17 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
       })
     )
     expect(msgs).toHaveLength(2)
-    expect(msgs[0]).toMatchObject({ parts: [{ type: 'reasoning', text: 'the raw chain' }] })
+    expect(msgs[0]).toMatchObject({
+      parts: expect.arrayContaining([
+        {
+          type: 'reasoning',
+          text: 'the raw chain',
+          providerMetadata: expect.objectContaining({
+            openai: { itemId: 'rs_1', rawReasoningContent: true }
+          })
+        }
+      ])
+    })
     expect(msgs[1]).toMatchObject({
       parts: [
         {
@@ -337,6 +347,7 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
     const completed = adapter.finalizeEvents().find((event) => event.type === 'response.completed')!
     const reasoning = completed.response.output.find((item) => item.type === 'reasoning')
     expect(reasoning).toMatchObject({ id: 'rs_provider', encrypted_content: 'encrypted-state' })
+    expect(reasoning).not.toHaveProperty('content')
     expect(adapter.buildNonStreamingResponse().output).toContainEqual(reasoning)
     let sent: { input: unknown[] } | undefined
     const model = createOpenAI({
@@ -365,6 +376,59 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
       encrypted_content: 'encrypted-state',
       summary: summary ? [{ type: 'summary_text', text: summary }] : []
     })
+  })
+
+  it('round-trips a native Responses item with separate plaintext and summary', async () => {
+    const itemId = 'rs_provider'
+    const summary = 'Short summary'
+    const chain = 'Complete plaintext'
+    const adapter = new AiSdkToOpenAiResponsesSse({ model: 'fixture' })
+    const metadata = { openai: { itemId } }
+    const rawMetadata = { openai: { itemId, rawReasoningContent: true } }
+    const events = [
+      ...adapter.transformChunk({ type: 'reasoning-start', id: 'summary', providerMetadata: metadata }),
+      ...adapter.transformChunk({ type: 'reasoning-delta', id: 'summary', delta: summary, providerMetadata: metadata }),
+      ...adapter.transformChunk({ type: 'reasoning-end', id: 'summary', providerMetadata: metadata }),
+      ...adapter.transformChunk({ type: 'reasoning-start', id: 'raw', providerMetadata: rawMetadata }),
+      ...adapter.transformChunk({ type: 'reasoning-delta', id: 'raw', delta: chain, providerMetadata: rawMetadata }),
+      ...adapter.transformChunk({ type: 'reasoning-end', id: 'raw', providerMetadata: rawMetadata }),
+      ...adapter.transformChunk({ type: 'finish', finishReason: 'stop' }),
+      ...adapter.finalizeEvents()
+    ]
+    expect(events).toContainEqual(expect.objectContaining({ type: 'response.reasoning_text.delta', delta: chain }))
+    expect(events).toContainEqual(expect.objectContaining({ type: 'response.reasoning_text.done', text: chain }))
+    const completed = events.find((event) => event.type === 'response.completed')!
+    const reasoning = completed.response.output.find((item) => item.type === 'reasoning')
+    const expected = {
+      type: 'reasoning',
+      summary: [{ type: 'summary_text', text: summary }],
+      content: [{ type: 'reasoning_text', text: chain }]
+    }
+    expect(reasoning).toMatchObject(expected)
+    let sent: { input: unknown[] } | undefined
+    const model = createOpenAI({
+      apiKey: 'fixture',
+      fetch: async (_url, init) => {
+        sent = JSON.parse(String(init?.body))
+        return Response.json({
+          id: 'resp_next',
+          created_at: 0,
+          model: 'fixture',
+          output: [],
+          usage: { input_tokens: 1, output_tokens: 0 }
+        })
+      }
+    }).responses('fixture')
+    await generateText({
+      model,
+      messages: await convertToModelMessages(
+        converter.toUIMessages(params({ input: [reasoning!, { role: 'user', content: 'continue' }] }))
+      ),
+      providerOptions: { openai: { store: false } }
+    })
+    expect(
+      sent!.input.filter((item) => item && typeof item === 'object' && 'type' in item && item.type === 'reasoning')
+    ).toEqual([expect.objectContaining(expected)])
   })
 
   it('returns an empty list when there is no input', () => {

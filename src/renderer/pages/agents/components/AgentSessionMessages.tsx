@@ -185,6 +185,7 @@ const AgentSessionMessages = ({
   )
   const messageList = useAgentMessageListProviderValue({
     topic: derivedTopic,
+    projectionTarget: target,
     messages,
     historyActions,
     partsByMessageId,

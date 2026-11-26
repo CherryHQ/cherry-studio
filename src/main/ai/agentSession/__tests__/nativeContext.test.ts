@@ -211,6 +211,7 @@ describe('native context storage and reconciliation', () => {
   async function durable() {
     const intent = prepareDurableBranch(sessionId)
     const root = await prepareDurableRoot(intent.id)
+    if ('status' in root) throw new Error(root.reason)
     const faux = fauxProvider({ tokensPerSecond: 10000 })
     const models = createModels()
     models.setProvider(faux.provider)
@@ -254,6 +255,7 @@ describe('native context storage and reconciliation', () => {
     async (reserved) => {
       const intent = prepareDurableBranch(sessionId)
       const root = await prepareDurableRoot(intent.id)
+      if ('status' in root) throw new Error(root.reason)
       const { createPiDurableRuntime } = await import('@cherrystudio/agent-runtime-pi-durable')
       const runtime = confirmed(
         await createPiDurableRuntime({
@@ -273,6 +275,7 @@ describe('native context storage and reconciliation', () => {
       expect(contexts.context(intent.id).bindingState).toBe('pending')
       await runtime.shutdown()
       const recovered = await prepareDurableRoot(intent.id)
+      if ('status' in recovered) throw new Error(recovered.reason)
       try {
         expect(recovered.nativeId).toBe(handle.thread.id)
         expect(contexts.context(intent.id)).toMatchObject({ nativeThreadId: handle.thread.id, bindingState: 'bound' })
@@ -303,6 +306,7 @@ describe('native context storage and reconciliation', () => {
       expect(prepareDurableBranch(sessionId).id).toBe(intent.id)
 
       const root = await prepareDurableRoot(intent.id)
+      if ('status' in root) throw new Error(root.reason)
       try {
         expect(contexts.backend(backend.id).state).toBe('bound')
         expect((await root.storage.scanConversations({}, 10, undefined, BACKGROUND_CONTEXT)).items).toEqual([])

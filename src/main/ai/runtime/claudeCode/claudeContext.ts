@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 
 import { application } from '@application'
+import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { ensureAgentSessionRootTx, getAgentSessionHead } from '@data/services/agentSessionMessageTree'
@@ -10,7 +11,8 @@ export function prepareClaudeBranch(
   sessionId: string,
   source: string | { agentId: string },
   nativeId?: string,
-  messageId?: string
+  messageId?: string,
+  opening = false
 ) {
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
@@ -24,7 +26,7 @@ export function prepareClaudeBranch(
         : { version: 1, kind: 'local', agentId: source.agentId },
       'bound'
     )
-    if (existing && (!nativeId || existing.nativeThreadId === nativeId)) {
+    if (existing && (opening || !nativeId || existing.nativeThreadId === nativeId)) {
       if (existing.backendId !== backend.id) throw new Error('The selected branch belongs to another runtime backend')
       return existing
     }
@@ -32,18 +34,31 @@ export function prepareClaudeBranch(
       sessionId,
       backendId: backend.id,
       nativeThreadId: nativeId ?? uuid(),
-      anchorMessageId: anchor
+      anchorMessageId: anchor,
+      checkpointMapping: opening && !nativeId ? { referenceHistory: true } : undefined
     })
   })
 }
 
-export function reserveClaudeBranchTx(tx: DbOrTx, sessionId: string, anchor: string, nativeId: string) {
-  const parent = contexts.branchTx(tx, sessionId, anchor)
-  if (!parent || contexts.backendTx(tx, parent.backendId).locator.kind !== 'claude-code')
+export function claudeBranchQueryIdentity(context: AgentSessionContextRow, requestedResume?: string) {
+  const nativeId = context.nativeThreadId!
+  const resume = context.bindingState === 'bound' || requestedResume === nativeId ? nativeId : undefined
+  return { resume, sessionId: resume ? undefined : context.nativeThreadId! }
+}
+
+export function reserveClaudeBranchTx(
+  tx: DbOrTx,
+  sessionId: string,
+  anchor: string,
+  nativeId: string,
+  sourceBackendId?: string
+) {
+  const backendId = contexts.branchTx(tx, sessionId, anchor)?.backendId ?? sourceBackendId
+  if (!backendId || contexts.backendTx(tx, backendId).locator.kind !== 'claude-code')
     throw new Error('Claude edit requires an existing native backend')
   return contexts.reserveBranchTx(tx, {
     sessionId,
-    backendId: parent.backendId,
+    backendId,
     anchorMessageId: anchor,
     nativeThreadId: nativeId
   })

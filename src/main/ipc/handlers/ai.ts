@@ -252,7 +252,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('LocalAgentAuthService').authenticate(requestId, config, methodId, { secret, provider }, senderId),
   'ai.local_agents.cancel_auth': ({ requestId }, { senderId }) =>
     application.get('LocalAgentAuthService').cancel(requestId, senderId),
-  'ai.local_agents.respond_auth_consent': ({ requestId, promptId, decision }, { senderId }) =>
+  'ai.local_agents.respond_auth_consent': async ({ requestId, promptId, decision }, { senderId }) =>
     application.get('LocalAgentAuthService').respondToBrowserConsent(requestId, promptId, decision, senderId),
   'ai.local_agents.select_model': ({ agentId, nativeModel, ...selection }) =>
     selectLocalAgentModel(agentId, nativeModel, selection),
@@ -339,6 +339,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   'ai.agent.session.edit_target': ({ sessionId, messageId }) =>
     exposeAiStreamAdmission(() => application.get('AgentSessionRuntimeService').getEditTarget(sessionId, messageId)),
+  'ai.agent.session.change_followups': async ({ topicId, change }, { senderId }) => {
+    if (!senderWebContents(senderId)) return false
+    return application.get('AgentSessionRuntimeService').changeFollowups(topicId, change)
+  },
   'ai.agent.session.set_pending_input_count': async ({ sessionId, count }, { senderId }) => {
     const wc = senderWebContents(senderId)
     if (!wc) return

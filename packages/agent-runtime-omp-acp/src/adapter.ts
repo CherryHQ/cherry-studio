@@ -4,7 +4,7 @@ import {
   type AcpYamlModelProfile
 } from '@cherrystudio/agent-runtime-acp/profile'
 
-export const ompModelProfile = {
+export const ompModelProfile: AcpYamlModelProfile<'omp-settings'> = {
   format: 'yaml',
   target: 'omp-settings',
   readModel(doc) {
@@ -24,7 +24,7 @@ export const ompModelProfile = {
       else if (doc.hasIn(['defaultModel'])) doc.deleteIn(['defaultModel'])
     }
   }
-} satisfies AcpYamlModelProfile<'omp-settings'>
+}
 
 export const ompGateway = {
   format: 'yaml',

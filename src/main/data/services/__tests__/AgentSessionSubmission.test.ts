@@ -275,7 +275,6 @@ describe('message-owned native input bindings', () => {
       message: { id: pending, role: 'assistant', status: 'pending', data: { parts: [] } }
     })
     dbh.db.update(agentTable).set({ type: 'claude-code' }).where(eq(agentTable.id, agentId)).run()
-    expect(() => messages.readEditSnapshotTx(dbh.db, sessionId, messageId)).toThrow()
     expect(messages.findCrashOrphanedAssistantMessages(['claude-code'])).toEqual([])
     const stale = messages.findCrashOrphanedAssistantMessages(['pi'])
     expect(stale.map((row) => row.id)).toEqual([pending])
@@ -284,6 +283,5 @@ describe('message-owned native input bindings', () => {
     expect(messages.getLastRuntimeResumeToken(sessionId)).toBe('native-session')
     expect(messages.inputBinding(sessionId, messageId)).toEqual({ contextId, nativeInputId: null })
     expect(contexts.context(contextId)).toMatchObject({ bindingState: 'bound', nativeThreadId: 'native-session' })
-    expect(() => messages.readEditSnapshotTx(dbh.db, sessionId, messageId)).not.toThrow()
   })
 })

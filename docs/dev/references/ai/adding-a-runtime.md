@@ -107,7 +107,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      so the host can present it in the stream or in a separate message.
      Emit `resume-token` when a recovery handle becomes available. Close each
      turn with `turn-complete`, set its status to `paused` for a native abort,
-     or emit `error` on failure.
+     or emit `error` on failure. Independently confirmed fork positions may use `run-checkpoint`,
+     carrying the native context and stable product input ID. Main resolves the owning Run;
+     emitting this evidence does not finish it or require the whole connection to become idle.
    - `send(input)` — deliver a user message; `input.systemReminder` marks a
      steer, wrap it with `wrapSteerReminder(...)`. Apply optional model-only
      `input.context` through ordinary input/attachment conversion with
@@ -131,10 +133,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      - `threadInput.steer.submit({ inputId, message })` binds native steering. Main saves the
        input's context before dispatch. Return explicit rejection only when the input was not
        admitted. A missing receipt keeps the original binding. Emit `steer-boundary` with input
-       IDs once native placement is evidenced.
+       IDs once native placement is evidenced. The existing Run and reply keep ownership.
      - `threadInput.followUp` declares the queue's persistence and submits live follow-ups with
        the same input contract. The Composer sends directly to a durable queue. When native work
-       places a follow-up, emit `steer-boundary` with `followUp: true` after the preceding answer
+       places a follow-up, emit `run-started` after the preceding answer
        so the next input gets its own reply.
      - `compact()` runs a standalone idle-thread operation. Report success from the matching
        native outcome without creating a chat turn.

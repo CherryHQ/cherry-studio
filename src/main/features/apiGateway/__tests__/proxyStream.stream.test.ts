@@ -100,6 +100,10 @@ vi.mock('../adapters', () => ({
         if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
         return [chunk]
       },
+      transformChunkWithOpening: (chunk: UIMessageChunk) => {
+        if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
+        return { opening: [], events: [chunk] }
+      },
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ done: true })
     })),
@@ -1355,4 +1359,283 @@ describe('processMessage (terminal finish reasons)', () => {
       }
     }
   }
+})
+
+describe('processMessage (tool-input-error & file startup commitment)', () => {
+  beforeEach(() => {
+    vi.mocked(StreamAdapterFactory.createAdapter).mockImplementation(
+      RealStreamAdapterFactory.createAdapter.bind(RealStreamAdapterFactory)
+    )
+    vi.mocked(StreamAdapterFactory.getFormatter).mockImplementation(
+      RealStreamAdapterFactory.getFormatter.bind(RealStreamAdapterFactory)
+    )
+  })
+
+  afterEach(() => {
+    vi.mocked(StreamAdapterFactory.createAdapter).mockReset()
+    vi.mocked(StreamAdapterFactory.getFormatter).mockReset()
+  })
+
+  const waitStartup = async <T>(pending: Promise<T>): Promise<T> =>
+    Promise.race([
+      pending,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Startup content timed out')), 500))
+    ])
+
+  async function readUntil(stream: ReadableStream<Uint8Array>, ...expected: string[]): Promise<string> {
+    const reader = stream.getReader()
+    const decoder = new TextDecoder()
+    let body = ''
+    try {
+      while (expected.some((value) => !body.includes(value))) {
+        const { done, value } = await reader.read()
+        if (done) break
+        body += decoder.decode(value, { stream: true })
+      }
+      return body
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
+  it.each([
+    { format: 'openai', argsKey: 'arguments' },
+    { format: 'anthropic', argsKey: 'partial_json' },
+    { format: 'openai-responses', argsKey: 'arguments' },
+    { format: 'gemini', argsKey: 'args' }
+  ] as const)(
+    '$format commits startup immediately on valid object tool-input-error without waiting for finish/onDone',
+    async ({ format, argsKey }) => {
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: format
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+
+      listener.onChunk({
+        type: 'tool-input-error',
+        toolCallId: 'call-1',
+        toolName: 'unknown_tool',
+        input: { path: { nested: true } },
+        errorText: 'Schema mismatch'
+      })
+
+      const res = await waitStartup(pending)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('Content-Type')).toBe('text/event-stream')
+
+      const args = '{"path":{"nested":true}}'
+      const expectedName = '"name":"unknown_tool"'
+      const expectedArgs = `"${argsKey}":${format === 'gemini' ? args : JSON.stringify(args)}`
+      const beforeDone = await waitStartup(readUntil(res.body!, expectedName, expectedArgs))
+      expect(beforeDone).toContain(expectedName)
+      expect(beforeDone).toContain(expectedArgs)
+      if (format === 'openai') {
+        expect(beforeDone.indexOf('"role":"assistant"')).toBeGreaterThanOrEqual(0)
+        expect(beforeDone.indexOf('"role":"assistant"')).toBeLessThan(beforeDone.indexOf(expectedName))
+      } else if (format === 'anthropic') {
+        expect(beforeDone.indexOf('event: message_start')).toBeGreaterThanOrEqual(0)
+        expect(beforeDone.indexOf('event: message_start')).toBeLessThan(beforeDone.indexOf(expectedName))
+      } else if (format === 'openai-responses') {
+        expect(beforeDone.indexOf('event: response.created')).toBeGreaterThanOrEqual(0)
+        expect(beforeDone.indexOf('event: response.in_progress')).toBeGreaterThan(
+          beforeDone.indexOf('event: response.created')
+        )
+        expect(beforeDone.indexOf('event: response.in_progress')).toBeLessThan(beforeDone.indexOf(expectedName))
+      }
+
+      await listener.onDone({} as any)
+      const body = beforeDone + (await readAll(res.body))
+      expect(body).toContain('"unknown_tool"')
+      expect(body).not.toContain('"error"')
+    }
+  )
+
+  it('gemini commits startup immediately on valid base64 data-URL file chunk without waiting for finish/onDone', async () => {
+    const pending = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'gemini'
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    const listener = captured.listener!
+
+    listener.onChunk({
+      type: 'file',
+      mediaType: 'image/png',
+      url: 'data:image/png;base64,AAAA'
+    })
+
+    const res = await waitStartup(pending)
+    expect(res.status).toBe(200)
+
+    const inlineData = '"inlineData":{"mimeType":"image/png","data":"AAAA"}'
+    const beforeDone = await waitStartup(readUntil(res.body!, inlineData))
+    expect(beforeDone).toContain(inlineData)
+
+    await listener.onDone({} as any)
+    const body = beforeDone + (await readAll(res.body))
+    expect(body).toContain('"inlineData":{"mimeType":"image/png","data":"AAAA"}')
+    expect(body).not.toContain('"error"')
+  })
+
+  it.each(['openai', 'anthropic', 'openai-responses'] as const)(
+    '%s preserves a startup rejection after an ignored file chunk',
+    async (outputFormat) => {
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat
+      })
+      const error = serializeError(new Error('Upstream failed'))
+      const rejected = expect(pending).rejects.toEqual(error)
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+
+      listener.onChunk({ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' })
+      await listener.onError({ status: 'error', error })
+
+      await rejected
+    }
+  )
+
+  it.each([
+    { outputFormat: 'openai', openingMarker: '"role":"assistant"' },
+    { outputFormat: 'anthropic', openingMarker: 'event: message_start' },
+    { outputFormat: 'openai-responses', openingMarker: 'event: response.created' }
+  ] as const)(
+    '$outputFormat emits ordered single opening scaffolding when an ignored file chunk precedes text-delta or onDone',
+    async ({ outputFormat, openingMarker }) => {
+      const pendingWithText = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listenerWithText = captured.listener!
+      let settledWithText = false
+      void pendingWithText.then(() => {
+        settledWithText = true
+      })
+
+      listenerWithText.onChunk({ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' })
+      await Promise.resolve()
+      expect(settledWithText).toBe(false)
+
+      listenerWithText.onChunk({ type: 'text-delta', id: 't1', delta: 'after ignored file' })
+      const resWithText = await waitStartup(pendingWithText)
+      await listenerWithText.onDone({} as any)
+      const bodyWithText = await readAll(resWithText.body)
+      expect(bodyWithText.split(openingMarker).length - 1).toBe(1)
+      expect(bodyWithText.indexOf(openingMarker)).toBeLessThan(bodyWithText.indexOf('after ignored file'))
+
+      captured.listener = undefined
+      const pendingDone = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listenerDone = captured.listener!
+      listenerDone.onChunk({ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' })
+      await listenerDone.onDone({} as any)
+      const resDone = await waitStartup(pendingDone)
+      const bodyDone = await readAll(resDone.body)
+      expect(bodyDone.split(openingMarker).length - 1).toBe(1)
+    }
+  )
+
+  it.each([null, [], 'invalid-json', undefined])(
+    'rejects malformed tool-input-error before startup commitment when input is %j',
+    async (badInput) => {
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'openai'
+      })
+      const settled = pending.then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error })
+      )
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+
+      listener.onChunk({
+        type: 'tool-input-error',
+        toolCallId: 'bad-call',
+        toolName: 'read_file',
+        input: badInput,
+        errorText: 'Invalid tool arguments'
+      })
+
+      const result = await settled
+      expect('error' in result).toBe(true)
+      expect((result as { error: Error }).error).toMatchObject({ message: 'Invalid tool arguments' })
+      expect(listener.isAlive?.()).toBe(false)
+    }
+  )
+
+  it('rejects non-base64 Gemini file chunk before startup commitment', async () => {
+    const pending = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'gemini'
+    })
+    const settled = pending.then(
+      (value) => ({ value }),
+      (error: unknown) => ({ error })
+    )
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+    const listener = captured.listener!
+
+    listener.onChunk({
+      type: 'file',
+      mediaType: 'image/png',
+      url: 'https://example.com/image.png'
+    })
+
+    const result = await settled
+    expect('error' in result).toBe(true)
+    expect((result as { error: Error }).error).toMatchObject({
+      message: 'Generated Gemini file must contain base64 data'
+    })
+    expect(listener.isAlive?.()).toBe(false)
+  })
+
+  it('emits terminal SSE error frame when malformed tool-input-error or non-base64 file arrives after commitment', async () => {
+    for (const badChunk of [
+      {
+        type: 'tool-input-error' as const,
+        toolCallId: 'bad-call',
+        toolName: 'read_file',
+        input: null,
+        errorText: 'Invalid tool arguments'
+      },
+      {
+        type: 'file' as const,
+        mediaType: 'image/png',
+        url: 'https://example.com/image.png'
+      }
+    ]) {
+      captured.listener = undefined
+      const pending = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat: 'gemini'
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
+
+      commit(listener)
+      const res = await pending
+      listener.onChunk(badChunk)
+
+      const body = await readAll(res.body)
+      expect(body).toContain('"error"')
+      expect(body).not.toContain('data: [DONE]')
+      expect(listener.isAlive?.()).toBe(false)
+    }
+  })
 })

@@ -333,7 +333,7 @@ describe('local protocol processes', () => {
   it.each(['inline', 'managed'])('sends audio bytes in prompt order (%s)', async (source) => {
     const { connection } = create('acp', 'audio')
     await connection.start(cwd)
-    expect(connection.localSessionInfo.audio).toBe(true)
+    expect(connection.localSessionInfo).toMatchObject({ audio: true })
     managedFiles.read.mockResolvedValue({ content: 'YXVkaW8=', mime: 'audio/wav' })
     const part = {
       type: 'file',
@@ -1954,11 +1954,11 @@ describe('local protocol processes', () => {
   it('preserves config categories and priority, ignores unknown types, and replaces dependent options completely', async () => {
     const { connection } = create('acp', 'config-semantics')
     await connection.start(cwd)
-    expect(connection.localSessionInfo.configOptions?.map(({ id, category }) => [id, category])).toEqual([
-      ['verbosity', '_verbosity'],
-      ['model', 'model'],
-      ['context-size', 'model_config'],
-      ['notifications', undefined]
+    expect(connection.localSessionInfo.configOptions).toMatchObject([
+      { id: 'verbosity', category: '_verbosity' },
+      { id: 'model', category: 'model' },
+      { id: 'context-size', category: 'model_config' },
+      { id: 'notifications', category: undefined }
     ])
     expect((await readWire()).find(({ method }) => method === 'initialize').params.clientInfo.version).toBe(
       app.getVersion()
