@@ -97,7 +97,7 @@ export class ClaudeProjection {
   }
 
   /** Native continuation context stays intact; the product feed omits compaction sources. */
-  private withoutCompaction(events: ObservationPayload[]): ObservationPayload[] {
+  private withoutCompaction(events: readonly ObservationPayload[]): ObservationPayload[] {
     return events.filter((event) => {
       if (event.type === 'message.reconcile') return !this.compactionSources.has(event.message.id)
       if (event.type === 'message.parts') return !this.compactionSources.has(event.ref.id)
