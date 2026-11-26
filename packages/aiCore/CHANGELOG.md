@@ -6,6 +6,12 @@
 
 - Include a package-local MIT license file and correct the README license link.
 
+## 2.5.2
+
+### Patch Changes
+
+- [#24913](https://github.com/CherryHQ/cherry-studio/pull/24913) [`8692e8f`](https://github.com/CherryHQ/cherry-studio/commit/8692e8f8755b9ad10187453a5e4f689b5dc1d2dc) Thanks [@DeJeune](https://github.com/DeJeune)! - Apply an optional caller model wrapper after provider middleware for single-step streaming and generation requests.
+
 ## 2.5.1
 
 ### Patch Changes

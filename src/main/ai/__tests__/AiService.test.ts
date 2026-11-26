@@ -1,3 +1,6 @@
+import { EventEmitter } from 'node:events'
+import { Readable } from 'node:stream'
+
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import type { CreateMessageRequestParamsBase } from '@modelcontextprotocol/client'
@@ -6,10 +9,14 @@ import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { generateText, modelMessageSchema, streamText } from 'ai'
+import { generateImage, generateText, modelMessageSchema, NoImageGeneratedError, streamText } from 'ai'
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { t } from '@main/i18n'
+import type * as ImageDownloadModule from '@main/utils/downloadAsBase64'
+import { sanitizeSeedreamImageParams, validateSeedreamImageParams } from '@shared/ai/seedreamImageContract'
 import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 
@@ -33,6 +40,7 @@ const mockCreateAgent = vi.fn()
 const mockRerank = vi.fn()
 const mockEmbedMany = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
+const mockDownloadPublicImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
 const mockAssistantGetById = vi.fn()
 const mockMessageGetById = vi.fn()
@@ -159,7 +167,8 @@ vi.mock('../provider/listModels', async (importOriginal) => {
   }
 })
 vi.mock('@main/utils/downloadAsBase64', () => ({
-  downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
+  downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args),
+  downloadPublicImageAsBase64: (...args: unknown[]) => mockDownloadPublicImageAsBase64(...args)
 }))
 
 vi.mock('@main/data/services/MessageService', () => ({
@@ -593,12 +602,10 @@ describe('AiService', () => {
     const service = createService()
     const source = {
       kind: 'messages' as const,
-      stream: new ReadableStream({
-        start(controller) {
-          controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
-          controller.close()
-        }
-      })
+      onPart: () => ({ dispose() {} }),
+      onMessageReconciled: () => ({ dispose() {} }),
+      readParts: () => [{ partId: 'answer', payload: { type: 'text', text: 'Native answer' } }],
+      stream: new ReadableStream({ start: (controller) => controller.close() })
     }
     mockApplicationGet.mockReturnValue({ openTurnStream: () => source })
     const result = await service.streamText({
@@ -607,9 +614,9 @@ describe('AiService', () => {
       runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
       requestOptions: { signal: new AbortController().signal }
     })
-    expect(result.kind).toBe('messages')
+    if (result.kind !== 'messages') throw new Error('Expected Agent content')
+    expect(result.readParts()).toEqual(source.readParts())
     const reader = result.stream.getReader()
-    expect((await reader.read()).value).toEqual({ type: 'message', parts: [{ type: 'text', text: 'Native answer' }] })
     expect((await reader.read()).done).toBe(true)
   })
 
@@ -855,6 +862,290 @@ describe('AiService', () => {
     expect(result).toEqual({ files: [fileEntry] })
   })
 
+  it.each([
+    { providerId: 'google', hasUrl: true, message: 'The image was generated, but it could not be downloaded.' },
+    { providerId: 'google', hasUrl: false, message: 'No image generated.' },
+    { providerId: 'test-provider', hasUrl: true, message: 'No image generated.' }
+  ])(
+    'reports the correct empty image outcome for $providerId (URL: $hasUrl)',
+    async ({ providerId, hasUrl, message }) => {
+      const service = createService()
+      mockApplicationGet.mockImplementation(
+        (name: string) => defaultServiceInstances[name as keyof typeof defaultServiceInstances]
+      )
+      vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+        sdkConfig: { providerId, providerSettings: {}, modelId: 'test-model' }
+      })
+      mockDownloadPublicImageAsBase64.mockResolvedValue(null)
+      mockDownloadImageAsBase64.mockResolvedValue(null)
+      mockGenerateImage.mockImplementation(async (_provider, _settings, options) => {
+        if (hasUrl) {
+          const files = await options.experimental_download([
+            { url: new URL('https://example.com/generated.png'), isUrlSupportedByModel: false }
+          ])
+          expect(files).toEqual([null])
+        }
+        throw new NoImageGeneratedError({ responses: [] })
+      })
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          cleanupPolicy: 'delete_when_unreferenced',
+          prompt: 'draw a cat',
+          paramValues: {}
+        })
+      ).rejects.toThrow(message)
+    }
+  )
+
+  describe('OpenAI-compatible generated image downloads', () => {
+    const baseURL = 'https://provider.example.com/v1'
+    const assetUrl = `${baseURL}/images/result.png`
+    const apiKey = 'fixture-serving-key'
+    const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5ZkAAAAASUVORK5CYII='
+    const fileEntry = { id: 'generated-image' }
+    const createInternalEntry = vi.fn().mockResolvedValue(fileEntry)
+    const mockNetFetch = vi.mocked(net.fetch)
+    const mockNetRequest = vi.mocked(net.request)
+    const respondToDownload = vi.fn<
+      (options: Electron.ClientRequestConstructorOptions) => {
+        status: number
+        location?: string
+        bytes?: Buffer
+        stream?: Readable
+      }
+    >()
+
+    beforeEach(async () => {
+      const downloads = await vi.importActual<typeof ImageDownloadModule>('@main/utils/downloadAsBase64')
+      mockDownloadImageAsBase64.mockImplementation(downloads.downloadImageAsBase64)
+      mockGenerateImage.mockImplementation(
+        (_provider, settings, options: Omit<Parameters<typeof generateImage>[0], 'model'> & { model: string }) =>
+          generateImage({
+            ...options,
+            model: createOpenAICompatible({ ...settings, fetch: net.fetch }).imageModel(options.model)
+          })
+      )
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager'
+          ? { createInternalEntry }
+          : defaultServiceInstances[name as keyof typeof defaultServiceInstances]
+      )
+      mockNetRequest.mockImplementation((options) => {
+        const request = new EventEmitter()
+        return Object.assign(request, {
+          abort: () => {
+            queueMicrotask(() => {
+              request.emit('error', new Error('Request aborted'))
+              request.emit('close')
+            })
+          },
+          end: () => {
+            const { status, location, bytes, stream } = respondToDownload(
+              options as Electron.ClientRequestConstructorOptions
+            )
+            if (location) {
+              request.emit('redirect', status, 'GET', location)
+            } else {
+              const response = Object.assign(stream ?? Readable.from(bytes ? [bytes] : []), {
+                statusCode: status,
+                headers: bytes ? { 'content-type': 'image/png' } : {}
+              })
+              request.emit('response', response)
+            }
+          }
+        }) as unknown as Electron.ClientRequest
+      })
+    })
+
+    afterEach(() => {
+      mockNetFetch.mockReset()
+      mockNetRequest.mockReset()
+      respondToDownload.mockReset()
+      mockDownloadImageAsBase64.mockReset()
+      mockGenerateImage.mockReset()
+    })
+
+    function generate(
+      item: { url: string; b64_json?: string },
+      options: { baseURL?: string; signal?: AbortSignal } = {}
+    ) {
+      const endpoint = options.baseURL ?? baseURL
+      const service = createService()
+      vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+        sdkConfig: {
+          providerId: 'openai-compatible',
+          providerSettings: { name: 'test-provider', baseURL: endpoint, apiKey },
+          modelId: 'test-model'
+        }
+      })
+      mockNetFetch.mockImplementationOnce(async (url, init) => {
+        expect(url).toBe(`${endpoint}/images/generations`)
+        expect(init?.method).toBe('POST')
+        expect(new Headers(init?.headers).get('authorization')).toBe(`Bearer ${apiKey}`)
+        return Response.json({ data: [item] })
+      })
+      return service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'draw a cat',
+        paramValues: {},
+        requestOptions: { signal: options.signal }
+      })
+    }
+
+    const imageResponse = { status: 200, bytes: Buffer.from(base64, 'base64') }
+
+    it.each([
+      { target: assetUrl, authorization: `Bearer ${apiKey}` },
+      { target: 'https://cdn.example.com/result.png', authorization: null },
+      { target: 'http://provider.example.com/v1/images/result.png', authorization: null },
+      { target: 'https://provider.example.com:8443/v1/images/result.png', authorization: null }
+    ])(
+      'persists the downloaded image with origin-scoped credentials for $target',
+      async ({ target, authorization }) => {
+        const pending = generate({ url: target })
+        respondToDownload.mockImplementationOnce(({ url, credentials, headers }) =>
+          url === target &&
+          credentials === 'omit' &&
+          new Headers(headers as HeadersInit).get('authorization') === authorization
+            ? imageResponse
+            : { status: 401 }
+        )
+
+        await expect(pending).resolves.toEqual({ files: [fileEntry] })
+        expect(createInternalEntry).toHaveBeenCalledWith({
+          source: 'base64',
+          data: `data:image/png;base64,${base64}`,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+      }
+    )
+
+    it('drops the bearer token when the provider redirects the download to a CDN', async () => {
+      const cdnUrl = 'https://cdn.example.com/result.png'
+      const pending = generate({ url: assetUrl })
+      respondToDownload
+        .mockImplementationOnce(({ url, redirect, headers }) =>
+          url === assetUrl && redirect === 'manual' && headers?.Authorization === `Bearer ${apiKey}`
+            ? { status: 302, location: cdnUrl }
+            : { status: 401 }
+        )
+        .mockImplementationOnce(({ url, credentials, headers }) =>
+          url === cdnUrl && credentials === 'omit' && !headers?.Authorization ? imageResponse : { status: 401 }
+        )
+
+      await expect(pending).resolves.toEqual({ files: [fileEntry] })
+    })
+
+    it('reports the download host and HTTP status without exposing the response body', async () => {
+      const pending = generate({ url: assetUrl })
+      respondToDownload.mockReturnValueOnce({ status: 401, bytes: Buffer.from(apiKey) })
+
+      await expect(pending).rejects.toHaveProperty(
+        'message',
+        expect.stringContaining(t('paintings.image_download_failed'))
+      )
+      await expect(pending).rejects.toHaveProperty('message', expect.stringContaining('provider.example.com'))
+      await expect(pending).rejects.toHaveProperty('message', expect.stringContaining('HTTP 401'))
+      await expect(pending).rejects.toHaveProperty('message', expect.not.stringContaining(apiKey))
+      expect(createInternalEntry).not.toHaveBeenCalled()
+    })
+
+    it('does not follow a 401 response with a location or persist the login image', async () => {
+      respondToDownload
+        .mockReturnValueOnce({ status: 401, location: 'https://provider.example.com/login.svg' })
+        .mockReturnValueOnce({
+          status: 200,
+          stream: Readable.from([Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>')])
+        })
+
+      await expect(generate({ url: assetUrl })).rejects.toHaveProperty('message', expect.stringContaining('HTTP 401'))
+
+      expect(mockNetRequest).toHaveBeenCalledTimes(1)
+      expect(mockNetRequest).toHaveBeenCalledWith(expect.objectContaining({ url: assetUrl }))
+      expect(createInternalEntry).not.toHaveBeenCalled()
+    })
+
+    it('settles cancellation during image body reading without persisting or reporting a download failure', async () => {
+      const controller = new AbortController()
+      const bodyStarted = Promise.withResolvers<void>()
+      const stream = new Readable({ read: () => bodyStarted.resolve() })
+      stream.push(Buffer.from(base64, 'base64').subarray(0, 8))
+      respondToDownload.mockReturnValueOnce({ status: 200, stream })
+      const pending = generate({ url: assetUrl }, { signal: controller.signal })
+      const rejected = expect(pending).rejects.toHaveProperty(
+        'message',
+        expect.not.stringContaining(t('paintings.image_download_failed'))
+      )
+
+      await bodyStarted.promise
+      expect(stream.readableEnded).toBe(false)
+      controller.abort()
+
+      await rejected
+      expect(stream.destroyed).toBe(true)
+      expect(createInternalEntry).not.toHaveBeenCalled()
+    }, 1000)
+
+    it('settles an aborted image response without waiting for end or close', async () => {
+      const bodyStarted = Promise.withResolvers<void>()
+      const stream = new Readable({ read: () => bodyStarted.resolve() })
+      stream.push(Buffer.from(base64, 'base64').subarray(0, 8))
+      respondToDownload.mockReturnValueOnce({ status: 200, stream })
+      const pending = generate({ url: assetUrl })
+      const rejected = expect(pending).rejects.toThrow(t('paintings.image_download_failed'))
+
+      await bodyStarted.promise
+      expect(stream.readableEnded).toBe(false)
+      stream.emit('aborted')
+
+      await rejected
+      expect(stream.destroyed).toBe(true)
+      expect(createInternalEntry).not.toHaveBeenCalled()
+    }, 1000)
+
+    it.each(['http://127.0.0.1/result.png', 'http://192.168.1.5/result.png'])(
+      'rejects a private first-hop image URL even with a matching provider endpoint: %s',
+      async (target) => {
+        await expect(generate({ url: target }, { baseURL: `${new URL(target).origin}/v1` })).rejects.toThrow(
+          t('paintings.image_download_failed')
+        )
+
+        expect(mockNetRequest).not.toHaveBeenCalled()
+        expect(createInternalEntry).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each(['http://127.0.0.1/result.png', 'http://192.168.1.5/result.png'])(
+      'rejects a private redirect target even with a matching provider endpoint: %s',
+      async (target) => {
+        respondToDownload.mockReturnValueOnce({ status: 302, location: target })
+
+        await expect(generate({ url: assetUrl }, { baseURL: `${new URL(target).origin}/v1` })).rejects.toThrow(
+          t('paintings.image_download_failed')
+        )
+
+        expect(mockNetRequest).toHaveBeenCalledTimes(1)
+        expect(mockNetRequest).toHaveBeenCalledWith(expect.objectContaining({ url: assetUrl }))
+        expect(createInternalEntry).not.toHaveBeenCalled()
+      }
+    )
+
+    it('persists b64_json without a download even when the response includes a URL', async () => {
+      await expect(generate({ url: assetUrl, b64_json: base64 })).resolves.toEqual({ files: [fileEntry] })
+
+      expect(mockNetFetch).toHaveBeenCalledTimes(1)
+      expect(mockNetRequest).not.toHaveBeenCalled()
+      expect(createInternalEntry).toHaveBeenCalledWith({
+        source: 'base64',
+        data: `data:image/png;base64,${base64}`,
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
+    })
+  })
+
   it('honors an explicit retry override for direct image requests', async () => {
     const service = createService()
     vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
@@ -951,6 +1242,304 @@ describe('AiService', () => {
         }
       })
     )
+  })
+
+  describe('Seedream 5.5 request gate', () => {
+    const target = 'doubao-seedream-5-5'
+    const polluted = {
+      numImages: 4,
+      sequentialImageGeneration: 'auto',
+      maxImages: 4,
+      stream: true,
+      webSearch: true,
+      tools: [{ type: 'web_search' }]
+    }
+    const defaults = { imageResolution: '1K', outputFormat: 'jpeg', background: 'auto', addWatermark: true }
+
+    function setup(providerId: string, modelId = target, presetProviderId?: string) {
+      const service = createService()
+      const uniqueModelId: `${string}::${string}` = `${providerId}::${modelId}`
+      mockProviderGetByProviderId.mockReturnValue(makeProvider({ id: providerId, presetProviderId }))
+      mockModelGetByKey.mockReturnValue(makeModel({ id: uniqueModelId, providerId, apiModelId: modelId }))
+      const resolve = vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+        sdkConfig: { providerId, providerSettings: {}, modelId }
+      })
+      const enqueueTx = vi.fn().mockReturnValue({
+        id: 'seedream-job',
+        finished: Promise.resolve({ status: 'completed', output: { files: [] } })
+      })
+      mockApplicationGet.mockImplementation((name: string) => {
+        if (name === 'JobManager') return { enqueueTx }
+        if (name === 'DbService') return { withWriteTx: (fn: (tx: unknown) => unknown) => fn({}) }
+        return defaultServiceInstances[name as keyof typeof defaultServiceInstances]
+      })
+      mockGetImageGenerationSupport.mockReturnValue(undefined)
+      mockGenerateImage.mockResolvedValue({ images: [] })
+      const fetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected HTTP request'))
+      return { service, uniqueModelId, resolve, enqueueTx, fetch }
+    }
+
+    afterEach(() => vi.restoreAllMocks())
+
+    it.each(['doubao', 'ppio'])('strips injected fields and sends one image through %s', async (providerId) => {
+      const { service, uniqueModelId, enqueueTx } = setup(providerId)
+      const input = Object.freeze({ ...polluted })
+      await service.generateImage({
+        uniqueModelId,
+        prompt: 'a fox',
+        cleanupPolicy: 'manual',
+        paramValues: input
+      })
+      if (providerId === 'ppio') {
+        expect(enqueueTx).toHaveBeenCalledTimes(1)
+        expect(enqueueTx.mock.calls[0][2]).toMatchObject({ n: 1, providerParams: defaults })
+        expect(enqueueTx.mock.calls[0][2].providerParams).toEqual(defaults)
+        expect(mockGenerateImage).not.toHaveBeenCalled()
+      } else {
+        expect(mockGenerateImage).toHaveBeenCalledTimes(1)
+        expect(mockGenerateImage.mock.calls[0][2]).toMatchObject({
+          n: 1,
+          providerOptions: { bytedance: { size: '1K', watermark: true, background: 'auto', outputFormat: 'jpeg' } }
+        })
+        expect(mockGenerateImage.mock.calls[0][2].providerOptions.bytedance).toEqual({
+          size: '1K',
+          watermark: true,
+          background: 'auto',
+          outputFormat: 'jpeg'
+        })
+        expect(enqueueTx).not.toHaveBeenCalled()
+      }
+      expect(input).toEqual(polluted)
+    })
+
+    it.each(['doubao', 'ppio'])('applies defaults to an empty request through %s', async (providerId) => {
+      const { service, uniqueModelId, enqueueTx } = setup(providerId)
+      await service.generateImage({ uniqueModelId, prompt: 'a fox', cleanupPolicy: 'manual', paramValues: {} })
+      if (providerId === 'ppio') {
+        expect(enqueueTx.mock.calls[0][2]).toMatchObject({ n: 1, providerParams: defaults })
+      } else {
+        expect(mockGenerateImage.mock.calls[0][2]).toMatchObject({
+          n: 1,
+          providerOptions: { bytedance: { size: '1K', watermark: true } }
+        })
+      }
+    })
+
+    it('preserves explicit dimensions and a disabled watermark without a tier override', async () => {
+      const { service, uniqueModelId } = setup('doubao')
+      await service.generateImage({
+        uniqueModelId,
+        prompt: 'a fox',
+        cleanupPolicy: 'manual',
+        paramValues: { size: '2140x2160', addWatermark: false, background: 'transparent', outputFormat: 'png' }
+      })
+      expect(mockGenerateImage.mock.calls[0][2]).toMatchObject({
+        n: 1,
+        size: '2140x2160',
+        providerOptions: { bytedance: { watermark: false, background: 'transparent', outputFormat: 'png' } }
+      })
+      expect(mockGenerateImage.mock.calls[0][2].providerOptions.bytedance).not.toHaveProperty('size')
+    })
+
+    it.each(['doubao', 'ppio'])(
+      'rejects invalid dimensions before normalization or dispatch through %s',
+      async (providerId) => {
+        const { service, uniqueModelId, enqueueTx, resolve, fetch } = setup(providerId)
+        for (const paramValues of [
+          { size: '2150x2160' },
+          { size: '959x960' },
+          { size: '0x960' },
+          { size: '960x960', imageResolution: '1K' },
+          { imageResolution: 'custom', customSize_width: 960 }
+        ]) {
+          await expect(
+            service.generateImage({
+              uniqueModelId,
+              prompt: 'a fox',
+              cleanupPolicy: 'manual',
+              paramValues,
+              inputImages: ['https://example.com/reference.png']
+            })
+          ).rejects.toThrow(/Seedream 5.5 size must/)
+        }
+        expect(resolve).not.toHaveBeenCalled()
+        expect(enqueueTx).not.toHaveBeenCalled()
+        expect(mockGenerateImage).not.toHaveBeenCalled()
+        expect(fetch).not.toHaveBeenCalled()
+        expect(mockDownloadImageAsBase64).not.toHaveBeenCalled()
+      }
+    )
+
+    it('rejects transparent JPEG with a readable message', async () => {
+      const { service, uniqueModelId, enqueueTx, resolve } = setup('doubao')
+      await expect(
+        service.generateImage({
+          uniqueModelId,
+          prompt: 'a fox',
+          cleanupPolicy: 'manual',
+          paramValues: { background: 'transparent', outputFormat: 'jpeg' }
+        })
+      ).rejects.toThrow('Seedream 5.5 transparent background requires PNG output')
+      expect(enqueueTx).not.toHaveBeenCalled()
+      expect(resolve).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['dmxapi', undefined],
+      ['user-provider-uuid', 'dmxapi']
+    ])('refuses DMXAPI instance %s before any HTTP or enqueue', async (providerId, preset) => {
+      const { service, uniqueModelId, enqueueTx, resolve, fetch } = setup(providerId, target, preset)
+      await expect(
+        service.generateImage({
+          uniqueModelId,
+          prompt: 'a fox',
+          cleanupPolicy: 'manual',
+          paramValues: {},
+          inputImages: ['https://example.com/reference.png']
+        })
+      ).rejects.toThrow('Seedream 5.5 is not supported through DMXAPI pending protocol verification')
+      expect(enqueueTx).not.toHaveBeenCalled()
+      expect(resolve).not.toHaveBeenCalled()
+      expect(fetch).not.toHaveBeenCalled()
+      expect(mockGenerateImage).not.toHaveBeenCalled()
+      expect(mockDownloadImageAsBase64).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['dmxapi', undefined],
+      ['user-provider-uuid', 'dmxapi']
+    ])('rejects target health checks through DMXAPI %s before HTTP', async (providerId, preset) => {
+      const { service, uniqueModelId, fetch } = setup(providerId, target, preset)
+      mockModelGetByKey.mockReturnValue(
+        makeModel({
+          id: uniqueModelId,
+          providerId,
+          apiModelId: target,
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+        })
+      )
+      const submit = vi.fn(async () => {
+        await fetch('https://example.test/probe')
+        return {}
+      })
+      mockResolveImageTransport.mockReturnValue({ submit })
+      await expect(service.checkModel({ uniqueModelId, apiKeyOverride: 'selected-key' })).rejects.toThrow(
+        'Seedream 5.5 is not supported through DMXAPI pending protocol verification'
+      )
+      expect(fetch).toHaveBeenCalledTimes(0)
+      expect(submit).not.toHaveBeenCalled()
+    })
+
+    it('preserves non-target DMXAPI health checks and the selected API key', async () => {
+      const modelId = 'doubao-seedream-5-0-lite'
+      const { service, uniqueModelId } = setup('dmxapi', modelId)
+      mockModelGetByKey.mockReturnValue(
+        makeModel({
+          id: uniqueModelId,
+          providerId: 'dmxapi',
+          apiModelId: modelId,
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+        })
+      )
+      const submit = vi.fn().mockResolvedValue({ imageUrls: ['https://example.test/img.png'] })
+      mockResolveImageTransport.mockReturnValue({ submit })
+      await expect(service.checkModel({ uniqueModelId, apiKeyOverride: 'selected-key' })).resolves.toEqual({
+        latency: expect.any(Number)
+      })
+      expect(mockProviderResolveApiKey).toHaveBeenCalledWith('dmxapi', 'selected-key')
+      expect(submit).toHaveBeenCalledWith(expect.objectContaining({ modelId, n: 1, providerParams: {} }))
+    })
+
+    it('rejects transparent webp before reference download or provider resolution', async () => {
+      const { service, uniqueModelId, fetch, resolve, enqueueTx } = setup('doubao')
+      await expect(
+        service.generateImage({
+          uniqueModelId,
+          prompt: 'fox',
+          cleanupPolicy: 'manual',
+          paramValues: { background: 'transparent', outputFormat: 'webp' },
+          inputImages: ['https://example.test/ref.png']
+        })
+      ).rejects.toThrow('Seedream 5.5 transparent background requires PNG output')
+      expect(fetch).not.toHaveBeenCalled()
+      expect(resolve).not.toHaveBeenCalled()
+      expect(enqueueTx).not.toHaveBeenCalled()
+      expect(mockGenerateImage).not.toHaveBeenCalled()
+      expect(mockDownloadImageAsBase64).not.toHaveBeenCalled()
+    })
+
+    it('uses the canonical preset ID when the API SKU differs', async () => {
+      const { service, uniqueModelId } = setup('doubao', 'gateway-sku')
+      mockModelGetByKey.mockReturnValue(
+        makeModel({ id: uniqueModelId, providerId: 'doubao', presetModelId: target, apiModelId: 'gateway-sku' })
+      )
+      await service.generateImage({
+        uniqueModelId,
+        prompt: 'a fox',
+        cleanupPolicy: 'manual',
+        paramValues: { numImages: 4 }
+      })
+      expect(mockGenerateImage.mock.calls[0][2].n).toBe(1)
+    })
+
+    it('uses the resolved assistant model even without a caller model id', async () => {
+      const { service, uniqueModelId } = setup('doubao')
+      mockAssistantGetById.mockReturnValue({ id: 'seedream-assistant', modelId: uniqueModelId })
+      await service.generateImage({
+        assistantId: 'seedream-assistant',
+        prompt: 'a fox',
+        cleanupPolicy: 'manual',
+        paramValues: { numImages: 4 }
+      })
+      expect(mockGenerateImage.mock.calls[0][2]).toMatchObject({ n: 1, providerOptions: { bytedance: { size: '1K' } } })
+    })
+
+    it.each([
+      ['doubao', 'doubao-seedream-5-0-lite'],
+      ['doubao', 'doubao-seedream-4-0'],
+      ['other-provider', 'other-image-model'],
+      ['doubao-seedream-5-5', 'unrelated-model'],
+      ['ppio', 'doubao-seedream-5-0-lite']
+    ])('preserves non-target parameters for %s / %s', async (providerId, modelId) => {
+      const { service, uniqueModelId, enqueueTx } = setup(providerId, modelId)
+      await service.generateImage({
+        uniqueModelId,
+        prompt: 'a fox',
+        cleanupPolicy: 'manual',
+        paramValues: polluted
+      })
+      if (providerId === 'ppio') {
+        expect(enqueueTx.mock.calls[0][2]).toMatchObject({
+          n: 4,
+          providerParams: {
+            sequentialImageGeneration: 'auto',
+            maxImages: 4,
+            stream: true,
+            webSearch: true,
+            tools: [{ type: 'web_search' }]
+          }
+        })
+      } else {
+        const options = mockGenerateImage.mock.calls[0][2]
+        expect(options.n).toBe(4)
+        expect(options.providerOptions[providerId === 'doubao' ? 'bytedance' : providerId]).toEqual({
+          sequentialImageGeneration: 'auto',
+          maxImages: 4,
+          stream: true,
+          webSearch: true,
+          tools: [{ type: 'web_search' }]
+        })
+      }
+    })
+
+    it.each([
+      { imageResolution: '1K', size: '960x960' },
+      { imageResolution: '2K', customSize_width: 960, customSize_height: 960 },
+      { imageResolution: 'custom', customSize_width: 960 }
+    ])('does not sanitize invalid size sources into an accepted request', (params) => {
+      expect(validateSeedreamImageParams(params)).toBe('size')
+      expect(validateSeedreamImageParams(sanitizeSeedreamImageParams(params))).toBe('size')
+    })
   })
 
   // The direct (non-job) image path observes the actual ImageModel doGenerate

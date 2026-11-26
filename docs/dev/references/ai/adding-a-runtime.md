@@ -95,18 +95,19 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      `isForkCheckpoint(value)` using the adapter's native checkpoint schema. Message
      listing uses this predicate without loading the SDK, opening storage or starting
      execution. The fork operation still verifies native history before publication.
-   - Optional: `prewarmSession` / `closeSessionWarm` / `onSessionIdle` for
-     runtimes that benefit from idle warmup (see the Claude driver).
+   - A driver can use `onSessionIdle` to prepare for its next command. Main invokes
+     `recoverWork` after lifecycle initialization for work that survives a restart.
 
 2. **Connection** (`AgentRuntimeConnection`) — required members:
-   - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Minimum viable event
-     mapping: `message-projection` for authoritative Agent content, `chunk` for
-     host controls and display metadata, `turn-complete` to settle the
-     host turn (the host closes the UI turn on this event — a runtime that
-     never emits it strands the turn; set `status: 'paused'` instead of
-     emitting `error` when native evidence shows the turn was aborted),
-     `resume-token` whenever the runtime learns a recovery handle, `error` on
-     failure.
+   - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Use `message-projection` to
+     establish or reconcile native messages and `NativePartUpdate` for live text,
+     reasoning and tool results. Emit `message-metadata` for turn statistics,
+     `data-retry` for model retries and `tool-input-available` for a tool input
+     surfaced before approval. A `tool-approval-request` carries the full request
+     so the host can present it in the stream or in a separate message.
+     Emit `resume-token` when a recovery handle becomes available. Close each
+     turn with `turn-complete`, set its status to `paused` for a native abort,
+     or emit `error` on failure.
    - `send(input)` — deliver a user message; `input.systemReminder` marks a
      steer, wrap it with `wrapSteerReminder(...)`. Apply optional model-only
      `input.context` through ordinary input/attachment conversion with
@@ -158,10 +159,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        that input's reply. A projection's `inputs` maps native user messages to product input IDs, so
        committed answers rebuild a reply that never reached terminal persistence.
        Resident commands may retain the connection without holding a product reply open.
-     - `childProjection(toolCallId)` — expose a child snapshot and subscription
-       through the root owner. `messageChild(contextId, text)` dispatches child input
-       through that owner. These optional desktop facets do not add native history
-       methods to the common Runtime contract; see [Pi child projection](./agent-session-runtime.md#pi-behavior-host).
+     - A child writer publishes its product archive through `childTimelines`. The
+       desktop reads that archive directly and subscribes to live changes. An explicit
+       `messageChild(contextId, text)` command opens its original execution owner.
+       See [Pi child projection](./agent-session-runtime.md#pi-behavior-host).
        A connection with independent child writes also provides `drainChildWrites()`:
        after input admission drains, wait for native work, queued observation delivery and in-flight
        callbacks before the final archive flush. Keep the write boundary sealed until resume.
@@ -172,7 +173,7 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        events if the runtime compacts its own history.
 
 3. **System prompt adapter** — call the runtime-neutral
-   `buildAgentRuntimePrompt()` from `src/main/ai/runtime/agentPrompt.ts`, then map its
+   `buildAgentPrompt()` from `src/main/ai/agents/prompt/buildAgentPrompt.ts`, then map its
    `{ base, append }` result into the SDK's native prompt representation. Pass resolved
    channel state and capability-gated citation guidance into the common materializer.
    Do not copy instruction precedence, built-in Agent fallback/provisioning, prompt-variable
@@ -214,7 +215,7 @@ known exceptions, only if you need them:
 These are the choices nothing enforces:
 
 - **Cherry prompt policy is runtime-neutral.** Every driver must consume
-  `buildAgentRuntimePrompt()` rather than assembling its own Cherry policy. A runtime may
+  `buildAgentPrompt()` rather than assembling its own Cherry policy. A runtime may
   supply native workspace/context mechanics, but it may not omit or fork instruction authority,
   built-in Agent resolution, channel security, citation/artifact guidance, or response language.
   Add common policy in the materializer and test that each driver carries it.

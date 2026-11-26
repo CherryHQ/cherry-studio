@@ -72,8 +72,8 @@ function linkFile(src, dest, stats) {
   const srcStat = fs.statSync(src)
   const destStat = fs.statSync(dest, { throwIfNoEntry: false })
   if (destStat) {
-    // ino is 0 on filesystems that do not report one; never treat that as a match.
-    if (srcStat.ino !== 0 && destStat.ino === srcStat.ino) return
+    // Inodes identify files only within one device. An inode of zero is unavailable.
+    if (srcStat.ino !== 0 && destStat.ino === srcStat.ino && destStat.dev === srcStat.dev) return
     // A copied bundle never matches inodes, so compare size+mtime too or every run
     // re-copies ~200MB. getTime(), since utimesSync loses sub-ms precision.
     if (destStat.size === srcStat.size && destStat.mtime.getTime() === srcStat.mtime.getTime()) return

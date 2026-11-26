@@ -8,12 +8,14 @@ import type {
   BetaMCPToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 
+import { isLivePartInput, partEdits, type LivePartInput, type RuntimePartEdit } from '@cherrystudio/agent-runtime'
 import type { ClaudeObservation } from '@cherrystudio/agent-runtime-claude-code'
 import type { MessageDecorator } from '@main/ai/agentSession/ThreadMessageProjection'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { stripClaudeCodeRejectionPrefix } from '@shared/ai/providerError'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 
 import type { McpToolDisplayMetadata } from './types'
@@ -30,9 +32,17 @@ type ToolMetadata = {
   description?: string
 }
 
+function* reminderBodies(message: ClaudeObservation['native'][number]['message']): Generator<string> {
+  if (message.type !== 'user' || !('isSynthetic' in message) || !message.isSynthetic) return
+  const { content } = message.message as { content?: string | BetaContentBlockParam[] }
+  if (typeof content === 'string') yield* extractSystemReminderBodies(content)
+  else for (const block of content ?? []) if (block.type === 'text') yield* extractSystemReminderBodies(block.text)
+}
+
 /** Cherry display policy applied after the adapter has materialized native content. */
 export class ClaudeMessageMetadata {
   private readonly reminders = new Set<string>()
+  private readonly filters = new Map<string, Map<number, SystemReminderTextFilter>>()
   private readonly rejectedMessages = new Set<string>()
   private readonly thinking = new Map<
     string,
@@ -42,8 +52,31 @@ export class ClaudeMessageMetadata {
 
   constructor(private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata> = {}) {}
 
+  private catalogChanged(batch: ClaudeObservation): boolean {
+    const check = batch.native.length
+      ? batch.native.some(({ message }) => message.type !== 'stream_event')
+      : !batch.events.length ||
+        batch.events.some(
+          (event) => !isLivePartInput(event) || (event.type === 'message.parts' && !event.changes.length)
+        )
+    return check && !isDeepStrictEqual(this.catalog, this.mcpToolMetadata)
+  }
+
+  needsRecovery(batch: ClaudeObservation): boolean {
+    if (
+      batch.events.some((event) => event.type === 'closed' && event.reason !== 'shutdown') ||
+      this.catalogChanged(batch)
+    )
+      return true
+    for (const { message, isApiErrorMessage } of batch.native) {
+      if (message.type === 'assistant' && isApiErrorMessage && !this.rejectedMessages.has(message.uuid)) return true
+      for (const body of reminderBodies(message)) if (!this.reminders.has(body)) return true
+    }
+    return false
+  }
+
   accept(batch: ClaudeObservation): boolean {
-    let refreshAll = !isDeepStrictEqual(this.catalog, this.mcpToolMetadata)
+    let refreshAll = this.catalogChanged(batch)
     // oxlint-disable-next-line no-restricted-globals -- Refresh the MCP catalog on loadout changes before applying mutable display metadata.
     if (refreshAll) this.catalog = structuredClone(this.mcpToolMetadata)
     for (const native of batch.native) {
@@ -52,22 +85,25 @@ export class ClaudeMessageMetadata {
         this.rejectedMessages.add(message.uuid)
         refreshAll = true
       }
-      if (message.type === 'user' && 'isSynthetic' in message && message.isSynthetic) {
-        const body = message.message as { content?: string | BetaContentBlockParam[] }
-        const content =
-          typeof body.content === 'string' ? [{ type: 'text' as const, text: body.content }] : body.content
-        for (const block of content ?? [])
-          if (block.type === 'text')
-            for (const body of extractSystemReminderBodies(block.text)) {
-              if (!this.reminders.has(body)) refreshAll = true
-              this.reminders.add(body)
-            }
+      for (const body of reminderBodies(message)) {
+        if (!this.reminders.has(body)) refreshAll = true
+        this.reminders.add(body)
       }
     }
+    const live = batch.native.some((native) => native.source === 'live')
     for (const event of batch.events) {
-      if (event.type === 'message.upsert') {
+      if (isLivePartInput(event)) {
+        for (const edit of partEdits(event)) {
+          if (edit.type === 'open' && edit.kind === 'reasoning' && live) this.startThinking(event.ref.id, edit.part)
+          else if (edit.type === 'finish') this.finishThinking(event.ref.id, edit.part)
+        }
+      } else if (event.type === 'snapshot' || event.type === 'gap' || event.type === 'closed') this.filters.clear()
+      else if (event.type === 'message.remove') this.filters.delete(event.ref.id)
+      else if (event.type === 'message.reconcile') {
         const id = event.message.id
+        this.filters.delete(id)
         for (const ref of event.replaces ?? []) {
+          this.filters.delete(ref.id)
           const timing = this.thinking.get(ref.id)
           if (timing) {
             this.thinking.set(id, timing)
@@ -76,51 +112,32 @@ export class ClaudeMessageMetadata {
         }
         for (const [index, part] of event.message.parts.entries()) {
           if (part.type !== 'reasoning') continue
-          let timing = this.thinking.get(id)?.get(index)
-          if (!timing && part.state === 'streaming' && batch.native.some((native) => native.source === 'live')) {
-            timing = { startedAt: Date.now(), elapsedFrom: performance.now() }
-            const blocks = this.thinking.get(id) ?? new Map()
-            blocks.set(index, timing)
-            this.thinking.set(id, blocks)
-          }
-          if (timing && (part.state === 'done' || event.message.metadata?.completeness === 'complete'))
-            timing.thinkingMs ??= Math.round(performance.now() - timing.elapsedFrom)
+          if (part.state === 'streaming' && live) this.startThinking(id, index)
+          if (part.state === 'done' || event.message.metadata?.completeness === 'complete')
+            this.finishThinking(id, index)
         }
       }
     }
     return refreshAll
   }
 
-  readonly decorate: MessageDecorator = (message) => ({
+  private startThinking(id: string, index: number): void {
+    const blocks = this.thinking.get(id) ?? new Map()
+    if (blocks.has(index)) return
+    blocks.set(index, { startedAt: Date.now(), elapsedFrom: performance.now() })
+    this.thinking.set(id, blocks)
+  }
+
+  private finishThinking(id: string, index: number): void {
+    const timing = this.thinking.get(id)?.get(index)
+    if (timing) timing.thinkingMs ??= Math.round(performance.now() - timing.elapsedFrom)
+  }
+
+  readonly decorate: MessageDecorator = (message, _source, unchangedParts) => ({
     ...message,
     parts: message.parts.map((part, index) => {
-      if (part.type === 'dynamic-tool') {
-        const native = part.callProviderMetadata?.anthropic
-        const type = native?.type === 'mcp_tool_use' || native?.type === 'server_tool_use' ? native.type : 'tool_use'
-        const state: ToolMetadata = {
-          name: part.toolName,
-          ...this.getToolUseMetadata({
-            name: part.toolName,
-            type,
-            server_name: typeof native?.serverName === 'string' ? native.serverName : undefined
-          })
-        }
-        this.mergeToolDisplayMetadata(state)
-        const metadata = this.buildToolProviderMetadata(state)
-        const decoration = {
-          providerExecuted: true,
-          title: this.getToolTitle(state),
-          callProviderMetadata: { ...part.callProviderMetadata, ...metadata }
-        }
-        if (part.state === 'output-available')
-          return {
-            ...part,
-            ...decoration,
-            output: this.buildToolOutput(normalizeClaudeToolResult(part.output), state, part.output),
-            resultProviderMetadata: { ...part.resultProviderMetadata, ...metadata }
-          }
-        return { ...part, ...decoration }
-      }
+      if (unchangedParts?.has(index)) return part
+      if (part.type === 'dynamic-tool') return this.decorateTool(part)
       if (part.type === 'reasoning') {
         const timing = this.thinking.get(message.id)?.get(index)
         return timing
@@ -137,11 +154,92 @@ export class ClaudeMessageMetadata {
           : part
       }
       if (part.type !== 'text') return part
-      const filter = new SystemReminderTextFilter(this.reminders)
+      const filter = this.textFilter(message.id, index, part.state === 'streaming')
       const text = this.rejectedMessages.has(message.id) ? stripClaudeCodeRejectionPrefix(part.text) : part.text
       return { ...part, text: filter.write(text) + (part.state === 'streaming' ? '' : filter.flush()) }
     })
   })
+
+  decorateTool<T extends Extract<CherryMessagePart, { type: 'dynamic-tool' }>>(part: T): T {
+    const native = part.callProviderMetadata?.anthropic
+    const type = native?.type === 'mcp_tool_use' || native?.type === 'server_tool_use' ? native.type : 'tool_use'
+    const state: ToolMetadata = {
+      name: part.toolName,
+      ...this.getToolUseMetadata({
+        name: part.toolName,
+        type,
+        server_name: typeof native?.serverName === 'string' ? native.serverName : undefined
+      })
+    }
+    this.mergeToolDisplayMetadata(state)
+    const metadata = this.buildToolProviderMetadata(state)
+    const decoration = {
+      providerExecuted: true,
+      title: this.getToolTitle(state),
+      callProviderMetadata: { ...part.callProviderMetadata, ...metadata }
+    }
+    if (part.state === 'output-available')
+      return {
+        ...part,
+        ...decoration,
+        output: this.buildToolOutput(part.output, state),
+        resultProviderMetadata: { ...part.resultProviderMetadata, ...metadata }
+      }
+    return { ...part, ...decoration }
+  }
+
+  private textFilter(id: string, part: number, streaming: boolean): SystemReminderTextFilter {
+    const filter = new SystemReminderTextFilter(this.reminders)
+    if (streaming) {
+      let blocks = this.filters.get(id)
+      if (!blocks) this.filters.set(id, (blocks = new Map()))
+      blocks.set(part, filter)
+    }
+    return filter
+  }
+
+  decorateLive(event: LivePartInput): LivePartInput {
+    const id = event.ref.id
+    const changes = partEdits(event).flatMap((edit): RuntimePartEdit[] => {
+      const { part } = edit
+      if (edit.type === 'put')
+        return [edit.value.type === 'dynamic-tool' ? { ...edit, value: this.decorateTool(edit.value) } : edit]
+      if (edit.type === 'open' && edit.kind === 'text') this.textFilter(id, part, true)
+      if (edit.type === 'correct' && edit.kind === 'text') {
+        const filter = this.textFilter(id, part, edit.state === 'streaming')
+        const text = this.rejectedMessages.has(id) ? stripClaudeCodeRejectionPrefix(edit.text) : edit.text
+        return [{ ...edit, text: filter.write(text) + (edit.state === 'streaming' ? '' : filter.flush()) }]
+      }
+      const filters = this.filters.get(id)
+      const filter = filters?.get(part)
+      if (edit.type === 'append' && filter) {
+        const text = filter.write(edit.text)
+        return text ? [{ ...edit, text }] : []
+      }
+      if (edit.type === 'finish' && filter) {
+        filters!.delete(part)
+        if (!filters!.size) this.filters.delete(id)
+        const text = filter.flush()
+        return text ? [{ type: 'append', part, text }, edit] : [edit]
+      }
+      const timing = this.thinking.get(id)?.get(part)
+      if (timing && (edit.type === 'open' || edit.type === 'correct' || edit.type === 'finish'))
+        return [
+          {
+            ...edit,
+            providerMetadata: {
+              ...edit.providerMetadata,
+              cherry: {
+                startedAt: timing.startedAt,
+                ...(timing.thinkingMs !== undefined && { thinkingMs: timing.thinkingMs })
+              }
+            }
+          }
+        ]
+      return [edit]
+    })
+    return { type: 'message.parts', ref: event.ref, changes }
+  }
 
   private getToolUseMetadata(
     tool: Pick<ClaudeToolUseBlock, 'name' | 'type'> & { server_name?: string }
@@ -226,14 +324,10 @@ export class ClaudeMessageMetadata {
     }
   }
 
-  private buildToolOutput(
-    result: NonNullable<JSONValue>,
-    state: ToolMetadata,
-    rawContent?: unknown
-  ): NonNullable<JSONValue> {
-    if (state.toolType !== 'mcp') return result
+  private buildToolOutput(output: unknown, state: ToolMetadata): unknown {
+    if (state.toolType !== 'mcp') return normalizeClaudeToolResult(output)
     return {
-      content: hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result,
+      content: hasMcpNonTextContent(output) ? normalizeMcpToolContent(output) : normalizeClaudeToolResult(output),
       metadata: {
         type: 'mcp',
         name: state.displayName ?? state.name,
@@ -303,26 +397,20 @@ function hasMcpNonTextContent(value: unknown): boolean {
   })
 }
 
-export function normalizeClaudeToolResult(result: unknown): NonNullable<JSONValue> {
-  if (typeof result === 'string') {
-    try {
-      return JSON.parse(result)
-    } catch {
-      return result
-    }
-  }
+export function normalizeClaudeToolResult(result: unknown): unknown {
   if (Array.isArray(result) && result.length > 0) {
-    const textBlocks = result
-      .filter((b): b is { type: 'text'; text: string } => b?.type === 'text' && typeof b.text === 'string')
-      .map((b) => b.text)
-
-    if (textBlocks.length !== result.length) return JSON.parse(JSON.stringify(result))
-    const combined = textBlocks.join('\n')
-    try {
-      return JSON.parse(combined)
-    } catch {
-      return combined
-    }
+    if (
+      !result.every(
+        (block): block is { type: 'text'; text: string } => block?.type === 'text' && typeof block.text === 'string'
+      )
+    )
+      return result
+    result = result.map((block) => block.text).join('\n')
   }
-  return typeof result === 'object' && result !== null ? JSON.parse(JSON.stringify(result)) : String(result ?? '')
+  if (typeof result !== 'string') return typeof result === 'object' && result !== null ? result : String(result ?? '')
+  try {
+    return JSON.parse(result)
+  } catch {
+    return result
+  }
 }

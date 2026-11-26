@@ -20,14 +20,14 @@ export const QUEUE_VISIBLE_LIMIT = 3
 
 interface QueuedFollowupsDockProps {
   items: FollowupQueueItem[]
-  paused: boolean
-  onTogglePause: () => void
-  onSteer: (id: string) => void
+  paused?: boolean
+  onTogglePause?: () => void
+  onSteer?: (id: string) => void
   onEdit: (id: string) => void
   onRemove: (id: string) => void
   onReorder: (nextItems: FollowupQueueItem[]) => void
   /** Drop every pending message at once. */
-  onClearAll: () => void
+  onClearAll?: () => void
   /** Head item whose auto-send failed (queue auto-paused) — shows the Skip/Retry/Abort banner. */
   failedItemId?: string | null
   onRetryFailed?: () => void
@@ -35,6 +35,7 @@ interface QueuedFollowupsDockProps {
   onAbortQueue?: () => void
   /** True while the failed head has a send in flight (Retry started): Skip/Retry no-op until it settles. */
   isFailureDraining?: boolean
+  onDragStart?: () => void
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
   steerDisabledReason?: string
 }
@@ -84,7 +85,7 @@ function QueuedFollowupRow({
   dragging: boolean
   /** Present when the list runs in drag-handle mode: spread onto the grip so only it starts a drag. */
   dragHandleProps?: SortableDragHandleProps
-  onSteer: (id: string) => void
+  onSteer?: (id: string) => void
   onEdit: (id: string) => void
   onRemove: (id: string) => void
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
@@ -115,24 +116,26 @@ function QueuedFollowupRow({
         <DraftTokenChips item={item} hasText={Boolean(previewText)} />
       </div>
       <div className="flex shrink-0 items-center gap-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-        <Tooltip
-          placement="top"
-          content={
-            steerDisabled
-              ? (steerDisabledReason ?? t('chat.input.followup_queue.steer'))
-              : t('chat.input.followup_queue.steer')
-          }>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-7 shadow-none"
-            aria-label={t('chat.input.followup_queue.steer')}
-            disabled={steerDisabled}
-            onClick={() => onSteer(item.id)}>
-            <ArrowUp className="size-4" />
-          </Button>
-        </Tooltip>
+        {onSteer ? (
+          <Tooltip
+            placement="top"
+            content={
+              steerDisabled
+                ? (steerDisabledReason ?? t('chat.input.followup_queue.steer'))
+                : t('chat.input.followup_queue.steer')
+            }>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-7 shadow-none"
+              aria-label={t('chat.input.followup_queue.steer')}
+              disabled={steerDisabled}
+              onClick={() => onSteer(item.id)}>
+              <ArrowUp className="size-4" />
+            </Button>
+          </Tooltip>
+        ) : null}
         <Tooltip placement="top" content={t('chat.input.followup_queue.edit')}>
           <Button
             type="button"
@@ -181,6 +184,7 @@ export function QueuedFollowupsDock({
   onSkipFailed,
   onAbortQueue,
   isFailureDraining,
+  onDragStart,
   isSteerDisabled,
   steerDisabledReason
 }: QueuedFollowupsDockProps) {
@@ -241,31 +245,35 @@ export function QueuedFollowupsDock({
           </span>
         </Button>
         <div className="flex shrink-0 items-center gap-0.5">
-          <Tooltip
-            placement="top"
-            content={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-6 shadow-none"
-              aria-label={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}
-              disabled={failed != null}
-              onClick={onTogglePause}>
-              {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
-            </Button>
-          </Tooltip>
-          <Tooltip placement="top" content={t('chat.input.followup_queue.clear_all')}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-6 shadow-none"
-              aria-label={t('chat.input.followup_queue.clear_all')}
-              onClick={onClearAll}>
-              <Trash2 className="size-3.5" />
-            </Button>
-          </Tooltip>
+          {onTogglePause ? (
+            <Tooltip
+              placement="top"
+              content={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-6 shadow-none"
+                aria-label={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}
+                disabled={failed != null}
+                onClick={onTogglePause}>
+                {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+              </Button>
+            </Tooltip>
+          ) : null}
+          {onClearAll ? (
+            <Tooltip placement="top" content={t('chat.input.followup_queue.clear_all')}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-6 shadow-none"
+                aria-label={t('chat.input.followup_queue.clear_all')}
+                onClick={onClearAll}>
+                <Trash2 className="size-3.5" />
+              </Button>
+            </Tooltip>
+          ) : null}
         </div>
       </motion.div>
       {failed ? (
@@ -319,6 +327,12 @@ export function QueuedFollowupsDock({
               visibleItems={visibleItems}
               getId={(item) => item.id}
               onReorder={onReorder}
+              onDragStateChange={
+                onDragStart &&
+                ((dragging) => {
+                  if (dragging) onDragStart()
+                })
+              }
               direction="vertical"
               gap={4}
               dragHandle

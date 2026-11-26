@@ -33,6 +33,7 @@ import {
   mergeAgentLoopbackProxyBypass
 } from '@main/services/proxy/agentProxyEnvironment'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { EDITABLE_PROMPT_SECTIONS } from '@shared/ai/agentPromptSections'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -48,6 +49,7 @@ import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { gatewayCredentialsFingerprint, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { taskCompactionPercent } from '../taskCompaction'
 import type { AgentRuntimeConnectInput, AgentSessionUsageCapture } from '../types'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
@@ -125,6 +127,7 @@ interface ConnectionMaterializationFacts {
   mcp: unknown[]
   skills: string[]
   notificationContext: AgentNotificationContext
+  compactionPercent?: number
   contextWindow: number | null
   maxOutputTokens: number | null
   fastMode: boolean
@@ -284,6 +287,12 @@ export interface ConnectionConfig {
 
 export type DeriveConnectionConfigResult = { ok: true; config: ConnectionConfig } | { ok: false; reason: 'unroutable' }
 
+function withPermissionMode(agent: AgentEntity, permissionModeOverride?: AgentPermissionMode): AgentEntity {
+  return permissionModeOverride
+    ? { ...agent, configuration: { ...agent.configuration, permission_mode: permissionModeOverride } }
+    : agent
+}
+
 /**
  * Pure facts extractor for connection staleness — NOT a builder inversion. Reads the same inputs
  * the settings builder consumes and reduces them to a signature + live facts, WITHOUT touching the
@@ -309,14 +318,16 @@ export async function deriveConnectionConfig(
   serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
   /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
    *  default while ignoring session overrides. */
-  headless = false
+  headless = false,
+  permissionModeOverride?: AgentPermissionMode
 ): Promise<DeriveConnectionConfigResult> {
   const unroutable = { ok: false, reason: 'unroutable' } as const
 
-  const session = agentSessionService.getById(sessionId)
+  const session = agentSessionService.getById(sessionId, { includeTaskReuse: true })
   if (!session?.agentId) return unroutable
-  const agent = agentService.getAgent(session.agentId)
-  if (!agent) return unroutable
+  const storedAgent = agentService.getAgent(session.agentId)
+  if (!storedAgent) return unroutable
+  const agent = withPermissionMode(storedAgent, permissionModeOverride)
   // A cleared agent default still routes when the session carries its own
   // override — only a session with no effective model is unroutable.
   const effectiveModel = connectionModelId ?? (headless ? agent.model : (session.model ?? agent.model))
@@ -428,8 +439,13 @@ async function deriveConnectionConfigFromSnapshot(
     language:
       materialized?.effectiveLanguage !== undefined ? materialized.effectiveLanguage : getEffectiveAgentLanguage(agent),
     instructions: agent.instructions ?? null,
+    promptOverrides: EDITABLE_PROMPT_SECTIONS.map(
+      (section) => agent.configuration?.prompt_overrides?.[section] ?? null
+    ),
+    nativePromptEnabled: agent.configuration?.claude_code_native_prompt_enabled !== false,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
+    compactionPercent: materialized ? materialized.compactionPercent : taskCompactionPercent(session),
     promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
     promptModelName:
       materialized?.promptModelName !== undefined
@@ -445,6 +461,7 @@ async function deriveConnectionConfigFromSnapshot(
       .sort(([a], [b]) => a.localeCompare(b)),
     proxyEnvironment: proxyEnvironmentFingerprint,
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
+    hideFileWriteTools: agent.configuration?.permission_mode === 'plan',
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
     notificationContext
@@ -515,13 +532,15 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   serviceTier: AgentRuntimeConnectInput['serviceTier'] = 'standard',
   /** True for a headless (scheduled/responder-less) turn: it resolves against the agent
    *  default while ignoring session overrides. */
-  headless = false
+  headless = false,
+  permissionModeOverride?: AgentPermissionMode
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
-  const session = agentSessionService.getById(sessionId)
+  const session = agentSessionService.getById(sessionId, { includeTaskReuse: true })
   if (!session?.agentId) return undefined
 
-  const agent = agentService.getAgent(session.agentId)
-  if (!agent) return undefined
+  const storedAgent = agentService.getAgent(session.agentId)
+  if (!storedAgent) return undefined
+  const agent = withPermissionMode(storedAgent, permissionModeOverride)
   // A cleared agent default still routes when the session carries its own
   // override — only a session with no effective model is unroutable.
   const uniqueModelId = connectionModelId ?? (headless ? agent.model : (session.model ?? agent.model))
@@ -536,6 +555,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // Freeze the model metadata that configures this subprocess. Re-reading it after async route,
   // settings, and skill materialization can otherwise make the baseline describe a different
   // compaction window from the one actually passed to Claude Code.
+  const compactionPercent = taskCompactionPercent(session)
   const contextWindow = model.contextWindow
   const maxOutputTokens = model.maxOutputTokens
   const nativeFastMode =
@@ -577,6 +597,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       provider,
       {
         contextWindow,
+        compactionPercent,
         maxOutputTokens,
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
@@ -611,6 +632,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
       notificationContext,
+      compactionPercent,
       contextWindow: contextWindow ?? null,
       maxOutputTokens: maxOutputTokens ?? null,
       fastMode: route.branch === 'gateway' ? fastMode : nativeFastMode,
@@ -922,6 +944,11 @@ function mergeRuntimeSettings(
   )
   if (route.branch === 'gateway' && !env.CLAUDE_CODE_SUBAGENT_MODEL?.trim()) {
     env.CLAUDE_CODE_SUBAGENT_MODEL = route.modelIds.primary
+  }
+  // Since CLI 2.1.311, the separate workflow sub-agent slot overrides script `model` in workflow runs; bare IDs cause `400 Invalid model format` at the gateway.
+  // Default only missing/blank values on gateway routes to preserve explicit pins.
+  if (route.branch === 'gateway' && !env.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL?.trim()) {
+    env.CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL = route.modelIds.primary
   }
   // `buildEnvironment` force-enables the SDK's ToolSearch via `ENABLE_TOOL_SEARCH=auto` before the
   // per-turn model is known, and the var is in the blocked list so agents cannot override it. When

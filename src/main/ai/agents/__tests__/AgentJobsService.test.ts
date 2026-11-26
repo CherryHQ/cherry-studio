@@ -321,6 +321,8 @@ describe('AgentJobsService', () => {
       hold.dispose()
       await vi.waitFor(() => expect(agentTaskService.getTask(AGENT_ID, task.id)?.status).toBe('completed'))
       expect(jobScheduleService.getById(task.id)?.metadata).not.toHaveProperty('missed')
+      expect(await service.runTask(AGENT_ID, task.id)).toBe(false)
+      expect(jobService.list({ scheduleId: task.id })).toHaveLength(1)
     } finally {
       clearScheduleDisposables()
       vi.useRealTimers()
@@ -787,6 +789,14 @@ describe('AgentJobsService', () => {
         unrelated: 'keep-me'
       })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+
+      const binding = { scheduleId: task.id, reuseRevision: 0 }
+      service.releaseOverflowedTaskSession({ ...binding, reuseRevision: 1 }, session.id)
+      service.releaseOverflowedTaskSession(binding, 'stale-session')
+      expect(agentSessionService.getByTaskScheduleId(task.id)?.id).toBe(session.id)
+      service.releaseOverflowedTaskSession(binding, session.id)
+      expect(agentSessionService.getByTaskScheduleId(task.id)).toBeNull()
+      expect(agentSessionService.listTaskSessionIds(task.id)).toContain(session.id)
     })
   })
 

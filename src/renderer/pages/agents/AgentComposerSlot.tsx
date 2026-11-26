@@ -1,7 +1,6 @@
-import { memo, useEffect, useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { loggerService } from '@logger'
 import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
@@ -9,7 +8,6 @@ import AgentComposer, {
   type AgentComposerLaunchOptions,
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
-import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -19,8 +17,6 @@ import { ClaudeCodeDownloadStatus } from './ClaudeCodeDownloadStatus'
 import { useOptionalAgentRightPaneActions } from './components/AgentRightPane'
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
 import { useClaudeCodeBinary } from './useClaudeCodeBinary'
-
-const logger = loggerService.withContext('AgentComposerSlot')
 
 interface AgentComposerSlotProps {
   agentId?: string
@@ -45,6 +41,7 @@ interface AgentComposerSlotProps {
   cancelEditing: () => void
   resendEditedMessage: AgentChatRuntimeState['sendMessage']
   steerWhileBusy?: boolean
+  providerQuotaExhausted?: boolean
 }
 
 function AgentComposerSlot({
@@ -69,15 +66,10 @@ function AgentComposerSlot({
   editBusy,
   cancelEditing,
   resendEditedMessage,
-  steerWhileBusy
+  steerWhileBusy,
+  providerQuotaExhausted
 }: AgentComposerSlotProps) {
   const binary = useClaudeCodeBinary(activeAgent?.type === 'claude-code')
-  useEffect(() => {
-    if (activeAgent?.type !== 'claude-code' || binary.status?.phase !== 'ready') return
-    void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
-      logger.warn('Failed to warm installed Claude runtime', { error })
-    })
-  }, [activeAgent?.type, binary.status?.phase, sessionId])
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
   const rightPaneActions = useOptionalAgentRightPaneActions()
   const { t } = useTranslation()
@@ -119,6 +111,7 @@ function AgentComposerSlot({
         }
         launchOptions={isEditing ? editLaunchOptions : composerLaunchOptions}
         steerWhileBusy={steerWhileBusy}
+        providerQuotaExhausted={!isEditing && providerQuotaExhausted}
       />
     ) : (
       <MissingAgentHomeComposer onAgentChange={onAgentChange} agentChanging={agentChanging} />

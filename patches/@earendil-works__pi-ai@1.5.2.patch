@@ -249,7 +249,7 @@ index 704476da084be53d6aa194a5f774fa3ad47f5e9a..3f755ff8867a38268331f469fa834f97
      serviceTier?: ResponseCreateParamsStreaming["service_tier"];
      textVerbosity?: "low" | "medium" | "high";
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
-index c1b6038c2220633a8caf710288a8f6e6301f7a28..850633ea7ce8cd6563826d8dd0232e3d89d6515e 100644
+index c1b6038c2220633a8caf710288a8f6e6301f7a28..ee03e7542b0dd3bc07c1c09a108897acc4f3cf99 100644
 --- a/dist/api/openai-completions.js
 +++ b/dist/api/openai-completions.js
 @@ -152,6 +152,9 @@ function resolveCacheRetention(cacheRetention, env) {
@@ -262,15 +262,27 @@ index c1b6038c2220633a8caf710288a8f6e6301f7a28..850633ea7ce8cd6563826d8dd0232e3d
      (async () => {
          const output = {
              role: "assistant",
-@@ -178,6 +181,7 @@ export const stream = (model, context, options) => {
-                 block.thinkingSignature = JSON.stringify(streamedReasoningDetails);
+@@ -171,13 +174,15 @@ export const stream = (model, context, options) => {
+             timestamp: Date.now(),
+         };
+         // `reasoning_details` are replay metadata, not user-visible stream deltas.
+-        // Keep them in memory during streaming and serialize once when the block is finalized.
++        // A provider may deliver replay metadata after the visible thinking block ends.
+         let streamedReasoningDetails;
+-        const applyStreamedReasoningDetails = (block) => {
+-            if (streamedReasoningDetails !== undefined) {
+-                block.thinkingSignature = JSON.stringify(streamedReasoningDetails);
++        let reasoningDetailsBlock;
++        const applyStreamedReasoningDetails = () => {
++            if (reasoningDetailsBlock !== undefined) {
++                reasoningDetailsBlock.thinkingSignature = JSON.stringify(streamedReasoningDetails);
              }
          };
 +        let objectResponse;
          try {
              const apiKey = getClientApiKey(model.provider, options?.apiKey, options?.headers);
              const compat = getCompat(model);
-@@ -195,7 +199,10 @@ export const stream = (model, context, options) => {
+@@ -195,7 +200,10 @@ export const stream = (model, context, options) => {
                  ...(options?.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
                  maxRetries: 0,
              };
@@ -282,7 +294,79 @@ index c1b6038c2220633a8caf710288a8f6e6301f7a28..850633ea7ce8cd6563826d8dd0232e3d
                  maxRetries: options?.maxRetries,
                  maxRetryDelayMs: options?.maxRetryDelayMs,
                  signal: options?.signal,
-@@ -496,6 +503,9 @@ export const stream = (model, context, options) => {
+@@ -229,7 +237,6 @@ export const stream = (model, context, options) => {
+                     });
+                 }
+                 else if (block.type === "thinking") {
+-                    applyStreamedReasoningDetails(block);
+                     stream.push({
+                         type: "thinking_end",
+                         contentIndex,
+@@ -262,6 +269,12 @@ export const stream = (model, context, options) => {
+                     });
+                 }
+             };
++            const endThinkingBlock = () => {
++                if (thinkingBlock) {
++                    finishBlock(thinkingBlock);
++                    thinkingBlock = null;
++                }
++            };
+             const ensureTextBlock = () => {
+                 if (!textBlock) {
+                     textBlock = { type: "text", text: "" };
+@@ -404,7 +417,7 @@ export const stream = (model, context, options) => {
+                         for (const detail of reasoningDetails) {
+                             if (!isOpenAIReasoningDetail(detail))
+                                 continue;
+-                            ensureThinkingBlock("");
++                            reasoningDetailsBlock ??= thinkingBlock ?? blocks.find(block => block.type === "thinking") ?? ensureThinkingBlock("");
+                             streamedReasoningDetails ??= [];
+                             // Keep provider replay data in the existing signature slot. OpenRouter streams
+                             // reasoning_details as deltas: consecutive text/summary deltas are merged into
+@@ -415,6 +428,7 @@ export const stream = (model, context, options) => {
+                     if (choice.delta.content !== null &&
+                         choice.delta.content !== undefined &&
+                         choice.delta.content.length > 0) {
++                        endThinkingBlock();
+                         const block = ensureTextBlock();
+                         block.text += choice.delta.content;
+                         stream.push({
+@@ -426,6 +440,7 @@ export const stream = (model, context, options) => {
+                     }
+                     if (choice?.delta?.tool_calls) {
+                         for (const toolCall of choice.delta.tool_calls) {
++                            endThinkingBlock();
+                             const { block, state } = ensureToolCallBlock(toolCall);
+                             if (!block.id && toolCall.id) {
+                                 block.id = toolCall.id;
+@@ -456,8 +471,11 @@ export const stream = (model, context, options) => {
+                     }
+                 }
+             }
++            applyStreamedReasoningDetails();
+             for (const block of blocks) {
+-                finishBlock(block);
++                if (block.type !== "thinking" || block === thinkingBlock) {
++                    finishBlock(block);
++                }
+             }
+             if (options?.signal?.aborted) {
+                 throw new Error("Request was aborted");
+@@ -478,11 +496,7 @@ export const stream = (model, context, options) => {
+             stream.end();
+         }
+         catch (error) {
+-            for (const block of output.content) {
+-                if (block.type === "thinking") {
+-                    applyStreamedReasoningDetails(block);
+-                }
+-            }
++            applyStreamedReasoningDetails();
+             output.stopReason = options?.signal?.aborted ? "aborted" : "error";
+             output.errorMessage = formatProviderError(normalizeProviderError(error));
+             // Some providers via OpenRouter give additional information in this field.
+@@ -496,6 +510,9 @@ export const stream = (model, context, options) => {
              stream.push({ type: "error", reason: output.stopReason, error: output });
              stream.end();
          }
@@ -292,7 +376,7 @@ index c1b6038c2220633a8caf710288a8f6e6301f7a28..850633ea7ce8cd6563826d8dd0232e3d
      })();
      return stream;
  };
-@@ -598,6 +608,14 @@ function buildParams(model, context, options, compat = getCompat(model), cacheRe
+@@ -598,6 +615,14 @@ function buildParams(model, context, options, compat = getCompat(model), cacheRe
      }
      if (cacheControl) {
          applyAnthropicCacheControl(messages, params.tools, cacheControl);
@@ -378,8 +462,9 @@ index 9c19bb0fd38cc51e814d3680e8e06519908874b5..0fcbb1efce45f566ac45ab30d7287a70
 @@ -35,3 +35,4 @@ export { uuidv7 } from "./utils/uuid.ts";
  export * from "./utils/validation.ts";
  export { PI_AI_VERSION } from "./utils/version.ts";
- //# sourceMappingURL=index.d.ts.map
 +export { retainNestedToolCall } from "./nested-tool-records.js";
+ //# sourceMappingURL=index.d.ts.map
+\ No newline at end of file
 diff --git a/dist/index.js b/dist/index.js
 index a45b61643634b192fb41453b8869e1be3eaab658..c2489650e1f12845cfe6ea5d033f5bd4dd384943 100644
 --- a/dist/index.js
@@ -387,8 +472,9 @@ index a45b61643634b192fb41453b8869e1be3eaab658..c2489650e1f12845cfe6ea5d033f5bd4
 @@ -23,3 +23,4 @@ export { uuidv7 } from "./utils/uuid.js";
  export * from "./utils/validation.js";
  export { PI_AI_VERSION } from "./utils/version.js";
- //# sourceMappingURL=index.js.map
 +export { retainNestedToolCall } from "./nested-tool-records.js";
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
 diff --git a/dist/models.js b/dist/models.js
 index c61de8788a8f8d1a5921823360cbfbbac7814921..2a953e5bf246d590df96f9f2da60cd30adc9d03f 100644
 --- a/dist/models.js
@@ -645,8 +731,9 @@ index 6dcca6eff16b95b83e047a6e27b65d9d7694bf2c..0b56a9ffff6251cadfaecea62a6d8c74
 @@ -15,3 +15,4 @@ export declare function estimateTextAndImageContentTokens(content: string | Arra
  export declare function estimateMessageTokens(message: Message): number;
  export declare function estimateContextTokens(context: TranscriptContext | readonly Message[]): ContextUsageEstimate;
- //# sourceMappingURL=estimate.d.ts.map
 +export declare function estimateSystemCharacters(promptCharacters: number, toolCharacters: number): number;
+ //# sourceMappingURL=estimate.d.ts.map
+\ No newline at end of file
 diff --git a/dist/utils/estimate.js b/dist/utils/estimate.js
 index 45be26d820bb38ab85340e7afb8cb4682db2e6b7..cfaf2b004031ddc6fe136b424b4d60c0a498612e 100644
 --- a/dist/utils/estimate.js

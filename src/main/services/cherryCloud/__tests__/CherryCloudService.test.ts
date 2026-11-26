@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { createHash, createHmac } from 'node:crypto'
 
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -116,7 +116,12 @@ import { uuid } from 'systeminformation'
 import { application } from '@application'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 
-import { CherryCloudLoginUnavailableError, CherryCloudPortalOpenError, CherryCloudService } from '../CherryCloudService'
+import {
+  CherryCloudAmdEntryError,
+  CherryCloudLoginUnavailableError,
+  CherryCloudPortalOpenError,
+  CherryCloudService
+} from '../CherryCloudService'
 
 const resolveRegistryModels = vi.spyOn(providerRegistryService, 'resolveModels')
 
@@ -296,7 +301,7 @@ function mockAuthorizationFlow(authorization = authorizationResponse(), exchange
 
 function mockModelSync(account: unknown = accountSnapshot, catalog: unknown = cloudModelCatalog): void {
   mockCloudRoute('/api/v1/account', jsonResponse(account))
-  mockCloudRoute('/v1/models?limit=1000', jsonResponse(catalog))
+  mockCloudRoute('/v1/models?limit=1000&catalog=full', jsonResponse(catalog))
 }
 
 async function createService(): Promise<CherryCloudService> {
@@ -517,7 +522,7 @@ describe('CherryCloudService', () => {
     expect(mocks.netFetch.mock.calls.map(([url]) => url)).toEqual([
       'https://cloud.cherryai.com/api/v1/product-sessions/refresh',
       'https://cloud.cherryai.com/api/v1/account',
-      'https://cloud.cherryai.com/v1/models?limit=1000'
+      'https://cloud.cherryai.com/v1/models?limit=1000&catalog=full'
     ])
   })
 
@@ -568,6 +573,135 @@ describe('CherryCloudService', () => {
     const headers = new Headers(requestCalls('/api/v1/public/plans')[0][1].headers)
     expect(headers.has('Authorization')).toBe(false)
     expect(headers.has('X-Signature')).toBe(false)
+  })
+
+  describe('signed-out catalog', () => {
+    const catalogModel = (id: string, extra: Record<string, unknown>) => ({
+      ...cloudModelCatalog.data[1],
+      id,
+      display_name: id,
+      endpoint_type: 'openai-chat-completions',
+      ...extra
+    })
+    const guestCatalog = {
+      data: [
+        catalogModel('plan-model', { requires_login: true }),
+        catalogModel('guest-model', { standalone: true, requires_login: false }),
+        catalogModel('member-model', { standalone: true, requires_login: true }),
+        catalogModel('amd/qwen', {
+          provider: 'amd',
+          requires_login: true,
+          activation_required: true,
+          activation_endpoint: '/api/v1/amd/desktop/entry'
+        })
+      ]
+    }
+
+    it('signs the catalog with the client HMAC and unlocks only guest-callable standalone models', async () => {
+      const service = await createService()
+      mockCloudRoute('/v1/models?limit=1000&catalog=full', jsonResponse(guestCatalog))
+
+      const result = await service['syncEntitledModels']()
+
+      expect(result).toMatchObject({
+        entitledModelIds: ['cherryai-subscription::guest-model'],
+        freeModelIds: ['cherryai-subscription::guest-model'],
+        availableModelIds: {
+          agent: ['cherryai-subscription::guest-model'],
+          general: ['cherryai-subscription::guest-model']
+        }
+      })
+      expect(result.signInRequiredModels.map((model) => model.id)).toEqual(['member-model'])
+      expect(result.catalogModelIds).toEqual([
+        'cherryai-subscription::plan-model',
+        'cherryai-subscription::guest-model',
+        'cherryai-subscription::member-model',
+        'cherryai-subscription::amd/qwen'
+      ])
+      expect(result.amdActivationRequiredModels.map((model) => model.id)).toEqual(['amd/qwen'])
+      const created = mocks.modelCreate.mock.calls.flatMap(([rows]) => rows.map((row: any) => row.dto.modelId))
+      expect(created).toEqual(['guest-model'])
+      const headers = new Headers(requestCalls('/v1/models?limit=1000&catalog=full')[0][1].headers)
+      const timestamp = headers.get('X-Timestamp')
+      expect(headers.has('Authorization')).toBe(false)
+      expect(headers.has('Cherry-Device-ID')).toBe(false)
+      expect(headers.get('X-Client-ID')).toBe('cherry-studio')
+      expect(headers.get('X-Signature')).toBe(
+        createHmac('sha256', 'cloud-login-test-secret')
+          .update(`GET\n/v1/models\nlimit=1000&catalog=full\ncherry-studio\n${timestamp}\n`)
+          .digest('hex')
+      )
+    })
+
+    it('leaves signed-out users with plan previews when the server refuses the catalog', async () => {
+      const service = await createService()
+      mockCloudRoute('/v1/models?limit=1000&catalog=full', cloudErrorResponse(401, 'AUTH_REQUIRED'))
+
+      // An unread catalog must not make every stored model look delisted.
+      await expect(service['syncEntitledModels']()).resolves.toMatchObject({
+        entitledModelIds: [],
+        amdActivationRequiredModels: [],
+        signInRequiredModels: [],
+        catalogModelIds: null
+      })
+    })
+
+    it('calls a guest model with the client HMAC over the exact body and no session headers', async () => {
+      const service = await createService()
+      const body = JSON.stringify({ model: 'guest-model', messages: [{ role: 'user', content: 'hi' }] })
+      mockCloudRoute('/v1/chat/completions', jsonResponse({ id: 'done' }))
+
+      const response = await service.modelFetch('/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer managed-by-cherry-cloud', 'Content-Type': 'application/json' },
+        body
+      })
+
+      expect(response.status).toBe(200)
+      const [[, init]] = requestCalls('/v1/chat/completions')
+      const headers = new Headers(init.headers)
+      const timestamp = headers.get('X-Timestamp')
+      expect(init.body).toBe(body)
+      expect(headers.has('Authorization')).toBe(false)
+      expect(headers.has('Idempotency-Key')).toBe(false)
+      expect(headers.get('X-Signature')).toBe(
+        createHmac('sha256', 'cloud-login-test-secret')
+          .update(`POST\n/v1/chat/completions\n\ncherry-studio\n${timestamp}\n${body}`)
+          .digest('hex')
+      )
+    })
+
+    it('makes login-only standalone models usable once signed in, without a plan', async () => {
+      const service = await createSignedInService()
+      mockModelSync({ ...accountSnapshot, entitlements: [] }, guestCatalog)
+
+      const result = await service['syncEntitledModels']()
+
+      expect(result.entitledModelIds).toEqual([
+        'cherryai-subscription::guest-model',
+        'cherryai-subscription::member-model'
+      ])
+      expect(result.signInRequiredModels).toEqual([])
+    })
+  })
+
+  describe('AMD status', () => {
+    it('has no status to report while signed out', async () => {
+      const service = await createService()
+
+      await expect(service.getAmdStatus()).resolves.toBeNull()
+      expect(mocks.netFetch).not.toHaveBeenCalled()
+    })
+
+    it('reads the signed-in account status with the device signature', async () => {
+      const service = await createSignedInService()
+      const status = { status: 'existing_account', action: 'login', activated: false, registration_enabled: false }
+      mockCloudRoute('/api/v1/amd/desktop/status', jsonResponse(status))
+
+      await expect(service.getAmdStatus()).resolves.toMatchObject(status)
+      const [[, init]] = requestCalls('/api/v1/amd/desktop/status')
+      expect(new Headers(init.headers).get('Cherry-Signature-Version')).toBe('2')
+    })
   })
 
   it('reuses the device key after logout and a service restart', async () => {
@@ -1137,7 +1271,14 @@ describe('CherryCloudService', () => {
         agent: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
         general: ['cherryai-subscription::deepseek-go']
       },
-      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
+      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
+      amdActivationRequiredModels: [],
+      signInRequiredModels: [],
+      catalogModelIds: [
+        'cherryai-subscription::deepseek-free',
+        'cherryai-subscription::deepseek-go',
+        'cherryai-subscription::deepseek-inactive'
+      ]
     })
 
     expect(mocks.modelCreate).toHaveBeenCalledWith([
@@ -1382,10 +1523,70 @@ describe('CherryCloudService', () => {
         agent: ['cherryai-subscription::deepseek-free'],
         general: []
       },
-      quotaExhaustedModelIds: []
+      quotaExhaustedModelIds: [],
+      amdActivationRequiredModels: [],
+      signInRequiredModels: [],
+      catalogModelIds: ['cherryai-subscription::deepseek-free']
     })
     expect(mocks.modelCreate).not.toHaveBeenCalled()
     expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
+  })
+
+  it('serves authorized AMD models without a plan and offers unauthorized ones as locked previews', async () => {
+    const service = await createSignedInService()
+    const amdModel = (id: string, activationRequired: boolean) => ({
+      id,
+      display_name: id,
+      endpoint_type: 'openai-chat-completions',
+      context_window: 32_768,
+      max_output_tokens: 4_096,
+      capabilities: ['function-call'],
+      available_features: ['chat', 'translate'],
+      provider: 'amd',
+      activation_required: activationRequired
+    })
+    mockModelSync(
+      { ...accountSnapshot, entitlements: [] },
+      { data: [amdModel('amd/linked', false), amdModel('amd/locked', true)] }
+    )
+
+    await expect(service['syncEntitledModels']()).resolves.toEqual({
+      entitledModelIds: ['cherryai-subscription::amd/linked'],
+      freeModelIds: ['cherryai-subscription::amd/linked'],
+      availableModelIds: { agent: [], general: ['cherryai-subscription::amd/linked'] },
+      quotaExhaustedModelIds: [],
+      amdActivationRequiredModels: [
+        {
+          id: 'amd/locked',
+          display_name: 'amd/locked',
+          capabilities: ['function-call'],
+          available_features: ['chat', 'translate']
+        }
+      ],
+      signInRequiredModels: [],
+      catalogModelIds: ['cherryai-subscription::amd/linked', 'cherryai-subscription::amd/locked']
+    })
+    const created = mocks.modelCreate.mock.calls.flatMap(([rows]) => rows.map((row: any) => row.dto.modelId))
+    expect(created).toEqual(['amd/linked'])
+  })
+
+  it('reads a catalog that sends null for fields that do not apply to a model', async () => {
+    const service = await createSignedInService()
+    const nulls = {
+      provider: null,
+      activation_required: null,
+      activation_endpoint: null,
+      standalone: null,
+      requires_login: true
+    }
+    mockModelSync(accountSnapshot, { data: cloudModelCatalog.data.map((model) => ({ ...model, ...nulls })) })
+
+    const result = await service['syncEntitledModels']()
+
+    expect(result.entitledModelIds).toEqual([
+      'cherryai-subscription::deepseek-free',
+      'cherryai-subscription::deepseek-go'
+    ])
   })
 
   it('rejects model protocols outside the Cherry Cloud contract', async () => {
@@ -1400,6 +1601,7 @@ describe('CherryCloudService', () => {
   })
 
   it('keeps managed models while signed out', async () => {
+    // No pre-login catalog route is mocked here, so the catalog stays unknown (null).
     mocks.modelList.mockReturnValue([
       {
         id: 'cherryai-subscription::deepseek-go',
@@ -1419,7 +1621,10 @@ describe('CherryCloudService', () => {
       entitledModelIds: [],
       freeModelIds: [],
       availableModelIds: { agent: [], general: [] },
-      quotaExhaustedModelIds: []
+      quotaExhaustedModelIds: [],
+      amdActivationRequiredModels: [],
+      signInRequiredModels: [],
+      catalogModelIds: null
     })
     expect(mocks.modelCreate).not.toHaveBeenCalled()
     expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
@@ -1456,7 +1661,14 @@ describe('CherryCloudService', () => {
           agent: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
           general: ['cherryai-subscription::deepseek-go']
         },
-        quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
+        quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
+        amdActivationRequiredModels: [],
+        signInRequiredModels: [],
+        catalogModelIds: [
+          'cherryai-subscription::deepseek-free',
+          'cherryai-subscription::deepseek-go',
+          'cherryai-subscription::deepseek-inactive'
+        ]
       })
       expect(mocks.netFetch).toHaveBeenCalledTimes(2)
     } finally {
@@ -1464,19 +1676,24 @@ describe('CherryCloudService', () => {
     }
   })
 
-  it('asks for models again after a model request is rejected with 403 ENTITLEMENT_INACTIVE', async () => {
-    const service = await createSignedInService()
-    mockModelSync()
-    await service.syncEntitledModelsIfStale()
-    mockCloudRoute('/v1/messages', cloudErrorResponse(403, 'ENTITLEMENT_INACTIVE'))
-    await service.authenticatedFetch('/v1/messages', { method: 'POST' })
-    mocks.netFetch.mockClear()
+  it.each(['ENTITLEMENT_INACTIVE', 'AMD_ACTIVATION_REQUIRED', 'AMD_CREDENTIAL_INVALID'])(
+    'asks for models again after a model request is rejected with 403 %s',
+    async (code) => {
+      const service = await createSignedInService()
+      mockModelSync()
+      await service.syncEntitledModelsIfStale()
+      mockCloudRoute('/v1/messages', cloudErrorResponse(403, code))
+      await service.authenticatedFetch('/v1/messages', { method: 'POST' })
+      mocks.netFetch.mockClear()
 
-    mockModelSync()
-    await service.syncEntitledModelsIfStale()
+      mockModelSync()
+      await service.syncEntitledModelsIfStale()
 
-    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
-  })
+      expect(requestCalls('/v1/models?limit=1000&catalog=full')).toHaveLength(1)
+      // An AMD refusal is about the AMD key, never the Cherry sign-in.
+      expect((await service.getStatus()).phase).toBe('signed-in')
+    }
+  )
 
   it('asks for models again after the system wakes from sleep', async () => {
     const service = await createSignedInService()
@@ -1489,7 +1706,7 @@ describe('CherryCloudService', () => {
     mockModelSync()
     await service.syncEntitledModelsIfStale()
 
-    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
+    expect(requestCalls('/v1/models?limit=1000&catalog=full')).toHaveLength(1)
   })
 
   it('does not keep a model snapshot alive when the system clock moves back', async () => {
@@ -1506,7 +1723,7 @@ describe('CherryCloudService', () => {
       mockModelSync()
       await service.syncEntitledModelsIfStale()
 
-      expect(requestCalls('/v1/models?limit=1000')).toHaveLength(1)
+      expect(requestCalls('/v1/models?limit=1000&catalog=full')).toHaveLength(1)
     } finally {
       vi.useRealTimers()
     }
@@ -1517,7 +1734,7 @@ describe('CherryCloudService', () => {
     const accountRequest = deferred<Response>()
     const catalogRequest = deferred<Response>()
     mockCloudRoute('/api/v1/account', accountRequest.promise)
-    mockCloudRoute('/v1/models?limit=1000', catalogRequest.promise)
+    mockCloudRoute('/v1/models?limit=1000&catalog=full', catalogRequest.promise)
     const waiting = service['syncEntitledModels']()
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
 
@@ -1529,7 +1746,7 @@ describe('CherryCloudService', () => {
 
     await expect(waiting).resolves.toHaveProperty('entitledModelIds')
     await expect(refresh).resolves.toHaveProperty('outcome', 'refreshed')
-    expect(requestCalls('/v1/models?limit=1000')).toHaveLength(2)
+    expect(requestCalls('/v1/models?limit=1000&catalog=full')).toHaveLength(2)
   })
 
   it('refreshes plans and model access in one scoped receipt', async () => {
@@ -1661,7 +1878,7 @@ describe('CherryCloudService', () => {
   it('settles a stopped full refresh without waiting for stalled transports', async () => {
     const service = await createSignedInService()
     mockCloudRoute('/api/v1/account', new Promise<Response>(() => undefined))
-    mockCloudRoute('/v1/models?limit=1000', new Promise<Response>(() => undefined))
+    mockCloudRoute('/v1/models?limit=1000&catalog=full', new Promise<Response>(() => undefined))
     mockCloudRoute('/api/v1/account/plans', new Promise<Response>(() => undefined))
     const pending = service.refreshAccount({ scopeId: service.getCurrentScopeId(), reason: 'notification' })
     await vi.waitFor(() => expect(requestCalls('/api/v1/account/plans')).toHaveLength(1))
@@ -1699,6 +1916,158 @@ describe('CherryCloudService', () => {
     expect(mocks.openExternal).toHaveBeenCalledWith(
       'https://cloud.cherryai.com/account/plans?entry=desktop&entry_source=settings&flow_id=00000000-0000-4000-8000-000000000001'
     )
+  })
+
+  describe('AMD entry', () => {
+    const entryPath = '/api/v1/amd/desktop/entry'
+    const entryUrl = `https://cloud.cherryai.com/amd/enter#${token('E')}`
+    const amdModelId = 'amd/qwen'
+    const amdCatalog = (activationRequired: boolean, activationEndpoint: string | undefined = entryPath) => ({
+      data: [
+        {
+          id: amdModelId,
+          display_name: 'AMD Qwen',
+          endpoint_type: 'openai-chat-completions',
+          context_window: 32_768,
+          max_output_tokens: 4_096,
+          available_features: ['chat', 'translate'],
+          provider: 'amd',
+          activation_required: activationRequired,
+          activation_endpoint: activationEndpoint
+        }
+      ]
+    })
+    const mockAmdSync = (activationRequired = true, activationEndpoint?: string) =>
+      mockModelSync({ ...accountSnapshot, entitlements: [] }, amdCatalog(activationRequired, activationEndpoint))
+    const syncAmd = async (service: CherryCloudService, activationRequired = true, activationEndpoint?: string) => {
+      mockAmdSync(activationRequired, activationEndpoint)
+      await service['syncEntitledModels']()
+    }
+
+    it('opens the exact single-use entry the signed session request returns', async () => {
+      const service = await createSignedInService()
+      mocks.openExternal.mockClear()
+      await syncAmd(service)
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+
+      await service.openAmdEntry('w1', amdModelId)
+
+      const [[, init]] = requestCalls(entryPath)
+      const headers = new Headers(init.headers)
+      expect(init.method).toBe('POST')
+      expect(init.body).toBeUndefined()
+      expect(headers.get('Authorization')).toBe(`Bearer ${token('F')}`)
+      expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
+      expect(headers.get('Cherry-Signature-Version')).toBe('2')
+      expect(headers.get('Cherry-Body-SHA256')).toBe(createHash('sha256').update('').digest('hex'))
+      expect(mocks.openExternal.mock.calls).toEqual([[entryUrl]])
+    })
+
+    it('requests a fresh entry with a new request id on every click', async () => {
+      const service = await createSignedInService()
+      await syncAmd(service)
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+
+      await service.openAmdEntry('w1', amdModelId)
+      await service.openAmdEntry('w1', amdModelId)
+
+      const requestIds = requestCalls(entryPath).map(([, init]) => new Headers(init.headers).get('Cherry-Request-ID'))
+      expect(new Set(requestIds).size).toBe(2)
+    })
+
+    it('shares one entry between concurrent clicks', async () => {
+      const service = await createSignedInService()
+      mocks.openExternal.mockClear()
+      await syncAmd(service)
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+
+      await Promise.all([service.openAmdEntry('w1', amdModelId), service.openAmdEntry('w2', amdModelId)])
+
+      expect(requestCalls(entryPath)).toHaveLength(1)
+      expect(mocks.openExternal).toHaveBeenCalledOnce()
+    })
+
+    it('signs in first when signed out, then opens the entry', async () => {
+      mockAuthorizationFlow()
+      mockAmdSync()
+      mockCloudRoute(entryPath, jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+      const service = await createService()
+
+      const pending = service.openAmdEntry('w1', amdModelId)
+      await vi.waitFor(async () => expect((await service.getStatus()).phase).toBe('authorizing'))
+      await loopbackCallback()(
+        new URL(
+          `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${authorizationRequestBody().state}`
+        )
+      )
+      await pending
+
+      expect(mocks.openExternal.mock.calls.at(-1)).toEqual([entryUrl])
+      await service._doStop()
+    })
+
+    it.each([
+      ['a refused request', () => cloudErrorResponse(404, 'NOT_FOUND')],
+      [
+        'an entry on another origin',
+        () => jsonResponse({ entry_url: `https://evil.example/amd/enter#${token('E')}`, expires_in: 60 })
+      ],
+      ['a malformed response', () => jsonResponse({ expires_in: 60 })]
+    ])('opens nothing after %s and keeps the credential out of the error', async (_, reply) => {
+      const service = await createSignedInService()
+      mocks.openExternal.mockClear()
+      await syncAmd(service)
+      mockCloudRoute(entryPath, reply())
+
+      const error = await service.openAmdEntry('w1', amdModelId).catch((caught: unknown) => caught)
+
+      expect(error).toBeInstanceOf(CherryCloudAmdEntryError)
+      expect(String((error as Error).message)).not.toContain(token('E'))
+      expect(mocks.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('requests the entry at the activation endpoint the catalog names', async () => {
+      const service = await createSignedInService()
+      mocks.openExternal.mockClear()
+      await syncAmd(service, true, '/api/v1/partner/entry')
+      mockCloudRoute('/api/v1/partner/entry', jsonResponse({ entry_url: entryUrl, expires_in: 60 }))
+
+      await service.openAmdEntry('w1', amdModelId)
+
+      expect(requestCalls(entryPath)).toHaveLength(0)
+      expect(mocks.openExternal.mock.calls).toEqual([[entryUrl]])
+    })
+
+    it('opens nothing once the account turns out to be authorized already', async () => {
+      const service = await createSignedInService()
+      mocks.openExternal.mockClear()
+      await syncAmd(service, false)
+
+      await expect(service.openAmdEntry('w1', amdModelId)).resolves.toBeUndefined()
+
+      expect(requestCalls(entryPath)).toHaveLength(0)
+      expect(mocks.openExternal).not.toHaveBeenCalled()
+    })
+
+    it('refuses a model whose catalog entry names no activation endpoint', async () => {
+      const service = await createSignedInService()
+      mocks.openExternal.mockClear()
+      mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+
+      await expect(service.openAmdEntry('w1', amdModelId)).rejects.toBeInstanceOf(CherryCloudAmdEntryError)
+      expect(requestCalls(entryPath)).toHaveLength(0)
+    })
+
+    it('does not open the entry once the clicking window is gone', async () => {
+      const service = await createSignedInService()
+      mocks.openExternal.mockClear()
+
+      await service.openAmdEntry(null, amdModelId)
+
+      expect(requestCalls(entryPath)).toHaveLength(0)
+      expect(mocks.openExternal).not.toHaveBeenCalled()
+    })
   })
 
   it.each([2, 3])('coalesces %s windows through one portal and admits a later operation', async (clicks) => {
@@ -1997,7 +2366,7 @@ describe('CherryCloudService', () => {
     const accountRequest = deferred<Response>()
     const catalogRequest = deferred<Response>()
     mockCloudRoute('/api/v1/account', accountRequest.promise)
-    mockCloudRoute('/v1/models?limit=1000', catalogRequest.promise)
+    mockCloudRoute('/v1/models?limit=1000&catalog=full', catalogRequest.promise)
     mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'))
     mockCloudRoute('/api/v1/product-sessions/refresh', cloudErrorResponse(401, 'REAUTH_REQUIRED'))
 
@@ -2019,7 +2388,7 @@ describe('CherryCloudService', () => {
     const oldAccountRequest = deferred<Response>()
     const oldCatalogRequest = deferred<Response>()
     mockCloudRoute('/api/v1/account', oldAccountRequest.promise)
-    mockCloudRoute('/v1/models?limit=1000', oldCatalogRequest.promise)
+    mockCloudRoute('/v1/models?limit=1000&catalog=full', oldCatalogRequest.promise)
     mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'))
     mockCloudRoute('/api/v1/product-sessions/refresh', cloudErrorResponse(401, 'REAUTH_REQUIRED'))
 
@@ -2065,17 +2434,17 @@ describe('CherryCloudService', () => {
     try {
       const service = await createSignedInService()
       mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
-      mockCloudRoute('/v1/models?limit=1000', jsonResponse({ data: [] }))
+      mockCloudRoute('/v1/models?limit=1000&catalog=full', jsonResponse({ data: [] }))
       clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
 
       await expect(
-        service.authenticatedFetch('/v1/models?limit=1000', {
+        service.authenticatedFetch('/v1/models?limit=1000&catalog=full', {
           headers: { 'anthropic-version': '2023-06-01' }
         })
       ).resolves.toHaveProperty('status', 200)
 
       const refreshHeaders = new Headers(requestCalls('/api/v1/product-sessions/refresh')[0][1].headers)
-      const modelHeaders = new Headers(requestCalls('/v1/models?limit=1000')[0][1].headers)
+      const modelHeaders = new Headers(requestCalls('/v1/models?limit=1000&catalog=full')[0][1].headers)
       expect(refreshHeaders.has('Authorization')).toBe(false)
       expect(JSON.parse(Buffer.from(requestCalls('/api/v1/product-sessions/refresh')[0][1].body).toString())).toEqual({
         session_id: sessionId,
@@ -2264,7 +2633,7 @@ describe('CherryCloudService', () => {
       const service = await createSignedInService()
       const unauthorized = deferred<Response>()
       mockCloudRoute('/api/v1/account', unauthorized.promise)
-      mockCloudRoute('/v1/models?limit=1000', jsonResponse({ data: [] }))
+      mockCloudRoute('/v1/models?limit=1000&catalog=full', jsonResponse({ data: [] }))
       clock.mockReturnValue(Date.parse('2030-01-02T03:02:00Z'))
       elapsed.mockReturnValue(120_000)
       const sync = service.syncEntitledModelsIfStale()
