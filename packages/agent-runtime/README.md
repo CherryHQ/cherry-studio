@@ -4,6 +4,15 @@ Harness-neutral contracts for accessing a thread, submitting native input, obser
 facts, interrupting foreground work, and releasing access/resources. This package has no Pi,
 Claude SDK, Electron, or application dependency and does not schedule agent execution.
 
+The `/cli` entry describes executable components, resolved installations, install plans and
+native account probes. A resolved installation can be shared by discovery, post-install
+verification and launch.
+The `/stdio` entry describes the host capability to spawn a resolved command and join its shutdown.
+A runtime adapter owns any process it requests through this capability. Thread access remains a
+separate lifetime.
+Native CLI login uses the same stdio capability, forwards parsed login prompts and joins the
+child on cancellation.
+
 `Thread` is the stable native context identity within a backend. `ThreadHandle` is a live access
 with observation and release operations. A writable handle exposes its supported operations under
 `input`. `submit` rejects busy work, `steer.submit` declares what happens when idle, and
