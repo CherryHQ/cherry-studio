@@ -2802,6 +2802,38 @@
       "name": "Vercel AI Gateway"
     },
     {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "ProxyStacks Relay - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://proxystacks.com"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://proxystacks.com",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "open-responses",
+          "baseUrl": "https://proxystacks.com"
+        }
+      },
+      "id": "proxystacks",
+      "metadata": {
+        "website": {
+          "apiKey": "https://proxystacks.com/login",
+          "docs": "https://proxystacks.com/en/docs",
+          "models": "https://proxystacks.com/en/models",
+          "official": "https://proxystacks.com"
+        }
+      },
+      "name": "ProxyStacks Relay"
+    },
+    {
       "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Cerebras AI - AI model provider",
@@ -2969,5 +3001,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "5179a16fddc562d9"
+  "version": "04a58f62c7460e64"
 }

@@ -45,6 +45,33 @@ describe('portable registry', () => {
     })
   })
 
+  it('ships ProxyStacks Relay as a cloud provider with Chat Completions, Responses, and Anthropic endpoints', () => {
+    const provider = createRegistry(bundledCatalog).findProvider('proxystacks')
+
+    expect(provider).toMatchObject({
+      name: 'ProxyStacks Relay',
+      availableInEditions: ['global', 'cn'],
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://proxystacks.com',
+          reasoningFormat: { type: 'openai-chat' }
+        },
+        'openai-responses': { adapterFamily: 'open-responses', baseUrl: 'https://proxystacks.com' },
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://proxystacks.com' }
+      },
+      metadata: {
+        website: {
+          apiKey: 'https://proxystacks.com/login',
+          docs: 'https://proxystacks.com/en/docs',
+          models: 'https://proxystacks.com/en/models',
+          official: 'https://proxystacks.com'
+        }
+      }
+    })
+  })
+
   it('preserves parameter size across namespaced and registry-tag IDs', () => {
     const registry = createRegistry(catalog())
 

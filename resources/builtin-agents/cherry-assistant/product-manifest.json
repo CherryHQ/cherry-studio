@@ -891,8 +891,8 @@
     }
   ],
   "providers": {
-    "version": "5179a16fddc562d9",
-    "count": 68,
+    "version": "04a58f62c7460e64",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -1145,6 +1145,10 @@
       {
         "id": "gateway",
         "name": "Vercel AI Gateway"
+      },
+      {
+        "id": "proxystacks",
+        "name": "ProxyStacks Relay"
       },
       {
         "id": "cerebras",

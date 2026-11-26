@@ -66,6 +66,7 @@ Access multiple models with one key, centralized account management.
 | **AiHubMix** | Multi-vendor aggregator | [aihubmix.com](https://aihubmix.com/) | — |
 | **Poe** | Quora's AI marketplace | [poe.com](https://poe.com/) | — |
 | **Vercel AI Gateway** | Vercel's gateway | [vercel.com/ai](https://vercel.com/ai) | — |
+| **ProxyStacks Relay** | Global & APAC low-latency multi-protocol gateway (OpenAI + Responses + Anthropic) | [proxystacks.com](https://proxystacks.com/) | — |
 
 ## Ultra-Low Latency / High-Throughput Inference Services
 

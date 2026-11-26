@@ -7,6 +7,12 @@ describe('resolveProviderIconRef', () => {
     expect(resolveProviderIconRef('rapid-mlx')).toEqual(expect.objectContaining({ kind: 'provider', key: 'rapid-mlx' }))
   })
 
+  it('resolves the ProxyStacks Relay provider icon', () => {
+    expect(resolveProviderIconRef('proxystacks')).toEqual(
+      expect.objectContaining({ kind: 'provider', key: 'proxystacks' })
+    )
+  })
+
   it('falls back to the model catalog for provider IDs that only exist there', () => {
     // `claude` is a model-catalog key with no provider-catalog entry
     expect(resolveProviderIconRef('claude')).toEqual(expect.objectContaining({ kind: 'model', key: 'claude' }))

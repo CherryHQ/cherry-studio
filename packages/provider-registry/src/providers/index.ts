@@ -51,6 +51,7 @@ import p_perplexity from './perplexity'
 import p_ph8 from './ph8'
 import p_poe from './poe'
 import p_ppio from './ppio'
+import p_proxystacks from './proxystacks'
 import p_qiniu from './qiniu'
 import p_qwencloud from './qwencloud'
 import p_radeon_cloud from './radeon-cloud'
@@ -133,6 +134,7 @@ export const PROVIDERS: Provider[] = [
   p_longcat,
   p_huggingface,
   p_gateway,
+  p_proxystacks,
   p_cerebras,
   p_comfyui,
   p_mimo,

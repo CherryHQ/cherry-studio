@@ -69,6 +69,7 @@ const providerKeyMap = {
   perplexity: 'provider.perplexity',
   ph8: 'provider.ph8',
   ppio: 'provider.ppio',
+  proxystacks: 'provider.proxystacks',
   qiniu: 'provider.qiniu',
   qwencloud: 'provider.qwencloud',
   qwenlm: 'provider.qwenlm',
