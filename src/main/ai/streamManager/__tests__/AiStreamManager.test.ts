@@ -205,7 +205,7 @@ vi.mock('@application', async () => {
     AiService: {
       streamText: async (request: Parameters<AiService['streamText']>[0]) => {
         const source = await mockStreamText(request)
-        return source instanceof ReadableStream ? { kind: 'chunks', stream: source } : source
+        return source instanceof ReadableStream ? { kind: 'chunks', stream: source, cleanup: async () => {} } : source
       }
     },
     CacheService: fakeCacheService,
@@ -220,6 +220,7 @@ vi.mock('@application', async () => {
 
 // ── Import after mocks ──────────────────────────────────────────────
 
+const { createRequestStreamTransport } = await import('@main/ai/runtime/aiSdk')
 const { AiStreamManager } = await import('../AiStreamManager')
 const pipeStreamLoopModule = await import('../pipeStreamLoop')
 const { PersistenceListener, TerminalPersistenceError } = await import('../listeners/PersistenceListener')
@@ -400,6 +401,32 @@ describe('AiStreamManager', () => {
     if (failWrite) expect(view.messages[0].parts.at(-1)).toMatchObject({ type: 'data-error' })
     mgr.detachProjection(sender, 'subscription')
     sender.emit('destroyed')
+  })
+
+  it('waits for chunk cleanup before publishing a terminal error', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let cleanupStarted = false
+    mockStreamText.mockResolvedValue({
+      kind: 'chunks',
+      stream: new ReadableStream({
+        start(controller) {
+          controller.error(new Error('failed'))
+        }
+      }),
+      cleanup: () => {
+        cleanupStarted = true
+        return gate
+      }
+    })
+    const listener = new FakeListener('cleanup')
+    startSingle(mgr, { topicId: 'cleanup', modelId: 'p::m', request: req('cleanup'), listeners: [listener] })
+    await vi.waitFor(() => expect(cleanupStarted).toBe(true))
+    expect(listener.errorResults).toHaveLength(0)
+    release()
+    await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
   })
 
   it('keeps the Agent body and reports the same save failure to the current and reattaching window', async () => {
@@ -2444,6 +2471,48 @@ describe('AiStreamManager', () => {
       expect(mgr.hasUnsettledTopicWork(topicId)).toBe(false)
     })
 
+    it('keeps Stop draining until chunk cleanup finishes', async () => {
+      vi.useRealTimers()
+      let release!: () => void
+      let cleanupStarted = false
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      mockStreamText.mockImplementationOnce(async (request) => ({
+        kind: 'chunks',
+        stream: pendingStream(request.requestOptions?.signal),
+        cleanup: () => {
+          cleanupStarted = true
+          return gate
+        }
+      }))
+      const listener = new FakeListener('stop-cleanup')
+      startSingle(mgr, {
+        topicId: 'stop-cleanup',
+        modelId: 'p::m',
+        request: req('stop-cleanup'),
+        listeners: [listener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+      let drained = false
+      const stopping = mgr.abortAndDrain('stop-cleanup', 'user-requested').then(() => {
+        drained = true
+      })
+      await vi.waitFor(() => expect(cleanupStarted).toBe(true))
+      expect(drained).toBe(false)
+      expect(listener.pausedResults).toHaveLength(0)
+      let shutdownFinished = false
+      const shutdown = (mgr as unknown as { onStop(): Promise<void> }).onStop().then(() => {
+        shutdownFinished = true
+      })
+      await Promise.resolve()
+      expect(shutdownFinished).toBe(false)
+      release()
+      await stopping
+      await shutdown
+      expect(listener.pausedResults).toHaveLength(1)
+    })
+
     it('holds same-topic admission until paused persistence and runtime stop settle', async () => {
       vi.useRealTimers()
       const listener = new FakeListener('persistence:agent')
@@ -4135,6 +4204,404 @@ describe('AiStreamManager', () => {
   // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
 
   describe('stream errors', () => {
+    it('keeps a completed success when Stop arrives during cleanup', async () => {
+      vi.useRealTimers()
+      let release!: () => void
+      let cleanupStarted = false
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const controlled = controlledStream()
+      mockStreamText.mockResolvedValueOnce({
+        kind: 'chunks',
+        stream: controlled.stream,
+        cleanup: () => {
+          cleanupStarted = true
+          return gate
+        }
+      })
+      const listener = new FakeListener('cleanup-success')
+      startSingle(mgr, {
+        topicId: 'cleanup-success',
+        modelId: 'p::m',
+        request: req('cleanup-success'),
+        listeners: [listener]
+      })
+      controlled.enqueue({ type: 'start', messageId: 'reply' })
+      controlled.enqueue({ type: 'finish' })
+      controlled.close()
+      await vi.waitFor(() => expect(cleanupStarted).toBe(true))
+      const stopping = mgr.abortAndDrain('cleanup-success', 'user-requested')
+      await vi.waitFor(() => expect(mgr.inspect('cleanup-success')?.status).toBe('aborted'))
+      release()
+      await stopping
+      expect(listener.doneResults).toHaveLength(1)
+      expect(listener.pausedResults).toEqual([])
+    })
+
+    it('persists an observed error and partial text when Stop arrives during cleanup', async () => {
+      vi.useRealTimers()
+      let release!: () => void
+      let cleanupStarted = false
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const controlled = controlledStream()
+      mockStreamText.mockResolvedValueOnce({
+        kind: 'chunks',
+        stream: controlled.stream,
+        cleanup: () => {
+          cleanupStarted = true
+          return gate
+        }
+      })
+      const writes: PersistAssistantInput[] = []
+      const persistence = new PersistenceListener({
+        topicId: 'cleanup-error',
+        backend: {
+          kind: 'temp',
+          persistAssistant: (input) => {
+            writes.push(input)
+          }
+        },
+        onPersistFailed: (error) => {
+          throw new Error(error.message ?? 'Persistence failed')
+        }
+      })
+      const listener = new FakeListener('cleanup-error')
+      startSingle(mgr, {
+        topicId: 'cleanup-error',
+        modelId: 'p::m',
+        request: req('cleanup-error'),
+        listeners: [listener, persistence]
+      })
+      controlled.enqueue({ type: 'start', messageId: 'reply' })
+      controlled.enqueue({ type: 'text-start', id: 't1' })
+      controlled.enqueue({ type: 'text-delta', id: 't1', delta: 'Partial answer' })
+      controlled.enqueue({ type: 'error', errorText: 'Provider failure' })
+      controlled.close()
+      await vi.waitFor(() => expect(cleanupStarted).toBe(true))
+      const stopping = mgr.abortAndDrain('cleanup-error', 'user-requested')
+      await vi.waitFor(() => expect(mgr.inspect('cleanup-error')?.status).toBe('aborted'))
+      release()
+      await stopping
+      expect(listener.pausedResults).toEqual([])
+      expect(listener.errorResults[0].error.message).toBe('Provider failure')
+      expect(writes[0].status).toBe('error')
+      expect(writes[0].finalMessage?.parts).toContainEqual(
+        expect.objectContaining({ type: 'text', text: 'Partial answer' })
+      )
+    })
+
+    it('keeps a stopped sibling until its gated cleanup and terminal persistence finish', async () => {
+      vi.useRealTimers()
+      mgr = createManager({ gracePeriodMs: 10 })
+      const first = controlledStream()
+      let release!: () => void
+      let started = false
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      mockStreamText.mockResolvedValueOnce({
+        kind: 'chunks',
+        stream: first.stream,
+        cleanup: async () => {
+          started = true
+          await gate
+        }
+      })
+      mockStreamText.mockImplementationOnce(async (request) =>
+        pendingStream((request.requestOptions as { signal: AbortSignal }).signal)
+      )
+      const writes: PersistAssistantInput[] = []
+      const persistence = new PersistenceListener({
+        topicId: 'siblings-cleanup',
+        backend: {
+          kind: 'temp',
+          persistAssistant: (input) => {
+            writes.push(input)
+          }
+        },
+        onPersistFailed: (error) => {
+          throw new Error(error.message ?? 'Persistence failed')
+        }
+      })
+      const listener = new FakeListener('siblings-cleanup')
+      mgr.send({
+        topicId: 'siblings-cleanup',
+        models: [
+          { modelId: 'p::a', request: req('siblings-cleanup') },
+          { modelId: 'p::b', request: req('siblings-cleanup') }
+        ],
+        listeners: [listener, persistence]
+      })
+      first.enqueue({ type: 'start', messageId: 'reply-a' })
+      first.enqueue({ type: 'text-start', id: 'text' })
+      first.enqueue({ type: 'text-delta', id: 'text', delta: 'saved A' })
+      first.close()
+      await vi.waitFor(() => expect(started).toBe(true))
+      const stopping = mgr.abortAndDrain('siblings-cleanup', 'user-requested')
+      await vi.waitFor(() =>
+        expect(mgr.inspect('siblings-cleanup')?.executions.every((execution) => execution.abortSignal.aborted)).toBe(
+          true
+        )
+      )
+      const sender = { id: 77, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      expect(mgr.attach(sender as unknown as Electron.WebContents, { topicId: 'siblings-cleanup' }).status).toBe(
+        'attached'
+      )
+      expect(() =>
+        mgr.send({
+          topicId: 'siblings-cleanup',
+          models: [{ modelId: 'p::c', request: req('siblings-cleanup') }],
+          listeners: []
+        })
+      ).toThrow('TOPIC_BUSY')
+      await vi.waitFor(() => expect(listener.pausedResults).toHaveLength(1))
+      expect(listener.pausedResults[0].isTopicDone).toBe(false)
+      expect(mgr.hasUnsettledTopicWork('siblings-cleanup')).toBe(true)
+      await new Promise((resolve) => setTimeout(resolve, 30))
+      expect(mgr.inspect('siblings-cleanup')).toBeDefined()
+      release()
+      await stopping
+      expect(listener.doneResults).toHaveLength(1)
+      expect(listener.doneResults[0].isTopicDone).toBe(true)
+      expect(
+        writes.some((write) =>
+          write.finalMessage?.parts.some((part) => part.type === 'text' && part.text === 'saved A')
+        )
+      ).toBe(true)
+    })
+
+    it.each(['success', 'error'] as const)(
+      'persists A’s %s after Stop lands while B’s terminal dispatch holds the gate',
+      async (status) => {
+        vi.useRealTimers()
+        const topicId = 'siblings-terminal-gate'
+        const first = controlledStream()
+        const second = controlledStream()
+        mockStreamText.mockResolvedValueOnce(first.stream).mockResolvedValueOnce(second.stream)
+        const gate = Promise.withResolvers<void>()
+        const listener = new FakeListener(topicId)
+        listener.onDoneImpl = ({ modelId }) => (modelId === 'p::b' ? gate.promise : undefined)
+        const writes: PersistAssistantInput[] = []
+        const persistence = new PersistenceListener({
+          topicId,
+          modelId: 'p::a',
+          backend: {
+            kind: 'temp',
+            persistAssistant: (input) => {
+              writes.push(input)
+              return undefined
+            }
+          },
+          onPersistFailed: (failure) => {
+            throw new Error(failure.message ?? 'Persistence failed')
+          }
+        })
+        const waiting = vi.spyOn(mgr, 'whenTerminalDispatchSettled')
+        mgr.send({
+          topicId,
+          models: [
+            { modelId: 'p::a', request: req(topicId) },
+            { modelId: 'p::b', request: req(topicId) }
+          ],
+          listeners: [listener, persistence]
+        })
+        try {
+          second.close()
+          await flushUntil(() => listener.doneResults.length === 1)
+          expect(listener.doneResults[0]).toMatchObject({ modelId: 'p::b', isTopicDone: false })
+          first.enqueue({ type: 'start', messageId: 'reply-a' })
+          first.enqueue({ type: 'text-start', id: 'text' })
+          first.enqueue({ type: 'text-delta', id: 'text', delta: 'Saved A' })
+          first.enqueue({ type: 'text-end', id: 'text' })
+          if (status === 'error') first.enqueue({ type: 'error', errorText: 'Provider failure' })
+          first.close()
+          await flushUntil(() => waiting.mock.calls.length > 0)
+          expect(writes.some((write) => write.modelId === 'p::a')).toBe(false)
+
+          const stopping = mgr.abortAndDrain(topicId, 'user-requested')
+          await flushUntil(() => mgr.inspect(topicId)?.status === 'aborted')
+          gate.resolve()
+          await stopping
+
+          expect(listener.pausedResults).toEqual([])
+          if (status === 'error') {
+            expect(listener.errorResults).toMatchObject([
+              { modelId: 'p::a', isTopicDone: true, error: { message: 'Provider failure' } }
+            ])
+          } else {
+            expect(listener.doneResults).toMatchObject([
+              { modelId: 'p::b', isTopicDone: false },
+              { modelId: 'p::a', isTopicDone: true }
+            ])
+          }
+          expect(writes.filter((write) => write.modelId === 'p::a')).toMatchObject([
+            {
+              status,
+              finalMessage: {
+                parts: expect.arrayContaining([
+                  expect.objectContaining({ type: 'text', text: 'Saved A', state: 'done' })
+                ])
+              }
+            }
+          ])
+          const terminalStatus = status === 'success' ? 'done' : 'error'
+          expect(
+            fakeCacheService.setShared.mock.calls.filter(
+              ([key, value]) =>
+                key === `topic.stream.statuses.${topicId}` && (value as { status?: string })?.status === terminalStatus
+            )
+          ).toHaveLength(1)
+        } finally {
+          gate.resolve()
+          waiting.mockRestore()
+        }
+      }
+    )
+
+    it.each([true, false])('dispatches a queued steer only if the turn was clean (Stop=%s)', async (stop) => {
+      vi.useRealTimers()
+      const topicId = 'siblings-steer'
+      const first = controlledStream()
+      const entered = Promise.withResolvers<void>()
+      const gate = Promise.withResolvers<void>()
+      mockStreamText.mockResolvedValueOnce({
+        kind: 'chunks',
+        stream: first.stream,
+        cleanup: () => {
+          entered.resolve()
+          return gate.promise
+        }
+      })
+      const listener = new FakeListener(topicId)
+      const dispatch = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      mgr.send({
+        topicId,
+        models: [
+          { modelId: 'p::a', request: req(topicId) },
+          ...(stop ? [{ modelId: 'p::b' as const, request: req(topicId) }] : [])
+        ],
+        listeners: [listener]
+      })
+      mgr.enqueuePendingSteer(topicId, 'steered-user')
+      expect(mgr.hasPendingSteer(topicId)).toBe(true)
+      first.close()
+      await entered.promise
+      try {
+        if (stop) {
+          const stopping = mgr.abortAndDrain(topicId, 'user-requested')
+          await flushUntil(() => listener.pausedResults.length === 1)
+          expect(listener.pausedResults[0]).toMatchObject({ modelId: 'p::b', isTopicDone: false })
+          gate.resolve()
+          await stopping
+          expect(listener.doneResults).toMatchObject([{ modelId: 'p::a', isTopicDone: true }])
+          expect(dispatch).not.toHaveBeenCalled()
+          expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Dropping queued steers without answering', {
+            topicId,
+            reason: 'aborted',
+            droppedIds: ['steered-user']
+          })
+        } else {
+          gate.resolve()
+          await flushUntil(() => dispatch.mock.calls.length === 1)
+          expect(dispatch).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ trigger: 'steer-continuation', topicId, userMessageId: 'steered-user' })
+          )
+          expect(listener.doneResults).toMatchObject([{ modelId: 'p::a', isTopicDone: false }])
+        }
+        expect(mgr.hasPendingSteer(topicId)).toBe(false)
+      } finally {
+        gate.resolve()
+        dispatch.mockRestore()
+      }
+    })
+
+    it('drains Stop and logs unconfirmed transport timeout without replacing the provider failure', async () => {
+      vi.useRealTimers()
+      const topicId = 'cleanup-timeout'
+      const cancelled = Promise.withResolvers<void>()
+      const rawBody = new ReadableStream<Uint8Array>({
+        cancel() {
+          cancelled.resolve()
+          return new Promise<void>(() => {})
+        }
+      })
+      const response = new Response(rawBody)
+      const reader = rawBody.getReader()
+      vi.spyOn(rawBody, 'getReader').mockReturnValue(reader)
+      vi.spyOn(reader, 'releaseLock').mockImplementation(() => {
+        throw new Error('release failed')
+      })
+      const transport = createRequestStreamTransport({ cleanupTimeoutMs: 20 })
+      await transport.wrapFetch(async () => response)('https://example.com')
+      const controlled = controlledStream()
+      mockStreamText.mockResolvedValueOnce({ kind: 'chunks', stream: controlled.stream, cleanup: transport.close })
+      const listener = new FakeListener(topicId)
+      startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [listener] })
+      controlled.enqueue({ type: 'error', errorText: 'Provider failure' })
+      controlled.close()
+      await cancelled.promise
+      await mgr.abortAndDrain(topicId, 'user-requested')
+      expect(listener.pausedResults).toEqual([])
+      expect(listener.errorResults).toMatchObject([{ isTopicDone: true, error: { message: 'Provider failure' } }])
+      expect(mgr.inspect(topicId)?.executions[0].cleanupOutcome).toBe('unconfirmed')
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+        'Stream cleanup failed',
+        expect.objectContaining({
+          topicId,
+          modelId: 'p::m',
+          attemptId: expect.any(Number),
+          outcome: 'unconfirmed',
+          causes: [
+            expect.objectContaining({ errorName: 'TimeoutError', errorMessage: expect.stringContaining('20 ms') }),
+            expect.objectContaining({ errorName: 'Error', errorMessage: 'release failed' })
+          ]
+        })
+      )
+    }, 1000)
+
+    it('logs cleanup rejection without replacing the provider failure', async () => {
+      vi.useRealTimers()
+      const controlled = controlledStream()
+      const cause = new Error('cancel failure')
+      const failure = new AggregateError([cause], 'cleanup failure')
+      mockStreamText.mockResolvedValueOnce({
+        kind: 'chunks',
+        stream: controlled.stream,
+        cleanup: async () => {
+          throw failure
+        }
+      })
+      const listener = new FakeListener('cleanup-failure')
+      startSingle(mgr, {
+        topicId: 'cleanup-failure',
+        modelId: 'p::m',
+        request: req('cleanup-failure'),
+        listeners: [listener]
+      })
+      controlled.enqueue({ type: 'error', errorText: 'Provider failure' })
+      controlled.close()
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+      expect(listener.errorResults[0].error.message).toBe('Provider failure')
+      expect(mgr.inspect('cleanup-failure')?.executions[0].cleanupOutcome).toBe('unconfirmed')
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+        'Stream cleanup failed',
+        expect.objectContaining({
+          topicId: 'cleanup-failure',
+          modelId: 'p::m',
+          attemptId: expect.any(Number),
+          outcome: 'unconfirmed',
+          error: failure,
+          causes: [
+            expect.objectContaining({ errorName: 'Error', errorMessage: 'cancel failure', stack: expect.any(String) })
+          ]
+        })
+      )
+    })
+
     it.each(['reason', 'abort-error', 'real-error'] as const)(
       'keeps abort-shaped stream rejections low-noise after Stop: %s',
       async (kind) => {

@@ -49,7 +49,8 @@ const agent = new Agent({
   messageId           // stable id for the first emitted UIMessage
 })
 
-const stream: ReadableStream<UIMessageChunk> = agent.stream(initialMessages, signal)
+const { stream, cleanup } = agent.stream(initialMessages, signal)
+// Consume stream, then await cleanup() before reporting the terminal result.
 // or (non-streaming; input is { prompt } | { messages })
 const result = await agent.generate({ messages }, signal)
 

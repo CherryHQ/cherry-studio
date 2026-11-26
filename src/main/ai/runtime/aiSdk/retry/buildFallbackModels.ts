@@ -13,6 +13,8 @@
  * them and ai-retry can't re-shape them mid-call); the capability gate ensures a
  * skipped fallback never receives a native request shape it can't handle.
  */
+import type { FetchFunction } from '@ai-sdk/provider-utils'
+
 import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
@@ -47,6 +49,7 @@ export interface BuildFallbackModelsArgs {
   primaryHasTools: boolean
   /** Native attachment shapes preserved for the primary and replayed to fallbacks. */
   requiredNativeFileSupport: NativeFileSupport
+  wrapFetch?: (fetch: FetchFunction) => FetchFunction
   extraFeatures: readonly RequestFeature[]
   retryPolicy: RetryPolicy
   createUsagePlugin: (input: {
@@ -159,6 +162,7 @@ async function resolveFallback(
     model,
     assistant: args.assistant,
     extraFeatures: args.extraFeatures,
+    wrapFetch: args.wrapFetch,
     getRepairUsagePlugins: () => repairUsagePlugins.current ?? []
   })
   const unsupportedNativeType = (Object.keys(required) as Array<keyof NativeFileSupport>).find(
