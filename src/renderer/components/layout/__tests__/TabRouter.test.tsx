@@ -10,6 +10,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PageSidePanel } from '@cherrystudio/ui/components/composites/page-side-panel'
 import { Combobox } from '@cherrystudio/ui/components/primitives/combobox'
 import { Dialog, DialogContent } from '@cherrystudio/ui/components/primitives/dialog'
+import { MinimalModeContext, useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 const knobs = vi.hoisted(() => ({
@@ -83,6 +84,34 @@ afterEach(() => {
   knobs.renderPage = () => null
   knobs.pending = undefined
   vi.clearAllMocks()
+})
+
+it('keeps the Agent home mounted while a feature tab is active', async () => {
+  function Page() {
+    return useMinimalMode()?.isHome ? <input aria-label="Agent list filter" /> : <p>Feature page</p>
+  }
+  knobs.renderPage = () => <Page />
+
+  function Shell({ activeId }: { activeId: string }) {
+    return (
+      <MinimalModeContext value={{ enabled: true, homeTabId: 'agent' }}>
+        <TabRouter tab={tab('agent', '/app/agents')} isActive={activeId === 'agent'} onUrlChange={() => {}} />
+        <TabRouter tab={tab('chat', '/app/chat')} isActive={activeId === 'chat'} onUrlChange={() => {}} />
+      </MinimalModeContext>
+    )
+  }
+
+  const { rerender } = render(<Shell activeId="agent" />)
+  const filter = await screen.findByRole('textbox', { name: 'Agent list filter' })
+  fireEvent.change(filter, { target: { value: 'Writer' } })
+
+  rerender(<Shell activeId="chat" />)
+  expect(await screen.findByText('Feature page')).toBeVisible()
+  expect(filter).toBeInTheDocument()
+  expect(filter).not.toBeVisible()
+
+  rerender(<Shell activeId="agent" />)
+  expect(screen.getByRole('textbox', { name: 'Agent list filter' })).toHaveValue('Writer')
 })
 
 describe('TabRouter PageSidePanel portal isolation', () => {

@@ -170,7 +170,9 @@ export function SessionBrowserView({
   const executing = pages.find((page) => page.executing)
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <div className="flex min-h-(--navbar-height) min-w-0 shrink-0 items-center gap-2 border-border-subtle border-b bg-card px-2">
+      <div
+        data-right-pane-header
+        className="flex min-h-(--navbar-height) min-w-0 shrink-0 items-center gap-2 border-border-subtle border-b bg-card px-2">
         <RightPaneTabs
           tabs={pages.map((page) => ({
             key: page.pageId,

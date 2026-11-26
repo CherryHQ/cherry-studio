@@ -322,7 +322,6 @@ vi.mock('../Chat', () => ({
     pane,
     paneOpen,
     panePosition,
-    showResourceListControls,
     onSidebarToggle,
     locateMessageId,
     resourcePaneCount,
@@ -338,7 +337,6 @@ vi.mock('../Chat', () => ({
     pane?: ReactNode
     paneOpen?: boolean
     panePosition?: string
-    showResourceListControls?: boolean
     onSidebarToggle?: () => void
     locateMessageId?: string
     resourcePaneCount?: { label: string; count: number }
@@ -363,9 +361,8 @@ vi.mock('../Chat', () => ({
           <>
             <output data-testid="active-topic">{activeTopic.id}</output>
             <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
-            <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
             <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
-            {showResourceListControls && onSidebarToggle && (
+            {onSidebarToggle && (
               <button type="button" onClick={onSidebarToggle}>
                 Toggle sidebar
               </button>
@@ -700,6 +697,7 @@ vi.mock('@renderer/services/EventService', () => ({
   }
 }))
 
+import { MinimalModeContext } from '@renderer/hooks/useMinimalMode'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
@@ -781,6 +779,15 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('chat.message.style', 'message-style')
 
     ipcMocks.request.mockClear()
+  })
+
+  it('keeps the regular Chat sidebar preference in a minimal window', () => {
+    render(
+      <MinimalModeContext value={{ enabled: true, homeTabId: 'agent-tab' }}>
+        <HomePage />
+      </MinimalModeContext>
+    )
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
   })
 
   it('records a user open intent when the rail header opens the classic topic pane', () => {

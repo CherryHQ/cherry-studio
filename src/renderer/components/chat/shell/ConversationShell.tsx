@@ -1,6 +1,8 @@
 import type { ReactNode, Ref } from 'react'
 
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import { cn } from '@renderer/utils/style'
@@ -14,8 +16,11 @@ export interface ConversationShellProps {
   id?: string
   className?: string
   pane?: ReactNode
+  transparentNavigation?: boolean
+  navigationToggle?: ReactNode
   paneOpen?: boolean
   panePosition?: ChatPanePosition
+  renderMainHeader?: (topBar: ReactNode) => ReactNode
   topBar?: ReactNode
   topRightTool?: ReactNode
   showTopRightToolWhenPaneOpen?: boolean
@@ -38,8 +43,11 @@ export default function ConversationShell({
   id,
   className,
   pane,
+  transparentNavigation = false,
+  navigationToggle,
   paneOpen,
   panePosition,
+  renderMainHeader,
   topBar,
   topRightTool,
   showTopRightToolWhenPaneOpen = false,
@@ -58,6 +66,10 @@ export default function ConversationShell({
 }: ConversationShellProps) {
   const { mode } = useWindowFrame()
   const isWindow = mode === 'window'
+  const isMacTransparentWindow = useMacTransparentWindow()
+  const mainRegionClassName = isMacTransparentWindow
+    ? 'bg-[oklch(from_var(--background)_l_c_h_/_0.55)]'
+    : 'bg-[oklch(from_var(--background)_l_c_h_/_1)]'
 
   const resolvedTopBar = topRightTool ? (
     <ConversationShellTopBar topRightTool={topRightTool} showTopRightToolWhenPaneOpen={showTopRightToolWhenPaneOpen}>
@@ -71,17 +83,20 @@ export default function ConversationShell({
       id={id}
       data-ui="chat.view"
       className={cn(
-        'relative flex h-full min-h-0 flex-1 overflow-hidden bg-background',
+        'relative flex h-full min-h-0 flex-1 overflow-hidden',
+        transparentNavigation ? 'bg-transparent' : 'bg-background',
         !isWindow && 'rounded-tl-[10px] rounded-bl-[10px]',
         className
       )}>
       <QuickPanelProvider>
         <ConversationTopBarPortalProvider>
           <ChatAppShell
+            mainRegionClassName={transparentNavigation ? mainRegionClassName : undefined}
+            mainHeader={renderMainHeader?.(resolvedTopBar)}
             pane={pane}
             paneOpen={paneOpen}
             panePosition={panePosition}
-            topBar={resolvedTopBar}
+            topBar={renderMainHeader ? undefined : resolvedTopBar}
             centerContent={center}
             sidePanel={sidePanel}
             centerOverlay={centerOverlay}
@@ -97,6 +112,7 @@ export default function ConversationShell({
           />
         </ConversationTopBarPortalProvider>
       </QuickPanelProvider>
+      {navigationToggle}
     </div>
   )
 }
@@ -108,10 +124,12 @@ type TopBarProps = {
 }
 
 const ConversationShellTopBar = ({ topRightTool, showTopRightToolWhenPaneOpen, children }: TopBarProps) => {
+  const minimal = useMinimalMode()
   const presentationState = useOptionalRightPanelState()
   const maximized = presentationState?.presentationMaximized ?? false
   const open = presentationState?.presentationOpen ?? false
-  const shouldShowTopRightTool = Boolean(topRightTool) && !maximized && (!open || showTopRightToolWhenPaneOpen)
+  const minimalHome = minimal?.enabled && minimal.isHome
+  const shouldShowTopRightTool = !maximized && (!open || (showTopRightToolWhenPaneOpen && !minimalHome))
   return (
     <div data-conversation-shell-topbar className="relative flex h-fit w-full min-w-0 items-center">
       <div data-conversation-shell-topbar-content className="min-w-0 flex-1">

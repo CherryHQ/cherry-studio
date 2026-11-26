@@ -1,6 +1,6 @@
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import type { FC, HTMLAttributes } from 'react'
-import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { use, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { cacheService } from '@data/CacheService'
@@ -33,6 +33,7 @@ import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
+import { MinimalModeContext } from '@renderer/hooks/useMinimalMode'
 import { useModelById } from '@renderer/hooks/useModel'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -73,6 +74,7 @@ type NewTopicAssistantTargetOptions = {
 }
 
 const HomePage: FC = () => {
+  const minimalContext = use(MinimalModeContext)
   const { t } = useTranslation()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
@@ -796,7 +798,7 @@ const HomePage: FC = () => {
         activeTopicSource={activeTopicSource}
       />
       <Container id="home-page">
-        <ContentContainer $detached={isWindowFrame}>
+        <ContentContainer $detached={isWindowFrame} className={minimalContext?.enabled ? 'max-w-full' : undefined}>
           <Chat
             activeTopic={visibleTopic}
             topicPending={isActiveTopicLoading}
@@ -809,7 +811,6 @@ const HomePage: FC = () => {
             paneManualToggle={paneManualToggle}
             onNewTopic={handleCreateEmptyTopic}
             onCreateEmptyTopic={handleCreateEmptyTopic}
-            showResourceListControls
             sidebarOpen={shellPaneOpen}
             onSidebarToggle={toggleShellPane}
             locateMessageId={locateMessageId}

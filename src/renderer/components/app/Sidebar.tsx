@@ -27,8 +27,8 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isMac } from '@renderer/utils/platform'
 
+import { AppUpdateButton } from '../layout/AppUpdateButton'
 import { HelpMenu } from '../layout/HelpMenu'
-import { AppUpdateButton } from '../layout/ShellTabBarActions'
 import { useNotificationCenter } from '../NotificationCenter'
 import {
   getSidebarDisplayWidth,

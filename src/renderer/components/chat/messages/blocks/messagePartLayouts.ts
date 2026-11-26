@@ -144,6 +144,23 @@ export function isProcessToolPart(part: CherryMessagePart): boolean {
   return !isAskUserQuestionPart(part) && !isInlineResultToolPart(part)
 }
 
+export function isProcessDetailPart(part: CherryMessagePart): boolean {
+  return (
+    part.type === 'reasoning' ||
+    part.type === 'data-compact' ||
+    part.type === 'data-compaction-anchor' ||
+    part.type === 'data-retry' ||
+    (isToolUIPart(part) && part.state !== 'approval-requested' && isProcessToolPart(part))
+  )
+}
+
+export function projectResultsOnly(entries: readonly PartEntry[], active: boolean): PartEntry[] {
+  return entries.filter(
+    ({ part }, index) =>
+      !isHiddenPart(part) && !isProcessDetailPart(part) && !isProcessFillerText(entries, index, active)
+  )
+}
+
 function isVisibleProcessPart(part: CherryMessagePart): boolean {
   return isVisibleReasoningPart(part) || isProcessToolPart(part)
 }

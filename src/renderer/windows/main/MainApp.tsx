@@ -14,7 +14,6 @@ import { ConversationNotificationRuntime } from '@renderer/components/Conversati
 import { DictationShortcutHost } from '@renderer/components/DictationShortcutHost'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { FileEditSessionProvider } from '@renderer/components/FileEditSessionProvider'
-import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvider'
 import { McpInteractionHost } from '@renderer/components/McpInteractionHost'
@@ -37,6 +36,7 @@ import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
 import { useCherryCloudSubscriptionReminder } from './hooks/useCherryCloudSubscriptionReminder'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
+import { MainWindowShell } from './MainWindowShell'
 import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
 
 const logger = loggerService.withContext('MainApp')
@@ -129,7 +129,7 @@ export function MainWindowContent(): React.ReactElement {
               <OnboardingPage />
             </Suspense>
           ) : (
-            <AppShell />
+            <MainWindowShell />
           )}
           <MainWindowRuntime />
           <ConversationNotificationRuntime />

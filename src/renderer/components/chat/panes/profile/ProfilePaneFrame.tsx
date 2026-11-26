@@ -25,7 +25,9 @@ export function ProfilePaneFrame({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 px-2.5 [-webkit-app-region:no-drag]">
+      <div
+        data-right-pane-header
+        className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 px-2.5 [-webkit-app-region:no-drag]">
         {onBack ? (
           <Button
             type="button"

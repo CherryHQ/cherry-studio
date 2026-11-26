@@ -7,17 +7,11 @@ import { NavbarHeader } from '@renderer/components/Navbar'
 
 interface HeaderNavbarProps {
   conversationControls?: ReactNode
-  showSidebarControls?: boolean
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
 }
 
-const HeaderNavbar: FC<HeaderNavbarProps> = ({
-  conversationControls,
-  showSidebarControls = true,
-  sidebarOpen,
-  onSidebarToggle
-}) => {
+const HeaderNavbar: FC<HeaderNavbarProps> = ({ conversationControls, sidebarOpen, onSidebarToggle }) => {
   const [preferredShowSidebar] = usePreference('topic.tab.show')
   const showSidebar = sidebarOpen ?? preferredShowSidebar
 
@@ -25,13 +19,11 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({
     <NavbarHeader className="home-navbar relative" style={{ height: 'var(--navbar-height)' }}>
       <div className="-mx-1 flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden">
         <div data-navbar-left-occupant className="flex min-w-0 flex-1 items-center overflow-hidden">
-          {showSidebarControls && (
-            <ConversationSidebarToggleButton
-              sidebarOpen={showSidebar}
-              onSidebarToggle={onSidebarToggle}
-              tooltipPlacement="bottom"
-            />
-          )}
+          <ConversationSidebarToggleButton
+            sidebarOpen={showSidebar}
+            onSidebarToggle={onSidebarToggle}
+            tooltipPlacement="bottom"
+          />
           <ConversationTopBarPortalHost>{conversationControls}</ConversationTopBarPortalHost>
         </div>
       </div>

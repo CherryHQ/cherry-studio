@@ -13,6 +13,7 @@ import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { isHttpUrl } from '@shared/utils/url'
 
+import { getSelectionContextMenuItems } from './selection/selectionContextMenuItems'
 import { TextSelectionToolbar } from './TextSelectionToolbar'
 
 const logger = loggerService.withContext('SelectionContextMenu')
@@ -242,6 +243,7 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
         })
       const sourceMessageId = canSaveSelection && range ? getSourceMessageId(range) : undefined
       const target = event.target instanceof Element ? event.target : null
+      const messageItems = selectedText ? [] : getSelectionContextMenuItems(target, event.currentTarget)
       const latex = target
         ?.closest('.katex')
         ?.querySelector('.katex-mathml annotation[encoding="application/x-tex"]')?.textContent
@@ -293,10 +295,17 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({
           ...getMenuItems(selectedLinkText, quoteText, canSaveSelection, sourceMessageId),
           ...formulaItems
         ]
-        return contentItems.length > 0 ? [...contentItems, { type: 'separator' }, ...linkItems] : linkItems
+        const items =
+          contentItems.length > 0 ? [...contentItems, { type: 'separator' as const }, ...linkItems] : linkItems
+        return messageItems.length > 0 ? [...items, { type: 'separator' }, ...messageItems] : items
       }
 
-      return [...getMenuItems(selectedText, quoteText, canSaveSelection, sourceMessageId), ...formulaItems]
+      return [
+        ...getMenuItems(selectedText, quoteText, canSaveSelection, sourceMessageId),
+        ...formulaItems,
+        ...(formulaItems.length > 0 && messageItems.length > 0 ? [{ type: 'separator' as const }] : []),
+        ...messageItems
+      ]
     },
     [getMenuItems, handleCopy, mathEnableSingleDollar, openBrowserUrl, t]
   )

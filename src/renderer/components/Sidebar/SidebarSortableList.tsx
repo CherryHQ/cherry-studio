@@ -19,6 +19,8 @@ interface SidebarSortableListProps<T> {
   className?: string
   /** When provided the list is drag-sortable; otherwise it renders a static list. */
   onReorder?: (event: { oldIndex: number; newIndex: number }) => void
+  disabled?: boolean
+  renderDragOverlay?: (item: T) => ReactNode
   children: (item: T, guardClick: SidebarClickGuard) => ReactNode
 }
 
@@ -31,6 +33,8 @@ export function SidebarSortableList<T>({
   itemKey,
   className,
   onReorder,
+  disabled,
+  renderDragOverlay,
   children
 }: SidebarSortableListProps<T>) {
   const suppressClickRef = useRef(false)
@@ -82,11 +86,14 @@ export function SidebarSortableList<T>({
       itemKey={itemKey}
       layout="list"
       className={className}
+      disabled={disabled}
       onDragStart={markDragStarted}
       onDragEnd={markDragSettled}
       onDragCancel={markDragSettled}
       onSortEnd={onReorder}
-      renderItem={(item) => children(item, guardClick)}
+      renderItem={(item, { overlay }) =>
+        overlay && renderDragOverlay ? renderDragOverlay(item) : children(item, guardClick)
+      }
     />
   )
 }

@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { usePreference } from '@data/hooks/usePreference'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/ConversationTopBarPortal'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
+import { cn } from '@renderer/utils/style'
 import type { AgentEntity } from '@shared/data/types/agent'
 
 import Tools from './Tools'
@@ -24,6 +26,7 @@ const AgentContent = ({
   sidebarOpen,
   onSidebarToggle
 }: AgentContentProps) => {
+  const minimalMode = useMinimalMode()
   const [preferredShowSidebar] = usePreference('topic.tab.show')
   const showSidebar = sidebarOpen ?? preferredShowSidebar
 
@@ -37,7 +40,16 @@ const AgentContent = ({
             tooltipPlacement={showSidebar ? undefined : 'right'}
           />
         )}
-        <ConversationTopBarPortalHost>{conversationControls}</ConversationTopBarPortalHost>
+        <ConversationTopBarPortalHost
+          className={cn(
+            minimalMode?.enabled &&
+              minimalMode.isHome && [
+                '[-webkit-app-region:drag] transition-[margin-left] duration-300 ease-in-out motion-reduce:transition-none',
+                !showSidebar && 'ml-0'
+              ]
+          )}>
+          {conversationControls}
+        </ConversationTopBarPortalHost>
       </div>
       <div data-navbar-right-occupant className="flex shrink-0 items-center">
         {activeAgent && <Tools>{tools}</Tools>}

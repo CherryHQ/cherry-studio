@@ -35,6 +35,7 @@ import { useComposerFocusRequest } from '@renderer/hooks/useComposerFocusRequest
 import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationLocateRequest } from '@renderer/hooks/useConversationLocateRequest'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
@@ -107,6 +108,9 @@ function getWorkspaceSourceFromSession(session: AgentSessionEntity): AgentSessio
 }
 
 const AgentPage = () => {
+  const minimalContext = useMinimalMode()
+  const minimalMode = !!minimalContext?.enabled && minimalContext.isHome
+  const [minimalPaneOpen, setMinimalPaneOpen] = useState(true)
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [panePosition, setPanePosition] = usePreference('agent.session.position')
@@ -141,11 +145,11 @@ const AgentPage = () => {
     toggleShellPane,
     handlePaneAutoCollapseChange
   } = useConversationShellPaneState({
-    persistedPaneOpen: showSidebar,
-    setPersistedPaneOpen: setShowSidebar
+    persistedPaneOpen: minimalMode ? minimalPaneOpen : showSidebar,
+    setPersistedPaneOpen: minimalMode ? setMinimalPaneOpen : setShowSidebar
   })
   const sessionListPosition: TopicTabPosition =
-    !isWindowFrame && isClassicSessionLayout && panePosition === 'right' ? 'right' : 'left'
+    !minimalMode && !isWindowFrame && isClassicSessionLayout && panePosition === 'right' ? 'right' : 'left'
   const { agents, isLoading: isAgentsLoading } = useAgents()
   const routeAgentExists = !!routeAgentId && agents.some((agent) => agent.id === routeAgentId)
   const [activeSessionId, setActiveSessionIdState] = useState<string | null>(() => routeActiveSessionId)
@@ -615,9 +619,7 @@ const AgentPage = () => {
     setMissingAgentSelection(true)
   }, [clearActiveSession, clearLocate, closeSurface])
 
-  // Stable wrapper for the classic-layout rail's per-agent "new session" action. Adapting the
-  // `(agentId) => ...` signature inline at the JSX call site would hand `AgentResourceList` a fresh
-  // function every render, defeating its `entities` memo (mirrors the assistant rail's stable ref).
+  // Sidebars resolve new sessions separately so activation can reject a stale selection.
   const handleCreateSessionForAgent = useCallback(
     (agentId: string) => resolveEmptySession(agentId, { agentId }),
     [resolveEmptySession]
@@ -934,6 +936,13 @@ const AgentPage = () => {
     },
     [closeSurface, setActiveSessionAndClearTransient]
   )
+  const handleMinimalSessionActivation = useCallback(
+    (session: AgentSessionEntity, created: boolean) => {
+      if (created) activateSession(session)
+      else setActiveSessionAndClearTransient(session.id, session)
+    },
+    [activateSession, setActiveSessionAndClearTransient]
+  )
   // After deleting the active agent, settle on the latest remaining session or the empty route.
   const handleActiveAgentDeleted = useCallback(
     async (deletedAgentId: string) => {
@@ -1066,8 +1075,10 @@ const AgentPage = () => {
         revealRequest={sessionRevealRequest}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         onCreateSession={createAndActivateEmptySession}
+        onCreateSessionForAgent={handleCreateSessionForAgent}
+        onActivateMinimalSession={handleMinimalSessionActivation}
         onShowMissingAgentSelection={showMissingAgentSelection}
-        onSetPanePosition={isWindowFrame ? undefined : setSessionListPosition}
+        onSetPanePosition={isWindowFrame || minimalMode ? undefined : setSessionListPosition}
         panePosition="left"
         manageAgentsActive={manageAgentsActive}
         onManageAgents={onManageAgents}
@@ -1110,7 +1121,7 @@ const AgentPage = () => {
                 kind={activeResourceKind}
                 onOpenAgentChat={handleOpenAgentChatFromLibrary}
                 toolbarLeading={
-                  !isWindowFrame ? (
+                  !isWindowFrame && !minimalMode ? (
                     <ConversationSidebarToggleButton
                       sidebarOpen={shellPaneOpen}
                       onSidebarToggle={toggleShellPane}
@@ -1122,7 +1133,7 @@ const AgentPage = () => {
             )
           }
         : null,
-    [activeResourceKind, handleOpenAgentChatFromLibrary, isWindowFrame, shellPaneOpen, toggleShellPane]
+    [activeResourceKind, handleOpenAgentChatFromLibrary, isWindowFrame, minimalMode, shellPaneOpen, toggleShellPane]
   )
   const historyRecordsCenter = historyRecordsActive
     ? {
@@ -1137,7 +1148,7 @@ const AgentPage = () => {
             onActiveRecordChange={handleHistoryActiveSessionChange}
             onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
             toolbarLeading={
-              !isWindowFrame ? (
+              !isWindowFrame && !minimalMode ? (
                 <ConversationSidebarToggleButton
                   sidebarOpen={shellPaneOpen}
                   onSidebarToggle={toggleShellPane}
@@ -1175,7 +1186,7 @@ const AgentPage = () => {
             onFileNavigationRequestChange={handleFileNavigationRequestChange}
             requestFileNavigation={requestFileNavigation}
             paneManualToggle={paneManualToggle}
-            showResourceListControls
+            showResourceListControls={!minimalMode}
             sidebarOpen={shellPaneOpen}
             onSidebarToggle={toggleShellPane}
             missingAgentSelection={missingAgentSelection && !visibleSession}

@@ -11,6 +11,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { toast } from '@renderer/services/toast'
 
 import type { FileItem } from './fileDisplay'
@@ -75,6 +76,7 @@ function FileContextMenuContent({
   showDelete: boolean
   deleteDisabled: boolean
 }) {
+  const sidebarAvailable = useSidebarAvailable()
   const { t } = useTranslation()
   const canUseFileActions = !file.isMissing
   const canRename = canUseFileActions && showRename
@@ -82,7 +84,7 @@ function FileContextMenuContent({
   const { sourcePath } = file
   const hasPrimaryAction = canRename || canShowInFolder || !!sourcePath
   const sidebarPinned = actions.isSidebarPinned(file.id)
-  const hasSidebarAction = !file.isMissing || sidebarPinned
+  const hasSidebarAction = sidebarAvailable && (!file.isMissing || sidebarPinned)
 
   const copyPath = async (path: string) => {
     try {

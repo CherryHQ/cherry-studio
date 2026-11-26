@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceList } from '@renderer/components/chat/resourceList/base'
 import { CommandPopupMenu } from '@renderer/components/command'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 
 import {
@@ -49,6 +50,7 @@ export function AssistantGroupMoreMenu({
   onTogglePin: (assistantId: string) => void | Promise<void>
   onToggleSidebar: (assistantId: string) => void | Promise<void>
 }) {
+  const sidebarAvailable = useSidebarAvailable()
   const { t } = useTranslation()
   const actionContext: AssistantGroupActionContext = {
     assistantId,
@@ -65,7 +67,7 @@ export function AssistantGroupMoreMenu({
     onSetAssistantIconType,
     onToggleGrouping,
     onTogglePin,
-    onToggleSidebar,
+    onToggleSidebar: sidebarAvailable ? onToggleSidebar : undefined,
     pinned,
     sidebarPinned,
     t

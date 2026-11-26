@@ -152,6 +152,7 @@ interface AgentMessageListParams {
   navigateToForkSource?: NavigateToForkSource
   imageActionConsumer?: 'capture'
   scrollToBottomOnSend?: boolean
+  presentation?: MessageListState['renderConfig']['presentation']
   projectionTarget?: ProjectionTarget
   messageNavigation: string
   workspacePath?: string
@@ -223,6 +224,7 @@ export function useAgentMessageListProviderValue({
   navigateToForkSource,
   imageActionConsumer,
   scrollToBottomOnSend = false,
+  presentation = 'standard',
   messageNavigation,
   projectionTarget,
   workspacePath,
@@ -473,14 +475,16 @@ export function useAgentMessageListProviderValue({
     },
     [sessionId, t, notifyError]
   )
-  const agentRenderConfig = useMemo(
+  const agentRenderConfig = useMemo<MessageListState['renderConfig']>(
     () => ({
       ...renderConfig,
+      presentation,
+      messageStyle: presentation === 'simplified' ? 'bubble' : renderConfig.messageStyle,
       keepIntermediateAssistantText: true,
       expandToolSteps: false,
       expandLiveToolSteps: true
     }),
-    [renderConfig]
+    [presentation, renderConfig]
   )
   const state = useMemo<MessageListState>(
     () => ({
@@ -491,7 +495,7 @@ export function useAgentMessageListProviderValue({
       messages: messageItems,
       partsByMessageId: timeline.parts,
       streamingLayers: displayStreamingLayers,
-      activeTurnStatus: normalInteractionsEnabled ? renderActiveTurnStatus : undefined,
+      activeTurnStatus: normalInteractionsEnabled && presentation === 'standard' ? renderActiveTurnStatus : undefined,
       messageTail:
         normalInteractionsEnabled && messageTail
           ? {
@@ -536,6 +540,7 @@ export function useAgentMessageListProviderValue({
       messageTail,
       afterMessages,
       normalInteractionsEnabled,
+      presentation,
       timeline.parts,
       renderActiveTurnStatus,
       agentRenderConfig,

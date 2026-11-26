@@ -152,6 +152,21 @@ describe('dictationTool', () => {
     expect(mocks.startScoped).toHaveBeenCalledWith()
   })
 
+  it('lets the toolbar start dictation before any quick panel tool registers', async () => {
+    render(
+      <QuickPanelProvider>
+        <ComposerToolRuntimeProvider actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
+          <ComposerDictationButton />
+        </ComposerToolRuntimeProvider>
+      </QuickPanelProvider>
+    )
+
+    const button = screen.getByRole('button', { name: 'Start dictation' })
+    expect(button).toBeEnabled()
+    await userEvent.setup().click(button)
+    expect(mocks.startScoped).toHaveBeenCalledOnce()
+  })
+
   it('exposes recording status, elapsed time, stop, and cancel through one shared launcher', async () => {
     const rendered = renderRuntime()
     await waitFor(() => expect(latestLauncher(rendered)).toBeDefined())

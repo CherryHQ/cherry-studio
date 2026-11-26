@@ -2,6 +2,7 @@ import { createContext, type ReactNode, use, useCallback, useMemo, useState } fr
 import { createPortal } from 'react-dom'
 
 import { useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useOverflowIconOnly } from '@renderer/hooks/useOverflowIconOnly'
 import { cn } from '@renderer/utils/style'
 
@@ -30,6 +31,7 @@ export function ConversationTopBarPortalProvider({ children }: { children: React
 
 export function ConversationTopBarPortalHost({ children, className }: { children?: ReactNode; className?: string }) {
   const context = use(ConversationTopBarPortalContext)
+  const minimal = useMinimalMode()
 
   return (
     <div
@@ -37,6 +39,10 @@ export function ConversationTopBarPortalHost({ children, className }: { children
       data-conversation-topbar-controls
       className={cn(
         'ml-2 flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden [-webkit-app-region:no-drag] [&_button]:h-7 [&_button]:px-1.5',
+        '[&_button]:font-normal [&_button:not(.text-warning)]:text-muted-foreground',
+        '[&_button:not(.text-warning):hover]:text-foreground [&_button:not(.text-warning):focus-visible]:text-foreground [&_button:not(.text-warning)[data-state=open]]:text-foreground',
+        '[&_button_.truncate]:text-inherit [&_button_.lucide]:text-current',
+        minimal?.enabled && minimal.isHome && 'ml-0 gap-1 [&_button]:rounded-full',
         className
       )}>
       {children}

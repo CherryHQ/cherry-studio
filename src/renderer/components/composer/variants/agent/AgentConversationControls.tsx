@@ -51,6 +51,7 @@ export interface AgentConversationControlsProps {
   shouldAutoSelectCreatedAgent: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
+  hideAgentControl?: boolean
   agentTriggerMode: 'selector' | 'edit'
   canChangeModel: boolean
   onAgentChange: (agentId: string | null) => void | Promise<void>
@@ -400,7 +401,7 @@ function WorkspaceControl({
 export function AgentConversationControls(props: AgentConversationControlsProps) {
   return (
     <>
-      <AgentControl {...props} />
+      {!props.hideAgentControl && <AgentControl {...props} />}
       <ModelControl {...props} />
       <WorkspaceControl {...props} />
     </>

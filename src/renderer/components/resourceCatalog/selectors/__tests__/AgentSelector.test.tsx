@@ -14,7 +14,9 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
+import { TabIdContext } from '@renderer/hooks/tab'
 import type * as CodeStyleModule from '@renderer/hooks/useCodeStyle'
+import { MinimalModeContext } from '@renderer/hooks/useMinimalMode'
 import type * as UseModelModule from '@renderer/hooks/useModel'
 
 const {
@@ -401,6 +403,27 @@ describe('AgentSelector', () => {
     const options = screen.getAllByRole('option')
     expect(options[0]).toHaveTextContent('Alpha Agent')
     expect(options[1]).toHaveTextContent('Beta Agent')
+  })
+
+  it('does not offer an unsupported agent runtime in minimal mode', () => {
+    useQueryMock.mockReturnValue({
+      data: {
+        ...AGENTS_RESPONSE,
+        items: [AGENTS_RESPONSE.items[0], { ...AGENTS_RESPONSE.items[1], type: 'local' }]
+      },
+      refetch: refetchAgentsMock
+    })
+    render(
+      <MinimalModeContext value={{ enabled: true, homeTabId: 'agent' }}>
+        <TabIdContext value="agent">
+          <AgentSelector trigger={<button type="button">Open</button>} value={null} onChange={vi.fn()} />
+        </TabIdContext>
+      </MinimalModeContext>
+    )
+    openPopover()
+
+    expect(screen.getByRole('option', { name: /Alpha Agent/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Beta Agent/ })).not.toBeInTheDocument()
   })
 
   it('renders the empty state prompt when no agents exist', () => {

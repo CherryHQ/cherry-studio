@@ -39,7 +39,7 @@ export function ConversationGreeting({ avatar, fallbackEmoji, title }: Conversat
             fallback={<EmojiIcon emoji={fallbackEmoji || '🤖'} size={48} />}
           />
         ))}
-      <h2 className="m-0 text-lg font-medium text-foreground">{title}</h2>
+      <h2 className="m-0 text-lg font-normal text-foreground">{title}</h2>
     </div>
   )
 }

@@ -1,7 +1,10 @@
 import type { FC } from 'react'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
+import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
+import { bindSelectionContextMenuItems } from '@renderer/components/selection/selectionContextMenuItems'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
@@ -40,7 +43,7 @@ interface Props {
   onStartEditing?: (messageId: string) => void
   onMenuOpenChange?: (open: boolean) => void
   onSelectContext?: (msgId: string) => void
-  variant?: 'footer' | 'header'
+  variant?: 'footer' | 'header' | 'context'
 }
 
 const MessageMenuBar: FC<Props> = (props) => {
@@ -61,6 +64,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   const actions = useMessageListActions()
   const selection = useMessageListSelection()
   const messageUi = useMessageListUi()
+  const { getMessageSiblings } = messageUi
   const renderConfig = useMessageRenderConfig()
   const messageMountLease = useOptionalMessageMountLease()
   const menuConfig = messageUi.menuConfig ?? defaultMessageMenuConfig
@@ -162,6 +166,91 @@ const MessageMenuBar: FC<Props> = (props) => {
     },
     [actionContext]
   )
+
+  useEffect(() => {
+    const frame = messageContainerRef.current
+    if (variant !== 'context' || !frame) return
+
+    return bindSelectionContextMenuItems(frame, () => {
+      const run = (action: MessageMenuBarResolvedAction) => {
+        if (!action.availability.enabled) return
+        if (action.confirm) {
+          void ConfirmActionPopup.show({
+            title: action.confirm.title,
+            content: action.confirm.description ?? action.confirm.content,
+            okText: action.confirm.confirmText,
+            cancelText: action.confirm.cancelText,
+            danger: action.confirm.destructive,
+            action: () => executeAction(action)
+          })
+        } else {
+          void executeAction(action)
+        }
+      }
+      const primary = toolbarActions.filter(
+        (action) => action.commandId && action.id !== 'delete' && (action.id !== 'translate' || isTranslating)
+      )
+      const more = toolbarActions.some((action) => action.id === 'more-menu') ? menuActions : []
+      const items = actionsToCommandMenuExtraItems([...primary, ...more], run)
+
+      const translate = toolbarActions.find((action) => action.id === 'translate')
+      if (translate && !isTranslating && translationItems.length > 0) {
+        actions.requestTranslationLanguages?.()
+        items.push({
+          type: 'submenu',
+          id: translate.id,
+          label: t('chat.translate'),
+          icon: translate.icon,
+          children: translationItems.map((item) =>
+            'type' in item
+              ? { type: 'separator' }
+              : { type: 'item', id: item.key, label: item.label, enabled: item.enabled, onSelect: item.onSelect }
+          )
+        })
+      }
+
+      const siblings = getMessageSiblings?.(message.id)
+      if (siblings && actions.setActiveBranch) {
+        items.push({
+          type: 'submenu',
+          id: 'message.branches',
+          label: t('chat.message.branches'),
+          children: siblings.group.map((item, index) => ({
+            type: 'item',
+            id: item.id,
+            label: item.preview || `${index + 1}/${siblings.group.length}`,
+            enabled: index !== siblings.activeIndex,
+            onSelect: async () => {
+              try {
+                await actions.setActiveBranch?.(item.id)
+              } catch (error) {
+                actions.notifyError?.(error instanceof Error ? error.message : String(error))
+              }
+            }
+          }))
+        })
+      }
+
+      const remove = toolbarActions.find((action) => action.id === 'delete')
+      if (remove)
+        items.push({ type: 'separator' }, ...actionsToCommandMenuExtraItems([{ ...remove, danger: true }], run))
+      return items
+    })
+  }, [
+    actions,
+    executeAction,
+    getMessageSiblings,
+    isTranslating,
+    menuActions,
+    message.id,
+    messageContainerRef,
+    t,
+    toolbarActions,
+    translationItems,
+    variant
+  ])
+
+  if (variant === 'context') return null
 
   return (
     <>

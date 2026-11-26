@@ -70,6 +70,7 @@ const WHEEL_STEP_THRESHOLD = 40
 const WHEEL_IDLE_RESET_MS = 120
 
 interface ModelSpeedControlProps {
+  iconOnly?: boolean
   model: Model
   reasoningEffort: ThinkingOption
   serviceTier?: ServiceTierSelection
@@ -177,6 +178,7 @@ export function resolveSupportedServiceTier(model: Model, tier: ServiceTierSelec
 }
 
 export function ModelSpeedControl({
+  iconOnly = false,
   model,
   reasoningEffort,
   reasoningSummary,
@@ -254,12 +256,19 @@ export function ModelSpeedControl({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 gap-1 rounded-md px-1.5 text-muted-foreground text-xs hover:text-foreground focus-visible:text-foreground dark:text-foreground dark:hover:text-foreground dark:focus-visible:text-foreground"
+          className={cn(
+            'h-8 gap-1 rounded-md px-2.5 text-xs hover:text-foreground! focus-visible:text-foreground! data-[state=open]:text-foreground!',
+            iconOnly ? 'size-8 rounded-full px-0 text-foreground!' : 'text-muted-foreground!'
+          )}
           aria-label={t('agent.speed.title')}>
-          <Gauge size={14} className="shrink-0" />
-          <span>{supportsReasoning ? effortLabel : supportsServiceTier ? serviceTierLabel : triggerLabel}</span>
-          {supportsReasoning && fastMode && supportsFast ? <span>· {t('agent.speed.fast')}</span> : null}
-          <ChevronDown size={13} className="shrink-0 text-muted-foreground dark:text-current" />
+          <Gauge size={14} className={cn('shrink-0', iconOnly && 'size-5')} />
+          {!iconOnly && (
+            <>
+              <span>{supportsReasoning ? effortLabel : supportsServiceTier ? serviceTierLabel : triggerLabel}</span>
+              {supportsReasoning && fastMode && supportsFast ? <span>· {t('agent.speed.fast')}</span> : null}
+              <ChevronDown size={13} className="shrink-0 text-current" />
+            </>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent

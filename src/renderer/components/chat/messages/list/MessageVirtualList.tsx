@@ -12,7 +12,7 @@
  */
 
 import { ArrowDown } from 'lucide-react'
-import { type ReactNode, type Ref, useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, type Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Virtualizer } from 'virtua'
 
@@ -28,7 +28,7 @@ import {
   ScrollOwnershipProvider
 } from './ScrollOwnershipContext'
 
-export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 6
+export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 12
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
 const MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX = 24
 const KEYBOARD_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'])
@@ -88,6 +88,7 @@ export interface MessageVirtualListProps<T> {
   renderItem(item: T, index: number): ReactNode
   /** Initial pixel estimate per item; refined as items are measured. */
   estimateSize?: number
+  fillInitialViewport?: boolean
   /** Items rendered off-screen on each side for smooth scroll. */
   overscan?: number
   /**
@@ -127,6 +128,7 @@ export function MessageVirtualList<T>({
   getItemKey,
   renderItem,
   estimateSize,
+  fillInitialViewport = false,
   overscan = 6,
   onReachTop,
   hasMoreTop = false,
@@ -156,6 +158,14 @@ export function MessageVirtualList<T>({
     keepMountedKeys
   })
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
+  // Paint a viewport of messages while the virtualizer measures its new scroller.
+  const initialVisibleCount = useMemo(
+    () =>
+      fillInitialViewport && scrollerElement
+        ? Math.ceil(scrollerElement.clientHeight / (estimateSize || 200))
+        : undefined,
+    [estimateSize, fillInitialViewport, scrollerElement]
+  )
   const { beginScrollbarDrag, endScrollbarDrag, scrollToBottom, markUserInput, takeUserControl } = runtime
   const { onWheel } = runtime.scrollerProps
   const { armAutoscrollCandidate, confirmAutoscroll, dismissAutoscroll } = runtime
@@ -377,6 +387,7 @@ export function MessageVirtualList<T>({
                 scrollRef={runtime.scrollerRef}
                 data={runtime.wrappedItems}
                 itemSize={estimateSize}
+                ssrCount={initialVisibleCount}
                 bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
                 shift={runtime.shift}
                 keepMounted={runtime.keepMounted}

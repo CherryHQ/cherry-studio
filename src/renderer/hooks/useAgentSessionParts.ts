@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { dataApiService } from '@data/DataApiService'
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import {
+  type InfiniteQueryOptions,
   useDataChange,
   useMutation,
   useReadCache,
@@ -140,6 +141,19 @@ function dropSessionMessageFromPages(
   return mutated ? nextPages : pages
 }
 
+export function useAgentSessionHistoryQuery(
+  sessionId: string,
+  options?: Pick<InfiniteQueryOptions<'/agent-sessions/:sessionId/messages'>, 'enabled' | 'swrOptions'>
+) {
+  return useConversationHistoryQuery('/agent-sessions/:sessionId/messages', {
+    params: { sessionId },
+    query: HISTORY_QUERY,
+    limit: PAGE_SIZE,
+    enabled: !!sessionId && options?.enabled !== false,
+    swrOptions: { keepPreviousData: false, ...options?.swrOptions }
+  })
+}
+
 export function useAgentSessionParts(sessionId: string, options: { enabled?: boolean; fetchOnMount?: boolean } = {}) {
   const enabled = !!sessionId && options.enabled !== false
   const fetchOnMount = options.fetchOnMount ?? enabled
@@ -162,14 +176,9 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     loadNext,
     mutate,
     refresh: refreshPages
-  } = useConversationHistoryQuery('/agent-sessions/:sessionId/messages', {
-    params: { sessionId },
-    // Render-only read: a long session's tool outputs stay in main until a card actually needs one.
-    query: HISTORY_QUERY,
-    limit: PAGE_SIZE,
+  } = useAgentSessionHistoryQuery(sessionId, {
     enabled,
     swrOptions: {
-      keepPreviousData: false,
       // Paging to the end must not revalidate the first page on every step;
       // restored once the load-all finishes.
       revalidateFirstPage: !loadAllRequested,

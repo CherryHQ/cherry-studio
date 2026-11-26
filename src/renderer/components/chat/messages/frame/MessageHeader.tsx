@@ -106,6 +106,7 @@ const MessageHeader: FC<Props> = memo(
     const actions = useMessageListActions()
     const meta = useMessageListMeta()
     const renderConfig = useMessageRenderConfig() ?? defaultMessageRenderConfig
+    const simplified = renderConfig.presentation === 'simplified'
     const selection = useMessageListSelection()
     const userName = renderConfig.userName
     const assistantProfile = meta.assistantProfile
@@ -187,32 +188,37 @@ const MessageHeader: FC<Props> = memo(
     return (
       <div
         className={`${showHeader ? 'message-header' : 'message-continuation'} group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
-        {!showHeader ? (
-          <span aria-hidden className="w-8 shrink-0" />
-        ) : toggleAuthorProfile ? (
-          <button
-            type="button"
-            aria-label={t('chat.profile_pane.open', { name: authorName || username })}
-            onClick={toggleAuthorProfile}
-            className="shrink-0 cursor-pointer rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring">
-            {assistantAvatar}
-          </button>
-        ) : isAssistantMessage ? (
-          assistantAvatar
-        ) : (
-          <MessageAvatar avatar={userAvatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
-        )}
+        {!simplified &&
+          (!showHeader ? (
+            <span aria-hidden className="w-8 shrink-0" />
+          ) : toggleAuthorProfile ? (
+            <button
+              type="button"
+              aria-label={t('chat.profile_pane.open', { name: authorName || username })}
+              onClick={toggleAuthorProfile}
+              className="shrink-0 cursor-pointer rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring">
+              {assistantAvatar}
+            </button>
+          ) : isAssistantMessage ? (
+            assistantAvatar
+          ) : (
+            <MessageAvatar avatar={userAvatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
+          ))}
         <div
           className={hasBodySlot ? 'message-body-column flex min-h-0 min-w-0 flex-1 flex-col' : 'flex min-w-0 flex-1'}>
           {showHeader && (
             <div key="identity" className="flex w-full min-w-0 items-center gap-1.5">
-              <span
-                className="truncate text-sm leading-5 font-semibold"
-                style={{
-                  color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--foreground)'
-                }}>
-                {username}
-              </span>
+              {(!simplified || showModelIdentity) && (
+                <span
+                  className={`truncate text-sm leading-5 ${simplified ? 'font-medium text-foreground' : 'font-semibold'}`}
+                  style={
+                    simplified
+                      ? undefined
+                      : { color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--foreground)' }
+                  }>
+                  {username}
+                </span>
+              )}
               {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
               {isAssistantMessage && message.turnOrigin?.kind === 'goal-round' && (
                 <GoalRoundBadge round={message.turnOrigin.round} />

@@ -9,6 +9,7 @@ import {
   useChatVirtualizerRuntime
 } from '@renderer/components/chat/messages/list/chatVirtualizerRuntime'
 import { MessageListProvider, useMessageListActions } from '@renderer/components/chat/messages/MessageListProvider'
+import { defaultMessageRenderConfig } from '@renderer/components/chat/messages/types'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
@@ -28,6 +29,7 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilit
     headerCapabilities: {},
     leafCapabilities: {},
     messageUiStateCache: {},
+    renderConfig: defaultMessageRenderConfig,
     selectionController: { actions: {} }
   })
 }))

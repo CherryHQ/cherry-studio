@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { isMarkdownFilePreview, useOpenFilePreviewTab } from '@renderer/components/FilePreview'
@@ -29,13 +30,21 @@ import { TabRouter } from './TabRouter'
 const isCompactMinWidthRoute = (url?: string): boolean =>
   !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents') || url.startsWith('/app/scheduled-tasks'))
 
-export const AppShell = () => (
+export const AppShell = (props: Parameters<typeof AppShellContent>[0]) => (
   <NotificationCenterProvider>
-    <AppShellContent />
+    <AppShellContent {...props} />
   </NotificationCenterProvider>
 )
 
-const AppShellContent = () => {
+const AppShellContent = ({
+  minimalMode,
+  minimalToolbar
+}: {
+  minimalMode?: { isHome: boolean; returnHome: () => void; homeTabId?: string }
+  minimalToolbar?: (detachTab: (id: string) => void) => ReactNode
+}) => {
+  const isMinimal = !!minimalMode
+
   const isMacTransparentWindow = useMacTransparentWindow()
   const openFilePreviewTab = useOpenFilePreviewTab()
 
@@ -77,7 +86,7 @@ const AppShellContent = () => {
     openTab
   } = tabsApi
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
-  const canCycleTabs = tabs.length > 1 && !!activeTab
+  const canCycleTabs = !isMinimal && tabs.length > 1 && !!activeTab
   const canCloseTab = !!activeTab
   const isSettingsTabActive = isSettingsPath(activeTab?.url)
   const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
@@ -135,13 +144,17 @@ const AppShellContent = () => {
   )
 
   const handleCloseActiveTab = useCallback(() => {
+    if (isMinimal) {
+      if (!minimalMode?.isHome) minimalMode?.returnHome()
+      return
+    }
     if (!activeTabId) return
     if (isMac && tabs.length === 1) {
       void ipcApi.request('window.close')
       return
     }
     handleCloseTab(activeTabId)
-  }, [activeTabId, handleCloseTab, tabs.length])
+  }, [activeTabId, handleCloseTab, isMinimal, minimalMode, tabs.length])
 
   const commandRuntime = useCommandRuntime()
   const tabCommandHints = useNumberShortcutHints(TAB_NUMBER_COMMANDS)
@@ -244,30 +257,37 @@ const AppShellContent = () => {
   )
 
   const contentArea = (
-    <>
-      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pr-1.5 pb-1.5', isSettingsTabActive && 'pl-1.5')}>
-        <main
-          data-ui="app.content"
-          className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
-          {/* Route Tabs: Only render non-dormant tabs */}
-          <ResourceViewSourceProvider>
-            {tabs
-              .filter((t) => t.type === 'route' && !t.isDormant)
-              .map((tab) => (
-                <TabRouter
-                  key={tab.id}
-                  tab={tab}
-                  isActive={tab.id === activeTabId}
-                  onUrlChange={(url) => handleUrlChange(tab.id, url)}
-                />
-              ))}
-          </ResourceViewSourceProvider>
+    <div
+      className={cn(
+        'flex min-h-0 min-w-0 flex-1 flex-col',
+        !isMinimal && ['pr-1.5 pb-1.5', isSettingsTabActive && 'pl-1.5']
+      )}>
+      <main
+        data-ui="app.content"
+        className={cn(
+          'relative min-h-0 flex-1 overflow-hidden',
+          isMinimal && minimalMode?.isHome ? 'bg-transparent' : 'bg-background',
+          !isMinimal && 'rounded-[12px] border-[0.5px] border-border'
+        )}>
+        {/* Route Tabs: Only render non-dormant tabs */}
+        <ResourceViewSourceProvider>
+          {tabs
+            .filter((t) => t.type === 'route' && !t.isDormant)
+            .map((tab) => (
+              <TabRouter
+                key={tab.id}
+                tab={tab}
+                isActive={tab.id === activeTabId}
+                preload={tab.id === minimalMode?.homeTabId}
+                onUrlChange={(url) => handleUrlChange(tab.id, url)}
+              />
+            ))}
+        </ResourceViewSourceProvider>
 
-          {/* MiniApp keep-alive WebView pool — global, shared across modes */}
-          <MiniAppTabsPool />
-        </main>
-      </div>
-    </>
+        {/* MiniApp keep-alive WebView pool — global, shared across modes */}
+        <MiniAppTabsPool />
+      </main>
+    </div>
   )
 
   useEffect(() => {
@@ -276,7 +296,7 @@ const AppShellContent = () => {
 
   const contentColumn = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      {tabBar}
+      {isMinimal ? minimalToolbar?.(handleDetachTab) : tabBar}
       {contentArea}
     </div>
   )
@@ -290,7 +310,7 @@ const AppShellContent = () => {
           'flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
         )}>
-        {!isSettingsTabActive && <Sidebar isFullscreen={isFullscreen} />}
+        {!isMinimal && !isSettingsTabActive && <Sidebar isFullscreen={isFullscreen} />}
         {contentColumn}
       </div>
     )
@@ -310,7 +330,7 @@ const AppShellContent = () => {
           className="pointer-events-none absolute top-0 left-0 h-11 w-[env(titlebar-area-x)] [-webkit-app-region:drag]"
         />
       )}
-      {!isSettingsTabActive && (
+      {!isMinimal && !isSettingsTabActive && (
         <div className="flex h-full min-h-0 shrink-0 flex-col [&>#app-sidebar]:min-h-0 [&>#app-sidebar]:flex-1">
           {!isFullscreen && (
             <div

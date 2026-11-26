@@ -2,6 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
+import { TabIdContext } from '@renderer/hooks/tab'
+import { MinimalModeContext } from '@renderer/hooks/useMinimalMode'
 
 import ComposerDockTransitionFrame from '../ComposerDockTransitionFrame'
 
@@ -73,6 +75,23 @@ describe('ComposerDockTransitionFrame', () => {
       expect(screen.getByTestId('content-bottom-padding')).toHaveTextContent('236')
       expect(screen.getByTestId('scroller-bottom-margin')).toHaveTextContent('80')
     })
+  })
+
+  it('keeps the message viewport open below the floating composer in minimal mode', () => {
+    render(
+      <MinimalModeContext value={{ enabled: true, homeTabId: 'agent' }}>
+        <TabIdContext value="agent">
+          <ComposerDockTransitionFrame
+            placement="docked"
+            main={<InsetProbe />}
+            composer={<div data-composer-inputbar="" />}
+          />
+        </TabIdContext>
+      </MinimalModeContext>
+    )
+
+    expect(screen.getByTestId('scroller-bottom-margin')).toHaveTextContent(/^0$/)
+    expect(screen.getByTestId('content-bottom-padding')).toHaveTextContent(/^316$/)
   })
 
   it('keeps the last good insets while the composer measures as a zero rect', async () => {

@@ -2257,6 +2257,31 @@ describe('ComposerSurface', () => {
     expect(screen.getByRole('button', { name: 'available' })).toBeInTheDocument()
   })
 
+  it('opens existing tools from a compact composer before the deferred panel mounts', () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        compactWhenSingleLine
+        deferQuickPanel
+        quickPanelEnabled
+        rootPanelLeadingItems={[{ id: 'new-topic', label: 'New topic', icon: 'plus' }]}
+        renderCompactControls={(_inputAdapter, panel) =>
+          panel?.available ? (
+            <button type="button" onClick={() => panel.open()}>
+              Open tools
+            </button>
+          ) : null
+        }
+      />
+    )
+
+    expect(screen.queryByTestId('quick-panel-view')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }))
+    expect(mocks.quickPanelOpen.mock.lastCall?.[0].list).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'new-topic', label: 'New topic' })])
+    )
+  })
+
   it('hides resource items for empty unified panel searches and appends them after commands for non-empty searches', async () => {
     const resourceProvider = vi.fn(async () => [
       {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useSta
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
 import { cn } from '@renderer/utils/style'
@@ -324,6 +325,8 @@ function RightPaneContents({
   setPaneWidth: (nextWidth: number) => void
 }) {
   const { t } = useTranslation()
+  const minimal = useMinimalMode()
+  const minimalHome = minimal?.enabled && minimal.isHome
 
   return (
     <>
@@ -333,7 +336,9 @@ function RightPaneContents({
       <div
         className={cn(
           'h-full min-h-0 group-data-[resizing=true]/right-pane:pointer-events-none',
-          resizeHandleVisible && 'pl-2'
+          resizeHandleVisible && !minimalHome && 'pl-2',
+          minimalHome &&
+            '[&_[data-right-pane-header]]:[-webkit-app-region:drag] [&_[data-right-pane-header]_button]:[-webkit-app-region:no-drag]'
         )}>
         <ErrorBoundary>{children}</ErrorBoundary>
       </div>
@@ -349,7 +354,7 @@ function RightPaneContents({
             onResize: setPaneWidth,
             invert: true
           })}
-          className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-30 w-2 cursor-col-resize focus-visible:bg-border-strong focus-visible:outline-none">
+          className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-30 w-2 cursor-col-resize [-webkit-app-region:no-drag] focus-visible:bg-border-strong focus-visible:outline-none">
           <div className="absolute top-0 left-0 h-full w-0.5 bg-border opacity-0 transition-opacity group-hover/right-pane-resize-handle:opacity-100 group-data-[resizing=true]/right-pane:bg-border-strong group-data-[resizing=true]/right-pane:opacity-100" />
         </div>
       )}
@@ -636,7 +641,7 @@ export function PersistentRightPaneHost({
           className={cn(
             // One opaque surface in every layout: the theme's background carries alpha in dark mode,
             // so a translucent pane both shows the chat it covers and flips colour when a phase settles.
-            'relative h-full min-h-0 overflow-hidden bg-card',
+            'relative h-full min-h-0 overflow-hidden bg-card pt-[var(--chat-right-pane-top-inset,0px)]',
             !interactionHidden && 'pointer-events-auto',
             resizable && !fullWidthLayout && '[border-left:0.5px_solid_var(--border)]'
           )}>

@@ -1,6 +1,6 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'

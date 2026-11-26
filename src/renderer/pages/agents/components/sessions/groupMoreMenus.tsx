@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceList, type ResourceListGroup } from '@renderer/components/chat/resourceList/base'
 import { CommandPopupMenu } from '@renderer/components/command'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
@@ -46,6 +47,7 @@ export function AgentGroupMoreMenu({
   onToggleSidebar: (agentId: string) => void | Promise<void>
   permanentDeleteShortcut?: string
 }) {
+  const sidebarAvailable = useSidebarAvailable()
   const { t } = useTranslation()
   const actionContext: AgentGroupActionContext = {
     agentId,
@@ -58,7 +60,7 @@ export function AgentGroupMoreMenu({
     onPermanentDeleteAgent,
     onSetAgentIconType,
     onTogglePin,
-    onToggleSidebar,
+    onToggleSidebar: sidebarAvailable ? onToggleSidebar : undefined,
     permanentDeleteShortcut,
     pinDisabled,
     pinned,

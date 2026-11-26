@@ -1,29 +1,27 @@
-import { Mic, X } from 'lucide-react'
-import { useSyncExternalStore } from 'react'
+import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { BarVisualizer, Button, Tooltip } from '@cherrystudio/ui'
-import { useComposerToolLauncherController } from '@renderer/components/composer/ComposerToolRuntime'
-import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
-import { useDictationEnabled } from '@renderer/hooks/useDictationEnabled'
-import { dictationService } from '@renderer/services/voice'
+import { useDictationLauncher } from '@renderer/components/composer/tools/definitions/dictationTool'
+import { type QuickPanelInputAdapter, useQuickPanel } from '@renderer/components/QuickPanel'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
+import { cn } from '@renderer/utils/style'
 
 import { COMPOSER_SEND_ACCESSORY_BUTTON_CLASS } from './ComposerControlScaffolding'
 
 export function ComposerDictationButton({ inputAdapter }: { inputAdapter?: QuickPanelInputAdapter }) {
-  const enabled = useDictationEnabled()
   const { t } = useTranslation()
-  const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
-  const launcher = getLaunchers('root-panel').find((item) => item.id === 'dictation')
-  const label = launcher?.label ?? t('chat.input.dictation.action.start')
-  const snapshot = useSyncExternalStore(dictationService.subscribe, dictationService.getSnapshot)
+  const minimalMode = useMinimalMode()
+  const quickPanel = useQuickPanel()
+  const { launcher, snapshot } = useDictationLauncher(t)
+  const { label } = launcher
   const capturing = ['starting', 'recording', 'stopping', 'transcribing'].includes(snapshot.phase)
   const discardLauncher =
     snapshot.phase === 'recorded' || snapshot.retryAvailable || snapshot.recoveryAvailable
-      ? launcher?.submenu?.find((item) => item.id === 'dictation:discard')
+      ? launcher.submenu?.find((item) => item.id === 'dictation:discard')
       : undefined
 
-  if (!enabled) return null
+  if (launcher.hidden) return null
 
   return (
     <div
@@ -48,26 +46,30 @@ export function ComposerDictationButton({ inputAdapter }: { inputAdapter?: Quick
           className="h-5 w-16"
         />
       )}
-      {capturing && launcher?.suffix ? (
+      {capturing && launcher.suffix ? (
         <span className="text-xs text-muted-foreground tabular-nums">{launcher.suffix}</span>
       ) : null}
       <Tooltip
         content={
           <>
             {label}
-            {launcher?.description ? <div role="status">{launcher.description}</div> : null}
+            {launcher.description ? <div role="status">{launcher.description}</div> : null}
           </>
         }>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          className={`${COMPOSER_SEND_ACCESSORY_BUTTON_CLASS} [&>svg]:!size-4.5`}
+          className={cn(
+            COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
+            minimalMode?.enabled && minimalMode.isHome && 'text-foreground!',
+            '[&>svg]:!size-4.5'
+          )}
           aria-label={typeof label === 'string' ? label : undefined}
-          data-active={launcher?.active || undefined}
-          disabled={!launcher || launcher.disabled}
-          onClick={() => launcher && dispatchLauncher(launcher, { source: 'root-panel', inputAdapter })}>
-          {launcher?.icon ?? <Mic />}
+          data-active={launcher.active || undefined}
+          disabled={launcher.disabled}
+          onClick={() => launcher.action?.({ quickPanel, source: 'root-panel', inputAdapter })}>
+          {launcher.icon}
         </Button>
       </Tooltip>
       {discardLauncher && (
@@ -78,7 +80,7 @@ export function ComposerDictationButton({ inputAdapter }: { inputAdapter?: Quick
             size="icon-sm"
             className={COMPOSER_SEND_ACCESSORY_BUTTON_CLASS}
             aria-label={typeof discardLauncher.label === 'string' ? discardLauncher.label : undefined}
-            onClick={() => dispatchLauncher(discardLauncher, { source: 'root-panel', inputAdapter })}>
+            onClick={() => discardLauncher.action?.({ quickPanel, source: 'root-panel', inputAdapter })}>
             <X className="size-4" />
           </Button>
         </Tooltip>

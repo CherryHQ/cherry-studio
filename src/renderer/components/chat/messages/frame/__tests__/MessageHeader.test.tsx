@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as Ui from '@cherrystudio/ui'
 import type * as Naming from '@renderer/utils/naming'
 
-import type { MessageListMeta } from '../../types'
+import type { MessageListMeta, MessageRenderConfig } from '../../types'
 import MessageHeader from '../MessageHeader'
 
 const providerState = vi.hoisted(() => ({
@@ -16,6 +16,7 @@ const providerState = vi.hoisted(() => ({
     toggleAuthorProfile?: () => void
   },
   selection: undefined as { isMultiSelectMode: boolean; selectedMessageIds: string[] } | undefined,
+  presentation: undefined as MessageRenderConfig['presentation'],
   meta: {} as Partial<MessageListMeta>
 }))
 
@@ -75,7 +76,8 @@ vi.mock('../../MessageListProvider', () => ({
   useMessageListSelection: () => providerState.selection,
   useMessageRenderConfig: () => ({
     userName: 'User',
-    messageStyle: 'plain'
+    messageStyle: 'plain',
+    presentation: providerState.presentation
   })
 }))
 
@@ -102,21 +104,26 @@ describe('MessageHeader', () => {
   beforeEach(() => {
     providerState.actions = {}
     providerState.selection = undefined
+    providerState.presentation = undefined
     providerState.meta = {}
   })
 
-  it('keeps the body DOM and focus when the Run identity slot becomes visible', () => {
-    const message = createMessage('assistant', { messageSnapshot: { id: 'agent', name: 'Run author' } })
-    const body = <button type="button">Tool approval</button>
-    const view = render(<MessageHeader message={message} showHeader={false} contentSlot={body} />)
-    const tool = screen.getByRole('button', { name: 'Tool approval' })
-    tool.focus()
-    expect(screen.queryByText('Run author')).not.toBeInTheDocument()
-    view.rerender(<MessageHeader message={message} showHeader contentSlot={body} />)
-    expect(screen.getByText('Run author')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Tool approval' })).toBe(tool)
-    expect(tool).toHaveFocus()
-  })
+  it.each(['standard', 'simplified'] as const)(
+    'keeps the body DOM and focus when the Run identity slot becomes visible in %s presentation',
+    (presentation) => {
+      providerState.presentation = presentation
+      const message = createMessage('assistant', { messageSnapshot: { id: 'agent', name: 'Run author' } })
+      const body = <button type="button">Tool approval</button>
+      const view = render(<MessageHeader message={message} showHeader={false} showModelIdentity contentSlot={body} />)
+      const tool = screen.getByRole('button', { name: 'Tool approval' })
+      tool.focus()
+      expect(screen.queryByText('Run author')).not.toBeInTheDocument()
+      view.rerender(<MessageHeader message={message} showHeader showModelIdentity contentSlot={body} />)
+      expect(screen.getByText('Run author')).toBeVisible()
+      expect(screen.getByRole('button', { name: 'Tool approval' })).toBe(tool)
+      expect(tool).toHaveFocus()
+    }
+  )
 
   it('updates historical author avatars and restores the snapshot after deletion', () => {
     const message = createMessage('assistant', {
@@ -224,6 +231,16 @@ describe('MessageHeader', () => {
     // A user message never opens the Assistant's profile from its own avatar.
     rerender(<MessageHeader message={createMessage('user', { id: 'message-3' })} />)
     expect(screen.queryByRole('button', { name: 'chat.profile_pane.open' })).toBeNull()
+  })
+
+  it('hides the author profile affordance in simplified message lists', () => {
+    providerState.meta = { assistantProfile: { name: 'Writer', avatar: '✍️' } }
+    providerState.actions = { toggleAuthorProfile: vi.fn() }
+    providerState.presentation = 'simplified'
+
+    render(<MessageHeader message={createMessage()} />)
+
+    expect(screen.queryByRole('button', { name: 'chat.profile_pane.open' })).not.toBeInTheDocument()
   })
 
   it('explains a runtime-started assistant turn with its origin', () => {

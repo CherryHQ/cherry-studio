@@ -9,6 +9,7 @@ import {
   type TopicExportMenuOptions,
   type TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
@@ -189,12 +190,13 @@ export function useTopicMenuPreset<TItem>({
 }: {
   getActionContext: (item: TItem) => TopicActionContext
 }): TopicMenuPreset<TItem> {
+  const sidebarAvailable = useSidebarAvailable()
   const getActionContextWithOverride = useCallback(
-    (item: TItem, contextOverride?: TopicMenuActionContextOverride) => ({
-      ...getActionContext(item),
-      ...contextOverride
-    }),
-    [getActionContext]
+    (item: TItem, contextOverride?: TopicMenuActionContextOverride) => {
+      const context = { ...getActionContext(item), ...contextOverride }
+      return { ...context, onToggleSidebar: sidebarAvailable ? context.onToggleSidebar : undefined }
+    },
+    [getActionContext, sidebarAvailable]
   )
   const getActions = useCallback(
     (item: TItem, contextOverride?: TopicMenuActionContextOverride) =>
@@ -212,6 +214,7 @@ export function useTopicMenuPreset<TItem>({
 }
 
 export function useTopicMenuActions(options: TopicMenuActionOptions) {
+  const sidebarAvailable = useSidebarAvailable()
   const {
     exportMenuOptions,
     isArchiveBlocked,
@@ -258,7 +261,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onOpenInNewTab,
         onOpenInNewWindow,
         onPinTopic,
-        onToggleSidebar,
+        onToggleSidebar: sidebarAvailable ? onToggleSidebar : undefined,
         onSetPanePosition,
         onStartRename,
         panePosition,
@@ -291,6 +294,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       panePosition,
       permanentDeleteShortcut,
       sidebarPinned,
+      sidebarAvailable,
       t,
       topic,
       topicsLength

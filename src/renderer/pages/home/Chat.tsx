@@ -76,7 +76,6 @@ interface Props {
   panePosition?: ChatPanePosition
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
-  showResourceListControls?: boolean
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
   locateMessageId?: string
@@ -324,7 +323,6 @@ const Chat: FC<Props> = (props) => {
                 />
               ) : undefined
             }
-            showSidebarControls={props.showResourceListControls}
             sidebarOpen={props.sidebarOpen}
             onSidebarToggle={props.onSidebarToggle}
           />

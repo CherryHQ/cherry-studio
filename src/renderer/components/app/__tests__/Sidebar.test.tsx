@@ -69,7 +69,7 @@ vi.mock('../../UserAccountPanel', () => ({
     </>
   )
 }))
-vi.mock('../../layout/ShellTabBarActions', () => ({
+vi.mock('../../layout/AppUpdateButton', () => ({
   AppUpdateButton: () => (
     <button type="button" aria-label="Install update" onClick={mocks.showUpdatePopup}>
       update

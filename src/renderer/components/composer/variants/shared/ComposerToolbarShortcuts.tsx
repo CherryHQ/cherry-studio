@@ -12,6 +12,7 @@ import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/
 import { getComposerToolbarManifestsForScope } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ComposerToolScope } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 
@@ -135,6 +136,8 @@ export const ComposerToolbarShortcuts = ({
   inputAdapter,
   unifiedPanelControl
 }: ComposerToolbarShortcutsProps) => {
+  const minimal = useMinimalMode()
+  const minimalMode = minimal?.enabled && minimal.isHome
   const { t } = useTranslation()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
@@ -344,40 +347,41 @@ export const ComposerToolbarShortcuts = ({
     <Popover open={customizeOpen} onOpenChange={onCustomizeOpenChange}>
       <PopoverAnchor asChild>
         <div className="flex min-h-8 shrink-0 items-center gap-1.5">
-          {visiblePinnedRows.map(({ candidate }) => {
-            const shortcut = candidate!
-            const blockedByMissingModel = isModelUnavailable && !shortcut.availableWithoutModel
-            const tooltip =
-              shortcut.disabled && shortcut.disabledReason
-                ? shortcut.disabledReason
-                : (shortcut.tooltip ?? shortcut.label)
-            return (
-              <Tooltip key={shortcut.id} content={tooltip} placement="top" isDisabled={blockedByMissingModel}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className={cn(
-                    COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-                    'disabled:pointer-events-none',
-                    !shortcut.resolved && 'disabled:opacity-100',
-                    shortcut.active && 'bg-accent'
-                  )}
-                  aria-label={typeof shortcut.actionLabel === 'string' ? shortcut.actionLabel : undefined}
-                  aria-haspopup={blockedByMissingModel ? undefined : shortcut.haspopup}
-                  aria-pressed={
-                    !blockedByMissingModel && shortcut.toggle && shortcut.resolved ? shortcut.active : undefined
-                  }
-                  disabled={!blockedByMissingModel && shortcut.disabled}
-                  data-active={shortcut.active || undefined}
-                  onClick={blockedByMissingModel ? showModelRequiredToast : shortcut.select}>
-                  <span data-slot="composer-toolbar-icon" className={TOOLBAR_ICON_CLASS}>
-                    {shortcut.icon}
-                  </span>
-                </Button>
-              </Tooltip>
-            )
-          })}
+          {!minimalMode &&
+            visiblePinnedRows.map(({ candidate }) => {
+              const shortcut = candidate!
+              const blockedByMissingModel = isModelUnavailable && !shortcut.availableWithoutModel
+              const tooltip =
+                shortcut.disabled && shortcut.disabledReason
+                  ? shortcut.disabledReason
+                  : (shortcut.tooltip ?? shortcut.label)
+              return (
+                <Tooltip key={shortcut.id} content={tooltip} placement="top" isDisabled={blockedByMissingModel}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className={cn(
+                      COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
+                      'disabled:pointer-events-none',
+                      !shortcut.resolved && 'disabled:opacity-100',
+                      shortcut.active && 'bg-accent'
+                    )}
+                    aria-label={typeof shortcut.actionLabel === 'string' ? shortcut.actionLabel : undefined}
+                    aria-haspopup={blockedByMissingModel ? undefined : shortcut.haspopup}
+                    aria-pressed={
+                      !blockedByMissingModel && shortcut.toggle && shortcut.resolved ? shortcut.active : undefined
+                    }
+                    disabled={!blockedByMissingModel && shortcut.disabled}
+                    data-active={shortcut.active || undefined}
+                    onClick={blockedByMissingModel ? showModelRequiredToast : shortcut.select}>
+                    <span data-slot="composer-toolbar-icon" className={TOOLBAR_ICON_CLASS}>
+                      {shortcut.icon}
+                    </span>
+                  </Button>
+                </Tooltip>
+              )
+            })}
         </div>
       </PopoverAnchor>
       {/* The "+" panel entry restores focus to the editor right after opening; ignore

@@ -3,8 +3,10 @@ import type { ReactNode, Ref, RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
 import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
+import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
 import { useOptionalRightPanelState, useRightPanelComposerElevated } from '../panes/Shell'
@@ -23,6 +25,8 @@ import { RightPaneHost } from './RightPaneHost'
 import { clampResourceListPaneWidth } from './useResourceListPaneResize'
 
 interface ChatAppShellBaseProps {
+  mainRegionClassName?: string
+  mainHeader?: ReactNode
   topBar?: ReactNode
   pane?: ReactNode
   paneOpen?: boolean
@@ -271,6 +275,8 @@ function useResourceListAutoCollapse({
 }
 
 export function ChatAppShell({
+  mainRegionClassName,
+  mainHeader,
   topBar,
   pane,
   paneOpen,
@@ -293,16 +299,47 @@ export function ChatAppShell({
   onPaneAutoCollapseChange,
   paneManualToggle
 }: ChatAppShellProps) {
+  const minimal = useMinimalMode()
+  const minimalMode = minimal?.enabled && minimal.isHome
+  const fullHeightRightPane = Boolean(minimalMode && mainHeader && rightPane)
   const hasCenterContent = centerContent !== undefined
   const leftPaneOpen = Boolean(paneOpen && panePosition === 'left')
   const rightPanelState = useOptionalRightPanelState()
+  const reserveLeadingToolbar =
+    fullHeightRightPane &&
+    !leftPaneOpen &&
+    Boolean(rightPanelState?.presentationMaximized || rightPanelState?.fullWidthActive)
   const composerElevated = useRightPanelComposerElevated()
   // While the right pane maximizes/minimizes, its docked spacer snaps under the
   // covering surface; a FLIP layout animation would smear that snap across the
   // wipe as visible scale distortion, so the center reflows instantly instead.
   const centerTransition = rightPanelState?.layoutAnimationPending ? { duration: 0 } : CHAT_SHELL_TRANSITION
   const rootRef = useRef<HTMLDivElement>(null)
+  const mainRegionRef = useRef<HTMLDivElement>(null)
+  const mainHeaderRef = useRef<HTMLDivElement>(null)
   const [listResizing, setListResizing] = useState(false)
+
+  useLayoutEffect(() => {
+    if (!reserveLeadingToolbar) return
+    const header = mainHeaderRef.current
+    const region = mainRegionRef.current
+    if (!header || !region) return
+
+    const update = () => region.style.setProperty('--chat-right-pane-top-inset', `${header.offsetHeight}px`)
+    update()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(update)
+    observer?.observe(header)
+    return () => {
+      observer?.disconnect()
+      region.style.removeProperty('--chat-right-pane-top-inset')
+    }
+  }, [reserveLeadingToolbar])
+
+  const header = mainHeader && (
+    <div ref={mainHeaderRef} className={cn('shrink-0', reserveLeadingToolbar && 'relative z-50')}>
+      <ErrorBoundary>{mainHeader}</ErrorBoundary>
+    </div>
+  )
 
   useResourceListAutoCollapse({
     leftPaneOpen,
@@ -323,44 +360,55 @@ export function ChatAppShell({
           {panePosition === 'left' ? pane : undefined}
         </PageSidebar>
 
-        <div data-chat-app-shell-main-region className="relative flex min-w-0 flex-1 overflow-hidden">
-          <div className="relative flex min-w-0 flex-1 flex-col">
-            <motion.div
-              ref={centerRef}
-              data-ui="part:conversation-main"
-              data-chat-app-shell-center
-              id={centerId}
-              // Live splitter movement must reflow content without scaling its text and icons.
-              layout={!listResizing}
-              transition={centerTransition}
-              className={cn(
-                'relative flex min-w-0 flex-1 flex-col overflow-hidden bg-chat-message-well',
-                centerClassName,
-                // Let the elevated composer escape the center stacking context and paint
-                // above the full-height maximized panel without replacing its editor DOM.
-                composerElevated && '!transform-none !will-change-auto'
-              )}>
-              {topBar && (
-                <div className="relative z-10 shrink-0">
-                  <ErrorBoundary>{topBar}</ErrorBoundary>
-                </div>
-              )}
-              {hasCenterContent ? (
-                <ErrorBoundary>{centerContent}</ErrorBoundary>
-              ) : (
-                <>
-                  <ErrorBoundary>
-                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
-                  </ErrorBoundary>
-                  {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
-                </>
-              )}
-              {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
-            </motion.div>
-            {centerTopOverlay && <OverlayHost>{centerTopOverlay}</OverlayHost>}
-          </div>
+        <div
+          ref={mainRegionRef}
+          data-chat-app-shell-main-region
+          className={cn(
+            'relative flex min-w-0 flex-1 flex-col overflow-hidden',
+            fullHeightRightPane && !isMac && '[--chat-right-pane-top-inset:env(titlebar-area-height,0px)]',
+            mainRegionClassName
+          )}>
+          {!fullHeightRightPane && header}
+          <div className={cn('flex min-h-0 min-w-0 flex-1', !fullHeightRightPane && 'relative overflow-hidden')}>
+            <div className="relative flex min-w-0 flex-1 flex-col">
+              {fullHeightRightPane && header}
+              <motion.div
+                ref={centerRef}
+                data-ui="part:conversation-main"
+                data-chat-app-shell-center
+                id={centerId}
+                layout={!listResizing}
+                transition={centerTransition}
+                className={cn(
+                  'relative flex min-w-0 flex-1 flex-col overflow-hidden bg-chat-message-well',
+                  centerClassName,
+                  minimalMode && 'bg-transparent',
+                  // Let the elevated composer escape the center stacking context and paint
+                  // above the full-height maximized panel without replacing its editor DOM.
+                  composerElevated && '!transform-none !will-change-auto'
+                )}>
+                {topBar && (
+                  <div className="relative z-10 shrink-0">
+                    <ErrorBoundary>{topBar}</ErrorBoundary>
+                  </div>
+                )}
+                {hasCenterContent ? (
+                  <ErrorBoundary>{centerContent}</ErrorBoundary>
+                ) : (
+                  <>
+                    <ErrorBoundary>
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{main}</div>
+                    </ErrorBoundary>
+                    {bottomComposer && <ErrorBoundary>{bottomComposer}</ErrorBoundary>}
+                  </>
+                )}
+                {centerOverlay && <ErrorBoundary>{centerOverlay}</ErrorBoundary>}
+              </motion.div>
+              {centerTopOverlay && <OverlayHost>{centerTopOverlay}</OverlayHost>}
+            </div>
 
-          {rightPane}
+            {rightPane}
+          </div>
         </div>
 
         <RightPaneHost open={Boolean(paneOpen && panePosition === 'right')}>{pane}</RightPaneHost>

@@ -8,6 +8,7 @@ import AgentComposer, {
   type AgentComposerLaunchOptions,
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
+import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -70,7 +71,9 @@ function AgentComposerSlot({
   providerQuotaExhausted
 }: AgentComposerSlotProps) {
   const binary = useClaudeCodeBinary(activeAgent?.type === 'claude-code')
-  const compactWhenSingleLine = useRightPanelPresentationMaximized()
+  const maximized = useRightPanelPresentationMaximized()
+  const minimal = useMinimalMode()
+  const compactWhenSingleLine = maximized || !!(minimal?.enabled && minimal.isHome)
   const rightPaneActions = useOptionalAgentRightPaneActions()
   const { t } = useTranslation()
   const editLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(

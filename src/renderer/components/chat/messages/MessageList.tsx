@@ -828,6 +828,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
             items={listItems}
             getItemKey={(item) => (Array.isArray(item) ? item[0] : item.key)}
             estimateSize={data.estimateSize}
+            fillInitialViewport={renderConfig.presentation === 'simplified'}
             overscan={data.overscan}
             topPadding={topPadding}
             bottomPadding={bottomPadding}

@@ -38,6 +38,7 @@ import { Route as SettingsDependenciesRouteImport } from './routes/settings/depe
 import { Route as SettingsDeviceConnectionsRouteImport } from './routes/settings/device-connections'
 import { Route as SettingsFileProcessingRouteImport } from './routes/settings/file-processing'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
+import { Route as SettingsLabsRouteImport } from './routes/settings/labs'
 import { Route as SettingsLocalModelsRouteImport } from './routes/settings/local-models'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
@@ -219,6 +220,11 @@ const SettingsFileProcessingRoute = SettingsFileProcessingRouteImport.update({
 const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
   id: '/general',
   path: '/general',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsLabsRoute = SettingsLabsRouteImport.update({
+  id: '/labs',
+  path: '/labs',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsLocalModelsRoute = SettingsLocalModelsRouteImport.update({
@@ -435,6 +441,7 @@ export interface FileRoutesByFullPath {
   '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/labs': typeof SettingsLabsRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
@@ -501,6 +508,7 @@ export interface FileRoutesByTo {
   '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/labs': typeof SettingsLabsRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
@@ -566,6 +574,7 @@ export interface FileRoutesById {
   '/settings/device-connections': typeof SettingsDeviceConnectionsRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
+  '/settings/labs': typeof SettingsLabsRoute
   '/settings/local-models': typeof SettingsLocalModelsRoute
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
@@ -635,6 +644,7 @@ export interface FileRouteTypes {
     | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
+    | '/settings/labs'
     | '/settings/local-models'
     | '/settings/mcp'
     | '/settings/model'
@@ -701,6 +711,7 @@ export interface FileRouteTypes {
     | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
+    | '/settings/labs'
     | '/settings/local-models'
     | '/settings/model'
     | '/settings/notifications'
@@ -765,6 +776,7 @@ export interface FileRouteTypes {
     | '/settings/device-connections'
     | '/settings/file-processing'
     | '/settings/general'
+    | '/settings/labs'
     | '/settings/local-models'
     | '/settings/mcp'
     | '/settings/model'
@@ -1012,6 +1024,13 @@ declare module '@tanstack/react-router' {
       path: '/general'
       fullPath: '/settings/general'
       preLoaderRoute: typeof SettingsGeneralRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/labs': {
+      id: '/settings/labs'
+      path: '/labs'
+      fullPath: '/settings/labs'
+      preLoaderRoute: typeof SettingsLabsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/local-models': {
@@ -1381,6 +1400,7 @@ interface SettingsRouteChildren {
   SettingsDeviceConnectionsRoute: typeof SettingsDeviceConnectionsRoute
   SettingsFileProcessingRoute: typeof SettingsFileProcessingRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
+  SettingsLabsRoute: typeof SettingsLabsRoute
   SettingsLocalModelsRoute: typeof SettingsLocalModelsRoute
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsModelRoute: typeof SettingsModelRoute
@@ -1418,6 +1438,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsDeviceConnectionsRoute: SettingsDeviceConnectionsRoute,
   SettingsFileProcessingRoute: SettingsFileProcessingRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
+  SettingsLabsRoute: SettingsLabsRoute,
   SettingsLocalModelsRoute: SettingsLocalModelsRoute,
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsModelRoute: SettingsModelRoute,

@@ -45,6 +45,7 @@ import { useCurrentDayStart } from '@renderer/hooks/useCurrentDayStart'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
 import { usePins } from '@renderer/hooks/usePins'
+import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
@@ -129,6 +130,7 @@ import {
 const AgentSessionImageCaptureHost = lazy(() => import('../../messages/AgentSessionImageCaptureHost'))
 
 type SessionsBaseProps = {
+  className?: string
   agentSessionsSource: AgentSessionsSource
   agentIdFilter?: string | null
   dataEnabled?: boolean
@@ -181,6 +183,7 @@ const DEFAULT_SESSION_GROUP_VISIBLE_COUNT = 5
 const LEFT_PANEL_TIME_SESSION_GROUP_VISIBLE_COUNT = 50
 
 const Sessions = ({
+  className,
   agentSessionsSource,
   activeSessionId,
   agentIdFilter,
@@ -201,6 +204,8 @@ const Sessions = ({
   setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
+  const sidebarAvailable = useSidebarAvailable()
+
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
   const isWindowFrame = useWindowFrame().mode === 'window'
@@ -1437,6 +1442,7 @@ const Sessions = ({
       permanentDeleteShortcut,
       requestCreateSessionFromSeed,
       setAssistantIconType,
+      sidebarAvailable,
       sidebarAgentFavoriteIdSet,
       t,
       workdirDisplay
@@ -1547,7 +1553,7 @@ const Sessions = ({
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,
           onTogglePin: handleToggleAgentPin,
-          onToggleSidebar: handleToggleAgentSidebar,
+          onToggleSidebar: sidebarAvailable ? handleToggleAgentSidebar : undefined,
           pinDisabled: isAgentPinActionDisabled,
           pinned: agentPinnedIdSet.has(agentId),
           sidebarPinned: sidebarAgentFavoriteIdSet.has(agentId),
@@ -1611,6 +1617,7 @@ const Sessions = ({
       isUpdatingWorkspace,
       openAgentEditor,
       setAssistantIconType,
+      sidebarAvailable,
       sidebarAgentFavoriteIdSet,
       t,
       workdirDisplay
@@ -1644,7 +1651,9 @@ const Sessions = ({
 
   return (
     <SessionResourceList<SessionListItem>
+      className={className}
       active={dataEnabled}
+
       key={isRightPanel ? `session-resource-panel:${agentIdFilter ?? 'blank'}` : 'session-resource-left-panel'}
       presentation={presentation}
       items={visibleGroupedSessions}

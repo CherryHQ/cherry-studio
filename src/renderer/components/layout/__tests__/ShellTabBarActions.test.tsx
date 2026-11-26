@@ -71,7 +71,8 @@ vi.mock('../../WindowControls', () => ({
   WindowControls: () => null
 }))
 
-import { AppUpdateButton, ShellTabBarActions } from '../ShellTabBarActions'
+import { AppUpdateButton } from '../AppUpdateButton'
+import { ShellTabBarActions } from '../ShellTabBarActions'
 
 afterEach(() => {
   cleanup()

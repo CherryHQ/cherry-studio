@@ -125,7 +125,10 @@ sessionActionRegistry.registerCommand({
 
 sessionActionRegistry.registerCommand({
   id: 'session.toggle-sidebar',
-  availability: ({ onToggleSidebar }) => ({ visible: !!onToggleSidebar, enabled: !!onToggleSidebar }),
+  availability: ({ onToggleSidebar }) => ({
+    visible: !!onToggleSidebar,
+    enabled: !!onToggleSidebar
+  }),
   run: ({ onToggleSidebar }) => onToggleSidebar?.()
 })
 
