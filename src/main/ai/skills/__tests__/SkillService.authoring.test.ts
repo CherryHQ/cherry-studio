@@ -1453,6 +1453,58 @@ describe('SkillService authoring and remote updates', () => {
     expect(remaining).toEqual([])
   })
 
+  it('does not promote a stash when its retired deletion fails with EACCES', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const committedDir = path.join(root, 'committed-stash-eacces')
+    const obsoleteDir = path.join(root, 'obsolete-stash-eacces')
+    await writeSkill(committedDir, { supportingContent: 'echo committed\n' })
+    await writeSkill(obsoleteDir, { supportingContent: 'echo obsolete\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(committedDir, destPath, { recursive: true })
+    await fs.promises.cp(obsoleteDir, backupPath, { recursive: true })
+    const baseline = await installer.computeContentHash(committedDir)
+    const stashPath = `${backupPath}.stash-${Date.now()}-eacces`
+    await fs.promises.cp(obsoleteDir, stashPath, { recursive: true })
+
+    // Simulate swallowed EACCES during recursive deletion of the retired marker:
+    // retirement (rename) succeeds, deletion fails, leaving an inert copy.
+    const originalRm = fs.promises.rm
+    const rmSpy = vi.spyOn(fs.promises, 'rm').mockImplementation(async (...args: unknown[]) => {
+      const target = args[0] as string
+      if (typeof target === 'string' && target.includes('.bak.retired-')) {
+        throw Object.assign(new Error('EACCES'), { code: 'EACCES' })
+      }
+      return (originalRm as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    try {
+      await installer.recoverInterruptedInstallWithBaseline(destPath, baseline)
+    } finally {
+      rmSpy.mockRestore()
+    }
+
+    // The original stash namespace is gone (renamed), so no sweep can promote it.
+    const remainingStash = (await fs.promises.readdir(skillsRoot)).filter((name) =>
+      name.startsWith('.writer.bak.stash-')
+    )
+    expect(remainingStash).toEqual([])
+    const retired = (await fs.promises.readdir(skillsRoot)).filter((name) => name.startsWith('.writer.bak.retired-'))
+    expect(retired.length).toBe(1)
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo committed\n'
+    )
+
+    // A fresh edit after the failed cleanup must survive later recovery: the
+    // retired marker is inert and never promoted over the destination.
+    await fs.promises.writeFile(path.join(destPath, 'scripts', 'run.sh'), 'echo edited\n', 'utf-8')
+    await installer.recoverInterruptedInstallWithBaseline(destPath, baseline)
+    await installer.recoverInterruptedInstalls(skillsRoot, { skipFolderNames: new Set(['writer']) })
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo edited\n')
+    const stillStash = (await fs.promises.readdir(skillsRoot)).filter((name) => name.startsWith('.writer.bak.stash-'))
+    expect(stillStash).toEqual([])
+  })
+
   it('removes recovery markers when uninstalling so a stale copy cannot resurrect the skill', async () => {
     const destPath = path.join(skillsRoot, 'writer')
     const backupPath = path.join(skillsRoot, '.writer.bak')

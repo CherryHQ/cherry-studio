@@ -527,7 +527,9 @@ export class SkillInstaller {
       // byte-identical coverage before treating the marker as obsolete; otherwise the
       // next verified publish stashes this marker aside and deletes it only on commit.
       if (destComplete && (await this.isDestCoveringMarker(destPath, backupPath))) {
-        await this.safeRemoveDirectory(backupPath, 'obsolete skill backup')
+        // Retire out of the recoverable namespace before deletion so a swallowed
+        // EACCES cannot leave a promotable `.bak` behind for the generic sweep.
+        await this.retireAndRemoveMarker(backupPath, 'obsolete skill backup')
       } else {
         logger.warn('Preserving skill backup: replacement incomplete and no tree matches baseline', {
           destPath,
@@ -602,6 +604,17 @@ export class SkillInstaller {
       const cleanupMatch = entry.name.match(/^\.(.+)\.cleanup$/)
       if (cleanupMatch?.[1]) {
         await this.safeRemoveDirectory(path.join(storageRoot, entry.name), 'committed skill backup')
+        continue
+      }
+
+      // Retired markers (`.bak.retired-*`) are inert: no recovery sweep promotes
+      // them. They are left behind only when retirement succeeded but the
+      // follow-up recursive deletion failed (EACCES swallowed). Clean them
+      // best-effort so they do not accumulate; never promote them.
+      const retiredMatch = entry.name.match(/^\.(.+)\.bak\.retired-.*$/)
+      if (retiredMatch?.[1]) {
+        await this.safeRemoveDirectory(path.join(storageRoot, entry.name), 'retired skill backup')
+        continue
       }
     }
   }
@@ -611,7 +624,9 @@ export class SkillInstaller {
    *
    * Recovery markers (`.bak`, `.cleanup`, `.bak.stash-*`) are removed as well so
    * a later startup sweep cannot promote a stale copy over a fresh install or
-   * resurrect the skill after uninstall.
+   * resurrect the skill after uninstall. The backup is retired out of the
+   * recoverable namespace before deletion: `safeRemove` swallows `EACCES`, so a
+   * failed in-place deletion would leave a promotable `.bak` behind.
    */
   async uninstall(skillPath: string): Promise<void> {
     try {
@@ -624,9 +639,10 @@ export class SkillInstaller {
       }
       logger.warn('Skill folder already deleted', { skillPath })
     }
-    await this.safeRemoveDirectory(this.getBackupPath(skillPath), 'obsolete skill backup')
+    await this.retireAndRemoveMarker(this.getBackupPath(skillPath), 'obsolete skill backup')
     await this.safeRemoveDirectory(this.getCleanupPath(skillPath), 'committed skill backup')
     await this.removeAllStashedBackups(skillPath)
+    await this.removeRetiredMarkers(skillPath)
   }
 
   /** Compute the versioned full-directory hash persisted as the install baseline. */
@@ -855,11 +871,87 @@ export class SkillInstaller {
    * Best-effort removal of every `.bak.stash-*` marker once a verified install
    * commits. Only the committing publish knows the replacement is durable, so
    * older stashes from earlier crashes are obsolete here as well.
+   *
+   * Each stash is first renamed out of the recoverable namespace
+   * (`.bak.stash-*` → `.bak.retired-*`) before recursive deletion. `safeRemove`
+   * swallows `EACCES`, so deleting in place would leave a promotable marker that
+   * a later reconcile could restore over a fresh edit or after uninstall. A
+   * failed deletion after the rename leaves an inert `.bak.retired-*` copy that
+   * no recovery sweep promotes.
    */
   private async removeAllStashedBackups(destPath: string): Promise<void> {
     const stashes = await this.listStashedBackupPaths(destPath)
     for (const stashPath of stashes) {
-      await this.safeRemoveDirectory(stashPath, 'stashed skill backup')
+      await this.retireAndRemoveMarker(stashPath, 'stashed skill backup')
+    }
+    await this.removeRetiredMarkers(destPath)
+  }
+
+  /**
+   * Retirement path outside every recovery pattern (`^\.(.+)\.bak$`,
+   * `^\.(.+)\.bak\.stash-.*$`, `^\.(.+)\.cleanup$`). `.bak.stash-*` markers are
+   * matched by prefix, so appending a suffix is not enough: the `.bak.stash-`
+   * infix itself is replaced. Plain `.bak`/`.cleanup` markers use an appended
+   * suffix, which already breaks their exact-match patterns.
+   */
+  private getRetirementPath(markerPath: string): string {
+    const dir = path.dirname(markerPath)
+    const base = path.basename(markerPath)
+    if (base.includes('.bak.stash-')) {
+      const retiredBase = base.replace('.bak.stash-', '.bak.retired-')
+      return path.join(dir, `${retiredBase}.retire-${Date.now()}-${process.pid}`)
+    }
+    return `${markerPath}.retired-${Date.now()}-${process.pid}`
+  }
+
+  private async retireAndRemoveMarker(markerPath: string, label: string): Promise<void> {
+    let retiredPath: string | null = null
+    try {
+      retiredPath = this.getRetirementPath(markerPath)
+      await fs.promises.rename(markerPath, retiredPath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      logger.warn(`Failed to retire ${label} before removal; attempting direct removal`, {
+        markerPath,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      await this.safeRemoveDirectory(markerPath, label)
+      return
+    }
+    await this.safeRemoveDirectory(retiredPath, label)
+  }
+
+  private async listRetiredMarkerPaths(destPath: string): Promise<string[]> {
+    const dir = path.dirname(destPath)
+    const folder = path.basename(destPath)
+    const prefix = `.${folder}.bak.retired-`
+    try {
+      const entries = await fs.promises.readdir(dir, { withFileTypes: true })
+      if (!Array.isArray(entries)) return []
+      const matches: string[] = []
+      for (const entry of entries) {
+        try {
+          if (typeof entry.name !== 'string' || !entry.name.startsWith(prefix)) continue
+          if (typeof entry.isDirectory === 'function' && !entry.isDirectory()) continue
+        } catch {
+          continue
+        }
+        matches.push(path.join(dir, entry.name))
+      }
+      // Also catch `*.retire-*` suffix variants (retirement of a retirement never
+      // happens, but a previous crash could leave the suffixed name).
+      matches.sort()
+      return matches
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+      return []
+    }
+  }
+
+  private async removeRetiredMarkers(destPath: string): Promise<void> {
+    const retired = await this.listRetiredMarkerPaths(destPath)
+    for (const retiredPath of retired) {
+      await this.safeRemoveDirectory(retiredPath, 'retired skill backup')
     }
   }
 
