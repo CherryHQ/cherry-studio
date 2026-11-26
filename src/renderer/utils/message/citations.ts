@@ -616,7 +616,13 @@ function hasUnresolvedMarker({ content, byMarker }: ResolvedCitationMarkers): bo
  * without inventing a second, conflicting sequence.
  */
 export function stripCitationMarkers(content: string): string {
-  return mapMarkdownOutsideCode(canonicalizeMarkers(content), (text) => text.replace(CITATION_MARKER_PATTERN, ''))
+  return mapMarkdownOutsideCode(canonicalizeMarkers(content), (text) =>
+    text
+      .replace(CITATION_MARKER_PATTERN, '\u0000')
+      // A wrapper emptied by the removal (`**[cite:id]**`) would otherwise leave `****`, a thematic break.
+      .replace(/(\*{1,3}|_{1,3})[ \t]*\u0000+[ \t]*\1/g, '')
+      .replace(/\u0000/g, '')
+  )
 }
 
 /**
