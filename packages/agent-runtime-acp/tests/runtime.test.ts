@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { runtimeId, type ObservationPayload, type ThreadSnapshot } from '@cherrystudio/agent-runtime'
 
+import { Projection } from '../src/projection'
 import type { AcpObservationFrame, AcpThreadHandle } from '../src/v1'
 import { configuration, confirmed, deferred, fixture, input } from './fixture'
 
@@ -407,6 +408,55 @@ describe('input, permission and cancellation', () => {
 })
 
 describe('projection and observation', () => {
+  it.each([2, 32])('appends a fixed suffix without reading %i settled media parts', async (count) => {
+    const projection = new Projection(
+      'session',
+      { id: runtimeId('thread'), backendId: runtimeId('backend') },
+      (error) => {
+        throw error
+      }
+    )
+    const change = (content: Extract<SessionUpdate, { sessionUpdate: 'agent_message_chunk' }>['content']) =>
+      projection.update({ sessionUpdate: 'agent_message_chunk', messageId: 'mixed', content })
+    try {
+      for (let i = 0; i < count; i++) await change({ type: 'image', mimeType: 'image/png', data: 'AA==' })
+      await change({ type: 'text', text: 'A' })
+      const events: ObservationPayload[] = []
+      const observer = projection.feed.observe((event) => {
+        events.push(event)
+      })
+      await observer.drain()
+      const read = projection.feed.message.bind(projection.feed)
+      let visits = 0
+      const measured = vi.spyOn(projection.feed, 'message').mockImplementation((id) => {
+        const message = read(id)
+        return (
+          message && {
+            ...message,
+            parts: new Proxy(message.parts, {
+              get(target, key, receiver) {
+                if (typeof key === 'string' && /^\d+$/.test(key) && Number(key) < count) visits++
+                return Reflect.get(target, key, receiver)
+              }
+            })
+          }
+        )
+      })
+      await change({ type: 'text', text: 'B' })
+      measured.mockRestore()
+      await observer.drain()
+      expect(visits).toBe(0)
+      expect(events.at(-1)).toMatchObject({
+        type: 'message.parts',
+        changes: [{ type: 'append', part: count, text: 'B' }]
+      })
+      expect(projection.feed.snapshot.messages[0].parts.at(-1)).toMatchObject({ text: 'AB' })
+      await observer.stop()
+    } finally {
+      await projection.close()
+    }
+  })
+
   it('preserves text/file/text part order within one native message', async () => {
     const { runtime } = setup({
       'session/prompt': async ({ client, params }) => {

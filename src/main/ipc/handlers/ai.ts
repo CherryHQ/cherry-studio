@@ -8,20 +8,23 @@ import { AgentSessionForkSourceError } from '@data/services/AgentSessionForkServ
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { loggerService } from '@logger'
+import { previewAgentConfigChange } from '@main/ai/agents/agentConfigTool'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
 import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssistantSession'
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
+import { childTimelines } from '@main/ai/agentSession/childTimelines'
+import { readToolResult } from '@main/ai/messages/toolResultRead'
+import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
-import type { MessageProjectionUpdate } from '@shared/ai/messageProjection'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
+import type { ProjectionNotification } from '@shared/ai/messageProjection'
 import { ErrorCode, isDataApiError, isDataApiResourceNotFoundError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -131,19 +134,17 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.projection.attach': ({ target, subscriptionId }, { senderId }) => {
     const sender = senderWebContents(senderId)
     if (!sender || senderId === null) throw new Error('Projection subscription requires a window')
-    const send = (update: MessageProjectionUpdate) =>
+    const send = (update: ProjectionNotification) =>
       application.get('IpcApiService').send(senderId, 'ai.projection.changed', { subscriptionId, update })
     return target.kind === 'topic'
       ? application.get('AiStreamManager').attachProjection(sender, target.topicId, subscriptionId, send)
-      : application
-          .get('AgentSessionRuntimeService')
-          .attachChild(sender, target.sessionId, target.toolCallId, subscriptionId, send)
+      : childTimelines.attach(sender, target.sessionId, target.toolCallId, subscriptionId, send)
   },
   'ai.projection.detach': async ({ target, subscriptionId }, { senderId }) => {
     const sender = senderWebContents(senderId)
     if (!sender) return
     if (target.kind === 'topic') application.get('AiStreamManager').detachProjection(sender, subscriptionId)
-    else application.get('AgentSessionRuntimeService').detachChild(sender, subscriptionId)
+    else childTimelines.subscriptions.detach(sender, subscriptionId)
   },
   'ai.agent.child.message': ({ sessionId, contextId, text }) =>
     application.get('AgentSessionRuntimeService').messageChild(sessionId, contextId, text),
@@ -152,14 +153,23 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.claude_code.binary.retry': async () => application.get('ClaudeCodeBinaryService').ensure(true),
   // ── One-shot model calls — AiService owns the provider clients. ──
   // A renderer one-shot call has no topic; it is its own conversation.
-  'ai.text.generate': ({ requestId, ...request }) => {
+  'ai.text.generate': ({ requestId, streamDeltas, ...request }, { senderId }) => {
     const generate = { ...request, conversation: { id: `one-shot:${randomUUID()}` } }
-    return exposeAiError('ai.text.generate', () =>
-      requestId
+    return exposeAiError('ai.text.generate', () => {
+      if (requestId && streamDeltas && senderId) {
+        return application
+          .get('AiService')
+          .runTextStreamRequest(requestId, generate, (delta) =>
+            application.get('IpcApiService').send(senderId, 'ai.text.delta', { requestId, delta })
+          )
+      }
+      return requestId
         ? application.get('AiService').runTextRequest(requestId, generate)
         : application.get('AiService').generateText(generate)
-    )
+    })
   },
+  'ai.profile_starters.generate': (input) =>
+    exposeAiError('ai.profile_starters.generate', () => generateProfileStarters(input)),
   'ai.text.abort': async ({ requestId }) => {
     application.get('AiService').abortRequest(requestId)
   },
@@ -200,18 +210,14 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──
-  'ai.tool.get_result': async ({ topicId, messageId, toolCallId }) => {
-    // Active stream first: it is the only source holding the value before the message persists.
-    const live = application.get('AiStreamManager').getDeferredToolOutput(topicId, toolCallId)
-    if (live.found) return live
-    return findPersistedToolOutput(topicId, messageId, toolCallId)
-  },
+  'ai.tool.get_result': readToolResult,
   // The continuation dispatch streams to the caller window, so it needs that window's WebContents.
   'ai.tool.respond_approval': (payload, { senderId }) =>
     application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
+  'ai.agent.preview_config_change': async ({ approvalId }) => previewAgentConfigChange(approvalId),
   'ai.agent.restore': async ({ agentId }) => {
     try {
       return await application.get('AgentLifecycleService').restoreAgent(agentId)
@@ -248,18 +254,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     }
   },
   'ai.agent.skill_session.create': async ({ skillId }) => ({ sessionId: createBuiltinSkillSession(skillId).id }),
-  // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
-  // session's slash-command catalog is read into the cache before the first message — the
-  // warm-query handle can't expose it. Trace mode is no exception: the primed connection resolves
-  // the session's container trace up front and spawns with TRACEPARENT, and the one thing a traced
-  // turn must not reuse — a trace-less warm query — is refused by the driver itself.
-  // The per-session connection is shared across windows, so the runtime service aggregates leases
-  // by (session × sender WebContents) and tears down only once no window holds the session.
-  'ai.agent.session.prewarm': async ({ sessionId }, { senderId }) => {
-    application.get('AgentSessionRuntimeService').acquireWarmLease(sessionId, senderWebContents(senderId))
-  },
-  'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
-    application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
+  'ai.agent.session.commands': async ({ sessionId }) => {
+    await application.get('AgentSessionRuntimeService').listSessionCommands(sessionId)
   },
   'ai.agent.session.delete': ({ sessionIds, permanent }) =>
     exposeAgentSessionArchiveError(() =>

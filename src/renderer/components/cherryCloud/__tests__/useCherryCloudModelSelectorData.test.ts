@@ -111,7 +111,7 @@ beforeEach(() => {
 
 describe('Cloud selector policy', () => {
   it.each(['active', 'upcoming'] as const)(
-    'moves CherryAI first for a %s subscription and last when it ends',
+    'keeps CherryAI first before sign-in, when a subscription is %s, and after it ends',
     (state) => {
       const providers: Provider[] = ['other-b', CHERRY_CLOUD_PROVIDER_ID, 'other-a', CHERRYAI_PROVIDER_ID].map(
         (id) => ({
@@ -140,18 +140,27 @@ describe('Cloud selector policy', () => {
         refetch: vi.fn(),
         mutate: vi.fn()
       }))
-      const { result, rerender } = renderHook(() => useCherryCloudModelSelectorData({ searchText: '' }))
+      mocks.phase = 'signed-out'
+      mocks.data = undefined
+      const { result, rerender } = renderHook(() =>
+        useCherryCloudModelSelectorData({ searchText: '', prioritizedProviderIds: ['other-a'] })
+      )
       const groupIds = () =>
         result.current.listItems.flatMap((item) => (item.type === 'group' ? [item.provider?.id] : []))
-      expect(groupIds()).toEqual(['other-b', 'other-a', CHERRYAI_PROVIDER_ID])
+      expect(groupIds()).toEqual([CHERRYAI_PROVIDER_ID, 'other-a', 'other-b'])
 
+      mocks.phase = 'signed-in'
       mocks.data = plans(state)
       rerender()
-      expect(groupIds()).toEqual([CHERRYAI_PROVIDER_ID, 'other-b', 'other-a'])
+      expect(groupIds()).toEqual([CHERRYAI_PROVIDER_ID, 'other-a', 'other-b'])
 
       mocks.data = plans()
       rerender()
-      expect(groupIds()).toEqual(['other-b', 'other-a', CHERRYAI_PROVIDER_ID])
+      expect(groupIds()).toEqual([CHERRYAI_PROVIDER_ID, 'other-a', 'other-b'])
+
+      MockUseCacheUtils.setPersistCacheValue('ui.model_selector.cherryai_pinned', false)
+      rerender()
+      expect(groupIds()).toEqual(['other-a', 'other-b', CHERRYAI_PROVIDER_ID])
     }
   )
 

@@ -20,6 +20,7 @@ export const errorToastPresentations: Record<ErrorCategory, ErrorToastPresentati
   quota: { type: 'warning', action: 'billing' },
   rate_limit: { type: 'info', action: 'retry' },
   context_length: { type: 'warning', action: 'trimContext' },
+  prefill_memory: { type: 'warning' },
   payload: { type: 'warning' },
   network: { type: 'info', action: 'retry' },
   proxy: { type: 'info', action: 'retry' },
