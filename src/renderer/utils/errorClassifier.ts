@@ -104,9 +104,10 @@ function readStructuredStatus(value: unknown): number | undefined {
 }
 
 /**
- * The model / provider ids from a locally raised resolution failure ("Cannot resolve modelId…").
- * Main rejects those before any provider call, so the ids are the only layer detail the user can
- * act on — a provider 404 body already names the model in its own text. Null for anything else.
+ * The model / provider ids from a locally raised resolution failure ("Cannot resolve modelId…",
+ * "Model with id '…' not found", or "Provider with id '…' not found"). Main rejects those before
+ * any provider call, so the ids are the only layer detail the user can act on — a provider 404
+ * body already names the model in its own text. Null for anything else.
  */
 export function getLocalModelResolutionFailure(
   error?: SerializedError
@@ -144,10 +145,11 @@ export function getLocalModelResolutionFailure(
     return null
   }
 
+  // Format 4: "Provider with id 'provider' not found" (DataApiErrorFactory.notFound)
   const providerIdMatch = /^Provider with id '(.+)' not found$/s.exec(message)
   if (providerIdMatch) return { providerId: providerIdMatch[1] }
 
-  // Format 4: "Model with id 'provider/model' not found" (DataApiErrorFactory.notFound)
+  // Format 5: "Model with id 'provider/model' not found" (DataApiErrorFactory.notFound)
   const modelIdMatch = /^Model with id '([^']+)' not found$/.exec(message)
   if (modelIdMatch) {
     return { modelId: modelIdMatch[1] }

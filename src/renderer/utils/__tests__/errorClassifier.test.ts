@@ -609,6 +609,25 @@ required service tier.`
     expect(result.navTarget).toBe('/settings/provider')
   })
 
+  // #25414: ProviderService.assertProviderAvailable throws DataApiErrorFactory.notFound('Provider', id).
+  // Even when a Work conversation stream attaches streamStage: 'response-stream', it must classify as
+  // model and route to provider settings instead of falling back to the stream/network interruption banner.
+  it('classifies a missing provider error as model even when marked as response-stream', () => {
+    const result = classifyError(
+      makeError({
+        name: 'DataApiError',
+        message: "Provider with id 'deleted-provider' not found",
+        streamStage: 'response-stream'
+      })
+    )
+
+    expect(result).toEqual({
+      category: 'model',
+      i18nKey: 'error.diagnosis.model',
+      navTarget: '/settings/provider'
+    })
+  })
+
   // Rate limit
   it('classifies 429 as rate_limit', () => {
     const result = classifyError(makeError({ statusCode: 429 }))
@@ -962,6 +981,7 @@ describe('getLocalModelResolutionFailure', () => {
     ["Model with id 'openai/gpt-test' not found", { modelId: 'openai/gpt-test' }],
     ["Provider with id 'team's-relay' not found", { providerId: "team's-relay" }],
     ["Provider with id 'team\nrelay' not found", { providerId: 'team\nrelay' }],
+    ["Provider with id 'custom-provider-1' not found", { providerId: 'custom-provider-1' }],
     ['Cannot resolve modelId: not-a-real-model', { modelId: 'not-a-real-model' }],
     ['Cannot resolve modelId="gpt-test" providerId="openai"', { providerId: 'openai', modelId: 'gpt-test' }],
     ['Cannot resolve modelId [gpt-test,other-model]', { modelId: 'gpt-test' }]
@@ -971,6 +991,7 @@ describe('getLocalModelResolutionFailure', () => {
 
   it('does not mistake a provider response for a local resolution failure', () => {
     expect(getLocalModelResolutionFailure(makeError({ message: 'Model not found', status: 404 }))).toBeNull()
+    expect(getLocalModelResolutionFailure(makeError({ message: 'Provider not found', status: 404 }))).toBeNull()
   })
 })
 

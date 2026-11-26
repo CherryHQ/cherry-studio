@@ -1121,4 +1121,89 @@ required service tier.`
     fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
+
+  // #25414: Work conversations referencing a deleted/unavailable provider throw
+  // DataApiErrorFactory.notFound('Provider', id) and must explain the missing provider
+  // with provider-settings recovery instead of showing a stream/network interruption.
+  it('names the missing custom provider and offers settings recovery instead of a stream interruption', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('error.diagnosis.provider_unavailable', enUS['error.diagnosis.provider_unavailable'])
+    mocks.translations.set('error.diagnosis.stream', enUS['error.diagnosis.stream'])
+
+    const workMessage: MessageListItem = {
+      id: 'message-work-1',
+      role: 'assistant',
+      topicId: 'agent-topic-1',
+      parentId: 'user-1',
+      createdAt: '',
+      status: 'error',
+      modelId: 'deleted-provider::gpt-4o'
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-work-1-part-0"
+        error={{
+          name: 'DataApiError',
+          message: "Provider with id 'deleted-provider' not found",
+          stack: null,
+          streamStage: 'response-stream'
+        }}
+        message={workMessage}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'Provider deleted-provider no longer exists in this app. Choose a model from another provider in this conversation.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText(enUS['error.diagnosis.stream'])).not.toBeInTheDocument()
+    expect(screen.queryByText("Provider with id 'deleted-provider' not found")).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider')
+  })
+
+  it('still identifies the missing provider and navigates to provider settings when message lacks a model', async () => {
+    const user = userEvent.setup()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    mocks.translations.set('error.diagnosis.provider_unavailable', enUS['error.diagnosis.provider_unavailable'])
+    mocks.translations.set('error.diagnosis.stream', enUS['error.diagnosis.stream'])
+
+    const modellessMessage: MessageListItem = {
+      id: 'message-work-2',
+      role: 'assistant',
+      topicId: 'agent-topic-1',
+      parentId: 'user-1',
+      createdAt: '',
+      status: 'error'
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-work-2-part-0"
+        error={{
+          name: 'DataApiError',
+          message: "Provider with id 'missing-provider' not found",
+          stack: null,
+          streamStage: 'response-stream'
+        }}
+        message={modellessMessage}
+      />
+    )
+
+    expect(
+      screen.getByText(
+        'Provider missing-provider no longer exists in this app. Choose a model from another provider in this conversation.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText(enUS['error.diagnosis.stream'])).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider')
+  })
 })

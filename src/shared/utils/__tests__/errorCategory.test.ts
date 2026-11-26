@@ -598,3 +598,19 @@ describe('request body buffer limit', () => {
     expect(classifyErrorCategory({ text })).not.toBe('payload')
   })
 })
+
+describe('local provider resolution failures (#25414)', () => {
+  it.each([
+    "Provider with id 'custom-provider-1' not found",
+    "Provider with id 'my-network-provider' not found",
+    "Provider with id 'stream-proxy-1' not found",
+    "Provider with id 'billing-group' not found"
+  ])('classifies %s as model even without an HTTP status', (text) => {
+    expect(classifyErrorCategory({ text })).toBe('model')
+  })
+
+  it('preserves HTTP 5xx and 401 precedence over missing-provider text', () => {
+    expect(classifyErrorCategory({ text: "Provider with id 'custom-1' not found", status: 503 })).toBe('server')
+    expect(classifyErrorCategory({ text: "Provider with id 'custom-1' not found", status: 401 })).toBe('auth')
+  })
+})
