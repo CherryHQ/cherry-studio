@@ -37,6 +37,18 @@ async function discover() {
 }
 
 describe('Codex raw rollout contract', () => {
+  it('omits only blank candidates with a blocking identity error', async () => {
+    await file('session_index.jsonl', [{ id: 'named', thread_name: 'Named conflict' }])
+    await file('rollout-blank.jsonl', [meta('blank'), meta('fork'), message('Ambiguous')])
+    await file('rollout-named.jsonl', [meta('named'), meta('fork'), message('Ambiguous')])
+    await file('rollout-valid.jsonl', [meta('valid'), message('Recovered title')])
+    const refs = await discover()
+    expect(refs.map((r) => r.title).sort()).toEqual(['Named conflict', 'Recovered title'])
+    const named = refs.find((r) => r.originalSessionId === 'named')!
+    expect((await codexAdapter.read(named, signal())).diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'unstable_identity', severity: 'error' })
+    )
+  })
   it('keeps rollout candidates when the neighboring history database is unreadable', async () => {
     await writeFile(path.join(root, 'thread_history_1.sqlite'), 'damaged')
     await file('rollout-usable.jsonl', [meta('usable'), message('Keep this')])
@@ -62,6 +74,7 @@ describe('Codex raw rollout contract', () => {
     }
     db.close()
     await file('rollout-shared.jsonl', [meta('shared'), message('In both')])
+    await file('rollout-ambiguous.jsonl', [meta('database'), meta('fork')])
     const refs = await discover()
     expect(refs.map((r) => r.originalSessionId)).toEqual(['shared', 'database'])
     const ref = refs[1]

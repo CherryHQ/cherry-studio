@@ -80,9 +80,21 @@ export const codexAdapter: HistorySourceAdapter = {
         })
       if (sessions.size > 10_000) throw new Error('scan_limit')
     }
+    const rolloutIds = new Set(sessions.keys())
     for (const ref of sessions.values()) {
       try {
         const session = await readCodexSession(ref, signal, index)
+        if (
+          !session.title.trim() &&
+          session.diagnostics.some(
+            (d) =>
+              d.severity === 'error' &&
+              ['unstable_identity', 'identity_conflict', 'duplicate_message_id'].includes(d.code)
+          )
+        ) {
+          rolloutIds.delete(ref.originalSessionId)
+          continue
+        }
         ref.title = session.title
         ref.filteredReason = session.filteredReason
       } catch {
@@ -91,10 +103,10 @@ export const codexAdapter: HistorySourceAdapter = {
       yield ref
     }
     try {
-      yield* await databaseCandidates(root, new Set(sessions.keys()), signal)
+      yield* await databaseCandidates(root, rolloutIds, signal)
     } catch (error) {
       signal.throwIfAborted()
-      if (!sessions.size || (error instanceof Error && error.message === 'scan_limit')) throw error
+      if (!rolloutIds.size || (error instanceof Error && error.message === 'scan_limit')) throw error
       loggerService
         .withContext('CodexHistoryImport')
         .warn('Could not discover SQLite history alongside rollouts', { error })
