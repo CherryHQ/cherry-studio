@@ -8,7 +8,6 @@ import * as z from 'zod'
 
 import { application } from '@application'
 import { SEED_KEY_PREFIX } from '@data/db/seeding/SeedRunner'
-import { loggerService } from '@logger'
 import { getLegacyProfilePaths } from '@main/core/paths/legacyProfilePaths'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
@@ -78,21 +77,8 @@ function statIfPresent(file: string) {
   }
 }
 
-const logger = loggerService.withContext('LegacyUpgrade')
-
-const V2_USER_DATA_TABLES = ['topic', 'message', 'assistant', 'user_provider'] as const
-
-function hasV2UserData(db: Database.Database): boolean {
-  const tableExists = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
-  for (const table of V2_USER_DATA_TABLES) {
-    if (!tableExists.get(table)) continue
-    if (db.prepare(`SELECT 1 FROM "${table}" LIMIT 1`).get() !== undefined) return true
-  }
-  return false
-}
-
 /** Read-only: classification must never initialize or migrate the user's database. */
-export function inspectLegacyProfile(userData: string): 'fresh' | 'ready' | 'legacy' {
+export function inspectLegacyProfile(userData: string): 'fresh' | 'ready' | 'legacy' | 'recovery' {
   const paths = getLegacyProfilePaths(userData)
   if (statIfPresent(paths.database)?.size) {
     const db = new Database(paths.database, { readonly: true, fileMustExist: true })
@@ -106,14 +92,7 @@ export function inspectLegacyProfile(userData: string): 'fresh' | 'ready' | 'leg
         const seeded = db.prepare('SELECT key FROM app_state WHERE key LIKE ? LIMIT 1').get(`${SEED_KEY_PREFIX}%`)
         if (seeded) return 'ready'
       }
-      if (hasV2UserData(db)) {
-        logger.warn(
-          'Database already contains v2 user data without a completed migration status; treating profile as existing v2 without migration',
-          { profile: userData, status: status ?? null }
-        )
-        return 'ready'
-      }
-      if (status !== undefined) return 'legacy'
+      return 'recovery'
     } finally {
       db.close()
     }
@@ -189,7 +168,16 @@ function isPortableExecutable(executable: string) {
   return executable.replaceAll('\\', '/').split('/').at(-1)?.toLowerCase() === 'cherry-studio-portable.exe'
 }
 
-export type LegacyUpgradeProfile = { kind: 'legacy' | 'recover'; path: string }
+function hasConvertibleLegacySource(userData: string): boolean {
+  const paths = getLegacyProfilePaths(userData)
+  return Boolean(statIfPresent(paths.indexedDb)?.isDirectory() && statIfPresent(paths.localStorage)?.isDirectory())
+}
+
+function classifyRecoveryProfile(profilePath: string): LegacyUpgradeProfile {
+  return { kind: hasConvertibleLegacySource(profilePath) ? 'legacy' : 'recovery', path: profilePath }
+}
+
+export type LegacyUpgradeProfile = { kind: 'legacy' | 'recover' | 'recovery'; path: string }
 
 /** Classifies a selected profile without redirecting or writing it. */
 export function findLegacyUpgradeProfile(): LegacyUpgradeProfile | undefined {
@@ -200,6 +188,7 @@ export function findLegacyUpgradeProfile(): LegacyUpgradeProfile | undefined {
   const state = inspectLegacyProfile(current)
   if (state === 'ready') return undefined
   if (state === 'legacy') return { kind: 'legacy', path: current }
+  if (state === 'recovery') return classifyRecoveryProfile(current)
   if (!app.isPackaged || configured) return undefined
 
   const configFile = application.getPath('v1.home_config_file')
@@ -219,7 +208,9 @@ export function findLegacyUpgradeProfile(): LegacyUpgradeProfile | undefined {
       throw new Error(`Data directory unavailable: ${entry.dataPath}`)
     }
     const candidate = inspectLegacyProfile(entry.dataPath)
-    if (candidate !== 'fresh') return { kind: candidate === 'ready' ? 'recover' : 'legacy', path: entry.dataPath }
+    if (candidate === 'ready') return { kind: 'recover', path: entry.dataPath }
+    if (candidate === 'legacy') return { kind: 'legacy', path: entry.dataPath }
+    if (candidate === 'recovery') return classifyRecoveryProfile(entry.dataPath)
   }
   return undefined
 }

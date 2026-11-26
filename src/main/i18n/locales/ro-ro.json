@@ -205,6 +205,8 @@
   "dialog.legacy_upgrade.preparing": "Se pregătește instalarea…",
   "dialog.legacy_upgrade.prerequisite": "Dacă ați folosit versiunea 1.9.11 sau una anterioară, ori versiunea anterioară nu poate fi identificată, instalați și porniți mai întâi 1.9.12. Apoi porniți {{version}} pentru a migra datele.",
   "dialog.legacy_upgrade.quit": "Ieșire",
+  "dialog.legacy_upgrade.recovery_detail": "Directorul de date {{path}} conține deja date Cherry Studio v2, dar migrarea acestora nu s-a finalizat niciodată și nu au mai rămas date vechi de convertit. Datele au rămas neatinse. Faceți o copie de rezervă a acestui director înainte de a încerca altceva și restaurați o copie de rezervă dacă aveți una.",
+  "dialog.legacy_upgrade.recovery_title": "Migrare incompletă a datelor",
   "dialog.legacy_upgrade.retry": "Reîncearcă",
   "dialog.legacy_upgrade.title": "Actualizarea necesită migrarea datelor",
   "dialog.mini_app_export": "Exportă din {{name}}",

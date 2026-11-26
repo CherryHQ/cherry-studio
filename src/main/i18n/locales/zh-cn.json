@@ -205,6 +205,8 @@
   "dialog.legacy_upgrade.preparing": "正在准备安装…",
   "dialog.legacy_upgrade.prerequisite": "如果你使用的是 1.9.11 或更早版本，或无法识别原版本，请先安装并启动 1.9.12，再启动 {{version}} 完成数据迁移。",
   "dialog.legacy_upgrade.quit": "退出",
+  "dialog.legacy_upgrade.recovery_detail": "数据目录 {{path}} 中已包含 Cherry Studio v2 数据，但迁移从未完成，且已没有可供转换的旧版数据。现有数据未被改动。请先备份此目录再尝试其他操作，如有备份请从备份恢复。",
+  "dialog.legacy_upgrade.recovery_title": "数据迁移未完成",
   "dialog.legacy_upgrade.retry": "重试",
   "dialog.legacy_upgrade.title": "升级前需要迁移数据",
   "dialog.mini_app_export": "从 {{name}} 导出",

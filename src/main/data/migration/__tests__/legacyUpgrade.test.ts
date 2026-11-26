@@ -3,8 +3,6 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { setupTestDatabase } from '@test-helpers/db'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -50,7 +48,6 @@ describe('legacy profile detection', () => {
     vi.spyOn(application, 'getPath').mockImplementation((key) => (key === 'v1.home_config_file' ? configFile : profile))
     vi.mocked(bootConfigService.get).mockReturnValue(null)
     vi.mocked(getNormalizedExecutablePath).mockReturnValue('/app/cherry')
-    mockMainLoggerService.warn.mockClear()
     Object.defineProperty(app, 'isPackaged', { configurable: true, value: true })
   })
 
@@ -94,6 +91,27 @@ describe('legacy profile detection', () => {
       .insert(userProviderTable)
       .values({ providerId: 'openai', name: 'OpenAI', isEnabled: true, orderKey: 'a0' })
       .run()
+  }
+
+  function createChromiumStorage(dir = profile) {
+    fs.mkdirSync(path.join(dir, 'IndexedDB'))
+    fs.mkdirSync(path.join(dir, 'Local Storage'))
+  }
+
+  function snapshotProfileState(dir = profile) {
+    const dbFile = path.join(dir, 'Data/cherrystudio.sqlite')
+    return {
+      dbFile,
+      dbBytes: fs.readFileSync(dbFile),
+      profileEntries: fs.readdirSync(dir).sort(),
+      dataEntries: fs.readdirSync(path.join(dir, 'Data')).sort()
+    }
+  }
+
+  function expectProfileUnchanged(snapshot: ReturnType<typeof snapshotProfileState>, dir = profile) {
+    expect(fs.readFileSync(snapshot.dbFile)).toEqual(snapshot.dbBytes)
+    expect(fs.readdirSync(dir).sort()).toEqual(snapshot.profileEntries)
+    expect(fs.readdirSync(path.join(dir, 'Data')).sort()).toEqual(snapshot.dataEntries)
   }
 
   it.each([true, undefined])('restores an interrupted tray-on-close preference (%s)', (trayOnClose) => {
@@ -166,16 +184,19 @@ describe('legacy profile detection', () => {
   it('blocks a converter crash after schema creation but before the first status record', async () => {
     await copyDatabase()
     fs.writeFileSync(path.join(profile, 'version.log'), '1.9.12')
-    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'legacy', path: profile })
+    const snapshot = snapshotProfileState()
+    expect(inspectLegacyProfile(profile)).toBe('recovery')
+    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'recovery', path: profile })
+    expectProfileUnchanged(snapshot)
     expect(dbh.db.select().from(appStateTable).all()).toEqual([])
   })
 
   it.each(['failed', 'in_progress'])('blocks %s conversion without changing persisted data', async (status) => {
     await copyDatabase({ status })
-    const file = path.join(profile, 'Data/cherrystudio.sqlite')
-    const before = fs.readFileSync(file)
-    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'legacy', path: profile })
-    expect(fs.readFileSync(file)).toEqual(before)
+    const snapshot = snapshotProfileState()
+    expect(inspectLegacyProfile(profile)).toBe('recovery')
+    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'recovery', path: profile })
+    expectProfileUnchanged(snapshot)
     expect(isMigratedFromV1()).toBe(false)
   })
 
@@ -197,126 +218,106 @@ describe('legacy profile detection', () => {
     expect(() => findLegacyUpgradeProfile()).toThrow()
   })
 
-  it('preserves a populated v2 database without migration_v2_status despite version.log and non-empty config.json', async () => {
+  it.each(['failed', 'in_progress'] as const)(
+    'routes %s conversion with committed rows to legacy bridge when Chromium storage exists',
+    async (status) => {
+      seedPopulatedV2UserData()
+      await copyDatabase({ status })
+      createChromiumStorage()
+      const snapshot = snapshotProfileState()
+
+      expect(inspectLegacyProfile(profile)).toBe('recovery')
+      expect(findLegacyUpgradeProfile()).toEqual({ kind: 'legacy', path: profile })
+      expectProfileUnchanged(snapshot)
+    }
+  )
+
+  it.each(['failed', 'in_progress'] as const)(
+    'routes %s conversion with committed rows to non-destructive recovery when Chromium storage is absent',
+    async (status) => {
+      seedPopulatedV2UserData()
+      await copyDatabase({ status })
+      fs.writeFileSync(path.join(profile, 'version.log'), '2.2.2')
+      fs.writeFileSync(path.join(profile, 'config.json'), '{"theme":"dark"}')
+      const snapshot = snapshotProfileState()
+
+      expect(inspectLegacyProfile(profile)).toBe('recovery')
+      expect(findLegacyUpgradeProfile()).toEqual({ kind: 'recovery', path: profile })
+      expectProfileUnchanged(snapshot)
+    }
+  )
+
+  it.each(['IndexedDB', 'Local Storage'] as const)(
+    'requires both Chromium directories to offer the legacy bridge for recovery profiles (only %s present)',
+    async (presentDir) => {
+      seedPopulatedV2UserData()
+      await copyDatabase({ status: 'failed' })
+      fs.mkdirSync(path.join(profile, presentDir))
+      const snapshot = snapshotProfileState()
+
+      expect(inspectLegacyProfile(profile)).toBe('recovery')
+      expect(findLegacyUpgradeProfile()).toEqual({ kind: 'recovery', path: profile })
+      expectProfileUnchanged(snapshot)
+    }
+  )
+
+  it('routes a markerless database with committed rows and no seed journal to recovery when Chromium storage is absent', async () => {
     seedPopulatedV2UserData()
     await copyDatabase()
     fs.writeFileSync(path.join(profile, 'version.log'), '2.2.2')
     fs.writeFileSync(path.join(profile, 'config.json'), '{"theme":"dark"}')
+    const snapshot = snapshotProfileState()
 
-    const file = path.join(profile, 'Data/cherrystudio.sqlite')
-    const beforeBytes = fs.readFileSync(file)
-    const beforeProfileEntries = fs.readdirSync(profile).sort()
-    const beforeDataEntries = fs.readdirSync(path.join(profile, 'Data')).sort()
-
-    expect(findLegacyUpgradeProfile()).toBeUndefined()
-    expect(fs.readFileSync(file)).toEqual(beforeBytes)
-    expect(fs.readdirSync(profile).sort()).toEqual(beforeProfileEntries)
-    expect(fs.readdirSync(path.join(profile, 'Data')).sort()).toEqual(beforeDataEntries)
-    expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(expect.any(String), { profile, status: null })
+    expect(inspectLegacyProfile(profile)).toBe('recovery')
+    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'recovery', path: profile })
+    expectProfileUnchanged(snapshot)
   })
 
-  it.each(['failed', 'in_progress'] as const)(
-    'preserves a populated v2 database with %s status and leaves files untouched',
-    async (status) => {
-      seedPopulatedV2UserData()
-      await copyDatabase({ status })
-      const file = path.join(profile, 'Data/cherrystudio.sqlite')
-      const beforeBytes = fs.readFileSync(file)
-      const beforeProfileEntries = fs.readdirSync(profile).sort()
+  it('routes a markerless database with committed rows and no seed journal to legacy bridge when Chromium storage exists', async () => {
+    seedPopulatedV2UserData()
+    await copyDatabase()
+    createChromiumStorage()
+    const snapshot = snapshotProfileState()
 
-      expect(findLegacyUpgradeProfile()).toBeUndefined()
-      expect(fs.readFileSync(file)).toEqual(beforeBytes)
-      expect(fs.readdirSync(profile).sort()).toEqual(beforeProfileEntries)
-      expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
-      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(expect.any(String), { profile, status })
-    }
-  )
+    expect(inspectLegacyProfile(profile)).toBe('recovery')
+    expect(findLegacyUpgradeProfile()).toEqual({ kind: 'legacy', path: profile })
+    expectProfileUnchanged(snapshot)
+  })
 
-  it.each(['topic', 'message', 'assistant', 'user_provider'] as const)(
-    'treats a profile with rows only in %s as ready despite legacy residue',
-    async (table) => {
-      if (table === 'assistant') {
-        dbh.db
-          .insert(assistantTable)
-          .values({ name: 'Existing Assistant', emoji: '🌟', orderKey: 'a0', settings: DEFAULT_ASSISTANT_SETTINGS })
-          .run()
-        await copyDatabase()
-      } else if (table === 'topic') {
-        dbh.db.insert(topicTable).values({ name: 'Existing Conversation', orderKey: 'a0' }).run()
-        await copyDatabase()
-      } else if (table === 'user_provider') {
-        dbh.db
-          .insert(userProviderTable)
-          .values({ providerId: 'openai', name: 'OpenAI', isEnabled: true, orderKey: 'a0' })
-          .run()
-        await copyDatabase()
-      } else {
-        const [topic] = dbh.db
-          .insert(topicTable)
-          .values({ name: 'Existing Conversation', orderKey: 'a0' })
-          .returning()
-          .all()
-        dbh.db
-          .insert(messageTable)
-          .values({ topicId: topic.id, parentId: null, role: 'root', status: 'success', data: { parts: [] } })
-          .run()
-        await copyDatabase()
-        const copy = new Database(path.join(profile, 'Data/cherrystudio.sqlite'))
-        try {
-          copy.pragma('foreign_keys = OFF')
-          copy.exec('DELETE FROM topic')
-          const topicCount = copy.prepare('SELECT COUNT(*) FROM topic').pluck().get()
-          const messageCount = copy.prepare('SELECT COUNT(*) FROM message').pluck().get()
-          expect(topicCount).toBe(0)
-          expect(messageCount).toBe(1)
-        } finally {
-          copy.close()
-        }
-      }
-
-      fs.writeFileSync(path.join(profile, 'version.log'), '1.9.0')
-      fs.writeFileSync(path.join(profile, 'config.json'), '{"theme":"dark"}')
-      const file = path.join(profile, 'Data/cherrystudio.sqlite')
-      const beforeBytes = fs.readFileSync(file)
-
-      expect(inspectLegacyProfile(profile)).toBe('ready')
-      expect(fs.readFileSync(file)).toEqual(beforeBytes)
-      expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
-      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(expect.any(String), { profile, status: null })
-    }
-  )
-
-  it('recognizes a seeded post-retirement v2 database with user data without warning', async () => {
+  it('recognizes a seeded post-retirement v2 database with committed user data as ready', async () => {
     new SeedRunner(dbh.db).runAll([new LegacyFileCleanupPolicySeeder()])
-    dbh.db
-      .insert(assistantTable)
-      .values({ name: 'Seeded Assistant', emoji: '🌟', orderKey: 'a0', settings: DEFAULT_ASSISTANT_SETTINGS })
-      .run()
+    seedPopulatedV2UserData()
     await copyDatabase()
     fs.writeFileSync(path.join(profile, 'version.log'), '2.2.3')
+    fs.writeFileSync(path.join(profile, 'config.json'), '{"theme":"dark"}')
+    const snapshot = snapshotProfileState()
 
+    expect(inspectLegacyProfile(profile)).toBe('ready')
     expect(findLegacyUpgradeProfile()).toBeUndefined()
-    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+    expectProfileUnchanged(snapshot)
   })
 
-  it('skips missing user data tables without throwing', async () => {
-    await copyDatabase()
-    const file = path.join(profile, 'Data/cherrystudio.sqlite')
-    const copy = new Database(file)
-    try {
-      copy.pragma('foreign_keys = OFF')
-      copy.exec('DROP TABLE message; DROP TABLE topic; DROP TABLE assistant; DROP TABLE user_provider;')
-    } finally {
-      copy.close()
+  it.each([true, false])(
+    'classifies an interrupted custom profile (convertible source=%s) without modifying files',
+    async (hasConvertibleSource) => {
+      seedPopulatedV2UserData()
+      await copyDatabase({ status: 'failed' })
+      const custom = path.join(root, 'custom')
+      fs.renameSync(profile, custom)
+      fs.mkdirSync(profile)
+      if (hasConvertibleSource) createChromiumStorage(custom)
+      else fs.writeFileSync(path.join(custom, 'config.json'), '{"theme":"dark"}')
+      fs.writeFileSync(configFile, JSON.stringify({ appDataPath: custom }))
+      const snapshot = snapshotProfileState(custom)
+
+      expect(findLegacyUpgradeProfile()).toEqual({
+        kind: hasConvertibleSource ? 'legacy' : 'recovery',
+        path: custom
+      })
+      expectProfileUnchanged(snapshot, custom)
+      expect(fs.readdirSync(profile)).toEqual([])
     }
-    fs.writeFileSync(path.join(profile, 'version.log'), '1.9.0')
-    const beforeBytes = fs.readFileSync(file)
-
-    expect(inspectLegacyProfile(profile)).toBe('legacy')
-    expect(fs.readFileSync(file)).toEqual(beforeBytes)
-    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
-  })
+  )
 
   it('still fails closed on malformed migration status even when v2 user data exists', async () => {
     dbh.db.insert(topicTable).values({ name: 'Existing Conversation', orderKey: 'a0' }).run()

@@ -205,6 +205,8 @@
   "dialog.legacy_upgrade.preparing": "A preparar a instalação…",
   "dialog.legacy_upgrade.prerequisite": "Se utilizava a versão 1.9.11 ou anterior, ou não é possível identificar a versão anterior, instale e inicie primeiro a 1.9.12. Depois inicie a {{version}} para migrar os seus dados.",
   "dialog.legacy_upgrade.quit": "Sair",
+  "dialog.legacy_upgrade.recovery_detail": "O diretório de dados {{path}} já contém dados do Cherry Studio v2, mas a respetiva migração nunca foi concluída e não restam dados antigos para converter. Os dados não foram alterados. Faça uma cópia de segurança deste diretório antes de tentar outra ação e restaure uma cópia de segurança, caso tenha uma.",
+  "dialog.legacy_upgrade.recovery_title": "Migração de dados incompleta",
   "dialog.legacy_upgrade.retry": "Tentar novamente",
   "dialog.legacy_upgrade.title": "A atualização requer migração de dados",
   "dialog.mini_app_export": "Exportar de {{name}}",

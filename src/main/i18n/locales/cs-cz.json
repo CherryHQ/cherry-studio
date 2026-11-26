@@ -205,6 +205,8 @@
   "dialog.legacy_upgrade.preparing": "Příprava instalace…",
   "dialog.legacy_upgrade.prerequisite": "Pokud jste používali verzi 1.9.11 nebo starší, nebo předchozí verzi nelze určit, nejprve nainstalujte a spusťte verzi 1.9.12. Poté spusťte {{version}}, aby se dokončila migrace dat.",
   "dialog.legacy_upgrade.quit": "Ukončit",
+  "dialog.legacy_upgrade.recovery_detail": "Datový adresář {{path}} již obsahuje data Cherry Studio v2, ale jejich migrace nebyla nikdy dokončena a nezůstala žádná starší data k převodu. Data zůstala beze změny. Než zkusíte cokoli jiného, tento adresář zálohujte, a pokud máte zálohu, obnovte ji.",
+  "dialog.legacy_upgrade.recovery_title": "Nedokončená migrace dat",
   "dialog.legacy_upgrade.retry": "Zkusit znovu",
   "dialog.legacy_upgrade.title": "Upgrade vyžaduje migraci dat",
   "dialog.mini_app_export": "Exportovat z {{name}}",

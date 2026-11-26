@@ -205,6 +205,8 @@
   "dialog.legacy_upgrade.preparing": "インストールを準備中…",
   "dialog.legacy_upgrade.prerequisite": "1.9.11 以前を使用していた場合、または以前のバージョンを判別できない場合は、まず 1.9.12 をインストールして起動してください。その後、{{version}} を起動してデータを移行してください。",
   "dialog.legacy_upgrade.quit": "終了",
+  "dialog.legacy_upgrade.recovery_detail": "データディレクトリ {{path}} にはすでに Cherry Studio v2 のデータが含まれていますが、移行が完了しておらず、変換可能な旧バージョンのデータも残っていません。データは変更されていません。他の操作を試す前にこのディレクトリをバックアップし、バックアップがある場合は復元してください。",
+  "dialog.legacy_upgrade.recovery_title": "データ移行が完了していません",
   "dialog.legacy_upgrade.retry": "再試行",
   "dialog.legacy_upgrade.title": "アップグレードにはデータ移行が必要です",
   "dialog.mini_app_export": "{{name}} から書き出す",

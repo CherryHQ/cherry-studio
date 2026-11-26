@@ -49,6 +49,23 @@ export async function runLegacyUpgradeGate(): Promise<'handled' | 'skipped'> {
     }
     await app.whenReady()
     const language = resolveSystemLanguage(app.getLocale())
+    if (profile.kind === 'recovery') {
+      logger.warn('Blocking startup for incomplete v2 migration without convertible legacy data', {
+        profile: profile.path
+      })
+      const title = t('dialog.legacy_upgrade.recovery_title', undefined, language)
+      await dialog.showMessageBox({
+        type: 'warning',
+        title,
+        message: title,
+        detail: t('dialog.legacy_upgrade.recovery_detail', { path: profile.path }, language),
+        buttons: [t('dialog.legacy_upgrade.quit', undefined, language)],
+        defaultId: 0,
+        cancelId: 0
+      })
+      application.quit()
+      return 'handled'
+    }
     const platform = {
       platform: process.platform,
       arch: process.arch,

@@ -205,6 +205,8 @@
   "dialog.legacy_upgrade.preparing": "설치 준비 중…",
   "dialog.legacy_upgrade.prerequisite": "1.9.11 이하 버전을 사용했거나 이전 버전을 확인할 수 없는 경우, 먼저 1.9.12를 설치하고 실행하세요. 그런 다음 {{version}} 버전을 실행하여 데이터를 마이그레이션하세요.",
   "dialog.legacy_upgrade.quit": "종료",
+  "dialog.legacy_upgrade.recovery_detail": "데이터 디렉터리 {{path}}에 이미 Cherry Studio v2 데이터가 있지만 마이그레이션이 완료되지 않았고 변환할 이전 버전 데이터도 남아 있지 않습니다. 데이터는 변경되지 않았습니다. 다른 작업을 시도하기 전에 이 디렉터리를 백업하고, 백업이 있다면 복원하세요.",
+  "dialog.legacy_upgrade.recovery_title": "완료되지 않은 데이터 마이그레이션",
   "dialog.legacy_upgrade.retry": "다시 시도",
   "dialog.legacy_upgrade.title": "업그레이드에 데이터 마이그레이션이 필요합니다",
   "dialog.mini_app_export": "{{name}}에서 내보내기",

@@ -205,6 +205,8 @@
   "dialog.legacy_upgrade.preparing": "Kurulum hazırlanıyor…",
   "dialog.legacy_upgrade.prerequisite": "1.9.11 veya daha eski bir sürüm kullanıyorsanız ya da önceki sürüm belirlenemiyorsa önce 1.9.12 sürümünü yükleyip başlatın. Ardından verilerinizi taşımak için {{version}} sürümünü başlatın.",
   "dialog.legacy_upgrade.quit": "Çıkış",
+  "dialog.legacy_upgrade.recovery_detail": "{{path}} veri dizini zaten Cherry Studio v2 verilerini içeriyor, ancak veri geçişi hiçbir zaman tamamlanmadı ve dönüştürülecek eski veri kalmadı. Verilere dokunulmadı. Başka bir işlem denemeden önce bu dizini yedekleyin ve varsa bir yedeği geri yükleyin.",
+  "dialog.legacy_upgrade.recovery_title": "Tamamlanmamış veri geçişi",
   "dialog.legacy_upgrade.retry": "Yeniden dene",
   "dialog.legacy_upgrade.title": "Yükseltme için veri geçişi gerekiyor",
   "dialog.mini_app_export": "{{name}} üzerinden dışa aktar",
