@@ -132,6 +132,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     lastTimelinePosition: () => 0,
     replaceMessageParts: mocks.replaceMessageParts,
     markAssistantMessageTerminalError: vi.fn(),
+    markUserMessageUnsent: vi.fn(),
     getSessionMessage: mocks.getSessionMessage,
     getStoredMessagePart: mocks.getStoredMessagePart,
     getStoredMessageParts: mocks.getStoredMessageParts,

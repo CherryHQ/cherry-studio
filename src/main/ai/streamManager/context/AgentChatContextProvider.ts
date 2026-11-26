@@ -34,6 +34,7 @@ import { validateEditedInput } from '../../agentSession/editInput'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'
+import { assertBusyModeBoundary } from './busyMode'
 import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
 
@@ -226,9 +227,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
     tx: DbOrTx,
     validated: ValidatedAgentDispatch,
     expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string },
-    intent: 'append' | 'edit' = 'append'
+    intent: 'append' | 'edit' | 'replace' = 'append'
   ): PersistedAgentDispatch {
-    if (intent === 'append') this.assertAppendable(validated, tx)
+    if (intent !== 'edit') this.assertAppendable(validated, tx)
     const assistantMessageId = uuidv7()
     const savedMessages = agentSessionMessageService.saveMessagesTx(
       tx,
@@ -239,7 +240,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           {
             id: validated.userMessageId,
             role: 'user',
-            status: 'success',
+            status: intent === 'replace' ? 'paused' : 'success',
             data: { parts: validated.userMessageParts }
           },
           {
@@ -372,6 +373,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     ctx?: DispatchContext,
     onPersist?: (tx: DbOrTx, messages: { assistantMessageId: string; userMessageId: string }) => void
   ): Promise<PreparedDispatch> {
+    assertBusyModeBoundary(req)
     const validated = await this.validateDispatch(req, authority)
     const runtime = application.get('AgentSessionRuntimeService')
     runtime.assertSessionWritable(validated.sessionId)
@@ -418,11 +420,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     await runtime.prepareBranch(validated.sessionId, validated.deliveryMessage?.id ?? validated.parentMessageId)
 
+    const explicitBusyMode = req.trigger === 'submit-message' ? req.busyMode : undefined
+
     // Ordinary interactive follow-ups still use the runtime FIFO. Durable cross-Session deliveries
     // are gated by AgentSessionDeliveryService and never enter this branch.
     if (application.get('AgentSessionRuntimeService').isSessionBusy(validated.sessionId)) {
       if (ctx?.requireIdle) {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
+      }
+      if (explicitBusyMode === 'interrupt') {
+        throw DataApiErrorFactory.invalidOperation('Interrupt busyMode requires AiStreamManager admission')
       }
       this.assertAppendable(validated)
       const savedUserMessage = agentSessionMessageService.saveMessage(
@@ -439,33 +446,68 @@ export class AgentChatContextProvider implements ChatContextProvider {
         { publishDataChange: true }
       )
 
-      application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
-        headless: validated.headless,
-        ...(validated.permissionModeOverride ? { permissionModeOverride: validated.permissionModeOverride } : {}),
-        trustedNotifyChannels: validated.trustedNotifyChannels,
-        messageSnapshot: validated.messageSnapshot,
-        reasoningEffort: validated.reasoningEffort,
-        serviceTier: validated.serviceTier,
-        fastMode: validated.fastMode,
-        followUp: req.trigger === 'submit-message' ? req.followUp : undefined
-      })
+      const busyDisposition = application
+        .get('AgentSessionRuntimeService')
+        .enqueueUserMessage(validated.sessionId, savedUserMessage, {
+          headless: validated.headless,
+          ...(validated.permissionModeOverride ? { permissionModeOverride: validated.permissionModeOverride } : {}),
+          trustedNotifyChannels: validated.trustedNotifyChannels,
+          messageSnapshot: validated.messageSnapshot,
+          reasoningEffort: validated.reasoningEffort,
+          serviceTier: validated.serviceTier,
+          fastMode: validated.fastMode,
+          followUp: req.trigger === 'submit-message' ? req.followUp : undefined,
+          busyMode: explicitBusyMode
+        })
 
       return {
         topicId: validated.topicId,
         models: [],
-        reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
+        reservedMessages: [
+          toReservedAgentUIMessage(
+            busyDisposition === 'queued-host' ? { ...savedUserMessage, status: 'paused' } : savedUserMessage
+          )
+        ],
+        ...(busyDisposition ? { busyDisposition } : {}),
         listeners: [subscriber]
       }
     }
 
+    const persisted = this.reserveDispatch(validated, { ctx, onPersist })
+    const prepared = this.activateDispatch(persisted, subscriber)
+    return explicitBusyMode ? { ...prepared, busyDisposition: 'started' } : prepared
+  }
+
+  /** Persist a validated Agent turn replacement durably before releasing or interrupting. */
+  reserveDispatch(
+    validated: ValidatedAgentDispatch,
+    {
+      ctx,
+      onPersist,
+      replacing
+    }: {
+      ctx?: DispatchContext
+      onPersist?: (tx: DbOrTx, messages: { assistantMessageId: string; userMessageId: string }) => void
+      replacing?: boolean
+    } = {}
+  ): PersistedAgentDispatch {
     const persisted = application.get('DbService').withWriteTx((tx) => {
       ctx?.beforePersist?.()
-      const reserved = this.persistDispatchTx(tx, validated, ctx?.expectedAgentId)
+      const reserved = this.persistDispatchTx(tx, validated, ctx?.expectedAgentId, replacing ? 'replace' : 'append')
       onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
       return reserved
     })
     this.notifyReservedMessages(persisted)
-    return this.activateDispatch(persisted, subscriber)
+    return persisted
+  }
+
+  /** Mark a reserved-but-unstarted interrupt replacement terminal/paused if Stop or activation fails. */
+  failReservedDispatch(persisted: PersistedAgentDispatch): void {
+    agentSessionMessageService.markAssistantMessageTerminalError(
+      persisted.validated.sessionId,
+      persisted.assistantMessageId,
+      persisted.userMessage.id
+    )
   }
 
   private notifyReservedMessages({ validated, savedMessages }: PersistedAgentDispatch): void {

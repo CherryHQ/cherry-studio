@@ -5001,9 +5001,9 @@ describe('AgentComposer', () => {
 
   // A dock item lives in window memory; Durable must receive the follow-up so it survives a crash.
   it.each([
-    { steer: false, followUp: true },
-    { steer: true, followUp: undefined }
-  ])('sends a busy Pi Durable message at once (steer: $steer)', async ({ steer, followUp }) => {
+    { steer: false, busyMode: 'queue' as const },
+    { steer: true, busyMode: 'steer' as const }
+  ])('sends a busy Pi Durable message at once with explicit busyMode (steer: $steer)', async ({ steer, busyMode }) => {
     render(
       <AgentComposer
         agentId="agent-1"
@@ -5021,7 +5021,210 @@ describe('AgentComposer', () => {
 
     expect(getQueueDock()).toBeFalsy()
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
-    expect(mocks.sendMessage.mock.calls[0][1].body.followUp).toBe(followUp)
+    expect(mocks.sendMessage.mock.calls[0][1].body.busyMode).toBe(busyMode)
+    expect(mocks.sendMessage.mock.calls[0][1].body.followUp).toBeUndefined()
+  })
+
+  it.each(['pi-durable', 'pi', 'claude-code'] as const)(
+    'shows the busy send mode selector for %s while streaming and hides it when idle, steerWhileBusy, or editing',
+    (runtimeType) => {
+      const renderComposer = (extra: Partial<TestComposerProps> = {}) =>
+        render(
+          <AgentComposer
+            agentId="agent-1"
+            sessionId="session-1"
+            sendMessage={mocks.sendMessage}
+            stop={mocks.stop}
+            isStreaming
+            resolvedAgent={{ ...createControlledAgent(), type: runtimeType }}
+            {...extra}
+          />
+        )
+
+      const view = renderComposer()
+      const accessory = within(screen.getByTestId('composer-send-accessory'))
+      expect(accessory.getByRole('button', { name: /^agent\.input\.busy_send_mode\.aria_label/ })).toHaveAttribute(
+        'data-busy-send-mode',
+        'queue'
+      )
+
+      view.rerender(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+          resolvedAgent={{ ...createControlledAgent(), type: runtimeType }}
+        />
+      )
+      expect(
+        within(screen.getByTestId('composer-send-accessory')).queryByRole('button', {
+          name: /^agent\.input\.busy_send_mode\.aria_label/
+        })
+      ).toBeNull()
+
+      view.rerender(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming
+          steerWhileBusy
+          resolvedAgent={{ ...createControlledAgent(), type: runtimeType }}
+        />
+      )
+      expect(
+        within(screen.getByTestId('composer-send-accessory')).queryByRole('button', {
+          name: /^agent\.input\.busy_send_mode\.aria_label/
+        })
+      ).toBeNull()
+
+      view.rerender(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming
+          launchOptions={{
+            initialDraft: { text: 'edit', tokens: [] },
+            editing: { messageId: 'm1', onCancel: vi.fn() }
+          }}
+          resolvedAgent={{ ...createControlledAgent(), type: runtimeType }}
+        />
+      )
+      expect(
+        within(screen.getByTestId('composer-send-accessory')).queryByRole('button', {
+          name: /^agent\.input\.busy_send_mode\.aria_label/
+        })
+      ).toBeNull()
+    }
+  )
+
+  it.each(['pi-durable', 'pi', 'claude-code'] as const)(
+    'sends explicit steer and interrupt modes from the visible selector for %s, lets steer shortcut override, and resets on interrupt/idle/session change',
+    async (runtimeType) => {
+      const user = userEvent.setup()
+      mocks.sendMessage.mockResolvedValue(true)
+
+      const view = render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming
+          resolvedAgent={{ ...createControlledAgent(), type: runtimeType }}
+        />
+      )
+
+      const trigger = () =>
+        within(screen.getByTestId('composer-send-accessory')).getByRole('button', {
+          name: /^agent\.input\.busy_send_mode\.aria_label/
+        })
+
+      // Switch to steer and send via ordinary Send/Enter.
+      await user.click(trigger())
+      await user.click(screen.getByRole('radio', { name: 'agent.input.busy_send_mode.steer.label' }))
+      expect(trigger()).toHaveAccessibleName(
+        'agent.input.busy_send_mode.aria_label (agent.input.busy_send_mode.steer.label)'
+      )
+
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: 'steer me', tokens: [] })
+      })
+      expect(mocks.sendMessage).toHaveBeenLastCalledWith(
+        { text: 'steer me' },
+        expect.objectContaining({
+          body: expect.objectContaining({ busyMode: 'steer' })
+        })
+      )
+      expect(mocks.sendMessage.mock.calls.at(-1)?.[1]?.body?.followUp).toBeUndefined()
+
+      // Switch to interrupt; dedicated steer shortcut still overrides it.
+      await user.click(trigger())
+      await user.click(screen.getByRole('radio', { name: 'agent.input.busy_send_mode.interrupt.label' }))
+      expect(trigger()).toHaveAccessibleName(
+        'agent.input.busy_send_mode.aria_label (agent.input.busy_send_mode.interrupt.label)'
+      )
+
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: 'override steer', tokens: [] }, { steer: true })
+      })
+      expect(mocks.sendMessage.mock.calls.at(-1)?.[1]?.body?.busyMode).toBe('steer')
+
+      // Ordinary send while interrupt is selected sends interrupt and resets selection to queue.
+      await act(async () => {
+        await mocks.surfaceProps?.onSendDraft({ text: 'interrupt now', tokens: [] })
+      })
+      expect(mocks.sendMessage.mock.calls.at(-1)?.[1]?.body?.busyMode).toBe('interrupt')
+      expect(trigger()).toHaveAttribute('data-busy-send-mode', 'queue')
+
+      // Selection also resets on session change and when becoming idle.
+      await user.click(trigger())
+      await user.click(screen.getByRole('radio', { name: 'agent.input.busy_send_mode.steer.label' }))
+      expect(trigger()).toHaveAccessibleName(
+        'agent.input.busy_send_mode.aria_label (agent.input.busy_send_mode.steer.label)'
+      )
+
+      view.rerender(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-2"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming
+          resolvedAgent={{ ...createControlledAgent(), type: runtimeType }}
+        />
+      )
+      expect(trigger()).toHaveAttribute('data-busy-send-mode', 'queue')
+
+      await user.click(trigger())
+      await user.click(screen.getByRole('radio', { name: 'agent.input.busy_send_mode.steer.label' }))
+      view.rerender(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-2"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+          resolvedAgent={{ ...createControlledAgent(), type: runtimeType }}
+        />
+      )
+      view.rerender(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-2"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming
+          resolvedAgent={{ ...createControlledAgent(), type: runtimeType }}
+        />
+      )
+      expect(trigger()).toHaveAttribute('data-busy-send-mode', 'queue')
+    }
+  )
+
+  it('surfaces host-queued fallback items in the existing dock even for non-nativeFollowUp runtimes', () => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.followups.agent-session:session-1', [
+      { id: 'host-1', revision: 0, source: 'host', parts: [{ type: 'text', text: 'Host queued item' }] }
+    ])
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+        resolvedAgent={{ ...createControlledAgent(), type: 'pi' }}
+      />
+    )
+
+    render(<>{mocks.surfaceProps?.queueContent}</>)
+    expect(screen.getByRole('button', { name: 'chat.input.followup_queue.title' })).toBeInTheDocument()
   })
 
   it('sends a follow-up immediately while background tasks remain after the foreground stream ends', async () => {

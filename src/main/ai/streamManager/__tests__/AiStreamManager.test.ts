@@ -91,6 +91,14 @@ class FakeListener implements StreamListener {
 
 const mockAbortPendingTurn = vi.fn<(sessionId: string, reason: string) => boolean>(() => false)
 const mockGetMessageById = vi.hoisted(() => vi.fn())
+const mockAssertSessionWritable = vi.hoisted(() => vi.fn())
+const mockPrepareBranch = vi.hoisted(() => vi.fn(async () => undefined))
+const mockGetInterruptibleTopicId = vi.hoisted(() => vi.fn<() => string | undefined>(() => undefined))
+const mockEnqueueUserMessage = vi.hoisted(() => vi.fn())
+const mockValidateDispatch = vi.hoisted(() => vi.fn())
+const mockReserveDispatch = vi.hoisted(() => vi.fn())
+const mockActivateDispatch = vi.hoisted(() => vi.fn())
+const mockFailReservedDispatch = vi.hoisted(() => vi.fn())
 
 // Real by default (steer continuations reach it through `dispatch()`); a test swaps it to observe admission.
 const mockDispatchStreamRequest = vi.hoisted(() => vi.fn())
@@ -99,6 +107,19 @@ vi.mock('../context/dispatch', async (importOriginal) => {
   mockDispatchStreamRequest.mockImplementation(actual.dispatchStreamRequest)
   return { ...actual, dispatchStreamRequest: mockDispatchStreamRequest }
 })
+
+vi.mock('../context/AgentChatContextProvider', () => ({
+  agentChatContextProvider: {
+    name: 'agent-session',
+    isPersistentConversation: true,
+    canHandle: (topicId: string) => topicId.startsWith('agent-session:'),
+    prepareDispatch: vi.fn(async () => ({ topicId: 'agent-session:session-1', models: [], listeners: [] })),
+    validateDispatch: mockValidateDispatch,
+    reserveDispatch: mockReserveDispatch,
+    activateDispatch: mockActivateDispatch,
+    failReservedDispatch: mockFailReservedDispatch
+  }
+}))
 
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
@@ -213,7 +234,12 @@ vi.mock('@application', async () => {
     AgentSessionRuntimeService: {
       willContinueTopic: mockWillContinueTopic,
       abortPendingTurn: mockAbortPendingTurn,
-      stopSession: mockStopSession
+      stopSession: mockStopSession,
+      assertSessionWritable: mockAssertSessionWritable,
+      prepareBranch: mockPrepareBranch,
+      getInterruptibleTopicId: mockGetInterruptibleTopicId,
+      isSessionBusy: () => false,
+      enqueueUserMessage: mockEnqueueUserMessage
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -341,6 +367,14 @@ describe('AiStreamManager', () => {
     mockWillContinueTopic.mockReturnValue(false)
     mockAbortPendingTurn.mockReturnValue(false)
     mockGetMessageById.mockReset()
+    mockAssertSessionWritable.mockReset()
+    mockPrepareBranch.mockReset().mockResolvedValue(undefined)
+    mockGetInterruptibleTopicId.mockReset().mockReturnValue(undefined)
+    mockEnqueueUserMessage.mockReset()
+    mockValidateDispatch.mockReset()
+    mockReserveDispatch.mockReset()
+    mockActivateDispatch.mockReset()
+    mockFailReservedDispatch.mockReset()
     sharedCacheStore.clear()
   })
 
@@ -2551,6 +2585,228 @@ describe('AiStreamManager', () => {
       await expect(stopping).resolves.toBeUndefined()
       await expect(nextTurn).resolves.toBeUndefined()
       expect(nextTurnAdmitted).toBe(true)
+    })
+  })
+
+  describe('busy interrupt dispatch', () => {
+    const topicId = 'agent-session:session-1'
+
+    function setupInterruptMocks() {
+      const validated = {
+        sessionId: 'session-1',
+        topicId,
+        agentId: 'agent-1',
+        parentMessageId: 'parent-1',
+        agentUpdatedAt: '2026-01-01T00:00:00.000Z',
+        agentType: 'pi-durable',
+        agentName: 'Agent',
+        agentDefaultModel: 'provider-a::model-a',
+        uniqueModelId: 'provider-a::model-a',
+        reasoningEffort: 'default',
+        serviceTier: 'standard',
+        headless: false,
+        messageSnapshot: { id: 'agent-1', name: 'Agent', emoji: '🤖' },
+        userMessageId: 'user-new',
+        userMessageParts: [{ type: 'text', text: 'interrupt now' }],
+        shouldAutoNameInitialTurn: false
+      }
+      const reservedMessages = [
+        { id: 'user-new', role: 'user', parts: [{ type: 'text', text: 'interrupt now' }] },
+        { id: 'assistant-new', role: 'assistant', parts: [] }
+      ]
+      const persisted = {
+        validated,
+        assistantMessageId: 'assistant-new',
+        traceId: 'trace-1',
+        userMessage: { id: 'user-new' },
+        savedMessages: []
+      }
+      mockValidateDispatch.mockResolvedValue(validated)
+      mockReserveDispatch.mockReturnValue(persisted)
+      mockActivateDispatch.mockImplementation((_persisted: unknown, sub: StreamListener) => ({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-new' }
+          }
+        ],
+        reservedMessages,
+        listeners: [sub]
+      }))
+      return { validated, persisted, reservedMessages }
+    }
+
+    it('persists replacement before held Stop settles, serializes competing admission, and activates without a second user row', async () => {
+      vi.useRealTimers()
+      ;(mgr as unknown as { markReconciled(): void }).markReconciled()
+      const events: string[] = []
+      const { persisted } = setupInterruptMocks()
+
+      mockReserveDispatch.mockImplementation(() => {
+        events.push('reserveDispatch')
+        return persisted
+      })
+      mockActivateDispatch.mockImplementation((_p: unknown, sub: StreamListener) => {
+        events.push('activateDispatch')
+        return {
+          topicId,
+          models: [{ modelId: 'provider-a::model-a', request: { ...req(topicId), messageId: 'assistant-new' } }],
+          reservedMessages: [
+            { id: 'user-new', role: 'user', parts: [{ type: 'text', text: 'interrupt now' }] },
+            { id: 'assistant-new', role: 'assistant', parts: [] }
+          ],
+          listeners: [sub]
+        }
+      })
+
+      let releaseStop!: () => void
+      mockStopSession.mockImplementationOnce(() => {
+        events.push('stopSession:start')
+        return new Promise<void>((resolve) => {
+          releaseStop = () => {
+            events.push('stopSession:end')
+            resolve()
+          }
+        })
+      })
+      mockGetInterruptibleTopicId.mockReturnValue(topicId)
+
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [new FakeListener('persistence:old', 'persistence')]
+      })
+
+      const subscriber = new FakeListener('wc:interrupt')
+      const interrupting = mgr.dispatch(subscriber, {
+        trigger: 'submit-message',
+        topicId,
+        userMessageParts: [{ type: 'text', text: 'interrupt now' }],
+        busyMode: 'interrupt'
+      } as never)
+
+      await flushUntil(() => events.includes('stopSession:start'))
+      // Replacement must already be persisted BEFORE Stop resolves, and never routed to enqueueUserMessage.
+      expect(events).toEqual(['reserveDispatch', 'stopSession:start'])
+      expect(mockReserveDispatch).toHaveBeenCalledTimes(1)
+      expect(mockEnqueueUserMessage).not.toHaveBeenCalled()
+      expect(mockActivateDispatch).not.toHaveBeenCalled()
+
+      // A competing lock holder (delivery/submit) cannot interleave while Stop is held.
+      let competingEntered = false
+      const competing = mgr.withDispatchLock(topicId, async () => {
+        competingEntered = true
+        events.push('competing')
+      })
+      await flushUntil(() => true)
+      expect(competingEntered).toBe(false)
+
+      releaseStop()
+      const ack = await interrupting
+      await competing
+
+      expect(events).toEqual([
+        'reserveDispatch',
+        'stopSession:start',
+        'stopSession:end',
+        'activateDispatch',
+        'competing'
+      ])
+      expect(mockActivateDispatch).toHaveBeenCalledTimes(1)
+      expect(ack).toMatchObject({
+        mode: 'started',
+        busyDisposition: 'interrupted',
+        activeExecutions: [expect.objectContaining({ anchorMessageId: 'assistant-new' })]
+      })
+    })
+
+    it('waits on the recovered topic lock and rechecks the target after a concurrent scoped Stop', async () => {
+      vi.useRealTimers()
+      ;(mgr as unknown as { markReconciled(): void }).markReconciled()
+      setupInterruptMocks()
+      const scopedTopicId = `${topicId}/context/recovered`
+      const stop = Promise.withResolvers<void>()
+      mockGetInterruptibleTopicId.mockReturnValue(scopedTopicId)
+      mockStopSession.mockImplementationOnce(async () => {
+        await stop.promise
+        mockGetInterruptibleTopicId.mockReturnValue(undefined)
+      })
+
+      const stopping = mgr.abortAndDrain(scopedTopicId, 'user-requested')
+      await flushUntil(() => mockStopSession.mock.calls.length === 1)
+      const replacing = mgr.dispatch(new FakeListener('wc:interrupt'), {
+        trigger: 'submit-message',
+        topicId,
+        userMessageParts: [{ type: 'text', text: 'after scoped Stop' }],
+        busyMode: 'interrupt'
+      } as never)
+      try {
+        await flushUntil(() => mockGetInterruptibleTopicId.mock.calls.length > 0)
+        expect(mockReserveDispatch).not.toHaveBeenCalled()
+        expect(mockStopSession).toHaveBeenCalledTimes(1)
+      } finally {
+        stop.resolve()
+      }
+      await stopping
+      await expect(replacing).resolves.toMatchObject({ busyDisposition: 'started' })
+      expect(mockStopSession).toHaveBeenCalledTimes(1)
+    })
+
+    it('starts directly with busyDisposition started when already idle without stopping anything', async () => {
+      vi.useRealTimers()
+      ;(mgr as unknown as { markReconciled(): void }).markReconciled()
+      setupInterruptMocks()
+      mockGetInterruptibleTopicId.mockReturnValue(undefined)
+
+      const ack = await mgr.dispatch(new FakeListener('wc:idle'), {
+        trigger: 'submit-message',
+        topicId,
+        userMessageParts: [{ type: 'text', text: 'idle interrupt' }],
+        busyMode: 'interrupt'
+      } as never)
+
+      expect(mockStopSession).not.toHaveBeenCalled()
+      expect(mockAbortPendingTurn).not.toHaveBeenCalled()
+      expect(mockReserveDispatch).toHaveBeenCalledTimes(1)
+      expect(mockActivateDispatch).toHaveBeenCalledTimes(1)
+      expect(ack).toMatchObject({ mode: 'started', busyDisposition: 'started' })
+    })
+
+    it('marks reserved replacement as failed/unsent before releasing lock if Stop fails, and rejects non-agent interrupts', async () => {
+      vi.useRealTimers()
+      ;(mgr as unknown as { markReconciled(): void }).markReconciled()
+      const { persisted } = setupInterruptMocks()
+      mockGetInterruptibleTopicId.mockReturnValue(topicId)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [new FakeListener('persistence:old', 'persistence')]
+      })
+      mockStopSession.mockRejectedValueOnce(new Error('stop failed'))
+
+      await expect(
+        mgr.dispatch(new FakeListener('wc:fail'), {
+          trigger: 'submit-message',
+          topicId,
+          userMessageParts: [{ type: 'text', text: 'will fail' }],
+          busyMode: 'interrupt'
+        } as never)
+      ).rejects.toThrow('stop failed')
+
+      expect(mockFailReservedDispatch).toHaveBeenCalledWith(persisted)
+      expect(mockActivateDispatch).not.toHaveBeenCalled()
+
+      await expect(
+        mgr.dispatch(new FakeListener('wc:chat'), {
+          trigger: 'submit-message',
+          topicId: 'chat-topic-1',
+          userMessageParts: [{ type: 'text', text: 'no interrupt on chat' }],
+          busyMode: 'interrupt'
+        } as never)
+      ).rejects.toThrow()
     })
   })
 

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-26-agent-busy-send-mode.md
+2026-11-26-agent-busy-send-mode.md: f38e6d87d874d512c2e999c30cee2ecb91c7be48
+2026-11-26-agent-busy-send-mode.zh.md: 17b7e87dcdbfc9c1ac31dd3586f487fdf5d5e1a0

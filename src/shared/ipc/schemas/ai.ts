@@ -8,16 +8,17 @@ import { agentImportSnapshotSchema, type AgentImportSnapshot } from '@shared/ai/
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
 import type { ProjectionNotification, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
 import { ProfileStarterModeSchema, ProfileStartersSchema } from '@shared/ai/profileStarters'
-import type {
-  AiStreamAttachResponse,
-  AiStreamOpenResponse,
-  AiToolApprovalRespondRequest,
-  AiToolApprovalRespondResponse,
-  AiToolResultRequest,
-  AiToolResultResponse,
-  StreamChunkPayload,
-  StreamDonePayload,
-  StreamErrorPayload
+import {
+  AGENT_BUSY_SEND_MODES,
+  type AiStreamAttachResponse,
+  type AiStreamOpenResponse,
+  type AiToolApprovalRespondRequest,
+  type AiToolApprovalRespondResponse,
+  type AiToolResultRequest,
+  type AiToolResultResponse,
+  type StreamChunkPayload,
+  type StreamDonePayload,
+  type StreamErrorPayload
 } from '@shared/ai/transport'
 import { AgentChannelDraftSchema } from '@shared/data/api/schemas/agentChannels'
 import {
@@ -203,7 +204,8 @@ const aiStreamRegenerateShape = {
   targetMode: z.never().optional(),
   reasoningEffort: ReasoningEffortOptionSchema.optional(),
   serviceTier: ServiceTierSelectionSchema.optional(),
-  fastMode: z.boolean().optional()
+  fastMode: z.boolean().optional(),
+  busyMode: z.never().optional()
 }
 
 const mentionedModelIdsSchema = z
@@ -342,18 +344,24 @@ export const aiRequestSchemas = {
         mentionedModelIds: mentionedModelIdsSchema
       }),
       z.union([
-        z.object({
-          trigger: z.literal('submit-message'),
-          parentAnchorId: z.string().optional(),
-          userMessageParts: z.array(z.custom<CherryMessagePart>()),
-          targetMode: z.enum(['active-path', 'reserved-branch']).optional(),
-          retryMessageId: z.never().optional(),
-          appendToLiveGroupMessageId: z.never().optional(),
-          reasoningEffort: ReasoningEffortOptionSchema.optional(),
-          serviceTier: ServiceTierSelectionSchema.optional(),
-          fastMode: z.boolean().optional(),
-          followUp: z.boolean().optional()
-        }),
+        z
+          .object({
+            trigger: z.literal('submit-message'),
+            parentAnchorId: z.string().optional(),
+            userMessageParts: z.array(z.custom<CherryMessagePart>()),
+            targetMode: z.enum(['active-path', 'reserved-branch']).optional(),
+            retryMessageId: z.never().optional(),
+            appendToLiveGroupMessageId: z.never().optional(),
+            reasoningEffort: ReasoningEffortOptionSchema.optional(),
+            serviceTier: ServiceTierSelectionSchema.optional(),
+            fastMode: z.boolean().optional(),
+            followUp: z.boolean().optional(),
+            busyMode: z.enum(AGENT_BUSY_SEND_MODES).optional()
+          })
+          .refine((value) => value.busyMode === undefined || value.followUp === undefined, {
+            message: 'busyMode and followUp cannot be combined',
+            path: ['busyMode']
+          }),
         z.object({
           ...aiStreamRegenerateShape,
           retryMessageId: z.string().min(1),

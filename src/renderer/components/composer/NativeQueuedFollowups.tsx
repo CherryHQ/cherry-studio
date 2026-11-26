@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
@@ -32,6 +32,12 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({ topic
       }),
     [queue]
   )
+  const nativeIds = useMemo(
+    () => new Set(queue?.filter(({ source }) => source !== 'host').map(({ id }) => id)),
+    [queue]
+  )
+  const isItemMutable = useCallback((item: { id: string }) => nativeIds.has(item.id), [nativeIds])
+  const nativeOrder = [...nativeIds]
 
   async function change(change: AgentSessionFollowupChange): Promise<boolean> {
     try {
@@ -49,22 +55,35 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({ topic
     <>
       <QueuedFollowupsDock
         items={items}
+        canReorder={nativeOrder.length > 0}
+        isItemReorderable={isItemMutable}
+        isItemEditable={isItemMutable}
+        isItemRemovable={isItemMutable}
         onEdit={(id) => {
           const item = queue?.find((candidate) => candidate.id === id)
-          if (item) setEdit({ item, text: readFollowupText(item.parts) })
+          if (item && item.source !== 'host') setEdit({ item, text: readFollowupText(item.parts) })
         }}
-        onRemove={(inputId) => void change({ type: 'withdraw', inputId })}
+        onRemove={(inputId) => {
+          const item = queue?.find((candidate) => candidate.id === inputId)
+          if (!item || item.source === 'host') return
+          void change({ type: 'withdraw', inputId })
+        }}
         onDragStart={() => {
-          dragOrder.current = items.map(({ id }) => id)
+          dragOrder.current = nativeOrder
         }}
         onReorder={(next) => {
           const before = dragOrder.current
           dragOrder.current = undefined
-          if (!before || before.length !== items.length || items.some(({ id }, index) => id !== before[index])) {
+          if (
+            !before ||
+            before.length !== nativeOrder.length ||
+            nativeOrder.some((id, index) => id !== before[index])
+          ) {
             toast.warning(t('chat.input.followup_queue.stale'))
             return
           }
-          void change({ type: 'reorder', before, after: next.map(({ id }) => id) })
+          const after = next.filter(isItemMutable).map(({ id }) => id)
+          if (after.some((id, index) => id !== before[index])) void change({ type: 'reorder', before, after })
         }}
       />
       {edit ? (

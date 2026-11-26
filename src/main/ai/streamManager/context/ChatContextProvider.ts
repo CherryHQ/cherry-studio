@@ -7,6 +7,7 @@
 
 import type { Span } from '@opentelemetry/api'
 
+import type { AgentBusySendDisposition } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -59,6 +60,8 @@ export interface PreparedDispatch {
   liveExecutionChange?: PreparedLiveExecutionChange
   /** Reservation intentionally did not move the topic's active node. */
   preserveActiveNode?: boolean
+  /** Authoritative busy-mode disposition resolved during agent admission. */
+  busyDisposition?: AgentBusySendDisposition
   /** Strategy for status broadcast, attach gating, cleanup. Omit → `chatLifecycle`. */
   lifecycle?: StreamLifecycle
 }

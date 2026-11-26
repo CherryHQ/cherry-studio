@@ -76,6 +76,52 @@ describe('ai.stream.open IPC schema', () => {
     ).toMatchObject({ followUp: true })
   })
 
+  it.each(['queue', 'steer', 'interrupt'] as const)(
+    'preserves explicit busyMode %s at the renderer-to-main boundary',
+    (busyMode) => {
+      expect(
+        openStream.parse({
+          trigger: 'submit-message',
+          topicId: 'agent-session:session-1',
+          userMessageParts: [{ type: 'text', text: 'busy send' }],
+          busyMode
+        })
+      ).toMatchObject({ busyMode })
+    }
+  )
+
+  it('rejects unknown busyMode values, combining busyMode with followUp, and busyMode on regenerate', () => {
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'agent-session:session-1',
+        userMessageParts: [{ type: 'text', text: 'bad mode' }],
+        busyMode: 'replace'
+      }).success
+    ).toBe(false)
+
+    for (const followUp of [true, false]) {
+      expect(
+        openStream.safeParse({
+          trigger: 'submit-message',
+          topicId: 'agent-session:session-1',
+          userMessageParts: [{ type: 'text', text: 'both fields' }],
+          busyMode: 'queue',
+          followUp
+        }).success
+      ).toBe(false)
+    }
+
+    expect(
+      openStream.safeParse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        busyMode: 'interrupt'
+      }).success
+    ).toBe(false)
+  })
+
   it('rejects an unknown target mode', () => {
     expect(
       openStream.safeParse({

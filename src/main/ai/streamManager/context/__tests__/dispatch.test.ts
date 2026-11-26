@@ -258,4 +258,53 @@ describe('dispatchStreamRequest — steer', () => {
     expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ liveExecutionChange: undefined }))
     expect(result).toMatchObject({ preserveActiveNode: false })
   })
+
+  it('forwards busyDisposition on successful agent responses and requires it for explicit busyMode requests', async () => {
+    mocks.agentCanHandle.mockReturnValue(true)
+    mocks.agentPrepare.mockResolvedValueOnce({
+      topicId: 'agent-session:s1',
+      models: [],
+      listeners: [],
+      busyDisposition: 'steered'
+    })
+    const manager = makeManager(true)
+
+    const okResult = await dispatchStreamRequest(manager, makeSubscriber(), {
+      ...chatReq('agent-session:s1'),
+      busyMode: 'steer'
+    } as MainDispatchRequest)
+    expect(okResult).toMatchObject({ mode: 'injected', busyDisposition: 'steered' })
+
+    mocks.agentPrepare.mockResolvedValueOnce({
+      topicId: 'agent-session:s1',
+      models: [],
+      listeners: []
+    })
+    await expect(
+      dispatchStreamRequest(manager, makeSubscriber(), {
+        ...chatReq('agent-session:s1'),
+        busyMode: 'queue'
+      } as MainDispatchRequest)
+    ).rejects.toThrow()
+  })
+
+  it('rejects busyMode on non-agent persistent and temporary chat topics', async () => {
+    const manager = makeManager(true)
+    await expect(
+      dispatchStreamRequest(manager, makeSubscriber(), {
+        ...chatReq('topic-1'),
+        busyMode: 'interrupt'
+      } as MainDispatchRequest)
+    ).rejects.toThrow()
+    expect(mocks.persistentPrepare).not.toHaveBeenCalled()
+
+    mocks.temporaryCanHandle.mockReturnValue(true)
+    await expect(
+      dispatchStreamRequest(manager, makeSubscriber(), {
+        ...chatReq('temporary-1'),
+        busyMode: 'steer'
+      } as MainDispatchRequest)
+    ).rejects.toThrow()
+    expect(mocks.temporaryPrepare).not.toHaveBeenCalled()
+  })
 })

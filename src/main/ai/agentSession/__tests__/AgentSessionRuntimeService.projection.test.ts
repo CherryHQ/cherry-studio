@@ -1,6 +1,6 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
 import { application } from '@application'
@@ -19,13 +19,15 @@ import { surfaceExitPlanModeInput } from '@main/ai/runtime/claudeCode/hooks'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeEvent, RuntimeMessageProjection } from '@main/ai/runtime/types'
-import type { StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManager'
+import { AiStreamManager, type StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManager'
+import { agentChatContextProvider } from '@main/ai/streamManager/context/AgentChatContextProvider'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import type { AgentPartChange, StreamDoneResult, StreamPausedResult } from '@main/ai/streamManager/types'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
+import { AGENT_SESSION_FOLLOWUPS_CACHE_KEY } from '@shared/ai/agentSessionFollowups'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { AsyncEventQueue } from '@shared/utils/async'
 
@@ -646,6 +648,7 @@ it('keeps a retained connection open on Stop and starts later input only after n
 
   await f.emit({ type: 'turn-complete', status: 'paused' })
   expect(f.service.isSessionBusy('root')).toBe(true)
+  expect(f.service.getInterruptibleTopicId('root')).toBeUndefined()
   expect(next).toBeUndefined()
   await f.emit({ type: 'stop-confirmed' })
 
@@ -1634,4 +1637,178 @@ it('persists a terminal compaction marker when closing and reopening during comp
       })
     })
   )
+})
+
+it('returns authoritative disposition and projects host-queued followups into the shared dock cache', async () => {
+  const f = await fixture(undefined, false, 'pi-durable')
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+
+  const steered = savedUser(f.reply.id, 'Steer now')
+  expect((f.service.enqueueUserMessage as any)('root', steered, { busyMode: 'steer' })).toBe('steered')
+  expect(f.connections.steers).toEqual([steered.id])
+
+  const queuedNative = savedUser(steered.id, 'Native queue')
+  expect((f.service.enqueueUserMessage as any)('root', queuedNative, { busyMode: 'queue' })).toBe('queued-native')
+  expect(f.connections.followUps).toEqual([queuedNative.id])
+
+  const cache = application.get('CacheService')
+  const hostQueued = savedUser(queuedNative.id, 'Host fallback queue')
+  expect(
+    (f.service.enqueueUserMessage as any)('root', hostQueued, {
+      busyMode: 'steer',
+      reasoningEffort: 'high'
+    })
+  ).toBe('queued-host')
+
+  const key = AGENT_SESSION_FOLLOWUPS_CACHE_KEY('agent-session:root')
+  expect(cache.getShared(key)).toEqual([
+    expect.objectContaining({
+      id: hostQueued.id,
+      revision: 0,
+      source: 'host',
+      parts: [{ type: 'text', text: 'Host fallback queue' }]
+    })
+  ])
+  expect(messages.getSessionMessage('root', hostQueued.id).status).toBe('paused')
+
+  await f.emit({ type: 'turn-complete' })
+  const firstDone: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  for (const listener of f.handle.listeners) await listener.onDone(firstDone)
+  expect(cache.getShared(key)).toEqual([])
+  expect(messages.getSessionMessage('root', hostQueued.id).status).toBe('paused')
+  prepareNativeSubmission('root', hostQueued.id, f.context.id, 'follow-up')
+  await f.emit({
+    type: 'input-state',
+    contextId: f.context.id,
+    input: { inputId: runtimeId(hostQueued.id), facts: ['placed'] }
+  })
+  expect(messages.getSessionMessage('root', hostQueued.id).status).toBe('success')
+})
+
+it('excludes editing and closing sessions from getInterruptibleTopicId while keeping runtime work interruptible', async () => {
+  const f = await fixture(undefined, false, 'pi')
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+
+  expect((f.service as any).getInterruptibleTopicId('root')).toBe('agent-session:root')
+
+  ;(f.service as any).forks.edits.set('root', {
+    operationId: 'edit-1',
+    controller: new AbortController(),
+    promise: Promise.resolve()
+  })
+  expect((f.service as any).getInterruptibleTopicId('root')).toBeUndefined()
+  ;(f.service as any).forks.edits.delete('root')
+
+  const entry = (f.service as any).entries.get('root')
+  entry.closing = true
+  expect((f.service as any).getInterruptibleTopicId('root')).toBeUndefined()
+  delete entry.closing
+})
+
+const interruptRequest = {
+  trigger: 'submit-message',
+  topicId: 'agent-session:root',
+  busyMode: 'interrupt',
+  userMessageParts: [{ type: 'text', text: 'Replacement prompt' }]
+} as const
+
+it('retains the Durable connection when dispatch replaces the running turn', async () => {
+  const stopEntered = Promise.withResolvers<void>()
+  const confirmStop = Promise.withResolvers<void>()
+  const f = await fixture(
+    async (emit) => {
+      stopEntered.resolve()
+      await confirmStop.promise
+      await emit({ type: 'stop-confirmed' })
+    },
+    true,
+    'pi-durable'
+  )
+  await vi.waitFor(() => expect(f.connections.sent).toHaveLength(1))
+  const manager = new AiStreamManager()
+  await manager['onInit']()
+  MockApplicationUtils.setService('AiStreamManager', manager)
+  MockApplicationUtils.setService('AgentSessionRuntimeService', f.service)
+  vi.spyOn(manager, 'send').mockReturnValueOnce({ mode: 'started', activeExecutions: [] })
+  const queued = savedUser(f.reply.id, 'Waiting host input')
+  expect(f.service.enqueueUserMessage('root', queued, { busyMode: 'queue', reasoningEffort: 'high' })).toBe(
+    'queued-host'
+  )
+
+  const replacing = manager.dispatch(f.handle.listeners[2], {
+    ...interruptRequest,
+    userMessageParts: [...interruptRequest.userMessageParts]
+  })
+  await Promise.race([stopEntered.promise, replacing])
+  try {
+    const paused: StreamPausedResult = {
+      status: 'paused',
+      isTopicDone: true,
+      finalMessage: (await f.done).finalMessage
+    }
+    await f.handle.listeners[0].onPaused(paused)
+    await f.handle.listeners[1].onPaused(paused)
+  } finally {
+    confirmStop.resolve()
+  }
+
+  await expect(replacing).resolves.toMatchObject({ busyDisposition: 'interrupted' })
+  expect(f.handle.abortController.signal.reason).toBe('user-requested')
+  expect(f.connections.closed).toBe(0)
+  expect(
+    application.get('CacheService').getShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(interruptRequest.topicId))
+  ).toEqual([])
+  expect(messages.getSessionMessage('root', queued.id).status).toBe('paused')
+})
+
+it('keeps a linked interrupt replacement unsent across recovery before native binding', async () => {
+  const f = await fixture(undefined, false, 'pi-durable')
+  await settleFirstTurn(f)
+  MockApplicationUtils.setService('AgentSessionRuntimeService', f.service)
+  const validated = await agentChatContextProvider.validateDispatch({
+    ...interruptRequest,
+    userMessageParts: [...interruptRequest.userMessageParts]
+  })
+  const reserved = agentChatContextProvider.reserveDispatch(validated, { replacing: true })
+  agentChatContextProvider.activateDispatch(reserved, f.handle.listeners[2])
+
+  expect(messages.replyTo('root', reserved.userMessage.id)?.id).toBe(reserved.assistantMessageId)
+  expect(messages.inputBinding('root', reserved.userMessage.id)).toBeUndefined()
+  expect(f.service.isSessionBusy('root')).toBe(true)
+  expect(f.service.getInterruptibleTopicId('root')).toBeUndefined()
+
+  const orphans = messages.findCrashOrphanedAssistantMessages(['pi'])
+  expect(orphans.map((row) => row.id)).toContain(reserved.assistantMessageId)
+
+  messages.resolveCrashOrphanedMessages(
+    orphans.map(({ id, data }) => ({ id, data })),
+    ['root']
+  )
+
+  expect(messages.getSessionMessage('root', reserved.assistantMessageId).status).toBe('error')
+  expect(messages.getSessionMessage('root', reserved.userMessage.id).status).toBe('paused')
+})
+
+it('rolls back assistant error if the paired user-row failure repair cannot commit', async () => {
+  const f = await fixture()
+  await settleFirstTurn(f)
+  const validated = await agentChatContextProvider.validateDispatch({
+    ...interruptRequest,
+    userMessageParts: [...interruptRequest.userMessageParts]
+  })
+  const reserved = agentChatContextProvider.reserveDispatch(validated)
+  dbh.db.run(sql`CREATE TEMP TRIGGER fail_unsent_repair
+    BEFORE UPDATE OF status ON agent_session_message
+    WHEN NEW.role = 'user' AND NEW.status = 'paused'
+    BEGIN SELECT RAISE(ABORT, 'unsent write failed'); END`)
+  try {
+    expect(() => agentChatContextProvider.failReservedDispatch(reserved)).toThrow()
+    expect(messages.getSessionMessage('root', reserved.assistantMessageId).status).toBe('pending')
+    expect(messages.getSessionMessage('root', reserved.userMessage.id).status).toBe('success')
+  } finally {
+    dbh.db.run(sql`DROP TRIGGER fail_unsent_repair`)
+  }
+  agentChatContextProvider.failReservedDispatch(reserved)
+  expect(messages.getSessionMessage('root', reserved.assistantMessageId).status).toBe('error')
+  expect(messages.getSessionMessage('root', reserved.userMessage.id).status).toBe('paused')
 })

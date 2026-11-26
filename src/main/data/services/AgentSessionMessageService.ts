@@ -798,18 +798,22 @@ export class AgentSessionMessageService {
     )
   }
 
-  markInputLocallyHandledTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string): void {
-    tx.update(sessionMessagesTable)
-      .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.locallyHandled', json('true'))` })
-      .where(
-        and(
-          eq(sessionMessagesTable.id, messageId),
-          eq(sessionMessagesTable.sessionId, sessionId),
-          eq(sessionMessagesTable.inputContextId, contextId),
-          sql`coalesce(json_extract(${sessionMessagesTable.data}, '$.locallyHandled'), 0) = 0`
+  markInputLocallyHandled(sessionId: string, messageId: string, contextId: string): void {
+    const changed = application.get('DbService').withWriteTx((tx) =>
+      tx
+        .update(sessionMessagesTable)
+        .set({ status: 'success', data: sql`json_set(${sessionMessagesTable.data}, '$.locallyHandled', json('true'))` })
+        .where(
+          and(
+            eq(sessionMessagesTable.id, messageId),
+            eq(sessionMessagesTable.sessionId, sessionId),
+            eq(sessionMessagesTable.inputContextId, contextId),
+            sql`coalesce(json_extract(${sessionMessagesTable.data}, '$.locallyHandled'), 0) = 0`
+          )
         )
-      )
-      .run()
+        .run()
+    )
+    if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
   }
 
   inputBinding(sessionId: string, messageId: string) {
@@ -934,7 +938,7 @@ export class AgentSessionMessageService {
       const placed = target.placedInputIds.filter((id) => ids.has(id))
       if (placed.length)
         tx.update(sessionMessagesTable)
-          .set({ data: sql`json_set(${sessionMessagesTable.data}, '$.nativePlaced', json('true'))` })
+          .set({ status: 'success', data: sql`json_set(${sessionMessagesTable.data}, '$.nativePlaced', json('true'))` })
           .where(and(eq(sessionMessagesTable.sessionId, sessionId), inArray(sessionMessagesTable.id, placed)))
           .run()
       const context = agentSessionContextService.context(contextId)
@@ -1023,11 +1027,20 @@ export class AgentSessionMessageService {
           root: { version: 3, sources: ranges, removed: [...removed] }
         })
       }
-      return { saved, lastPos }
+      return { saved, lastPos, placed }
     })
     if (!result) return false
     if (target.timeline) target.timeline.lastPos = result.lastPos
     this.publishSavedMessage(sessionId, result.saved, true)
+    if (result.placed.length)
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId },
+          entityIds: result.placed
+        }
+      ])
     return true
   }
 
@@ -1116,6 +1129,7 @@ export class AgentSessionMessageService {
         .update(sessionMessagesTable)
         .set({
           pos: sql`max(${after}, (SELECT last_pos FROM agent_session WHERE id = ${sessionId})) + 1`,
+          status: 'success',
           updatedAt: sessionMessagesTable.updatedAt
         })
         .where(
@@ -2433,9 +2447,9 @@ export class AgentSessionMessageService {
   }
 
   /** Best-effort terminalization after a live assistant persistence failure. */
-  markAssistantMessageTerminalError(sessionId: string, messageId: string): void {
+  markAssistantMessageTerminalError(sessionId: string, messageId: string, unsentUserMessageId?: string): void {
     const changed = application.get('DbService').withWriteTx((tx) => {
-      const result = tx
+      const assistant = tx
         .update(sessionMessagesTable)
         .set({ status: 'error', updatedAt: Date.now() })
         .where(
@@ -2447,9 +2461,11 @@ export class AgentSessionMessageService {
           )
         )
         .run()
-      return result
+      const user = unsentUserMessageId && this.markUserMessageUnsentTx(tx, sessionId, unsentUserMessageId)
+      return { assistant: assistant.changes > 0, user: Boolean(user) }
     })
-    if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
+    if (changed.assistant) this.publishDeliveryChange(sessionId, messageId, 'projection')
+    if (changed.user && unsentUserMessageId) this.publishDeliveryChange(sessionId, unsentUserMessageId, 'projection')
   }
 
   applyNativeFollowupEdit(
@@ -2482,28 +2498,33 @@ export class AgentSessionMessageService {
 
   /** A `paused` user message is one the runtime withdrew before the agent received it. */
   markUserMessageUnsent(sessionId: string, messageId: string, contextId?: string): void {
-    const changed = application.get('DbService').withWriteTx((tx) =>
-      tx
-        .update(sessionMessagesTable)
-        .set({ status: 'paused', updatedAt: Date.now() })
-        .where(
-          and(
-            eq(sessionMessagesTable.sessionId, sessionId),
-            eq(sessionMessagesTable.id, messageId),
-            eq(sessionMessagesTable.role, 'user'),
-            eq(sessionMessagesTable.status, 'success'),
-            contextId
-              ? and(
-                  eq(sessionMessagesTable.inputContextId, contextId),
-                  isNull(sessionMessagesTable.replyId),
-                  isNull(sessionMessagesTable.deliveryStatus)
-                )
-              : undefined
-          )
+    const changed = application
+      .get('DbService')
+      .withWriteTx((tx) => this.markUserMessageUnsentTx(tx, sessionId, messageId, contextId))
+    if (changed) this.publishDeliveryChange(sessionId, messageId, 'projection')
+  }
+
+  private markUserMessageUnsentTx(tx: DbOrTx, sessionId: string, messageId: string, contextId?: string): boolean {
+    const changed = tx
+      .update(sessionMessagesTable)
+      .set({ status: 'paused', updatedAt: Date.now() })
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.id, messageId),
+          eq(sessionMessagesTable.role, 'user'),
+          eq(sessionMessagesTable.status, 'success'),
+          contextId
+            ? and(
+                eq(sessionMessagesTable.inputContextId, contextId),
+                isNull(sessionMessagesTable.replyId),
+                isNull(sessionMessagesTable.deliveryStatus)
+              )
+            : undefined
         )
-        .run()
-    )
-    if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
+      )
+      .run()
+    return changed.changes > 0
   }
 
   private rowToEntity(

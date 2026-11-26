@@ -299,4 +299,26 @@ describe('QueuedFollowupsDock', () => {
     expect(container).not.toHaveTextContent(knowledgePrompt)
     expect(container).not.toHaveTextContent('kb-1')
   })
+
+  it('shows a drag affordance only on reorderable rows and hides actions on read-only rows', async () => {
+    const user = userEvent.setup()
+    const { container } = render(
+      <QueuedFollowupsDock
+        items={items}
+        isItemReorderable={(item) => item.id !== '1'}
+        isItemEditable={(item) => item.id !== '1'}
+        isItemRemovable={(item) => item.id !== '1'}
+        onEdit={vi.fn()}
+        onRemove={vi.fn()}
+        onReorder={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Queued (2)' }))
+    const handles = container.querySelectorAll('[data-dragging]')
+    expect(handles).toHaveLength(1)
+    expect(handles[0].parentElement).toHaveTextContent('second')
+    expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(1)
+  })
 })

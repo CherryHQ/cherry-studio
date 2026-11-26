@@ -17,6 +17,7 @@ import { isAgentSessionWorkspaceError } from '../../runtime/agentSessionWorkspac
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
 import { agentChatContextProvider } from './AgentChatContextProvider'
+import { assertBusyModeBoundary } from './busyMode'
 import type { ChatContextProvider } from './ChatContextProvider'
 import { persistentChatContextProvider } from './PersistentChatContextProvider'
 import { temporaryChatContextProvider } from './TemporaryChatContextProvider'
@@ -90,6 +91,7 @@ export async function dispatchStreamRequest(
   subscriber: StreamListener,
   req: MainDispatchRequest
 ): Promise<AiStreamOpenResponse> {
+  assertBusyModeBoundary(req)
   const provider = providers.find((p) => p.canHandle(req.topicId))
   if (!provider) {
     throw new Error(`No ChatContextProvider can handle topicId: ${req.topicId}`)
@@ -211,10 +213,15 @@ export async function dispatchStreamRequest(
     isPersistentConversation: provider.isPersistentConversation
   })
 
+  if (req.trigger === 'submit-message' && req.busyMode !== undefined && !prepared.busyDisposition) {
+    throw new Error(`Explicit busyMode '${req.busyMode}' did not produce a busyDisposition (topicId=${req.topicId})`)
+  }
+
   return {
     mode: result.mode,
     activeExecutions: result.activeExecutions.length > 0 ? result.activeExecutions : undefined,
     preserveActiveNode,
-    reservedMessages: prepared.reservedMessages
+    reservedMessages: prepared.reservedMessages,
+    ...(prepared.busyDisposition ? { busyDisposition: prepared.busyDisposition } : {})
   }
 }

@@ -52,7 +52,11 @@ import {
   type AgentSessionEditDraft,
   type AgentSessionEditTarget
 } from '@shared/ai/agentSessionEdit'
-import { AGENT_SESSION_FOLLOWUPS_CACHE_KEY, type AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
+import {
+  AGENT_SESSION_FOLLOWUPS_CACHE_KEY,
+  type AgentSessionFollowup,
+  type AgentSessionFollowupChange
+} from '@shared/ai/agentSessionFollowups'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
@@ -66,7 +70,7 @@ import {
 } from '@shared/ai/agentSessionTopic'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
-import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import type { AgentBusySendDisposition, AgentBusySendMode, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -357,6 +361,8 @@ type AgentSessionRuntimeEntry = {
   connectionGeneration?: string
   /** Pending product handoffs outlive the connection that attempted native admission. */
   pendingInputs?: Map<string, PendingNativeInput>
+  nativeFollowups?: AgentSessionFollowup[]
+  hasPublishedFollowups?: boolean
   lastResumeToken?: string
   branchHead?: string
   secondaryContextId?: string
@@ -783,13 +789,37 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private applyRuntimeStateEvent(entry: AgentSessionRuntimeEntry, event: RuntimeStateEvent): void {
     if (!this.isCurrentEntry(entry)) return
+    if (event.type === 'queue-turn') {
+      // A host-only queue can disappear before native placement, including on process exit.
+      agentSessionMessageService.markUserMessageUnsent(entry.sessionId, event.turn.message.id)
+    }
     const transition = transitionAgentSessionRuntime(entry.runtimeState, event)
     entry.runtimeState = transition.state
     if (this.runtimeStatus(entry) !== 'idle' || hasAgentSessionRuntimeBackgroundWork(entry.runtimeState))
       entry.prediction?.controller.abort()
     this.syncRuntimeActivity()
+    this.publishFollowupQueue(entry)
     for (const effect of transition.effects) this.applyRuntimeStateEffect(entry, effect)
     this.flushDeferredPlacements(entry)
+  }
+
+  private publishFollowupQueue(entry: AgentSessionRuntimeEntry): void {
+    const nativeItems = entry.nativeFollowups ?? []
+    const nativeIds = new Set(nativeItems.map((item) => item.id))
+    const hostItems: AgentSessionFollowup[] = []
+    for (const queued of entry.runtimeState.queue) {
+      if (nativeIds.has(queued.message.id)) continue
+      hostItems.push({
+        id: queued.message.id,
+        revision: 0,
+        parts: queued.message.data.parts ?? [],
+        source: 'host'
+      })
+    }
+    const merged = [...nativeItems, ...hostItems]
+    if (merged.length === 0 && !entry.hasPublishedFollowups && !this.currentConnection(entry)?.changeFollowups) return
+    application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), merged)
+    entry.hasPublishedFollowups = merged.length > 0
   }
 
   private flushDeferredPlacements(entry: AgentSessionRuntimeEntry): void {
@@ -1419,11 +1449,13 @@ export class AgentSessionRuntimeService extends BaseService {
       fastMode?: boolean
       /** Answer after the current work instead of steering it. */
       followUp?: boolean
+      /** Explicit busy-time routing mode ('queue' skips redirect and prefers queue admission). */
+      busyMode?: Exclude<AgentBusySendMode, 'interrupt'>
     } = {}
-  ): void {
+  ): AgentBusySendDisposition | undefined {
     this.assertSessionWritable(sessionId)
     const entry = this.entries.get(sessionId)
-    if (!entry || entry.pendingInputs?.has(message.id)) return
+    if (!entry || entry.pendingInputs?.has(message.id)) return undefined
 
     this.clearIdleTimer(entry)
     // Capture before redirect: the native placement hook can run synchronously.
@@ -1485,17 +1517,18 @@ export class AgentSessionRuntimeService extends BaseService {
       pending.delete(message.id)
       return false
     }
+    const preferQueue = opts.busyMode === 'queue' || opts.followUp === true
     if (
       interactive &&
-      !opts.followUp &&
+      !preferQueue &&
       entry.runtimeState.execution.kind === 'turn' &&
       entry.runtimeState.execution.reply.delivery.kind === 'open' &&
       this.isTurnLive(entry, turn) &&
       submitNatively(connection?.redirect?.bind(connection))
     )
-      return
+      return 'steered'
     // A runtime with native admission holds the message in its own queue, which survives a crash.
-    if (interactive && submitNatively(connection?.followUp?.bind(connection))) return
+    if (interactive && submitNatively(connection?.followUp?.bind(connection))) return 'queued-native'
 
     // No redirect-eligible open normal turn (or backend can't steer) → queue as the next turn,
     // wrapped in a steer system-reminder.
@@ -1514,6 +1547,7 @@ export class AgentSessionRuntimeService extends BaseService {
         ...(messageSnapshot ? { messageSnapshot } : {})
       }
     })
+    return 'queued-host'
   }
 
   markTurnTerminal(sessionId: string, status: AgentSessionRuntimeTerminalStatus, expectedTurnId?: string): void {
@@ -1724,6 +1758,21 @@ export class AgentSessionRuntimeService extends BaseService {
     const entry = this.entries.get(sessionId)
     if (!entry) return false
     return entry.closing === true || isAgentSessionRuntimeBusy(entry.runtimeState)
+  }
+
+  /** Look up the topic that owns a live reply eligible for replacement. */
+  getInterruptibleTopicId(sessionId: string, contextId?: string): string | undefined {
+    if (this.forks.edits.has(sessionId)) return undefined
+    const entry = this.entryForContext(sessionId, contextId)
+    if (!entry || entry.closing || entry.stopping) return undefined
+    if (contextId && entry.topicId !== buildAgentSessionTopicId(sessionId, contextId)) return undefined
+    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    if (!turn || turn.abortController.signal.aborted) return undefined
+    const reply = getAgentSessionRuntimeReply(entry.runtimeState, turn)
+    if (!reply || reply.terminal || reply.delivery.kind === 'failed' || reply.delivery.kind === 'settled')
+      return undefined
+    if (reply.admission !== 'admitted' && reply.delivery.kind !== 'open') return undefined
+    return entry.topicId
   }
 
   isSessionBusyForArchive(sessionId: string): boolean {
@@ -2828,7 +2877,8 @@ export class AgentSessionRuntimeService extends BaseService {
             pending.input.message.data.parts = parts
           }
         }
-        application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), event.queue)
+        entry.nativeFollowups = event.queue
+        this.publishFollowupQueue(entry)
         break
       case 'input-state':
         if (event.input.facts.includes('locally-handled'))
@@ -3490,13 +3540,14 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private resetConnectionRuntimeState(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (!this.isCurrentEntry(entry) || this.currentConnection(entry) !== connection) return
+    entry.nativeFollowups = []
     this.invalidateContextUsage(entry)
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'background', active: false })
     if (entry.runtimeState.execution.kind === 'autonomous-turn') {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-finished' })
     }
     const cache = application.get('CacheService')
-    if (connection.changeFollowups) cache.setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), [])
+    this.publishFollowupQueue(entry)
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
   }
@@ -4247,6 +4298,7 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
     this.closeConnection(entry, false)
+    entry.nativeFollowups = []
     this.applyRuntimeStateEvent(entry, { type: 'reset' })
     entry.stopping?.confirmed()
     delete entry.closing

@@ -57,8 +57,11 @@ bottom of this document — read them.
      fail-closed explicitly and say why in a comment. A runtime that needs
      provider endpoint config to drive the model must fail closed.
    - `nativeFollowUp` — true only when the connection implements `followUp()`. The composer then
-     sends a message typed while the agent works at once, with the follow-up intent, instead of
+     sends a message typed while the agent works at once, with queue intent, instead of
      holding it in its window-local follow-up dock.
+   - `busySendModes` — optional array (`['queue', 'steer', 'interrupt']`) enabling the
+     visible busy-time send-mode selector in `AgentComposer` independently of
+     `nativeFollowUp`. Keep `nativeFollowUp` strictly focused on queue mechanism selection.
    - `transport` — a unique tag stamped on every tool part by your stream
      adapter (`providerMetadata.cherry.transport`); the renderer uses it to
      route tool parts to the right card renderer.

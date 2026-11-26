@@ -65,3 +65,44 @@ it('rejects a drop computed from a queue changed in another window, and allows a
     change: { type: 'reorder', before: ['A', 'C', 'D', 'B'], after: ['C', 'D', 'A', 'B'] }
   })
 })
+
+it('renders host-queued fallback items read-only in the existing dock without native edit or remove actions', async () => {
+  await i18n.changeLanguage('en-US')
+  const user = userEvent.setup()
+  const topicId = 'agent-session:host-fallback'
+  cacheService.setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(topicId), [
+    { id: 'host-1', revision: 0, source: 'host', parts: [{ type: 'text', text: 'Fallback queued item' }] } as any
+  ])
+
+  render(<NativeQueuedFollowups topicId={topicId} />)
+
+  await user.click(screen.getByRole('button', { name: 'Queued (1)' }))
+  expect(screen.getByText('Fallback queued item')).toBeVisible()
+  expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+})
+
+it('sends a native-only reorder from a dock containing a host fallback', async () => {
+  const request = vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: true })
+  await i18n.changeLanguage('en-US')
+  const user = userEvent.setup()
+  const topicId = 'agent-session:mixed-queue'
+  cacheService.setShared(
+    AGENT_SESSION_FOLLOWUPS_CACHE_KEY(topicId),
+    ['A', 'B', 'C', 'host'].map((id) => ({
+      id,
+      revision: 0,
+      parts: [{ type: 'text', text: id }],
+      ...(id === 'host' && { source: 'host' })
+    }))
+  )
+  render(<NativeQueuedFollowups topicId={topicId} />)
+  await user.click(screen.getByRole('button', { name: 'Queued (4)' }))
+  await user.click(screen.getByRole('button', { name: 'Start drag' }))
+  await user.click(screen.getByRole('button', { name: 'Drop third' }))
+
+  expect(request).toHaveBeenCalledExactlyOnceWith('ai.agent.session.change_followups', {
+    topicId,
+    change: { type: 'reorder', before: ['A', 'B', 'C'], after: ['B', 'C', 'A'] }
+  })
+})

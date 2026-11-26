@@ -318,7 +318,7 @@ test.describe('Pi Durable turn authority in Electron', () => {
       await expect(chat.message('FIRST_PARTIAL')).toBeVisible()
 
       await chat.send('QUEUED_QUESTION')
-      await expect(chat.view.getByRole('button', { name: /^Queued \(/ })).toHaveCount(0)
+      await expect(chat.view.getByRole('button', { name: /^Queued \(1\)/ })).toBeVisible()
       await expect(chat.message('QUEUED_QUESTION')).toBeVisible()
       first.complete('FIRST_ANSWER')
       const queued = await route.next('QUEUED_QUESTION')
@@ -345,7 +345,7 @@ test.describe('Pi Durable turn authority in Electron', () => {
     }
   })
 
-  test('steers a running turn and continues in a new reply', async ({ mainWindow: page }, testInfo) => {
+  test('steers a running turn within the same reply', async ({ mainWindow: page }, testInfo) => {
     test.setTimeout(180_000)
     const server = await startMockChatServer()
     const route = routeRequests(server)
@@ -373,9 +373,8 @@ test.describe('Pi Durable turn authority in Electron', () => {
         )
         .toMatchObject([
           { role: 'user', text: has('STEER_SOURCE') },
-          { role: 'assistant', status: 'success', text: has('SOURCE_PARTIAL') },
-          { role: 'user', text: has('STEER_INPUT') },
-          { role: 'assistant', status: 'success', text: has('STEER_ANSWER') }
+          { role: 'assistant', status: 'success', text: expect.stringMatching(/SOURCE_PARTIAL[\s\S]*STEER_ANSWER/) },
+          { role: 'user', text: has('STEER_INPUT') }
         ])
       await expectNoErrorCard(page, session.sessionId)
       expect(route.unclaimed()).toEqual([])

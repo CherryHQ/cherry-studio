@@ -7,6 +7,7 @@ import { omit } from 'es-toolkit'
 import { application } from '@application'
 import { cloneObservationValue } from '@cherrystudio/agent-runtime'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
+import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
 import { logAiFailure } from '@main/ai/errorReporting'
@@ -54,6 +55,7 @@ import { KeyedMutex } from '@shared/utils/async'
 
 import type { AsInProcess } from '../AiService'
 import { applyTurnOutputAttributes } from '../observability'
+import { isAgentSessionWorkspaceError } from '../runtime/agentSessionWorkspace'
 import type {
   AiStreamRequest,
   ApprovalRequestedEvent,
@@ -63,6 +65,8 @@ import type {
 } from '../types'
 import { AiStreamAdmissionError, type LiveExecutionChangeAdmission, type LiveExecutionChangeIntent } from './admission'
 import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
+import { agentChatContextProvider, type ValidatedAgentDispatch } from './context/AgentChatContextProvider'
+import { assertBusyModeBoundary } from './context/busyMode'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
 import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
@@ -583,7 +587,7 @@ export class AiStreamManager extends BaseService {
           reason: 'paused' as const
         }
       }
-      const admission = dispatchStreamRequest(this, subscriber, req)
+      const admission = this.admitDispatchLocked(subscriber, req)
       this.inFlightDispatches.set(admission, req.topicId)
       try {
         return await admission
@@ -591,6 +595,110 @@ export class AiStreamManager extends BaseService {
         this.inFlightDispatches.delete(admission)
       }
     })
+  }
+
+  private async admitDispatchLocked(
+    subscriber: StreamListener,
+    req: MainDispatchRequest
+  ): Promise<AiStreamOpenResponse> {
+    assertBusyModeBoundary(req)
+    if (req.trigger === 'submit-message' && req.busyMode === 'interrupt') {
+      return this.dispatchInterruptAgentTurnLocked(subscriber, req)
+    }
+    return dispatchStreamRequest(this, subscriber, req)
+  }
+
+  private async dispatchInterruptAgentTurnLocked(
+    subscriber: StreamListener,
+    req: Extract<MainDispatchRequest, { trigger: 'submit-message' }>
+  ): Promise<AiStreamOpenResponse> {
+    const runtime = application.get('AgentSessionRuntimeService')
+    let validated
+    try {
+      validated = await agentChatContextProvider.validateDispatch(req)
+      runtime.assertSessionWritable(validated.sessionId)
+      await runtime.prepareBranch(validated.sessionId, validated.parentMessageId)
+    } catch (error) {
+      if (isAgentSessionWorkspaceError(error)) {
+        return {
+          mode: 'blocked',
+          reason: 'agent-session-workspace',
+          message: error.message
+        }
+      }
+      throw error
+    }
+
+    const contextId = extractAgentContextId(req.topicId)
+    const target = runtime.getInterruptibleTopicId(validated.sessionId, contextId)
+    const replaceTurn = async (lockedTopicId: string) => {
+      await this.whenTerminalDispatchSettled(lockedTopicId)
+      runtime.assertSessionWritable(validated.sessionId)
+      const interruptTargetTopicId = runtime.getInterruptibleTopicId(validated.sessionId, contextId)
+      if (
+        (interruptTargetTopicId && interruptTargetTopicId !== lockedTopicId) ||
+        (!interruptTargetTopicId && runtime.isSessionBusy(validated.sessionId))
+      ) {
+        throw new AgentSessionEditError('busy')
+      }
+      return this.replaceAgentTurnLocked(subscriber, req, validated, interruptTargetTopicId)
+    }
+
+    // A scoped request can only target itself. The only two-lock path goes from root to scoped.
+    if (!contextId && target && target !== req.topicId) {
+      return this.withDispatchLock(target, () => replaceTurn(target))
+    }
+    return replaceTurn(req.topicId)
+  }
+
+  private async replaceAgentTurnLocked(
+    subscriber: StreamListener,
+    req: Extract<MainDispatchRequest, { trigger: 'submit-message' }>,
+    validated: ValidatedAgentDispatch,
+    interruptTargetTopicId?: string
+  ): Promise<AiStreamOpenResponse> {
+    const persisted = agentChatContextProvider.reserveDispatch(validated, { replacing: !!interruptTargetTopicId })
+    let activated = false
+    try {
+      if (interruptTargetTopicId) {
+        await this.abortAndDrainLocked(interruptTargetTopicId, 'user-requested')
+        await this.whenTerminalDispatchSettled(interruptTargetTopicId)
+        if (interruptTargetTopicId !== req.topicId) {
+          await this.whenTerminalDispatchSettled(req.topicId)
+        }
+      }
+
+      const prepared = agentChatContextProvider.activateDispatch(persisted, subscriber)
+      activated = true
+      for (const model of prepared.models) {
+        model.request.interactionWindowId = req.interactionWindowId
+      }
+      const result = this.send({
+        topicId: prepared.topicId,
+        models: prepared.models,
+        listeners: prepared.listeners,
+        siblingsGroupId: prepared.siblingsGroupId,
+        liveExecutionChange: undefined,
+        lifecycle: prepared.lifecycle,
+        isPersistentConversation: agentChatContextProvider.isPersistentConversation
+      })
+
+      return {
+        mode: result.mode,
+        activeExecutions: result.activeExecutions.length > 0 ? result.activeExecutions : undefined,
+        preserveActiveNode: prepared.preserveActiveNode,
+        reservedMessages: prepared.reservedMessages,
+        busyDisposition: interruptTargetTopicId ? 'interrupted' : 'started'
+      }
+    } catch (error) {
+      if (activated) {
+        application
+          .get('AgentSessionRuntimeService')
+          .abortPendingTurn(validated.sessionId, 'interrupt_activation_failed', extractAgentContextId(req.topicId))
+      }
+      agentChatContextProvider.failReservedDispatch(persisted)
+      throw error
+    }
   }
 
   /**
@@ -1460,40 +1568,42 @@ export class AiStreamManager extends BaseService {
 
   /** Abort a user-visible topic and hold same-topic admission until its durable teardown settles. */
   async abortAndDrain(topicId: string, reason: string, beforeAbort?: () => void): Promise<void> {
-    await this.withDispatchLock(topicId, async () => {
-      beforeAbort?.()
-      const stream = this.activeStreams.get(topicId)
-      const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
-      const drainedLoops = new Set(loopPromises)
+    await this.withDispatchLock(topicId, () => this.abortAndDrainLocked(topicId, reason, beforeAbort))
+  }
 
-      this.abort(topicId, reason)
-      await Promise.allSettled(loopPromises)
+  private async abortAndDrainLocked(topicId: string, reason: string, beforeAbort?: () => void): Promise<void> {
+    beforeAbort?.()
+    const stream = this.activeStreams.get(topicId)
+    const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
+    const drainedLoops = new Set(loopPromises)
 
-      if (isAgentSessionTopic(topicId)) {
-        const runtimeClosing = application
-          .get('AgentSessionRuntimeService')
-          .stopSession(extractAgentSessionId(topicId), reason, extractAgentContextId(topicId))
-        const drainReplacementLoops = async (): Promise<void> => {
-          for (;;) {
-            const replacement = this.activeStreams.get(topicId)
-            const replacementLoops = replacement
-              ? [...replacement.executions.values()]
-                  .map((execution) => execution.loopPromise)
-                  .filter((loopPromise) => !drainedLoops.has(loopPromise))
-              : []
-            if (replacementLoops.length === 0) return
+    this.abort(topicId, reason)
+    await Promise.allSettled(loopPromises)
 
-            replacementLoops.forEach((loopPromise) => drainedLoops.add(loopPromise))
-            this.abort(topicId, reason)
-            await Promise.allSettled(replacementLoops)
-          }
+    if (isAgentSessionTopic(topicId)) {
+      const runtimeClosing = application
+        .get('AgentSessionRuntimeService')
+        .stopSession(extractAgentSessionId(topicId), reason, extractAgentContextId(topicId))
+      const drainReplacementLoops = async (): Promise<void> => {
+        for (;;) {
+          const replacement = this.activeStreams.get(topicId)
+          const replacementLoops = replacement
+            ? [...replacement.executions.values()]
+                .map((execution) => execution.loopPromise)
+                .filter((loopPromise) => !drainedLoops.has(loopPromise))
+            : []
+          if (replacementLoops.length === 0) return
+
+          replacementLoops.forEach((loopPromise) => drainedLoops.add(loopPromise))
+          this.abort(topicId, reason)
+          await Promise.allSettled(replacementLoops)
         }
-
-        await drainReplacementLoops()
-        await runtimeClosing
-        await drainReplacementLoops()
       }
-    })
+
+      await drainReplacementLoops()
+      await runtimeClosing
+      await drainReplacementLoops()
+    }
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────

@@ -25,6 +25,7 @@ import type * as ToastServiceModule from '@renderer/services/toast'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
 import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { AGENT_SESSION_CLOSING_CACHE_KEY } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_FOLLOWUPS_CACHE_KEY } from '@shared/ai/agentSessionFollowups'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { ActiveExecution, AiStreamOpenResponse } from '@shared/ai/transport'
@@ -55,6 +56,7 @@ const mocks = vi.hoisted(() => ({
   respondToolApproval: vi.fn(),
   invalidateMessages: vi.fn(),
   toastWarning: vi.fn(),
+  toastInfo: vi.fn(),
   autoReadUpdate: vi.fn(),
   autoReadConsume: vi.fn(async () => ({ status: 'started' })),
   autoReadEnabled: true
@@ -134,7 +136,7 @@ vi.mock('@cherrystudio/ui', async () => {
 
 vi.mock('@renderer/services/toast', async (importOriginal) => {
   const actual = await importOriginal<typeof ToastServiceModule>()
-  return { toast: { ...actual.toast, error: mocks.toastError, warning: mocks.toastWarning } }
+  return { toast: { ...actual.toast, error: mocks.toastError, warning: mocks.toastWarning, info: mocks.toastInfo } }
 })
 
 // <Activity> harness: tab switches hide/show the session UI without unmounting
@@ -214,6 +216,26 @@ function makeAskUserQuestionApproval(part = makeAskUserQuestionPart()) {
 describe('useAgentChatRuntimeState', () => {
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('exposes an unsent input for recovery only after it leaves the host dock', () => {
+    const message: CherryUIMessage = {
+      id: 'host-input',
+      role: 'user',
+      parts: [{ type: 'text', text: 'Queued fallback' }],
+      metadata: { status: 'paused' }
+    }
+    mocks.useAgentSessionParts.mockReturnValue({ ...mocks.useAgentSessionParts(), messages: [message] })
+    const key = AGENT_SESSION_FOLLOWUPS_CACHE_KEY('agent-session:session-1')
+    MockUseCacheUtils.setSharedCacheValue(key, [{ id: message.id, source: 'host', revision: 0, parts: message.parts }])
+    const { result, rerender } = renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+    expect(result.current.uiMessages[0]?.metadata?.status).toBe('pending')
+
+    MockUseCacheUtils.setSharedCacheValue(key, [])
+    rerender()
+    expect(result.current.uiMessages[0]?.metadata?.status).toBe('paused')
   })
 
   it('blocks edit entry while the session is closing even after the stream stops', async () => {
@@ -642,6 +664,7 @@ describe('useAgentChatRuntimeState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.toastError.mockReset()
+    mocks.toastInfo.mockReset()
     mocks.translate.mockReset().mockImplementation((key: string) => key)
     vi.spyOn(popup, 'confirm').mockResolvedValue(true)
     toast.closeAll()
@@ -776,6 +799,90 @@ describe('useAgentChatRuntimeState', () => {
       ).toBe(true)
     })
   })
+
+  it.each([
+    {
+      busyMode: 'steer' as const,
+      busyDisposition: 'steered',
+      expectedToast: 'agent.input.busy_send_feedback.steered'
+    },
+    {
+      busyMode: 'steer' as const,
+      busyDisposition: 'queued-native',
+      expectedToast: 'agent.input.busy_send_feedback.steer_fallback_queued'
+    },
+    {
+      busyMode: 'steer' as const,
+      busyDisposition: 'queued-host',
+      expectedToast: 'agent.input.busy_send_feedback.steer_fallback_queued'
+    },
+    {
+      busyMode: 'queue' as const,
+      busyDisposition: 'queued-host',
+      expectedToast: 'agent.input.busy_send_feedback.queued_host'
+    },
+    {
+      busyMode: 'queue' as const,
+      busyDisposition: 'queued-native',
+      expectedToast: undefined
+    },
+    {
+      busyMode: 'interrupt' as const,
+      busyDisposition: 'interrupted',
+      expectedToast: 'agent.input.busy_send_feedback.interrupted'
+    },
+    {
+      busyMode: 'interrupt' as const,
+      busyDisposition: 'started',
+      expectedToast: undefined
+    }
+  ])(
+    'forwards busyMode $busyMode without followUp and emits authoritative feedback for $busyDisposition',
+    async ({ busyMode, busyDisposition, expectedToast }) => {
+      const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+        '@renderer/hooks/useConversationTurnController'
+      )
+      mocks.controllerOptions.mockImplementation(useConversationTurnController)
+      mocks.streamOpen.mockImplementationOnce(async (request: { busyMode?: string; followUp?: boolean }) => {
+        expect(request.busyMode).toBe(busyMode)
+        expect(request.followUp).toBeUndefined()
+        return { mode: 'injected', busyDisposition, activeExecutions: [], reservedMessages: [] }
+      })
+      const { result } = renderHook(() =>
+        useAgentChatRuntimeState({
+          sessionId: 'session-1',
+          agentType: 'pi-durable',
+          sessionMessagesEnabled: true,
+          reservedMessages: []
+        })
+      )
+
+      await act(async () => {
+        expect(
+          await result.current.sendMessage(
+            { text: 'Busy input' },
+            {
+              body: {
+                agentId: 'agent-1',
+                sessionId: 'session-1',
+                userMessageParts: [{ type: 'text', text: 'Busy input' }],
+                busyMode
+              } as any
+            }
+          )
+        ).toBe(true)
+      })
+
+      if (expectedToast) {
+        expect(mocks.toastInfo).toHaveBeenCalledWith(expectedToast)
+      } else {
+        expect(mocks.toastInfo).not.toHaveBeenCalled()
+      }
+      if (busyDisposition !== 'steered') {
+        expect(mocks.toastInfo).not.toHaveBeenCalledWith('agent.input.busy_send_feedback.steered')
+      }
+    }
+  )
 
   it('reports a blocked stream open as not sent', async () => {
     mocks.sendTurn.mockResolvedValueOnce(false)

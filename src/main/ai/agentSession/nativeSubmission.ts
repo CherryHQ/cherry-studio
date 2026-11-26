@@ -40,9 +40,7 @@ export function prepareNativeSubmission(
 }
 
 export function markLocalInput(sessionId: string, contextId: string, inputId: string): void {
-  application
-    .get('DbService')
-    .withWriteTx((tx) => messages.markInputLocallyHandledTx(tx, sessionId, inputId, contextId))
+  messages.markInputLocallyHandled(sessionId, inputId, contextId)
 }
 
 /**

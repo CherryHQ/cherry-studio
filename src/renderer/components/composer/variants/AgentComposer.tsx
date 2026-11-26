@@ -80,7 +80,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { AGENT_BUSY_SEND_MODES, type AgentBusySendMode, type ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -103,6 +103,7 @@ import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedTok
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { getPathComparisonKey } from './agent/accessiblePath'
+import { AgentBusySendModeSelector } from './agent/AgentBusySendModeSelector'
 import {
   type AgentComposerControlsRenderer,
   type AgentComposerInputAdapter,
@@ -189,6 +190,7 @@ export interface AgentComposerSendBody {
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
   followUp?: boolean
+  busyMode?: AgentBusySendMode
 }
 
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
@@ -665,6 +667,18 @@ const AgentComposerInner = ({
   }, [usingSlash, requestCommands])
   const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
   const nativeFollowUp = !!agent && AGENT_RUNTIME_CAPABILITIES[agent.type].nativeFollowUp
+  const supportsBusySendModeSelection =
+    !!agent &&
+    AGENT_BUSY_SEND_MODES.every((mode) => AGENT_RUNTIME_CAPABILITIES[agent.type].busySendModes?.includes(mode))
+  const [busySendMode, setBusySendMode] = useState<AgentBusySendMode>('queue')
+  useEffect(() => {
+    setBusySendMode('queue')
+  }, [sessionId])
+  useEffect(() => {
+    if (!isStreaming) setBusySendMode('queue')
+  }, [isStreaming])
+  const showBusySendModeSelector =
+    isStreaming && supportsBusySendModeSelection && !steerWhileBusy && !launchOptions?.editing
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -1339,10 +1353,15 @@ const AgentComposerInner = ({
 
   const placeholderText = useMemo(() => {
     if (!isStreaming) return t('agent.input.placeholder')
-    return steerWhileBusy
-      ? t('agent.input.placeholder_steering')
-      : t('agent.input.placeholder_streaming', { sendKey: sendKeyLabel, steerKey: steerKeyLabel })
-  }, [isStreaming, sendKeyLabel, steerKeyLabel, steerWhileBusy, t])
+    if (steerWhileBusy) return t('agent.input.placeholder_steering')
+    if (showBusySendModeSelector && busySendMode === 'steer') {
+      return t('agent.input.placeholder_streaming_steer', { sendKey: sendKeyLabel })
+    }
+    if (showBusySendModeSelector && busySendMode === 'interrupt') {
+      return t('agent.input.placeholder_streaming_interrupt', { sendKey: sendKeyLabel })
+    }
+    return t('agent.input.placeholder_streaming', { sendKey: sendKeyLabel, steerKey: steerKeyLabel })
+  }, [busySendMode, isStreaming, sendKeyLabel, showBusySendModeSelector, steerKeyLabel, steerWhileBusy, t])
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null => {
@@ -1370,8 +1389,13 @@ const AgentComposerInner = ({
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, followUp = false) => {
+    async (
+      payload: ComposerQueuedMessagePayload,
+      optionsOrFollowUp: boolean | { followUp?: boolean; busyMode?: AgentBusySendMode } = false
+    ) => {
       if (sendDisabled) return false
+      const followUp = typeof optionsOrFollowUp === 'boolean' ? optionsOrFollowUp : optionsOrFollowUp.followUp === true
+      const busyMode = typeof optionsOrFollowUp === 'object' ? optionsOrFollowUp.busyMode : undefined
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const originals = launchOptions?.initialParts?.filter((part): part is FileUIPart => part.type === 'file') ?? []
@@ -1395,7 +1419,7 @@ const AgentComposerInner = ({
               reasoningEffort: payload.reasoningEffort,
               serviceTier: payload.serviceTier,
               ...(payload.fastMode ? { fastMode: true } : {}),
-              ...(followUp ? { followUp: true } : {})
+              ...(busyMode ? { busyMode } : followUp ? { followUp: true } : {})
             }
           }
         )
@@ -1578,11 +1602,46 @@ const AgentComposerInner = ({
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
-      // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
-      // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
-      // falls through to the direct send below, mirroring the dock's "insert" action.
-      // A runtime with a durable native queue receives the follow-up at once so it survives a crash.
-      const followUp = isStreaming && !options?.steer && !steerWhileBusy
+      if (!isStreaming || steerWhileBusy) {
+        directSendInFlightRef.current = true
+        setIsDirectSending(true)
+        try {
+          const sent = await sendQueuedPayload(payload)
+          if (sent) clearCurrentDraft()
+        } finally {
+          directSendInFlightRef.current = false
+          setIsDirectSending(false)
+        }
+        return
+      }
+
+      if (supportsBusySendModeSelection && !launchOptions?.editing) {
+        const effectiveBusyMode: AgentBusySendMode = options?.steer ? 'steer' : busySendMode
+        if (effectiveBusyMode === 'queue' && !nativeFollowUp) {
+          enqueueFollowup(draft, payload)
+          clearCurrentDraft()
+          return
+        }
+
+        directSendInFlightRef.current = true
+        setIsDirectSending(true)
+        try {
+          const sent = await sendQueuedPayload(payload, { busyMode: effectiveBusyMode })
+          if (sent) {
+            clearCurrentDraft()
+            if (effectiveBusyMode === 'interrupt') {
+              setBusySendMode('queue')
+            }
+          }
+        } finally {
+          directSendInFlightRef.current = false
+          setIsDirectSending(false)
+        }
+        return
+      }
+
+      // Fallback when busy send mode selection is unavailable (or while editing): keep follow-up semantics.
+      const followUp = !options?.steer
       if (followUp && !nativeFollowUp) {
         enqueueFollowup(draft, payload)
         clearCurrentDraft()
@@ -1601,14 +1660,17 @@ const AgentComposerInner = ({
     },
     [
       buildQueuedPayload,
+      busySendMode,
       clearCurrentDraft,
       enqueueFollowup,
       isStreaming,
+      launchOptions?.editing,
       model,
       nativeFollowUp,
       sendDisabled,
       sendQueuedPayload,
       steerWhileBusy,
+      supportsBusySendModeSelection,
       t,
       workspaceWarning
     ]
@@ -1750,6 +1812,13 @@ const AgentComposerInner = ({
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter) => (
     <>
+      {showBusySendModeSelector ? (
+        <AgentBusySendModeSelector
+          value={busySendMode}
+          onChange={setBusySendMode}
+          disabled={sendDisabled || isDirectSending}
+        />
+      ) : null}
       {model ? (
         <ModelSpeedControl
           model={model}
@@ -1828,9 +1897,7 @@ const AgentComposerInner = ({
                   description={compaction.error}
                 />
               )}
-              {nativeFollowUp && !launchOptions?.editing ? (
-                <NativeQueuedFollowups key={runtimeTopicId} topicId={runtimeTopicId} />
-              ) : null}
+              {!launchOptions?.editing ? <NativeQueuedFollowups key={runtimeTopicId} topicId={runtimeTopicId} /> : null}
               {queuedFollowups.length > 0 ? (
                 <QueuedFollowupsDock
                   items={queuedFollowups}

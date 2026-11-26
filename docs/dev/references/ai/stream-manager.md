@@ -764,7 +764,7 @@ turn completes — chaining earlier would let the approval response be swallowed
 the inject branch. If the continuation itself fails to launch, the topic is driven
 to a terminal `error` rather than sticking at `streaming`.
 
-Agent-session topics use a parallel, queue-based mechanism — never an interrupt.
+Agent-session steer uses a parallel, queue-based mechanism. Explicit busy-mode interrupt uses the user Stop path.
 A live follow-up is steered into the running turn via `connection.redirect()`
 (no abort). Native admission owns already dispatched inputs, including Claude
 inputs that cross a turn's end; the host does not resend them. Inputs that the
@@ -781,7 +781,7 @@ duplicated; the rest are stream-manager-specific.
 |---|---|---|---|
 | Submit (standard) | `ai.stream.open` | `dispatchStreamRequest` → `prepareDispatch` (persist user msg, reserve placeholders, build listeners + models) → `manager.send` → N × `runExecutionLoop` | `PersistenceListener.persistAssistant` → terminal projection; raw listeners receive `onDone`; chat lifecycle `scheduleCleanup(30 s)` |
 | Steering — chat resubmit | `ai.stream.open` on a live chat topic | provider persists the steer user row + `enqueuePendingSteer` → `pendingSteers`; `steerYield` stops the running turn cleanly; `onExecutionDone` chains a `steer-continuation` | prior turn persisted as **`success`**; the continuation answers the steer — see [Steering](#steering) |
-| Agent-session follow-up | `ai.stream.open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` (no abort) or queues on `runtimeState.queue`; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | steer folds into the current turn (rolled at a `steer-boundary`), else the next turn starts from `runtimeState.queue` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
+| Agent-session follow-up / busy mode | `ai.stream.open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` steers via `connection.redirect()` or queues via `connection.followUp()` / `runtimeState.queue`. An explicit interrupt reserves the replacement before draining Stop under the target topic's lock. | Steer can join the live Run (`steer-boundary`), queues start a later turn (`queued-native` / `queued-host`), and interrupt starts the reserved replacement (`interrupted`). [Agent Session Runtime](./agent-session-runtime.md#follow-up-admission) |
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `ai.tool.respond_approval`; a live agent runtime resolves its registry entry, while MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
 | Desktop reconnect | `ai.projection.attach` on mount | Register a window-scoped subscription and return the current message baseline; subsequent revisions arrive through `ai.projection.changed` | live messages resume; a committed reply yields to its history row; attach never changes runtime state |
 | Raw-stream reconnect | `ai.stream.attach` | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | bounded raw replay or terminal result for consumers that still require chunks |
@@ -822,7 +822,7 @@ chunks-only prompt stream with no message target. See
 
 | Channel | Payload | Response | Semantics |
 |---|---|---|---|
-| `ai.stream.open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, preserveActiveNode? }` | Open / inject; provider routes by topicId |
+| `ai.stream.open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, preserveActiveNode?, busyDisposition? }` | Open / inject / busy interrupt; provider routes by topicId |
 | `ai.projection.attach` | `{ target, subscriptionId }` | message baseline or `null` | Subscribe to a desktop topic or child view |
 | `ai.projection.detach` | `{ target, subscriptionId }` | void | Release a desktop delivery subscription (execution continues) |
 | `ai.stream.attach` | `{ topicId }` | `AiStreamAttachResponse` | Raw-stream consumers: subscribe and receive compact replay when streaming |

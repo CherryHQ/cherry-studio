@@ -1,6 +1,7 @@
 import { claudeUserFacingTools } from '@shared/ai/claudecode/toolRegistry'
 import { PI_BUILTIN_TOOLS, PI_TOOL_RECALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
+import { AGENT_BUSY_SEND_MODES, type AgentBusySendMode } from '@shared/ai/transport'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { AgentType } from '@shared/data/types/agent'
@@ -31,6 +32,8 @@ export interface AgentRuntimeCapabilities {
   /** Input sent while the agent works waits in the runtime's own durable queue, so the composer
    *  sends it at once instead of holding it in the follow-up dock. */
   nativeFollowUp: boolean
+  /** Busy-time user send modes exposed in the Agent composer selector. */
+  busySendModes?: readonly AgentBusySendMode[]
   createDefaults: { permissionMode: AgentPermissionMode }
   /** Extra restriction on top of the base agent-friendly filter; null = none. `provider` is
    *  undefined for orphan models — each runtime decides fail-open vs fail-closed there. */
@@ -86,6 +89,7 @@ const PI_CAPABILITIES = {
   claudeRegistryTools: false,
   slashCommands: PI_BUILTIN_COMMANDS,
   nativeFollowUp: false,
+  busySendModes: AGENT_BUSY_SEND_MODES,
   createDefaults: { permissionMode: 'auto' },
   // Orphan models are rejected (pre-descriptor behavior): pi needs the provider's endpoint
   // config to resolve a wire protocol, so no provider ⇒ not drivable. The managed CherryAI
@@ -119,6 +123,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     claudeRegistryTools: true,
     slashCommands: CLAUDE_CODE_BUILTIN_COMMANDS,
     nativeFollowUp: false,
+    busySendModes: AGENT_BUSY_SEND_MODES,
     createDefaults: { permissionMode: 'auto' },
     // Claude Code reaches non-native providers through the local API Gateway, so its picker must use
     // the same routability rule as the gateway model catalog.

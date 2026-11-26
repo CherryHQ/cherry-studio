@@ -600,4 +600,55 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(mocks.saveMessagesTx).not.toHaveBeenCalled()
   })
+
+  it('forwards explicit busyMode without followUp and returns runtime disposition on busy submit', async () => {
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+    mocks.runtimeEnqueueUserMessage.mockReturnValueOnce('steered').mockReturnValueOnce('queued-native')
+
+    const steered = await provider.prepareDispatch(makeSubscriber(), openReq({ busyMode: 'steer' } as any))
+    expect(mocks.runtimeEnqueueUserMessage).toHaveBeenNthCalledWith(
+      1,
+      'session-1',
+      expect.anything(),
+      expect.objectContaining({ busyMode: 'steer', followUp: undefined })
+    )
+    expect((steered as any).busyDisposition).toBe('steered')
+
+    const queued = await provider.prepareDispatch(makeSubscriber(), openReq({ busyMode: 'queue' } as any))
+    expect(mocks.runtimeEnqueueUserMessage).toHaveBeenNthCalledWith(
+      2,
+      'session-1',
+      expect.anything(),
+      expect.objectContaining({ busyMode: 'queue', followUp: undefined })
+    )
+    expect((queued as any).busyDisposition).toBe('queued-native')
+  })
+
+  it('returns started when explicit busyMode arrives on an idle session', async () => {
+    mocks.runtimeIsSessionBusy.mockReturnValue(false)
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq({ busyMode: 'queue' } as any))
+    expect((prepared as any).busyDisposition).toBe('started')
+  })
+
+  it('rejects combining busyMode with followUp, headless, delivery, or edit requests', async () => {
+    await expect(
+      provider.prepareDispatch(makeSubscriber(), openReq({ busyMode: 'queue', followUp: true } as any))
+    ).rejects.toThrow()
+    await expect(
+      provider.prepareDispatch(makeSubscriber(), openReq({ busyMode: 'steer', headless: true } as any))
+    ).rejects.toThrow()
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        openReq({ busyMode: 'interrupt', agentDeliveryMessage: { id: 'd1' } } as any)
+      )
+    ).rejects.toThrow()
+    await expect(
+      provider.prepareDispatch(makeSubscriber(), {
+        ...openReq({ busyMode: 'interrupt' } as any),
+        trigger: 'edit-agent-message',
+        editTarget: { messageId: 'm1', version: 'v1' }
+      } as MainDispatchRequest)
+    ).rejects.toThrow()
+  })
 })

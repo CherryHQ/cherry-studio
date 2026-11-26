@@ -7,6 +7,7 @@ export interface AgentSessionFollowup {
   id: string
   revision: number
   parts: CherryMessagePart[]
+  source?: 'native' | 'host'
 }
 
 export type AgentSessionFollowupChange =

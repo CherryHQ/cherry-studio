@@ -68,8 +68,18 @@ vi.mock('@main/services/TopicNamingService', () => ({
 
 // `startAgentSessionRun`'s quiesce gate must throw BEFORE prepareDispatch writes rows.
 const prepareDispatchMock = vi.fn()
+const validateDispatchMock = vi.fn()
+const reserveDispatchMock = vi.fn()
+const activateDispatchMock = vi.fn()
+const failReservedDispatchMock = vi.fn()
 vi.mock('../context/AgentChatContextProvider', () => ({
-  agentChatContextProvider: { prepareDispatch: prepareDispatchMock }
+  agentChatContextProvider: {
+    prepareDispatch: prepareDispatchMock,
+    validateDispatch: validateDispatchMock,
+    reserveDispatch: reserveDispatchMock,
+    activateDispatch: activateDispatchMock,
+    failReservedDispatch: failReservedDispatchMock
+  }
 }))
 
 const { AiStreamManager } = await import('../AiStreamManager')
@@ -180,6 +190,10 @@ function seedFakeStream(
 describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
   let mgr: ManagerInstance
 
+  const stopSessionMock = vi.fn(async () => undefined)
+  const abortPendingTurnMock = vi.fn(() => false)
+  const getInterruptibleTopicIdMock = vi.fn<() => string | undefined>(() => undefined)
+
   beforeEach(async () => {
     vi.clearAllMocks()
     dispatchResolvers.length = 0
@@ -189,6 +203,17 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     // `startAgentSessionRun` resolves the manager via the container.
     ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
       if (name === 'AiStreamManager') return mgr
+      if (name === 'AgentSessionRuntimeService') {
+        return {
+          assertSessionWritable: vi.fn(),
+          prepareBranch: vi.fn(async () => undefined),
+          getInterruptibleTopicId: getInterruptibleTopicIdMock,
+          isSessionBusy: () => false,
+          stopSession: stopSessionMock,
+          abortPendingTurn: abortPendingTurnMock,
+          willContinueTopic: () => false
+        }
+      }
       throw new Error(`AiStreamManager.pause.test: unexpected application.get('${name}')`)
     })
     // onInit resolves the reconcile gate `dispatch` awaits.
@@ -332,6 +357,77 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
       streamLoop.resolve()
       await expect(drain.promise).resolves.toEqual({ stragglerIds: [] })
       await expect(dispatch.promise).resolves.toEqual({ mode: 'started' })
+
+      hold.dispose()
+    })
+
+    it('waits for an admitted busy interrupt dispatch through held Stop and replacement handoff', async () => {
+      const oldLoop = makeDeferred()
+      seedFakeStream(mgr, 'agent-session:s1', {
+        listenerKey: 'persistence:old',
+        loopPromise: oldLoop.promise
+      })
+      const stopDeferred = makeDeferred()
+      const replacementLoop = makeDeferred()
+      getInterruptibleTopicIdMock.mockReturnValue('agent-session:s1')
+      stopSessionMock.mockImplementationOnce(async () => {
+        await stopDeferred.promise
+      })
+      validateDispatchMock.mockResolvedValueOnce({
+        sessionId: 's1',
+        topicId: 'agent-session:s1',
+        parentMessageId: 'parent-1'
+      })
+      reserveDispatchMock.mockReturnValueOnce({
+        validated: { sessionId: 's1', topicId: 'agent-session:s1' },
+        assistantMessageId: 'assistant-next',
+        userMessage: { id: 'user-next' },
+        savedMessages: []
+      })
+      activateDispatchMock.mockImplementationOnce(() => ({
+        topicId: 'agent-session:s1',
+        models: [],
+        listeners: [],
+        reservedMessages: []
+      }))
+      vi.spyOn(mgr, 'send').mockImplementationOnce(() => {
+        seedFakeStream(mgr, 'agent-session:s1', {
+          listenerKey: 'persistence:new',
+          loopPromise: replacementLoop.promise
+        })
+        return { mode: 'started', activeExecutions: [] }
+      })
+
+      const dispatch = trackSettled(
+        mgr.dispatch(fakeSubscriber, {
+          trigger: 'submit-message',
+          topicId: 'agent-session:s1',
+          userMessageParts: [],
+          busyMode: 'interrupt'
+        } as never)
+      )
+      await flush()
+      expect(reserveDispatchMock).toHaveBeenCalledOnce()
+      expect(internals(mgr).inFlightDispatches.size).toBe(1)
+
+      const hold = mgr.pause('test: interrupt drain')
+      const drain = trackSettled(mgr.drainInFlight({ timeoutMs: 5000 }))
+      await flush()
+      expect(drain.isSettled()).toBe(false)
+
+      oldLoop.resolve()
+      await flush()
+      expect(stopSessionMock).toHaveBeenCalledOnce()
+      expect(drain.isSettled()).toBe(false)
+
+      stopDeferred.resolve()
+      await flush()
+      expect(dispatch.isSettled()).toBe(true)
+      expect(drain.isSettled()).toBe(false)
+
+      replacementLoop.resolve()
+      await expect(drain.promise).resolves.toEqual({ stragglerIds: [] })
+      await expect(dispatch.promise).resolves.toMatchObject({ mode: 'started', busyDisposition: 'interrupted' })
 
       hold.dispose()
     })

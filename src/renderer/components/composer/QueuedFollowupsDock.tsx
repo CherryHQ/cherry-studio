@@ -26,6 +26,10 @@ interface QueuedFollowupsDockProps {
   onDragStart?: () => void
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
   steerDisabledReason?: string
+  canReorder?: boolean
+  isItemReorderable?: (item: FollowupQueueItem) => boolean
+  isItemEditable?: (item: FollowupQueueItem) => boolean
+  isItemRemovable?: (item: FollowupQueueItem) => boolean
 }
 
 /** Read-only chips for a queued draft's composer tokens (file / skill / knowledge / quote …). */
@@ -60,7 +64,10 @@ function QueuedFollowupRow({
   onEdit,
   onRemove,
   isSteerDisabled,
-  steerDisabledReason
+  steerDisabledReason,
+  canReorder = true,
+  canEdit = true,
+  canRemove = true
 }: {
   item: FollowupQueueItem
   dragging: boolean
@@ -69,6 +76,9 @@ function QueuedFollowupRow({
   onRemove: (id: string) => void
   isSteerDisabled?: (item: FollowupQueueItem) => boolean
   steerDisabledReason?: string
+  canReorder?: boolean
+  canEdit?: boolean
+  canRemove?: boolean
 }) {
   const { t } = useTranslation()
   const previewText = item.draft
@@ -78,60 +88,68 @@ function QueuedFollowupRow({
 
   return (
     <div className="group flex items-center gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5">
-      <span
-        aria-hidden
-        data-dragging={dragging ? 'true' : 'false'}
-        className="text-muted-foreground flex shrink-0 cursor-grab items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-[dragging=true]:opacity-100">
-        <GripVertical className="size-4" />
-      </span>
+      {canReorder ? (
+        <span
+          aria-hidden
+          data-dragging={dragging ? 'true' : 'false'}
+          className="text-muted-foreground flex shrink-0 cursor-grab items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-[dragging=true]:opacity-100">
+          <GripVertical className="size-4" />
+        </span>
+      ) : null}
       <div className="min-w-0 flex-1">
         {previewText ? <span className="line-clamp-2 text-sm text-foreground">{previewText}</span> : null}
         <DraftTokenChips item={item} hasText={Boolean(previewText)} />
       </div>
-      <div className="text-muted-foreground flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-        {onSteer ? (
-          <Tooltip
-            placement="top"
-            content={
-              steerDisabled
-                ? (steerDisabledReason ?? t('chat.input.followup_queue.steer'))
-                : t('chat.input.followup_queue.steer')
-            }>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-7 shadow-none"
-              aria-label={t('chat.input.followup_queue.steer')}
-              disabled={steerDisabled}
-              onClick={() => onSteer(item.id)}>
-              <ArrowUp className="size-4" />
-            </Button>
-          </Tooltip>
-        ) : null}
-        <Tooltip placement="top" content={t('chat.input.followup_queue.edit')}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-7 shadow-none text-muted-foreground"
-            aria-label={t('chat.input.followup_queue.edit')}
-            onClick={() => onEdit(item.id)}>
-            <Pencil className="size-4" />
-          </Button>
-        </Tooltip>
-        <Tooltip placement="top" content={t('chat.input.followup_queue.remove')}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="size-7 shadow-none text-muted-foreground"
-            aria-label={t('chat.input.followup_queue.remove')}
-            onClick={() => onRemove(item.id)}>
-            <X className="size-4" />
-          </Button>
-        </Tooltip>
-      </div>
+      {onSteer || canEdit || canRemove ? (
+        <div className="text-muted-foreground flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          {onSteer ? (
+            <Tooltip
+              placement="top"
+              content={
+                steerDisabled
+                  ? (steerDisabledReason ?? t('chat.input.followup_queue.steer'))
+                  : t('chat.input.followup_queue.steer')
+              }>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-7 shadow-none"
+                aria-label={t('chat.input.followup_queue.steer')}
+                disabled={steerDisabled}
+                onClick={() => onSteer(item.id)}>
+                <ArrowUp className="size-4" />
+              </Button>
+            </Tooltip>
+          ) : null}
+          {canEdit ? (
+            <Tooltip placement="top" content={t('chat.input.followup_queue.edit')}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-7 shadow-none text-muted-foreground"
+                aria-label={t('chat.input.followup_queue.edit')}
+                onClick={() => onEdit(item.id)}>
+                <Pencil className="size-4" />
+              </Button>
+            </Tooltip>
+          ) : null}
+          {canRemove ? (
+            <Tooltip placement="top" content={t('chat.input.followup_queue.remove')}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-7 shadow-none text-muted-foreground"
+                aria-label={t('chat.input.followup_queue.remove')}
+                onClick={() => onRemove(item.id)}>
+                <X className="size-4" />
+              </Button>
+            </Tooltip>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -150,7 +168,11 @@ export function QueuedFollowupsDock({
   onReorder,
   onDragStart,
   isSteerDisabled,
-  steerDisabledReason
+  steerDisabledReason,
+  canReorder = true,
+  isItemReorderable,
+  isItemEditable,
+  isItemRemovable
 }: QueuedFollowupsDockProps) {
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = useState(false)
@@ -238,30 +260,54 @@ export function QueuedFollowupsDock({
               transitionDuration: `${transition.duration}s`,
               transitionTimingFunction: QUEUE_CSS_EASE
             }}>
-            <ReorderableList
-              items={items}
-              getId={(item) => item.id}
-              onReorder={onReorder}
-              onDragStateChange={
-                onDragStart &&
-                ((dragging) => {
-                  if (dragging) onDragStart()
-                })
-              }
-              direction="vertical"
-              gap={4}
-              renderItem={(item, _index, { dragging }) => (
-                <QueuedFollowupRow
-                  item={item}
-                  dragging={dragging}
-                  onSteer={onSteer}
-                  onEdit={onEdit}
-                  onRemove={onRemove}
-                  isSteerDisabled={isSteerDisabled}
-                  steerDisabledReason={steerDisabledReason}
-                />
-              )}
-            />
+            {canReorder ? (
+              <ReorderableList
+                items={items}
+                getId={(item) => item.id}
+                isItemDragDisabled={(item) => isItemReorderable?.(item) === false}
+                onReorder={onReorder}
+                onDragStateChange={
+                  onDragStart &&
+                  ((dragging) => {
+                    if (dragging) onDragStart()
+                  })
+                }
+                direction="vertical"
+                gap={4}
+                renderItem={(item, _index, { dragging }) => (
+                  <QueuedFollowupRow
+                    item={item}
+                    dragging={dragging}
+                    onSteer={onSteer}
+                    onEdit={onEdit}
+                    onRemove={onRemove}
+                    isSteerDisabled={isSteerDisabled}
+                    steerDisabledReason={steerDisabledReason}
+                    canReorder={isItemReorderable?.(item) ?? true}
+                    canEdit={isItemEditable?.(item) ?? true}
+                    canRemove={isItemRemovable?.(item) ?? true}
+                  />
+                )}
+              />
+            ) : (
+              <div className="flex flex-col gap-1">
+                {items.map((item) => (
+                  <QueuedFollowupRow
+                    key={item.id}
+                    item={item}
+                    dragging={false}
+                    onSteer={onSteer}
+                    onEdit={onEdit}
+                    onRemove={onRemove}
+                    isSteerDisabled={isSteerDisabled}
+                    steerDisabledReason={steerDisabledReason}
+                    canReorder={false}
+                    canEdit={isItemEditable?.(item) ?? true}
+                    canRemove={isItemRemovable?.(item) ?? true}
+                  />
+                ))}
+              </div>
+            )}
           </ScrollArea>
         </motion.div>
       </motion.div>

@@ -52,6 +52,7 @@ import { endsWithProviderQuotaError } from '@renderer/utils/message/providerQuot
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionEditDraft, AgentSessionEditTarget } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_CLOSING_CACHE_KEY, agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_FOLLOWUPS_CACHE_KEY } from '@shared/ai/agentSessionFollowups'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
@@ -279,6 +280,7 @@ export function useAgentChatRuntimeState({
   )
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const streamTopicId = useAgentSessionStreamTopic(sessionId)
+  const queuedFollowups = useSharedCacheValue(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(streamTopicId))
   const {
     messages: uiMessages,
     replyHistory,
@@ -319,7 +321,11 @@ export function useAgentChatRuntimeState({
       reasoningEffort: input.options?.body?.reasoningEffort,
       serviceTier: input.options?.body?.serviceTier,
       ...(input.options?.body?.fastMode === true ? { fastMode: true } : {}),
-      ...(input.options?.body?.followUp === true ? { followUp: true } : {})
+      ...(input.options?.body?.busyMode
+        ? { busyMode: input.options.body.busyMode }
+        : input.options?.body?.followUp === true
+          ? { followUp: true }
+          : {})
     }),
     []
   )
@@ -332,6 +338,33 @@ export function useAgentChatRuntimeState({
       errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages)
       if (input.editTarget) await revalidate()
       else if (ack.reservedMessages?.length) await refreshReservedMessages(ack.reservedMessages.map(({ id }) => id))
+
+      const requestedBusyMode = input.options?.body?.busyMode
+      switch (ack.busyDisposition) {
+        case 'steered':
+          toast.info(t('agent.input.busy_send_feedback.steered'))
+          break
+        case 'queued-native':
+          if (requestedBusyMode === 'steer') {
+            toast.info(t('agent.input.busy_send_feedback.steer_fallback_queued'))
+          }
+          break
+        case 'queued-host':
+          toast.info(
+            t(
+              requestedBusyMode === 'steer'
+                ? 'agent.input.busy_send_feedback.steer_fallback_queued'
+                : 'agent.input.busy_send_feedback.queued_host'
+            )
+          )
+          break
+        case 'interrupted':
+          toast.info(t('agent.input.busy_send_feedback.interrupted'))
+          break
+        case 'started':
+        case undefined:
+          break
+      }
     },
     onError: (error, input) =>
       input.editTarget
@@ -457,10 +490,17 @@ export function useAgentChatRuntimeState({
     })
   }, [])
 
-  const displayMessages = useMemo(
-    () => optimisticMessages ?? mergeLiveReplies(uiMessages, liveAssistants, displayIndex, 'omit'),
-    [displayIndex, liveAssistants, optimisticMessages, uiMessages]
-  )
+  const displayMessages = useMemo(() => {
+    const messages = optimisticMessages ?? mergeLiveReplies(uiMessages, liveAssistants, displayIndex, 'omit')
+    const hostQueued = new Set(queuedFollowups?.filter(({ source }) => source === 'host').map(({ id }) => id))
+    if (!hostQueued.size) return messages
+    // The dock owns these inputs until dequeue or withdrawal, so hide the unsent actions while they wait.
+    return messages.map<CherryUIMessage>((message) =>
+      message.role === 'user' && message.metadata?.status === 'paused' && hostQueued.has(message.id)
+        ? { ...message, metadata: { ...message.metadata, status: 'pending' } }
+        : message
+    )
+  }, [displayIndex, liveAssistants, optimisticMessages, queuedFollowups, uiMessages])
 
   const respondToolApproval = useCallback(
     async (input: MessageToolApprovalInput) => {

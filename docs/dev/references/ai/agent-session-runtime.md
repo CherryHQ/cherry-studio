@@ -263,37 +263,43 @@ chunk cannot insert another branch's answer into the current view.
 
 ### Follow-up admission
 
-If the same topic already has a live stream, `AgentChatContextProvider`
+If the same topic already has a live stream and the incoming `submit-message` request uses
+`queue`, `steer`, or legacy `followUp` (not `interrupt`), `AgentChatContextProvider`
 does **not** create a new assistant placeholder and does **not** call
 `beginTurn()` again. It persists the new user row, hands the message to
-`AgentSessionRuntimeService.enqueueUserMessage(sessionId, message)`, and
-returns a `PreparedDispatch` with `models: []` so `AiStreamManager.send()`
-takes the **inject** path — which for agent sessions only upserts the new
-subscriber onto the running stream (no message is injected into the
-execution; chat's abort-and-restart does not apply here).
+`AgentSessionRuntimeService.enqueueUserMessage(sessionId, message, opts)`, and
+returns a `PreparedDispatch` with `models: []` and the resulting `busyDisposition` so
+`AiStreamManager.send()` takes the **inject** path — which for agent sessions only upserts the
+new subscriber onto the running stream (chat's abort-and-restart does not apply here).
 
-A live follow-up is a **steer**. Steering is queue-based, never an
-interrupt: the current turn is **never aborted** to apply a steer (a user
-Stop is now the only abort source). `enqueueUserMessage()`:
+For interactive submissions while an Agent turn runs, `AgentComposer` exposes a component-local
+busy send-mode selector (`queue` default, `steer`, `interrupt`) driven by
+`AGENT_RUNTIME_CAPABILITIES[type].busySendModes` (`pi-durable`, `pi`, and `claude-code`; `⌘Enter`/`Ctrl+Enter`
+steer shortcut still overrides it; hidden when `steerWhileBusy` or editing). Requests send
+`busyMode?: AgentBusySendMode` (never combined with legacy `followUp?: boolean`) and Main
+responds with `busyDisposition?: AgentBusySendDisposition` (`'steered' | 'queued-native' | 'queued-host' | 'interrupted' | 'started'`)
+so the renderer emits authoritative confirmation or fallback toasts in `onAccepted`. Non-agent
+topics, non-`submit-message` triggers, headless dispatches, and delivery messages reject explicit `busyMode`.
 
-1. **Open normal user turn + a driver that can steer**, unless the input carries the follow-up
-   intent described in case 2 — calls
-   `connection.redirect({ message, systemReminder: true })`. The driver
+1. **Open normal user turn + a driver that can steer**, unless the input carries queue intent
+   (`busyMode: 'queue'` or legacy `followUp: true`) — calls
+   `connection.redirect({ message, systemReminder: true })` and returns `busyDisposition: 'steered'`. The driver
    submits the immutable input to the native queue. Claude Code uses SDK
    `priority: 'next'`: native admission either folds it into the running turn
    or starts a later turn. The host does not resend an accepted input. A
    `steer-boundary` carries input IDs joining the active Run from evidenced native request/response
    membership. When the preceding native execution has already settled, `run-started` starts a new Run instead. Claude's
    correlated `requesting` status establishes this boundary before streamed content;
-   `started` alone is not placement evidence.
+   `started` alone is not placement evidence. `steered` reports submission acceptance, not proven model consumption.
    Pi consumes its own queue: unplaced inputs remaining after stop/error
    receive native aborted evidence and are not automatically resent.
-2. **Other running native work, or a follow-up intent, + a driver with native admission** — calls
-   `connection.followUp(...)` for an interactive input on the current config. When the runtime
-   descriptor declares `nativeFollowUp`, the Work composer sends a busy-time Enter at once with
-   `followUp: true` instead of holding it in its follow-up dock; Main then skips `redirect` even
-   for an open turn. The steer shortcut still steers. Other runtimes keep busy-time Enter in the
-   dock until the turn ends. Pi Durable submits
+2. **Other running native work, or queue intent, + a driver with native admission** — calls
+   `connection.followUp(...)` for an interactive input on the current config and returns
+   `busyDisposition: 'queued-native'`. When the runtime descriptor declares `nativeFollowUp`,
+   selecting Queue in `AgentComposer` sends busy-time messages at once with `busyMode: 'queue'`
+   instead of holding them in the window-local follow-up dock; Main then skips `redirect` even
+   for an open turn. The steer shortcut or explicit `steer` selection still steers. Other
+   runtimes keep Queue in the local dock until the turn ends. Pi Durable submits
    it with its `follow-up` busy policy and persists it at once, so the queue survives a crash.
    Its dock reflects the native waiting order and offers editing, reordering and withdrawal while queued.
    When Durable places the input into a distinct execution, the driver emits `run-started` after the
@@ -305,10 +311,25 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    host queue.
    An input queued before a restart has no entry-side context; the host reads its bound user
    message instead. If that input starts native work by itself, it also gets a new reply.
-3. **No redirect-eligible open normal turn, or a driver that cannot steer** —
-   appends the message and its `steer` flag to the session entry's `runtimeState.queue`
-   so the next turn can wrap it in a steer system-reminder
-   and schedules it once runtime ownership returns to `idle`.
+3. **No redirect-eligible open normal turn, or a driver without matching native admission** —
+   appends the message and its `steer` flag to the session entry's `runtimeState.queue`,
+   returns `busyDisposition: 'queued-host'`, projects read-only `source: 'host'` items into
+   `AGENT_SESSION_FOLLOWUPS_CACHE_KEY(topicId)` so `<NativeQueuedFollowups>` renders them in
+   the existing `QueuedFollowupsDock`. Native rows in the same dock can still be reordered.
+   Main schedules host inputs when ownership returns to `idle`. The user rows stay recoverable
+   as `paused` through queue loss, dequeue, and reply linking, until native placement or local handling confirms receipt.
+4. **Explicit interrupt (`busyMode: 'interrupt'`)** — Main tracks the full admission in
+   `inFlightDispatches` and preserves the terminal-settlement and write-quiesce gates. After validation
+   and branch/writability checks, `getInterruptibleTopicId` selects a live reply. Main rechecks that
+   target under its topic lock, acquiring the root lock before the recovered topic lock when both are
+   needed. It durably reserves a `paused` user row and `pending` assistant before draining Stop with
+   `'user-requested'`. Stop withdraws unplaced follow-ups and stops background children under its
+   existing rules. Once the prior turn and replacement loops drain, `activateDispatch` and `send()`
+   launch the reserved turn and return `'interrupted'`. An idle session starts normally and returns
+   `'started'`. A busy transition without an interruptible reply rejects the attempt.
+   Stop or activation failure repairs both rows atomically. On restart, orphan reconciliation marks
+   an unbound pending assistant `error`. Its replacement input was already recoverable as `paused`,
+   including after it was linked to the reply. Native placement or local handling marks the input `success`.
 
 Before dispatch, Main stores each pending steer's original message, snapshot and headless
 policy on the session entry. Drivers receive the native command and return input IDs. Pi and

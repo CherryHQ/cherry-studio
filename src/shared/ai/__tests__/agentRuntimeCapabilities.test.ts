@@ -96,4 +96,13 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
 
     expect(AGENT_RUNTIME_CAPABILITIES.pi.isModelCompatible(provider, model)).toBe(false)
   })
+
+  it('advertises all three busy send modes for pi-durable, pi, and claude-code without altering nativeFollowUp', () => {
+    expect((AGENT_RUNTIME_CAPABILITIES['pi-durable'] as any).busySendModes).toEqual(['queue', 'steer', 'interrupt'])
+    expect((AGENT_RUNTIME_CAPABILITIES.pi as any).busySendModes).toEqual(['queue', 'steer', 'interrupt'])
+    expect((AGENT_RUNTIME_CAPABILITIES['claude-code'] as any).busySendModes).toEqual(['queue', 'steer', 'interrupt'])
+    expect(AGENT_RUNTIME_CAPABILITIES['pi-durable'].nativeFollowUp).toBe(true)
+    expect(AGENT_RUNTIME_CAPABILITIES.pi.nativeFollowUp).toBe(false)
+    expect(AGENT_RUNTIME_CAPABILITIES['claude-code'].nativeFollowUp).toBe(false)
+  })
 })

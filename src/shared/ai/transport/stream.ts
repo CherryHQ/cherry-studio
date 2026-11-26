@@ -190,6 +190,12 @@ export interface StreamErrorPayload {
  * call site (passing `userMessageParts` to a regenerate, omitting
  * `parentAnchorId` from a continue, etc).
  */
+export const AGENT_BUSY_SEND_MODES = ['queue', 'steer', 'interrupt'] as const
+
+export type AgentBusySendMode = (typeof AGENT_BUSY_SEND_MODES)[number]
+
+export type AgentBusySendDisposition = 'steered' | 'queued-native' | 'queued-host' | 'interrupted' | 'started'
+
 export type AiStreamOpenRequest = {
   topicId: string
   /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
@@ -218,6 +224,8 @@ export type AiStreamOpenRequest = {
       fastMode?: boolean
       /** Agent sessions: a busy session answers this input after its current work instead of steering it. */
       followUp?: boolean
+      /** Agent sessions: explicit busy-time send mode. Cannot be combined with `followUp`. */
+      busyMode?: AgentBusySendMode
     }
   | ({
       /** Re-run the assistant under an existing user msg. */
@@ -232,6 +240,7 @@ export type AiStreamOpenRequest = {
       serviceTier?: ServiceTierSelection
       /** Whether to request Fast processing for this regenerated turn. */
       fastMode?: boolean
+      busyMode?: never
     } & AiStreamRegenerateTarget)
 )
 
@@ -338,6 +347,8 @@ export type AiStreamOpenResponse =
        * reconcile final content/status from a DB refresh.
        */
       reservedMessages?: CherryUIMessage[]
+      /** Authoritative disposition resolved by main for an explicit busy-mode request. */
+      busyDisposition?: AgentBusySendDisposition
     }
   | {
       mode: 'blocked'

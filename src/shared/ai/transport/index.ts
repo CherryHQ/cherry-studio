@@ -19,6 +19,8 @@ export {
 } from './persistedToolOutput'
 export type {
   ActiveExecution,
+  AgentBusySendDisposition,
+  AgentBusySendMode,
   AiChatRequestBody,
   AiStreamAbortRequest,
   AiStreamAdmissionReason,
@@ -41,6 +43,6 @@ export type {
   TopicStatusSnapshotEntry,
   TopicStreamStatus
 } from './stream'
-export { aiStreamAdmissionReasons, isAiStreamAdmissionReason } from './stream'
+export { AGENT_BUSY_SEND_MODES, aiStreamAdmissionReasons, isAiStreamAdmissionReason } from './stream'
 export type { TurnStateFlags } from './turnState'
 export { classifyTurn, TURN_STATE } from './turnState'
