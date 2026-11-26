@@ -1524,4 +1524,132 @@ describe('SkillService authoring and remote updates', () => {
     const remaining = (await fs.promises.readdir(skillsRoot)).filter((name) => name.startsWith('.writer.bak.stash-'))
     expect(remaining).toEqual([])
   })
+
+  it('keeps a superseded stash inert when both retirement rename and removal fail', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const committedDir = path.join(root, 'committed-double-fail')
+    const obsoleteDir = path.join(root, 'obsolete-double-fail')
+    await writeSkill(committedDir, { supportingContent: 'echo committed\n' })
+    await writeSkill(obsoleteDir, { supportingContent: 'echo obsolete\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(committedDir, destPath, { recursive: true })
+    await fs.promises.cp(obsoleteDir, backupPath, { recursive: true })
+    const baseline = await installer.computeContentHash(committedDir)
+    const stashPath = `${backupPath}.stash-${Date.now()}-double-fail`
+    // Superseded stash that still matches the committed baseline (e.g. same-version
+    // reinstall): without a durable obsolete record, promoting it later would
+    // overwrite a fresh edit or resurrect the skill after uninstall.
+    await fs.promises.cp(committedDir, stashPath, { recursive: true })
+
+    // Deny both retirement rename and direct removal for the stash: the fallback
+    // must leave a durable `.obsolete` record instead of a promotable marker.
+    // Allow promotion renames (stash -> `.bak`) so the pre-commit stranded case
+    // still recovers; only retirement (stash -> `.bak.retired-*`) is denied.
+    const originalRename = fs.promises.rename
+    const originalRm = fs.promises.rm
+    const renameSpy = vi.spyOn(fs.promises, 'rename').mockImplementation(async (...args: unknown[]) => {
+      const [from, to] = args as [string, string]
+      if (
+        typeof from === 'string' &&
+        typeof to === 'string' &&
+        from.includes('.bak.stash-') &&
+        to.includes('.bak.retired-')
+      ) {
+        throw Object.assign(new Error('EACCES'), { code: 'EACCES' })
+      }
+      return (originalRename as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    const rmSpy = vi.spyOn(fs.promises, 'rm').mockImplementation(async (...args: unknown[]) => {
+      const target = args[0] as string
+      if (typeof target === 'string' && target.includes('.bak.stash-') && !target.endsWith('.obsolete')) {
+        throw Object.assign(new Error('EACCES'), { code: 'EACCES' })
+      }
+      return (originalRm as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    try {
+      await installer.recoverInterruptedInstallWithBaseline(destPath, baseline)
+    } finally {
+      renameSpy.mockRestore()
+      rmSpy.mockRestore()
+    }
+
+    // Both operations failed, so the stash directory remains — but it must carry
+    // the durable obsolete record and never be promoted.
+    await expect(fs.promises.lstat(stashPath)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
+    await expect(fs.promises.access(`${stashPath}.obsolete`)).resolves.toBeUndefined()
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo committed\n'
+    )
+
+    // A fresh edit after the failed cleanup must survive: the obsolete stash is
+    // deleted instead of promoted, even though it still exists on disk.
+    await fs.promises.writeFile(path.join(destPath, 'scripts', 'run.sh'), 'echo edited\n', 'utf-8')
+    await installer.recoverInterruptedInstallWithBaseline(destPath, baseline)
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo edited\n')
+    const stillStash = (await fs.promises.readdir(skillsRoot)).filter((name) => name.startsWith('.writer.bak.stash-'))
+    expect(stillStash).toEqual([])
+
+    // Uninstall stays effective: with the stash gone, a missing destination is
+    // pruned instead of resurrected. Re-create the matching-baseline stash state,
+    // fail retirement again, then uninstall and sweep.
+    await fs.promises.cp(committedDir, stashPath, { recursive: true })
+    const renameSpy2 = vi.spyOn(fs.promises, 'rename').mockImplementation(async (...args: unknown[]) => {
+      const [from, to] = args as [string, string]
+      if (
+        typeof from === 'string' &&
+        typeof to === 'string' &&
+        from.includes('.bak.stash-') &&
+        to.includes('.bak.retired-')
+      ) {
+        throw Object.assign(new Error('EACCES'), { code: 'EACCES' })
+      }
+      return (originalRename as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    const rmSpy2 = vi.spyOn(fs.promises, 'rm').mockImplementation(async (...args: unknown[]) => {
+      const target = args[0] as string
+      if (typeof target === 'string' && target.includes('.bak.stash-') && !target.endsWith('.obsolete')) {
+        throw Object.assign(new Error('EACCES'), { code: 'EACCES' })
+      }
+      return (originalRm as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    try {
+      await installer.recoverInterruptedInstallWithBaseline(destPath, baseline)
+    } finally {
+      renameSpy2.mockRestore()
+      rmSpy2.mockRestore()
+    }
+    await installer.uninstall(destPath)
+    await installer.recoverInterruptedInstallWithBaseline(destPath, baseline)
+    await installer.recoverInterruptedInstalls(skillsRoot, { skipFolderNames: new Set(['writer']) })
+    await expect(fs.promises.lstat(destPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('preserves a longer-named skill backup when uninstalling a prefix-colliding skill', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const otherFolder = 'writer.bak.retired-notes'
+    const otherDest = path.join(skillsRoot, otherFolder)
+    const otherBackup = path.join(skillsRoot, `.${otherFolder}.bak`)
+    const committedDir = path.join(root, 'committed-prefix-collision')
+    const otherDir = path.join(root, 'other-prefix-collision')
+    await writeSkill(committedDir, { supportingContent: 'echo committed\n' })
+    await writeSkill(otherDir, { supportingContent: 'echo other\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(otherDest, { recursive: true, force: true })
+    await fs.promises.rm(otherBackup, { recursive: true, force: true })
+    await fs.promises.cp(committedDir, destPath, { recursive: true })
+    await fs.promises.cp(otherDir, otherDest, { recursive: true })
+    await fs.promises.cp(otherDir, otherBackup, { recursive: true })
+
+    await installer.uninstall(destPath)
+
+    // The uninstalled skill is gone, but the longer-named skill's backup — which
+    // shares the `.writer.bak.retired-` prefix — must survive for its own recovery.
+    await expect(fs.promises.lstat(destPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(fs.promises.readFile(path.join(otherBackup, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo other\n'
+    )
+    await expect(fs.promises.readFile(path.join(otherDest, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo other\n')
+  })
 })

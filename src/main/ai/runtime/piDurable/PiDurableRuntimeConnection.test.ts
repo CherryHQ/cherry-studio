@@ -1944,7 +1944,8 @@ describe('desktop Pi Durable connection', () => {
     ])
     const { connection, events } = await connect()
     await connection.send({ message: message('write from channel') })
-    await done(events)
+    // Two sequential turns with file writes; Windows CI can exceed the 1 s default.
+    await done(events, 10_000)
     expect(text(events)).toContain('finished channel turn')
     expect(existsSync(join(directory, 'channel.txt'))).toBe(false)
 
@@ -1952,7 +1953,7 @@ describe('desktop Pi Durable connection', () => {
     mocks.interaction.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
     expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
     await connection.send({ message: message('write from desktop') })
-    await done(events)
+    await done(events, 10_000)
     expect(readFileSync(join(directory, 'desktop.txt'), 'utf8')).toBe('desktop')
     expect(agentService.getAgent(input.agentId)?.configuration?.permission_mode).toBe('bypassPermissions')
   })

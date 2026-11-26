@@ -197,6 +197,7 @@ export class SkillInstaller {
     // A retry that stashed `.bak` aside and then crashed leaves the only complete
     // copy under `.bak.stash-*` with no `.bak` for the sweep to find. Promote it
     // back to the rollback slot before deciding between destination and backup.
+    // Obsolete-marked stashes are never promoted (see restoreStashedBackup).
     await this.restoreStashedBackup(destPath)
     const backupPath = this.getBackupPath(destPath)
     let backupStats: fs.Stats
@@ -209,6 +210,18 @@ export class SkillInstaller {
     if (!backupStats.isDirectory()) {
       logger.warn('Ignoring non-directory skill backup marker', { backupPath })
       return
+    }
+    // A `.bak` left behind after a verified commit is superseded: retirement
+    // failed (both rename and removal denied) and left a durable `.obsolete`
+    // record. Never restore it over a fresh edit or after uninstall; retry
+    // deletion instead so the edit survives and uninstall stays effective.
+    try {
+      if (await this.isMarkedObsolete(backupPath)) {
+        await this.retireAndRemoveMarker(backupPath, 'obsolete skill backup')
+        return
+      }
+    } catch {
+      // Best-effort: fall through to descriptor checks on marker-read failure.
     }
 
     // Never restore an incomplete backup over a complete replacement. A partial
@@ -423,6 +436,7 @@ export class SkillInstaller {
           if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
             // Backup vanished between the existence check and the rename: nothing
             // obsolete remains, fall through to delete any staged cleanup.
+            await this.clearObsoleteMarker(backupPath)
           } else {
             // Keep the obsolete backup intact when staging fails. Deleting it in
             // place could leave a partial `.bak` (e.g. SKILL.md removed before
@@ -430,29 +444,55 @@ export class SkillInstaller {
             // baseline-matching replacement. Preserve the replacement and retry
             // staging on the next startup; the baseline-aware sweep runs before
             // the generic one so the good tree survives.
+            // Record supersession durably: both staging and a later direct
+            // removal may fail, leaving a promotable `.bak`. The `.obsolete`
+            // sibling ensures a later sweep never restores it over a fresh edit
+            // or after uninstall, even if its hash still matches the baseline.
             logger.warn('Failed to stage committed backup for cleanup; preserving replacement for retry', {
               destPath,
               backupPath,
               error: error instanceof Error ? error.message : String(error)
             })
+            try {
+              await this.markObsolete(backupPath)
+            } catch {
+              // Best-effort: the next sweep retries retirement before promoting.
+            }
             await this.removeAllStashedBackups(destPath)
             logger.info('Recovered interrupted skill install by keeping matching replacement', { destPath })
             return
           }
         }
         await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+        await this.clearObsoleteMarker(backupPath)
       }
       await this.removeAllStashedBackups(destPath)
       logger.info('Recovered interrupted skill install by keeping matching replacement', { destPath })
       return
     }
     if (backupHash === baselineHash) {
+      // A backup already known to be superseded (durable `.obsolete` record from
+      // a failed retirement after a verified commit) must never be restored over
+      // a fresh edit or after uninstall, even when its hash still matches the
+      // committed baseline. Retry deletion instead and preserve the destination.
+      try {
+        if (await this.isMarkedObsolete(backupPath)) {
+          await this.retireAndRemoveMarker(backupPath, 'obsolete skill backup')
+          if (cleanupExists) await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+          await this.removeAllStashedBackups(destPath)
+          logger.info('Preserved skill destination over obsolete matching backup', { destPath })
+          return
+        }
+      } catch {
+        // Best-effort: fall through to hash-matched restore on marker-read failure.
+      }
       try {
         await deleteDirectoryRecursive(destPath)
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       }
       await fs.promises.rename(backupPath, destPath)
+      await this.clearObsoleteMarker(backupPath)
       if (cleanupExists) await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
       await this.removeAllStashedBackups(destPath)
       logger.info('Recovered interrupted skill install by restoring matching backup', { destPath })
@@ -611,8 +651,11 @@ export class SkillInstaller {
       // them. They are left behind only when retirement succeeded but the
       // follow-up recursive deletion failed (EACCES swallowed). Clean them
       // best-effort so they do not accumulate; never promote them.
+      // Never ends with `.bak` (retired markers end with `.retire-<ts>-<pid>`);
+      // excluding `.bak` keeps this unambiguous when a longer-named skill's
+      // backup (e.g. `.writer.bak.retired-notes.bak`) shares the prefix.
       const retiredMatch = entry.name.match(/^\.(.+)\.bak\.retired-.*$/)
-      if (retiredMatch?.[1]) {
+      if (retiredMatch?.[1] && !entry.name.endsWith('.bak')) {
         await this.safeRemoveDirectory(path.join(storageRoot, entry.name), 'retired skill backup')
         continue
       }
@@ -643,6 +686,12 @@ export class SkillInstaller {
     await this.safeRemoveDirectory(this.getCleanupPath(skillPath), 'committed skill backup')
     await this.removeAllStashedBackups(skillPath)
     await this.removeRetiredMarkers(skillPath)
+    // A failed retirement leaves a durable `.obsolete` sibling so a later sweep
+    // never promotes the superseded marker over a fresh install or after
+    // uninstall. Once the marker itself is gone, its record is inert (ignored
+    // by every sweep, which only processes directories); clear it best-effort.
+    await this.clearObsoleteMarker(this.getBackupPath(skillPath))
+    await this.clearObsoleteMarker(this.getCleanupPath(skillPath))
   }
 
   /** Compute the versioned full-directory hash persisted as the install baseline. */
@@ -828,6 +877,11 @@ export class SkillInstaller {
       for (const entry of entries) {
         try {
           if (typeof entry.name !== 'string' || !entry.name.startsWith(prefix)) continue
+          // A backup for a longer-named skill (e.g. `.writer.bak.stash-foo.bak`
+          // for skill `writer.bak.stash-foo`) shares the stash prefix but always
+          // ends with `.bak`; stashes never do. Excluding `.bak` keeps uninstall
+          // and retirement scoped to this skill's own markers.
+          if (entry.name.endsWith('.bak')) continue
           if (typeof entry.isDirectory === 'function' && !entry.isDirectory()) continue
         } catch {
           continue
@@ -858,7 +912,33 @@ export class SkillInstaller {
     }
     const stashes = await this.listStashedBackupPaths(destPath)
     if (stashes.length === 0) return
-    const newest = stashes[stashes.length - 1]
+    // Never promote a stash already known to be superseded: retirement failed
+    // after a verified commit (both rename and removal denied), leaving a
+    // durable `.obsolete` record. Promoting it later would overwrite a fresh
+    // edit or resurrect the skill after uninstall. Retry deletion instead.
+    for (const stashPath of [...stashes].reverse()) {
+      try {
+        if (await this.isMarkedObsolete(stashPath)) {
+          await this.retireAndRemoveMarker(stashPath, 'obsolete stashed skill backup')
+          continue
+        }
+      } catch {
+        // Best-effort: fall through to promotion check below.
+      }
+    }
+    const remaining = await this.listStashedBackupPaths(destPath)
+    // Re-check after obsolete cleanup: all stashes may have been superseded.
+    const promotable: string[] = []
+    for (const stashPath of remaining) {
+      try {
+        if (await this.isMarkedObsolete(stashPath)) continue
+      } catch {
+        // Treat unreadable marker state as promotable to avoid stranding.
+      }
+      promotable.push(stashPath)
+    }
+    if (promotable.length === 0) return
+    const newest = promotable[promotable.length - 1]
     try {
       await fs.promises.rename(newest, backupPath)
       logger.info('Recovered stashed skill backup to rollback slot', { destPath, backupPath, stashed: newest })
@@ -910,15 +990,69 @@ export class SkillInstaller {
       retiredPath = this.getRetirementPath(markerPath)
       await fs.promises.rename(markerPath, retiredPath)
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        await this.clearObsoleteMarker(markerPath)
+        return
+      }
       logger.warn(`Failed to retire ${label} before removal; attempting direct removal`, {
         markerPath,
         error: error instanceof Error ? error.message : String(error)
       })
       await this.safeRemoveDirectory(markerPath, label)
+      // Both retirement rename and direct removal failed (e.g. swallowed EACCES):
+      // the marker is still promotable. Record its obsolete status durably so a
+      // later sweep never promotes it over a fresh edit or after uninstall. The
+      // marker file is a best-effort sibling write; it succeeds when only the
+      // marker itself is denied, and a later retry deletes both together.
+      try {
+        if (await pathExists(markerPath)) {
+          await this.markObsolete(markerPath)
+        } else {
+          await this.clearObsoleteMarker(markerPath)
+        }
+      } catch {
+        // Best-effort: the next sweep retries retirement before promoting.
+      }
       return
     }
     await this.safeRemoveDirectory(retiredPath, label)
+    await this.clearObsoleteMarker(markerPath)
+  }
+
+  /**
+   * Durable obsolete record for a marker whose retirement rename and direct
+   * removal both failed. The sibling `<marker>.obsolete` file is outside every
+   * recovery pattern (it never ends with `.bak` and never contains the
+   * `.bak.stash-`/`.bak.retired-` promotable infixes as a directory), so the
+   * generic sweep ignores it while `restoreStashedBackup` and the baseline
+   * sweep use it to skip promotion and retry deletion instead.
+   */
+  private getObsoleteMarkerPath(markerPath: string): string {
+    return `${markerPath}.obsolete`
+  }
+
+  private async markObsolete(markerPath: string): Promise<void> {
+    try {
+      await fs.promises.writeFile(this.getObsoleteMarkerPath(markerPath), `obsolete:${Date.now()}`, 'utf-8')
+    } catch {
+      // Best-effort: without the record the next sweep retries retirement first.
+    }
+  }
+
+  private async isMarkedObsolete(markerPath: string): Promise<boolean> {
+    try {
+      return await pathExists(this.getObsoleteMarkerPath(markerPath))
+    } catch {
+      return false
+    }
+  }
+
+  private async clearObsoleteMarker(markerPath: string): Promise<void> {
+    try {
+      await fs.promises.rm(this.getObsoleteMarkerPath(markerPath), { force: true })
+    } catch {
+      // Best-effort: a leftover `.obsolete` file is inert and ignored by recovery.
+    }
   }
 
   private async listRetiredMarkerPaths(destPath: string): Promise<string[]> {
@@ -932,6 +1066,12 @@ export class SkillInstaller {
       for (const entry of entries) {
         try {
           if (typeof entry.name !== 'string' || !entry.name.startsWith(prefix)) continue
+          // A backup for a longer-named skill (e.g. `.writer.bak.retired-notes.bak`
+          // for skill `writer.bak.retired-notes`) shares the retired prefix but
+          // always ends with `.bak`; retired markers never do (they end with
+          // `.retire-<ts>-<pid>`). Excluding `.bak` keeps uninstall scoped to this
+          // skill's own retired markers and preserves the other skill's backup.
+          if (entry.name.endsWith('.bak')) continue
           if (typeof entry.isDirectory === 'function' && !entry.isDirectory()) continue
         } catch {
           continue
