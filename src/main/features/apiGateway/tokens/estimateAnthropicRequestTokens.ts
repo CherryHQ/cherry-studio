@@ -92,7 +92,7 @@ async function estimateConvertedRequest(
   }
 
   const toolResultCaps = resolveToolResultMediaCapabilities(caps, dialect)
-  const modelMessages = await toModelMessages(uiMessages, caps, tools, toolResultCaps)
+  const modelMessages = await toModelMessages(uiMessages, caps, tools, toolResultCaps, { wireDialect: dialect })
   const tokenizer = await getTextTokenizer(dialect)
   const messageTokens = await estimateModelMessagesFootprint(modelMessages, { dialect, tokenizer }, signal)
   return messageTokens + countToolDefs(wireTools, tokenizer)

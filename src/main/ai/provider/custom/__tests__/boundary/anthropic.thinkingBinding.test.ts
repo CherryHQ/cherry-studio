@@ -241,7 +241,7 @@ describe('Anthropic Messages thinking binding', () => {
       undefined,
       undefined,
       undefined,
-      true
+      { preserveEmptyAnthropicThinking: true }
     )
     expect(messages).toMatchObject([
       {

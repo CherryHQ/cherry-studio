@@ -15,6 +15,7 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 
 import type { MediaCapabilities } from '../../../messages/messageCapabilities'
+import type { TokenDialect } from '../../../tokens/dialect'
 import type { AppProviderSettingsMap, CallOverrides, ContextOwner } from '../../../types'
 import type { WrapLanguageModel } from '../retry/createRetryableWrap'
 
@@ -122,6 +123,7 @@ export interface AgentLoopParams<T extends AppProviderKey = AppProviderKey> {
   /** Independent hook contributors folded by `composeHooks`. */
   hookParts?: ReadonlyArray<Partial<AgentLoopHooks>>
   /** Modalities the model accepts; unsupported media is stripped before conversion. */
+  wireDialect?: TokenDialect
   mediaCapabilities?: MediaCapabilities
   /** Media a tool result may carry to this wire+model; defaults to `mediaCapabilities`. */
   toolResultMediaCapabilities?: MediaCapabilities

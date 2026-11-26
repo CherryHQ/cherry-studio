@@ -11,6 +11,7 @@ import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, 
 
 import { withUserDenialFeedback } from '@shared/ai/toolDenialFeedback'
 
+import type { TokenDialect } from '../tokens/dialect'
 import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
@@ -339,7 +340,7 @@ export async function toModelMessages(
   caps?: MediaCapabilities,
   tools?: ToolSet,
   toolResultCaps?: MediaCapabilities,
-  preserveEmptyAnthropicThinking = false
+  options: { preserveEmptyAnthropicThinking?: boolean; wireDialect?: TokenDialect } = {}
 ): Promise<ModelMessage[]> {
   const rendered = attributeUserDenialReasons(sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools))
   const shaped = restoreLegacyToolStepBoundaries(
@@ -351,9 +352,17 @@ export async function toModelMessages(
   // blank-reasoning filter for other adapters, which can reject those blocks.
   const replayable = shaped.map((message) => {
     const parts = message.parts.filter((part) => {
-      if (message.role === 'assistant' && part.type === 'text') return part.text.trim().length > 0
+      if (message.role === 'assistant' && part.type === 'text' && !part.text.trim()) {
+        const signature = part.providerMetadata?.google?.thoughtSignature
+        return (
+          options.wireDialect === 'google' &&
+          part.text.length > 0 &&
+          typeof signature === 'string' &&
+          signature.length > 0
+        )
+      }
       if (part.type !== 'reasoning' || part.text.trim().length > 0) return true
-      return preserveEmptyAnthropicThinking || typeof part.providerMetadata?.anthropic?.signature !== 'string'
+      return options.preserveEmptyAnthropicThinking || typeof part.providerMetadata?.anthropic?.signature !== 'string'
     })
     return parts.length === message.parts.length ? message : { ...message, parts }
   })

@@ -796,7 +796,9 @@ export class AiService extends BaseService {
       })
     }
 
+    const wireDialect = resolveModelTokenDialect(provider, model)
     const agent = new Agent({
+      wireDialect,
       contextOwner: request.contextOwner,
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
@@ -821,10 +823,7 @@ export class AiService extends BaseService {
         ...hookParts
       ],
       mediaCapabilities,
-      toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
-        mediaCapabilities,
-        resolveModelTokenDialect(provider, model)
-      )
+      toolResultMediaCapabilities: resolveToolResultMediaCapabilities(mediaCapabilities, wireDialect)
     })
     agentRef.current = agent
 

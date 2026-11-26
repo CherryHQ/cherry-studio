@@ -381,7 +381,11 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         params.mediaCapabilities,
         params.tools,
         params.toolResultMediaCapabilities,
-        params.contextOwner !== 'caller' && usesAnthropicMessagesSdk(params.providerId)
+        {
+          preserveEmptyAnthropicThinking:
+            params.contextOwner !== 'caller' && usesAnthropicMessagesSdk(params.providerId),
+          wireDialect: params.wireDialect
+        }
       )
       let hasUsedProvidedMessageId = false
 
