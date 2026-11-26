@@ -714,6 +714,29 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(overridden.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60' })
   })
 
+  it.each([
+    ['assistant', '1'],
+    ['support', '1'],
+    ['doctor', '1'],
+    [undefined, '0']
+  ])('scrubs subprocess credentials only for built-in Agents (role: %s)', async (builtinRole, expected) => {
+    mocks.getAgent.mockReturnValue({
+      ...mocks.getAgent(),
+      configuration: { builtin_role: builtinRole, env_vars: { CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '0' } }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env?.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB).toBe(expected)
+  })
+
   it('floors the budget at the Claude Code minimum instead of dropping the setting', async () => {
     const settings = await buildClaudeCodeSessionSettings(
       {

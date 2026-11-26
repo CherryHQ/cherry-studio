@@ -334,6 +334,9 @@ export async function buildClaudeCodeSessionSettings(
   if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
     env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(options?.compactionPercent ?? AUTO_COMPACT_TRIGGER_PCT)
   }
+  // Keeps provider credentials out of built-in Agents' Bash, hooks and stdio MCP. Applied after
+  // `env_vars` so no agent override can turn it off.
+  if (builtinRole) env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB = '1'
   // Opt-out, and only an explicit `false` counts: the runtime's own default stays in charge for
   // every other value (including an unreadable preference), so nothing changes unless asked.
   const hideCommitAttribution = application.get('PreferenceService').get('agent.commit_attribution.enabled') === false
