@@ -1,5 +1,4 @@
 import type { Editor, JSONContent } from '@tiptap/core'
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 
 import { isComposerInputTokenKind, isComposerMessageTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -14,7 +13,6 @@ import { FileTypeSchema } from '@shared/types/file'
 import { createComposerLineParagraphs } from './composerTokenMarkers'
 import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import { createPromptVariableContent } from './promptVariables'
-import { getComposerInputLeafText } from './quickPanel'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
 
@@ -102,6 +100,7 @@ function createComposerTokenNode(
     label: token.label,
     ...(token.icon && { icon: token.icon }),
     ...(token.description && { description: token.description }),
+    ...(token.sourceMessageId && { sourceMessageId: token.sourceMessageId }),
     ...(token.promptText && { promptText: token.promptText }),
     ...(payload && { payload })
   }
@@ -238,19 +237,6 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
   visitNode(json)
 
   return { text, tokens }
-}
-
-/**
- * The text `serializeComposerDocument` attributes to a leaf node. For any length measured
- * against the serialized draft — a replacement budget over a selection — a token atom must
- * count by its prompt text; the plain leaf callback counts it as empty and undercharges the
- * text the replacement removes.
- */
-export function getComposerSerializedLeafText(node: ProseMirrorNode): string {
-  if (node.type.name === COMPOSER_TOKEN_NODE_NAME) {
-    return composerTokenText(normalizeComposerTokenAttrs(node.attrs ?? {}))
-  }
-  return getComposerInputLeafText(node)
 }
 
 /**
@@ -395,7 +381,7 @@ export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): C
   return {
     version: COMPOSER_MESSAGE_SNAPSHOT_VERSION,
     tokens: visibleTokens.map((token) => {
-      const { id, kind, label, icon, description, index, textOffset, promptText } = token
+      const { id, kind, label, icon, description, index, textOffset, promptText, sourceMessageId } = token
       const payload = createDisplayFileTokenPayload(token)
 
       return {
@@ -404,6 +390,7 @@ export function createComposerMessageSnapshot(draft: ComposerSerializedDraft): C
         label,
         ...(icon && { icon }),
         ...(description && { description }),
+        ...(sourceMessageId && { sourceMessageId }),
         index,
         textOffset,
         ...(promptText && { promptText }),

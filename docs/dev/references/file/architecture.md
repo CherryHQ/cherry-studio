@@ -14,9 +14,10 @@ The file domain separates these runtime capabilities:
 
 - `FileManager` manages persistent `FileEntry` records and entry-owned file operations.
 - `DirectoryTreeManager` manages live, in-memory directory mirrors for renderer consumers.
+- `FileObservationService` owns native observation scopes shared by directory projections and file consumers.
 - `FileEditService` owns pinned editing leases and conditional writes; the renderer owns drafts through its [file editing session manager](./file-editing.md).
 
-FileManager and directory trees share the watcher primitive. A directory tree does not create
+File observation forwards file-presence changes into the existing dangling cache. A directory tree does not create
 `FileEntry` rows and a `FileEntry` does not join a directory tree automatically.
 
 This document describes the current module boundary. FileManager implementation details live in
@@ -59,8 +60,8 @@ Creation is intentionally asymmetric: `createInternalEntry` always creates a new
 dispatches handle-based requests to either FileManager or a path helper.
 
 `DirectoryTreeManager` is a separate `WhenReady` service. It owns builders, consumers, and the
-`file.tree.mutation` stream. `DirectoryTreeBuilder` uses the generic watcher in
-`src/main/services/file/watcher.ts`, but neither tree class depends on the file-entry database.
+`file.tree.mutation` stream. `DirectoryTreeBuilder` uses a lease from
+[FileObservationService](./file-observation.md); neither tree class depends on the file-entry database.
 
 `FileEntryService` and `FileRefService` are synchronous, direct-import data services. The former is
 the `file_entry` repository; the latter is a read-only projection across business-owned reference
@@ -238,15 +239,15 @@ identified by `FileEntryId`.
 
 ## 6. Lifecycle
 
-Both `FileManager` and `DirectoryTreeManager` are registered in
+`FileManager`, `FileEditService`, `FileObservationService`, and `DirectoryTreeManager` are registered in
 `src/main/core/application/serviceRegistry.ts` at `Phase.WhenReady`.
 
 - FileManager initializes the external-entry reverse index, registers remaining legacy handlers,
   registers content-hash backfill work, and starts its cleanup interval.
-- DirectoryTreeManager creates resources on demand and closes consumers, builders, watchers, and
-  WebContents listeners during shutdown.
+- DirectoryTreeManager closes tree consumers and builders, releasing their observation leases.
+- FileObservationService closes file subscriptions and native scopes during shutdown.
 
-Production code resolves either service through `application.get(...)`; direct construction is a
+Production code resolves these services through `application.get(...)`; direct construction is a
 test seam.
 
 ## 7. Source Map

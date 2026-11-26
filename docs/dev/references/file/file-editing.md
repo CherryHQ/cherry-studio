@@ -2,8 +2,10 @@
 description: Independent file editing drafts, conditional persistence, revalidation, and retained draft recovery
 sources:
   - src/main/services/file/FileEditService.ts
+  - src/renderer/services/fileObservation
   - src/renderer/services/fileEdit
   - src/renderer/hooks/useFileEditSession.ts
+  - src/renderer/hooks/useFileSize.ts
   - src/renderer/components/FileEditSessionProvider.tsx
   - src/shared/ipc/schemas/fileEdit.ts
 ---
@@ -21,7 +23,7 @@ English | [中文](file-editing.zh.md)
 | Renderer manager | Independent drafts, disk baselines, revisions, save queues, attachment generations, mutation barriers, and retained draft inventory |
 | Editor | Interactive document and undo history; callbacks carry attachment and document generations |
 | `FileEditService` | Window-owned edit leases, pinned filesystem targets, and conditional writes |
-| `DirectoryTreeManager` | Existing directory tree watchers and tree invalidation events |
+| `FileObservationService` | Shared native observation independent of directory tree demand |
 
 Notes, each Skill, and each Agent artifact surface use distinct stable owner IDs. The registry matches an owner plus the exact handle kind and locator. Reopening that locator within the same owner restores a retained draft. A replacement attachment invalidates its predecessor's callbacks. Different owners, path aliases, and entry/path handles do not share drafts or elect a writer. Recovery actions address the unique `sessionId`, not a filesystem path.
 
@@ -40,7 +42,7 @@ The 8 MiB limit applies before and during loading. An already-open editor can gr
 
 A successful write returns the new baseline and `metadataRecoveryPending`; a metadata finalization failure must not replay committed bytes. A failed write throws an `IpcError` and the renderer keeps the draft. There is no receipt protocol: a reply is lost only when a process dies, and a retry against the old baseline that finds the same bytes on disk adopts them as saved.
 
-`flush()` captures the current draft and revision immediately. Its target waits behind older writes and cannot be replaced by a later edit. Undoing to the previous disk text while a different save is pending still requires a subsequent write. Autosave debounces unsent edits. A lease can turn autosave off with `setAutoSave(false)`; edits then wait for an explicit `flush()`, while detachment and release still save them. Persistent failures pause automatic retry while preserving the draft and explicit retry.
+`flush()` captures the current draft and revision immediately. Its target waits behind older writes and cannot be replaced by a later edit. Undoing to the previous disk text while a different save is pending still requires a subsequent write. Autosave debounces unsent edits. Confirmed saved sizes also invalidate metadata size gates, so a draft that grows beyond the loading limit cannot retain a stale Copy content action. A lease can turn autosave off with `setAutoSave(false)`; edits then wait for an explicit `flush()`, while detachment and release still save them. Entering a save failure, conflict, or sealed state cancels any pending autosave timer, including one created by typing during an earlier save. The draft and explicit retry remain available; already accepted writes retain their queue order.
 
 Entry writes, entry rename/delete/cleanup, and path mutations coordinate in entry-lock → path-mutex order. Hash validation detects changed bytes even when size and timestamps match. Independently opened editors can both edit; a stale save reports a conflict and retains its local draft. Atomic replacement does not provide compare-and-swap against arbitrary external programs between validation and rename.
 
@@ -58,11 +60,15 @@ After preparation, the caller performs rename, move, or deletion and calls the i
 
 ## Revalidation
 
-Notes and Skills reuse existing tree invalidation callbacks. Active editors also reread on window focus, visible-document transitions, and reactivation. Editing adds no dedicated watcher service or shared watcher pool. Notifications invalidate knowledge; they never supply a replacement draft. Save correctness relies on conditional writes even when notifications are delayed or absent.
+Each editing instance acquires [file observation](./file-observation.md) directly, independently of directory tree expansion. Notes and Skills do not forward tree events to editors. The initial read attempts observation activation first; if observation fails, a coherent file read remains available without certifying automatic updates; revalidation also runs on focus, visible-document transitions, and reattachment. Detached drafts release observation after a ten-second grace period once accepted saves settle; they keep their draft and recovery state and revalidate when attached again. Notifications invalidate knowledge; they never supply a replacement draft. Save correctness relies on conditional writes even when notifications are delayed or absent.
 
-A reread checks its generation, draft revision, pending writes, and mutation barrier before adopting a result. Clean content can refresh; dirty content remains in memory and differing disk bytes set a conflict. Notifications deferred during a save or barrier are revalidated when the session becomes available.
+Revalidation coalesces notifications into one in-flight read. A reread checks its observation version, read generation, draft revision, pending writes, and mutation barrier before adopting a result. Clean content can refresh; dirty content remains in memory and differing disk bytes set a conflict. Notifications deferred during a save or barrier are revalidated when the session becomes available.
 
 A transient observation read failure is logged and leaves freshness unknown. It does not erase the draft or create a save failure. Missing/retargeted leases, or failed revalidation during mutation completion, make the current binding unavailable. An explicit reload can clear the read error after a successful read; actual save failures retain their separate retry state.
+
+The artifact toolbar shows waiting, saving, saved, failed, or paused feedback derived from the editing session. A successful reply for an older draft cannot mark newer input as saved. With autosave disabled, dirty content is labelled unsaved. Save failures retain their retry/discard actions.
+
+`refresh()` checks the disk baseline without saving or discarding the draft. An unchanged dirty baseline preserves the editor; differing disk bytes expose a conflict. Read failure rejects the explicit refresh without creating or clearing a save failure. Failed initial acquisitions can be retried through the hook. The toolbar disables checking during a save; replacing a draft remains an explicit reload choice.
 
 ## Closing and recovery
 

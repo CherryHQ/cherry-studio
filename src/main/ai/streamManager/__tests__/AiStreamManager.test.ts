@@ -2,12 +2,17 @@ import { EventEmitter } from 'node:events'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiService } from '@main/ai/AiService'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { Emitter } from '@main/core/lifecycle/event'
 import { diagnose } from '@main/services/diagnostics/scan/engine'
-import { applyMessageProjectionUpdate, type MessageProjectionView } from '@shared/ai/messageProjection'
+import {
+  applyMessageProjectionUpdate,
+  type MessageProjectionUpdate,
+  type MessageProjectionView
+} from '@shared/ai/messageProjection'
 import { aiStreamAdmissionReasons, type StreamChunkPayload } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -18,7 +23,13 @@ import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
 import type * as DispatchModule from '../context/dispatch'
 import type { PersistAssistantInput } from '../persistence/PersistenceBackend'
-import type { AiStreamSource, MessageStreamEvent } from '../types'
+import type {
+  AgentPartChange,
+  AgentMessageStreamSource,
+  AiStreamSource,
+  ExecutionPart,
+  MessageStreamEvent
+} from '../types'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -114,6 +125,34 @@ function pendingStream(signal?: AbortSignal): ReadableStream<UIMessageChunk> {
 }
 
 /** A stream whose feed is driven from the test body (enqueue / close). */
+function controlledMessageSource() {
+  const content = new Emitter<AgentPartChange>()
+  const reconciled = new Emitter<readonly ExecutionPart[]>()
+  let entries: readonly ExecutionPart[] = []
+  let controller!: ReadableStreamDefaultController<MessageStreamEvent>
+  const source: AgentMessageStreamSource = {
+    kind: 'messages',
+    onPart: content.event,
+    onMessageReconciled: reconciled.event,
+    readParts: () => entries,
+    stream: new ReadableStream({ start: (value) => (controller = value) })
+  }
+  return {
+    source,
+    enqueue(
+      event: AgentPartChange | { type: 'message'; entries: readonly ExecutionPart[] } | MessageStreamEvent,
+      accepted?: readonly ExecutionPart[]
+    ) {
+      if (event.type === 'message') entries = event.entries
+      else if (accepted) entries = accepted
+      if (event.type === 'control' || event.type === 'error') controller.enqueue(event)
+      else if (event.type === 'message') reconciled.fire(event.entries)
+      else content.fire(event)
+    },
+    close: () => controller.close()
+  }
+}
+
 function controlledStream(): {
   stream: ReadableStream<UIMessageChunk>
   enqueue: (chunk: UIMessageChunk) => void
@@ -153,7 +192,7 @@ const fakeCacheService = {
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
-const mockCloseSession = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
+const mockStopSession = vi.fn<(sessionId: string, reason: unknown) => Promise<void>>(async () => undefined)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -174,7 +213,7 @@ vi.mock('@application', async () => {
     AgentSessionRuntimeService: {
       willContinueTopic: mockWillContinueTopic,
       abortPendingTurn: mockAbortPendingTurn,
-      closeSession: mockCloseSession
+      stopSession: mockStopSession
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -316,7 +355,7 @@ describe('AiStreamManager', () => {
     const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
     let view: MessageProjectionView | null = null
     view = await mgr.attachProjection(sender, 'projection-topic', 'subscription', (update) => {
-      if (view) view = applyMessageProjectionUpdate(view, update)!
+      if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
     })
     let release!: () => void
     let entered = false
@@ -324,13 +363,14 @@ describe('AiStreamManager', () => {
       topicId: 'projection-topic',
       modelId: 'p::m',
       backend: {
-        kind: 'test',
+        kind: 'sqlite',
         persistAssistant: async () => {
           entered = true
           await new Promise<void>((resolve) => {
             release = resolve
           })
           if (failWrite) throw new Error('archive write failed')
+          return { messageId: 'committed-row' }
         }
       },
       onPersistFailed: (error) => mgr.broadcastTopicError('projection-topic', 'p::m', error)
@@ -355,8 +395,50 @@ describe('AiStreamManager', () => {
       expect(view).toMatchObject({ kind: 'topic', executions: [{ status: failWrite ? 'unresolved' : 'done' }] })
     )
     expect(view?.messages[0].parts[0]).toMatchObject({ text: 'visible before completion' })
-    if (failWrite) expect(view?.messages[0].parts.at(-1)).toMatchObject({ type: 'data-error' })
+    if (view?.kind !== 'topic') throw new Error('Topic projection required')
+    expect(view.executions[0].savedMessageId).toBe(failWrite ? undefined : 'committed-row')
+    if (failWrite) expect(view.messages[0].parts.at(-1)).toMatchObject({ type: 'data-error' })
     mgr.detachProjection(sender, 'subscription')
+    sender.emit('destroyed')
+  })
+
+  it('keeps the Agent body and reports the same save failure to the current and reattaching window', async () => {
+    const topicId = 'agent-session:failed-archive'
+    const source = controlledMessageSource()
+    mockStreamText.mockResolvedValueOnce(source.source)
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, topicId, 'watch', (update) => {
+      if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
+    })
+    const persistence = new PersistenceListener({
+      topicId,
+      modelId: 'p::m',
+      backend: {
+        kind: 'agents-db',
+        persistAssistant: async () => {
+          throw new Error('archive unavailable')
+        }
+      },
+      onPersistFailed: (error) => mgr.broadcastTopicError(topicId, 'p::m', error)
+    })
+    startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [persistence] })
+    source.enqueue({
+      type: 'message',
+      entries: [{ partId: 'visible', pos: 1, payload: { type: 'text', text: 'Accepted body' } }]
+    })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'Accepted body' }))
+    source.close()
+    await vi.waitFor(() => expect(view).toMatchObject({ executions: [{ status: 'unresolved' }] }))
+    const reattached = await mgr.attachProjection(sender, topicId, 'second-window', () => {})
+    assert.isNotNull(reattached)
+    expect(view?.messages[0]?.parts).toMatchObject([
+      { type: 'text', text: 'Accepted body' },
+      { type: 'data-error', data: { message: 'archive unavailable' } }
+    ])
+    expect(reattached.messages[0]?.parts).toEqual(view?.messages[0]?.parts)
+    expect(reattached.messages[0]?.partIds).toEqual(view?.messages[0]?.partIds)
+    expect(reattached.messages[0]?.partIds?.[0]).toBe('visible')
     sender.emit('destroyed')
   })
 
@@ -367,7 +449,7 @@ describe('AiStreamManager', () => {
     const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
     let view: MessageProjectionView | null = null
     view = await mgr.attachProjection(sender, 'denied-projection', 'subscription', (update) => {
-      if (view) view = applyMessageProjectionUpdate(view, update)!
+      if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
     })
     startSingle(mgr, {
       topicId: 'denied-projection',
@@ -396,39 +478,78 @@ describe('AiStreamManager', () => {
 
   // A replacement must reach subscribers and terminal persistence without reintroducing withdrawn text.
   it('publishes authoritative replacements and drains the final update before completion', async () => {
-    let controller!: ReadableStreamDefaultController<MessageStreamEvent>
-    mockStreamText.mockResolvedValueOnce({
-      kind: 'messages',
-      stream: new ReadableStream({
-        start: (value) => {
-          controller = value
-        }
-      })
-    })
+    const controller = controlledMessageSource()
+    mockStreamText.mockResolvedValueOnce(controller.source)
     const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
     let view: MessageProjectionView | null = null
     view = await mgr.attachProjection(sender, 'native-topic', 'native-subscription', (update) => {
-      if (view) view = applyMessageProjectionUpdate(view, update)!
+      if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
     })
     const listener = new FakeListener('native-result')
     startSingle(mgr, { topicId: 'native-topic', modelId: 'p::m', request: req('native-topic'), listeners: [listener] })
     controller.enqueue({ type: 'control', chunk: { type: 'start' } })
-    controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Withdrawn body' }] })
+    controller.enqueue({
+      type: 'message',
+      entries: [{ partId: 'withdrawn', pos: 1, payload: { type: 'text', text: 'Withdrawn body' } }]
+    })
     await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ text: 'Withdrawn body' }))
     const replay: CherryUIMessage[] = []
     const late = Object.assign(new FakeListener('late-reader'), {
-      onMessage: (message: CherryUIMessage) => replay.push(message)
+      content: { snapshot: (message: CherryUIMessage) => replay.push(message), part: () => {} }
     })
     expect(mgr.addListener('native-topic', late)).toBe(true)
     expect(replay.at(-1)?.parts).toEqual([{ type: 'text', text: 'Withdrawn body' }])
     const replacement: CherryUIMessage['parts'] = [{ type: 'text', text: 'Replacement', state: 'done' }]
-    controller.enqueue({ type: 'message', parts: replacement })
+    controller.enqueue({ type: 'message', entries: [{ partId: 'replacement', pos: 1, payload: replacement[0] }] })
     controller.close()
     await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
     expect(listener.doneResults[0].finalMessage?.parts).toEqual(replacement)
     expect(replay.at(-1)?.parts).toEqual(replacement)
     expect(view?.messages[0].parts).toEqual(replacement)
     mgr.detachProjection(sender, 'native-subscription')
+    sender.emit('destroyed')
+  })
+
+  it('delivers a part suffix and gives late readers the same accumulated content', async () => {
+    const topicId = 'part-append-topic'
+    const controller = controlledMessageSource()
+    mockStreamText.mockResolvedValueOnce(controller.source)
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    const frames: MessageProjectionUpdate[] = []
+    await mgr.attachProjection(sender, topicId, 'part-subscription', (update) => frames.push(update))
+    const received: AgentPartChange[] = []
+    const listener = Object.assign(new FakeListener('part-terminal'), {
+      content: { snapshot: () => {}, part: (change: AgentPartChange) => received.push(change) }
+    })
+    startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [listener] })
+    controller.enqueue({
+      type: 'message',
+      entries: [{ partId: 'stable-part', pos: 1, payload: { type: 'text', text: 'First', state: 'streaming' } }]
+    })
+    await vi.waitFor(() => expect(frames.at(-1)?.patches[0]?.type).toBe('message'))
+    const read = vi.spyOn(controller.source, 'readParts')
+    controller.enqueue({ type: 'part-append', partId: 'stable-part', text: ' suffix' }, [
+      { partId: 'stable-part', pos: 1, payload: { type: 'text', text: 'First suffix', state: 'streaming' } }
+    ])
+    await vi.waitFor(() =>
+      expect(frames.at(-1)?.patches).toEqual([{ type: 'part-append', partId: 'stable-part', text: ' suffix' }])
+    )
+    expect(received).toEqual([{ type: 'part-append', partId: 'stable-part', text: ' suffix' }])
+    expect(read).not.toHaveBeenCalled()
+    const replay: CherryUIMessage[] = []
+    expect(
+      mgr.addListener(
+        topicId,
+        Object.assign(new FakeListener('late-reader'), {
+          content: { snapshot: (value: CherryUIMessage) => replay.push(value), part: () => {} }
+        })
+      )
+    ).toBe(true)
+    expect(replay.at(-1)?.parts[0]).toMatchObject({ text: 'First suffix' })
+    controller.close()
+    await vi.waitFor(() =>
+      expect(listener.doneResults[0]?.finalMessage?.parts[0]).toMatchObject({ text: 'First suffix' })
+    )
     sender.emit('destroyed')
   })
 
@@ -439,7 +560,7 @@ describe('AiStreamManager', () => {
     const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
     let view: MessageProjectionView | null = null
     view = await mgr.attachProjection(sender, 'approval-projection', 'subscription', (update) => {
-      if (view) view = applyMessageProjectionUpdate(view, update)!
+      if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
     })
     startSingle(mgr, {
       topicId: 'approval-projection',
@@ -465,7 +586,108 @@ describe('AiStreamManager', () => {
     sender.emit('destroyed')
   })
 
+  it('clears a pending approval when an Agent denies the tool through a part update', async () => {
+    const topicId = 'native-denial'
+    const feed = controlledMessageSource()
+    mockStreamText.mockResolvedValueOnce(feed.source)
+    startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [] })
+    feed.enqueue({
+      type: 'control',
+      chunk: { type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' }
+    })
+    const anchors = () =>
+      (sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as { awaitingApprovalAnchors?: unknown[] } | undefined)
+        ?.awaitingApprovalAnchors
+    await vi.waitFor(() => expect(anchors()).toHaveLength(1))
+    feed.enqueue({
+      type: 'part-put',
+      partId: 'tool',
+      archiveMessageId: 'reply',
+      part: {
+        type: 'dynamic-tool',
+        toolName: 'Read',
+        toolCallId: 'call',
+        input: {},
+        state: 'output-denied',
+        approval: { id: 'approval', approved: false }
+      }
+    })
+    expect(anchors()).toEqual([])
+    feed.close()
+  })
+
+  it('publishes an Agent approval decision while its native tool is still waiting', async () => {
+    const topicId = 'native-approval'
+    const feed = controlledMessageSource()
+    mockStreamText.mockResolvedValueOnce(feed.source)
+    const sender = Object.assign(new EventEmitter(), { isDestroyed: () => false }) as unknown as Electron.WebContents
+    let view: MessageProjectionView | null = null
+    view = await mgr.attachProjection(sender, topicId, 'native-approval-subscription', (update) => {
+      if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
+    })
+    startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [] })
+    feed.enqueue({
+      type: 'control',
+      chunk: { type: 'tool-approval-request', toolCallId: 'call', approvalId: 'approval' }
+    })
+    feed.enqueue({
+      type: 'message',
+      entries: [
+        {
+          partId: 'tool',
+          pos: 1,
+          payload: {
+            type: 'dynamic-tool',
+            toolName: 'Read',
+            toolCallId: 'call',
+            input: {},
+            state: 'approval-requested',
+            approval: { id: 'approval' }
+          }
+        }
+      ]
+    })
+    await vi.waitFor(() => expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-requested' }))
+    expect(mgr.resolveToolApproval(topicId, 'call', true)).toBe(true)
+    expect(view?.messages[0]?.parts[0]).toMatchObject({ state: 'approval-responded', approval: { approved: true } })
+    feed.close()
+    sender.emit('destroyed')
+  })
+
   describe('streamPrompt', () => {
+    it.each([true, false])('keeps the original exception restricted to prompt streams (%s)', async (prompt) => {
+      vi.useRealTimers()
+      const original = new APICallError({
+        message: 'Provider refused request',
+        url: 'https://private.invalid',
+        requestBodyValues: { secret: 'request-secret' },
+        statusCode: 400
+      })
+      mockStreamText.mockRejectedValueOnce(original)
+      const onError = vi.fn<(result: StreamErrorResult, original?: unknown) => void>()
+      const listener: StreamListener = {
+        id: 'exception-listener',
+        onChunk: () => {},
+        onDone: () => {},
+        onPaused: () => {},
+        onError,
+        isAlive: () => true
+      }
+      if (prompt) {
+        mgr.streamPrompt({ streamId: 'test-prompt', uniqueModelId: 'provider-a::model-a', prompt: 'hello', listener })
+      } else {
+        startSingle(mgr, {
+          topicId: 'test-chat',
+          modelId: 'provider-a::model-a',
+          request: req('test-chat'),
+          listeners: [listener]
+        })
+      }
+      await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce())
+      expect(onError.mock.calls[0][1]).toBe(prompt ? original : undefined)
+      expect(JSON.stringify(onError.mock.calls[0][0].error)).not.toContain('request-secret')
+    })
+
     it('forwards context ownership to AiService.streamText', () => {
       mgr.streamPrompt({
         streamId: 'gateway-request-1',
@@ -652,7 +874,6 @@ describe('AiStreamManager', () => {
         abortController: turnAbortController
       })
 
-      expect(mockAbortPendingTurn).toHaveBeenCalledWith('session-1', 'user-requested')
       expect(snap.status).toBe('aborted')
 
       await vi.advanceTimersByTimeAsync(0)
@@ -2196,7 +2417,34 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')!.status).toBe('done')
     })
 
-    it('holds same-topic admission until paused persistence and runtime close settle', async () => {
+    it('cancels background work even after the visible stream has finished', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const topicId = 'agent-session:session-1'
+      let backgroundRunning = true
+      mockStopSession.mockImplementationOnce(async (_sessionId: string, reason: unknown) => {
+        if (reason === 'user-requested') backgroundRunning = false
+      })
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: []
+      })
+      feed.enqueue({ type: 'start' })
+      feed.enqueue({ type: 'finish' })
+      feed.close()
+      await flushUntil(() => mgr.inspect(topicId)?.status === 'done')
+      expect(mgr.inspect(topicId)?.status).toBe('done')
+
+      await mgr.abortAndDrain(topicId, 'user-requested')
+
+      expect(backgroundRunning).toBe(false)
+      expect(mgr.hasUnsettledTopicWork(topicId)).toBe(false)
+    })
+
+    it('holds same-topic admission until paused persistence and runtime stop settle', async () => {
       vi.useRealTimers()
       const listener = new FakeListener('persistence:agent')
       let releasePersistence!: () => void
@@ -2205,7 +2453,7 @@ describe('AiStreamManager', () => {
           releasePersistence = resolve
         })
       let releaseRuntimeClose!: () => void
-      mockCloseSession.mockImplementationOnce(
+      mockStopSession.mockImplementationOnce(
         () =>
           new Promise<void>((resolve) => {
             releaseRuntimeClose = resolve
@@ -2228,7 +2476,7 @@ describe('AiStreamManager', () => {
       expect(nextTurnAdmitted).toBe(false)
 
       releasePersistence()
-      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      await flushUntil(() => mockStopSession.mock.calls.length === 1)
       expect(nextTurnAdmitted).toBe(false)
 
       releaseRuntimeClose()
@@ -2262,7 +2510,7 @@ describe('AiStreamManager', () => {
       await admission
       await rejected
       expect(mgr.inspect(topicId)?.executions[0].abortSignal.aborted).toBe(false)
-      expect(mockCloseSession).not.toHaveBeenCalled()
+      expect(mockStopSession).not.toHaveBeenCalled()
     })
 
     it('drains an agent continuation launched during terminal handling before releasing admission', async () => {
@@ -2295,7 +2543,7 @@ describe('AiStreamManager', () => {
         nextTurnAdmitted = true
       })
 
-      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      await flushUntil(() => mockStopSession.mock.calls.length === 1)
       await flushUntil(() => continuationListener.pausedResults.length === 1)
       expect(nextTurnAdmitted).toBe(false)
 
@@ -2325,15 +2573,8 @@ describe('AiStreamManager', () => {
 
   describe('deferred tool output lookup', () => {
     it.each([false, true])('hands off prepared output only after a successful save (failure: %s)', async (fail) => {
-      let controller!: ReadableStreamDefaultController<MessageStreamEvent>
-      mockStreamText.mockResolvedValueOnce({
-        kind: 'messages',
-        stream: new ReadableStream({
-          start: (value) => {
-            controller = value
-          }
-        })
-      })
+      const controller = controlledMessageSource()
+      mockStreamText.mockResolvedValueOnce(controller.source)
       const topicId = 'prepared-tools'
       const gate = Promise.withResolvers<void>()
       const prepared: CherryUIMessage = {
@@ -2355,38 +2596,37 @@ describe('AiStreamManager', () => {
         topicId,
         prepareMessage: () => prepared,
         backend: {
-          kind: 'test',
+          kind: 'sqlite',
           persistAssistant: async () => {
             await gate.promise
             if (fail) throw new Error('Write failed')
-            return { messageId: 'answer', messageRevision: '1', historyRevision: '1' }
+            return { messageId: 'answer' }
           }
         },
         onPersistFailed: (error) => mgr.broadcastTopicError(topicId, 'p::m', error)
       })
       startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [persistence, listener] })
-      controller.enqueue({ type: 'message', parts: [{ type: 'text', text: 'Before preparation' }] })
+      controller.enqueue({
+        type: 'message',
+        entries: [{ partId: 'body', pos: 1, payload: { type: 'text', text: 'Before preparation' } }]
+      })
       controller.close()
-      await vi.waitFor(() => expect(mgr.inspect(topicId)?.executions[0].finalMessage).toEqual(prepared))
-      expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output: 'Latest answer'.repeat(4096) })
+      await vi.waitFor(() => expect(mgr.inspect(topicId)?.executions[0].finalMessage).toMatchObject(prepared))
+      expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject({
+        found: true,
+        output: 'Latest answer'.repeat(4096)
+      })
       gate.resolve()
       await vi.waitFor(() => expect(fail ? listener.errorResults : listener.doneResults).toHaveLength(1))
-      expect(mgr.inspect(topicId)?.executions[0].finalMessage).toEqual(prepared)
-      expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual(
+      expect(mgr.inspect(topicId)?.executions[0].finalMessage).toMatchObject(prepared)
+      expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject(
         fail ? { found: true, output: 'Latest answer'.repeat(4096) } : { found: false }
       )
     })
 
     it('reads large native outputs from the current message and respects replacement and removal', async () => {
-      let controller!: ReadableStreamDefaultController<MessageStreamEvent>
-      mockStreamText.mockResolvedValueOnce({
-        kind: 'messages',
-        stream: new ReadableStream({
-          start: (value) => {
-            controller = value
-          }
-        })
-      })
+      const controller = controlledMessageSource()
+      mockStreamText.mockResolvedValueOnce(controller.source)
       const topicId = 'native-tools'
       const listener = new FakeListener('native-tools')
       startSingle(mgr, { topicId, modelId: 'p::m', request: req(topicId), listeners: [listener] })
@@ -2404,19 +2644,22 @@ describe('AiStreamManager', () => {
         input: {},
         output
       }
-      controller.enqueue({ type: 'message', parts: [tool] })
-      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output }))
-      controller.enqueue({ type: 'message', parts: [{ ...tool, output: 'replacement' }] })
+      controller.enqueue({ type: 'message', entries: [{ partId: 'tool-part', pos: 1, payload: tool }] })
+      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject({ found: true, output }))
+      controller.enqueue({
+        type: 'message',
+        entries: [{ partId: 'tool-part', pos: 1, payload: { ...tool, output: 'replacement' } }]
+      })
       await vi.waitFor(() =>
-        expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: true, output: 'replacement' })
+        expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject({ found: true, output: 'replacement' })
       )
-      controller.enqueue({ type: 'message', parts: [] })
-      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toEqual({ found: false }))
+      controller.enqueue({ type: 'message', entries: [] })
+      await vi.waitFor(() => expect(mgr.getDeferredToolOutput(topicId, 'call')).toMatchObject({ found: false }))
       controller.close()
       await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
     })
 
-    it('retains only outputs large enough to have been stripped on the way out', () => {
+    it('retains the latest accepted value for both inline and deferred results', () => {
       const topicId = 'agent-session:session-1'
       startSingle(mgr, {
         topicId,
@@ -2436,15 +2679,27 @@ describe('AiStreamManager', () => {
         output: { content: 'tiny' }
       })
 
-      expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toEqual({ found: true, output: large })
-      // A small output travelled inline, so nothing needs to be resolvable for it.
-      expect(mgr.getDeferredToolOutput(topicId, 'call-small')).toEqual({ found: false })
-      expect(mgr.getDeferredToolOutput(topicId, 'missing')).toEqual({ found: false })
+      expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toMatchObject({ found: true, output: large })
+      expect(mgr.getDeferredToolOutput(topicId, 'call-small')).toMatchObject({
+        found: true,
+        output: { content: 'tiny' }
+      })
+      expect(mgr.getDeferredToolOutput(topicId, 'missing')).toMatchObject({ found: false })
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-output-error',
+        toolCallId: 'call-large',
+        errorText: 'Latest result failed'
+      })
+      expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toEqual({ found: false })
+      expect(mgr.getDeferredToolOutput(topicId, 'call-small')).toMatchObject({
+        found: true,
+        output: { content: 'tiny' }
+      })
     })
 
-    it('evicts the oldest retained output instead of growing without bound', () => {
+    it('retains every uncommitted output until durable handoff', () => {
       const topicId = 'agent-session:session-1'
-      const cappedMgr = createManager({ maxDeferredOutputs: 2 })
+      const cappedMgr = createManager()
       startSingle(cappedMgr, {
         topicId,
         modelId: 'provider-a::model-a',
@@ -2460,10 +2715,9 @@ describe('AiStreamManager', () => {
         })
       }
 
-      // The evicted one is not lost — it resolves from SQLite once the message is persisted.
-      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-a')).toEqual({ found: false })
-      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-b')).toEqual({ found: true, output: large('b') })
-      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-c')).toEqual({ found: true, output: large('c') })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-a')).toMatchObject({ found: true, output: large('a') })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-b')).toMatchObject({ found: true, output: large('b') })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-c')).toMatchObject({ found: true, output: large('c') })
     })
   })
 
@@ -2938,6 +3192,110 @@ describe('AiStreamManager', () => {
       const resumed = sharedCacheStore.get('topic.stream.statuses.a') as any
       expect(resumed?.status).toBe('streaming')
       expect(resumed?.awaitingApprovalAnchors).toHaveLength(0)
+    })
+
+    it('retires only the owning approval without a decision or input replay', async () => {
+      const listener = new FakeListener('retirement')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'p::m',
+        request: req('a'),
+        listeners: [listener],
+        isPersistentConversation: true
+      })
+      const stream = (mgr as any).activeStreams.get('a')
+      const exec = stream.executions.get('p::m')
+      for (const toolCallId of ['A', 'B']) {
+        mgr.onChunk('a', 'p::m', { type: 'tool-input-available', toolCallId, toolName: 'Bash', input: {} })
+        mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId, approvalId: toolCallId })
+      }
+      const owner = { anchorMessageId: exec.anchorMessageId, attemptId: exec.attemptId }
+      const chunks = [...listener.chunks]
+      expect(mgr.retireToolApproval('a', 'A', { ...owner, anchorMessageId: 'foreign' })).toBe(false)
+      expect(mgr.retireToolApproval('a', 'A', { ...owner, attemptId: exec.attemptId + 1 })).toBe(false)
+      expect(exec.pendingApprovalToolCallIds).toEqual(new Set(['A', 'B']))
+      expect(mgr.retireToolApproval('a', 'A', owner)).toBe(true)
+      expect(listener.chunks).toEqual(chunks)
+      expect(exec.pendingApprovalToolCallIds).toEqual(new Set(['B']))
+      expect((sharedCacheStore.get('topic.stream.statuses.a') as any).awaitingApprovalAnchors).toHaveLength(1)
+      mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId: 'B', approvalId: 'B-second' })
+      const beforeRetirement = [...listener.chunks]
+      expect(mgr.retireToolApproval('a', 'B', owner)).toBe(true)
+      expect(listener.chunks).toEqual(beforeRetirement)
+      const spans = exec.runtimeTiming.snapshot().spans
+      expect(spans.filter((span: any) => span.toolCallId === 'B')).toHaveLength(2)
+      expect(
+        spans.filter((span: any) => span.toolCallId === 'B').every((span: any) => span.completedAt !== undefined)
+      ).toBe(true)
+      const writesWhileLive = fakeCacheService.setShared.mock.calls.length
+      mgr.onChunk('a', 'p::m', { type: 'tool-output-available', toolCallId: 'A', output: 'finished' })
+      expect(listener.chunks.at(-1)).toEqual({
+        type: 'tool-output-available',
+        toolCallId: 'A',
+        output: 'finished'
+      })
+      expect(exec.pendingApprovalToolCallIds.size).toBe(0)
+      expect(exec.resolvedToolApprovals?.size ?? 0).toBe(0)
+      expect(fakeCacheService.setShared.mock.calls.length).toBe(writesWhileLive)
+      expect(mgr.retireToolApproval('a', 'A', owner)).toBe(false)
+      expect(mgr.retireToolApproval('a', 'B', owner)).toBe(false)
+      mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId: 'B', approvalId: 'B-third' })
+      await mgr.onExecutionDone('a', 'p::m')
+      expect(mgr.inspect('a')!.status).toBe('awaiting-approval')
+      expect(mgr.retireToolApproval('a', 'B', owner)).toBe(true)
+      expect(mgr.inspect('a')!.status).toBe('awaiting-approval')
+      expect(exec.pendingApprovalToolCallIds.size).toBe(0)
+      expect((sharedCacheStore.get('topic.stream.statuses.a') as any).awaitingApprovalAnchors).toEqual([])
+      expect(exec.resolvedToolApprovals?.size ?? 0).toBe(0)
+      expect(listener.chunks.slice(0, chunks.length)).toEqual(chunks)
+      const writes = fakeCacheService.setShared.mock.calls.length
+      expect(mgr.retireToolApproval('a', 'A', owner)).toBe(false)
+      expect(mgr.retireToolApproval('a', 'B', owner)).toBe(false)
+      expect(exec.pendingApprovalToolCallIds.size).toBe(0)
+      expect(fakeCacheService.setShared.mock.calls.length).toBe(writes)
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it('closes every approval span for the retired call and preserves sibling waits', () => {
+      startSingle(mgr, { topicId: 'a', modelId: 'p::m', request: req('a'), listeners: [] })
+      const exec = (mgr as any).activeStreams.get('a').executions.get('p::m')
+      for (const [toolCallId, approvalId] of [
+        ['A', 'A1'],
+        ['A', 'A2'],
+        ['B', 'B1']
+      ])
+        mgr.onChunk('a', 'p::m', { type: 'tool-approval-request', toolCallId, approvalId })
+      expect(mgr.retireToolApproval('a', 'A')).toBe(true)
+      const spans = exec.runtimeTiming.snapshot().spans
+      expect(spans.filter((span: any) => span.toolCallId === 'A')).toHaveLength(2)
+      for (const span of spans) {
+        if (span.toolCallId === 'A') expect(span.completedAt).toEqual(expect.any(Number))
+        else expect(span.completedAt).toBeUndefined()
+      }
+    })
+
+    it('drops only the retired execution anchor when another execution awaits the same call id', () => {
+      mgr.send({
+        topicId: 'a',
+        models: [
+          { modelId: 'p::a', request: req('a') },
+          { modelId: 'p::b', request: req('a') }
+        ],
+        listeners: []
+      })
+      const stream = (mgr as any).activeStreams.get('a')
+      for (const modelId of ['p::a', 'p::b'] as const)
+        mgr.onChunk('a', modelId, { type: 'tool-approval-request', toolCallId: 'shared-id', approvalId: modelId })
+      const a = stream.executions.get('p::a')
+      const b = stream.executions.get('p::b')
+      expect(
+        mgr.retireToolApproval('a', 'shared-id', { anchorMessageId: a.anchorMessageId, attemptId: a.attemptId })
+      ).toBe(true)
+      expect(a.pendingApprovalToolCallIds.size).toBe(0)
+      expect(b.pendingApprovalToolCallIds).toEqual(new Set(['shared-id']))
+      expect((sharedCacheStore.get('topic.stream.statuses.a') as any).awaitingApprovalAnchors).toEqual([
+        expect.objectContaining({ anchorMessageId: b.anchorMessageId, attemptId: b.attemptId })
+      ])
     })
 
     it('advances an approved live tool part so the next parallel approval can surface', async () => {
@@ -3885,7 +4243,7 @@ describe('AiStreamManager', () => {
         const persistence = new PersistenceListener({
           topicId: 'a',
           backend: {
-            kind: 'test',
+            kind: 'temp',
             persistAssistant: (input) => {
               writes.push(input)
             }
@@ -3899,7 +4257,7 @@ describe('AiStreamManager', () => {
         }) as unknown as Electron.WebContents
         let view: MessageProjectionView | null = null
         view = await mgr.attachProjection(sender, 'a', 'subscription', (update) => {
-          if (view) view = applyMessageProjectionUpdate(view, update)!
+          if (view && update.type !== 'parts') view = applyMessageProjectionUpdate(view, update)!
         })
         const started = startSingle(mgr, {
           topicId: 'a',
@@ -4012,7 +4370,7 @@ describe('AiStreamManager', () => {
         const persistence = new PersistenceListener({
           topicId: 'a',
           backend: {
-            kind: 'test',
+            kind: 'temp',
             persistAssistant: (input) => {
               writes.push(input)
             }
@@ -4177,17 +4535,23 @@ describe('AiStreamManager', () => {
         name: null,
         message: 'You have no credits remaining.',
         stack: null,
+        reportingHandled: true,
         streamStage: 'response-stream'
       })
       expect(JSON.stringify(listener.errorResults[0].error)).not.toMatch(/object-secret|private prompt/)
-      expect(mockMainLoggerService.error).toHaveBeenCalledWith('AI stream error', {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        attemptId: listener.errorResults[0].attemptId,
-        stage: 'response-stream',
-        origin: 'throw',
-        cause: { errorMessage: 'You have no credits remaining.' }
-      })
+      expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+        'AI stream error',
+        expect.objectContaining({
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          errorMessage: 'You have no credits remaining.',
+          operation: 'chat.stream.consume',
+          attemptId: listener.errorResults[0].attemptId,
+          stage: 'response-stream',
+          origin: 'throw',
+          cause: { errorMessage: 'You have no credits remaining.' }
+        })
+      )
       expect(JSON.stringify(mockMainLoggerService.error.mock.calls)).not.toMatch(/object-secret|private prompt/)
       expect(mgr.inspect('a')!.status).toBe('error')
     })
@@ -4233,6 +4597,7 @@ describe('AiStreamManager', () => {
 
       const apiError = new APICallError({
         message: 'Forbidden',
+        cause: new Error('Nested transport diagnostic'),
         url: 'https://llm.example.com/v1/chat/completions?api_key=fixture-secret',
         requestBodyValues: { messages: [{ role: 'user', content: 'private prompt' }] },
         statusCode: 403,
@@ -4267,6 +4632,7 @@ describe('AiStreamManager', () => {
         name: 'AI_APICallError',
         message: 'no access to this model',
         providerErrorCategory: 'permission',
+        reportingHandled: true,
         stack: null,
         cause: null,
         url: '',
@@ -4281,12 +4647,14 @@ describe('AiStreamManager', () => {
       expect(mockMainLoggerService.error.mock.calls).toHaveLength(1)
       expect(mockMainLoggerService.error.mock.calls[0]).toEqual([
         'AI stream error',
-        {
+        expect.objectContaining({
           topicId: 'a',
           modelId: 'provider-a::model-a',
           attemptId: listener.errorResults[0].attemptId,
           stage: 'response-stream',
           origin: 'throw',
+          operation: 'chat.stream.consume',
+          failure: expect.objectContaining({ source: 'provider', kind: 'expected', reason: 'permission' }),
           cause: {
             errorName: 'AI_APICallError',
             errorMessage: '<string:9>',
@@ -4295,10 +4663,11 @@ describe('AiStreamManager', () => {
             url: 'https://llm.example.com/v1/chat/completions?api_key=%3Credacted%3E',
             requestShape: { messages: [{ role: 'user', content: '<string:14>' }] },
             responseHeaders: {},
-            responseBody: { detail: '<string:23>' }
+            responseBody: { detail: '<string:23>' },
+            cause: expect.objectContaining({ errorName: 'Error', errorMessage: '<string:27>' })
           },
           chunk: { errorMessage: 'Forbidden' }
-        }
+        })
       ])
       expect(JSON.stringify([listener.errorResults[0].error, mockMainLoggerService.error.mock.calls])).not.toMatch(
         /fixture-secret|private prompt/

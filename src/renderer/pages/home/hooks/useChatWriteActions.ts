@@ -1,24 +1,10 @@
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-/**
- * Build the `ChatWriteActions` bag passed down through context.
- *
- * Everything here is a write-side handler (delete / edit / regenerate /
- * resend / fork / setActiveNode) that:
- *   1. seeds the optimistic branch-response cache and/or mutates
- *      `useChat.state.messages`,
- *   2. fires the DataApi mutation trigger (from `useBranchCacheOps`),
- *   3. rolls back on error.
- *
- * Shape / semantics match `ChatWriteContext.ChatWriteActions` one-to-one —
- * this file exists to get the ~300 lines of handler code out of
- * `ChatContent.tsx`, not to change behaviour.
- */
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
-import type { ReservedMessageSeedOptions } from '@renderer/hooks/useConversationTurnController'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
@@ -27,6 +13,7 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
+import type { AiStreamOpenResponse } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type {
   AssistantTurnOptions,
@@ -79,14 +66,18 @@ function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined)
   }
 }
 
+export type ReservedMessageSeedOptions = Pick<
+  Exclude<AiStreamOpenResponse, { mode: 'blocked' }>,
+  'activeExecutions' | 'preserveActiveNode'
+>
+
 interface Params {
   topic: Topic
   uiMessages: CherryUIMessage[]
   activeNodeId: string | null
-  regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
-  setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
+  regenerate: (options?: ChatRequestOptions) => Promise<void>
   stop: () => Promise<void>
-  refresh: () => Promise<CherryUIMessage[]>
+  refresh: () => Promise<void>
   cache: ReturnType<typeof useTopicMessagesCache>
   seedReservedMessages: (messages: CherryUIMessage[], options?: ReservedMessageSeedOptions) => Promise<void>
   scrollToBottom: () => void
@@ -109,7 +100,6 @@ export function useChatWriteActions(params: Params): Result {
     uiMessages,
     activeNodeId,
     regenerate,
-    setMessages,
     stop,
     refresh,
     cache,
@@ -131,6 +121,7 @@ export function useChatWriteActions(params: Params): Result {
     createMessageTrigger,
     setActiveNodeTrigger
   } = cache
+  const { t } = useTranslation()
   const startNewContextPromiseRef = useRef<Promise<void> | null>(null)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
 
@@ -275,14 +266,13 @@ export function useChatWriteActions(params: Params): Result {
       })
       try {
         await patchMessageTrigger({ params: { id: messageId }, body: { data: { parts: editedParts } } })
-        setMessages((messages) => messages.map((msg) => (msg.id === messageId ? { ...msg, parts: editedParts } : msg)))
         logger.info('Edited message', { messageId, partCount: editedParts.length })
       } catch (err) {
         await rollbackBranch()
         throw err
       }
     },
-    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch, setMessages]
+    [patchMessageTrigger, rollbackBranch, seedOptimisticBranch]
   )
 
   const capabilityBody = useMemo<Record<string, unknown>>(
@@ -360,16 +350,7 @@ export function useChatWriteActions(params: Params): Result {
         return
       }
 
-      // PR 3: hydrate `useChat.state.messages` with the current DB-fresh
-      // snapshot synchronously, right before the AI SDK's regenerate uses it
-      // to splice the new branch. The old `useEffect`-driven sync in
-      // useChatRuntimeState was the user's banned anti-pattern; this is the
-      // single producer that genuinely needs the hydration, so the snapshot
-      // lives at the call site.
-      setMessages(uiMessages)
-
-      const regeneratePromise = regenerate({
-        messageId,
+      await regenerate({
         body: {
           ...capabilityBody,
           ...(parentAnchorId && { parentAnchorId }),
@@ -377,9 +358,8 @@ export function useChatWriteActions(params: Params): Result {
           ...turnOptionsRequestFields(turnOptions)
         }
       })
-      await regeneratePromise
     },
-    [regenerate, capabilityBody, uiMessages, setMessages, seedReservedMessages, topic.id, composerModelId]
+    [regenerate, capabilityBody, uiMessages, seedReservedMessages, topic.id, composerModelId]
   )
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
@@ -404,10 +384,7 @@ export function useChatWriteActions(params: Params): Result {
           }
         }
       ])
-      // Sync `useChat` from DB before regenerate. The server flipped
-      // `activeNodeId` to the new branch in the same transaction.
-      const refreshed = await refresh()
-      setMessages(refreshed)
+      await refresh()
       logger.info('Forked user message', { sourceId: messageId, newId: newMessage.id })
       const shouldPreserveInheritedModelIds =
         inheritedModelIds.length > 1 || (!topic.assistantId && inheritedModelIds.length === 1)
@@ -435,16 +412,7 @@ export function useChatWriteActions(params: Params): Result {
       })
       scrollToBottom()
     },
-    [
-      createSiblingTrigger,
-      seedReservedMessages,
-      scrollToBottom,
-      refresh,
-      setMessages,
-      topic.id,
-      topic.assistantId,
-      uiMessages
-    ]
+    [createSiblingTrigger, seedReservedMessages, scrollToBottom, refresh, topic.id, topic.assistantId, uiMessages]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(
@@ -494,13 +462,13 @@ export function useChatWriteActions(params: Params): Result {
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveNode on unpersisted message', { messageId, topicId: topic.id })
-          toast.warning('Message is still syncing — try again in a moment')
+          toast.warning(t('message.error.still_syncing'))
           return
         }
         throw err
       }
     },
-    [setActiveNodeTrigger, topic.id]
+    [setActiveNodeTrigger, t, topic.id]
   )
 
   const handleSetActiveBranch = useCallback<ChatWriteActions['setActiveBranch']>(
@@ -516,7 +484,7 @@ export function useChatWriteActions(params: Params): Result {
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch on unpersisted message', { throughNodeId, topicId: topic.id })
-          toast.warning('Message is still syncing — try again in a moment')
+          toast.warning(t('message.error.still_syncing'))
           return
         }
         throw err
@@ -531,7 +499,7 @@ export function useChatWriteActions(params: Params): Result {
         throw err
       }
     },
-    [setActiveNodeTrigger, topic.id]
+    [setActiveNodeTrigger, t, topic.id]
   )
 
   const handlePause = useCallback<ChatWriteActions['pause']>(() => {

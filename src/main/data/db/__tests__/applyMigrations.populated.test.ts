@@ -2,6 +2,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { seedSessionRoot } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
@@ -58,6 +59,14 @@ describe('applyMigrations over a populated database', () => {
   let tempDir: string
   let sqlite: Database.Database
   let db: DbType
+
+  function insertPrePartStorageRoot(sessionId: string) {
+    sqlite
+      .prepare(`INSERT INTO agent_session_message
+      (id, session_id, role, data, status, created_at, updated_at)
+      VALUES (?, ?, 'root', '{}', 'success', 1, 1)`)
+      .run(`${sessionId}-root`, sessionId)
+  }
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-migrate-populated-'))
@@ -254,8 +263,11 @@ describe('applyMigrations over a populated database', () => {
     ])
     expect(sqlite.prepare('SELECT session_id, data FROM agent_session_message').get()).toEqual({
       session_id: 'heartbeat',
-      data: JSON.stringify({ parts: [{ type: 'text', text: 'kept result' }] })
+      data: '{}'
     })
+    expect(sqlite.prepare('SELECT session_id, payload FROM agent_session_message_part').all()).toEqual([
+      { session_id: 'heartbeat', payload: JSON.stringify({ type: 'text', text: 'kept result' }) }
+    ])
     sqlite.prepare('DELETE FROM job').run()
     applyMigrations(db, resolveMigrationsPath())
     expect(sqlite.prepare("SELECT type FROM agent_session WHERE id = 'heartbeat'").get()).toEqual({
@@ -489,7 +501,9 @@ describe('applyMigrations over a populated database', () => {
         is_active: 0
       }
     ])
-    expect(sqlite.prepare('SELECT count(*) AS count FROM agent_session_message').get()).toEqual({ count: 2 })
+    expect(sqlite.prepare("SELECT count(*) AS count FROM agent_session_message WHERE role != 'root'").get()).toEqual({
+      count: 2
+    })
   })
 
   it('preserves every file_entry row and its references across the cleanup_policy recreate', () => {
@@ -758,7 +772,7 @@ describe('applyMigrations over a populated database', () => {
     // The one-shot v1 -> v2 importer runs after schema migrations. In particular,
     // 0006 has already attempted its populated-table backfill before AgentsMigrator
     // inserts these messages, so the boot seeder must close that ordering gap.
-    applyMigrations(db, resolveMigrationsPath())
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0045_agent_session_message_part'))
     const now = Date.now()
     const fileEntryId = '77777777-7777-7777-8777-777777777777'
     const messageId = '88888888-8888-4888-8888-888888888888'
@@ -805,15 +819,17 @@ describe('applyMigrations over a populated database', () => {
       filename: 'missing.pdf',
       providerMetadata: { cherry: { fileEntryId: '99999999-9999-7999-8999-999999999999' } }
     }
+    insertPrePartStorageRoot('session-attachment-migrate')
     sqlite
       .prepare(
         `INSERT INTO agent_session_message
-          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
-         VALUES (?, 'session-attachment-migrate', 'user', ?, '', 'success', ?, ?)`
+          (id, session_id, parent_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-attachment-migrate', (SELECT id FROM agent_session_message WHERE session_id = 'session-attachment-migrate' AND role = 'root'), 'user', ?, '', 'success', ?, ?)`
       )
       .run(messageId, JSON.stringify({ parts: [filePart, filePart, missingPart] }), now, now)
 
     expect(sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message_file_ref`).get()).toEqual({ count: 0 })
+    applyMigrations(db, resolveMigrationsPath())
     new LegacyFileCleanupPolicySeeder().run(db)
 
     const refs = sqlite
@@ -833,7 +849,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('does not backfill agent attachments when the source message changed after migration', () => {
-    applyMigrations(db, resolveMigrationsPath())
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0045_agent_session_message_part'))
     const now = Date.now()
     const completedAt = now + 1
     const fileEntryId = '56565656-5656-4565-8565-565656565656'
@@ -868,11 +884,12 @@ describe('applyMigrations over a populated database', () => {
          VALUES ('session-agent-updated', 'Session', 'workspace-agent-updated', 'a0', ?, ?, ?)`
       )
       .run(now, now, now)
+    insertPrePartStorageRoot('session-agent-updated')
     sqlite
       .prepare(
         `INSERT INTO agent_session_message
-          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
-         VALUES (?, 'session-agent-updated', 'user', ?, '', 'success', ?, ?)`
+          (id, session_id, parent_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-agent-updated', (SELECT id FROM agent_session_message WHERE session_id = 'session-agent-updated' AND role = 'root'), 'user', ?, '', 'success', ?, ?)`
       )
       .run(
         messageId,
@@ -883,6 +900,7 @@ describe('applyMigrations over a populated database', () => {
         completedAt + 1
       )
 
+    applyMigrations(db, resolveMigrationsPath())
     new LegacyFileCleanupPolicySeeder().run(db)
 
     expect(sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message_file_ref`).get()).toEqual({ count: 0 })
@@ -927,11 +945,12 @@ describe('applyMigrations over a populated database', () => {
          VALUES ('session-agent-existing-ref', 'Session', 'workspace-agent-existing-ref', 'a0', ?, ?, ?)`
       )
       .run(completedAt + 10, completedAt + 10, completedAt + 10)
+    seedSessionRoot(db, 'session-agent-existing-ref')
     sqlite
       .prepare(
         `INSERT INTO agent_session_message
-          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
-         VALUES (?, 'session-agent-existing-ref', 'user', ?, '', 'success', ?, ?)`
+          (id, session_id, parent_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-agent-existing-ref', (SELECT id FROM agent_session_message WHERE session_id = 'session-agent-existing-ref' AND role = 'root'), 'user', ?, '', 'success', ?, ?)`
       )
       .run(messageId, JSON.stringify({ parts: [] }), completedAt + 10, completedAt + 10)
     sqlite
@@ -950,7 +969,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('rolls back the agent reference backfill when the coupled cleanup-policy update fails', () => {
-    applyMigrations(db, resolveMigrationsPath())
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0045_agent_session_message_part'))
     const now = Date.now()
     const fileEntryId = '12121212-1212-7121-8121-121212121212'
     const messageId = '34343434-3434-4343-8343-343434343434'
@@ -984,11 +1003,12 @@ describe('applyMigrations over a populated database', () => {
          VALUES ('session-cleanup-rollback', 'Session', 'workspace-cleanup-rollback', 'a0', ?, ?, ?)`
       )
       .run(now, now, now)
+    insertPrePartStorageRoot('session-cleanup-rollback')
     sqlite
       .prepare(
         `INSERT INTO agent_session_message
-          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
-         VALUES (?, 'session-cleanup-rollback', 'user', ?, '', 'success', ?, ?)`
+          (id, session_id, parent_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-cleanup-rollback', (SELECT id FROM agent_session_message WHERE session_id = 'session-cleanup-rollback' AND role = 'root'), 'user', ?, '', 'success', ?, ?)`
       )
       .run(
         messageId,
@@ -1003,6 +1023,7 @@ describe('applyMigrations over a populated database', () => {
         now,
         now
       )
+    applyMigrations(db, resolveMigrationsPath())
     sqlite.exec(`
       CREATE TRIGGER reject_cleanup_policy_update
       BEFORE UPDATE OF cleanup_policy ON file_entry
@@ -1341,7 +1362,11 @@ describe('applyMigrations over a populated database', () => {
       count: 6
     })
     expect(
-      sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message WHERE session_id = 'session-activity'`).get()
+      sqlite
+        .prepare(
+          `SELECT count(*) AS count FROM agent_session_message WHERE session_id = 'session-activity' AND role != 'root'`
+        )
+        .get()
     ).toEqual({ count: 4 })
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
     expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
@@ -1464,7 +1489,7 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('integrity_check', { simple: true })).toBe('ok')
   })
   it('migrates populated agent avatar ownership and message references', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0037_agent_avatar'))
     sqlite.exec(`INSERT INTO agent (id, type, name, instructions, order_key, created_at, updated_at) VALUES ('agent', 'claude-code', 'Agent', '', 'a0', 1, 1);
       INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at) VALUES ('ws', 'Workspace', '/tmp/ws', 'user', 'a0', 1, 1);
       INSERT INTO agent_session (id, agent_id, name, workspace_id, order_key, last_activity_at, created_at, updated_at) VALUES ('session', 'agent', 'Session', 'ws', 'a0', 1, 1, 1);

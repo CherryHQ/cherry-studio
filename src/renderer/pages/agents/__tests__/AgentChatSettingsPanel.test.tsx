@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -226,22 +226,12 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({
-    overlay: {},
-    liveAssistants: [],
-    disposeOverlay: vi.fn(),
-    reset: vi.fn()
-  })
-}))
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({ useHistoryReplies: () => [] }))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({ useTopicSpeech: () => {} }))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({ useTopicCompletion: () => {} }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: topicStreamStatusMock.isPending }),
-  useTopicOverlayHandoffOnTerminal: () => {}
-}))
-
-vi.mock('@renderer/utils/agentSession', () => ({
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
+  useTopicStreamStatus: () => ({ isPending: topicStreamStatusMock.isPending })
 }))
 
 vi.mock('react-i18next', async (importOriginal) => ({
@@ -396,6 +386,7 @@ describe('AgentChat settings panel', () => {
     updateAgentMock.updateModel.mockReset()
     updateAgentMock.updateModel.mockResolvedValue({ id: 'agent-1' })
     updateSessionMock.updateSession.mockReset()
+    updateSessionMock.updateSession.mockResolvedValue({ id: 'session-1' } as any)
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
     agentRightPanePropsMock.openArtifactFile.mockReset()
     toolApprovalRespondMock.mockReset()
@@ -547,10 +538,10 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
         {
-          agentId: 'agent-1',
-          modelId: 'provider::model-2'
+          id: 'session-1',
+          model: 'provider::model-2'
         },
         { showSuccessToast: false }
       )
@@ -568,12 +559,12 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('agent.session.model_switch_confirm.description')
-    expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'agent.session.model_switch_confirm.skip_for_app_run' }))
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
     expect(
@@ -582,11 +573,32 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
         {
-          agentId: 'agent-1',
-          modelId: 'provider::model-2'
+          id: 'session-1',
+          model: 'provider::model-2'
         },
+        { showSuccessToast: false }
+      )
+    )
+  })
+
+  it('asks the same confirmation when the profile pane switches the model of a session with messages', async () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+
+    renderAgentChat()
+    const { onModelChange } = agentRightPanePropsMock.last as { onModelChange: (model: unknown) => Promise<void> }
+    await act(() => onModelChange({ id: 'provider::model-2', name: 'Model 2' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('agent.session.model_switch_confirm.description')
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
+
+    await waitFor(() =>
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+        { id: 'session-1', model: 'provider::model-2' },
         { showSuccessToast: false }
       )
     )
@@ -616,7 +628,7 @@ describe('AgentChat settings panel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
-    await waitFor(() => expect(updateAgentMock.updateModel).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(updateSessionMock.updateSession).toHaveBeenCalledTimes(1))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 

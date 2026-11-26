@@ -1,3 +1,4 @@
+import type { Element, Root } from 'hast'
 import rehypeParse from 'rehype-parse'
 import rehypeStringify from 'rehype-stringify'
 import { unified } from 'unified'
@@ -50,6 +51,38 @@ describe('rehypePrefixSvgReferences', () => {
     `)
 
     expect(output).toContain('values="url(#user-content-gradient);url(#user-content-gradient)"')
+  })
+
+  it('rewrites array-valued SVG properties', () => {
+    const tree: Root = {
+      type: 'root',
+      children: [
+        {
+          type: 'element',
+          tagName: 'svg',
+          properties: {},
+          children: [
+            {
+              type: 'element',
+              tagName: 'linearGradient',
+              properties: { id: 'user-content-gradient' },
+              children: []
+            },
+            {
+              type: 'element',
+              tagName: 'rect',
+              properties: { dataReferences: ['url(#gradient)', '#gradient'] },
+              children: []
+            }
+          ]
+        }
+      ]
+    }
+
+    rehypePrefixSvgReferences()(tree)
+
+    const rect = (tree.children[0] as Element).children[1] as Element
+    expect(rect.properties.dataReferences).toEqual(['url(#user-content-gradient)', '#user-content-gradient'])
   })
 
   it('keeps same-id SVG references scoped to each SVG subtree', () => {

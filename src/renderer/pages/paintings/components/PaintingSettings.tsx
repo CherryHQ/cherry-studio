@@ -1,8 +1,9 @@
 import type { FC } from 'react'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { InfoTooltip, InputNumber } from '@cherrystudio/ui'
+import { InfoTooltip, InputNumber, Switch } from '@cherrystudio/ui'
+import { isSeedream5xTargetModel } from '@shared/ai/seedreamImageContract'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
@@ -32,6 +33,18 @@ function shouldRenderConfigItem(item: BaseConfigItem, painting: Record<string, u
   return true
 }
 
+function normalizeSeedreamSize(params: Record<string, unknown>): Record<string, unknown> {
+  const normalized = { ...params }
+  if (['1K', '1.5K', '2K'].includes(params.imageResolution as string)) {
+    delete normalized.customSize_width
+    delete normalized.customSize_height
+    delete normalized.size
+  } else if (params.imageResolution === 'custom') {
+    delete normalized.size
+  }
+  return Object.keys(normalized).length === Object.keys(params).length ? params : normalized
+}
+
 export interface PaintingSettingsProps {
   painting: PaintingData
   inputImageCount?: number
@@ -50,6 +63,22 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
   // that `canonicalGenerate` partitions into AI SDK args vs provider bag at
   // request time. Top-level PaintingData fields are not visible to the wire.
   const paintingParams = painting.params ?? {}
+  const isTarget = isSeedream5xTargetModel(painting.model ?? '')
+  const transparentAsset =
+    isTarget && paintingParams.background === 'transparent' && paintingParams.outputFormat === 'png'
+  useEffect(() => {
+    if (!isTarget) return
+    const params = normalizeSeedreamSize(paintingParams)
+    if (params !== paintingParams) onConfigChange({ params })
+  }, [isTarget, paintingParams, onConfigChange])
+  const updateParams = (updates: Record<string, unknown>) => {
+    const params = {
+      ...paintingParams,
+      ...updates,
+      ...(transparentAsset ? { background: 'transparent', outputFormat: 'png' } : {})
+    }
+    onConfigChange({ params: isTarget ? normalizeSeedreamSize(params) : params })
+  }
   const requestTimeoutSeconds = painting.requestTimeoutMs ? Math.round(painting.requestTimeoutMs / 1000) : null
   // The override only reaches transports that apply it; hide it where the value would be inert.
   const requestTimeoutSupported = supportsImageRequestTimeout(painting.providerId)
@@ -64,8 +93,26 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
 
   return (
     <>
+      {isTarget && (
+        <label className="flex items-center justify-between gap-3 text-sm">
+          {t('paintings.seedream.transparent_asset')}
+          <Switch
+            aria-label={t('paintings.seedream.transparent_asset')}
+            checked={transparentAsset}
+            onCheckedChange={(active) =>
+              onConfigChange({
+                params: { ...paintingParams, background: active ? 'transparent' : 'auto', outputFormat: 'png' }
+              })
+            }
+          />
+        </label>
+      )}
       {configItems
-        .filter((item) => shouldRenderConfigItem(item, paintingParams))
+        .filter(
+          (item) =>
+            shouldRenderConfigItem(item, paintingParams) &&
+            !(transparentAsset && (item.key === 'background' || item.key === 'outputFormat'))
+        )
         .map((item) => (
           <div key={item.key ?? `${item.type}-${item.title ?? ''}`}>
             {item.title && (
@@ -82,7 +129,7 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({
             <PaintingFieldRenderer
               item={item}
               painting={paintingParams}
-              onChange={(updates) => onConfigChange({ params: { ...paintingParams, ...updates } })}
+              onChange={updateParams}
               onGenerateRandomSeed={onGenerateRandomSeed}
             />
           </div>

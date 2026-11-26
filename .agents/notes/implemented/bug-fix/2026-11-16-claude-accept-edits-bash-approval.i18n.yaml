@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-16-claude-accept-edits-bash-approval.md
+2026-11-16-claude-accept-edits-bash-approval.md: dea8476ef34f6bcd0c925c48caefa9dffda948c2
+2026-11-16-claude-accept-edits-bash-approval.zh.md: 1182e6fa7bc959f2e3354c2c92982b512effc188

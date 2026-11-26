@@ -5,8 +5,10 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { startup, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import { childTimeline } from '@test-helpers/childTimeline'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import sharp from 'sharp'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -24,15 +26,19 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
-import { ChildThreadProjection, savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
+import { savedChildView } from '@main/ai/agentSession/childArchive'
+import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
+import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
 import { prepareClaudeBranch, reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode/claudeContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 import { ClaudeFeed } from '../../../../../../packages/agent-runtime-claude-code/src/observation'
+import { ClaudeOwner } from '../../../../../../packages/agent-runtime-claude-code/src/owner'
 import { fixture, spawnChild } from '../../../../../../packages/agent-runtime-claude-code/tests/nativeFixture'
 import { assistantMessage, wireProcess } from '../../../../../../packages/agent-runtime-claude-code/tests/wireFixture'
 import type { AgentRuntimeConnection, AgentRuntimeEvent, AgentRuntimeConnectInput } from '../../types'
@@ -158,11 +164,9 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
     type: T,
     predicate: (event: Extract<AgentRuntimeEvent, { type: T }>) => boolean = () => true
   ) => {
+    const hasType = (event: AgentRuntimeEvent): event is Extract<AgentRuntimeEvent, { type: T }> => event.type === type
     const find = () =>
-      events.find(
-        (event): event is Extract<AgentRuntimeEvent, { type: T }> =>
-          event.type === type && predicate(event as Extract<AgentRuntimeEvent, { type: T }>)
-      )
+      events.find((event): event is Extract<AgentRuntimeEvent, { type: T }> => hasType(event) && predicate(event))
     await expect.poll(() => find() ?? events.find((event) => event.type === 'error'), { timeout: 15000 }).toBeDefined()
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     return find()!
@@ -170,7 +174,7 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
   return { ...test, sessionId, input, connect, events, wait, nativeInputs }
 }
 
-it('keeps both real SDK background notifications in one persisted Main reply until the final summary', async () => {
+it('continues product history and keeps SDK background notifications in one Main reply', async () => {
   const test = await desktop()
   const agentId = randomUUID()
   const modelId = 'native-test::claude-sonnet-4-6'
@@ -208,6 +212,7 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
   const unexpected: unknown[] = []
   MockApplicationUtils.setService('AiStreamManager', {
     getInteractionWindow: () => undefined,
+    retireToolApproval: () => false,
     startRuntimeTurn: (input: unknown) => unexpected.push(input),
     broadcastTopicError: (...args: unknown[]) => unexpected.push(args),
     drainRuntimeReply: async () => {},
@@ -217,6 +222,11 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
     await service.closeSession(test.sessionId)
     runtimeDriverRegistry.clearForTest()
     BaseService.resetInstances()
+  })
+  test.input('Remember historical mango')
+  const historical = messages.saveMessage({
+    sessionId: test.sessionId,
+    message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Mango recorded' }] } }
   })
   const user = test.input('Run two background reviews').message
   const reply = messages.saveMessage({
@@ -233,7 +243,6 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
     userMessage: user,
     headless: true
   })
-  await service.primeConnection(test.sessionId)
   const source = service.openTurnStream({
     sessionId: test.sessionId,
     turnId: handle.turnId,
@@ -241,9 +250,10 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
   })
   if (source.kind !== 'messages') throw new Error('Expected message stream')
   const reading = pipeMessageStream(
-    source.stream,
+    source,
     handle.abortController.signal,
-    { id: reply.id, role: 'assistant', parts: [] },
+    { id: reply.id, role: 'assistant' },
+    () => {},
     () => {},
     () => {}
   )
@@ -252,6 +262,11 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
     reading.then((result) => {
       throw new Error(JSON.stringify({ result, unexpected }))
     })
+  ])
+  expect(JSON.stringify(request.body.messages)).toContain('Remember historical mango')
+  expect(JSON.stringify(request.body.messages)).toContain('Mango recorded')
+  expect(messages.getSessionMessage(test.sessionId, historical.id).data.parts).toEqual([
+    { type: 'text', text: 'Mango recorded' }
   ])
   request.reply.block(spawnChild('toolu_review_a', true))
   request.reply.block(spawnChild('toolu_review_b', true))
@@ -287,7 +302,7 @@ it('keeps both real SDK background notifications in one persisted Main reply unt
     .where(eq(sessionMessagesTable.sessionId, test.sessionId))
     .all()
     .filter((row) => row.role === 'assistant')
-  expect(rows.map((row) => row.id)).toEqual([reply.id])
+  expect(rows.map((row) => row.id)).toEqual([historical.id, reply.id])
   expect(
     messages
       .getSessionMessage(test.sessionId, reply.id)
@@ -305,11 +320,19 @@ it('joins native steer to the shared answer while keeping foreground child histo
   const connection = await test.connect()
   await connection.send(first)
   const request = await test.request()
+  using refresh = vi.spyOn(ClaudeOwner.prototype, 'refresh')
   request.reply.block(spawnChild('toolu_desktop'))
   request.reply.finish('tool_use')
   const child = await test.request()
+  await expect
+    .poll(() => childTimeline(test.sessionId, 'toolu_desktop')?.snapshot().messages[0])
+    .toMatchObject({
+      role: 'user',
+      parts: [{ type: 'text', text: 'Child toolu_desktop' }]
+    })
+  expect(refresh).not.toHaveBeenCalled()
   const second = test.input('Use the revised requirement')
-  expect(connection.redirect!(second)).toBe(true)
+  expect(connection.redirect!({ ...second, systemReminder: true })).toBe(true)
   await expect
     .poll(() =>
       test.nativeInputs.some((state) => state.inputId === second.message.id && state.facts.includes('dispatch-started'))
@@ -318,7 +341,29 @@ it('joins native steer to the shared answer while keeping foreground child histo
   child.reply.block({ type: 'text', text: 'Independent child answer' })
   child.reply.finish()
   const response = await test.request()
-  expect(JSON.stringify(response.body.messages)).toContain('Use the revised requirement')
+  const steerEntry = response.body.messages.find((message) =>
+    JSON.stringify(message).includes('Use the revised requirement')
+  )
+  expect(steerEntry).toBeDefined()
+  const steerPayload = JSON.stringify(steerEntry)
+  // Measured provider payloads wrap Cherry's block in the vendor's own outer <system-reminder>.
+  expect(steerPayload.match(/The user sent the following message:/g)).toHaveLength(1)
+  const cherryStart = steerPayload.indexOf('The user sent the following message:')
+  const cherryEnd = steerPayload.indexOf('</system-reminder>', cherryStart)
+  expect(cherryEnd).toBeGreaterThan(cherryStart)
+  const cherryReminder = steerPayload.slice(cherryStart, cherryEnd)
+  expect(cherryReminder).toContain('Use the revised requirement')
+  expect(cherryReminder).toContain('arrived while you were already working')
+  expect(cherryReminder).toContain('a new instruction from the user, not a continuation of the current task')
+  expect(cherryReminder).toContain('Finish the step already in flight if it cannot be interrupted')
+  expect(cherryReminder).toContain('Before any further work and before ending this turn, you must write')
+  expect(cherryReminder).toContain('one short user-visible sentence that restates what the user asked for')
+  expect(cherryReminder).toContain('Then either act on the message or state when it will be handled')
+  expect(cherryReminder).toContain('Do not silently defer it to a later turn')
+  expect(cherryReminder).toContain(
+    "Where it conflicts with the remainder of your current plan, the user's message takes priority"
+  )
+  expect(steerPayload).toContain('Use the revised requirement')
   response.reply.block({ type: 'text', text: 'Revised root answer' })
   response.reply.finish()
   const boundary = await test.wait('steer-boundary')
@@ -328,7 +373,7 @@ it('joins native steer to the shared answer while keeping foreground child histo
     ...new Map(test.nativeInputs.filter((state) => state.outcome).map((state) => [state.inputId, state])).values()
   ]
   expect(replies.map((state) => state.inputId)).toEqual(expect.arrayContaining([first.message.id, second.message.id]))
-  const context = contexts.findChild(test.sessionId, 'toolu_desktop')!
+  const context = contexts.context(contexts.childArchive(test.sessionId, 'toolu_desktop')!.id)
   expect(context).toBeDefined()
   await expect.poll(() => JSON.stringify(savedChildView(context).messages)).toContain('Independent child answer')
 
@@ -374,11 +419,19 @@ it.each(['backup', 'close'] as const)(
     const connection = await test.connect()
     await connection.send(input)
     const request = await test.request()
+    using refresh = vi.spyOn(ClaudeOwner.prototype, 'refresh')
     request.reply.block(spawnChild('toolu_background_desktop', true))
     request.reply.finish('tool_use')
     const requests = [await test.request(), await test.request()]
     const parent = requests.find((value) => JSON.stringify(value.body.messages).includes('tool_result'))!
     const child = requests.find((value) => value !== parent)!
+    const opening = () => childTimeline(test.sessionId, 'toolu_background_desktop')?.snapshot().messages[0]
+    await expect.poll(opening).toMatchObject({
+      role: 'user',
+      parts: [{ type: 'text', text: 'Child toolu_background_desktop' }]
+    })
+    const liveOpening = opening()
+    expect(refresh).not.toHaveBeenCalled()
     parent.reply.block({ type: 'text', text: 'Parent done' })
     parent.reply.finish()
     await test.wait('turn-complete')
@@ -429,7 +482,7 @@ it.each(['backup', 'close'] as const)(
     await Promise.all([closing, draining])
     if (mode === 'backup')
       expect(test.children.some((child) => child.exitCode === null && child.signalCode === null)).toBe(true)
-    const context = contexts.findChild(test.sessionId, 'toolu_background_desktop')!
+    const context = contexts.context(contexts.childArchive(test.sessionId, 'toolu_background_desktop')!.id)
     await expect.poll(() => JSON.stringify(savedChildView(context).messages)).toContain('Late child block two')
     const childResponses = test.events
       .filter((event) => event.type === 'response-start')
@@ -451,10 +504,11 @@ it.each(['backup', 'close'] as const)(
     await new Promise((resolve) => setTimeout(resolve, 160))
     expect(dbh.sqlite.prepare('SELECT total_changes() AS count').get()).toEqual(changes)
     await connection.close()
-    const reopened = await test.connect()
-    await expect.poll(async () => Boolean(await reopened.childProjection!('toolu_background_desktop'))).toBe(true)
-    const projection = await reopened.childProjection!('toolu_background_desktop')
+    await test.connect()
+    await expect.poll(() => Boolean(childTimeline(test.sessionId, 'toolu_background_desktop'))).toBe(true)
+    const projection = childTimeline(test.sessionId, 'toolu_background_desktop')
     expect(projection!.snapshot().canSubmit).toBe(false)
+    expect(projection!.snapshot().messages[0]).toEqual(liveOpening)
     expect(projection!.snapshot().messages).toEqual(saved)
   },
   30000
@@ -526,8 +580,8 @@ it('restores nested children under their immediate parent after an attachment fa
   rootResult.reply.block({ type: 'text', text: 'Root answer' })
   rootResult.reply.finish()
   await test.wait('turn-complete')
-  const outer = contexts.findChild(test.sessionId, 'toolu_outer')!
-  const inner = contexts.findChild(test.sessionId, 'toolu_inner')!
+  const outer = contexts.context(contexts.childArchive(test.sessionId, 'toolu_outer')!.id)
+  const inner = contexts.context(contexts.childArchive(test.sessionId, 'toolu_inner')!.id)
   expect(inner.parentContextId).toBe(outer.id)
   await expect.poll(() => JSON.stringify(savedChildView(inner).messages)).toContain('Grandchild answer')
   expect(
@@ -547,14 +601,10 @@ it('restores nested children under their immediate parent after an attachment fa
       return originalAttach.call(this)
     })
   try {
-    const reopened = await test.connect()
+    await test.connect()
     await expect.poll(() => failed).toBe(true)
     expect(savedChildView(contexts.context(inner.id)).messages).toEqual(saved)
-    const projections = await Promise.all([
-      reopened.childProjection!('toolu_inner'),
-      reopened.childProjection!('toolu_inner')
-    ])
-    for (const projection of projections) expect(projection?.snapshot().messages).toEqual(saved)
+    expect(childTimeline(test.sessionId, 'toolu_inner')?.snapshot().messages).toEqual(saved)
     expect(contexts.children(outer.id).filter((context) => context.spawnToolCallId === 'toolu_inner')).toHaveLength(1)
   } finally {
     attach.mockRestore()
@@ -587,7 +637,7 @@ it('stops one background child while its sibling persists its answer', async () 
   await stopped.reply.closed
   kept.reply.block({ type: 'text', text: 'Sibling survived' })
   kept.reply.finish()
-  const context = contexts.findChild(test.sessionId, 'toolu_keep')!
+  const context = contexts.context(contexts.childArchive(test.sessionId, 'toolu_keep')!.id)
   await expect.poll(() => JSON.stringify(savedChildView(context).messages)).toContain('Sibling survived')
   expect(test.events.filter((event) => event.type === 'error')).toEqual([])
 }, 30000)
@@ -633,11 +683,13 @@ it('binds repeated native resets after Main captures a prewarm branch head, reta
   expect(test.events.filter((event) => event.type === 'error')).toEqual([])
 }, 60000)
 
-it.each(['managed', 'external', 'failure'])(
+it.each(['managed', 'external', 'failure', 'history'])(
   'dispatches real %s image bytes through the native owner',
   async (kind) => {
     const test = await desktop()
-    const bytes = await sharp({ create: { width: 1000, height: 4, channels: 3, background: '#123456' } })
+    // Keep the injected encoder failure from reusing a previously cached success.
+    const background = kind === 'failure' ? '#654321' : '#123456'
+    const bytes = await sharp({ create: { width: 1000, height: 4, channels: 3, background } })
       .png()
       .toBuffer()
     MockApplicationUtils.setService('FileManager', {
@@ -673,6 +725,11 @@ it.each(['managed', 'external', 'failure'])(
         }
       })
     }
+    const current = kind === 'history' ? test.input('Describe the earlier image') : input
+    const command =
+      kind === 'history'
+        ? { ...current, context: await readSessionHistory(test.sessionId, current.message.id) }
+        : current
     const connection = await test.connect()
     const extend =
       kind === 'failure'
@@ -681,7 +738,7 @@ it.each(['managed', 'external', 'failure'])(
           })
         : undefined
     try {
-      await connection.send(input)
+      await connection.send(command)
     } finally {
       extend?.mockRestore()
     }
@@ -734,15 +791,21 @@ it('submits native image blocks and local document paths through the common owne
   const connection = await test.connect()
   await connection.send(input)
   const request = await test.request()
-  const sent = JSON.stringify(request.body.messages)
-  expect(sent).toContain(attachment)
-  expect(sent).toContain(image)
-  expect(sent).toContain('Inspect these attachments')
+  const content = request.body.messages.flatMap((message) => (Array.isArray(message.content) ? message.content : []))
+  const sentText = content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
+  expect(sentText).toContain(path.resolve(attachment))
+  expect(content).toContainEqual(
+    expect.objectContaining({
+      type: 'image',
+      source: expect.objectContaining({ type: 'base64', media_type: 'image/png', data: image })
+    })
+  )
+  expect(sentText).toContain('Inspect these attachments')
   request.reply.block({ type: 'text', text: 'Attachments received' })
   request.reply.finish()
   await test.wait('turn-complete')
   const saved = dbh.db.select().from(sessionMessagesTable).where(eq(sessionMessagesTable.id, input.message.id)).get()
-  expect(saved).toMatchObject({ inputContextId: expect.any(String), nativeInputId: expect.any(String) })
+  expect(saved).toMatchObject({ inputContextId: expect.any(String), nativeInputId: null })
   expect(test.nativeInputs.some((state) => state.inputId === input.message.id && state.outcome === 'completed')).toBe(
     true
   )
@@ -816,7 +879,6 @@ it('creates a reserved empty Claude branch and reopens it after its first answer
 // A slow desktop observer must settle from a recovered baseline after the bounded feed folds its result.
 it('recovers current content and one terminal result after observer overflow, then accepts another input', async () => {
   const test = await desktop()
-  const connection = await test.connect()
   const observed: { feed?: ClaudeFeed } = {}
   const publish = ClaudeFeed.prototype.publish
   const feedSpy = vi.spyOn(ClaudeFeed.prototype, 'publish').mockImplementation(function (
@@ -828,22 +890,32 @@ it('recovers current content and one terminal result after observer overflow, th
     if (native?.some((entry) => entry.source === 'live' && entry.message.type === 'assistant')) observed.feed = this
     return publish.call(this, events, native, ...rest)
   })
-  const original = ThreadMessageProjection.prototype.accept
+  const observe = ClaudeFeed.prototype.observe
   const paused = Promise.withResolvers<void>()
   const resume = Promise.withResolvers<void>()
   let held = false
   const spy = vi
-    .spyOn(ThreadMessageProjection.prototype, 'accept')
-    .mockImplementation(async function (this: ThreadMessageProjection, event, refresh) {
-      const events = 'type' in event ? [event] : event
-      if (!held && events.some((item) => item.type === 'message.upsert' && item.message.role === 'assistant')) {
-        held = true
-        paused.resolve()
-        await resume.promise
-      }
-      return original.call(this, event, refresh)
+    .spyOn(ClaudeFeed.prototype, 'observe')
+    .mockImplementation(function (this: ClaudeFeed, sink, needsRecovery) {
+      return observe.call(
+        this,
+        async (batch) => {
+          if (
+            needsRecovery &&
+            !held &&
+            batch.events.some((event) => event.type === 'message.reconcile' && event.message.role === 'assistant')
+          ) {
+            held = true
+            paused.resolve()
+            await resume.promise
+          }
+          await sink(batch)
+        },
+        needsRecovery
+      )
     })
   try {
+    const connection = await test.connect()
     const first = test.input('Produce many blocks')
     await connection.send(first)
     const request = await test.request()
@@ -976,7 +1048,6 @@ it.each(['unmappable child', 'root compaction'] as const)(
       userMessage: user,
       headless: true
     })
-    await service.primeConnection(test.sessionId)
     const source = service.openTurnStream({
       sessionId: test.sessionId,
       turnId: handle.turnId,
@@ -985,12 +1056,13 @@ it.each(['unmappable child', 'root compaction'] as const)(
     if (source.kind !== 'messages') throw new Error('Expected message stream')
     let current = ''
     const reading = pipeMessageStream(
-      source.stream,
+      source,
       handle.abortController.signal,
-      { id: reply.id, role: 'assistant', parts: [] },
+      { id: reply.id, role: 'assistant' },
       (message) => {
         current = JSON.stringify(message.parts)
       },
+      () => {},
       () => {}
     )
     await expect.poll(() => wire.inputs.length).toBe(1)
@@ -1006,6 +1078,7 @@ it.each(['unmappable child', 'root compaction'] as const)(
     await test.wait('message-projection', (event) =>
       JSON.stringify(event.projection.messages).includes('Earlier root content')
     )
+    const readArchive = vi.spyOn(nativeHandle!.claude, 'archive')
     if (scenario === 'unmappable child') {
       wire.send(
         assistantMessage(sessionId, [text('Unmappable child content')], {
@@ -1014,7 +1087,6 @@ it.each(['unmappable child', 'root compaction'] as const)(
         })
       )
     } else {
-      // A fabricated process has no native archive, so boundary refresh cannot read native storage.
       wire.send({
         type: 'stream_event',
         uuid: randomUUID(),
@@ -1023,10 +1095,6 @@ it.each(['unmappable child', 'root compaction'] as const)(
         event: { type: 'message_start', message: { ...baseline.message, content: [] } }
       })
       await test.wait('context-usage', (event) => event.result.status === 'confirmed')
-      expect(await nativeHandle!.claude.archive()).toMatchObject({
-        status: 'rejected',
-        error: { code: 'native-storage-missing' }
-      })
       const beforeBoundary = test.events.length
       wire.send({
         type: 'system',
@@ -1062,6 +1130,7 @@ it.each(['unmappable child', 'root compaction'] as const)(
     )
     expect(projected.projection.live).toContain(continuation.uuid)
     await expect.poll(() => current).toContain('Main continues')
+    if (scenario === 'root compaction') expect(readArchive.mock.calls).toEqual([])
     expect(service.isSessionBusy(test.sessionId)).toBe(true)
     if (scenario === 'unmappable child')
       wire.send(assistantMessage(sessionId, [text('Main finishes')], { user_message_uuid: inputId }))
@@ -1221,6 +1290,12 @@ it.each(['current-answer', 'history-only', 'user-only'])(
     expect(test.events.filter((event) => event.type === 'turn-complete')).toHaveLength(
       source === 'current-answer' ? 1 : 0
     )
+    const reported = mockMainLoggerService.error.mock.calls
+      .map((call) => call[1])
+      .find((entry) => entry?.operation === 'agent.claude.prompt')
+    expect(reported).toMatchObject({
+      failure: { runtime: 'claude-code', outcome: source === 'current-answer' ? 'recovered' : 'failed' }
+    })
     wire.exit()
   },
   30000
@@ -1272,54 +1347,66 @@ it('maps native SDK usage to product token totals once per response', async () =
   ])
 })
 
-it('publishes the native resume identity before a failed first result', async () => {
-  const wire = wireProcess()
-  const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
-  const connection = await test.connect()
-  const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
-  await connection.send(test.input('First input fails'))
-  await expect.poll(() => wire.inputs.length).toBe(1)
-  wire.send({
-    type: 'result',
-    subtype: 'error_during_execution',
-    uuid: randomUUID(),
-    session_id: context.nativeThreadId!,
-    user_message_uuid: wire.inputs[0].uuid,
-    duration_ms: 1,
-    duration_api_ms: 1,
-    is_error: true,
-    num_turns: 1,
-    stop_reason: null,
-    total_cost_usd: 0,
-    errors: ['Native failure'],
-    modelUsage: {},
-    permission_denials: [],
-    usage: {
-      input_tokens: 1,
-      output_tokens: 0,
-      cache_creation_input_tokens: 0,
-      cache_read_input_tokens: 0,
-      cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
-      iterations: [],
-      server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
-      service_tier: 'standard',
-      inference_geo: 'us',
-      speed: 'standard'
-    }
-  })
-  await expect
-    .poll(() => test.events.find((event) => event.type === 'error'))
-    .toMatchObject({
-      error: { message: 'Native failure' }
+it.each([
+  { subtype: 'error_during_execution', message: 'Native failure', eligible: true },
+  { subtype: 'error_max_turns', message: 'Limit reached', eligible: false },
+  { subtype: 'error_during_execution', message: 'insufficient balance', eligible: false }
+] as const)(
+  'publishes and classifies a failed first result: $message',
+  async ({ subtype, message: errorMessage, eligible }) => {
+    const wire = wireProcess()
+    const test = await desktop({ spawnClaudeCodeProcess: () => wire.process })
+    const connection = await test.connect()
+    const context = sessionContexts(test.sessionId).find((context) => context.nativeThreadId)!
+    await connection.send(test.input('First input fails'))
+    await expect.poll(() => wire.inputs.length).toBe(1)
+    wire.send({
+      type: 'result',
+      subtype,
+      uuid: randomUUID(),
+      session_id: context.nativeThreadId!,
+      user_message_uuid: wire.inputs[0].uuid,
+      duration_ms: 1,
+      duration_api_ms: 1,
+      is_error: true,
+      num_turns: 1,
+      stop_reason: null,
+      total_cost_usd: 0,
+      errors: [errorMessage],
+      modelUsage: {},
+      permission_denials: [],
+      usage: {
+        input_tokens: 1,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+        iterations: [],
+        server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+        service_tier: 'standard',
+        inference_geo: 'us',
+        speed: 'standard'
+      }
     })
-  const resume = test.events.findIndex(
-    (event) => event.type === 'resume-token' && event.token === context.nativeThreadId
-  )
-  expect(resume).toBeGreaterThanOrEqual(0)
-  expect(resume).toBeLessThan(test.events.findIndex((event) => event.type === 'error'))
-  expect(test.events.some((event) => event.type === 'turn-complete')).toBe(false)
-  wire.exit()
-})
+    await expect
+      .poll(() => test.events.find((event) => event.type === 'error'))
+      .toMatchObject({
+        error: { message: errorMessage, reportingHandled: true }
+      })
+    const resume = test.events.findIndex(
+      (event) => event.type === 'resume-token' && event.token === context.nativeThreadId
+    )
+    expect(resume).toBeGreaterThanOrEqual(0)
+    expect(resume).toBeLessThan(test.events.findIndex((event) => event.type === 'error'))
+    expect(test.events.some((event) => event.type === 'turn-complete')).toBe(false)
+    const records = mockMainLoggerService.error.mock.calls
+      .map((call) => call[1])
+      .filter((entry) => entry?.operation === 'agent.claude.prompt' && !entry.reportingHandled)
+    expect(records).toHaveLength(1)
+    expect(getSentryLogContext({ ...records[0], level: 'error' }) !== undefined).toBe(eligible)
+    wire.exit()
+  }
+)
 
 // Catches a mid-turn mode switch that only reaches the next turn: the real SDK subprocess would run
 // (or refuse) the turn's next tool call under the mode the user just left.
@@ -1378,4 +1465,53 @@ it.each([
     expect(existsSync(path.join(test.options.cwd, 'marker.txt'))).toBe(runs)
   },
   30000
+)
+
+it('interrupts an active native request before retiring its owner and permits a new connection', async () => {
+  const test = await desktop()
+  const connection = await test.connect()
+  await connection.send(test.input('Start a response that will be stopped'))
+  const request = await test.request()
+  request.reply.block({ type: 'text', text: 'Content before stop' })
+  await expect.poll(() => JSON.stringify(test.events)).toContain('Content before stop')
+
+  await connection.interrupt!()
+  await expect
+    .poll(() => test.events.some((event) => event.type === 'error' || event.type === 'turn-complete'))
+    .toBe(true)
+  await connection.close()
+  expect(test.children.every((child) => child.exitCode !== null || child.signalCode !== null)).toBe(true)
+  expect(JSON.stringify(test.events)).toContain('Content before stop')
+
+  test.events.length = 0
+  const next = await test.connect()
+  await next.send(test.input('Continue after stopping'))
+  const resumed = await test.request()
+  resumed.reply.block({ type: 'text', text: 'New response after stop' })
+  resumed.reply.finish()
+  await test.wait('turn-complete')
+  expect(JSON.stringify(test.events)).toContain('New response after stop')
+}, 30000)
+
+it.each(['unanswered', 'rejected'] as const)(
+  'retires the native process when interrupt is %s',
+  async (failure) => {
+    const test = await desktop()
+    const connection = await test.connect()
+    const handle = (connection as unknown as { handle: ClaudeThreadHandle }).handle
+    vi.spyOn(handle, 'interrupt').mockImplementation(() =>
+      failure === 'unanswered'
+        ? new Promise(() => {})
+        : Promise.resolve({
+            status: 'unknown',
+            error: { operation: 'interrupt', code: 'native-error', message: 'No receipt' }
+          })
+    )
+    await connection.send(test.input('Wait for cancellation'))
+    await test.request()
+    await connection.interrupt!()
+    expect(test.children.every((child) => child.exitCode !== null || child.signalCode !== null)).toBe(true)
+    await connection.close()
+  },
+  15000
 )

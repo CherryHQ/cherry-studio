@@ -1,6 +1,3 @@
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Contract tests for the multi-key shared cache selector hook.
  *
@@ -16,6 +13,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  *   objects, Map/Set never equal), locked through hook behavior — the
  *   comparator itself is file-private
  */
+import { act, renderHook } from '@testing-library/react'
+import { useLayoutEffect } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
 import { useSharedCacheSelector } from '@data/hooks/useCache'
 
@@ -57,6 +58,22 @@ afterEach(() => {
 })
 
 describe('useSharedCacheSelector', () => {
+  it('sees a write between render and subscription, then keeps that snapshot across unrelated renders', () => {
+    const reads = vi.spyOn(cacheService, 'getSharedSnapshot')
+    const { result, rerender } = renderHook(() => {
+      const progress = useSharedCacheSelector([KEY_A], ([job]) => job?.progress)
+      useLayoutEffect(() => {
+        cacheService.setShared(KEY_A, { progress: 42 })
+      }, [])
+      return progress
+    })
+    expect(result.current).toBe(42)
+    reads.mockClear()
+    rerender()
+    expect(result.current).toBe(42)
+    expect(reads).not.toHaveBeenCalled()
+  })
+
   it('delivers values in key order and undefined on physical miss', () => {
     act(() => {
       cacheService.setShared(KEY_B, { progress: 42 })

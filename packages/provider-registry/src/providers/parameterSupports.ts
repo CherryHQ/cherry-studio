@@ -8,3 +8,8 @@ export const fixedSamplingParameterSupport = {
   temperature: { supported: false },
   topP: { supported: false }
 } as const
+
+export const glmSamplingParameterSupport = {
+  temperature: { supported: true, range: { min: 0, max: 1 } },
+  topP: { supported: true, range: { min: 0.01, max: 1 } }
+}

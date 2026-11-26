@@ -37,13 +37,6 @@ export default defineConfig({
         test: {
           name: 'main',
           environment: 'node',
-          // This project loads the REAL native better-sqlite3, which is ABI-specific (it is NOT
-          // an N-API module). Vitest runs under system Node, so the module must be built for the
-          // Node ABI — `pretest:main` guarantees that via `pnpm rebuild:node`. `pnpm dev` and
-          // packaging flip it to the Electron ABI instead (`pnpm rebuild:electron`); each flip is
-          // a cached restore (~0.3s/~2s), not a recompile. See
-          // docs/dev/references/testing/database-testing.md.
-          //
           // pool: 'forks' — better-sqlite3 is a NAN/V8 native addon that is not safe under
           // worker_threads (its finalizers crash at thread teardown — SIGSEGV at process exit).
           // Forks give each worker a clean V8 isolate. (This mirrors Vitest 3's own default pool,
@@ -129,6 +122,7 @@ export default defineConfig({
         resolve: {
           alias: {
             '@shared': resolve('src/shared'),
+            '@cherrystudio/ai-core/contextOverflow': resolve('packages/aiCore/src/contextOverflow.ts'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
             '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
             '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
@@ -150,6 +144,7 @@ export default defineConfig({
         resolve: {
           alias: {
             '@shared': resolve('src/shared'),
+            '@cherrystudio/ai-core/contextOverflow': resolve('packages/aiCore/src/contextOverflow.ts'),
             '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
             '@cherrystudio/web-search': resolve('packages/web-search/src/index.ts')
           }
@@ -198,7 +193,8 @@ export default defineConfig({
         extends: true,
         resolve: {
           alias: {
-            '@cherrystudio/ui': resolve(__dirname, 'packages/ui/src')
+            '@cherrystudio/ui': resolve(__dirname, 'packages/ui/src'),
+            '@test-mocks': resolve(__dirname, 'tests/__mocks__')
           }
         },
         test: {

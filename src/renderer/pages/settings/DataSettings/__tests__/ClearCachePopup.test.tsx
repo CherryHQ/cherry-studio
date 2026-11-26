@@ -121,7 +121,7 @@ describe('ClearCachePopup', () => {
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
     await user.click(checkboxes[0])
     await user.click(checkboxes[1])
-    expect(screen.getByText('约 3 KB')).toBeInTheDocument()
+    expect(screen.getByText('约 3.0 KB')).toBeInTheDocument()
   })
 
   it('requires a destructive warning before selecting v1 data', async () => {
@@ -181,7 +181,7 @@ describe('ClearCachePopup', () => {
 
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
     await user.click(screen.getAllByRole('checkbox')[0])
-    expect(screen.getAllByText('已统计 1 KB，部分大小未知')).toHaveLength(2)
+    expect(screen.getAllByText('已统计 1.0 KB，部分大小未知')).toHaveLength(2)
   })
 
   it('closes after a successful cleanup', async () => {
