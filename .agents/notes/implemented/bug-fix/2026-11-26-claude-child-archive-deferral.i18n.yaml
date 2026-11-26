@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-26-claude-child-archive-deferral.md
+2026-11-26-claude-child-archive-deferral.md: a4e577d9abd989f2bf675c8c72624a695ecde057
+2026-11-26-claude-child-archive-deferral.zh.md: 8a2d5c157a65e09c234bfeb8429ef69641098a50

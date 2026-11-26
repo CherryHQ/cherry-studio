@@ -28,9 +28,9 @@ import {
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
 
-import { readArchive, type NativeArchiveEntry } from './archive'
+import { ARCHIVE_CHILD_OPEN_BYTES, ARCHIVE_CHILD_SESSION_BYTES, readArchive, type NativeArchiveEntry } from './archive'
 import { normalizeContextUsage } from './contextUsage'
-import { claudeThread, isCommandLifecycle, isUuid, rejected, runtimeError } from './identity'
+import { claudeThread, isCommandLifecycle, isUuid, nativeIdentity, rejected, runtimeError } from './identity'
 import { ClaudeProjection } from './projection'
 import type {
   ClaudeArchive,
@@ -92,6 +92,8 @@ export class ClaudeOwner {
   private resetFrom?: string
   private activeSession: string
   private readonly archives = new Map<string, ClaudeArchive>()
+  private readonly deferredArchives = new Set<string>()
+  private readonly warnedArchives = new Set<string>()
   private reading?: Promise<boolean>
   private buffered?: SDKMessage[]
 
@@ -716,25 +718,36 @@ export class ClaudeOwner {
     }
   }
 
-  async refresh(sessionId: string): Promise<boolean> {
+  async refresh(sessionId: string, agentId?: string): Promise<boolean> {
     if (this.reading) {
       await this.reading
-      return this.refresh(sessionId)
+      return this.refresh(sessionId, agentId)
     }
     this.buffered = []
     this.reading = (async () => {
-      const archive = await readArchive(this.runtime.configDir, this.config.cwd, sessionId)
+      const archive = await readArchive(this.runtime.configDir, this.config.cwd, sessionId, agentId)
       if (!archive) return false
-      const root = this.projection(sessionId)
       const entriesFor = (agentId?: string): NativeArchiveEntry[] =>
         archive.entries
           .filter((batch) => batch.subpath === (agentId ? `subagents/agent-${agentId}` : undefined))
           .flatMap((batch) => batch.entries)
-      this.archives.set(root.thread.id, root.restore(archive.messages, entriesFor()))
+      if (agentId === undefined) {
+        const root = this.projection(sessionId)
+        this.archives.set(root.thread.id, root.restore(archive.messages, entriesFor()))
+      }
+      let deferred = 0
+      let deferredBytes = 0
       for (const native of archive.children) {
         const child = this.projection(sessionId, native.agentId)
-        const entries = entriesFor(native.agentId)
-        this.archives.set(child.thread.id, child.restore(native.messages, entries))
+        if (native.deferredBytes !== undefined) {
+          if (agentId === undefined && this.archives.has(child.thread.id)) continue
+          this.deferredArchives.add(child.thread.id)
+          deferred++
+          deferredBytes += native.deferredBytes
+        } else {
+          this.deferredArchives.delete(child.thread.id)
+          this.archives.set(child.thread.id, child.restore(native.messages, entriesFor(native.agentId)))
+        }
       }
       for (const native of archive.children) {
         const entries = entriesFor(native.agentId)
@@ -742,15 +755,15 @@ export class ClaudeOwner {
         const metadata = entries.find((entry) => Object.hasOwn(entry, 'parentAgentId'))
         const parentId =
           parent ??
-          (metadata?.parentAgentId === null
-            ? null
-            : typeof metadata?.parentAgentId === 'string'
-              ? metadata.parentAgentId
-              : undefined)
+          (metadata?.parentAgentId === null || typeof metadata?.parentAgentId === 'string'
+            ? metadata.parentAgentId
+            : native.parentAgentId)
         const task: Task = this.tasks.get(native.agentId) ?? { sessionId, agent: true, parentId }
-        const toolCallId = native.messages.find((message) => message.parent_tool_use_id)?.parent_tool_use_id
+        if (task.parentId === undefined) task.parentId = parentId
+        const toolCallId =
+          native.messages.find((message) => message.parent_tool_use_id)?.parent_tool_use_id ?? native.toolCallId
         if (!task.origin && toolCallId) {
-          const parentView = this.projection(sessionId, parentId ?? undefined)
+          const parentView = this.projection(sessionId, task.parentId ?? undefined)
           const call = parentView.spawnCall(toolCallId)
           if (call) {
             const description = (call.input as { description?: unknown })?.description
@@ -759,6 +772,24 @@ export class ClaudeOwner {
         }
         this.tasks.set(native.agentId, task)
         this.relation(native.agentId, task)
+      }
+      const warningKey = claudeThread(this.runtime.backendId, sessionId, agentId).id
+      if (deferred && !this.warnedArchives.has(warningKey)) {
+        this.warnedArchives.add(warningKey)
+        try {
+          this.runtime.onArchiveDeferred?.({
+            sessionId,
+            children:
+              agentId === undefined
+                ? archive.children.length
+                : [...this.tasks.values()].filter((task) => task.sessionId === sessionId && task.agent).length,
+            deferred,
+            deferredBytes,
+            budget: agentId === undefined ? ARCHIVE_CHILD_SESSION_BYTES : ARCHIVE_CHILD_OPEN_BYTES
+          })
+        } catch (error) {
+          this.report(error)
+        }
       }
       return true
     })()
@@ -774,10 +805,14 @@ export class ClaudeOwner {
 
   async archive(projection: ClaudeProjection, refresh = true): Promise<OperationResult<ClaudeArchive>> {
     try {
-      if (!refresh) return { status: 'confirmed', value: cloneHistoryData(projection.committed()) }
-      if (!(await this.refresh(projection.thread.id.split('/')[0])))
-        return rejected('archive', 'native-storage-missing')
-      const archive = this.archives.get(projection.thread.id)
+      const { sessionId, agentId } = nativeIdentity(projection.thread)
+      if (refresh && !(await this.refresh(sessionId, agentId))) return rejected('archive', 'native-storage-missing')
+      const id = projection.thread.id
+      const archive = this.deferredArchives.has(id)
+        ? { ...projection.committed(), deferred: true as const }
+        : refresh
+          ? this.archives.get(id)
+          : projection.committed()
       return archive
         ? { status: 'confirmed', value: cloneHistoryData(archive) }
         : rejected('archive', 'native-storage-missing')

@@ -130,6 +130,36 @@ it('schedules child message refreshes only for content or state changes', async 
   }
 })
 
+it('keeps saved child rows when native history is deferred and clears the diagnostic after recovery', async () => {
+  const f = fixture()
+  const source = f.item('native-child-answer', 'Saved answer')
+  f.archive.messages = [source]
+  f.archive.aliases = { [source.id]: source.id }
+  await f.projection.attach()
+  await f.projection.stop()
+  projections.splice(projections.indexOf(f.projection), 1)
+  const context = contexts.context(f.context.id)
+  const saved = savedChildView(context).messages
+  expect(saved).toMatchObject([{ parts: [{ text: 'Saved answer' }] }])
+  const diagnostic = 'archive-deferred'
+  let archive: { messages: RuntimeMessage[]; aliases: Record<string, string>; diagnostic?: string } = {
+    messages: [],
+    aliases: {},
+    diagnostic
+  }
+  const restored = new ChildThreadProjection(context, f.handle, () => archive)
+  projections.push(restored)
+
+  await restored.attach()
+  expect(restored.snapshot()).toMatchObject({ messages: saved, diagnostic })
+  expect(savedChildView(contexts.context(context.id)).messages).toEqual(saved)
+
+  archive = f.archive
+  await restored.refresh()
+  expect(restored.snapshot().diagnostic).toBeUndefined()
+  expect(restored.snapshot().messages).toEqual(saved)
+})
+
 it.each(['', 'partial answer'])(
   'keeps a failed child reply and its cause through archive recovery (%j)',
   async (text) => {

@@ -43,6 +43,7 @@ import { ThreadMessageProjection, type MessageDecorator } from './ThreadMessageP
 
 const logger = loggerService.withContext('ChildThreadProjection')
 type CommittedHistory = {
+  diagnostic?: string
   responseIds?: Readonly<Record<string, string>>
   messages: readonly RuntimeMessage[]
   aliases: Readonly<Record<string, string>>
@@ -671,7 +672,7 @@ export class ChildThreadProjection {
         active: current.activity.state === 'active',
         available: !this.stopped && !current.closed,
         canSubmit: !this.stopped && !current.closed && !!this.handle.input,
-        diagnostic: current.diagnostic?.message ?? this.archiveGap ?? current.gap
+        diagnostic: current.diagnostic?.message ?? this.history?.diagnostic ?? this.archiveGap ?? current.gap
       },
       changedResults
     )
