@@ -92,6 +92,9 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private desktop?: DurableRoot['desktop']
   private access?: { owner: DurableBackend; root: DurableRoot; release(flush: () => Promise<void>): Promise<void> }
   private closing = false
+  get isClosing(): boolean {
+    return this.closing
+  }
   private closePromise?: Promise<void>
   private active = false
   private sending = false

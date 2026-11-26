@@ -557,6 +557,8 @@ export class AgentSessionRuntimeService extends BaseService {
     AgentSessionRuntimeEntry,
     { id: string; promise: Promise<boolean | 'retired'>; retirement: Signal<'retired'>; interrupt?: boolean }
   >()
+  /** Connections installed or closing through a live path; retired cleanup must not close them. */
+  private readonly claimedConnections = new WeakSet<AgentRuntimeConnection>()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
   private readonly backgroundWorkWaiters = new Map<
     AgentSessionRuntimeEntry,
@@ -2505,16 +2507,10 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     const connection = await driver.connect(request)
     if (retirement.isResolved) {
-      // Late cleanup must not take the successor's session close barrier or close a reused owner.
-      void Promise.resolve()
-        .then(() => {
-          const owner = this.entryForContext(entry.sessionId, connection.contextId)
-          if (owner && this.currentConnection(owner) === connection) return
-          return connection.closeForEdit ? connection.closeForEdit() : connection.close()
-        })
-        .catch((error) =>
-          logger.warn('Retired agent runtime connection close failed', { sessionId: entry.sessionId, error })
-        )
+      // Wait for in-flight retries that may reuse this exact connection before closing it.
+      void this.closeRetiredConnection(entry.sessionId, connection).catch((error) =>
+        logger.warn('Retired agent runtime connection close failed', { sessionId: entry.sessionId, error })
+      )
       return false
     }
     const attempt = this.connectionAttempts.get(entry)
@@ -2541,6 +2537,36 @@ export class AgentSessionRuntimeService extends BaseService {
     )
   }
 
+  private async closeRetiredConnection(sessionId: string, connection: AgentRuntimeConnection): Promise<void> {
+    while (!this.claimedConnections.has(connection) && !this.isConnectionOwned(sessionId, connection)) {
+      const pending = this.pendingConnectionAttempts(sessionId, connection.contextId)
+      if (!pending.length) {
+        this.claimedConnections.add(connection)
+        await (connection.closeForEdit ? connection.closeForEdit() : connection.close())
+        return
+      }
+      await Promise.allSettled(pending)
+    }
+  }
+
+  private isConnectionOwned(sessionId: string, connection: AgentRuntimeConnection): boolean {
+    for (const entry of this.allEntries()) {
+      if (entry.sessionId === sessionId && this.currentConnection(entry) === connection) return true
+    }
+    return false
+  }
+
+  private pendingConnectionAttempts(sessionId: string, contextId?: string): Promise<boolean | 'retired'>[] {
+    const pending: Promise<boolean | 'retired'>[] = []
+    for (const entry of this.allEntries()) {
+      if (entry.sessionId !== sessionId) continue
+      if (contextId && entry.secondaryContextId && entry.secondaryContextId !== contextId) continue
+      const attempt = this.connectionAttempts.get(entry)
+      if (attempt) pending.push(attempt.promise)
+    }
+    return pending
+  }
+
   private inputCallbacks(
     entry: AgentSessionRuntimeEntry,
     attemptId: string
@@ -2565,9 +2591,13 @@ export class AgentSessionRuntimeService extends BaseService {
     modelId: UniqueModelId,
     attemptId: string
   ): boolean {
-    if (this.currentConnection(entry) === connection) return this.isCurrentGeneration(entry, attemptId)
+    if (this.currentConnection(entry) === connection) {
+      this.claimedConnections.add(connection)
+      return this.isCurrentGeneration(entry, attemptId)
+    }
     this.applyRuntimeStateEvent(entry, { type: 'connection-connected', attemptId, connection })
     if (this.currentConnection(entry) !== connection) return false
+    this.claimedConnections.add(connection)
     connection.bindInputs?.(this.inputCallbacks(entry, attemptId))
     entry.contextUsageModel = modelId
     entry.usageCapture = connection.usageCapture
@@ -4524,6 +4554,7 @@ export class AgentSessionRuntimeService extends BaseService {
     interrupt = false
   ): Promise<void> {
     if (!connection) return
+    this.claimedConnections.add(connection)
     const entry = typeof owner === 'string' ? undefined : owner
     const sessionId = typeof owner === 'string' ? owner : owner.sessionId
     entry?.prediction?.controller.abort()

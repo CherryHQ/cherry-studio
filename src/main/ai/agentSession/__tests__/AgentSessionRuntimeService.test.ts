@@ -28,6 +28,7 @@ import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { MessageRuntimeTimingCollector } from '@main/ai/streamManager/MessageRuntimeTimingCollector'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
+import { SequencerByKey } from '@shared/utils/async'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
 import type * as ForkResourcesModule from '../fork/resources'
@@ -7807,6 +7808,189 @@ describe('AgentSessionRuntimeService', () => {
         gate.resolve(f.connection)
         lateClose.resolve()
         f.events.end()
+      }
+    })
+
+    function createQueuedDriverStarter(
+      connection: AgentRuntimeConnection,
+      events: ReturnType<typeof createAsyncQueue<AgentRuntimeEvent>>,
+      sent: Promise<AgentRuntimeUserInput>
+    ) {
+      type OpenReplyFixture = Awaited<ReturnType<typeof openReply>>
+      return async (assistantMessageId: string) => {
+        const handle = service.beginTurn({ ...baseTurnInput, assistantMessageId, userMessage: userMessage('user-1') })
+        const source = service.openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: handle.abortController.signal
+        })
+        const observed: any[] = []
+        const consumed = (async () => {
+          for await (const event of source.stream) observed.push(event)
+        })()
+        await vi.advanceTimersByTimeAsync(0)
+        const entry = getEntry(service)
+        const errors = () => observed.filter((event) => event.type === 'error')
+        return {
+          entry,
+          turn: entry.currentTurn,
+          handle,
+          source,
+          connect: vi.fn<() => ReturnType<OpenReplyFixture['connect']>>(),
+          connection: connection as OpenReplyFixture['connection'],
+          events,
+          observed,
+          errors,
+          push: async (event: AgentRuntimeEvent) => {
+            events.push(event)
+            await vi.advanceTimersByTimeAsync(0)
+          },
+          consumed,
+          sent,
+          acknowledgeError: async () => {
+            expect(errors()).toHaveLength(1)
+            await consumed
+            terminalListener(handle).onError({ isTopicDone: true })
+            expect(service.isSessionBusy('session-1')).toBe(false)
+          }
+        }
+      }
+    }
+
+    function raceDelivery(retry: Awaited<ReturnType<ReturnType<typeof createQueuedDriverStarter>>>) {
+      return Promise.race([
+        retry.sent,
+        retry.consumed.then(() => {
+          throw retry.errors()[0]?.error ?? new Error('retry stream ended before send')
+        })
+      ])
+    }
+
+    it('reuses a live cached connection when a queued retry shares the timed-out startup object', async () => {
+      const queue = new SequencerByKey<string>()
+      const events = createAsyncQueue<AgentRuntimeEvent>()
+      const sent = createDeferred<AgentRuntimeUserInput>()
+      const firstOpen = createDeferred<AgentRuntimeConnection>()
+      let closing = false
+      let initialRequest: AgentRuntimeConnectInput | undefined
+      let cached: AgentRuntimeConnection | undefined
+      const sharedConnection: AgentRuntimeConnection = {
+        contextId,
+        events: events.iterable,
+        preparedFor: (request) => request === initialRequest,
+        bindInputs: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        send: vi.fn((input: AgentRuntimeUserInput) => {
+          if (closing) throw new Error('Durable runtime is unavailable')
+          sent.resolve(input)
+        }),
+        close: vi.fn(() => {
+          closing = true
+          return queue.queue('backend-1', () => {
+            if (cached === sharedConnection) cached = undefined
+            events.end()
+          })
+        })
+      }
+      const connectBranch = (request: AgentRuntimeConnectInput) =>
+        queue.queue('backend-1', async () => {
+          if (cached) return cached
+          initialRequest = request
+          cached = await firstOpen.promise
+          return cached
+        })
+      const connect = vi.fn(async (request: AgentRuntimeConnectInput) => await connectBranch(request))
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        validateSession() {},
+        connect
+      })
+      const startTurn = createQueuedDriverStarter(sharedConnection, events, sent.promise)
+      try {
+        const first = await startTurn('assistant-1')
+        await vi.advanceTimersByTimeAsync(N)
+        await expectReplyFailure(first, 'No runtime activity for 30 minutes')
+
+        const retry = await startTurn('assistant-retry')
+        expect(connect).toHaveBeenCalledTimes(2)
+
+        firstOpen.resolve(sharedConnection)
+        await vi.advanceTimersByTimeAsync(0)
+
+        await expect(connect.mock.results[0].value).resolves.toBe(sharedConnection)
+        await expect(connect.mock.results[1].value).resolves.toBe(sharedConnection)
+        await expect(withinDeadline(raceDelivery(retry), 'retry input delivery')).resolves.toMatchObject({
+          message: { id: 'user-1' }
+        })
+        expect(sharedConnection.close).not.toHaveBeenCalled()
+        expect(sharedConnection.reconcile).toHaveBeenCalledTimes(1)
+        expect(retry.errors()).toEqual([])
+        expect(getEntry(service).connection).toBe(sharedConnection)
+
+        await finishRetry(retry)
+        await expect(withinDeadline(service.closeSession('session-1'), 'session close')).resolves.toBeUndefined()
+        expect(sharedConnection.close).toHaveBeenCalledTimes(1)
+      } finally {
+        firstOpen.resolve(sharedConnection)
+        events.end()
+      }
+    })
+
+    it('obtains a live connection on a queued retry when the timed-out startup later rejects', async () => {
+      const queue = new SequencerByKey<string>()
+      const firstOpen = createDeferred<AgentRuntimeConnection>()
+      const retryEvents = createAsyncQueue<AgentRuntimeEvent>()
+      const retrySent = createDeferred<AgentRuntimeUserInput>()
+      let retryClosing = false
+      const retryConnection: AgentRuntimeConnection = {
+        contextId,
+        events: retryEvents.iterable,
+        reconcile: vi.fn().mockResolvedValue('current'),
+        send: vi.fn((input: AgentRuntimeUserInput) => {
+          if (retryClosing) throw new Error('Durable runtime is unavailable')
+          retrySent.resolve(input)
+        }),
+        close: vi.fn(async () => {
+          retryClosing = true
+          retryEvents.end()
+        })
+      }
+      let calls = 0
+      const connectBranch = () =>
+        queue.queue('backend-1', async () => (++calls === 1 ? await firstOpen.promise : retryConnection))
+      const connect = vi.fn(async () => await connectBranch())
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        validateSession() {},
+        connect
+      })
+      const startTurn = createQueuedDriverStarter(retryConnection, retryEvents, retrySent.promise)
+      try {
+        const first = await startTurn('assistant-1')
+        await vi.advanceTimersByTimeAsync(N)
+        await expectReplyFailure(first, 'No runtime activity for 30 minutes')
+
+        const retry = await startTurn('assistant-retry')
+        expect(connect).toHaveBeenCalledTimes(2)
+
+        firstOpen.reject(new Error('late startup failure'))
+        await vi.advanceTimersByTimeAsync(0)
+
+        await expect(connect.mock.results[0].value).rejects.toThrow('late startup failure')
+        await expect(connect.mock.results[1].value).resolves.toBe(retryConnection)
+        await expect(withinDeadline(raceDelivery(retry), 'retry input delivery')).resolves.toMatchObject({
+          message: { id: 'user-1' }
+        })
+        expect(retryConnection.close).not.toHaveBeenCalled()
+        expect(retry.errors()).toEqual([])
+        expect(getEntry(service).connection).toBe(retryConnection)
+
+        await finishRetry(retry)
+        await expect(withinDeadline(service.closeSession('session-1'), 'session close')).resolves.toBeUndefined()
+        expect(retryConnection.close).toHaveBeenCalledTimes(1)
+      } finally {
+        firstOpen.resolve(retryConnection)
+        retryEvents.end()
       }
     })
 
