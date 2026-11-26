@@ -11,6 +11,7 @@ import type { LookupInput } from '@cherrystudio/agent-runtime'
 import type { AgentRuntimeBackendRow } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { loggerService } from '@logger'
+import { unavailableNativeContext } from '@main/ai/runtime/types'
 
 const PRODUCT_CONTEXT_KIND = 'cherry.product-context'
 const DURABLE_STORAGE_ERROR_I18N_KEY = 'durable_storage_failed'
@@ -232,7 +233,14 @@ export async function matchesDurableContext(
 /** Recover the native identity from the same commit that created the root conversation. */
 export async function prepareDurableRoot(contextId: string) {
   const context = contexts.context(contextId)
-  if (contexts.backend(context.backendId).state === 'creating') {
+  const backend = contexts.backend(context.backendId)
+  try {
+    if (backend.state === 'bound' && !lstatSync(durablePath(backend), { throwIfNoEntry: false }))
+      return unavailableNativeContext(context, 'Durable store is missing')
+  } catch (error) {
+    throw Object.assign(error as Error, { i18nKey: DURABLE_STORAGE_ERROR_I18N_KEY })
+  }
+  if (backend.state === 'creating') {
     try {
       await createDurableBackend(context.backendId)
     } catch (error) {
@@ -247,11 +255,16 @@ export async function prepareDurableRoot(contextId: string) {
   const { nativeContext } = await loadDurableStorage()
   const identity = await durableContextIdentity()
   try {
-    let nativeId = context.nativeThreadId ?? undefined
+    const expected = context.nativeThreadId ?? undefined
+    let nativeId = expected
     if (nativeId) {
-      if (!(await matchesDurableContext(storage, Number(nativeId) as ConversationId, contextId, nativeContext)))
-        throw new Error('Durable context identity does not match')
-    } else {
+      const id = Number(nativeId) as ConversationId
+      if (!(await matchesDurableContext(storage, id, contextId, nativeContext))) {
+        if (await storage.conversation(id, nativeContext)) throw new Error('Durable context identity does not match')
+        nativeId = undefined
+      }
+    }
+    if (!nativeId) {
       let cursor: Parameters<Storage['scanConversations']>[2]
       do {
         const page = await storage.scanConversations({}, 256, cursor, nativeContext)
@@ -262,6 +275,12 @@ export async function prepareDurableRoot(contextId: string) {
         }
         cursor = page.next
       } while (cursor)
+      if (expected) {
+        if (nativeId) throw new Error('Durable context identity does not match')
+        return storage
+          .close(nativeContext)
+          .then(() => unavailableNativeContext(context, 'Durable conversation is missing'))
+      }
     }
     if (nativeId && context.bindingState === 'pending') contexts.bindContext(contextId, nativeId)
     return {

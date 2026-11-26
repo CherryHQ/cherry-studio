@@ -13,6 +13,7 @@
  * The endpointType is set per-request via provider settings, based on the model's endpoint_type field.
  */
 import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
 import {
   OpenAICompatibleChatLanguageModel,
@@ -151,12 +152,19 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
     })
 
   provider.imageModel = (modelId: string) =>
-    new OpenAICompatibleImageModel(modelId, {
-      provider: `${NEWAPI_PROVIDER_NAME}.image`,
-      url,
-      headers: authHeaders,
-      fetch: customFetch
-    })
+    endpointType === 'gemini'
+      ? createGoogleGenerativeAI({
+          baseURL,
+          apiKey: resolveApiKey(),
+          headers: { ...authHeaders(), 'x-goog-api-key': resolveApiKey() },
+          fetch: customFetch
+        }).image(modelId)
+      : new OpenAICompatibleImageModel(modelId, {
+          provider: `${NEWAPI_PROVIDER_NAME}.image`,
+          url,
+          headers: authHeaders,
+          fetch: customFetch
+        })
 
   provider.rerankingModel = (modelId: string) =>
     new OpenAICompatibleRerankingModel(modelId, {
