@@ -689,6 +689,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           }
           const recovery = refresh ? batch.recovery : undefined
           if (recovery) publishSources(recovery.messages, batch.retracted, true)
+          // Overflow can fold a placed `input.changed` delta into a snapshot
+          // recovery before the rejected `result` arrives. Restore membership
+          // from the recovery snapshot (and from snapshot events below) so a
+          // grown text-only request keeps its placement and an unplaced steer
+          // is never reported as sent.
+          if (batch.recovery?.inputs) {
+            restorePlacedImageInputs(this.placedImageInputIds, this.pendingImageCounts, batch.recovery.inputs)
+          }
           let removed = !!recovery
           for (const event of batch.events) {
             if (event.type === 'input.changed' && hasProductInputId(event.input)) {
@@ -707,6 +715,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             if (event.type === 'subagent.upsert') this.discoverChild(event.subagent)
             if (event.type === 'snapshot') {
               if (event.contextUsage) this.eventQueue.push({ type: 'context-usage', result: event.contextUsage })
+              restorePlacedImageInputs(this.placedImageInputIds, this.pendingImageCounts, event.inputs)
               for (const child of event.subagents ?? []) this.discoverChild(child)
             }
             if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
@@ -1241,6 +1250,29 @@ export function trackPlacedImageInput(
   input: { facts: readonly string[]; outcome?: unknown }
 ): void {
   if (placedId && input.facts.includes('placed')) placed.add(placedId)
+}
+
+/**
+ * Restore native placement from an overflow/recovery snapshot (#20030).
+ * The observer can fold a placed follow-up's `input.changed` delta into a
+ * `gap` + snapshot recovery before the rejected `result` arrives. Without
+ * restoration, a placed text-only request that grew via tools past the
+ * provider cap would have no recorded placement, so result attribution could
+ * consume an unplaced steer's count and report it as sent. Only IDs still
+ * pending are restored so stale history cannot pollute the next attribution.
+ * Exported for regression coverage of the overflow-before-result sequence.
+ */
+export function restorePlacedImageInputs(
+  placed: Set<string>,
+  pending: readonly { inputId: string }[],
+  inputs: readonly { inputId?: unknown; facts: readonly string[] }[] | undefined
+): void {
+  if (!inputs?.length || pending.length === 0) return
+  const pendingIds = new Set(pending.map((entry) => entry.inputId))
+  for (const input of inputs) {
+    const id = typeof input.inputId === 'string' ? input.inputId : undefined
+    if (id && pendingIds.has(id) && input.facts.includes('placed')) placed.add(id)
+  }
 }
 
 /**

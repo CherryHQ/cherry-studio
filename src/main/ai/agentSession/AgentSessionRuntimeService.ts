@@ -329,6 +329,17 @@ type PendingNativeInput = {
     QueuedAgentSessionInput,
     'reasoningEffort' | 'serviceTier' | 'fastMode' | 'permissionModeOverride' | 'trustedNotifyChannels'
   >
+  /**
+   * Image-limit admitted when the steer was accepted (before the composer
+   * cleared the draft). `recoverPendingInput` carries these into the queued
+   * steer so a catalog refresh that lowers the same model's cap while the
+   * steer is pending cannot reject it after acknowledgment. Presence reuses
+   * the acceptance value (`undefined` = admitted uncapped); absence (older
+   * entries) falls back to a fresh lookup for backward compatibility.
+   */
+  admittedMaxImages?: number
+  /** Model the enqueue-time admission was resolved against. */
+  admittedModelId?: UniqueModelId
 }
 
 type RuntimeState = AgentSessionRuntimeState<AgentSessionRun, QueuedAgentSessionInput>
@@ -1568,6 +1579,8 @@ export class AgentSessionRuntimeService extends BaseService {
       pending.set(message.id, {
         input,
         generation: entry.connectionGeneration,
+        admittedMaxImages,
+        admittedModelId: entry.modelId,
         turnOptions: {
           reasoningEffort,
           serviceTier,
@@ -2694,6 +2707,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     const turn = this.currentTurn(entry)
     const options = pending.turnOptions
+    // Carry the acceptance-time capability into the queued steer so a catalog
+    // refresh that lowers the same model's cap while the input is pending
+    // cannot reject it after the composer cleared the draft. Presence reuses
+    // the acceptance value (`undefined` = admitted uncapped); absence (older
+    // entries) falls back to a fresh lookup for backward compatibility.
+    const hasAdmitted = 'admittedMaxImages' in pending
     this.applyRuntimeStateEvent(entry, {
       type: 'queue-turn',
       turn: {
@@ -2703,8 +2722,8 @@ export class AgentSessionRuntimeService extends BaseService {
         knowledgeBaseIds: getKnowledgeBaseIdsFromParts(pending.input.message.data.parts ?? []) ?? [],
         fastMode: options?.fastMode ?? turn?.fastMode ?? false,
         steer: true,
-        admittedMaxImages: this.resolveTurnImageLimit(entry.modelId),
-        admittedModelId: entry.modelId,
+        admittedMaxImages: hasAdmitted ? pending.admittedMaxImages : this.resolveTurnImageLimit(entry.modelId),
+        admittedModelId: pending.admittedModelId ?? entry.modelId,
         ...(pending.input.headless ? { headless: true } : {}),
         ...(options?.permissionModeOverride ? { permissionModeOverride: options.permissionModeOverride } : {}),
         ...(options?.trustedNotifyChannels !== undefined

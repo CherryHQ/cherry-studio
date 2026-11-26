@@ -1214,6 +1214,64 @@ describe('AgentSessionRuntimeService', () => {
       expect(connection.send).toHaveBeenCalledWith(expect.objectContaining({ admittedMaxImages: undefined }))
       await reader.cancel().catch(() => undefined)
     })
+
+    it('keeps the acceptance-time cap when reconnect recovery requeues an acknowledged steer (inv_00347e03659bc635)', () => {
+      // An acknowledged native steer is already cleared from the composer. If a
+      // catalog refresh lowers the same model's cap while the steer is pending,
+      // reconnect recovery must reuse the acceptance-time capability, not a
+      // fresh lookup, otherwise the queued steer rejects after the draft was
+      // cleared.
+      const uncappedModel = {
+        id: baseTurnInput.modelId,
+        providerId: 'test',
+        name: 'Uncapped',
+        capabilities: ['image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+      const cappedModel = { ...uncappedModel, maxAgentImages: 1 }
+      vi.mocked(modelService.getByKey).mockReturnValue(uncappedModel as never)
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = { close: vi.fn(), send: vi.fn(), events: [], redirect: vi.fn().mockReturnValue(true) }
+      entry.runtimeState.execution.reply.delivery = { kind: 'open' }
+      entry.runtimeState.execution.reply.admission = 'admitted'
+      const steer = {
+        ...userMessage('steer-input'),
+        data: { parts: [imagePart('a.png'), imagePart('b.png')] }
+      } as never
+      service.enqueueUserMessage('session-1', steer)
+      const pending = entry.pendingInputs?.get('steer-input')
+      expect(pending).toBeDefined()
+      // Acceptance-time snapshot is uncapped for the same model.
+      expect('admittedMaxImages' in pending).toBe(true)
+      expect(pending.admittedMaxImages).toBeUndefined()
+      expect(pending.admittedModelId).toBe(baseTurnInput.modelId)
+      // Catalog refresh lowers the same model's cap while the steer is pending.
+      vi.mocked(modelService.getByKey).mockReturnValue(cappedModel as never)
+      ;(service as any).recoverPendingInput(entry, 'steer-input', pending, 'unplaced')
+      expect(entry.pendingTurns).toHaveLength(1)
+      const queued = entry.pendingTurns[0]
+      // Recovery carries the acceptance-time values, not the fresh lower cap.
+      expect('admittedMaxImages' in queued).toBe(true)
+      expect(queued.admittedMaxImages).toBeUndefined()
+      expect(queued.admittedModelId).toBe(baseTurnInput.modelId)
+      // Admit-time presence with an `undefined` cap means uncapped: `admitTurn`
+      // skips validation entirely. A fresh lookup for the same model would now
+      // reject the two-image payload, proving the carry-over matters.
+      const hasAdmitted = 'admittedMaxImages' in queued
+      expect(hasAdmitted && queued.admittedMaxImages === undefined).toBe(true)
+      let freshError: unknown
+      try {
+        ;(service as any).assertTurnImageLimit(baseTurnInput.modelId, (steer as any).data.parts, 'test-runtime')
+      } catch (thrown) {
+        freshError = thrown
+      }
+      expect(freshError).toBeInstanceOf(AgentImageLimitError)
+      expect(freshError).toMatchObject({ limit: 1, count: 2 })
+    })
   })
 
   it.each(['disabled', 'headless', 'failure', 'plan', 'unfocused'] as const)(

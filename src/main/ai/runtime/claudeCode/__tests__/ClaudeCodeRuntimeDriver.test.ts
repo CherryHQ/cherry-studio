@@ -999,4 +999,40 @@ describe('Claude image-limit result boundary (#20030)', () => {
       normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, singleCount)
     ).toMatchObject({ limit: 1, count: 2, sent: true })
   })
+
+  it('restores placement from an overflow snapshot so an unplaced steer is never reported as sent (inv_8a64499a864c1c6c)', async () => {
+    const { restorePlacedImageInputs, consumePlacedImageCount, normalizeResultImageLimitFailure } =
+      await import('../ClaudeCodeRuntimeDriver')
+    const pending = [
+      { inputId: 'a', count: 0 },
+      { inputId: 'b', count: 2 }
+    ]
+    const placed = new Set<string>()
+    // Snapshot recovery carries the folded placement: `a` placed, `b` queued.
+    restorePlacedImageInputs(placed, pending, [
+      { inputId: 'a', facts: ['accepted', 'placed'] },
+      { inputId: 'b', facts: ['accepted', 'queued'] }
+    ])
+    expect(placed.has('a')).toBe(true)
+    expect(placed.has('b')).toBe(false)
+    // Stale IDs not in the pending queue never join membership.
+    restorePlacedImageInputs(placed, pending, [{ inputId: 'stale', facts: ['placed'] }])
+    expect(placed.has('stale')).toBe(false)
+
+    const count = consumePlacedImageCount(
+      pending,
+      placed,
+      new Error('At most 1 image(s) may be provided in one prompt')
+    )
+    // The placed text-only entry cannot explain the failure (it grew via
+    // tools after submission): retire it, keep the provider text, and preserve
+    // the unplaced two-image steer for the next result.
+    expect(count).toBeUndefined()
+    expect(pending).toEqual([{ inputId: 'b', count: 2 }])
+    expect(placed.has('a')).toBe(false)
+    expect(placed.has('b')).toBe(false)
+    expect(
+      normalizeResultImageLimitFailure({ message: 'At most 1 image(s) may be provided in one prompt' }, count)
+    ).toBeUndefined()
+  }, 60000)
 })
