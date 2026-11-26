@@ -107,7 +107,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 
 import type * as AgentDataDirectoryModule from '../agentDataDirectory'
 import { runAgentTask } from '../runAgentTask'

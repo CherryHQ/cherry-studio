@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Fragment, type ReactNode } from 'react'
 import { SWRConfig } from 'swr'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 
@@ -205,5 +205,86 @@ describe('AMD free models', () => {
       availability.hidesEveryModel = true
       availability.amdLocked = []
     }
+  })
+})
+
+describe('Built-in CherryAI models', () => {
+  const qwen = {
+    id: 'cherryai::qwen',
+    providerId: 'cherryai',
+    name: 'Qwen',
+    capabilities: [],
+    isEnabled: true,
+    isHidden: false
+  }
+  const renderQwen = (
+    phase: 'signed-out' | 'signed-in',
+    {
+      loginOutcome = 'signed-in',
+      multiple = false
+    }: { loginOutcome?: 'signed-in' | 'cancelled'; multiple?: boolean } = {}
+  ) => {
+    plans.phase = phase
+    availability.hidesEveryModel = false
+    const providers = [
+      { id: 'cherryai', name: 'CherryAI', apiKeys: [], authType: 'api-key', settings: {}, isEnabled: true }
+    ]
+    mockUseQuery.mockImplementation((path: string) => ({
+      data: path === '/models' ? [qwen] : path === '/providers' ? providers : [],
+      isLoading: false,
+      isRefreshing: false,
+      refetch: vi.fn(async () => undefined),
+      mutate: vi.fn(async () => undefined)
+    }))
+    request.mockImplementation(async (route: string) => ({
+      ok: true,
+      data: route === 'cherry_cloud.login.start' ? { outcome: loginOutcome, status: {} } : undefined
+    }))
+    const onSelect = vi.fn()
+    const trigger = <button type="button">Models</button>
+    render(
+      multiple ? (
+        <CherryCloudModelSelector multiple open onSelect={onSelect} trigger={trigger} />
+      ) : (
+        <CherryCloudModelSelector multiple={false} open onSelect={onSelect} trigger={trigger} />
+      )
+    )
+    return { onSelect, row: screen.getByTestId('model-selector-item-cherryai::qwen') }
+  }
+  afterEach(() => {
+    availability.hidesEveryModel = true
+  })
+
+  // Main refuses Qwen while signed out, so the row must lead to sign-in like the DeepSeek free rows.
+  it('marks Qwen as needing sign-in and selects it only once sign-in succeeds', async () => {
+    const { onSelect, row } = renderQwen('signed-out')
+    expect(within(row).getByText('settings.subscription.sign_in')).toBeInTheDocument()
+    expect(row).toHaveAttribute('aria-describedby')
+    await userEvent.click(row)
+    expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith(qwen))
+  })
+
+  it('leaves the selection unchanged when sign-in is cancelled', async () => {
+    const { onSelect, row } = renderQwen('signed-out', { loginOutcome: 'cancelled' })
+    await userEvent.click(row)
+    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined))
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  // The chat composer's picker is a multi-model picker; its plain click must sign in too.
+  it('starts sign-in instead of selecting Qwen from a multi-model picker', async () => {
+    const { onSelect, row } = renderQwen('signed-out', { multiple: true })
+    await userEvent.click(row)
+    await waitFor(() => expect(request).toHaveBeenCalledWith('cherry_cloud.login.start', undefined))
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('selects Qwen directly, without a sign-in mark, once signed in', async () => {
+    const { onSelect, row } = renderQwen('signed-in')
+    expect(within(row).queryByText('settings.subscription.sign_in')).not.toBeInTheDocument()
+    await userEvent.click(row)
+    expect(onSelect).toHaveBeenCalledWith(qwen)
+    expect(request).not.toHaveBeenCalledWith('cherry_cloud.login.start', undefined)
   })
 })

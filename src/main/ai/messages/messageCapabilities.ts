@@ -145,7 +145,7 @@ export function routeToolResultMedia(
 
   const flushImages = () => {
     if (pendingParts.length === 0) return
-    out.push({ role: 'user', content: pendingParts })
+    out.push({ role: 'user', content: pendingParts, providerOptions: { cherry: { toolResultMedia: true } } })
     pendingParts = []
   }
 

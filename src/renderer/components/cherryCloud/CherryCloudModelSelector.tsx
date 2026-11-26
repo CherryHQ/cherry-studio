@@ -1,6 +1,6 @@
 import { first } from 'es-toolkit/compat'
 import { Pin } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Avatar, AvatarFallback, Button, Tooltip } from '@cherrystudio/ui'
@@ -20,12 +20,17 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { startCherryCloudSubscription } from '@renderer/services/cherryCloudSubscription'
 import { trackSubscriptionEntryView } from '@renderer/services/cherryCloudSubscriptionAnalytics'
 import { getModelLogoRef } from '@renderer/utils/model'
-import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  CHERRYAI_PROVIDER_ID,
+  isManagedCherryAiProviderId
+} from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { SubscriptionEntrySource } from '@shared/ipc/schemas/cherryCloud'
 
 import { getAmdActionLabelKey, openAmdRegistration } from './amdFreeModels'
-import { signInForModel } from './signInForModel'
+import { signInForModel, signInFromPicker } from './signInForModel'
 import {
   CHERRY_CLOUD_SELECTOR_PROVIDER_IDS,
   type CherryCloudOfferKind,
@@ -128,6 +133,20 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
   }
   const selectAfterSignInRef = useRef(selectAfterSignIn)
   selectAfterSignInRef.current = selectAfterSignIn
+  // Main refuses the built-in CherryAI models while signed out, so they act like the sign-in rows.
+  const presentModel = useCallback(
+    (model: Model, modelProvider: Provider) => {
+      const presentation = getModelPresentation(model, modelProvider)
+      if (!signedOut || !isManagedCherryAiProviderId(model.providerId)) return presentation
+      return {
+        ...presentation,
+        badge: <SubscriptionTag size={9} label={t('settings.subscription.sign_in')} className="h-full" />,
+        description: t('chat.input.quota_notice.sign_in_required'),
+        onAction: () => void signInFromPicker().then((signedIn) => signedIn && selectAfterSignInRef.current(model))
+      }
+    },
+    [getModelPresentation, signedOut, t]
+  )
   const actions = useMemo<ModelSelectorActionItem[]>(() => {
     const lockedRows = {
       sign_in: {
@@ -213,7 +232,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
   ])
   const pinLabel = t(isCherryAIPinned ? 'selector.common.unpin' : 'selector.common.pin')
   const composition = {
-    getModelPresentation,
+    getModelPresentation: presentModel,
     actions,
     providerGroups: [
       {

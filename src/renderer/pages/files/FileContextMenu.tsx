@@ -38,18 +38,26 @@ export function FileContextMenu({
   actions,
   children,
   showRename = true,
+  showDelete = true,
   deleteDisabled = false
 }: {
   file: FileItem
   actions: FileContextMenuActions
   children: React.ReactNode
   showRename?: boolean
+  showDelete?: boolean
   deleteDisabled?: boolean
 }) {
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <FileContextMenuContent file={file} actions={actions} showRename={showRename} deleteDisabled={deleteDisabled} />
+      <FileContextMenuContent
+        file={file}
+        actions={actions}
+        showRename={showRename}
+        showDelete={showDelete}
+        deleteDisabled={deleteDisabled}
+      />
     </ContextMenu>
   )
 }
@@ -58,11 +66,13 @@ function FileContextMenuContent({
   file,
   actions,
   showRename,
+  showDelete,
   deleteDisabled
 }: {
   file: FileItem
   actions: FileContextMenuActions
   showRename: boolean
+  showDelete: boolean
   deleteDisabled: boolean
 }) {
   const { t } = useTranslation()
@@ -108,12 +118,14 @@ function FileContextMenuContent({
           </ContextMenuItemContent>
         </ContextMenuItem>
       )}
-      {(hasPrimaryAction || hasSidebarAction) && <ContextMenuSeparator />}
-      <ContextMenuItem disabled={deleteDisabled} variant="destructive" onSelect={() => actions.onDelete(file.id)}>
-        <ContextMenuItemContent icon={<Trash2 size={12} />}>
-          {file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
-        </ContextMenuItemContent>
-      </ContextMenuItem>
+      {(hasPrimaryAction || hasSidebarAction) && showDelete && <ContextMenuSeparator />}
+      {showDelete && (
+        <ContextMenuItem disabled={deleteDisabled} variant="destructive" onSelect={() => actions.onDelete(file.id)}>
+          <ContextMenuItemContent icon={<Trash2 size={12} />}>
+            {file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
+          </ContextMenuItemContent>
+        </ContextMenuItem>
+      )}
     </ContextMenuContent>
   )
 }
