@@ -1061,14 +1061,46 @@ export class SkillInstaller {
    * `.bak.stash-`/`.bak.retired-` promotable infixes as a directory), so the
    * generic sweep ignores it while `restoreStashedBackup` and the baseline
    * sweep use it to skip promotion and retry deletion instead.
+   *
+   * On filesystems with a 255-byte filename limit (ext4), a long skill folder
+   * name can make `<marker>.obsolete` unaddressable (`ENAMETOOLONG`) even
+   * though `.bak` itself still fits. The bounded companion below records the
+   * same state under a fixed-length hashed name; every check consults both
+   * paths so legacy records keep working where they exist.
    */
   private getObsoleteMarkerPath(markerPath: string): string {
     return `${markerPath}.obsolete`
   }
 
+  /**
+   * Fixed-length companion of the obsolete record. The `sha1` of the marker
+   * path keeps the sibling far below `NAME_MAX` regardless of skill folder
+   * length. The name carries no `.bak`/`.bak.stash-`/`.cleanup` pattern, so
+   * recovery sweeps ignore it exactly like the legacy record.
+   */
+  private getBoundedObsoleteMarkerPath(markerPath: string): string {
+    const digest = createHash('sha1').update(markerPath).digest('hex')
+    return path.join(path.dirname(markerPath), `.${digest}.obsolete`)
+  }
+
+  private isNameTooLongError(error: unknown): boolean {
+    return (error as NodeJS.ErrnoException)?.code === 'ENAMETOOLONG'
+  }
+
   private async markObsolete(markerPath: string): Promise<void> {
     try {
       await fs.promises.writeFile(this.getObsoleteMarkerPath(markerPath), `obsolete:${Date.now()}`, 'utf-8')
+      return
+    } catch (error) {
+      if (!this.isNameTooLongError(error)) {
+        // Best-effort: without the record the next sweep retries retirement first.
+        return
+      }
+      // The legacy sibling cannot be addressed on this filesystem; record the
+      // same state under the bounded companion instead.
+    }
+    try {
+      await fs.promises.writeFile(this.getBoundedObsoleteMarkerPath(markerPath), `obsolete:${Date.now()}`, 'utf-8')
     } catch {
       // Best-effort: without the record the next sweep retries retirement first.
     }
@@ -1076,17 +1108,27 @@ export class SkillInstaller {
 
   private async isMarkedObsolete(markerPath: string): Promise<boolean> {
     try {
-      return await pathExists(this.getObsoleteMarkerPath(markerPath))
+      if (await pathExists(this.getObsoleteMarkerPath(markerPath))) return true
+    } catch {
+      // Fall through to the bounded companion.
+    }
+    try {
+      return await pathExists(this.getBoundedObsoleteMarkerPath(markerPath))
     } catch {
       return false
     }
   }
 
   private async clearObsoleteMarker(markerPath: string): Promise<void> {
-    try {
-      await fs.promises.rm(this.getObsoleteMarkerPath(markerPath), { force: true })
-    } catch {
-      // Best-effort: a leftover `.obsolete` file is inert and ignored by recovery.
+    for (const obsoletePath of [
+      this.getObsoleteMarkerPath(markerPath),
+      this.getBoundedObsoleteMarkerPath(markerPath)
+    ]) {
+      try {
+        await fs.promises.rm(obsoletePath, { force: true })
+      } catch {
+        // Best-effort: a leftover `.obsolete` file is inert and ignored by recovery.
+      }
     }
   }
 
@@ -1100,24 +1142,32 @@ export class SkillInstaller {
    * cleared.
    */
   private async ensureObsoleteMarkerCleared(markerPath: string): Promise<void> {
-    const obsoletePath = this.getObsoleteMarkerPath(markerPath)
-    try {
-      await fs.promises.rm(obsoletePath, { force: true })
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-      throw new Error(
-        `Cannot reuse skill backup slot while obsolete marker cannot be cleared: ${markerPath}: ${error instanceof Error ? error.message : String(error)}`
-      )
+    // Consult the legacy sibling and its bounded companion together: a stale
+    // record under either name would mis-mark the fresh `.bak`. An
+    // `ENAMETOOLONG` lookup means the sibling cannot exist on this filesystem
+    // (long skill folder on ext4), so it counts as absent instead of fatal.
+    const obsoletePaths = [this.getObsoleteMarkerPath(markerPath), this.getBoundedObsoleteMarkerPath(markerPath)]
+    for (const obsoletePath of obsoletePaths) {
+      try {
+        await fs.promises.rm(obsoletePath, { force: true })
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT' || this.isNameTooLongError(error)) continue
+        throw new Error(
+          `Cannot reuse skill backup slot while obsolete marker cannot be cleared: ${markerPath}: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
     }
-    try {
-      await fs.promises.lstat(obsoletePath)
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
-      throw new Error(
-        `Cannot reuse skill backup slot while obsolete marker cannot be verified as cleared: ${markerPath}: ${error instanceof Error ? error.message : String(error)}`
-      )
+    for (const obsoletePath of obsoletePaths) {
+      try {
+        await fs.promises.lstat(obsoletePath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT' || this.isNameTooLongError(error)) continue
+        throw new Error(
+          `Cannot reuse skill backup slot while obsolete marker cannot be verified as cleared: ${markerPath}: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
+      throw new Error(`Cannot reuse skill backup slot while obsolete marker still exists: ${markerPath}`)
     }
-    throw new Error(`Cannot reuse skill backup slot while obsolete marker still exists: ${markerPath}`)
   }
 
   private async listRetiredMarkerPaths(destPath: string): Promise<string[]> {

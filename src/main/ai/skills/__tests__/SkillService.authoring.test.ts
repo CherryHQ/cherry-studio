@@ -1783,4 +1783,102 @@ describe('SkillService authoring and remote updates', () => {
     )
     await expect(fs.promises.lstat(obsoleteMarker)).rejects.toMatchObject({ code: 'ENOENT' })
   })
+
+  it('reuses the backup slot when the legacy obsolete marker is unaddressable (ENAMETOOLONG)', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const sourceDir = path.join(root, 'source-obsolete-nametoolong')
+    const oldDir = path.join(root, 'old-obsolete-nametoolong')
+    await writeSkill(sourceDir, { supportingContent: 'echo replacement\n' })
+    await writeSkill(oldDir, { supportingContent: 'echo edited\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(oldDir, destPath, { recursive: true })
+    const baseline = await installer.computeContentHash(oldDir)
+
+    // Simulate ext4 with a long skill folder: the `<backup>.obsolete` sibling
+    // exceeds NAME_MAX, so both removal and verification fail with
+    // ENAMETOOLONG even though no marker exists. The bounded companion (short
+    // hashed name) stays addressable and absent.
+    const originalRm = fs.promises.rm
+    const originalLstat = fs.promises.lstat
+    const rmSpy = vi.spyOn(fs.promises, 'rm').mockImplementation(async (...args: unknown[]) => {
+      const target = args[0] as string
+      if (typeof target === 'string' && target.endsWith('.bak.obsolete')) {
+        throw Object.assign(new Error('ENAMETOOLONG'), { code: 'ENAMETOOLONG' })
+      }
+      return (originalRm as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    const lstatSpy = vi.spyOn(fs.promises, 'lstat').mockImplementation(async (...args: unknown[]) => {
+      const target = args[0] as string
+      if (typeof target === 'string' && target.endsWith('.bak.obsolete')) {
+        throw Object.assign(new Error('ENAMETOOLONG'), { code: 'ENAMETOOLONG' })
+      }
+      return (originalLstat as (...a: unknown[]) => Promise<unknown>)(...args) as never
+    })
+    try {
+      const prepared = await installer.prepareInstall(sourceDir, destPath, baseline)
+      await prepared.commit()
+    } finally {
+      rmSpy.mockRestore()
+      lstatSpy.mockRestore()
+    }
+
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo replacement\n'
+    )
+  })
+
+  it('records obsolete state under the bounded marker when the legacy sibling is unaddressable', async () => {
+    const { createHash } = await import('node:crypto')
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const staleDir = path.join(root, 'stale-obsolete-bounded')
+    await writeSkill(staleDir, { supportingContent: 'echo stale\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(staleDir, destPath, { recursive: true })
+    await fs.promises.cp(staleDir, backupPath, { recursive: true })
+    const baseline = await installer.computeContentHash(staleDir)
+    const boundedMarker = path.join(
+      path.dirname(backupPath),
+      `.${createHash('sha1').update(backupPath).digest('hex')}.obsolete`
+    )
+    await fs.promises.rm(boundedMarker, { force: true })
+
+    // Deny staging of the `.bak` for cleanup and deny the legacy sibling
+    // write with ENAMETOOLONG: the fallback must record the obsolete state
+    // under the bounded companion instead.
+    const originalRename = fs.promises.rename
+    const originalWriteFile = fs.promises.writeFile
+    const renameSpy = vi.spyOn(fs.promises, 'rename').mockImplementation(async (...args: unknown[]) => {
+      const [from] = args as [string, string]
+      if (typeof from === 'string' && from === backupPath) {
+        throw Object.assign(new Error('EACCES'), { code: 'EACCES' })
+      }
+      return (originalRename as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    const writeSpy = vi.spyOn(fs.promises, 'writeFile').mockImplementation(async (...args: unknown[]) => {
+      const target = args[0] as string | URL
+      if (typeof target === 'string' && target === `${backupPath}.obsolete`) {
+        throw Object.assign(new Error('ENAMETOOLONG'), { code: 'ENAMETOOLONG' })
+      }
+      return (originalWriteFile as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    try {
+      await installer.recoverInterruptedInstallWithBaseline(destPath, baseline)
+    } finally {
+      renameSpy.mockRestore()
+      writeSpy.mockRestore()
+    }
+
+    // The `.bak` directory remains but carries the bounded obsolete record, so
+    // the next sweep stages it for cleanup instead of restoring it over the
+    // destination, and drops the bounded record with it.
+    await expect(fs.promises.access(boundedMarker)).resolves.toBeUndefined()
+    await installer.recoverInterruptedInstallWithBaseline(destPath, baseline)
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(fs.promises.lstat(boundedMarker)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo stale\n')
+  })
 })
