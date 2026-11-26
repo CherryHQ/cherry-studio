@@ -1,6 +1,8 @@
 import { CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget, ModelConfiguredCli } from '@shared/utils/cliConfig'
 
+import type { LocalAgentConfiguration } from './localAgent'
+
 /** Native defaults shared by the interactive CLI and its protocol adapter. */
 export const LOCAL_AGENT_MODEL_CONFIG: Readonly<Record<string, { tool: ModelConfiguredCli; target: CliConfigTarget }>> =
   {
@@ -26,3 +28,11 @@ export const LOCAL_AGENT_MODEL_CONFIG: Readonly<Record<string, { tool: ModelConf
     snow: { tool: 'snow', target: 'snow-config' },
     'glm-acp-agent': { tool: 'glm-acp-agent', target: 'glm-credentials' }
   }
+
+export function getLocalAgentModelStorage(config: Pick<LocalAgentConfiguration, 'protocol' | 'presetId'> | undefined) {
+  if (config?.protocol === 'cursor' || (config?.protocol === 'acp' && config.presetId === 'antigravity-acp')) {
+    return { type: 'agent' } as const
+  }
+  const file = config?.presetId && LOCAL_AGENT_MODEL_CONFIG[config.presetId]
+  return file ? ({ type: 'cli', ...file } as const) : undefined
+}

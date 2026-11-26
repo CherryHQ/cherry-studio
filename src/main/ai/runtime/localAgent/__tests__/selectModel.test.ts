@@ -60,11 +60,19 @@ describe('global local agent model selection', () => {
     })
   }
 
-  it('stores and clears the Antigravity ACP model without changing CLI defaults', async () => {
-    const config = { presetId: 'antigravity-acp', protocol: 'acp' as const, enabled: true, args: [], env: {} }
-    const agent = createLocalAgent('local-antigravity', 'Antigravity', config)
-    await selectLocalAgentModel(agent.id, 'gemini')
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('gemini')
+  it.each([
+    ['antigravity-acp', 'acp', 'gemini'],
+    ['cursor', 'cursor', 'composer']
+  ] as const)('stores and clears the %s model on the Agent', async (presetId, protocol, model) => {
+    const config = { presetId, protocol, enabled: true, args: [], env: {} }
+    const agent = createLocalAgent(`local-${presetId}`, presetId, config)
+    await selectLocalAgentModel(agent.id, model)
+    await expect(
+      selectLocalAgentModel(agent.id, undefined, {
+        files: [{ target: 'pi-settings', content: '{}' }]
+      })
+    ).rejects.toThrow(t('code_cli.model.unsupported'))
+    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe(model)
     await selectLocalAgentModel(agent.id)
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toEqual(config)
   })

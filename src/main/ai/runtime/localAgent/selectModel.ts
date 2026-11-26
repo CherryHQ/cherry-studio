@@ -3,7 +3,7 @@ import { agentService } from '@data/services/AgentService'
 import { t } from '@main/i18n'
 import { getEnvironmentValue } from '@main/utils/env'
 import { getRawShellEnv } from '@main/utils/shellEnv'
-import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
+import { getLocalAgentModelStorage, LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { getCliConfigTargets } from '@shared/utils/cliConfig'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
@@ -62,21 +62,24 @@ export async function selectLocalAgentModel(
 ) {
   const agent = agentService.getAgent(agentId)
   const config = agent?.configuration?.localRuntime
-  const native = config?.presetId && LOCAL_AGENT_MODEL_CONFIG[config.presetId]
-  if (!agent || agent.type !== 'local' || !config) {
+  const native = getLocalAgentModelStorage(config)
+  if (!agent || agent.type !== 'local' || !config || !native) {
     throw new Error(t('code_cli.model.unsupported'))
   }
-  if (
-    config.presetId === 'antigravity-acp' &&
-    !selection.sourceModelId &&
-    !selection.files?.length &&
-    !selection.sourceModelViaGateway
-  ) {
-    const updated = agentService.updateAgent(agentId, { configuration: { localRuntime: { nativeModel } } })
+  if (native.type === 'agent') {
+    if (
+      selection.sourceModelId ||
+      selection.sourceModelViaGateway ||
+      selection.files?.length ||
+      selection.expectedFiles?.length
+    )
+      throw new Error(t('code_cli.model.unsupported'))
+    const updated = agentService.updateAgent(agentId, {
+      configuration: { localRuntime: { nativeModel, sourceModelId: undefined, sourceModelViaGateway: undefined } }
+    })
     if (!updated) throw new Error(t('code_cli.model.agent_missing'))
     return updated
   }
-  if (!native) throw new Error(t('code_cli.model.unsupported'))
   const shellEnv = await getRawShellEnv()
   if (hasConfigOverrides(config.env, shellEnv)) {
     throw new Error(t('code_cli.model.environment_mismatch'))

@@ -40,11 +40,15 @@ function parseNativeStatus(presetId: string, output: string): AuthStatus {
   return 'unknown'
 }
 
+export async function getCursorApiKey(config: LocalAgentConfiguration) {
+  return config.env.CURSOR_API_KEY ?? (await getShellEnv()).CURSOR_API_KEY
+}
+
 export async function getLocalAgentAuthStatus(config: LocalAgentConfiguration): Promise<AuthStatus> {
   if (config.protocol === 'cursor') {
     try {
       const { cursorAuthStatus } = await import('@cherrystudio/agent-runtime-cursor')
-      return await cursorAuthStatus(config.env.CURSOR_API_KEY ?? (await getShellEnv()).CURSOR_API_KEY)
+      return await cursorAuthStatus(await getCursorApiKey(config))
     } catch {
       return 'unknown'
     }

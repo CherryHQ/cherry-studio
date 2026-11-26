@@ -1,10 +1,4 @@
-import {
-  listCursorModels,
-  openCursorSession,
-  sendCursorTurn,
-  type Run,
-  type SDKAgent
-} from '@cherrystudio/agent-runtime-cursor'
+import { openCursorSession, sendCursorTurn, type Run, type SDKAgent } from '@cherrystudio/agent-runtime-cursor'
 import { getShellEnv } from '@main/utils/shellEnv'
 
 import type { AgentRuntimeUserInput } from '../types'
@@ -23,7 +17,7 @@ export class CursorConnection extends LocalConnection {
   private env: NodeJS.ProcessEnv = {}
   private pendingRun?: Promise<Run>
 
-  async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
+  async start(cwd: string, resume?: string): Promise<this> {
     this.cwd = cwd
     this.env = { ...(await getShellEnv(this.abort.signal)), ...this.config.env }
     const apiKey = this.env.CURSOR_API_KEY
@@ -40,10 +34,6 @@ export class CursorConnection extends LocalConnection {
       ]
     }
     this.supportedCommands = []
-    if (probe) {
-      this.localSessionInfo.models = await listCursorModels(apiKey)
-      return this
-    }
     this.browser = await acquireLocalAgentBrowserLease({
       sessionId: this.sessionId,
       agentId: this.agentId,

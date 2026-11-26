@@ -12,6 +12,7 @@ import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
 import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver } from '../types'
 import { acpError } from './acpError'
 import { AcpManagement } from './AcpManagement'
+import { getCursorApiKey } from './authStatus'
 import { resolveLocalAgentCli } from './launch'
 import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
 
@@ -84,30 +85,39 @@ async function withAntigravityFallback<T>(
   }
 }
 
+async function cursorCatalog(config: LocalAgentConfiguration): Promise<LocalAgentModelCatalog> {
+  const { listCursorModels } = await import('@cherrystudio/agent-runtime-cursor')
+  return { models: await listCursorModels(await getCursorApiKey(config)) }
+}
+
 export async function listLocalAgentModels(config: LocalAgentConfiguration): Promise<LocalAgentModelCatalog> {
+  if (config.protocol === 'cursor') return withConnectionTimeout(cursorCatalog(config))
   const cwd = application.getPath('cherry.bin')
-  return withAntigravityFallback({ ...config, nativeModel: undefined }, async (selected) => {
-    if (selected.protocol === 'acp') {
-      return withManagement(selected, (access) => access.listModels(cwd))
+  const probe = { ...config, nativeModel: undefined }
+  if (config.protocol === 'acp') {
+    return withAntigravityFallback(probe, (selected) => withManagement(selected, (access) => access.listModels(cwd)))
+  }
+  const Connection = await nativeConnections[config.protocol]()
+  const live = new Connection(`local-agent-models:${randomUUID()}`, '', probe)
+  try {
+    await withConnectionTimeout(live.start(cwd, undefined, 'models'))
+    return {
+      models: live.localSessionInfo.models,
+      activeModel: live.localSessionInfo.activeModel,
+      authMethods: live.localSessionInfo.protocolInfo?.authMethods
     }
-    const Connection = await nativeConnections[selected.protocol]()
-    const live = new Connection(`local-agent-models:${randomUUID()}`, '', selected)
-    try {
-      await withConnectionTimeout(live.start(cwd, undefined, 'models'))
-      return {
-        models: live.localSessionInfo.models,
-        activeModel: live.localSessionInfo.activeModel,
-        authMethods: live.localSessionInfo.protocolInfo?.authMethods
-      }
-    } finally {
-      await live.close()
-    }
-  })
+  } finally {
+    await live.close()
+  }
 }
 
 export async function checkLocalAgent(config: LocalAgentConfiguration): Promise<LocalAgentCheckResult> {
-  const cwd = application.getPath('cherry.bin')
   try {
+    if (config.protocol === 'cursor') {
+      await withConnectionTimeout(cursorCatalog(config))
+      return { ok: true, status: 'ready' }
+    }
+    const cwd = application.getPath('cherry.bin')
     if (config.protocol === 'acp') {
       const protocolInfo = await withManagement(config, (access) => access.check(cwd))
       return { ok: true, status: 'ready', protocolInfo }

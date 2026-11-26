@@ -50,7 +50,7 @@ export function LocalAgentModelControl({
   const activeModel = isDeepSeekHarness ? info?.activeModel : undefined
   const selection = useLocalAgentModelSelection(
     config,
-    freshCatalog?.models ?? info?.models ?? catalog?.models ?? [],
+    freshCatalog?.models ?? (info?.models.length ? info.models : catalog?.models) ?? [],
     activeModel?.id
   )
   const { models, value } = selection

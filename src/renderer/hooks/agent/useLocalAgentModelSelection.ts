@@ -21,7 +21,7 @@ import {
 import { getModelDisplayTags, type ModelDisplayTag } from '@renderer/utils/model'
 import { getProviderDisplayName } from '@renderer/utils/naming'
 import type { LocalAgentConfiguration, LocalAgentModelCatalog } from '@shared/ai/localAgent'
-import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
+import { getLocalAgentModelStorage } from '@shared/ai/localAgentModel'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli, DEEPSEEK_HARNESS_GATEWAY_ROUTE } from '@shared/types/codeCli'
 import { getCliConfigTargets } from '@shared/utils/cliConfig'
@@ -43,7 +43,6 @@ const GATEWAY_MODEL_PREFIX = 'gateway-model:'
 
 export type LocalAgentModelSourceRestrictions = Partial<Record<'native' | 'gateway', string>>
 
-/** One selection applies the native CLI files and the chat Agent together. */
 export function useLocalAgentModelSelection(
   config: LocalAgentConfiguration | undefined,
   nativeModels: LocalAgentModelCatalog['models'],
@@ -52,7 +51,8 @@ export function useLocalAgentModelSelection(
   const { t } = useTranslation()
   const { updateNativeModel } = useUpdateAgent()
   const gateway = useApiGatewayProvider()
-  const native = LOCAL_AGENT_MODEL_CONFIG[config?.presetId ?? '']
+  const storage = getLocalAgentModelStorage(config)
+  const native = storage?.type === 'cli' ? storage : undefined
   const isDeepSeekHarness = config?.presetId === CodeCli.DEEPSEEK_HARNESS
   const managedDeepSeekHarness = isDeepSeekHarness && !config?.env.DSH_HOME
   const [cliConfigs] = usePreference('feature.code_cli.configs')
@@ -62,7 +62,7 @@ export function useLocalAgentModelSelection(
     native || managedDeepSeekHarness
       ? undefined
       : {
-          native: config?.presetId === 'antigravity-acp' ? undefined : t('local_agents.global_model_unavailable'),
+          native: storage?.type === 'agent' ? undefined : t('local_agents.global_model_unavailable'),
           gateway: t('local_agents.model_sources.gateway_not_integrated')
         }
   const { models, isLoading: modelsLoading } = useModels(
@@ -133,7 +133,7 @@ export function useLocalAgentModelSelection(
       await ipcApi.request('deepseek_harness.select_gateway_model', { uniqueModelId: model.id })
       return agent
     }
-    if (config?.presetId === 'antigravity-acp') {
+    if (storage?.type === 'agent') {
       if (id && !nativeModels.some((model) => model.id === id)) throw new Error(t('local_agents.models_unavailable'))
       return updateNativeModel(agent.id, id)
     }
