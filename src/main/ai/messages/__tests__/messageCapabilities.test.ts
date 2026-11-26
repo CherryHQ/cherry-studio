@@ -152,6 +152,7 @@ describe('routeToolResultMedia', () => {
     expect(JSON.stringify(routed.slice(0, 2))).not.toContain('image-data')
     expect(routed[2]).toEqual({
       role: 'user',
+      providerOptions: { cherry: { toolResultMedia: true } },
       content: [
         { type: 'text', text: '[tool-result attachment call_id="one" image=1]' },
         { type: 'image', image: 'BASE64', mediaType: 'image/png' },
@@ -199,6 +200,7 @@ it('#22441 routes only the winning duplicate image and the distinct call image w
   expect(messages.filter((message) => message.role === 'user')).toEqual([
     {
       role: 'user',
+      providerOptions: { cherry: { toolResultMedia: true } },
       content: [
         { type: 'text', text: '[tool-result attachment call_id="dup" image=1]' },
         { type: 'image', image: 'WINNER', mediaType: 'image/png' },

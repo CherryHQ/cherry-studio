@@ -14,9 +14,10 @@
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
-import { anthropicThinkingBindingFeature } from './anthropicThinkingBinding'
+import { anthropicThinkingBindingFeature, anthropicThinkingReplayFeature } from './anthropicThinkingBinding'
 import { bedrockAnthropicCacheFeature } from './bedrockAnthropicCache'
 import { contextBuildFeature } from './contextBuild'
+import { conversationStateReplayFeature } from './conversationStateReplay'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
@@ -33,7 +34,6 @@ import { qwenEnableThinkingFeature } from './qwenEnableThinking'
 import { qwenThinkingFeature } from './qwenThinking'
 import { reasoningExtractionFeature } from './reasoningExtraction'
 import { simulateStreamingFeature } from './simulateStreaming'
-import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
 import { steerYieldFeature } from './steerYield'
 import { stripReasoningReplayFeature } from './stripReasoningReplay'
 import { terminalToolFailureFeature } from './terminalToolFailure'
@@ -47,6 +47,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   // DeepSeek-only: tag replayed reasoning so the Responses serializer passes it back (#18150).
   deepseekResponsesReasoningReplayFeature,
   grokReasoningReplayFeature,
+  conversationStateReplayFeature,
   reasoningExtractionFeature,
   simulateStreamingFeature,
   // Must precede anthropic-cache: middleware array order = transformParams
@@ -62,6 +63,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   anthropicHeadersFeature,
   // Chat Completions gateways reject content-part arrays where a string is expected.
   flattenTextContentFeature,
+  anthropicThinkingReplayFeature,
   anthropicThinkingBindingFeature,
   // Provider compatibility: strip unsupported schema keywords, then apply Gemini-specific tool filtering.
   toolSchemaCompatibilityFeature,
@@ -69,7 +71,6 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   noThinkFeature,
   qwenThinkingFeature,
   qwenEnableThinkingFeature,
-  skipGeminiThoughtSignatureFeature,
   // The HuggingFace router rejects reasoning input items — strip them on replay.
   stripReasoningReplayFeature,
   providerWebSearchFeature,

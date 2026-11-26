@@ -18,6 +18,7 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
@@ -26,6 +27,8 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
+import { readPiApprovalFacts } from '../pi/piApprovalFacts'
+import type { AgentRuntimeConnectInput } from '../types'
 import { prepareDurableDesktop } from './durableDesktop'
 
 vi.mock('@main/utils/shellEnv', () => ({
@@ -86,6 +89,58 @@ describe('Pi Durable desktop tools of a user Agent', () => {
     fs.rmSync(root, { recursive: true, force: true })
     MockApplicationUtils.resetServices()
     vi.restoreAllMocks()
+  })
+
+  it('removes knowledge reads at startup and retains their restriction during active work', async () => {
+    const base = dbh.db
+      .insert(knowledgeBaseTable)
+      .values({ name: 'Bound base', status: 'completed', orderKey: 'a0', chunkSize: 100, chunkOverlap: 0 })
+      .returning()
+      .get()
+    const agent = agentService.createAgentWithId('knowledge-agent', {
+      type: 'pi-durable',
+      name: 'Knowledge agent',
+      model: MODEL,
+      knowledgeBaseIds: [base.id],
+      disabledTools: ['mcp__cherry-tools__kb_search']
+    })
+    const workspace = agentWorkspaceService.findOrCreateByPath(root)
+    const session = agentSessionService.create({
+      agentId: agent.id,
+      name: 'Session',
+      workspace: { type: 'user', workspaceId: workspace.id }
+    })
+    const input: AgentRuntimeConnectInput = { sessionId: session.id, agentId: agent.id, modelId: MODEL }
+    const reads = ['mcp__cherry_tools__kb_search', 'mcp__cherry_tools__kb_list', 'mcp__cherry_tools__kb_read']
+    const manage = 'mcp__cherry_tools__kb_manage'
+    const desktop = await prepareDurableDesktop(input, () => {})
+    try {
+      expect(desktop.agentConfig.tools).toMatchObject({
+        remove: expect.arrayContaining(reads.map((name) => expect.objectContaining({ name })))
+      })
+      expect(await readPiApprovalFacts(desktop.approval, manage, {})).toMatchObject({
+        disabled: false,
+        approvalRequired: true
+      })
+
+      agentService.updateAgent(agent.id, { disabledTools: [] })
+      await desktop.reconcile(input, true)
+      for (const name of reads) {
+        expect(await readPiApprovalFacts(desktop.approval, name, {})).toMatchObject({ disabled: true })
+      }
+    } finally {
+      await desktop.close()
+    }
+
+    const reopened = await prepareDurableDesktop(input, () => {})
+    try {
+      expect(reopened.agentConfig.tools).toEqual({ remove: [] })
+      for (const name of reads) {
+        expect(await readPiApprovalFacts(reopened.approval, name, {})).toMatchObject({ disabled: false })
+      }
+    } finally {
+      await reopened.close()
+    }
   })
 
   // Catches create-tool guidance that names a call the Durable model cannot make (it once sent the model to `tool_search`).

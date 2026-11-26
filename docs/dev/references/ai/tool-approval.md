@@ -55,7 +55,13 @@ persists, and resumes the stream.
 A card whose request is gone is never left answerable. When a connection or
 stream ends with an approval still pending, `ToolApprovalRegistry.onAborted`
 retires the persisted card to `output-error`, so the composer stops offering a
-question nothing can receive.
+question nothing can receive. When Pi Durable resumes an interactive turn on startup,
+a still-pending tool approval or Ask User Question registers a fresh interaction.
+Turns recorded without a desktop responder keep their headless behavior.
+
+Claude Code Plan Only omits built-in file mutation tools from the model's tool list.
+Switching into or out of Plan Only refreshes that list for the next turn. A switch
+into Plan Only during a turn also blocks file mutation calls immediately.
 
 MCP skill loading and file reads follow each Skill’s server-owned reading permission
 through ordinary tool approval. Unconfigured entries ask each time; Full Access skips
@@ -136,7 +142,10 @@ Runtimes reach the policy only through the `commandPolicy` barrel's `checkComman
 the command, its dialect (from the tool name), cwd, built-in role and the root's permission
 mode, and returns `deny`, `ask` (only in `auto`) or `allow`, the localized policy reason, card
 evidence and a `context` fingerprint. A runtime compares the fingerprint after a grant instead
-of re-deriving the policy inputs. The parser, semantic adapters, JSON document and the
+of re-deriving the policy inputs. The built-in Assistant's feedback-submission guard also uses
+the barrel's `resolveInvocationCommands`, which returns every command an invocation runs
+(wrapped, substituted and nested-shell commands included) and whether any part stayed
+unresolved; it makes no policy decision of its own. The parser, semantic adapters, JSON document and the
 built-in role's destructive-operation detector are private to the directory; lint rejects
 deep imports. Decisions are cached per command, dialect and role, because one call is
 checked by a hook, a permission callback and again after approval.

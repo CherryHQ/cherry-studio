@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-26-assistant-feedback-submission-guard.md
+2026-11-26-assistant-feedback-submission-guard.md: 2adebece505e2d4bfff61fd945a29e6078629b4c
+2026-11-26-assistant-feedback-submission-guard.zh.md: 2307c412b1239afa8b2158164493df81b3821661

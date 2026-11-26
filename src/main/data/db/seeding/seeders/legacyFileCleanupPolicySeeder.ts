@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSessionMessagePartTable, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
   agentSessionMessageFileRefTable,
@@ -36,20 +36,20 @@ export class LegacyFileCleanupPolicySeeder implements ISeeder {
           substr(lower(hex(randomblob(2))), 2) || '-' ||
           substr('89ab', abs(random() % 4) + 1, 1) ||
           substr(lower(hex(randomblob(2))), 2) || '-' || lower(hex(randomblob(6))),
-        json_extract(part.value, '$.providerMetadata.cherry.fileEntryId'),
+        json_extract(part.payload, '$.providerMetadata.cherry.fileEntryId'),
         message.id,
         'attachment',
         message.created_at,
         message.updated_at
       FROM ${agentSessionMessageTable} AS message
-      JOIN json_each(json_extract(message.data, '$.parts')) AS part
+      JOIN ${agentSessionMessagePartTable} AS part ON part.message_id = message.id
       JOIN ${fileEntryTable} AS file
-        ON file.id = json_extract(part.value, '$.providerMetadata.cherry.fileEntryId')
-      WHERE json_extract(part.value, '$.type') = 'file'
+        ON file.id = json_extract(part.payload, '$.providerMetadata.cherry.fileEntryId')
+      WHERE part.type = 'file'
         AND message.created_at <= ${completedAt}
         AND message.updated_at <= ${completedAt}
         AND file.created_at <= ${completedAt}
-      GROUP BY message.id, json_extract(part.value, '$.providerMetadata.cherry.fileEntryId')
+      GROUP BY message.id, json_extract(part.payload, '$.providerMetadata.cherry.fileEntryId')
       ON CONFLICT (file_entry_id, source_id, role) DO NOTHING
       `)
 

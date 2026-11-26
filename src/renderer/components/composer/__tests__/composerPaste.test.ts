@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  COMPOSER_CLIPBOARD_FRAGMENT_MIME,
   createComposerClipboardFragment,
+  createComposerRichClipboardContentFromParts,
   readComposerClipboardFragment
 } from '@renderer/utils/message/composerClipboard'
 
+import { createComposerUserMessageParts } from '../composerDraft'
 import {
   createComposerMarkedTextPasteContent,
   createComposerPlainTextPasteContent,
@@ -32,6 +35,37 @@ const resolveKnowledgeBaseMarker = (marker: string) =>
     : null
 
 describe('composer paste handling', () => {
+  it('keeps a linked quote navigable when copied from a sent message and pasted into the composer', () => {
+    const promptText = '<blockquote>Quoted passage</blockquote>'
+    const parts = createComposerUserMessageParts({
+      text: promptText,
+      tokens: [
+        {
+          id: 'quote:1',
+          kind: 'quote',
+          label: 'Quote',
+          description: 'Quoted passage',
+          sourceMessageId: 'original-message',
+          promptText,
+          index: 0,
+          textOffset: 0
+        }
+      ]
+    })
+    const clipboard = createComposerRichClipboardContentFromParts(parts)
+    const fragment = readComposerClipboardFragment(clipboard?.customFormats?.[COMPOSER_CLIPBOARD_FRAGMENT_MIME] ?? '')
+    const paste = getComposerClipboardPasteOverride(fragment, {})
+    expect(paste?.content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'composerToken',
+          attrs: expect.objectContaining({ sourceMessageId: 'original-message' })
+        })
+      ])
+    )
+    expect(clipboard?.html).not.toContain('original-message')
+    expect(clipboard?.plainText).not.toContain('original-message')
+  })
   it('preserves LF newlines as composer hard breaks', () => {
     expect(createComposerPlainTextPasteContent('a\nb')).toEqual([
       { type: 'text', text: 'a' },

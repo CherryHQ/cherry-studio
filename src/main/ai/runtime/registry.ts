@@ -23,3 +23,11 @@ class RuntimeDriverRegistry {
 }
 
 export const runtimeDriverRegistry = new RuntimeDriverRegistry()
+
+/** History readers receive the checkpoint validator without access to execution. */
+export function forkCheckpointReader(type: string) {
+  const driver = runtimeDriverRegistry.getAgentSessionDriver(type)
+  return driver?.fork && driver.isForkCheckpoint
+    ? { type, isForkCheckpoint: driver.isForkCheckpoint.bind(driver) }
+    : undefined
+}
