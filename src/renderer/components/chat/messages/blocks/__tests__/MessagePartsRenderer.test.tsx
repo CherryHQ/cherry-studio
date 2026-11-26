@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProjectionReaderProvider } from '@renderer/hooks/agent/ProjectionReaderProvider'
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import { ipcApi } from '@renderer/ipc'
+import { projectAgentTimeline } from '@renderer/pages/agents/messages/agentTimeline'
 import { MessageProjectionService } from '@renderer/services/aiTransport/MessageProjectionService'
 import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
@@ -15,6 +16,7 @@ import type { ChildPartPlacement, LivePartPatch } from '@shared/ai/messageProjec
 import type { AiToolResultResponse } from '@shared/ai/transport'
 import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { CherryTextMetaSchema } from '@shared/data/types/uiParts'
 
@@ -647,6 +649,89 @@ describe('MessagePartsRenderer', () => {
         expectNodeBefore(screen.getByText('Here is the result.'), screen.getByRole('status'))
       }
     )
+
+    it('keeps the focused expanded tool mounted before steer while a new segment streams after it', async () => {
+      const ipc = projectionIpc()
+      const store = new MessageProjectionService()
+      const target = { kind: 'topic', topicId: 't' } as const
+      const stop = store.subscribe(target, () => {})
+      const attachment = ipc.attachments[0]
+      const call = {
+        type: 'dynamic-tool',
+        toolName: 'Read',
+        toolCallId: 'held',
+        input: { path: '/a' },
+        state: 'input-available'
+      } as const
+      const source: CherryUIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [call],
+        partIds: ['held'],
+        partPositions: [1]
+      }
+      const steer: CherryUIMessage = {
+        id: 'steer',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Steer now' }],
+        timeline: { pos: 2 }
+      }
+      await act(async () => attachment.resolve({ ...target, revision: 0, executions: [], messages: [source] }))
+      activateTurn('streaming')
+      const display = (messages: CherryUIMessage[]) => {
+        const rows = projectAgentTimeline(messages, (message) => store.readMessage(target, message))
+        return (
+          <ProjectionReaderProvider reader={store.partsFor(target)}>
+            {rows.map((row) => (
+              <React.Fragment key={row.id}>
+                {row.message.role === 'user' ? (
+                  <div>Steer now</div>
+                ) : (
+                  renderPartsTree(
+                    row.parts,
+                    msg({ id: row.id, sourceMessageId: row.sourceMessageId, partIds: row.partIds, status: 'pending' })
+                  )
+                )}
+              </React.Fragment>
+            ))}
+          </ProjectionReaderProvider>
+        )
+      }
+      const tree = render(display([source]))
+      expandCollapsedLiveToolGroups()
+      const trigger = screen.getAllByRole('button').find((button) => button.getAttribute('aria-expanded') === 'true')!
+      trigger.focus()
+      tree.rerender(display([source, steer]))
+      act(() =>
+        ipc.emit(attachment.subscriptionId, {
+          kind: 'topic',
+          type: 'parts',
+          revision: 1,
+          patches: [
+            { type: 'part-open', messageId: 'msg-1', partId: 'after', kind: 'text', pos: 3 },
+            { type: 'part-append', partId: 'after', text: 'Answer after steer' }
+          ]
+        })
+      )
+      tree.rerender(display([source, steer]))
+      expect(trigger).toHaveFocus()
+      expect(trigger).toHaveAttribute('aria-expanded', 'true')
+      expectNodeBefore(trigger, screen.getByText('Steer now'))
+      expectNodeBefore(screen.getByText('Steer now'), screen.getByText('Answer after steer'))
+      act(() =>
+        ipc.emit(attachment.subscriptionId, {
+          kind: 'topic',
+          type: 'parts',
+          revision: 2,
+          patches: [{ type: 'part-put', partId: 'held', part: { ...call, state: 'output-available', output: 'Done' } }]
+        })
+      )
+      expect(trigger).toHaveFocus()
+      expect(trigger.isConnected).toBe(true)
+      expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(1)
+      tree.unmount()
+      stop()
+    })
 
     it('updates the mounted Agent tool card when only its streamed arguments change', async () => {
       const ipc = projectionIpc()

@@ -55,3 +55,10 @@ describe('CompactionAnchorBlock', () => {
     expect(container).toBeEmptyDOMElement()
   })
 })
+
+it('keeps the same marker DOM when real compaction settles', () => {
+  const view = render(<CompactionAnchorBlock data={{ phase: 'agent-session', status: 'compacting' }} />)
+  const marker = screen.getByRole('status')
+  view.rerender(<CompactionAnchorBlock data={{ phase: 'agent-session', status: 'done' }} />)
+  expect(screen.getByRole('separator')).toBe(marker)
+})
