@@ -1,15 +1,35 @@
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, fireEvent, render, type RenderResult, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Activity, useState } from 'react'
+import { Activity, type ComponentProps, type ReactNode, useState } from 'react'
 import type * as ReactHookForm from 'react-hook-form'
 import { useWatch } from 'react-hook-form'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AutoConfigProgressView } from '@renderer/hooks/resourceCatalog'
+import { toast } from '@renderer/services/toast'
 import type { AgentType } from '@shared/data/types/agent'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind } from '../types'
+
+const manualMcp = vi.hoisted(() => ({ install: vi.fn<() => Promise<McpServer>>() }))
+
+const autoConfigure = vi.hoisted(() => ({
+  ready: true,
+  generate:
+    vi.fn<
+      (input: {
+        purpose: string
+        name: string
+        signal: AbortSignal
+        onProgress?: (progress: AutoConfigProgressView) => void
+      }) => Promise<unknown>
+    >(),
+  installFeaturedMcpServers: vi.fn<(ids: string[]) => Promise<string[]>>()
+}))
 
 const modelHook = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
@@ -31,13 +51,40 @@ function makeModel(id: UniqueModelId = 'provider::default'): Model {
   }
 }
 
+// Interpolated values are appended so assertions can read them (`key:1/2`).
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, options?: unknown) =>
+      options && typeof options === 'object' ? `${key}:${Object.values(options).join('/')}` : key
+  })
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ defaultModel: modelHook.defaultModel }),
-  useModels: () => ({ models: modelHook.defaultModel?.isEnabled ? [modelHook.defaultModel] : [] })
+  useDefaultModel: () => ({ defaultModel: modelHook.defaultModel, isDefaultModelLoading: false }),
+  useModels: () => ({ models: modelHook.defaultModel?.isEnabled ? [modelHook.defaultModel] : [] }),
+  useModelById: (id: string | null) => ({ model: id === 'provider::model' ? { name: 'Picked model' } : undefined })
+}))
+
+// Installed catalogs the result page resolves names from.
+vi.mock('@renderer/hooks/useSkills', () => ({
+  useInstalledSkills: () => ({
+    skills: [
+      { id: 'skill-builtin', name: 'Builtin skill', source: 'builtin' },
+      { id: 'skill-review', name: 'Review skill', source: 'local' },
+      { id: 'skill-unused', name: 'Unused skill', source: 'local' }
+    ]
+  })
+}))
+vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
+  useKnowledgeBases: () => ({ bases: [{ id: 'kb-docs', name: 'Docs' }] })
+}))
+vi.mock('@renderer/hooks/useMcpServer', () => ({
+  useMcpServers: () => ({ mcpServers: [{ id: 'mcp-github', name: 'GitHub' }] })
+}))
+vi.mock('../../edit', () => ({
+  ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } }) => (
+    <div data-testid="edit-host">{`${target.kind}:${target.id}`}</div>
+  )
 }))
 
 vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
@@ -60,54 +107,42 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
 // mapping) is exercised in isolation. BasicInfoStep fills the fields that gate
 // the Next button; SystemPromptStep fills the prompt.
-vi.mock('../steps/BasicInfoStep', async () => {
-  const { useWatch } = await vi.importActual<typeof ReactHookForm>('react-hook-form')
-
-  return {
-    BasicInfoStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => {
-      const modelId = useWatch({ control: form.control, name: 'modelId' })
-      const name = useWatch({ control: form.control, name: 'name' })
-
-      return (
-        <>
-          <div data-testid="model-id">{modelId ?? 'empty'}</div>
-          <div data-testid="name">{name || 'empty'}</div>
-          <DraftValues form={form} />
-          <input aria-label="draft name" {...form.register('name')} />
-          <input aria-label="draft description" {...form.register('description')} />
-          <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
-            fill name
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              form.setValue('name', 'My Resource')
-              form.setValue('modelId', 'provider::model')
-            }}>
-            fill basic
-          </button>
-          {(['pi', 'claude-code'] as const).map((runtime) => (
-            <button
-              key={runtime}
-              type="button"
-              onClick={() => {
-                form.setValue('agentType', runtime)
-                form.setValue('modelId', null)
-              }}>
-              switch to {runtime}
-            </button>
-          ))}
-          <button type="button" onClick={() => form.setValue('permissionMode', 'plan')}>
-            use plan mode
-          </button>
-          <button type="button" onClick={() => form.setValue('avatarImage', new Uint8Array([7, 8, 9]))}>
-            choose draft image
-          </button>
-        </>
-      )
-    }
-  }
-})
+vi.mock('../steps/BasicInfoStep', () => ({ BasicInfoStep: StepHarness }))
+// The entry shares the basic step's fields (one form), so it gets the same harness.
+vi.mock('../steps/AutoCreateEntry', () => ({ AutoCreateEntry: StepHarness }))
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useResourceAutoConfigure: () => ({
+    ready: autoConfigure.ready,
+    generate: autoConfigure.generate,
+    installFeaturedMcpServers: autoConfigure.installFeaturedMcpServers
+  })
+}))
+vi.mock('@renderer/components/PromptEditorField', () => ({
+  PromptEditorIconButton: ({ label, onClick }: { label: string; onClick: () => void }) => (
+    <button type="button" onClick={onClick}>
+      {label}
+    </button>
+  ),
+  default: ({
+    label,
+    actions,
+    value,
+    onChange,
+    editorLabel
+  }: {
+    label?: ReactNode
+    actions?: ReactNode
+    value: string
+    onChange: (value: string) => void
+    editorLabel?: string
+  }) => (
+    <div>
+      {label}
+      {actions}
+      <textarea aria-label={editorLabel} value={value} onChange={(event) => onChange(event.target.value)} />
+    </div>
+  )
+}))
 vi.mock('../steps/SystemPromptStep', () => ({
   SystemPromptStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => (
     <>
@@ -129,18 +164,91 @@ vi.mock('../steps/KnowledgeStep', () => ({
   )
 }))
 vi.mock('../steps/CapabilityStep', () => ({
-  CapabilityStep: () => <div data-testid="capability-step" />
+  CapabilityStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => (
+    <div data-testid="capability-step">
+      <button type="button" onClick={() => form.setValue('skillIds', ['skill-review'])}>
+        select skill
+      </button>
+    </div>
+  )
 }))
+// The tools and advanced steps run for real; only their catalog-backed and Radix-select fields are stubbed.
+vi.mock('@renderer/services/mainWindowNavigation', () => ({ openSettingsTab: vi.fn() }))
+vi.mock('@renderer/components/resourceCatalog/dialogs/components/McpCapabilityList', () => ({
+  McpCapabilityList: ({
+    onSelectedIdsChange,
+    onFeaturedInstall
+  }: {
+    onSelectedIdsChange: (ids: string[]) => void
+    onFeaturedInstall: (install: Promise<McpServer>) => Promise<void>
+  }) => (
+    <>
+      <button type="button" onClick={() => onSelectedIdsChange(['mcp-github'])}>
+        select MCP server
+      </button>
+      <button type="button" onClick={() => void onFeaturedInstall(manualMcp.install())}>
+        install featured MCP
+      </button>
+    </>
+  )
+}))
+vi.mock('@renderer/components/resourceCatalog/dialogs/components/ReplyLanguageSelect', () => ({
+  ReplyLanguageSelect: ({
+    onChange
+  }: {
+    onChange: (patch: { languageMode: 'custom'; languageCustom: string }) => void
+  }) => (
+    <button type="button" onClick={() => onChange({ languageMode: 'custom', languageCustom: '日本語' })}>
+      reply in Japanese
+    </button>
+  )
+}))
+
+import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
 
 import { ResourceCreateWizard } from '../ResourceCreateWizard'
 
 const NEXT = 'library.config.dialogs.create.next'
 const CREATE = 'library.config.dialogs.create.submit'
 const CANCEL = 'common.cancel'
+const MANUAL = 'library.config.dialogs.create.auto.manual'
+const AUTO = 'library.config.dialogs.create.auto.submit'
+const START = 'library.config.dialogs.create.result.start'
+const ADJUST = 'library.config.dialogs.create.result.adjust'
+const PROMPT_ROW = 'library.config.prompt.label'
+const AGENT_PROMPT = 'library.config.agent.prompt.instructions_label'
+const AGENT_PROMPT_ROW = 'library.config.agent.prompt.block.instructions'
+const PERMISSION_ROW = 'library.config.agent.section.permission.title'
+const TOOLS_ROW = 'library.config.agent.section.tools.tab.tools'
+const SKILLS_ROW = 'library.config.agent.section.tools.tab.skills'
+const MCP_ROW = 'library.config.agent.section.tools.tab.mcp'
+const KNOWLEDGE_ROW = 'library.config.dialogs.create.step.knowledge'
+const HEARTBEAT_ROW = 'library.config.agent.field.heartbeat_enabled.label'
+const RESULT = 'library.config.dialogs.create.result'
+const LIST_SEPARATOR = `${RESULT}.list_separator`
+
+/** The value cell of a result-page summary row. */
+const summaryValue = (label: string) => screen.getByText(label).nextElementSibling
+
+/** The dialog's own X button (its sr-only label is not exposed in jsdom). */
+const dialogCloseButton = () => document.querySelector<HTMLElement>('[data-slot="dialog-close"]')!
 
 const BASIC = /library\.config\.dialogs\.create\.step\.basic$/
 const KNOWLEDGE = /library\.config\.dialogs\.create\.step\.knowledge$/
+const DEFAULT_AGENT_SETTINGS_PAYLOAD = {
+  disabledTools: [],
+  channels: [],
+  agentSettings: {
+    languageMode: 'inherit',
+    languageCustom: '',
+    heartbeatEnabled: false,
+    heartbeatInterval: 30,
+    heartbeatTimeoutMinutes: 2,
+    envVarsText: ''
+  }
+}
 const onSubmitSpy = vi.fn()
+const UPLOADED_AVATAR = { data: new Uint8Array([1, 2, 3]), previewUrl: 'data:image/webp;base64,AQID' }
 const draft = {
   name: '  Activity draft  ',
   description: '  Description preserved across tabs  ',
@@ -148,13 +256,70 @@ const draft = {
 ${'Keep every instruction across tab switches.\n'.repeat(40)}DRAFT_END  `
 }
 
+function StepHarness({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) {
+  const modelId = useWatch({ control: form.control, name: 'modelId' })
+  const name = useWatch({ control: form.control, name: 'name' })
+
+  return (
+    <>
+      <div data-testid="model-id">{modelId ?? 'empty'}</div>
+      <div data-testid="name">{name || 'empty'}</div>
+      <DraftValues form={form} />
+      <input aria-label="draft name" {...form.register('name')} />
+      <input aria-label="draft description" {...form.register('description')} />
+      <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
+        fill name
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          form.setValue('name', 'My Resource')
+          form.setValue('modelId', 'provider::model')
+        }}>
+        fill basic
+      </button>
+      <button type="button" onClick={() => form.setValue('modelId', 'provider::model')}>
+        fill model
+      </button>
+      <button type="button" onClick={() => form.setValue('avatar', '🦊')}>
+        pick avatar
+      </button>
+      <button type="button" onClick={() => form.setValue('avatarImage', UPLOADED_AVATAR, { shouldDirty: true })}>
+        upload avatar
+      </button>
+      {(['pi', 'claude-code'] as const).map((runtime) => (
+        <button
+          key={runtime}
+          type="button"
+          onClick={() => {
+            form.setValue('agentType', runtime)
+            form.setValue('modelId', null)
+          }}>
+          switch to {runtime}
+        </button>
+      ))}
+      <button type="button" onClick={() => form.setValue('permissionMode', 'plan')}>
+        use plan mode
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          form.setValue('avatarImage', { data: new Uint8Array([7, 8, 9]), previewUrl: 'data:image/webp;base64,BwgJ' })
+        }>
+        choose draft image
+      </button>
+    </>
+  )
+}
+
 function DraftValues({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) {
-  const [name, description, prompt, knowledgeBaseIds, agentType, permissionMode] = useWatch({
+  const [name, description, prompt, knowledgeBaseIds, agentType, permissionMode, avatar] = useWatch({
     control: form.control,
-    name: ['name', 'description', 'prompt', 'knowledgeBaseIds', 'agentType', 'permissionMode']
+    name: ['name', 'description', 'prompt', 'knowledgeBaseIds', 'agentType', 'permissionMode', 'avatar']
   })
   return (
     <>
+      <div data-testid="draft-avatar">{avatar}</div>
       <div data-testid="draft-name">{name}</div>
       <div data-testid="draft-description">{description}</div>
       <div data-testid="draft-prompt">{prompt}</div>
@@ -187,6 +352,7 @@ function ActivityHost({
             kind={kind}
             open={open}
             onOpenChange={setOpen}
+            onStartConversation={vi.fn()}
             onSubmit={onSubmitSpy}
             initialName={initialName}
           />
@@ -210,15 +376,35 @@ async function fillDraftToKnowledge(user: ReturnType<typeof userEvent.setup>, ki
   await user.clear(screen.getByRole('textbox', { name: 'draft name' }))
   await user.type(screen.getByRole('textbox', { name: 'draft name' }), draft.name)
   await user.type(screen.getByRole('textbox', { name: 'draft description' }), draft.description)
+  await user.click(screen.getByRole('button', { name: MANUAL }))
   await user.click(screen.getByRole('button', { name: NEXT }))
-  await user.click(screen.getByRole('textbox', { name: 'draft prompt' }))
-  await user.paste(draft.prompt)
-  await user.click(screen.getByRole('button', { name: NEXT }))
-  if (kind === 'agent') {
-    expect(screen.getByTestId('capability-step')).toBeInTheDocument()
+  if (kind === 'assistant') {
+    await replacePrompt(user, 'draft prompt')
     await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
+    return
   }
+  // Agents: tools → skills → knowledge, then the prompt on the last step, then back to knowledge.
+  await user.click(screen.getByRole('button', { name: NEXT }))
+  expect(screen.getByTestId('capability-step')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: NEXT }))
   await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
+  await walkToLastStep(user)
+  // Pi Durable edits its prompt on a page opened from the full prompt; other runtimes keep the plain editor.
+  const piPromptRow = screen.queryByRole('button', { name: AGENT_PROMPT_ROW })
+  if (piPromptRow) await user.click(piPromptRow)
+  await replacePrompt(user, piPromptRow ? AGENT_PROMPT : 'draft prompt')
+  await user.click(screen.getByRole('button', { name: KNOWLEDGE }))
+}
+
+/** Manual create prefills an Agent's empty prompt with the purpose; replace it with the draft. */
+async function replacePrompt(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.clear(screen.getByRole('textbox', { name: label }))
+  await user.paste(draft.prompt)
+}
+
+async function walkToLastStep(user: ReturnType<typeof userEvent.setup>) {
+  while (screen.queryByRole('button', { name: NEXT })) await user.click(screen.getByRole('button', { name: NEXT }))
 }
 
 function expectDraft() {
@@ -231,7 +417,8 @@ function expectDraft() {
 }
 
 function expectDefaults(kind: ResourceCreateWizardKind, name = '') {
-  expect(screen.getByRole('button', { name: BASIC })).toHaveAttribute('aria-current', 'step')
+  expect(screen.getByRole('button', { name: MANUAL })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: BASIC })).not.toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue(name)
   expect(screen.getByRole('textbox', { name: 'draft description' })).toHaveValue('')
   expect(screen.getByTestId('draft-prompt')).toBeEmptyDOMElement()
@@ -249,9 +436,23 @@ afterEach(() => {
   modelHook.agentModelFilter.mockReset()
   modelHook.agentModelFilter.mockReturnValue(true)
   modelHook.unavailableModelIds.clear()
+  autoConfigure.ready = true
+  autoConfigure.generate.mockReset()
+  autoConfigure.installFeaturedMcpServers.mockReset()
 })
 
 describe('ResourceCreateWizard', () => {
+  it('asks before discarding a typed draft', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={onOpenChange} onSubmit={vi.fn()} />)
+
+    await user.type(screen.getByRole('textbox', { name: 'draft name' }), 'Draft agent')
+    fireEvent.click(dialogCloseButton())
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    await user.click(screen.getByRole('button', { name: 'common.discard_changes' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
   it('preserves image bytes across steps and a failed submit, guards repeated activation, and resets on reopen', async () => {
     const user = userEvent.setup()
     modelHook.defaultModel = makeModel()
@@ -263,11 +464,12 @@ describe('ResourceCreateWizard', () => {
         })
     )
     const onOpenChange = vi.fn()
-    const props = { kind: 'agent' as const, onOpenChange, onSubmit }
+    const props = { kind: 'agent' as const, onOpenChange, onSubmit, onStartConversation: vi.fn() }
     const { rerender } = render(<ResourceCreateWizard {...props} open />)
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: 'fill name' }))
     await user.click(screen.getByRole('button', { name: 'choose draft image' }))
-    for (let step = 0; step < 3; step++) await user.click(screen.getByRole('button', { name: NEXT }))
+    await walkToLastStep(user)
     const create = screen.getByRole('button', { name: CREATE })
     act(() => {
       fireEvent.click(create)
@@ -283,8 +485,9 @@ describe('ResourceCreateWizard', () => {
     expect(onSubmit.mock.calls[1][0]).toMatchObject({ name: 'My Resource', avatarImage: new Uint8Array([7, 8, 9]) })
     rerender(<ResourceCreateWizard {...props} open={false} />)
     rerender(<ResourceCreateWizard {...props} open />)
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: 'fill name' }))
-    for (let step = 0; step < 3; step++) await user.click(screen.getByRole('button', { name: NEXT }))
+    await walkToLastStep(user)
     await user.click(screen.getByRole('button', { name: CREATE }))
     expect(onSubmit.mock.calls[2][0]).not.toHaveProperty('avatarImage')
   })
@@ -297,6 +500,7 @@ describe('ResourceCreateWizard', () => {
         kind="agent"
         open
         onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
         onSubmit={onSubmit}
         initialValues={{
           name: 'Product manager',
@@ -307,9 +511,10 @@ describe('ResourceCreateWizard', () => {
       />
     )
     await waitFor(() => expect(screen.getByRole('button', { name: NEXT })).toBeEnabled())
-    for (let step = 0; step < 3; step++) await user.click(screen.getByRole('button', { name: NEXT }))
+    await walkToLastStep(user)
     await user.click(screen.getByRole('button', { name: CREATE }))
     expect(onSubmit).toHaveBeenCalledWith({
+      ...DEFAULT_AGENT_SETTINGS_PAYLOAD,
       name: 'Product manager',
       avatar: '👨‍💼',
       description: 'Plan products',
@@ -318,7 +523,9 @@ describe('ResourceCreateWizard', () => {
       permissionMode: 'auto',
       modelId: 'provider::default',
       skillIds: [],
-      knowledgeBaseIds: []
+      knowledgeBaseIds: [],
+      mcpServerIds: [],
+      enableWebSearch: false
     })
   })
 
@@ -334,6 +541,7 @@ describe('ResourceCreateWizard', () => {
       await hideAndShow(rerender, { kind })
 
       expectDraft()
+      await walkToLastStep(user)
       await user.click(screen.getByRole('button', { name: CREATE }))
       expect(onSubmitSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -361,6 +569,7 @@ describe('ResourceCreateWizard', () => {
       expectDraft()
 
       await user.click(screen.getByRole('button', { name: CANCEL }))
+      await user.click(screen.getByRole('button', { name: 'common.discard_changes' }))
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       await user.click(screen.getByRole('button', { name: 'reopen wizard' }))
 
@@ -397,6 +606,7 @@ describe('ResourceCreateWizard', () => {
 
     expectDraft()
     await user.click(screen.getByRole('button', { name: CANCEL }))
+    await user.click(screen.getByRole('button', { name: 'common.discard_changes' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await user.click(screen.getByRole('button', { name: 'reopen wizard' }))
     expectDefaults('assistant', 'Newest seed')
@@ -405,7 +615,15 @@ describe('ResourceCreateWizard', () => {
   it('prefills the model from the default model when the wizard opens', async () => {
     modelHook.defaultModel = makeModel()
 
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
   })
@@ -413,7 +631,15 @@ describe('ResourceCreateWizard', () => {
   it('does not prefill a disabled default model', async () => {
     modelHook.defaultModel = { ...makeModel(), isEnabled: false }
 
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
   })
@@ -422,10 +648,19 @@ describe('ResourceCreateWizard', () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
     modelHook.defaultModel = makeModel()
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
     await user.click(screen.getByRole('button', { name: 'fill name' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
 
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -443,11 +678,19 @@ describe('ResourceCreateWizard', () => {
     modelHook.defaultModel = makeModel()
 
     render(
-      <ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} initialName="测试助手" />
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+        initialName="测试助手"
+      />
     )
 
     expect(await screen.findByTestId('name')).toHaveTextContent('测试助手')
     // Name + default model are both set, so the first step is already cleared.
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
 
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -461,7 +704,14 @@ describe('ResourceCreateWizard', () => {
     modelHook.defaultModel = makeModel()
 
     render(
-      <ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} modelFilter={() => false} />
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={vi.fn()}
+        modelFilter={() => false}
+      />
     )
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
@@ -476,12 +726,14 @@ describe('ResourceCreateWizard', () => {
       kind: 'agent' as const,
       open: true,
       onOpenChange: vi.fn(),
-      onSubmit: vi.fn()
+      onSubmit: vi.fn(),
+      onStartConversation: vi.fn()
     }
     const { rerender } = render(<ResourceCreateWizard {...props} />)
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
     await user.click(screen.getByRole('button', { name: 'fill name' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
 
     defaultModelAllowed = false
@@ -494,7 +746,13 @@ describe('ResourceCreateWizard', () => {
   it('does not prefill, and retracts, a default model the selector would not offer', async () => {
     modelHook.defaultModel = makeModel()
     modelHook.unavailableModelIds.add(modelHook.defaultModel.id)
-    const props = { kind: 'agent' as const, open: true, onOpenChange: vi.fn(), onSubmit: vi.fn() }
+    const props = {
+      kind: 'agent' as const,
+      open: true,
+      onOpenChange: vi.fn(),
+      onSubmit: vi.fn(),
+      onStartConversation: vi.fn()
+    }
     const { rerender } = render(<ResourceCreateWizard {...props} />)
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
@@ -511,9 +769,18 @@ describe('ResourceCreateWizard', () => {
   it('gates Next on a valid name + model, then walks assistant steps to a mapped submit', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
 
     // Step 1: Next is blocked until name + model are set.
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
@@ -538,9 +805,18 @@ describe('ResourceCreateWizard', () => {
     const onOpenChange = vi.fn()
     const onSubmit = vi.fn().mockRejectedValue(new Error('Selected skill no longer exists'))
 
-    render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={onOpenChange}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: CREATE }))
@@ -556,15 +832,22 @@ describe('ResourceCreateWizard', () => {
   it.each(['pi-durable', 'pi', 'claude-code'] as const)('submits the selected %s agent runtime', async (runtime) => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
-    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+    render(
+      <ResourceCreateWizard
+        kind="agent"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
 
     if (runtime !== 'pi-durable') {
       await user.click(screen.getByRole('button', { name: `switch to ${runtime}` }))
     }
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await walkToLastStep(user)
     await user.click(screen.getByRole('button', { name: CREATE }))
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ agentType: runtime, permissionMode: 'auto' }))
@@ -574,20 +857,19 @@ describe('ResourceCreateWizard', () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()
     const onOpenChange = vi.fn()
-    const props = { kind: 'agent' as const, onOpenChange, onSubmit }
+    const props = { kind: 'agent' as const, onOpenChange, onSubmit, onStartConversation: vi.fn() }
     const view = render(<ResourceCreateWizard {...props} open />)
 
     await user.click(screen.getByRole('button', { name: 'switch to claude-code' }))
     await user.click(screen.getByRole('button', { name: 'use plan mode' }))
-    await user.click(screen.getByRole('button', { name: CANCEL }))
+    fireEvent.click(dialogCloseButton())
     expect(onOpenChange).toHaveBeenCalledWith(false)
     view.rerender(<ResourceCreateWizard {...props} open={false} />)
     view.rerender(<ResourceCreateWizard {...props} open />)
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await walkToLastStep(user)
     await user.click(screen.getByRole('button', { name: CREATE }))
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ agentType: 'pi-durable', permissionMode: 'auto' }))
@@ -595,10 +877,11 @@ describe('ResourceCreateWizard', () => {
 
   it('does not render an invalid step when a closed agent wizard falls back to assistant kind', async () => {
     const user = userEvent.setup()
-    const props = { open: true, onOpenChange: vi.fn(), onSubmit: vi.fn() }
+    const props = { open: true, onOpenChange: vi.fn(), onSubmit: vi.fn(), onStartConversation: vi.fn() }
     const { rerender } = render(<ResourceCreateWizard {...props} kind="agent" />)
 
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
     await user.click(screen.getByRole('button', { name: NEXT }))
@@ -611,7 +894,9 @@ describe('ResourceCreateWizard', () => {
     modelHook.defaultModel = makeModel()
     modelHook.agentModelFilter.mockReturnValue(false)
 
-    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={vi.fn()} />
+    )
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
   })
@@ -619,7 +904,9 @@ describe('ResourceCreateWizard', () => {
   it('prefills the default model for agent kind when accepted by the model filter', async () => {
     modelHook.defaultModel = makeModel()
 
-    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={vi.fn()} />
+    )
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
   })
@@ -628,7 +915,9 @@ describe('ResourceCreateWizard', () => {
     modelHook.defaultModel = makeModel()
     modelHook.defaultProvider = { id: 'provider', name: 'Provider', isEnabled: false } as Provider
 
-    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={vi.fn()} />
+    )
 
     expect(await screen.findByTestId('model-id')).toHaveTextContent('empty')
   })
@@ -643,7 +932,15 @@ describe('ResourceCreateWizard', () => {
         (agentType, _model, provider) => agentType === 'claude-code' || Boolean(provider)
       )
 
-      render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+      render(
+        <ResourceCreateWizard
+          kind="agent"
+          open
+          onOpenChange={vi.fn()}
+          onStartConversation={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      )
 
       expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
       if (agentType === 'pi') {
@@ -655,3 +952,1009 @@ describe('ResourceCreateWizard', () => {
     }
   )
 })
+
+describe('ResourceCreateWizard agent steps', () => {
+  const WRITE_TOOL = 'agent.tools.builtin.write.label'
+  const railLabels = () =>
+    Array.from(screen.getByRole('button', { name: BASIC }).closest('ol')!.querySelectorAll('li'), (item) =>
+      item.textContent?.replace(/^\d+/, '')
+    )
+
+  async function startManual(user: ReturnType<typeof userEvent.setup>, kind: ResourceCreateWizardKind = 'agent') {
+    const onSubmit = vi.fn().mockResolvedValue('created-1')
+    render(
+      <ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={onSubmit} />
+    )
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    return onSubmit
+  }
+
+  /** The command the caller would send for the submitted values. */
+  const submittedCommand = (onSubmit: ReturnType<typeof vi.fn>) => buildCreateAgentCommand(onSubmit.mock.calls[0][0])
+
+  it('keeps the Assistant on basic, System Prompt and knowledge', async () => {
+    await startManual(userEvent.setup(), 'assistant')
+
+    expect(railLabels()).toEqual([
+      'library.config.dialogs.create.step.basic',
+      PROMPT_ROW,
+      'library.config.dialogs.create.step.knowledge'
+    ])
+  })
+
+  it('waits for a selected featured MCP install and saves its installed ID', async () => {
+    const user = userEvent.setup()
+    const { promise, resolve } = Promise.withResolvers<McpServer>()
+    manualMcp.install.mockReturnValueOnce(promise)
+    const onSubmit = await startManual(user)
+
+    for (let i = 0; i < 4; i++) await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'select MCP server' }))
+    await user.click(screen.getByRole('button', { name: 'install featured MCP' }))
+    expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+
+    await act(async () => resolve({ id: 'mcp-fetch-installed', name: '@cherry/fetch', isActive: true }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await waitFor(() => expect(submittedCommand(onSubmit).mcps).toEqual(['mcp-github', 'mcp-fetch-installed']))
+  })
+
+  it('walks an Agent through seven steps and sends what each one set', async () => {
+    const user = userEvent.setup()
+    const onSubmit = await startManual(user)
+
+    expect(railLabels()).toEqual([
+      'library.config.dialogs.create.step.basic',
+      'library.config.dialogs.edit.tools_tab',
+      'library.config.dialogs.create.step.capability',
+      'library.config.dialogs.create.step.knowledge',
+      MCP_ROW,
+      'settings.channels.title',
+      'library.config.dialogs.edit.advanced_tab'
+    ])
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('switch', { name: WRITE_TOOL }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'select skill' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'select knowledge base' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: 'select MCP server' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    // The prompt list and its runtime blocks read as one titled System Prompt setting.
+    expect(screen.getByRole('heading', { name: /^library\.config\.prompt\.label/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: AGENT_PROMPT_ROW }))
+    // The prompt page has its own back title; the group title above it would stack a second one.
+    expect(screen.queryByRole('heading', { name: /^library\.config\.prompt\.label/ })).not.toBeInTheDocument()
+    await user.clear(screen.getByRole('textbox', { name: AGENT_PROMPT }))
+    await user.type(screen.getByRole('textbox', { name: AGENT_PROMPT }), 'Review carefully')
+    await user.click(screen.getByRole('button', { name: 'reply in Japanese' }))
+    await user.click(screen.getByRole('switch', { name: HEARTBEAT_ROW }))
+    const interval = screen.getByRole('spinbutton', { name: 'library.config.agent.field.heartbeat_interval.label' })
+    await user.clear(interval)
+    await user.type(interval, '45')
+    await user.tab()
+    await user.type(screen.getByRole('textbox', { name: /env_vars\.label/ }), 'API_KEY=secret{Enter}REGION=eu')
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(submittedCommand(onSubmit)).toMatchObject({
+      type: 'pi-durable',
+      instructions: 'Review carefully',
+      disabledTools: ['write'],
+      skillIds: ['skill-review'],
+      knowledgeBaseIds: ['knowledge-draft'],
+      mcps: ['mcp-github'],
+      configuration: {
+        language: '日本語',
+        heartbeat_enabled: true,
+        heartbeat_interval: 45,
+        env_vars: { API_KEY: 'secret', REGION: 'eu' }
+      }
+    })
+  })
+
+  it('creates the Agent with a tool switched off in disabledTools, and drops one switched back on', async () => {
+    const user = userEvent.setup()
+    const onSubmit = await startManual(user)
+
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('switch', { name: WRITE_TOOL }))
+    await user.click(screen.getByRole('switch', { name: 'agent.tools.builtin.read.label' }))
+    await user.click(screen.getByRole('switch', { name: 'agent.tools.builtin.read.label' }))
+    await walkToLastStep(user)
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(submittedCommand(onSubmit).disabledTools).toEqual(['write'])
+  })
+
+  it('adds no language, heartbeat or env vars to the configuration when the advanced step is left alone', async () => {
+    const user = userEvent.setup()
+    const onSubmit = await startManual(user)
+
+    await walkToLastStep(user)
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    const command = submittedCommand(onSubmit)
+    expect(command.configuration).toEqual({ avatar: '✨', permission_mode: 'auto' })
+    expect(command).not.toHaveProperty('disabledTools')
+    expect(command).not.toHaveProperty('mcps')
+    expect(command).not.toHaveProperty('channels')
+  })
+
+  describe('channels', () => {
+    const ADD_CHANNEL = 'library.config.dialogs.create.channels.add'
+    const TELEGRAM = 'agent.channels.telegram.title'
+    const WECHAT = 'agent.channels.wechat.title'
+    const DONE = 'library.config.dialogs.create.channels.done'
+
+    async function openChannelsStep(user: ReturnType<typeof userEvent.setup>) {
+      const onSubmit = await startManual(user)
+      while (!screen.queryByRole('button', { name: ADD_CHANNEL })) {
+        await user.click(screen.getByRole('button', { name: NEXT }))
+      }
+      return onSubmit
+    }
+    async function addChannel(user: ReturnType<typeof userEvent.setup>, platform: string) {
+      // The shared UI mock renders menu items as always-visible buttons.
+      await user.click(screen.getByRole('button', { name: platform }))
+    }
+
+    it('adds, edits and removes channel drafts, and creates the Agent with the ones left', async () => {
+      const user = userEvent.setup()
+      const onSubmit = await openChannelsStep(user)
+
+      await addChannel(user, TELEGRAM)
+      await user.type(screen.getByPlaceholderText('agent.channels.telegram.botTokenPlaceholder'), ' 123:abc ')
+      const name = screen.getByDisplayValue(TELEGRAM)
+      await user.clear(name)
+      await user.type(name, 'Ops bot')
+      await user.click(screen.getByRole('button', { name: DONE }))
+      await user.click(screen.getByRole('switch', { name: 'common.enabled Ops bot' }))
+
+      await addChannel(user, WECHAT)
+      await user.click(screen.getByRole('button', { name: DONE }))
+      await user.click(screen.getByRole('button', { name: `common.delete ${WECHAT}` }))
+      expect(screen.queryByRole('button', { name: `common.edit ${WECHAT}` })).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'common.edit Ops bot' }))
+      await user.type(screen.getByPlaceholderText('agent.channels.telegram.chatIdsPlaceholder'), '42, 43')
+      await user.click(screen.getByRole('button', { name: DONE }))
+
+      await walkToLastStep(user)
+      await user.click(screen.getByRole('button', { name: CREATE }))
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+      expect(submittedCommand(onSubmit).channels).toEqual([
+        {
+          type: 'telegram',
+          name: 'Ops bot',
+          isActive: true,
+          permissionMode: null,
+          config: { bot_token: '123:abc', allowed_chat_ids: ['42', '43'] }
+        }
+      ])
+    })
+
+    it('blocks Next until a channel switched on has its credentials', async () => {
+      const user = userEvent.setup()
+      await openChannelsStep(user)
+
+      await addChannel(user, TELEGRAM)
+      await user.click(screen.getByRole('button', { name: DONE }))
+      await user.click(screen.getByRole('switch', { name: `common.enabled ${TELEGRAM}` }))
+
+      expect(screen.getByRole('alert')).toHaveTextContent('library.config.dialogs.create.channels.invalid')
+      expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+
+      await user.click(screen.getByRole('button', { name: `common.edit ${TELEGRAM}` }))
+      await user.type(screen.getByPlaceholderText('agent.channels.telegram.botTokenPlaceholder'), '123:abc')
+      await user.click(screen.getByRole('button', { name: DONE }))
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+    })
+
+    it.each([
+      ['wecom', 'botId', 'secret'],
+      ['dingtalk', 'clientId', 'clientSecret']
+    ])('blocks duplicate active %s credentials and accepts the pair when one is disabled', async (type, id, secret) => {
+      const user = userEvent.setup()
+      await openChannelsStep(user)
+      const platform = `agent.channels.${type}.title`
+
+      for (const name of [platform, `${platform} 2`]) {
+        await addChannel(user, platform)
+        await user.type(screen.getByLabelText(`agent.channels.${type}.${id}`), 'shared-id')
+        await user.type(screen.getByLabelText(`agent.channels.${type}.${secret}`), 'credential')
+        if (type === 'dingtalk') {
+          await user.type(screen.getByLabelText('agent.channels.dingtalk.robotCode'), 'robot')
+        }
+        await user.click(screen.getByRole('button', { name: DONE }))
+        await user.click(screen.getByRole('switch', { name: `common.enabled ${name}` }))
+      }
+
+      expect(screen.getByRole('button', { name: NEXT })).toBeDisabled()
+      await user.click(screen.getByRole('switch', { name: `common.enabled ${platform} 2` }))
+      expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+    })
+
+    it('keeps a WeChat draft off and pending its QR login, which needs the Agent to exist', async () => {
+      const user = userEvent.setup()
+      await openChannelsStep(user)
+
+      await addChannel(user, WECHAT)
+      expect(screen.getByText('agent.channels.qrAfterCreate')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: DONE }))
+
+      expect(screen.getByRole('switch', { name: `common.enabled ${WECHAT}` })).toBeDisabled()
+      expect(screen.getByText('library.config.dialogs.create.channels.qr_pending')).toBeInTheDocument()
+    })
+  })
+})
+
+describe('ResourceCreateWizard auto create', () => {
+  const generated = {
+    name: 'PR Reviewer',
+    emoji: '🔍',
+    description: 'Reviews pull requests',
+    prompt: 'You review pull requests.',
+    knowledgeBaseIds: ['kb-docs'],
+    mcpServerIds: ['mcp-github'],
+    skillIds: ['skill-review'],
+    permissionMode: 'default',
+    enableWebSearch: false
+  }
+
+  async function describePurpose(user: ReturnType<typeof userEvent.setup>, purpose = 'Review my GitHub PRs') {
+    await user.type(screen.getByRole('textbox', { name: 'draft description' }), purpose)
+  }
+
+  /** Auto create needs a name; the purpose is optional. A name the test already typed is kept. */
+  async function describeEntry(user: ReturnType<typeof userEvent.setup>, purpose = 'Review my GitHub PRs') {
+    const name = screen.getByRole('textbox', { name: 'draft name' })
+    if (!(name as HTMLInputElement).value) await user.type(name, 'PR Reviewer')
+    if (purpose) await describePurpose(user, purpose)
+  }
+
+  beforeEach(() => {
+    // Generation needs a default model; keeping it out of the selector leaves the model field to each test.
+    modelHook.defaultModel = makeModel()
+    modelHook.unavailableModelIds.add('provider::default')
+    autoConfigure.installFeaturedMcpServers.mockImplementation(async (ids) => ids)
+  })
+
+  it.each(['assistant', 'agent'] as const)(
+    'opens on the entry and enables Auto create once name and model are set, without a purpose (%s kind)',
+    async (kind) => {
+      const user = userEvent.setup()
+      render(
+        <ResourceCreateWizard
+          kind={kind}
+          open
+          onOpenChange={vi.fn()}
+          onStartConversation={vi.fn()}
+          onSubmit={vi.fn()}
+        />
+      )
+
+      expect(screen.getByRole('button', { name: MANUAL })).toBeEnabled()
+      expect(screen.queryByRole('button', { name: BASIC })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: AUTO })).toBeDisabled()
+
+      await describePurpose(user)
+      await user.click(screen.getByRole('button', { name: 'fill model' }))
+      expect(screen.getByRole('button', { name: AUTO })).toBeDisabled()
+
+      await user.clear(screen.getByRole('textbox', { name: 'draft description' }))
+      await user.type(screen.getByRole('textbox', { name: 'draft name' }), 'PR Reviewer')
+      expect(screen.getByRole('button', { name: AUTO })).toBeEnabled()
+    }
+  )
+
+  it.each([
+    ['assistant', '💬'],
+    ['agent', '✨']
+  ] as const)('starts a new %s with the %s avatar', (kind, avatar) => {
+    render(
+      <ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={vi.fn()} />
+    )
+
+    expect(screen.getByTestId('draft-avatar')).toHaveTextContent(avatar)
+  })
+
+  it('keeps Auto create disabled until the installed catalogs have loaded', async () => {
+    const user = userEvent.setup()
+    autoConfigure.ready = false
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={vi.fn()} />
+    )
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+
+    expect(screen.getByRole('button', { name: AUTO })).toBeDisabled()
+  })
+
+  it('carries avatar, name, model and purpose into the first manual step', async () => {
+    const user = userEvent.setup()
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={vi.fn()} />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'pick avatar' }))
+    await user.type(screen.getByRole('textbox', { name: 'draft name' }), 'Reviewer')
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+
+    expect(screen.getByRole('button', { name: BASIC })).toHaveAttribute('aria-current', 'step')
+    expect(screen.getByTestId('draft-avatar')).toHaveTextContent('🦊')
+    expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue('Reviewer')
+    expect(screen.getByRole('textbox', { name: 'draft description' })).toHaveValue('Review my GitHub PRs')
+    expect(screen.getByTestId('model-id')).toHaveTextContent('provider::model')
+  })
+
+  it.each([
+    ['agent', 'Review my GitHub PRs'],
+    ['assistant', '']
+  ] as const)('prefills the %s prompt from the purpose on Manual create only for Agents', async (kind, prompt) => {
+    const user = userEvent.setup()
+    render(
+      <ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={vi.fn()} />
+    )
+
+    await describePurpose(user)
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+
+    expect(screen.getByTestId('draft-prompt').textContent).toBe(prompt)
+  })
+
+  it('creates an agent once with the generated configuration', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    autoConfigure.generate.mockResolvedValue(generated)
+    render(
+      <ResourceCreateWizard
+        kind="agent"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(autoConfigure.generate.mock.calls[0][0]).toMatchObject({
+      purpose: 'Review my GitHub PRs',
+      name: 'PR Reviewer'
+    })
+    expect(onSubmit).toHaveBeenCalledWith({
+      ...DEFAULT_AGENT_SETTINGS_PAYLOAD,
+      avatar: '🔍',
+      agentType: 'pi-durable',
+      permissionMode: 'default',
+      name: 'PR Reviewer',
+      modelId: 'provider::model',
+      description: 'Reviews pull requests',
+      prompt: 'You review pull requests.',
+      knowledgeBaseIds: ['kb-docs'],
+      skillIds: ['skill-review'],
+      mcpServerIds: ['mcp-github'],
+      enableWebSearch: false
+    })
+  })
+
+  it('keeps a name the user typed and an avatar they picked over the generated ones', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    autoConfigure.generate.mockResolvedValue(generated)
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    await user.type(screen.getByRole('textbox', { name: 'draft name' }), 'My Reviewer')
+    await user.click(screen.getByRole('button', { name: 'pick avatar' }))
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: 'My Reviewer', avatar: '🦊' }))
+  })
+
+  it.each([
+    [
+      'an unusable reply',
+      () => autoConfigure.generate.mockResolvedValue(null),
+      'library.config.dialogs.create.auto.failed'
+    ],
+    [
+      'a generation error',
+      () => autoConfigure.generate.mockRejectedValue(new Error('Provider is down')),
+      'Provider is down'
+    ]
+  ])('shows an error, creates nothing and keeps Manual create after %s', async (_case, arrange, message) => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    arrange()
+    render(
+      <ResourceCreateWizard
+        kind="agent"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(onSubmit).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    expect(screen.getByRole('button', { name: BASIC })).toHaveAttribute('aria-current', 'step')
+  })
+
+  it('asks for a default model instead of generating when none is set', async () => {
+    const user = userEvent.setup()
+    modelHook.defaultModel = undefined
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('library.config.prompt.no_default_model')
+    expect(autoConfigure.generate).not.toHaveBeenCalled()
+  })
+
+  it('keeps what the user entered when the generated create fails, so Manual create adds no hidden tools', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockRejectedValueOnce(new Error('Network down')).mockResolvedValue(undefined)
+    autoConfigure.generate.mockResolvedValue({ ...generated, enableWebSearch: true })
+    render(
+      <ResourceCreateWizard
+        kind="assistant"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Network down')
+    expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue('PR Reviewer')
+    expect(screen.getByRole('textbox', { name: 'draft description' })).toHaveValue('Review my GitHub PRs')
+
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await user.click(screen.getByRole('button', { name: 'fill name' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2))
+    expect(onSubmit).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'My Resource',
+        description: 'Review my GitHub PRs',
+        prompt: '',
+        knowledgeBaseIds: [],
+        mcpServerIds: [],
+        enableWebSearch: false
+      })
+    )
+  })
+
+  it('installs a picked featured MCP server before creating, and sends its new server ID', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    autoConfigure.generate.mockResolvedValue({ ...generated, mcpServerIds: ['mcp-github', 'preset:fetch'] })
+    autoConfigure.installFeaturedMcpServers.mockImplementation(async (ids) => {
+      expect(onSubmit).not.toHaveBeenCalled()
+      return ids.map((id) => (id === 'preset:fetch' ? 'mcp-fetch-new' : id))
+    })
+    render(
+      <ResourceCreateWizard
+        kind="agent"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(autoConfigure.installFeaturedMcpServers).toHaveBeenCalledTimes(1)
+    expect(onSubmit.mock.calls[0][0].mcpServerIds).toEqual(['mcp-github', 'mcp-fetch-new'])
+  })
+
+  it('creates nothing and keeps the entry when a featured MCP server fails to install', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    autoConfigure.generate.mockResolvedValue({ ...generated, mcpServerIds: ['preset:fetch'] })
+    autoConfigure.installFeaturedMcpServers.mockRejectedValue(new Error('npm offline'))
+    render(
+      <ResourceCreateWizard
+        kind="agent"
+        open
+        onOpenChange={vi.fn()}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('npm offline')
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox', { name: 'draft name' })).toHaveValue('PR Reviewer')
+    expect(screen.getByRole('textbox', { name: 'draft description' })).toHaveValue('Review my GitHub PRs')
+    expect(screen.getByRole('button', { name: MANUAL })).toBeEnabled()
+  })
+
+  it('cannot be closed once the generated resource is being created', async () => {
+    const user = userEvent.setup()
+    let finishCreate: (id: string) => void = () => {}
+    const onSubmit = vi.fn(() => new Promise<string>((resolve) => (finishCreate = resolve)))
+    const onOpenChange = vi.fn()
+    autoConfigure.generate.mockResolvedValue(generated)
+    render(
+      <ResourceCreateWizard
+        kind="agent"
+        open
+        onOpenChange={onOpenChange}
+        onStartConversation={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    fireEvent.click(dialogCloseButton())
+    expect(onOpenChange).not.toHaveBeenCalled()
+    await act(async () => finishCreate('agent-1'))
+    fireEvent.click(dialogCloseButton())
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('returns to the entry at the deadline even if the provider finishes later', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue('agent-1')
+    const pending = Promise.withResolvers<unknown>()
+    autoConfigure.generate.mockReturnValue(pending.promise)
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    vi.useFakeTimers()
+    try {
+      fireEvent.click(screen.getByRole('button', { name: AUTO }))
+      await act(async () => vi.advanceTimersByTimeAsync(60_000))
+
+      expect(screen.getByText('error.request_timeout')).toBeVisible()
+      expect(screen.getByRole('button', { name: MANUAL })).toBeEnabled()
+      await act(async () => pending.resolve(generated))
+      expect(screen.getByRole('button', { name: MANUAL })).toBeEnabled()
+      expect(onSubmit).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows the Agent by its name while generating and keeps the purpose as the subtitle', async () => {
+    const user = userEvent.setup()
+    autoConfigure.generate.mockReturnValue(new Promise(() => {}))
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={vi.fn()} />
+    )
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    expect(screen.getByText('PR Reviewer')).toBeVisible()
+    expect(screen.getByText('Review my GitHub PRs')).toBeVisible()
+  })
+
+  // Catches steps shown before the model reached them, or the streamed prompt and picks not reaching the view.
+  it('reveals each step as the streamed reply reaches it, with the prompt and picks it produced', async () => {
+    const user = userEvent.setup()
+    let report: (progress: AutoConfigProgressView) => void = () => {}
+    autoConfigure.generate.mockImplementation((input) => {
+      report = input.onProgress ?? report
+      return new Promise(() => {})
+    })
+    render(
+      <ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onStartConversation={vi.fn()} onSubmit={vi.fn()} />
+    )
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+    const idle = { done: false, picks: [] }
+
+    act(() => report({ prompt: '# Role\nYou review pull requests', promptDone: false, tools: idle, skills: idle }))
+    expect(screen.getByText(`${RESULT}.working.prompt_active`)).toBeVisible()
+    expect(screen.getByText('You review pull requests')).toBeVisible()
+    expect(screen.queryByText(`${RESULT}.working.tools_active`)).not.toBeInTheDocument()
+
+    act(() =>
+      report({
+        prompt: '# Role\nYou review pull requests.',
+        promptDone: true,
+        tools: { done: false, picks: ['GitHub'] },
+        skills: idle
+      })
+    )
+    expect(screen.getByText(`${RESULT}.working.prompt_done`)).toBeVisible()
+    expect(screen.queryByText('You review pull requests.')).not.toBeInTheDocument()
+    expect(screen.getByText(`${RESULT}.working.tools_active`)).toBeVisible()
+    expect(screen.getByText('GitHub')).toBeVisible()
+    expect(screen.queryByText(`${RESULT}.working.skills_active`)).not.toBeInTheDocument()
+
+    act(() =>
+      report({
+        prompt: '# Role\nYou review pull requests.',
+        promptDone: true,
+        tools: { done: true, picks: ['GitHub', 'Ask Before Acting'] },
+        skills: { done: false, picks: ['Code review'] }
+      })
+    )
+    expect(screen.getByText(`${RESULT}.working.tools_done`)).toBeVisible()
+    expect(screen.getByText(`${RESULT}.working.skills_active`)).toBeVisible()
+    expect(screen.getByText('Code review')).toBeVisible()
+  })
+
+  it('lets the user cancel while generating and abandons the request', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    let signal: AbortSignal | undefined
+    let finishGenerate: (value: unknown) => void = () => {}
+    autoConfigure.generate.mockImplementation((input) => {
+      signal = input.signal
+      return new Promise((resolve) => (finishGenerate = resolve))
+    })
+    render(<ActivityHostWithSubmit onSubmit={onSubmit} />)
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+    expect(screen.getByRole('heading', { name: 'library.config.dialogs.create.result.working_title' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: MANUAL })).not.toBeInTheDocument()
+    fireEvent.click(dialogCloseButton())
+    await user.click(screen.getByRole('button', { name: 'common.discard_changes' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(signal?.aborted).toBe(true)
+    // A reply that still arrives after the cancel must not create anything.
+    await act(async () => finishGenerate(generated))
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('ends on the result page with the generated configuration resolved to names', async () => {
+    const user = userEvent.setup()
+    autoConfigure.generate.mockResolvedValue(generated)
+    render(<ResultHost kind="agent" onSubmit={vi.fn().mockResolvedValue('agent-1')} />)
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.agent_title' })
+    ).toBeVisible()
+    expect(screen.getByText('PR Reviewer')).toBeVisible()
+    expect(screen.getByText('Reviews pull requests')).toBeVisible()
+    expect(summaryValue(PROMPT_ROW)).toHaveTextContent('library.config.dialogs.create.result.prompt_generated')
+    expect(summaryValue('common.model')).toHaveTextContent('Picked model')
+    expect(summaryValue(PERMISSION_ROW)).toHaveTextContent('agent.settings.tooling.permissionMode.default.title')
+    expect(summaryValue(SKILLS_ROW)).toHaveTextContent(`Builtin skill${LIST_SEPARATOR}Review skill`)
+    expect(summaryValue(MCP_ROW)).toHaveTextContent('GitHub')
+    expect(summaryValue(KNOWLEDGE_ROW)).toHaveTextContent('Docs')
+  })
+
+  it('summarises an Assistant with its web search state and no Agent-only rows', async () => {
+    const user = userEvent.setup()
+    autoConfigure.generate.mockResolvedValue({ ...generated, enableWebSearch: true, mcpServerIds: [] })
+    render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
+
+    await describeEntry(user)
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })
+    ).toBeVisible()
+    expect(summaryValue(TOOLS_ROW)).toHaveTextContent('library.config.dialogs.create.result.web_search')
+    expect(summaryValue(MCP_ROW)).toHaveTextContent(`${RESULT}.empty.not_added`)
+    expect(screen.queryByText(PERMISSION_ROW)).not.toBeInTheDocument()
+    expect(screen.queryByText(SKILLS_ROW)).not.toBeInTheDocument()
+  })
+})
+
+describe('ResourceCreateWizard result page', () => {
+  async function createManually(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(screen.getByRole('textbox', { name: 'draft description' }), 'Review my GitHub PRs')
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await walkToLastStep(user)
+    await user.click(screen.getByRole('button', { name: CREATE }))
+  }
+
+  it('ends a manual create on the result page with what was configured', async () => {
+    const user = userEvent.setup()
+    render(<ResultHost kind="agent" onSubmit={vi.fn().mockResolvedValue('agent-1')} />)
+
+    await createManually(user)
+
+    expect(
+      await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.agent_title' })
+    ).toBeVisible()
+    expect(screen.getByText('My Resource')).toBeVisible()
+    // Manual create seeds an Agent's prompt from the purpose, so it counts as filled, not generated.
+    expect(summaryValue(PROMPT_ROW)).toHaveTextContent('library.config.dialogs.create.result.prompt_filled')
+    expect(summaryValue('common.model')).toHaveTextContent('Picked model')
+    expect(summaryValue(PERMISSION_ROW)).toHaveTextContent('agent.settings.tooling.permissionMode.auto.title')
+    expect(summaryValue(TOOLS_ROW)?.textContent).toMatch(/tools_enabled:(\d+)\/\1$/)
+    expect(summaryValue(SKILLS_ROW)).toHaveTextContent(/^Builtin skill$/)
+    expect(summaryValue(MCP_ROW)).toHaveTextContent(`${RESULT}.empty.not_bound`)
+    expect(summaryValue(KNOWLEDGE_ROW)).toHaveTextContent(`${RESULT}.empty.not_linked`)
+    expect(summaryValue(HEARTBEAT_ROW)).toHaveTextContent(`${RESULT}.heartbeat_off`)
+    expect(summaryValue('settings.channels.title')).toHaveTextContent(`${RESULT}.empty.not_connected`)
+  })
+
+  it("lists the Agent's channels and starts a pending QR login from the result page", async () => {
+    MockUseDataApiUtils.mockQueryResult('/agent-channels', {
+      data: [
+        { id: 'ch-wechat', type: 'wechat', name: 'WeChat bot', isActive: false, config: { token_path: '' } },
+        { id: 'ch-telegram', type: 'telegram', name: 'Ops bot', isActive: true, config: { bot_token: 't' } }
+      ] as never
+    })
+    const request = vi.mocked(window.api.ipcApi.request)
+    request.mockResolvedValue({ ok: true, data: undefined })
+    const user = userEvent.setup()
+    render(<ResultHost kind="agent" onSubmit={vi.fn().mockResolvedValue('agent-1')} />)
+
+    await createManually(user)
+
+    const channels = await waitFor(() => summaryValue('settings.channels.title')!)
+    expect(channels).toHaveTextContent(`WeChat bot${RESULT}.qr_pending${RESULT}.qr_login${LIST_SEPARATOR}Ops bot`)
+    await user.click(screen.getByRole('button', { name: `${RESULT}.qr_login` }))
+    expect(request).toHaveBeenCalledWith('channel.qr_login.begin', {
+      channelId: 'ch-wechat',
+      requestId: expect.any(String)
+    })
+    const attempt = request.mock.calls.find(([route]) => route === 'channel.qr_login.begin')?.[1]
+
+    // Abandoning the login switches the channel off again, so it stays pending instead of polling.
+    const qrDialog = screen.getByRole('heading', { name: 'agent.channels.wechat.qrTitle' }).closest('[role="dialog"]')!
+    await user.click(qrDialog.querySelector<HTMLElement>('[data-slot="dialog-close"]')!)
+    await waitFor(() => expect(request).toHaveBeenCalledWith('channel.qr_login.cancel', attempt))
+  })
+
+  it('counts a tool switched off and shows the heartbeat interval', async () => {
+    const user = userEvent.setup()
+    render(<ResultHost kind="agent" onSubmit={vi.fn().mockResolvedValue('agent-1')} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('switch', { name: 'agent.tools.builtin.write.label' }))
+    await walkToLastStep(user)
+    await user.click(screen.getByRole('switch', { name: HEARTBEAT_ROW }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.agent_title' })
+    const [, enabled, total] = summaryValue(TOOLS_ROW)?.textContent?.match(/tools_enabled:(\d+)\/(\d+)$/) ?? []
+    expect(Number(enabled)).toBe(Number(total) - 1)
+    expect(summaryValue(HEARTBEAT_ROW)).toHaveTextContent(`${RESULT}.heartbeat_every:30`)
+  })
+
+  it('says what an empty manual Assistant lacks in its own words', async () => {
+    const user = userEvent.setup()
+    render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
+
+    await createManually(user)
+
+    expect(
+      await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })
+    ).toBeVisible()
+    expect(summaryValue(TOOLS_ROW)).toHaveTextContent(`${RESULT}.empty.not_enabled`)
+    expect(summaryValue(MCP_ROW)).toHaveTextContent(`${RESULT}.empty.not_added`)
+    expect(summaryValue(KNOWLEDGE_ROW)).toHaveTextContent(`${RESULT}.empty.not_linked`)
+  })
+
+  it('closes and runs the start action with the created ID, then reopens on a fresh entry', async () => {
+    const user = userEvent.setup()
+    const onStartConversation = vi.fn()
+    render(
+      <ResultHost
+        kind="assistant"
+        onSubmit={vi.fn().mockResolvedValue('assistant-1')}
+        onStartConversation={onStartConversation}
+      />
+    )
+    await createManually(user)
+
+    await user.click(await screen.findByRole('button', { name: START }))
+
+    expect(onStartConversation).toHaveBeenCalledExactlyOnceWith('assistant-1')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: 'reopen wizard' }))
+    expect(screen.getByRole('heading', { name: 'library.config.dialogs.create.assistant_title' })).toBeVisible()
+    expect(screen.getByRole('button', { name: MANUAL })).toBeVisible()
+  })
+
+  it('closes and opens the edit dialog for the created resource on Adjust settings', async () => {
+    const user = userEvent.setup()
+    const onStartConversation = vi.fn()
+    render(
+      <ResultHost
+        kind="agent"
+        onSubmit={vi.fn().mockResolvedValue('agent-1')}
+        onStartConversation={onStartConversation}
+      />
+    )
+    await createManually(user)
+
+    await user.click(await screen.findByRole('button', { name: ADJUST }))
+
+    expect(await screen.findByTestId('edit-host')).toHaveTextContent('agent:agent-1')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(onStartConversation).not.toHaveBeenCalled()
+  })
+})
+
+describe('ResourceCreateWizard uploaded avatar', () => {
+  const request = () => vi.mocked(window.api.ipcApi.request)
+  const avatarImage = () => screen.queryByRole('img', { name: 'common.avatar' })
+
+  beforeEach(() => {
+    request().mockReset().mockResolvedValue({ ok: true, data: undefined })
+  })
+
+  // An Agent's image is created with it in one transaction, so no separate save can fail afterwards.
+  it('creates the Agent with its uploaded image and shows it on the result page', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue('agent-1')
+    render(<ResultHost kind="agent" onSubmit={onSubmit} />)
+
+    await user.click(screen.getByRole('button', { name: 'upload avatar' }))
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await walkToLastStep(user)
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.agent_title' })
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ avatarImage: UPLOADED_AVATAR.data }))
+    expect(request()).not.toHaveBeenCalledWith('agent.set_avatar', expect.anything())
+    expect(avatarImage()).toHaveAttribute('src', UPLOADED_AVATAR.previewUrl)
+  })
+
+  it('keeps the result page with the emoji and says so when the image cannot be saved', async () => {
+    request().mockRejectedValue(new Error('disk full'))
+    const user = userEvent.setup()
+    render(<ResultHost kind="assistant" onSubmit={vi.fn().mockResolvedValue('assistant-1')} />)
+
+    await user.click(screen.getByRole('button', { name: 'upload avatar' }))
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await walkToLastStep(user)
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.assistant_title' })
+    expect(request()).toHaveBeenCalledWith(
+      'assistant.set_avatar',
+      expect.objectContaining({ assistantId: 'assistant-1' })
+    )
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining('library.config.dialogs.create.avatar_save_failed')
+    )
+    expect(avatarImage()).not.toBeInTheDocument()
+    expect(screen.getByText('💬')).toBeVisible()
+  })
+
+  it('keeps an uploaded image over the emoji auto create generates', async () => {
+    modelHook.defaultModel = makeModel()
+    autoConfigure.installFeaturedMcpServers.mockImplementation(async (ids) => ids)
+    autoConfigure.generate.mockResolvedValue({
+      name: 'PR Reviewer',
+      emoji: '🔍',
+      description: 'Reviews pull requests',
+      prompt: 'You review pull requests.',
+      knowledgeBaseIds: [],
+      mcpServerIds: [],
+      skillIds: [],
+      enableWebSearch: false
+    })
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockResolvedValue('agent-1')
+    render(<ResultHost kind="agent" onSubmit={onSubmit} />)
+
+    await user.click(screen.getByRole('button', { name: 'upload avatar' }))
+    await user.type(screen.getByRole('textbox', { name: 'draft name' }), 'PR Reviewer')
+    await user.click(screen.getByRole('button', { name: 'fill model' }))
+    await user.click(screen.getByRole('button', { name: AUTO }))
+
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.agent_title' })
+    // The generated emoji is still stored as the fallback behind the image.
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ avatar: '🔍', avatarImage: UPLOADED_AVATAR.data }))
+    expect(avatarImage()).toHaveAttribute('src', UPLOADED_AVATAR.previewUrl)
+  })
+})
+
+function ResultHost({
+  kind,
+  onSubmit,
+  onStartConversation = vi.fn()
+}: Pick<ComponentProps<typeof ResourceCreateWizard>, 'kind' | 'onSubmit'> & {
+  onStartConversation?: (id: string) => void
+}) {
+  const [open, setOpen] = useState(true)
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        reopen wizard
+      </button>
+      <ResourceCreateWizard
+        kind={kind}
+        open={open}
+        onOpenChange={setOpen}
+        onSubmit={onSubmit}
+        onStartConversation={onStartConversation}
+      />
+    </>
+  )
+}
+
+function ActivityHostWithSubmit({ onSubmit }: Pick<ComponentProps<typeof ResourceCreateWizard>, 'onSubmit'>) {
+  const [open, setOpen] = useState(true)
+  return (
+    <ResourceCreateWizard
+      kind="agent"
+      open={open}
+      onOpenChange={setOpen}
+      onStartConversation={vi.fn()}
+      onSubmit={onSubmit}
+    />
+  )
+}

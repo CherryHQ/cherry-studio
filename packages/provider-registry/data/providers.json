@@ -722,6 +722,7 @@
     {
       "authOptional": true,
       "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "ollama-chat",
       "description": "Ollama - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -3007,5 +3008,5 @@
       "name": "Hostlinku"
     }
   ],
-  "version": "e7332b46b12fb294"
+  "version": "efeebd6a65755aca"
 }

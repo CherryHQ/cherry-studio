@@ -42,10 +42,14 @@ vi.mock('../ActionResultContent', () => {
 })
 
 vi.mock('@renderer/hooks/useStreamCommands', () => ({
-  useStreamCommands: (id: string, _initial: unknown, onError?: (error: Error) => void) => {
+  useStreamCommands: (id: string, onError?: (error: Error) => void) => {
     state.useChatIds.push(id)
     state.onError = onError
     return {
+      projection: {
+        messages: state.liveAssistants,
+        executions: state.liveAssistants.map((row) => ({ messageId: row.id, executionId: 'model', attemptId: 1 }))
+      },
       sendMessage: state.sendMessage,
       stop: state.stopChat
     }
@@ -78,10 +82,6 @@ vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ activeExecutions: [], isPending: state.isPending })
-}))
-
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({ liveAssistants: state.liveAssistants })
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
