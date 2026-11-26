@@ -107,7 +107,9 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      so the host can present it in the stream or in a separate message.
      Emit `resume-token` when a recovery handle becomes available. Close each
      turn with `turn-complete`, set its status to `paused` for a native abort,
-     or emit `error` on failure.
+     or emit `error` on failure. Independently confirmed fork positions may use `run-checkpoint`,
+     carrying the native context and stable product input ID. Main resolves the owning Run;
+     emitting this evidence does not finish it or require the whole connection to become idle.
    - `send(input)` — deliver a user message; `input.systemReminder` marks a
      steer, wrap it with `wrapSteerReminder(...)`. Apply optional model-only
      `input.context` through ordinary input/attachment conversion with

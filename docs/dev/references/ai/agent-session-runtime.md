@@ -359,6 +359,13 @@ terminal is still marked `row-roll`; delivery consumers wait for Durable's actua
 Run ownership does not create synthetic continuation assistant records. The durable input and part
 positions retain their order independently of the canonical assistant row.
 
+A `run-checkpoint` event identifies its owning Run through the stable input association and native
+context. Main retains evidence received before placement creates a reply, attaches it to an active
+Run, or updates only the private checkpoint of an already successful Run. A later session-wide
+completion cannot replace that exact answer position. Pi Durable obtains these positions from
+committed submission answers, independently of foreground inactivity; cold pending-reply recovery
+commits the same evidence with its terminal body. Receiving a checkpoint does not terminate a Run.
+
 Renderer derives display segments from placed input positions and each part's immutable position.
 The first segment retains the Run's message ID; later keys combine the Run ID with the segment's
 first part ID. `sourceMessageId` retains the durable owner for approvals, usage and fork. Only the

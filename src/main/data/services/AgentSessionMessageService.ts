@@ -101,7 +101,7 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 
 import { agentSessionContextService, type RootProjectionCheckpoint } from './AgentSessionContextService'
 import { AgentSessionEditError } from './AgentSessionEditError'
-import { RuntimeForkAnchorSchema, type RuntimeForkCheckpoint } from './agentSessionForkContract'
+import { RuntimeForkAnchorSchema, type RuntimeForkAnchor, type RuntimeForkCheckpoint } from './agentSessionForkContract'
 import {
   advanceAgentSessionHeadTx,
   advanceAgentSessionPositionTx,
@@ -613,6 +613,36 @@ export class AgentSessionMessageService {
     return extractMessageToolOutputs(sessionId, messageId, data, this.acceptedToolParts, unchangedToolCallIds)
   }
 
+  saveRunCheckpoint(sessionId: string, runId: string, anchor: RuntimeForkAnchor): void {
+    const value = JSON.stringify(RuntimeForkAnchorSchema.parse(anchor))
+    const result = application
+      .get('DbService')
+      .getDb()
+      .update(sessionMessagesTable)
+      .set({
+        data: sql`json_set(${sessionMessagesTable.data}, '$.runtimeAnchor', json(${value}))`
+      })
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.id, runId),
+          eq(sessionMessagesTable.role, 'assistant'),
+          eq(sessionMessagesTable.status, 'success'),
+          sql`coalesce(json_extract(${sessionMessagesTable.data}, '$.runtimeAnchor'), '') <> ${value}`
+        )
+      )
+      .run()
+    if (result.changes)
+      notifyDataApiDataChange([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId },
+          entityIds: [runId]
+        }
+      ])
+  }
+
   readWorkspaceRelocationHistory(workspaceId: string) {
     return application
       .get('DbService')
@@ -884,6 +914,7 @@ export class AgentSessionMessageService {
       contextId: string
       inputIds: readonly string[]
       timeline?: { lastPos: number }
+      forkAnchor?: RuntimeForkAnchor
     },
     status: 'success' | 'paused' | 'error',
     sources: readonly { id: string; parts: CherryMessagePart[] }[],
@@ -954,6 +985,11 @@ export class AgentSessionMessageService {
       const ordered = orderAgentTimelineParts(entries, () => stored)
       const saved = this.saveMessageTx(tx, {
         sessionId,
+        ...(status === 'success' &&
+          target.forkAnchor && {
+            runtimeAnchor: target.forkAnchor,
+            runtimeResumeToken: context.nativeThreadId ?? undefined
+          }),
         partIds: ordered.map(({ partId }) => partId),
         positions,
         message: {

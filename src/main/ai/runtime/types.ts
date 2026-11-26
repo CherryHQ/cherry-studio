@@ -191,6 +191,8 @@ export type AgentRuntimeEvent =
       }
     }
   | { type: 'resume-token'; token: string }
+  /** The stable input association identifies the owning Run, including a deferred placement. */
+  | { type: 'run-checkpoint'; contextId: string; inputId: string; forkAnchor: RuntimeForkAnchor }
   /** `paused`: native evidence that the turn was aborted, such as a recorded user stop. */
   | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor; status?: 'paused' }
   /** The driver could not submit a pending input. The host requeues it for the next turn. */

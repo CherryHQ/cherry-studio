@@ -1118,11 +1118,25 @@ it('opens a distinct Run for an accepted input placed after native completion wi
   f.service.enqueueUserMessage('root', next)
   await f.emit({ type: 'turn-complete' })
   await firstDone()
+  const nextAnchor = { checkpoint: { runtime: 'pi', runtimeSessionId: 'original', leafId: 'answer-B' } }
+  await f.emit({ type: 'run-checkpoint', contextId: f.context.id, inputId: next.id, forkAnchor: nextAnchor })
   await f.emit({ type: 'run-started', inputIds: [next.id] })
   await vi.waitFor(() => expect(f.starts).toHaveLength(1))
   const nextRunId = f.starts[0].request.messageId!
   expect(nextRunId).not.toBe(f.replyB.id)
   const nextDone = f.open(f.starts[0])
+  const anchor = { checkpoint: { runtime: 'pi', runtimeSessionId: 'original', leafId: 'answer-A' } }
+  await f.emit({ type: 'run-checkpoint', contextId: 'another-context', inputId: f.user.id, forkAnchor: anchor })
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, f.replyB.id)).get()!.data
+  ).not.toHaveProperty('runtimeAnchor')
+  await f.emit({ type: 'run-checkpoint', contextId: f.context.id, inputId: f.user.id, forkAnchor: anchor })
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, f.replyB.id)).get()!.data
+  ).toMatchObject({ runtimeAnchor: anchor })
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, nextRunId)).get()!.data
+  ).not.toHaveProperty('runtimeAnchor')
   await f.project('next-answer', 'Next answer')
   await f.emit({ type: 'turn-complete' })
   await nextDone()
@@ -1131,5 +1145,28 @@ it('opens a distinct Run for an accepted input placed after native completion wi
     status: 'success',
     data: { parts: [{ type: 'text', text: 'Next answer', state: 'done' }] }
   })
+  expect(
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, nextRunId)).get()!.data
+  ).toMatchObject({ runtimeAnchor: nextAnchor })
   expect(f.sent).toEqual([f.user.id])
+})
+
+// A precise native answer position must survive the later session-wide completion head.
+it('saves an active Run checkpoint without terminating its stream or replacing it with the idle head', async () => {
+  const f = await fixture()
+  const finish = f.openB()
+  await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+  const anchor = { checkpoint: { runtime: 'pi', runtimeSessionId: 'original', leafId: 'exact-answer' } }
+  const metadataWrite = vi.spyOn(messages, 'saveRunCheckpoint').mockImplementationOnce(() => {
+    throw new Error('Metadata write unavailable')
+  })
+  onTestFinished(() => metadataWrite.mockRestore())
+  await f.emit({ type: 'run-checkpoint', contextId: f.context.id, inputId: f.user.id, forkAnchor: anchor })
+  expect(messages.getSessionMessage('root', f.replyB.id).status).toBe('pending')
+  await f.project('answer', 'Final body')
+  await f.emit({ type: 'turn-complete', forkAnchor: { checkpoint: { runtime: 'pi', leafId: 'later-idle-head' } } })
+  await finish()
+  const row = dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, f.replyB.id)).get()!
+  expect(row.status).toBe('success')
+  expect(row.data).toMatchObject({ runtimeAnchor: anchor })
 })

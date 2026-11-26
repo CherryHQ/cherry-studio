@@ -545,6 +545,40 @@ describe('AgentSessionMessageService', () => {
   })
 
   describe('native fork persistence', () => {
+    it('adds a late Run checkpoint without replacing parts and ignores duplicate or non-success checkpoints', () => {
+      const anchor = { checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'answer' } }
+      for (const status of ['success', 'pending', 'paused', 'error'] as const) {
+        const run = agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          message: { role: 'assistant', status, data: { parts: [{ type: 'text', text: 'Saved answer' }] } }
+        })
+        const before = dbh.db
+          .select()
+          .from(agentSessionMessagePartTable)
+          .where(eq(agentSessionMessagePartTable.messageId, run.id))
+          .all()
+        notifyDataApiDataChangeMock.mockClear()
+        agentSessionMessageService.saveRunCheckpoint(SESSION_ID, run.id, anchor)
+        const row = dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, run.id)).get()!
+        if (status === 'success') {
+          expect(row.data).toMatchObject({ runtimeAnchor: anchor })
+          expect(notifyDataApiDataChangeMock.mock.calls.flat(2)).toContainEqual(
+            expect.objectContaining({ entityIds: [run.id] })
+          )
+          notifyDataApiDataChangeMock.mockClear()
+          agentSessionMessageService.saveRunCheckpoint(SESSION_ID, run.id, anchor)
+        } else expect(row.data).not.toHaveProperty('runtimeAnchor')
+        expect(notifyDataApiDataChangeMock.mock.calls).toEqual([])
+        expect(
+          dbh.db
+            .select()
+            .from(agentSessionMessagePartTable)
+            .where(eq(agentSessionMessagePartTable.messageId, run.id))
+            .all()
+        ).toEqual(before)
+      }
+    })
+
     it.each(['cherry-claw', 'claude-code', 'pi'])(
       'matches a Claude checkpoint against the effective runtime of a stored %s agent',
       async (storedType) => {

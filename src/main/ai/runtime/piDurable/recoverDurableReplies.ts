@@ -75,7 +75,17 @@ export async function recoverDurableReplies(
                 runId,
                 contextId,
                 inputIds: rows.map((row) => row.inputId),
-                timeline: liveTimeline?.(sessionId)
+                timeline: liveTimeline?.(sessionId),
+                ...(history?.answerEntryId && {
+                  forkAnchor: {
+                    checkpoint: {
+                      runtime: 'pi-durable',
+                      backendId,
+                      conversationId: threadId,
+                      entryId: history.answerEntryId
+                    }
+                  }
+                })
               },
               terminal.status,
               sources,

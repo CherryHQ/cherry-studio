@@ -142,8 +142,10 @@ coordinates runtime and filesystem operations in addition to SQLite writes.
 
 ## Checkpoints and the read/write path
 
-1. At turn completion, the adapter validates its native checkpoint and attaches
-   it to the `turn-complete` event. The host records queued message IDs to exclude.
+1. Adapters provide native checkpoints with `turn-complete` or an independently addressed
+   `run-checkpoint`. Pi Durable uses the successful submission's exact answer entry, so consecutive
+   queued Runs retain separate boundaries without waiting for the session to become idle.
+   Main resolves input ownership rather than assigning late evidence to the current Run.
 2. `AgentSessionMessageBackend` validates the common envelope and saves it in the
    existing message's private `data.runtimeAnchor`. If checkpoint validation or
    checkpoint persistence fails, the completed answer is still saved without it.

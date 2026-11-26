@@ -335,6 +335,8 @@ type AgentSessionRuntimeEntry = {
   /** Follow-up placements waiting for the current reply to open; each starts its own reply, in order. */
   deferredPlacements?: (readonly string[])[]
   recoveryHeadless?: boolean
+  /** Native answers can arrive while their queued placement still awaits a reply. */
+  pendingRunCheckpoints?: Map<string, RuntimeForkAnchor>
   /** Pending input outcomes share one aggregate per Run provisionally settled by a queued placement. */
   followedReplies?: Map<string, { runId: string; pending: Set<string>; outcomes: NativeInputState[] }>
   interactionWindowId?: string
@@ -1103,6 +1105,16 @@ export class AgentSessionRuntimeService extends BaseService {
     const taskIds = [...new Set([...run.taskIds, ...inputs.map(({ message }) => message.id)])]
     agentSessionMessageService.linkReply(entry.sessionId, taskIds, run.runId)
     run.taskIds = taskIds
+    this.attachPendingRunCheckpoints(entry, run)
+  }
+
+  private attachPendingRunCheckpoints(entry: AgentSessionRuntimeEntry, run: AgentSessionRun): void {
+    for (const id of run.taskIds) {
+      const anchor = entry.pendingRunCheckpoints?.get(id)
+      if (!anchor) continue
+      run.forkAnchor = anchor
+      entry.pendingRunCheckpoints!.delete(id)
+    }
   }
 
   private reservePlacedRun(
@@ -2974,10 +2986,26 @@ export class AgentSessionRuntimeService extends BaseService {
         })
         break
       }
+      case 'run-checkpoint': {
+        if (event.contextId !== connection?.contextId) break
+        const run = getAgentSessionRuntimeTurns(entry.runtimeState).find((run) => run.taskIds.includes(event.inputId))
+        const runId = run?.runId ?? agentSessionMessageService.replyTo(entry.sessionId, event.inputId)?.id
+        if (!runId) {
+          ;(entry.pendingRunCheckpoints ??= new Map()).set(event.inputId, event.forkAnchor)
+          break
+        }
+        if (run) run.forkAnchor = event.forkAnchor
+        try {
+          agentSessionMessageService.saveRunCheckpoint(entry.sessionId, runId, event.forkAnchor)
+        } catch (error) {
+          logger.warn('Could not persist Run checkpoint', { sessionId: entry.sessionId, runId, error })
+        }
+        break
+      }
       case 'turn-complete': {
         const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
         if (turn) {
-          turn.forkAnchor = event.forkAnchor
+          turn.forkAnchor ??= event.forkAnchor
             ? { ...event.forkAnchor, excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id) }
             : undefined
           // A native abort that Cherry did not start must still end the renderer stream as paused.
@@ -3923,6 +3951,7 @@ export class AgentSessionRuntimeService extends BaseService {
       { publishDataChange: true }
     )
     agentSessionMessageService.linkReply(entry.sessionId, turn.taskIds, turn.runId)
+    this.attachPendingRunCheckpoints(entry, turn)
     if (!background) entry.branchHead = turn.runId
     if (turn.origin)
       application
@@ -4183,6 +4212,7 @@ export class AgentSessionRuntimeService extends BaseService {
         assistantMessageId: turn.runId,
         modelId: turn.modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
+        forkAnchor: () => turn.forkAnchor,
         projection: () => (turn.projection ? this.rootCheckpoint(entry, turn.projection, turn.runId) : undefined),
         partPlacement: (messageId) => turn.projection?.partPlacement(messageId),
         onPersisted: () => {

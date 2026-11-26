@@ -91,6 +91,7 @@ import { runtimeDriverRegistry } from '../registry'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
 import { allocateDurableBackendTx, prepareDurableBranch, reserveDurableBranchTx } from './durableContext'
 import { prepareDurableDesktop } from './durableDesktop'
+import { DurableForkCheckpointSchema } from './forkCheckpoint'
 import type { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
 import { PiDurableRuntimeDriver } from './PiDurableRuntimeDriver'
 
@@ -3018,6 +3019,13 @@ describe('desktop Pi Durable connection', () => {
       await service._doDestroy()
       const row = messages.getSessionMessage(input.sessionId, run.id)
       expect(row.status).toBe(reason === 'stop' ? 'success' : reason === 'aborted' ? 'paused' : 'error')
+      const recovered = messages.readForkPrefixTx(dbh.db, input.sessionId, run.id)!.find((row) => row.id === run.id)!
+      if (reason === 'stop') {
+        expect(recovered.data.runtimeAnchor).toMatchObject({
+          checkpoint: { runtime: 'pi-durable', entryId: expect.any(String) }
+        })
+        expect(recovered.runtimeResumeToken).toBeTruthy()
+      } else expect(recovered.data.runtimeAnchor).toBeUndefined()
       expect(row.data.parts?.[0]).toMatchObject({
         type: 'text',
         text: reason === 'aborted' ? 'partial' : 'Complete native text'
@@ -3249,6 +3257,63 @@ describe('desktop Pi Durable connection', () => {
     expect(nativeInputs.some((state) => state.inputId === second.id && state.outcome === 'completed')).toBe(true)
     expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('reports each queued Run checkpoint before idle and replays the exact answer positions on reopen', async () => {
+    const first = gate()
+    const second = gate()
+    script = respondingModel((call) =>
+      JSON.stringify(call.messages.findLast((entry) => entry.role === 'user')).includes('second')
+        ? second.wait(assistantReply('second answer'))
+        : first.wait(assistantReply('first answer'))
+    )
+    const running = await connect()
+    const original = message('first')
+    await running.connection.send({ message: original })
+    await first.reached
+    const queued = message('second')
+    running.connection.followUp({ message: queued })
+    await expect
+      .poll(() => running.nativeInputs.some((state) => state.inputId === queued.id && state.facts.includes('queued')))
+      .toBe(true)
+    first.open()
+    await second.reached
+    await expect
+      .poll(() => running.events.some((event) => event.type === 'run-checkpoint' && event.inputId === original.id))
+      .toBe(true)
+    expect(running.events.some((event) => event.type === 'turn-complete')).toBe(false)
+    const checkpoint = running.events.find((event) => event.type === 'run-checkpoint' && event.inputId === original.id)!
+    second.open()
+    await done(running.events)
+    const last = running.events.find((event) => event.type === 'run-checkpoint' && event.inputId === queued.id)!
+    expect(last).toBeDefined()
+    expect(last).not.toEqual(checkpoint)
+    if (checkpoint.type !== 'run-checkpoint') throw new Error('Missing first Run checkpoint')
+    const selected = DurableForkCheckpointSchema.parse(checkpoint.forkAnchor.checkpoint)
+    const fork = await driver.fork({
+      sourceSessionId: input.sessionId,
+      sourceBackendId: selected.backendId,
+      checkpoint: selected,
+      checkpoints: [selected],
+      targetSessionId: uuid(),
+      targetCwd: directory,
+      artifactDirectory: directory,
+      signal: new AbortController().signal
+    })
+    const inherited = await running.connection['runtime']!.durable.commit(
+      async (tx) =>
+        (await tx.scanEntries({ conversationId: Number(fork.resumeToken) as ConversationId, order: 'ascending' }, 256))
+          .items,
+      BACKGROUND_CONTEXT
+    )
+    expect(JSON.stringify(inherited)).toContain('first answer')
+    expect(JSON.stringify(inherited)).not.toContain('second answer')
+    await running.connection.close()
+    const reopened = await connect()
+    await expect
+      .poll(() => reopened.events.filter((event) => event.type === 'run-checkpoint'))
+      .toEqual(expect.arrayContaining([checkpoint, last]))
+    expect(script.calls).toHaveLength(2)
   })
 
   // A truncated answer belongs to its own input; the follow-up placed after it must not inherit the failure.

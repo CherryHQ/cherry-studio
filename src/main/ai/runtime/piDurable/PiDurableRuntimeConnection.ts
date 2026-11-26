@@ -433,6 +433,21 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         for (const id of placements) this.runInputs.add(id)
         this.events.push({ type: 'run-started', inputIds: placements })
       }
+      for (const answer of batch.answers ?? []) {
+        this.events.push({
+          type: 'run-checkpoint',
+          contextId: this.context!.id,
+          inputId: answer.inputId,
+          forkAnchor: {
+            checkpoint: {
+              runtime: 'pi-durable',
+              backendId: this.context!.backendId,
+              conversationId: this.handle!.thread.id,
+              entryId: answer.entryId
+            }
+          }
+        })
+      }
       const results = batch.backgroundResults
       if (!parts || results !== this.publishedBackground) {
         this.publishedBackground = results
