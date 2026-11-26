@@ -9,7 +9,7 @@ icon: windows
 
 需要 **Windows 10 1809（内部版本 17763，64 位）或更高版本**（含 Windows 11），Intel / AMD 设备选择 x64，Windows ARM 设备选择 ARM64。
 
-Windows 7、8、8.1 不受支持，通过第三方兼容层启动也不属于官方支持。版本过低时安装程序会直接提示并终止，不会安装或更改任何文件；已安装的旧版本在检查更新时也不会收到超出系统要求的新版本。历史安装包仅可在 [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) 存档查看，不再提供支持与安全更新。
+Windows 7、8、8.1 不受支持，通过第三方兼容层启动也不属于官方支持。版本过低时安装程序会直接提示并终止，不会安装任何应用文件（安装程序框架可能留下一个空的目标目录）；已安装的旧版本在检查更新时也不会收到超出系统要求的新版本。历史安装包仅可在 [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) 存档查看，不再提供支持与安全更新。
 
 ## 1. 下载安装包
 

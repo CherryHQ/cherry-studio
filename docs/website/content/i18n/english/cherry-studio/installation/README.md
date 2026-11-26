@@ -17,7 +17,7 @@ Download the installer matching your OS and chip from the [official download pag
 
 {% hint style="warning" %}
 
-Windows 7, 8, and 8.1 cannot run current Cherry Studio releases, including launches through third-party compatibility layers. The installer and the app check the OS version and exit with a message when it is too old — no files are installed or changed. Past installers remain available on [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) for reference only and receive no support or security updates.
+Windows 7, 8, and 8.1 cannot run current Cherry Studio releases, including launches through third-party compatibility layers. The installer and the app check the OS version and exit with a message when it is too old — no application files are installed (the installer framework may leave an empty destination directory behind). Past installers remain available on [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) for reference only and receive no support or security updates.
 
 {% endhint %}
 

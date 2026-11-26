@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-24-windows-minimum-version.md
-2026-11-24-windows-minimum-version.md: 360f5987d4a7eb0ade64397e53fed0199be1bef4
-2026-11-24-windows-minimum-version.zh.md: 43446d270ae50f569726ba10d8db916370c5a5aa
+2026-11-24-windows-minimum-version.md: 4fc88efdb882ef533d63ccba03840aa08b9c89e1
+2026-11-24-windows-minimum-version.zh.md: b2932aeecd2f1d0f8cfc5fa007fc486872e85d2b

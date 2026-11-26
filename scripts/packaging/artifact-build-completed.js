@@ -18,7 +18,7 @@ const ARCH_ALIASES = {
 }
 
 // Minimum NT release advertised in Windows update manifests (`latest.yml`).
-// Must match the runtime floor in `src/shared/utils/osSupport.ts`
+// Must match the runtime floor in `src/main/utils/osSupport.ts`
 // (Windows 10 1809 / build 17763). electron-updater compares this against the
 // client's local `os.release()` and withholds the update when the client is
 // older — this is what protects already-installed pre-gate clients (e.g. on

@@ -17,7 +17,7 @@ icon: desktop-arrow-down
 
 {% hint style="warning" %}
 
-Windows 7、8、8.1 无法运行当前版本 Cherry Studio，通过第三方兼容层启动也不属于官方支持。安装程序与应用启动时都会检查系统版本，不满足要求时会直接提示并退出，不会安装或更改任何文件。历史安装包仅可在 [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) 存档查看，不再提供支持与安全更新。
+Windows 7、8、8.1 无法运行当前版本 Cherry Studio，通过第三方兼容层启动也不属于官方支持。安装程序与应用启动时都会检查系统版本，不满足要求时会直接提示并退出，不会安装任何应用文件（安装程序框架可能留下一个空的目标目录）。历史安装包仅可在 [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) 存档查看，不再提供支持与安全更新。
 
 {% endhint %}
 

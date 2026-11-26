@@ -9,7 +9,7 @@ icon: windows
 
 Cherry Studio requires **Windows 10 1809 (build 17763, 64-bit) or later**, including Windows 11. Most Intel / AMD PCs use the standard **Windows** build; Windows ARM devices use the build marked **ARM**. Portable builds that run without a system install come in matching architectures as well.
 
-Windows 7, 8, and 8.1 are not supported, including launches through third-party compatibility layers. On an older system the installer shows a message and aborts without installing or changing any files; an installed copy on an unsupported system refuses to start and never offers an update beyond what the OS supports. Past installers remain available on [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) for reference only and receive no support or security updates.
+Windows 7, 8, and 8.1 are not supported, including launches through third-party compatibility layers. On an older system the installer shows a message and aborts without installing any application files (the installer framework may leave an empty destination directory behind); an installed copy on an unsupported system refuses to start and never offers an update beyond what the OS supports. Past installers remain available on [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) for reference only and receive no support or security updates.
 
 If you are unsure of your device architecture, open Windows "Settings → System → About" and check "System type".
 

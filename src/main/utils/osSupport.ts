@@ -1,7 +1,17 @@
 /**
- * Minimum Windows version contract for Cherry Studio.
+ * Minimum Windows version contract for Cherry Studio (main-owned).
  *
- * Single source of truth for "which Windows releases are supported".
+ * Runtime TypeScript source of truth for "which Windows releases are
+ * supported". Main-only by design: the only production consumers are
+ * `core/preboot/osSupportGate` and `services/AppUpdaterService`, so this
+ * lives in `main/utils` (cross-domain stateless helper) rather than
+ * `@shared` — see shared-layer invariant 1.1. Kept dependency-free
+ * (no `@application`, no `@logger`, no `@main/i18n`) so the preboot gate can
+ * import it before any profile-backed import is evaluated.
+ *
+ * The NSIS installer (`build/nsis-installer.nsh`), the update-manifest floor
+ * (`scripts/packaging/artifact-build-completed.js`), and the install docs
+ * mirror these values independently and must be kept in sync manually.
  * Electron 23+ (this repo uses Electron 45) no longer boots on Windows 7/8/8.1,
  * so the supported floor is Windows 10 1809 (build 17763, 64-bit x64/arm64)
  * including Windows 11 (build 22000+). Windows 7/8/8.1 releases — including

@@ -20,6 +20,7 @@ import { WindowType } from '@main/core/window/types'
 import { getAppLanguage, t } from '@main/i18n'
 import { regionService } from '@main/services/RegionService'
 import { getAppEdition } from '@main/utils/appEdition'
+import { isSupportedWindowsRelease } from '@main/utils/osSupport'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
@@ -30,7 +31,6 @@ import type { AppEdition } from '@shared/types/appEdition'
 import type { FailureFacts } from '@shared/types/errorReporting'
 import { APP_NAME } from '@shared/utils/constants'
 import { isCancellation } from '@shared/utils/errorReporting'
-import { isSupportedWindowsRelease } from '@shared/utils/osSupport'
 import {
   hasMultiLanguageReleaseNotes,
   isStableReleaseVersion,

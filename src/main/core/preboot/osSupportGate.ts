@@ -9,7 +9,7 @@ import {
   MIN_SUPPORTED_WINDOWS_VERSION_LABEL,
   WINDOWS_SUPPORT_RELEASES_URL,
   isSupportedWindowsRelease
-} from '@shared/utils/osSupport'
+} from '@main/utils/osSupport'
 
 import osSupportMessages from './osSupportMessages.json'
 
@@ -49,6 +49,11 @@ function isChinesePreferred(): boolean {
  * Kept local (instead of `@main/i18n`'s `t()`) so this earliest gate stays
  * dependency-free: `@main/i18n` pulls `@application` → `LoggerService`,
  * whose file transports touch the profile on import.
+ * Preboot localization exception: user-visible copy normally lives in the
+ * main catalogs, but those are unreachable here pre-`ready` without pulling
+ * profile-backed imports. The EN+ZH JSON sidecar is the governed exception —
+ * Japanese/French users see EN+ZH rather than their locale, which is accepted
+ * for this stop-and-explain gate versus English-only or a profile write.
  */
 function formatPrebootTemplate(template: string, params: Record<string, string>): string {
   return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, name: string) => (name in params ? params[name] : match))
@@ -103,7 +108,8 @@ export function runOsSupportGate(): 'handled' | 'skipped' {
     // non-English user with English-only guidance. Strings live in the JSON
     // sidecar — not in `@main/i18n` (pulls filesystem-touching imports and
     // needs `app.getLocale()` which is unsafe pre-`ready`) and not as CJK
-    // literals here (rejected by `i18n:hardcoded:strict`).
+    // literals here (rejected by `i18n:hardcoded:strict`). See the preboot
+    // localization exception above: JA/FR users intentionally see EN+ZH here.
     const title = chineseFirst
       ? `${osSupportMessages.titleZh} / ${osSupportMessages.titleEn}`
       : `${osSupportMessages.titleEn} / ${osSupportMessages.titleZh}`
