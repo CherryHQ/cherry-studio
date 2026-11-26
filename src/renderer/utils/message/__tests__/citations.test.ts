@@ -531,6 +531,11 @@ describe('toExportableCitations', () => {
 })
 
 describe('stripCitationMarkers', () => {
+  it('keeps separately emphasized words apart and leaves literal private-use characters alone', () => {
+    expect(stripCitationMarkers('**a**[cite:abc-1]**b**')).toBe('**a****b**')
+    expect(stripCitationMarkers('keep \uE000 here')).toBe('keep \uE000 here')
+  })
+
   it('drops emphasis wrappers emptied by the removal', () => {
     expect(stripCitationMarkers('Before\n\n**[cite:abc-1]**\n\nAfter')).toBe('Before\n\n\n\nAfter')
   })
