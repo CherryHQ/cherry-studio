@@ -6,12 +6,13 @@ import type { AgentMessageStreamSource, AgentPartChange, ExecutionPart } from '.
 
 export function materializeAgentMessage(
   header: Omit<CherryUIMessage, 'parts' | 'partIds'>,
-  entries: readonly Pick<ExecutionPart, 'partId' | 'payload'>[]
+  entries: readonly (Pick<ExecutionPart, 'partId' | 'payload'> & Partial<Pick<ExecutionPart, 'pos'>>)[]
 ) {
   return {
     ...header,
     parts: entries.map(({ payload }) => payload),
-    partIds: entries.map(({ partId }) => partId)
+    partIds: entries.map(({ partId }) => partId),
+    partPositions: entries.map(({ pos }) => pos ?? null)
   } satisfies CherryUIMessage
 }
 

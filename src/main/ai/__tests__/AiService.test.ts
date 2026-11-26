@@ -1205,6 +1205,60 @@ describe('AiService', () => {
     expect(mockGenerateImage.mock.calls[1]?.[2] as Record<string, unknown>).not.toHaveProperty('size')
   })
 
+  it('delivers New API Google image parameters to the Google namespace', async () => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: { providerId: 'newapi', providerOptionsKey: 'google', providerSettings: {}, modelId: 'nano-banana-2' }
+    })
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+    await service.generateImage({
+      uniqueModelId: 'newapi::nano-banana-2',
+      cleanupPolicy: 'manual',
+      prompt: 'a banana',
+      paramValues: { aspectRatio: '16:9', imageResolution: '2K' }
+    })
+    expect(mockGenerateImage.mock.calls[0][2].providerOptions).toEqual({
+      google: { imageConfig: { aspectRatio: '16:9', imageSize: '2K' } }
+    })
+  })
+
+  it('retains New API diffusion options for an OpenAI image route', async () => {
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: { providerId: 'newapi', providerOptionsKey: 'newapi', providerSettings: {}, modelId: 'qwen-image' }
+    })
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+    await service.generateImage({
+      uniqueModelId: 'newapi::qwen-image',
+      cleanupPolicy: 'manual',
+      prompt: 'a banana',
+      paramValues: {
+        negativePrompt: 'blurry',
+        numInferenceSteps: 25,
+        seed: 0,
+        guidanceScale: 0,
+        cfg: 0,
+        promptEnhancement: false
+      }
+    })
+    expect(mockGenerateImage.mock.calls[0][2].providerOptions).toEqual({
+      newapi: {
+        negative_prompt: 'blurry',
+        num_inference_steps: 25,
+        seed: 0,
+        guidance_scale: 0,
+        cfg: 0,
+        prompt_enhancement: false
+      }
+    })
+  })
+
   it('routes silicon through the WireProfile engine, producing the same providerOptions.silicon', async () => {
     const service = createService()
     vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
@@ -1242,6 +1296,41 @@ describe('AiService', () => {
         }
       })
     )
+  })
+
+  it('delivers openai-compatible image vendor parameters under providerOptionsKey instead of the adapter id', async () => {
+    const customProviderId = 'custom-aihubmix'
+    const service = createService()
+    vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'openai-compatible',
+        providerOptionsKey: customProviderId,
+        providerSettings: {},
+        modelId: 'gpt-image-2-6-sunburst'
+      }
+    })
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateImage({
+      uniqueModelId: `${customProviderId}::gpt-image-2-6-sunburst`,
+      cleanupPolicy: 'manual',
+      prompt: 'a sunburst',
+      paramValues: { quality: 'low', size: '1024x1536', complexity: 'low' }
+    })
+
+    const callOptions = mockGenerateImage.mock.calls[0]?.[2] as {
+      size?: string
+      providerOptions?: Record<string, Record<string, unknown>>
+    }
+    expect(callOptions.size).toBe('1024x1536')
+    expect(callOptions.providerOptions?.[customProviderId]).toEqual({
+      quality: 'low',
+      complexity: 'low'
+    })
+    expect(callOptions.providerOptions).not.toHaveProperty('openai-compatible')
   })
 
   describe('Seedream 5.5 request gate', () => {

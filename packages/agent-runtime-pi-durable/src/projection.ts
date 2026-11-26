@@ -25,18 +25,21 @@ import {
 import { ContentProjection, entryMessageId, messagePart, previewToolOutput } from './content'
 import type { PreviewTextAppend } from './previewTextAppends'
 
+type AnswerPosition = { readonly inputId: InputId; readonly entryId: string }
+
 export interface DurableObservation {
   readonly events: ProjectionEvents
   readonly aliases: Readonly<Record<string, string>>
   readonly live: readonly string[]
+  readonly answers?: readonly AnswerPosition[]
   readonly resumedInput?: InputId
   readonly completion?: { readonly inputs: readonly InputState[]; readonly entryId?: string }
   readonly backgroundResults: OperationResult<SubagentResults>
 }
 
 type InputPublication =
-  | { type: 'snapshot'; inputs: readonly InputState[] }
-  | { type: 'commit'; changes: readonly InputState[]; revision: number }
+  | { type: 'snapshot'; inputs: readonly InputState[]; answers?: readonly AnswerPosition[] }
+  | { type: 'commit'; changes: readonly InputState[]; revision: number; answers?: readonly AnswerPosition[] }
 
 /** One normalized source shared by every access to a native conversation. */
 export class DurableProjection {
@@ -52,6 +55,8 @@ export class DurableProjection {
   private readonly admitting = new Set<InputId>()
   private readonly cycle = new Set<string>()
   private completion?: DurableObservation['completion']
+  private readonly answers = new Map<InputId, string>()
+  private answerChanges?: readonly AnswerPosition[]
   private history: readonly HistoryEntry[] = []
   private committed?: { readonly entries: readonly EntryRecord[]; readonly content: ContentProjection }
   private backgroundResults: DurableObservation['backgroundResults'] = immutable({
@@ -79,6 +84,7 @@ export class DurableProjection {
     this.feed.close(reason)
     this.committed = undefined
     this.history = []
+    this.answers.clear()
   }
 
   observe(
@@ -122,15 +128,20 @@ export class DurableProjection {
               ? [event.ref.id]
               : []
       const completion = delivery === 'baseline' ? undefined : this.completion
+      const answers =
+        delivery === 'baseline'
+          ? [...this.answers].map(([inputId, entryId]) => ({ inputId, entryId }))
+          : this.answerChanges
       return {
         value: {
           aliases,
           ...(delivery === 'baseline' && pending?.inputId && { resumedInput: pending.inputId }),
           live: ids.filter((id) => (delivery === 'baseline' ? baseline.has(id) : !historical.has(id))),
           completion,
+          ...(answers?.length && { answers }),
           backgroundResults: this.backgroundResults
         },
-        retain: Boolean(completion)
+        retain: Boolean(completion || answers?.length)
       }
     })
   }
@@ -240,16 +251,19 @@ export class DurableProjection {
   private publish(
     events: readonly ObservationPayload[],
     completion: DurableObservation['completion'],
-    carrier = events.length - 1
+    carrier = events.length - 1,
+    answers?: readonly AnswerPosition[]
   ): void {
     try {
       events.forEach((event, index) => {
         this.completion = index === carrier ? completion : undefined
+        this.answerChanges = index === carrier ? answers : undefined
         if (isLivePartInput(event)) this.feed.publishPart(event)
         else this.feed.publish(event)
       })
     } finally {
       this.completion = undefined
+      this.answerChanges = undefined
     }
   }
 
@@ -336,6 +350,8 @@ export class DurableProjection {
     const revision = publication?.type === 'commit' ? publication.revision : undefined
     this.revision = revision
     this.history = history
+    const answers = (publication?.answers ?? []).filter((answer) => this.answers.get(answer.inputId) !== answer.entryId)
+    for (const answer of answers) this.answers.set(answer.inputId, answer.entryId)
     const previousState = this.feed.state
     const { inputs, events: inputEvents } =
       publication?.type === 'snapshot'
@@ -405,11 +421,12 @@ export class DurableProjection {
     if (
       messages &&
       (previousState.activity.state !== activity.state ||
-        (!events.length && (completion || !isDeepStrictEqual(previousResults, this.backgroundResults))))
+        (!events.length &&
+          (completion || answers.length || !isDeepStrictEqual(previousResults, this.backgroundResults))))
     )
       events.push({ type: 'activity.changed', activity })
     // Completion rides the first frame after which an observer holds the whole update.
-    this.publish(events, completion, messages ? events.length - 1 : 0)
+    this.publish(events, completion, messages ? events.length - 1 : 0, answers)
   }
 
   /** Native views append the same entry records; project only appended entries and share the rest. */
