@@ -651,7 +651,7 @@ describe('CodeViewer', () => {
     expect(queryByText('line 2')).toBeNull()
     expect(selection.isCollapsed).toBe(true)
     fireEvent(document, new Event('selectionchange'))
-    await new Promise((resolve) => setTimeout(resolve, 120))
+    await act(() => vi.advanceTimersByTimeAsync(120))
     const copy = () => {
       let copied = ''
       const event = new Event('copy', { bubbles: true, cancelable: true })

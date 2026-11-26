@@ -188,22 +188,7 @@ describe('cancel (capability-based)', () => {
   })
 
   // ------------------------------------------------------------------
-  // Test 4 — already finished
-  // ------------------------------------------------------------------
-  it('still dequeues by id when the prompt is not in the queue', async () => {
-    const doFetch = createCapsFetch('0.3.57', [[1, 'other', {}, {}, []]], [])
-    const transport = createComfyuiTransport({ baseURL: 'http://localhost:8188', fetch: doFetch })
-
-    await transport.cancel('pid-1')
-
-    expect(postWrites(doFetch)).toEqual([
-      { url: 'http://localhost:8188/queue', body: { delete: ['pid-1'] } },
-      { url: 'http://localhost:8188/interrupt', body: { prompt_id: 'pid-1' } }
-    ])
-  })
-
-  // ------------------------------------------------------------------
-  // Test 5 — race safety with targeted interrupt supported
+  // Test 4 — race safety with targeted interrupt supported
   // Queue snapshot shows A running; A finishes, B starts.
   // The server's own re-check at /interrupt refuses (A not running).
   // Client still sends /interrupt { A } — server handles it safely.

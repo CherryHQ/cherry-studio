@@ -27,6 +27,7 @@ describe('Agent import publication', () => {
   const dbh = setupTestDatabase()
   let directory: string
   beforeEach(async () => {
+    vi.stubEnv('CHERRY_EDITION', 'global')
     BaseService.resetInstances()
     MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
     directory = await mkdtemp(join(tmpdir(), 'deepseek-publication-'))
@@ -35,6 +36,7 @@ describe('Agent import publication', () => {
     )
   })
   afterEach(async () => {
+    vi.unstubAllEnvs()
     vi.restoreAllMocks()
     await rm(directory, { recursive: true, force: true })
   })
