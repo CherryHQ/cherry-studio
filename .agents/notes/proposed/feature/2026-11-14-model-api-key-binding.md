@@ -28,7 +28,7 @@ Issue CherryHQ/cherry-studio#21074 requests a model-specific API key within a mu
 - AC2 — Unnamed and whitespace-only labels use distinct localized ordinal labels instead of raw key IDs, without fetching secret-bearing records (verification: renderer)
 - AC3 — Empty or foreign-provider key IDs are rejected and a valid binding is preserved (verification: service unit)
 - AC4 — Bound-key routing and no alternate-key 401/429 failover hold across the supported runtime paths; unrepresentable Claude/OpenClaw configurations fail explicitly (verification: runtime unit; integration)
-- AC5 — Production migrations from the schema before 0044 preserve an existing model and add `api_key_id: null` (verification: migration unit)
+- AC5 — Production migrations from the schema before 0048_model_api_key_routing preserve an existing model and add `api_key_id: null` (verification: migration unit)
 
 ## Risks
 

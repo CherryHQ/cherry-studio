@@ -28,7 +28,7 @@ Issue CherryHQ/cherry-studio#21074 要求在多 key 提供方中为模型指定 
 - AC2 — 未命名或仅含空白的标签使用不同的本地化序号标签，而非原始 key ID，且不获取包含密钥的记录（verification: renderer）
 - AC3 — 拒绝空 ID 或其他提供方的 key ID，并保留有效绑定（verification: service unit）
 - AC4 — 受支持的运行时路径遵守绑定 key 路由，且在 401/429 时不切换 key；无法表达绑定的 Claude/OpenClaw 配置明确报错（verification: runtime unit; integration）
-- AC5 — 从 0044 之前的 schema 运行生产迁移，保留已有模型并添加 `api_key_id: null`（verification: migration unit）
+- AC5 — 从 0048_model_api_key_routing 之前的 schema 运行生产迁移，保留已有模型并添加 `api_key_id: null`（verification: migration unit）
 
 ## Risks
 
