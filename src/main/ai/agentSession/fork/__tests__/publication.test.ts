@@ -377,6 +377,7 @@ describe('Agent fork publication', () => {
     'commit',
     'handoff',
     'after steer',
+    'handoff after steer',
     'first message',
     'history changed',
     'close failed',
@@ -397,13 +398,26 @@ describe('Agent fork publication', () => {
         }
       }).id
     const steer =
-      outcome === 'after steer'
+      outcome === 'after steer' || outcome === 'handoff after steer'
         ? agentSessionMessageService.saveMessage({
             sessionId,
             message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Steer' }] } }
           })
         : undefined
     if (steer) agentSessionMessageService.linkReply(sessionId, [steer.id], messageId)
+    if (outcome === 'handoff after steer')
+      handoffId = agentSessionMessageService.saveMessage({
+        sessionId,
+        message: {
+          role: 'system',
+          status: 'success',
+          data: {
+            parts: [{ type: 'text', text: 'Reviewed handoff after steer' }],
+            modelSwitchHandoff: { previousModel: 'fixture::old', nextModel: 'fixture::new', sourceHead: steer!.id }
+          }
+        }
+      }).id
+
     const tail = dbh.db.transaction((tx) =>
       agentSessionMessageService.saveMessagesTx(tx, {
         sessionId,
@@ -450,14 +464,20 @@ describe('Agent fork publication', () => {
         return saved[0].id
       }
     )
-    if (outcome === 'commit' || outcome === 'handoff' || outcome === 'after steer' || outcome === 'first message') {
+    if (
+      outcome === 'commit' ||
+      outcome === 'handoff' ||
+      outcome === 'after steer' ||
+      outcome === 'handoff after steer' ||
+      outcome === 'first message'
+    ) {
       const newId = await operation
       const rows = agentSessionMessageService.listSessionMessages(sessionId).items.toReversed()
       expect(rows.map((row) => row.id)).toEqual(
         outcome === 'first message'
           ? [newId]
-          : outcome === 'handoff'
-            ? [messageId, handoffId, newId]
+          : outcome === 'handoff' || outcome === 'handoff after steer'
+            ? [messageId, ...(steer ? [steer.id] : []), handoffId, newId]
             : [messageId, ...(steer ? [steer.id] : []), newId]
       )
       expect(rows.at(-1)?.data).toEqual({ parts: [{ type: 'text', text: 'New question' }] })
@@ -477,11 +497,18 @@ describe('Agent fork publication', () => {
         expect(agentSessionMessageService.getNativeSessionId(sessionId)).toMatch(/^[\da-f-]{36}$/)
       expect(agentSessionMessageService.getNativeSessionId(sessionId)).not.toBe(sessionId)
       expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
-        outcome === 'commit' || outcome === 'handoff' || outcome === 'after steer' ? 'native-child' : null
+        outcome === 'commit' || outcome === 'handoff' || outcome === 'after steer' || outcome === 'handoff after steer'
+          ? 'native-child'
+          : null
       )
       expect(agentSessionService.getById(sessionId).workspace.path).toBe(directory)
       await new AgentSessionForkOperations().recover()
-      if (outcome === 'commit' || outcome === 'handoff' || outcome === 'after steer') {
+      if (
+        outcome === 'commit' ||
+        outcome === 'handoff' ||
+        outcome === 'after steer' ||
+        outcome === 'handoff after steer'
+      ) {
         expect(rows[0].data.parts).toEqual([{ type: 'text', text: 'Preserved answer' }])
         expect(await readFile(publishedFile, 'utf8')).toBe('native child history')
       } else {
@@ -498,7 +525,9 @@ describe('Agent fork publication', () => {
       for (const row of tail) expect(() => agentSessionMessageService.getSessionMessage(sessionId, row.id)).toThrow()
       expect(rows.at(-1)?.siblings).toEqual([newId])
       expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe(
-        outcome === 'commit' || outcome === 'handoff' || outcome === 'after steer' ? 'native-child' : null
+        outcome === 'commit' || outcome === 'handoff' || outcome === 'after steer' || outcome === 'handoff after steer'
+          ? 'native-child'
+          : null
       )
     } else {
       await expect(operation).rejects.toThrow()
