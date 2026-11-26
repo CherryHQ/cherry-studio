@@ -36,6 +36,7 @@ import {
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import { ipcApi } from '@renderer/ipc'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { COMPOSER_FILE_KIND, type ComposerFileKind } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
@@ -1095,7 +1096,31 @@ export function ReferenceComposerToken(props: ComposerTokenProps) {
 
 export function QuoteComposerToken(props: ComposerTokenProps) {
   const quoteTooltipContent = getQuoteTooltipContent(props.token.description, props.token.promptText)
-  const tokenElement = renderActiveComposerTokenElement({ ...props, icon: tokenIconByKind.quote })
+  const { t } = useTranslation()
+  const sourceMessageId = props.token.sourceMessageId
+  const locateQuote = () => void EventEmitter.emit(EVENT_NAMES.LOCATE_QUOTED_MESSAGE, sourceMessageId)
+  const tokenElement = renderActiveComposerTokenElement({
+    ...props,
+    icon: tokenIconByKind.quote,
+    className: cn(sourceMessageId && 'cursor-pointer hover:underline focus-visible:underline', props.className),
+    interactionProps: sourceMessageId
+      ? {
+          role: 'link',
+          tabIndex: 0,
+          'aria-label': t('chat.input.locate_editing_message'),
+          onClick: (event) => {
+            stopTokenActionEvent(event)
+            locateQuote()
+          },
+          onKeyDown: (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            event.stopPropagation()
+            locateQuote()
+          }
+        }
+      : undefined
+  })
 
   if (!quoteTooltipContent) return tokenElement
 
@@ -1107,7 +1132,7 @@ export function QuoteComposerToken(props: ComposerTokenProps) {
       delayDuration={300}
       showArrow={false}
       contentProps={{ className: QUOTE_TOOLTIP_CONTENT_CLASS_NAME }}
-      triggerProps={props.readOnly ? { tabIndex: 0, 'aria-label': props.token.label } : undefined}>
+      triggerProps={props.readOnly && !sourceMessageId ? { tabIndex: 0, 'aria-label': props.token.label } : undefined}>
       {tokenElement}
     </NormalTooltip>
   )

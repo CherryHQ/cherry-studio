@@ -1,4 +1,8 @@
-import { awaitWithContext, type Context } from '@earendil-works/chord/context'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import { awaitWithContext, BACKGROUND_CONTEXT, type Context } from '@earendil-works/chord/context'
 import { copyJson, type JsonRepresentation } from '@earendil-works/chord/json'
 import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai'
 import {
@@ -6,6 +10,7 @@ import {
   defineExtension,
   defineTask,
   defineTool,
+  Harness,
   MemoryStorage,
   StorageRequestError,
   type ConversationRecord,
@@ -13,13 +18,14 @@ import {
   type Storage,
   type ToolExecutionApi
 } from '@earendil-works/pi-durable'
+import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
 import { createScriptedHost, encodeEntry } from '@cherrystudio/agent-behavior'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
-import { createPiDurableRuntime, type PiDurableThreadHandle } from '../src'
+import { createPiDurableRuntime, readDurableWork, recoveryIndex, type PiDurableThreadHandle } from '../src'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -114,6 +120,72 @@ const owner = defineTask<null, { phase: 'run' }, null>({
   },
   async abort(_task, api, context) {
     await api.commit(async () => ({ status: 'terminal', outcome: { status: 'aborted' } }), context)
+  }
+})
+
+it('finishes the legacy inventory after an interrupted first indexed reopen', async () => {
+  const ctx = BACKGROUND_CONTEXT
+  const directory = await mkdtemp(join(tmpdir(), 'durable-inventory-'))
+  onTestFinished(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'store.sqlite')
+  const registry = createRegistry()
+  registry.install(defineExtension({ name: 'review-child-owner', tasks: [owner] }))
+  const storage = await openNodeSqliteStorage(path)
+  const models = createModels()
+  const faux = fauxProvider()
+  models.setProvider(faux.provider)
+  faux.setResponses([fauxAssistantMessage('unarchived child answer')])
+  const harness = await Harness.open(storage, { registry, models }, ctx)
+  const a = await harness.createConversation({ ownership: { kind: 'ownerless' } }, ctx)
+  const b = await harness.createConversation({ ownership: { kind: 'ownerless' } }, ctx)
+  const goal = {
+    id: 'a',
+    revision: 1,
+    objective: 'finish',
+    phase: 'active' as const,
+    roundsStarted: 0,
+    progressRounds: 0,
+    maxGoalRounds: 2,
+    tokensUsed: 0,
+    costUsed: 0,
+    wrapUpDone: false,
+    armed: true,
+    createdAt: 1,
+    updatedAt: 1
+  }
+  const head = await harness.commit((tx) => tx.appendEntry(a.id, { kind: 'cherry.goal', data: goal }), ctx)
+  const { child, task } = await harness.commit(async (tx) => {
+    await tx.forkConversation(a.id, head.id, { ownership: { kind: 'ownerless' } })
+    const task = await tx.createTask(owner, null, { conversationId: b.id, ownership: { kind: 'conversation' } })
+    const child = await tx.createConversation({ ownership: { kind: 'task', taskId: task } })
+    return { task, child }
+  }, ctx)
+  const childHandle = (await harness.conversation(child.id, ctx))!
+  await childHandle.configure({ model: { provider: 'faux', modelId: 'faux-1' } }, ctx)
+  const submission = await childHandle.submit({ type: 'input', content: 'Run child', whenBusy: 'reject' }, ctx)
+  expect((await submission.wait(ctx)).status).toBe('done')
+  await harness.waitForTask(task, ctx)
+  const required = [String(a.id), String(b.id), String(child.id)].sort()
+  try {
+    expect([...(await readDurableWork(storage)).roots.keys()].sort()).toEqual(required)
+    expect([...(await readDurableWork(storage, () => false)).roots.keys()]).toEqual([String(a.id)])
+    // This is the first root's committed onOpen disarm, before bind commits initialized=true.
+    await harness.commit(async (tx) => {
+      await tx.appendEntry(a.id, { kind: 'cherry.goal', data: { ...goal, revision: 2, armed: false } })
+      const index = await tx.doc(recoveryIndex)
+      index.behavior[a.id] = true
+      index.behavior[b.id] = true
+      index.archives[child.id] = true
+    }, ctx)
+  } finally {
+    await harness.close(ctx)
+  }
+  const reopened = await openNodeSqliteStorage(path)
+  try {
+    expect([...(await readDurableWork(reopened)).roots.keys()].sort()).toEqual(required)
+    expect([...(await readDurableWork(reopened, () => false)).roots.keys()]).toEqual([String(a.id)])
+  } finally {
+    await reopened.close(ctx)
   }
 })
 
@@ -526,7 +598,7 @@ it.each(['settled', 'shutdown'] as const)('joins admitted relation delivery befo
   await expect
     .poll(() =>
       events.some((event) =>
-        (event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []).some(
+        (event.type === 'snapshot' ? event.messages : event.type === 'message.reconcile' ? [event.message] : []).some(
           (message) => message.parts.some((part) => part.type === 'text' && part.text === 'parent finished')
         )
       )

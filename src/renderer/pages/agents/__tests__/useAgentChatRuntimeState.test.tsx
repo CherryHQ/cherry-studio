@@ -23,6 +23,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type * as ToastServiceModule from '@renderer/services/toast'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
+import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { AGENT_SESSION_CLOSING_CACHE_KEY } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
@@ -34,15 +35,14 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
-  seedReservedMessages: vi.fn(),
-  replaceMessageTail: vi.fn(),
+  revalidate: vi.fn(),
+  refreshReservedMessages: vi.fn(),
   deleteSessionMessage: vi.fn(),
   useAgentSessionParts: vi.fn(),
   useChatWithHistory: vi.fn(),
-  useExecutionOverlay: vi.fn(),
-  disposeOverlay: vi.fn(),
-  resetOverlay: vi.fn(),
-  useTopicOverlayHandoffOnTerminal: vi.fn(),
+  useHistoryReplies: vi.fn(),
+  useTopicCompletion: vi.fn(),
+  useTopicSpeech: vi.fn(),
   sendTurn: vi.fn(),
   streamOpen: vi.fn(),
   streamListeners: new Map<string, Set<(payload: unknown) => void>>(),
@@ -52,7 +52,6 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
   translate: vi.fn((key: string) => key),
   chatStop: vi.fn(),
-  chatSetMessages: vi.fn(),
   respondToolApproval: vi.fn(),
   invalidateMessages: vi.fn(),
   toastWarning: vi.fn(),
@@ -92,9 +91,9 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: mocks.useChatWithHistory
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: mocks.useExecutionOverlay
-}))
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({ useHistoryReplies: mocks.useHistoryReplies }))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({ useTopicCompletion: mocks.useTopicCompletion }))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({ useTopicSpeech: mocks.useTopicSpeech }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: () => [mocks.autoReadEnabled, vi.fn()]
@@ -114,8 +113,7 @@ vi.mock('@renderer/hooks/useConversationTurnController', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicOverlayHandoffOnTerminal: mocks.useTopicOverlayHandoffOnTerminal
+  useTopicStreamStatus: () => ({ isPending: false })
 }))
 
 vi.mock('@renderer/services/messageUiStateCache', () => ({
@@ -244,6 +242,24 @@ describe('useAgentChatRuntimeState', () => {
     expect(result.current.editing).toMatchObject(draft)
   })
 
+  it.each([{ reserved: [] }, { reserved: [assistantMessage] }])(
+    'revalidates the selected branch once after an accepted edit',
+    async ({ reserved }) => {
+      const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+        '@renderer/hooks/useConversationTurnController'
+      )
+      mocks.controllerOptions.mockImplementation(useConversationTurnController)
+      mocks.editTarget.mockResolvedValue({ messageId: 'old-user', version: 'v1', parts: [] })
+      mocks.editResend.mockResolvedValue({ mode: 'started', reservedMessages: reserved })
+      const { result } = renderHook(() =>
+        useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+      )
+      await act(() => result.current.startEditing('old-user'))
+      await act(async () => expect(await result.current.resendEditedMessage({ text: 'replacement' })).toBe(true))
+      expect(mocks.revalidate).toHaveBeenCalledTimes(1)
+    }
+  )
+
   it('reads the published branch before showing its streaming reply', async () => {
     MockUseDataApiUtils.resetMocks()
     const { useAgentSessionParts } = await vi.importActual<typeof AgentSessionPartsModule>(
@@ -314,10 +330,10 @@ describe('useAgentChatRuntimeState', () => {
       return { mode: 'started', reservedMessages: reserved }
     })
     mocks.sendTurn.mockImplementation(async (input) => {
-      const { openStream, buildStreamRequest, ensureConversation, historyAdapter } =
+      const { openStream, buildStreamRequest, ensureConversation, onAccepted } =
         mocks.controllerOptions.mock.lastCall![0]
       const ack = await openStream(buildStreamRequest(input, ensureConversation()), input)
-      await historyAdapter.seedReservedMessages(ack.reservedMessages)
+      await onAccepted(ack, input)
       return true
     })
     const { result, rerender } = renderHook(() =>
@@ -353,11 +369,9 @@ describe('useAgentChatRuntimeState', () => {
       'replacement-user',
       'replacement-answer'
     ])
-    mocks.useExecutionOverlay.mockReturnValue({
-      ...mocks.useExecutionOverlay(),
-      overlay: { 'replacement-answer': [{ type: 'text', text: 'New response in progress' }] },
-      liveAssistants: [{ ...reserved[1], parts: [{ type: 'text', text: 'New response in progress' }] }]
-    })
+    mocks.useHistoryReplies.mockReturnValue([
+      { ...reserved[1], parts: [{ type: 'text', text: 'New response in progress' }] }
+    ])
     rerender()
     expect(result.current.uiMessages.map((message) => message.id)).toEqual([
       'earlier-user',
@@ -365,7 +379,7 @@ describe('useAgentChatRuntimeState', () => {
       'replacement-user',
       'replacement-answer'
     ])
-    expect(result.current.partsByMessageId['replacement-answer']).toEqual([
+    expect(messagePartsAt(result.current.partsByMessageId, 'replacement-answer')).toEqual([
       { type: 'text', text: 'New response in progress' }
     ])
   })
@@ -605,7 +619,9 @@ describe('useAgentChatRuntimeState', () => {
       'earlier-assistant',
       draft.messageId
     ])
-    expect(result.current.partsByMessageId[draft.messageId]).toEqual([{ type: 'text', text: 'Replacement' }])
+    expect(messagePartsAt(result.current.partsByMessageId, draft.messageId)).toEqual([
+      { type: 'text', text: 'Replacement' }
+    ])
     await act(async () => {
       sending.reject(new Error('Rejected'))
       await resend
@@ -636,7 +652,8 @@ describe('useAgentChatRuntimeState', () => {
     MockUseCacheUtils.resetMocks()
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
     mocks.refresh.mockResolvedValue([assistantMessage])
-    mocks.seedReservedMessages.mockResolvedValue(undefined)
+    mocks.revalidate.mockResolvedValue(undefined)
+    mocks.refreshReservedMessages.mockResolvedValue(undefined)
     mocks.deleteSessionMessage.mockResolvedValue(undefined)
     mocks.chatStop.mockResolvedValue(undefined)
     mocks.sendTurn.mockReset()
@@ -646,39 +663,25 @@ describe('useAgentChatRuntimeState', () => {
     mocks.autoReadEnabled = true
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [assistantMessage],
-      persistedPartsByMessageId: {},
+      persistedPartsByMessageId: { [assistantMessage.id]: assistantMessage.parts },
       isLoading: false,
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
-      seedReservedMessages: mocks.seedReservedMessages,
-      replaceMessageTail: mocks.replaceMessageTail,
+      displayIndex: (id: string) => (id === assistantMessage.id ? 0 : undefined),
+      revalidate: mocks.revalidate,
+      refreshReservedMessages: mocks.refreshReservedMessages,
       deleteMessage: mocks.deleteSessionMessage
     })
     mocks.useChatWithHistory.mockReturnValue({
       activeExecutions: [{ executionId: 'provider::model', anchorMessageId: 'assistant-1' }],
       sendMessage: vi.fn(),
       stop: mocks.chatStop,
-      setMessages: mocks.chatSetMessages,
       status: 'ready',
       error: undefined,
       chat: {}
     })
-    mocks.useExecutionOverlay.mockReturnValue({
-      overlay: {
-        'assistant-1': [
-          {
-            type: 'dynamic-tool',
-            toolCallId: 'tool-1',
-            toolName: 'Agent',
-            state: 'input-available'
-          }
-        ]
-      },
-      liveAssistants: [],
-      disposeOverlay: mocks.disposeOverlay,
-      reset: mocks.resetOverlay
-    })
+    mocks.useHistoryReplies.mockReturnValue([])
 
     Object.defineProperty(window, 'toast', {
       configurable: true,
@@ -724,6 +727,55 @@ describe('useAgentChatRuntimeState', () => {
       expect(Boolean(notification.action)).toBe(canCompact)
     }
   )
+
+  it('observes the selected recovered run while submitting the next turn through the session', () => {
+    const topic = 'agent-session:session-1/context/recovered'
+    MockUseCacheUtils.setSharedCacheValue('agent.session.stream_topic.session-1', topic)
+    renderHook(() =>
+      useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
+    )
+
+    expect(mocks.useChatWithHistory.mock.lastCall?.[0]).toBe(topic)
+    expect(mocks.useTopicCompletion.mock.lastCall?.[0]).toBe(topic)
+    expect(mocks.controllerOptions.mock.lastCall?.[0].ensureConversation()).toEqual({
+      topicId: 'agent-session:session-1'
+    })
+  })
+
+  it.each([true, undefined])('carries a composer follow-up intent (%s) to the stream request', async (followUp) => {
+    const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+      '@renderer/hooks/useConversationTurnController'
+    )
+    mocks.controllerOptions.mockImplementation(useConversationTurnController)
+    mocks.streamOpen.mockImplementationOnce(async (request: { followUp?: boolean }) => {
+      expect(request.followUp).toBe(followUp)
+      return { mode: 'injected', activeExecutions: [], reservedMessages: [] }
+    })
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        agentType: 'pi-durable',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      expect(
+        await result.current.sendMessage(
+          { text: 'Next input' },
+          {
+            body: {
+              agentId: 'agent-1',
+              sessionId: 'session-1',
+              userMessageParts: [{ type: 'text', text: 'Next input' }],
+              ...(followUp ? { followUp } : {})
+            }
+          }
+        )
+      ).toBe(true)
+    })
+  })
 
   it('reports a blocked stream open as not sent', async () => {
     mocks.sendTurn.mockResolvedValueOnce(false)
@@ -838,9 +890,9 @@ describe('useAgentChatRuntimeState', () => {
       }
       toast.closeToast(notification.key)
       await act(async () => {
-        mocks.controllerOptions.mock.lastCall?.[0]?.onAccepted(ack)
+        mocks.controllerOptions.mock.lastCall?.[0]?.onAccepted(ack, { text: '' })
         emitError()
-        mocks.useExecutionOverlay.mock.lastCall?.[2]?.onFinish(execution.executionId, {
+        mocks.useTopicCompletion.mock.lastCall?.[2](execution.executionId, {
           attemptId: execution.attemptId,
           message: { ...message, parts: [{ type: 'data-error', data: error }] },
           isError: true,
@@ -931,7 +983,7 @@ describe('useAgentChatRuntimeState', () => {
           activeExecutions: [execution],
           reservedMessages: [assistantMessage]
         })
-        mocks.seedReservedMessages.mockImplementationOnce(
+        mocks.refreshReservedMessages.mockImplementationOnce(
           () =>
             new Promise((_resolve, reject) => {
               finishStartup = () => reject(new Error('compact startup failed'))
@@ -1048,7 +1100,7 @@ describe('useAgentChatRuntimeState', () => {
       const error = { name: 'Error', message: 'compact execution failed', stack: null }
       const finish = () => {
         if (overlay) {
-          mocks.useExecutionOverlay.mock.lastCall?.[2]?.onFinish(execution.executionId, {
+          mocks.useTopicCompletion.mock.lastCall?.[2](execution.executionId, {
             attemptId: execution.attemptId,
             message: { id: 'compact', role: 'assistant', parts: [{ type: 'data-error', data: error }] },
             isError: true,
@@ -1178,9 +1230,10 @@ describe('useAgentChatRuntimeState', () => {
     renderHook(() =>
       useAgentChatRuntimeState({ sessionId: 'session-1', sessionMessagesEnabled: true, reservedMessages: [] })
     )
-    const onUpdate = mocks.useExecutionOverlay.mock.calls[0]?.[2]?.onUpdate
+    const onUpdate = mocks.useTopicSpeech.mock.calls[0]?.[3]
     await act(async () => {
       onUpdate?.('provider::model', {
+        type: 'snapshot',
         attemptId: 8,
         message: {
           ...assistantMessage,
@@ -1190,15 +1243,25 @@ describe('useAgentChatRuntimeState', () => {
         }
       })
       onUpdate?.('provider::model', {
+        type: 'snapshot',
         attemptId: 9,
         message: {
           ...assistantMessage,
           id: 'manual',
+          partIds: ['hidden', 'text'],
           parts: [
             { type: 'reasoning', text: 'Secret.' },
-            { type: 'text', text: 'Manual answer. ' }
+            { type: 'text', text: 'Manual' }
           ]
         }
+      })
+      onUpdate?.('provider::model', {
+        type: 'text-append',
+        messageId: 'manual',
+        attemptId: 9,
+        partId: 'text',
+        offset: 6,
+        text: ' answer. '
       })
       await Promise.resolve()
       await Promise.resolve()
@@ -1217,7 +1280,7 @@ describe('useAgentChatRuntimeState', () => {
       })
     )
 
-    const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[2]?.onFinish
+    const onFinish = mocks.useTopicCompletion.mock.calls[0]?.[2]
     expect(onFinish).toEqual(expect.any(Function))
     const completed = {
       ...assistantMessage,
@@ -1241,7 +1304,6 @@ describe('useAgentChatRuntimeState', () => {
       eligible: true
     })
     expect(mocks.refresh).not.toHaveBeenCalled()
-    expect(mocks.disposeOverlay).not.toHaveBeenCalled()
   })
 
   it.each(['goal-round', 'background-work'] as const)('skips %s autonomous turns for auto-read', (kind) => {
@@ -1255,12 +1317,13 @@ describe('useAgentChatRuntimeState', () => {
     } as CherryUIMessage
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [autonomous],
-      persistedPartsByMessageId: {},
+      persistedPartsByMessageId: { [autonomous.id]: autonomous.parts },
       isLoading: false,
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
-      seedReservedMessages: mocks.seedReservedMessages,
+      displayIndex: (id: string) => (id === assistantMessage.id ? 0 : undefined),
+      revalidate: mocks.revalidate,
       deleteMessage: mocks.deleteSessionMessage
     })
     renderHook(() =>
@@ -1270,7 +1333,7 @@ describe('useAgentChatRuntimeState', () => {
         reservedMessages: []
       })
     )
-    const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[2]?.onFinish
+    const onFinish = mocks.useTopicCompletion.mock.calls[0]?.[2]
 
     act(() => {
       onFinish?.('provider::model', {
@@ -1306,7 +1369,7 @@ describe('useAgentChatRuntimeState', () => {
           [AGENT_SESSION_TURN_ORIGIN_CACHE_KEY('another-session', assistantMessage.id), { kind: 'background-work' }]
         ]
       })
-      const onFinish = mocks.useExecutionOverlay.mock.calls[0]?.[2]?.onFinish
+      const onFinish = mocks.useTopicCompletion.mock.calls[0]?.[2]
       act(() => {
         onFinish?.('provider::model', {
           attemptId: 9,
@@ -1338,20 +1401,15 @@ describe('useAgentChatRuntimeState', () => {
   })
 
   it('merges live assistant metadata into displayed session messages', () => {
-    mocks.useExecutionOverlay.mockReturnValue({
-      overlay: {},
-      liveAssistants: [
-        {
-          ...assistantMessage,
-          metadata: {
-            ...assistantMessage.metadata,
-            totalTokens: 256
-          }
-        } as CherryUIMessage
-      ],
-      disposeOverlay: mocks.disposeOverlay,
-      reset: mocks.resetOverlay
-    })
+    mocks.useHistoryReplies.mockReturnValue([
+      {
+        ...assistantMessage,
+        metadata: {
+          ...assistantMessage.metadata,
+          totalTokens: 256
+        }
+      } as CherryUIMessage
+    ])
 
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
@@ -1541,10 +1599,7 @@ describe('useAgentChatRuntimeState', () => {
       messages: [{ ...assistantMessage, parts: [liveAnswer] }],
       persistedPartsByMessageId: { 'assistant-1': [makeAskUserQuestionPart()] }
     })
-    mocks.useExecutionOverlay.mockReturnValue({
-      ...mocks.useExecutionOverlay(),
-      overlay: { 'assistant-1': [liveAnswer] }
-    })
+    mocks.useHistoryReplies.mockReturnValue([{ ...assistantMessage, parts: [liveAnswer] }])
     rerender()
     expect(readAskUserQuestionDraftCache('approval-ask').selectedAnswers[0]).toEqual(['Winston'])
 
@@ -1563,15 +1618,11 @@ describe('useAgentChatRuntimeState', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
-      seedReservedMessages: mocks.seedReservedMessages,
+      displayIndex: (id: string) => (id === assistantMessage.id ? 0 : undefined),
+      revalidate: mocks.revalidate,
       deleteMessage: mocks.deleteSessionMessage
     })
-    mocks.useExecutionOverlay.mockReturnValue({
-      overlay: {},
-      liveAssistants: [],
-      disposeOverlay: mocks.disposeOverlay,
-      reset: mocks.resetOverlay
-    })
+    mocks.useHistoryReplies.mockReturnValue([])
     await act(async () => {
       rerender()
     })
@@ -1587,12 +1638,7 @@ describe('useAgentChatRuntimeState', () => {
   it('evicts the AskUserQuestion draft cache from persisted parts after a remount or session change', async () => {
     // The settlement happened in a previous mount/session, so this mount never
     // dispatched the approval and holds no optimistic ids to sweep from.
-    mocks.useExecutionOverlay.mockReturnValue({
-      overlay: {},
-      liveAssistants: [],
-      disposeOverlay: mocks.disposeOverlay,
-      reset: mocks.resetOverlay
-    })
+    mocks.useHistoryReplies.mockReturnValue([])
     mocks.useAgentSessionParts.mockReturnValue({
       messages: [
         {
@@ -1607,7 +1653,8 @@ describe('useAgentChatRuntimeState', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: mocks.refresh,
-      seedReservedMessages: mocks.seedReservedMessages,
+      displayIndex: (id: string) => (id === assistantMessage.id ? 0 : undefined),
+      revalidate: mocks.revalidate,
       deleteMessage: mocks.deleteSessionMessage
     })
     writeAskUserQuestionDraftCache('approval-ask', {

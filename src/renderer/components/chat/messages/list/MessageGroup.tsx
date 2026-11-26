@@ -7,6 +7,7 @@ import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { scrollIntoView } from '@renderer/utils/dom'
+import { type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -41,7 +42,8 @@ function normalizeWheelDelta(delta: number, deltaMode: number, pageSize: number)
 
 interface Props {
   messages: MessageListItem[]
-  partsByMessageId?: Record<string, CherryMessagePart[]> | null
+  partsByMessageId?: MessagePartRows | null
+  quoteTopicId?: string
   captureMode?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
   isLatestAssistantGroup?: boolean
@@ -71,6 +73,7 @@ function pickPreferredSelectedMessage(
 const MessageGroup = ({
   messages,
   partsByMessageId,
+  quoteTopicId,
   captureMode = false,
   registerMessageElement,
   isLatestAssistantGroup = false,
@@ -284,13 +287,38 @@ const MessageGroup = ({
         : Math.abs(horizontalWheelDelta) > Math.abs(verticalWheelDelta)
           ? horizontalWheelDelta
           : 0
+      if (horizontalDelta !== 0) {
+        for (let scroller = target; scroller && scroller !== groupContainer; scroller = scroller.parentElement) {
+          const limit = scroller.scrollWidth - scroller.clientWidth
+          if (limit <= 0) continue
+          const { overflowX, overscrollBehaviorX, direction } = getComputedStyle(scroller)
+          if (!/^(auto|scroll|overlay)$/.test(overflowX)) continue
+          const position = direction === 'rtl' ? limit + scroller.scrollLeft : scroller.scrollLeft
+          const canScroll = horizontalDelta < 0 ? position > 0 : Math.ceil(position) < limit
+          if (!canScroll && overscrollBehaviorX !== 'contain' && overscrollBehaviorX !== 'none') continue
+
+          // A shifted vertical wheel is not translated to horizontal scrolling on every platform.
+          if (event.shiftKey && horizontalWheelDelta === 0) {
+            event.preventDefault()
+            event.stopPropagation()
+            if (canScroll)
+              scroller.scrollLeft += normalizeWheelDelta(event.deltaY, event.deltaMode, scroller.clientWidth)
+          }
+          return
+        }
+      }
+
       const inMessageColumn = Boolean(target?.closest('.message-content-container'))
 
       // Column owns vertical while it can scroll. At its boundary the group's
       // overflow-y:hidden blocks chaining, so forward vertical-dominant wheels
       // to the list runtime — but keep dominant-horizontal pans on the row.
       if (inMessageColumn) {
-        if (verticalWheelDelta !== 0 && findVerticalWheelConsumer(target, verticalWheelDelta, groupContainer)) {
+        if (
+          !event.shiftKey &&
+          verticalWheelDelta !== 0 &&
+          findVerticalWheelConsumer(target, verticalWheelDelta, groupContainer)
+        ) {
           return
         }
         if (horizontalDelta === 0) {
@@ -342,7 +370,9 @@ const MessageGroup = ({
         lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
         messageTail: messageTail?.messageId === message.id ? messageTail.content : undefined,
         message,
-        messageParts: partsByMessageId ? (partsByMessageId[message.id] ?? EMPTY_MESSAGE_PARTS) : undefined,
+        messageParts: partsByMessageId
+          ? (messagePartsAt(partsByMessageId, message.id) ?? EMPTY_MESSAGE_PARTS)
+          : undefined,
         index
       } satisfies ComponentProps<typeof MessageItem>
 
@@ -373,9 +403,13 @@ const MessageGroup = ({
             key={message.id}
             trigger={gridPopoverTrigger}
             content={
-              <SelectionContextMenu openBrowserUrl={actions.openBrowserUrl}>
+              <SelectionContextMenu
+                openBrowserUrl={actions.openBrowserUrl}
+                quoteTopicId={quoteTopicId}
+                replyDisabled={isMultiSelectMode}>
                 <MessageWrapper
                   tabIndex={0}
+                  data-message-id={message.id}
                   className={classNames([
                     'in-popover',
                     {
@@ -396,6 +430,8 @@ const MessageGroup = ({
     },
     [
       actions.openBrowserUrl,
+      isMultiSelectMode,
+      quoteTopicId,
       isGrid,
       isGrouped,
       isMultiModelGroup,
@@ -578,12 +614,12 @@ function messageArrayShallowEqual(a: MessageListItem[], b: MessageListItem[]): b
 }
 
 function messagePartsShallowEqual(
-  previous: Record<string, CherryMessagePart[]> | null | undefined,
-  next: Record<string, CherryMessagePart[]> | null | undefined,
+  previous: MessagePartRows | null | undefined,
+  next: MessagePartRows | null | undefined,
   messages: MessageListItem[]
 ): boolean {
   if (previous === next) return true
-  return messages.every((message) => previous?.[message.id] === next?.[message.id])
+  return messages.every((message) => messagePartsAt(previous, message.id) === messagePartsAt(next, message.id))
 }
 
 // Custom comparator: bail out only when latest flag / derived model map /

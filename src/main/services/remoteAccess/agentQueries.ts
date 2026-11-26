@@ -118,82 +118,88 @@ export function projectMessageParts(
   message: { id: string; parts: CherryMessagePart[]; modelId?: string | null },
   revision: string
 ): ProjectedPart[] {
+  return message.parts.flatMap((part, index) =>
+    projectMessagePart(part, `${message.id}:${index}`, revision, message.modelId)
+  )
+}
+
+export function projectMessagePart(
+  part: CherryMessagePart,
+  partId: string,
+  revision: string,
+  modelId?: string | null
+): ProjectedPart[] {
   const projected: ProjectedPart[] = []
-  message.parts.forEach((part: CherryMessagePart, index) => {
-    const partId = `${message.id}:${index}`
-    if (part.type === 'text' || part.type === 'reasoning') {
+  if (part.type === 'text' || part.type === 'reasoning') {
+    projected.push({
+      part: {
+        partId,
+        revision,
+        kind: part.type,
+        content: contentOf(partId, revision, part.text),
+        state: 'completed'
+      },
+      text: part.text
+    })
+  } else if (isToolUIPart(part)) {
+    const input = JSON.stringify(part.input ?? null)
+    projected.push({
+      part: {
+        partId: `${partId}:in`,
+        revision,
+        kind: 'tool-input',
+        toolName: getToolName(part),
+        toolCallId: part.toolCallId,
+        content: contentOf(`${partId}:in`, revision, input),
+        state: 'completed'
+      },
+      text: input
+    })
+    if (part.state === 'output-available' || part.state === 'output-error') {
+      const output = JSON.stringify(part.state === 'output-error' ? part.errorText : (part.output ?? null))
       projected.push({
+        part: {
+          partId: `${partId}:out`,
+          revision,
+          kind: 'tool-output',
+          toolName: getToolName(part),
+          toolCallId: part.toolCallId,
+          content: contentOf(`${partId}:out`, revision, output),
+          state: part.state === 'output-error' ? 'failed' : 'completed'
+        },
+        text: output
+      })
+    }
+  } else if (part.type === 'data-error') {
+    const failure = toExecutionFailure(part.data as SerializedError, modelId ?? undefined)
+    projected.push(
+      dataPart(partId, revision, 'data-error', { data: { message: failure.message, executionFailure: failure } })
+    )
+  } else if (part.type === 'file') {
+    const metadata = readCherryMeta(part)?.remoteAttachment
+    if (metadata && readCherryMeta(part)?.fileEntryId) {
+      projected.push({
+        text: '',
         part: {
           partId,
           revision,
-          kind: part.type,
-          content: contentOf(partId, revision, part.text),
-          state: 'completed'
-        },
-        text: part.text
-      })
-    } else if (isToolUIPart(part)) {
-      const input = JSON.stringify(part.input ?? null)
-      projected.push({
-        part: {
-          partId: `${partId}:in`,
-          revision,
-          kind: 'tool-input',
-          toolName: getToolName(part),
-          toolCallId: part.toolCallId,
-          content: contentOf(`${partId}:in`, revision, input),
-          state: 'completed'
-        },
-        text: input
-      })
-      if (part.state === 'output-available' || part.state === 'output-error') {
-        const output = JSON.stringify(part.state === 'output-error' ? part.errorText : (part.output ?? null))
-        projected.push({
-          part: {
-            partId: `${partId}:out`,
+          kind: 'file',
+          name: part.filename || 'file',
+          ref: {
+            contentId: partId,
             revision,
-            kind: 'tool-output',
-            toolName: getToolName(part),
-            toolCallId: part.toolCallId,
-            content: contentOf(`${partId}:out`, revision, output),
-            state: part.state === 'output-error' ? 'failed' : 'completed'
-          },
-          text: output
-        })
-      }
-    } else if (part.type === 'data-error') {
-      const failure = toExecutionFailure(part.data as SerializedError, message.modelId ?? undefined)
-      projected.push(
-        dataPart(partId, revision, 'data-error', { data: { message: failure.message, executionFailure: failure } })
-      )
-    } else if (part.type === 'file') {
-      const metadata = readCherryMeta(part)?.remoteAttachment
-      if (metadata && readCherryMeta(part)?.fileEntryId) {
-        projected.push({
-          text: '',
-          part: {
-            partId,
-            revision,
-            kind: 'file',
-            name: part.filename || 'file',
-            ref: {
-              contentId: partId,
-              revision,
-              byteLength: String(metadata.byteLength),
-              mediaType: part.mediaType,
-              sha256: metadata.sha256
-            }
+            byteLength: String(metadata.byteLength),
+            mediaType: part.mediaType,
+            sha256: metadata.sha256
           }
-        })
-      } else
-        projected.push(
-          dataPart(partId, revision, 'file', { mediaType: part.mediaType, filename: part.filename ?? null })
-        )
-    } else if (part.type !== 'step-start') {
-      const { type, ...rest } = part as { type: string }
-      projected.push(dataPart(partId, revision, type, rest))
-    }
-  })
+        }
+      })
+    } else
+      projected.push(dataPart(partId, revision, 'file', { mediaType: part.mediaType, filename: part.filename ?? null }))
+  } else if (part.type !== 'step-start') {
+    const { type, ...rest } = part as { type: string }
+    projected.push(dataPart(partId, revision, type, rest))
+  }
   return projected
 }
 

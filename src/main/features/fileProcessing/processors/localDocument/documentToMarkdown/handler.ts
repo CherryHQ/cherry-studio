@@ -4,7 +4,12 @@ import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { inspectPdfText, isScannedPdfError } from '@main/utils/pdfText'
+import {
+  extractPdfTextLayerMarkdown,
+  inspectPdfText,
+  isMalformedPdfError,
+  isScannedPdfError
+} from '@main/utils/pdfText'
 
 import type { FileProcessingCapabilityHandler } from '../../types'
 import { ocrPdfPagesToMarkdown } from '../pdfPageOcr'
@@ -61,7 +66,21 @@ export const localDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'do
       mode: 'background',
       async execute(executionContext) {
         if (!hasTextlessPages) {
-          const anydocMarkdown = await convertWithAnydoc(pdfBytes)
+          let anydocMarkdown: string | null
+          try {
+            anydocMarkdown = await convertWithAnydoc(pdfBytes)
+          } catch (error) {
+            if (isMalformedPdfError(error)) {
+              const reason = error instanceof Error ? error.message : String(error)
+              logger.warn(`anydoc rejected PDF as malformed (${reason}); falling back to pdfjs text layer`, {
+                pageCount
+              })
+              const markdownContent = await extractPdfTextLayerMarkdown(pdfBytes)
+              executionContext.reportProgress(100)
+              return { kind: 'markdown', markdownContent }
+            }
+            throw error
+          }
 
           if (anydocMarkdown !== null) {
             executionContext.reportProgress(100)
@@ -91,8 +110,8 @@ async function convertWithAnydoc(pdfBytes: Uint8Array): Promise<string | null> {
     if (isScannedPdfError(error)) {
       return null
     }
-    // Encrypted and malformed PDFs are equally unreadable to the rasterizer, so
-    // there is nothing to gain from spending minutes on OCR before failing.
+    // Non-OCR errors (encrypted, io, etc.) cannot be rescued by OCR; malformed
+    // is also rethrown here so execute() can fall back to the verified text layer.
     throw error
   }
 }
