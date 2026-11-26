@@ -314,6 +314,20 @@ describe('structured memory disk protection', () => {
     expect((await store.read(caller, topic)).content).toBe('Current fact')
   })
 
+  it('checks the controlled save time even when the reverse backup is newer than a clear marker', async () => {
+    const topic = '.memories/topic.md'
+    await save(topic, 'First version')
+    const edit = await save(topic, 'Second version')
+    const batch = (await memoryBackups.latestMemoryBackup(backups, edit.batchId!))!
+    await store.recover(caller, (await store.previewRecovery(caller))!.token, approve)
+    await writeFile(path.join(root, 'MEMORY.md'), encode({ ...entry, clearedAt: batch.createdAt }))
+
+    const preview = (await store.previewRecovery(caller))!
+    expect(preview.files).toMatchObject([{ path: topic, conflict: true }])
+    await expect(store.recover(caller, preview.token, approve)).rejects.toMatchObject({ code: 'conflict' })
+    expect((await store.read(caller, topic)).content).toBe('First version')
+  })
+
   it('rechecks the entire scope under the lock after approval', async () => {
     const read = await store.read(caller, 'MEMORY.md')
     await expect(
@@ -617,27 +631,37 @@ describe('limits, access, and recovery', () => {
     expect(entriesIn(parseMemoryEntries((await store.read(fresh, 'MEMORY.md')).content!))[0].status).toBe('forgotten')
   })
 
-  it('restores the first controlled version of a topic edited after clear', async () => {
-    await save('MEMORY.md', 'Forgotten fact')
-    await store.clear(caller, (await store.previewClear(caller)).token, approve)
-    const marker = (await store.read(caller, 'MEMORY.md')).content
-    const fresh = access()
-    const path = '.memories/new.md'
-    for (const content of ['First version', 'Second version']) {
-      const { receipt } = await store.modelRead(fresh, path)
-      await store.commit(fresh, [{ kind: 'write', receipt, content }], 'controlled', approve)
-    }
+  it.each([false, true])(
+    'restores both controlled versions of a topic edited after clear (legacy reverse: %s)',
+    async (legacy) => {
+      await save('MEMORY.md', 'Forgotten fact')
+      await store.clear(caller, (await store.previewClear(caller)).token, approve)
+      const marker = (await store.read(caller, 'MEMORY.md')).content
+      const fresh = access()
+      const path = '.memories/new.md'
+      for (const content of ['First version', 'Second version']) {
+        const { receipt } = await store.modelRead(fresh, path)
+        await store.commit(fresh, [{ kind: 'write', receipt, content }], 'controlled', approve)
+      }
 
-    store = new MemoryStore(root, backups)
-    const preview = await store.previewRecovery(caller)
-    expect(preview!.files).toMatchObject([{ path, conflict: false }])
-    await expect(store.recover(caller, preview!.token, approve)).resolves.toMatchObject({
-      files: [{ path, outcome: 'applied' }]
-    })
-    expect((await store.modelRead(fresh, path)).content).toBe('First version')
-    expect((await store.read(caller, 'MEMORY.md')).content).toBe(marker)
-    expect((await store.modelRead(fresh, 'MEMORY.md', 'historical')).content).not.toContain('Forgotten fact')
-  })
+      for (const expected of ['First version', 'Second version']) {
+        store = new MemoryStore(root, backups)
+        const preview = await store.previewRecovery(caller)
+        expect(preview!.files).toMatchObject([{ path, conflict: false }])
+        await expect(store.recover(caller, preview!.token, approve)).resolves.toMatchObject({
+          files: [{ path, outcome: 'applied' }]
+        })
+        expect((await store.modelRead(fresh, path)).content).toBe(expected)
+        expect((await store.read(caller, 'MEMORY.md')).content).toBe(marker)
+        expect((await store.modelRead(fresh, 'MEMORY.md', 'historical')).content).not.toContain('Forgotten fact')
+        if (legacy && expected === 'First version') {
+          const reverse = (await memoryBackups.latestMemoryBackup(backups))!
+          delete reverse.steps[0].controlledSaveAt
+          await memoryBackups.saveMemoryBackup(backups, reverse)
+        }
+      }
+    }
+  )
 
   it('refuses a model receipt for a casing alias on a case-insensitive volume', async () => {
     await save('.memories/Topic.md', 'Existing topic')
