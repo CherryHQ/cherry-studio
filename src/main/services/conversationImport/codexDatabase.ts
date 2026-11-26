@@ -1,72 +1,16 @@
 import { createHash } from 'node:crypto'
-import { lstat, open } from 'node:fs/promises'
 import path from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
-import { pathToFileURL } from 'node:url'
 
 import * as z from 'zod'
 
 import { formatCodexHistoryText, formatCodexTool, isCodexContextText } from '@data/services/importedCodexText'
 import type { MessageData } from '@shared/data/types/message'
 
+import { queryReadonlyDatabase, statIfPresent } from './readonlySqlite'
 import { IMPORT_LIMITS, type NormalizedMessage, type NormalizedSession, type SessionRef } from './types'
 
 export const CODEX_HISTORY_DB = 'thread_history_1.sqlite'
 const stateFile = 'state_5.sqlite'
-const missing = (error: unknown) => (error as NodeJS.ErrnoException)?.code === 'ENOENT'
-
-async function statIfPresent(file: string) {
-  try {
-    return await lstat(file)
-  } catch (error) {
-    if (!missing(error)) throw error
-    return undefined
-  }
-}
-
-// A clean close can leave a WAL header without sidecars. Read that checkpoint without creating files.
-async function queryDatabase<T>(file: string, query: (db: DatabaseSync) => T): Promise<T> {
-  const before = await lstat(file, { bigint: true })
-  if (!before.isFile() || before.isSymbolicLink()) throw new Error('source_changed')
-  const wal = await statIfPresent(file + '-wal')
-  const shm = await statIfPresent(file + '-shm')
-  if ((wal || shm) && (!wal?.isFile() || !shm?.isFile())) throw new Error('unsupported_readonly_wal')
-  let checkpoint = false
-  if (!wal && !shm) {
-    const handle = await open(file, 'r')
-    try {
-      const header = Buffer.alloc(20)
-      await handle.read(header, 0, header.length, 0)
-      checkpoint = header[18] === 2
-    } finally {
-      await handle.close()
-    }
-  }
-  const url = pathToFileURL(file)
-  url.searchParams.set('mode', 'ro')
-  if (checkpoint) url.searchParams.set('immutable', '1')
-  const db = new DatabaseSync(url.href, { readOnly: true })
-  try {
-    db.exec('PRAGMA trusted_schema = OFF; BEGIN')
-    const result = query(db)
-    if (checkpoint) {
-      const after = await lstat(file, { bigint: true })
-      if (
-        before.ino !== after.ino ||
-        before.size !== after.size ||
-        before.mtimeNs !== after.mtimeNs ||
-        before.ctimeNs !== after.ctimeNs ||
-        (await statIfPresent(file + '-wal')) ||
-        (await statIfPresent(file + '-shm'))
-      )
-        throw new Error('source_changed')
-    }
-    return result
-  } finally {
-    db.close()
-  }
-}
-
 interface ThreadMetadata {
   title: string
   cwd: string
@@ -78,7 +22,7 @@ async function metadataFor(history: string, ids: string[]) {
   const metadata = new Map<string, ThreadMetadata>()
   const file = path.join(path.dirname(history), stateFile)
   if (!(await statIfPresent(file))) return metadata
-  await queryDatabase(file, (db) => {
+  await queryReadonlyDatabase(file, (db) => {
     const columns = new Set(
       db
         .prepare('PRAGMA table_info(threads)')
@@ -115,7 +59,7 @@ function isGuardian(meta?: ThreadMetadata) {
 export async function databaseCandidates(root: string, rolloutIds: ReadonlySet<string>, signal: AbortSignal) {
   const file = path.join(root, CODEX_HISTORY_DB)
   if (!(await statIfPresent(file))) return []
-  const ids = await queryDatabase(file, (db) =>
+  const ids = await queryReadonlyDatabase(file, (db) =>
     db
       .prepare('SELECT DISTINCT thread_id FROM thread_items ORDER BY thread_id LIMIT 10001')
       .all()
@@ -260,7 +204,7 @@ export async function readDatabaseSession(ref: SessionRef, signal: AbortSignal):
     skippedRecords: 0,
     downgradedParts: 0
   }
-  await queryDatabase(ref.path, (db) => {
+  await queryReadonlyDatabase(ref.path, (db) => {
     const rows = db.prepare(
       `SELECT item_id, rollout_ordinal, created_at_ms, CASE WHEN octet_length(item_json) <= ? THEN item_json END AS item_json
        FROM thread_items WHERE thread_id = ? ORDER BY rollout_ordinal`
