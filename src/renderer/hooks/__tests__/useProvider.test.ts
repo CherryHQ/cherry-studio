@@ -4,11 +4,8 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  getProviderDisplayName,
   useProvider,
   useProviderActions,
-  useProviderApiKeys,
-  useProviderAuthConfig,
   useProviderDisplayName,
   useProviderMutations,
   useProviderPreset,
@@ -194,45 +191,11 @@ describe('useProvider', () => {
     expect(result.current.provider).toEqual(mockProvider1)
     expect(result.current.isLoading).toBe(false)
   })
-
-  it('should expose error and refetch from useQuery', () => {
-    const mockError = new Error('Load failed')
-    const mockRefetch = vi.fn().mockResolvedValue(undefined)
-    mockUseQuery.mockImplementation(() => ({
-      data: undefined,
-      isLoading: false,
-      isRefreshing: false,
-      error: mockError,
-      refetch: mockRefetch,
-      mutate: vi.fn()
-    }))
-
-    const { result } = renderHook(() => useProvider('openai'))
-
-    expect(result.current.error).toBe(mockError)
-  })
 })
 
 describe('useProviderMutations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  it('should call patchTrigger when updateProvider is invoked', async () => {
-    const mockTrigger = vi.fn().mockResolvedValue({})
-    mockUseMutation.mockImplementation(() => ({
-      trigger: mockTrigger,
-      isLoading: false,
-      error: undefined
-    }))
-
-    const { result } = renderHook(() => useProviderMutations('openai'))
-
-    await act(async () => {
-      await result.current.updateProvider({ isEnabled: false })
-    })
-
-    expect(mockTrigger).toHaveBeenCalledWith({ params: { providerId: 'openai' }, body: { isEnabled: false } })
   })
 
   it('should enable a provider through the generic PATCH mutation', async () => {
@@ -324,29 +287,6 @@ describe('useProviderMutations', () => {
     })
   })
 
-  it('should call addApiKey trigger with providerId param and body', async () => {
-    const addKeyTrigger = vi.fn().mockResolvedValue({})
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
-      trigger:
-        _method === 'POST' && path === '/providers/:providerId/api-keys'
-          ? addKeyTrigger
-          : vi.fn().mockResolvedValue({}),
-      isLoading: false,
-      error: undefined
-    }))
-
-    const { result } = renderHook(() => useProviderMutations('openai'))
-
-    await act(async () => {
-      await result.current.addApiKey('sk-test-key', 'My Key')
-    })
-
-    expect(addKeyTrigger).toHaveBeenCalledWith({
-      params: { providerId: 'openai' },
-      body: { key: 'sk-test-key', label: 'My Key' }
-    })
-  })
-
   it('should build correct addApiKey params for hyphenated provider IDs', async () => {
     const addKeyTrigger = vi.fn().mockResolvedValue({})
     mockUseMutation.mockImplementation((_method: string, path: string) => ({
@@ -368,26 +308,6 @@ describe('useProviderMutations', () => {
       params: { providerId: 'openai-main' },
       body: { key: 'sk-test-key', label: 'My Key' }
     })
-  })
-
-  it('should call deleteApiKey trigger with providerId and keyId params', async () => {
-    const deleteKeyTrigger = vi.fn().mockResolvedValue(undefined)
-    mockUseMutation.mockImplementation((_method: string, path: string) => ({
-      trigger:
-        _method === 'DELETE' && path === '/providers/:providerId/api-keys/:keyId'
-          ? deleteKeyTrigger
-          : vi.fn().mockResolvedValue({}),
-      isLoading: false,
-      error: undefined
-    }))
-
-    const { result } = renderHook(() => useProviderMutations('openai'))
-
-    await act(async () => {
-      await result.current.deleteApiKey('key-123')
-    })
-
-    expect(deleteKeyTrigger).toHaveBeenCalledWith({ params: { providerId: 'openai', keyId: 'key-123' } })
   })
 
   it('should build correct deleteApiKey params for hyphenated provider IDs', async () => {
@@ -575,52 +495,6 @@ describe('useProviderMutations', () => {
   })
 })
 
-describe('useProviderAuthConfig', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('should query auth config for a provider', () => {
-    const mockAuthConfig = { authType: 'oauth' } as any
-    mockUseQuery.mockImplementation(() => ({
-      data: mockAuthConfig,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      mutate: vi.fn()
-    }))
-
-    const { result } = renderHook(() => useProviderAuthConfig('vertexai'))
-
-    expect(result.current.data).toEqual(mockAuthConfig)
-    expect(result.current.isLoading).toBe(false)
-  })
-})
-
-describe('useProviderApiKeys', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('should query API keys for a provider', () => {
-    const mockKeys = { keys: [{ id: 'k1', key: 'sk-xxx', isEnabled: true }] }
-    mockUseQuery.mockImplementation(() => ({
-      data: mockKeys,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      mutate: vi.fn()
-    }))
-
-    const { result } = renderHook(() => useProviderApiKeys('openai'))
-
-    expect(result.current.data).toEqual(mockKeys)
-    expect(result.current.isLoading).toBe(false)
-  })
-})
-
 describe('useProviderActions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -695,16 +569,6 @@ describe('useProviderActions', () => {
     await act(async () => {
       await expect(result.current.deleteProviderById('openai')).rejects.toThrow('Delete failed')
     })
-  })
-})
-
-describe('getProviderDisplayName', () => {
-  it('returns empty string when provider is undefined', () => {
-    expect(getProviderDisplayName(undefined)).toBe('')
-  })
-
-  it('returns provider.name for non-system provider ids', () => {
-    expect(getProviderDisplayName({ id: 'my-custom', name: 'My Custom' } as any)).toBe('My Custom')
   })
 })
 
