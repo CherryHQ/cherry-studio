@@ -84,6 +84,10 @@ Only replies that are still pending are rebuilt; a row already stored with a ter
 
 Boot recovery never marks a `pi-durable` reply as `error` without a Durable outcome; it leaves an admitted delivery turn pending for the runtime to resume. When the recovered Session cannot connect, no runtime can resume the turn, and Main ends it as an error.
 
+Main adopts the resumed input and its reply before the startup delivery sweep. This lets a user follow-up that Durable already accepted open its own reply when placed, even if another Session also has a delivery waiting. The restored snapshot matches saved previews using native task and generation identity, preserving a single copy of interrupted output.
+
+Durable persists whether the running request has an interactive responder. On shutdown Main closes the native runtime before clearing the approval registry. A resumed interactive request can register a new pending approval or question against the restored turn. Requests with no recorded responder stay headless.
+
 ### Delivery
 
 The decision shipped as a Spec-first stack:

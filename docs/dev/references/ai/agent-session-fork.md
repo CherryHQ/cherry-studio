@@ -76,7 +76,8 @@ before connecting; an active connection prevents a cross-branch send.
 
 Claude Code **Edit and resend** reserves the replacement's native identity in the same
 transaction as its input. Editing the first input starts an empty native
-session under that reserved identity. Startup resumes only a verified native
+session under that reserved identity in the backend captured before the original
+reply is removed. Startup resumes only a verified native
 history token from the captured branch; an allocated identity alone is not proof
 that native history exists. Other edits publish their verified native fork before
 startup, and switching the UI selection does not change the captured branch.
