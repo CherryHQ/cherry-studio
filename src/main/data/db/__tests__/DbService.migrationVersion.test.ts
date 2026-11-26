@@ -51,7 +51,6 @@ describe('DbService migration compatibility', () => {
       expect(readFileSync(dbh.sqlite.name)).toEqual(before)
       expect(failure).toMatchObject({ name: 'DatabaseSchemaTooNewError' })
       expect(failure).toBeInstanceOf(FatalStartupError)
-      expect(failure).toMatchObject({ messageKey: 'dialog.database_upgrade_required' })
     } finally {
       getPath.mockRestore()
     }

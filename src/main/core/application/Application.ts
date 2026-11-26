@@ -307,7 +307,7 @@ export class Application {
       await dialog.showMessageBox({
         type: 'error',
         title: app.getName(),
-        message: t(error.cause.messageKey, undefined, language),
+        message: error.cause.localize(language),
         buttons: [t('appMenu.quit', undefined, language)]
       })
       this.forceExit(1)

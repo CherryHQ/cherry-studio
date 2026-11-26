@@ -2,14 +2,14 @@ import type Database from 'better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 
 import { FatalStartupError } from '@main/core/lifecycle'
+import { t } from '@main/i18n'
 
 import { readAppliedChain } from './restore/appliedChain'
 
 export class DatabaseSchemaTooNewError extends FatalStartupError {
   constructor(applied: number, bundled: number) {
-    super(
-      `Database migration ${applied} is newer than the bundled migration ${bundled}`,
-      'dialog.database_upgrade_required'
+    super(`Database migration ${applied} is newer than the bundled migration ${bundled}`, (language) =>
+      t('dialog.database_upgrade_required', undefined, language)
     )
     this.name = 'DatabaseSchemaTooNewError'
   }

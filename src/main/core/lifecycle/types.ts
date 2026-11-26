@@ -1,3 +1,5 @@
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+
 /**
  * Bootstrap phase enumeration
  * Determines when a service should be initialized relative to app.whenReady()
@@ -91,7 +93,7 @@ export type ErrorStrategy = 'fail-fast' | 'graceful' | 'custom'
 export class FatalStartupError extends Error {
   constructor(
     message: string,
-    public readonly messageKey: string
+    public readonly localize: (language: LanguageVarious) => string
   ) {
     super(message)
     this.name = 'FatalStartupError'

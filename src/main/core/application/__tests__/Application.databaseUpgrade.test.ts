@@ -1,6 +1,7 @@
 import { app, dialog } from 'electron'
 import { afterEach, expect, it, vi } from 'vitest'
 
+import { DatabaseSchemaTooNewError } from '@data/db/checkDatabaseVersion'
 import {
   BaseService,
   ErrorHandling,
@@ -34,7 +35,7 @@ it('shows localized upgrade guidance and exits when the database schema is newer
   @ErrorHandling('fail-fast')
   class FatalStartupService extends BaseService {
     protected override onInit(): void {
-      throw new FatalStartupError('An upgrade is required', 'dialog.database_upgrade_required')
+      throw new DatabaseSchemaTooNewError(2, 1)
     }
   }
   ServiceContainer.getInstance().register(FatalStartupService)
