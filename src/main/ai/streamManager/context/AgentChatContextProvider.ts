@@ -474,7 +474,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       const persisted = await runtime.editSession(
         validated.sessionId,
         req.editTarget,
-        (tx, nativeSessionId, nativeContextId) => {
+        (tx, nativeSessionId, nativeContextId, sourceBackendId) => {
           validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
           // Revalidate inside the transaction: fork preparation runs
           // asynchronously, and a cap may have become enforceable for the same
@@ -511,7 +511,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           if (validated.agentType === 'pi')
             reservePiBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
           else if (validated.agentType === 'claude-code')
-            reserveClaudeBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
+            reserveClaudeBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId, sourceBackendId)
           else if (validated.agentType === 'pi-durable')
             reserveDurableBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId, nativeContextId)
           if (validated.agentType !== 'pi-durable' || nativeContextId)
@@ -524,13 +524,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           return result
         }
       )
-      notifyDataApiDataChange([
-        {
-          endpoint: '/agent-sessions/:sessionId/messages',
-          kind: 'projection',
-          routeParams: { sessionId: validated.sessionId }
-        }
-      ])
+      this.notifyReservedMessages(persisted)
       return this.activateDispatch(persisted, subscriber)
     }
 
@@ -548,16 +542,19 @@ export class AgentChatContextProvider implements ChatContextProvider {
       assertDispatchImageLimit(validated.uniqueModelId, validated.userMessageParts, validated.agentType, undefined, {
         hasDelivery: validated.deliveryMessage !== undefined
       })
-      const savedUserMessage = agentSessionMessageService.saveMessage({
-        sessionId: validated.sessionId,
-        parentId: validated.parentMessageId,
-        message: {
-          id: validated.userMessageId,
-          role: 'user',
-          status: 'success',
-          data: { parts: validated.userMessageParts }
-        }
-      })
+      const savedUserMessage = agentSessionMessageService.saveMessage(
+        {
+          sessionId: validated.sessionId,
+          parentId: validated.parentMessageId,
+          message: {
+            id: validated.userMessageId,
+            role: 'user',
+            status: 'success',
+            data: { parts: validated.userMessageParts }
+          }
+        },
+        { publishDataChange: true }
+      )
 
       try {
         application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
@@ -612,6 +609,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
       return reserved
     })
+    this.notifyReservedMessages(persisted)
     try {
       return this.activateDispatch(persisted, subscriber)
     } catch (error) {
@@ -629,6 +627,17 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
       throw error
     }
+  }
+
+  private notifyReservedMessages({ validated, savedMessages }: PersistedAgentDispatch): void {
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'membership',
+        routeParams: { sessionId: validated.sessionId },
+        entityIds: savedMessages.map(({ id }) => id)
+      }
+    ])
   }
 }
 

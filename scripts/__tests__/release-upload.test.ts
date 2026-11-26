@@ -14,21 +14,26 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
-function artifacts(platform: string, architecture: string, edition = 'global') {
+function artifacts(
+  platform: string,
+  architecture: string,
+  edition = 'global',
+  { version = '2.2.1', channel = 'latest' } = {}
+) {
   const directory = mkdtempSync(path.join(tmpdir(), 'release-upload-'))
   roots.push(directory)
   const product = edition === 'cn' ? 'Cherry-Studio-CN' : 'Cherry-Studio'
-  const channel = edition === 'cn' ? 'latest-cn' : 'latest'
-  const base = `${product}-2.2.1-${platform}-${architecture}`
+  const editionChannel = edition === 'cn' ? `${channel}-cn` : channel
+  const base = `${product}-${version}-${platform}-${architecture}`
   const extensions = platform === 'mac' ? ['zip', 'zip.blockmap', 'dmg'] : ['AppImage', 'deb', 'rpm']
   for (const extension of extensions)
     writeFileSync(path.join(directory, `${base}.${extension}`), `${base}.${extension}`)
   const url = `${base}.${platform === 'mac' ? 'zip' : 'AppImage'}`
   const data = readFileSync(path.join(directory, url))
   const file = { url, sha512: createHash('sha512').update(data).digest('base64'), size: data.length }
-  const manifest = `${channel}-${platform}${platform === 'linux' && architecture === 'arm64' ? '-arm64' : ''}.yml`
+  const manifest = `${editionChannel}-${platform}${platform === 'linux' && architecture === 'arm64' ? '-arm64' : ''}.yml`
   const contents = stringify({
-    version: '2.2.1',
+    version,
     files: [file],
     path: url,
     sha512: file.sha512,
@@ -88,6 +93,40 @@ describe('release target uploads', () => {
         distDirectory: target.directory
       })
     ).rejects.toThrow('checksum mismatch')
+  })
+
+  it.each(['2.2.0', undefined])('rejects a Linux upload whose manifest version is %s', async (version) => {
+    const target = artifacts('linux', 'x64')
+    const manifest = parse(target.contents)
+    if (version === undefined) delete manifest.version
+    else manifest.version = version
+    writeFileSync(path.join(target.directory, target.manifest), stringify(manifest))
+
+    await expect(
+      selectReleaseUpload({
+        edition: 'global',
+        platform: 'linux',
+        tag: 'v2.2.1',
+        architecture: 'x64',
+        distDirectory: target.directory
+      })
+    ).rejects.toThrow('version mismatch')
+  })
+
+  it.each([
+    ['2.2.1-rc.1', 'rc'],
+    ['2.2.1-preview-abcdef0', 'preview-abcdef0']
+  ])('accepts the complete prerelease version %s', async (version, channel) => {
+    const target = artifacts('linux', 'x64', 'global', { version, channel })
+    const upload = await selectReleaseUpload({
+      edition: 'global',
+      platform: 'linux',
+      tag: `v${version}`,
+      architecture: 'x64',
+      distDirectory: target.directory
+    })
+
+    expect(upload[`global/linux/${channel}-linux.yml`]).toBe(path.join(target.directory, target.manifest))
   })
 
   it('rejects a target with a missing updater blockmap', async () => {

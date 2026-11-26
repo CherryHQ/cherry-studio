@@ -10,7 +10,7 @@ import { ndJsonStream, type RequestPermissionRequest } from '@agentclientprotoco
 import { expect } from 'vitest'
 import * as z from 'zod'
 
-import { runtimeId, ThreadFeed } from '@cherrystudio/agent-runtime'
+import { isLivePartInput, runtimeId, ThreadFeed } from '@cherrystudio/agent-runtime'
 
 import { createAcpRuntime, type AcpThreadHandle } from '../src/v1'
 import { confirmed } from './fixture'
@@ -273,7 +273,12 @@ export async function nativeFixture(harness: NativeHarness, executable: string) 
 
 export async function observeNative(handle: AcpThreadHandle) {
   const feed = new ThreadFeed({ type: 'snapshot', messages: [], inputs: [], activity: { state: 'unknown' } }, () => {})
-  const observation = confirmed(await handle.observe((event) => feed.publish(event)))
+  const observation = confirmed(
+    await handle.observe((event) => {
+      if (isLivePartInput(event)) feed.publishPart(event)
+      else feed.publish(event)
+    })
+  )
   await observation.drain()
   return {
     observation,

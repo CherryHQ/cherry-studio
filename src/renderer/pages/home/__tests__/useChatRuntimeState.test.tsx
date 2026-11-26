@@ -2,8 +2,8 @@ import { act, render } from '@testing-library/react'
 import { Activity, useMemo } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
 import { AutoReadService } from '@renderer/services/voice/AutoReadService'
+import type { ExecutionFinishEvent, ExecutionContentUpdate } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -11,16 +11,13 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 const mocks = vi.hoisted(() => ({
   turnControllerConfig: null as any,
   onBranchLiveStateChange: vi.fn(),
-  refresh: vi.fn(async () => [] as CherryUIMessage[]),
+  refresh: vi.fn(async () => {}),
   seedMessagesCache: vi.fn(async () => undefined),
   rollbackBranch: vi.fn(),
   activeExecutions: [] as ActiveExecution[],
   overlayExecutions: [] as ActiveExecution[],
-  liveMessageIds: [] as string[],
   liveAssistants: [] as CherryUIMessage[],
-  overlayOnUpdate: null as
-    | ((executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void)
-    | null,
+  overlayOnUpdate: null as ((executionId: string, event: ExecutionContentUpdate) => void) | null,
   autoReadUpdate: vi.fn(),
   overlayOnFinish: null as ((executionId: string, event: ExecutionFinishEvent) => void) | null,
   sendTurn: vi.fn(),
@@ -78,15 +75,6 @@ vi.mock('@renderer/components/chat/flow/topicMessageFlowLiveTree', () => ({
   })
 }))
 
-vi.mock('@renderer/components/chat/messages/stream/useMessageStreamingLayers', () => ({
-  createOverlayRefreshHandoff: () => vi.fn(),
-  useMessageStreamingLayers: () => ({
-    partsByMessageId: {},
-    liveMessageIds: mocks.liveMessageIds,
-    streamingLayers: { liveMessageIds: mocks.liveMessageIds }
-  })
-}))
-
 vi.mock('@renderer/components/chat/messages/utils/dispatchLocateMessage', () => ({
   dispatchLocateMessage: vi.fn()
 }))
@@ -99,7 +87,6 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: () => ({
     regenerate: vi.fn(),
     stop: vi.fn(),
-    setMessages: vi.fn(),
     activeExecutions: mocks.activeExecutions
   })
 }))
@@ -111,24 +98,20 @@ vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: (
-    _topicId: string,
-    executions: ActiveExecution[],
-    options?: {
-      onUpdate?: (executionId: string, event: Pick<ExecutionFinishEvent, 'attemptId' | 'message'>) => void
-      onFinish?: (executionId: string, event: ExecutionFinishEvent) => void
-    }
-  ) => {
-    mocks.overlayExecutions = executions
-    mocks.overlayOnUpdate = options?.onUpdate ?? null
-    mocks.overlayOnFinish = options?.onFinish ?? null
-    return {
-      overlay: {},
-      liveAssistants: mocks.liveAssistants,
-      disposeOverlay: vi.fn(),
-      reset: vi.fn()
-    }
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({
+  useHistoryReplies: (_view: unknown, expected: ActiveExecution[]) => {
+    mocks.overlayExecutions = expected
+    return mocks.liveAssistants
+  }
+}))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({
+  useTopicSpeech: (_topicId: string, _expected: unknown, enabled: boolean, cb: typeof mocks.overlayOnUpdate) => {
+    mocks.overlayOnUpdate = enabled ? cb : null
+  }
+}))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({
+  useTopicCompletion: (_topicId: string, _expected: unknown, cb: typeof mocks.overlayOnFinish) => {
+    mocks.overlayOnFinish = cb
   }
 }))
 
@@ -138,8 +121,7 @@ vi.mock('../hooks/useToolApprovalBridge', () => ({
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicAwaitingApproval: () => false,
-  useTopicOverlayHandoffOnTerminal: vi.fn()
+  useTopicAwaitingApproval: () => false
 }))
 
 vi.mock('../hooks/useChatWriteActions', () => ({
@@ -191,9 +173,17 @@ function RuntimeHost({
   latestRuntime = useChatRuntimeState({
     topic,
     isHistoryLoading: false,
-    initialMessages: messages,
+    displayIndex: (id) => {
+      const index = messages.findIndex((item) => item.id === id)
+      return index < 0 ? undefined : index
+    },
     uiMessages: messages,
     refresh: mocks.refresh,
+    replyHistory: {
+      layout: {},
+      lookup: () => ({ kind: 'unknown' }),
+      refreshRow: async () => 'pending'
+    },
     activeNodeId,
     messagesCacheMutate: vi.fn(),
     onBranchLiveStateChange: mocks.onBranchLiveStateChange
@@ -215,11 +205,10 @@ describe('useChatRuntimeState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.turnControllerConfig = null
-    mocks.refresh.mockResolvedValue([])
+    mocks.refresh.mockResolvedValue(undefined)
     mocks.seedMessagesCache.mockResolvedValue(undefined)
     mocks.activeExecutions = []
     mocks.overlayExecutions = []
-    mocks.liveMessageIds = []
     mocks.liveAssistants = []
     mocks.overlayOnFinish = null
     mocks.sendTurn.mockReset()
@@ -248,6 +237,7 @@ describe('useChatRuntimeState', () => {
     render(<RuntimeHost topicId="topic-1" activeNodeId="active-assistant" />)
     await act(async () => {
       mocks.overlayOnUpdate?.('provider::model', {
+        type: 'snapshot',
         attemptId: 7,
         message: {
           id: 'active-assistant',
@@ -370,7 +360,7 @@ describe('useChatRuntimeState', () => {
     // Seed a reserved branch message the way a turn does, through the history
     // adapter handed to the turn controller.
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage])
+      await mocks.turnControllerConfig.onAccepted({ mode: 'started', reservedMessages: [reservedMessage] })
     })
     expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ topicId: 'topic-1', messageIds: ['reserved-1'] })
@@ -394,7 +384,9 @@ describe('useChatRuntimeState', () => {
     render(<RuntimeHost topicId="topic-1" activeNodeId="selected-branch" />)
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], {
+      await mocks.turnControllerConfig.onAccepted({
+        mode: 'started',
+        reservedMessages: [reservedMessage],
         preserveActiveNode: true
       })
     })
@@ -408,7 +400,7 @@ describe('useChatRuntimeState', () => {
     render(<RuntimeHost topicId="topic-1" activeNodeId="selected-branch" />)
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage])
+      await mocks.turnControllerConfig.onAccepted({ mode: 'started', reservedMessages: [reservedMessage] })
     })
 
     expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(
@@ -419,7 +411,7 @@ describe('useChatRuntimeState', () => {
   it('projects branch flow with optimistic < persisted < live message authority', async () => {
     const message = (id: string, text: string) =>
       ({ id, role: 'assistant', parts: [{ type: 'text', text }] }) as CherryUIMessage
-    mocks.liveMessageIds = ['persisted-wins', 'live-wins']
+    mocks.activeExecutions = [{ executionId: 'provider::model', attemptId: 1, anchorMessageId: 'persisted-wins' }]
     mocks.liveAssistants = [message('live-wins', 'live')]
 
     render(
@@ -430,10 +422,10 @@ describe('useChatRuntimeState', () => {
     )
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([
-        message('persisted-wins', 'optimistic'),
-        message('live-wins', 'optimistic')
-      ])
+      await mocks.turnControllerConfig.onAccepted({
+        mode: 'started',
+        reservedMessages: [message('persisted-wins', 'optimistic'), message('live-wins', 'optimistic')]
+      })
     })
 
     const projected = mocks.onBranchLiveStateChange.mock.calls.at(-1)?.[0].messages as CherryUIMessage[]
@@ -451,7 +443,9 @@ describe('useChatRuntimeState', () => {
     const view = render(<RuntimeHost topicId="topic-1" />)
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], {
+      await mocks.turnControllerConfig.onAccepted({
+        mode: 'started',
+        reservedMessages: [reservedMessage],
         activeExecutions: [staleAttempt]
       })
     })
@@ -478,7 +472,9 @@ describe('useChatRuntimeState', () => {
     const view = render(<RuntimeHost topicId="topic-1" />)
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], {
+      await mocks.turnControllerConfig.onAccepted({
+        mode: 'started',
+        reservedMessages: [reservedMessage],
         activeExecutions: [staleAttempt]
       })
     })
