@@ -2967,7 +2967,28 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "CrowLLM - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://crowllm.com/v1"
+        }
+      },
+      "id": "crowllm",
+      "metadata": {
+        "website": {
+          "apiKey": "https://crowllm.com",
+          "docs": "https://crowllm.com/docs",
+          "models": "https://crowllm.com/docs",
+          "official": "https://crowllm.com"
+        }
+      },
+      "name": "CrowLLM"
     }
   ],
-  "version": "5179a16fddc562d9"
+  "version": "161215ed2b098abc"
 }
