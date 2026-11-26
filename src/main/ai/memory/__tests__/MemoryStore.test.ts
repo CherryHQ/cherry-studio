@@ -301,6 +301,19 @@ describe('structured memory disk protection', () => {
     expect(await readFile(path.join(root, 'MEMORY.md'), 'utf8')).toBe(current)
   })
 
+  it.each([0, 1])('keeps a clear marker recorded %i ms after the controlled backup', async (delay) => {
+    const topic = '.memories/topic.md'
+    await save(topic, 'Earlier fact')
+    const edit = await save(topic, 'Current fact')
+    const batch = await memoryBackups.latestMemoryBackup(backups, edit.batchId!)
+    await writeFile(path.join(root, 'MEMORY.md'), encode({ ...entry, clearedAt: batch!.createdAt + delay }))
+
+    const preview = await store.previewRecovery(caller)
+    expect(preview!.files).toMatchObject([{ path: topic, conflict: true }])
+    await expect(store.recover(caller, preview!.token, approve)).rejects.toMatchObject({ code: 'conflict' })
+    expect((await store.read(caller, topic)).content).toBe('Current fact')
+  })
+
   it('rechecks the entire scope under the lock after approval', async () => {
     const read = await store.read(caller, 'MEMORY.md')
     await expect(
@@ -602,6 +615,28 @@ describe('limits, access, and recovery', () => {
     const history = await store.modelRead(fresh, 'MEMORY.md', 'historical')
     expect(history.content).not.toContain('Forgotten fact')
     expect(entriesIn(parseMemoryEntries((await store.read(fresh, 'MEMORY.md')).content!))[0].status).toBe('forgotten')
+  })
+
+  it('restores the first controlled version of a topic edited after clear', async () => {
+    await save('MEMORY.md', 'Forgotten fact')
+    await store.clear(caller, (await store.previewClear(caller)).token, approve)
+    const marker = (await store.read(caller, 'MEMORY.md')).content
+    const fresh = access()
+    const path = '.memories/new.md'
+    for (const content of ['First version', 'Second version']) {
+      const { receipt } = await store.modelRead(fresh, path)
+      await store.commit(fresh, [{ kind: 'write', receipt, content }], 'controlled', approve)
+    }
+
+    store = new MemoryStore(root, backups)
+    const preview = await store.previewRecovery(caller)
+    expect(preview!.files).toMatchObject([{ path, conflict: false }])
+    await expect(store.recover(caller, preview!.token, approve)).resolves.toMatchObject({
+      files: [{ path, outcome: 'applied' }]
+    })
+    expect((await store.modelRead(fresh, path)).content).toBe('First version')
+    expect((await store.read(caller, 'MEMORY.md')).content).toBe(marker)
+    expect((await store.modelRead(fresh, 'MEMORY.md', 'historical')).content).not.toContain('Forgotten fact')
   })
 
   it('refuses a model receipt for a casing alias on a case-insensitive volume', async () => {
