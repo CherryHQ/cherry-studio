@@ -33,7 +33,7 @@ import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
-const { resolveModelMock } = vi.hoisted(() => ({
+const { resolveModelMock, resolveReasoningProfileMock } = vi.hoisted(() => ({
   // Default to no registry match; individual cases supply the preset contract
   // needed to verify stored overrides and resolved model behavior.
   resolveModelMock: vi.fn<
@@ -42,7 +42,14 @@ const { resolveModelMock } = vi.hoisted(() => ({
     presetModel: null,
     registryOverride: null,
     reasoningProfile: { format: 'openai-chat', wire: { disabled: true } }
-  }))
+  })),
+  resolveReasoningProfileMock: vi.fn<
+    (
+      providerContext: ProviderRegistryServiceModule.ReasoningProviderContext,
+      model: { id: string; apiModelId?: string; endpointTypes?: string[] },
+      endpointType?: string
+    ) => any
+  >((context, model) => ({ ...resolveModelMock(context, model.id)?.reasoningProfile }))
 }))
 
 const OPENAI_CHAT_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
@@ -63,6 +70,20 @@ const OLLAMA_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningP
   }
 }
 
+const ANTHROPIC_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
+  format: 'anthropic' as const,
+  wire: OPENAI_CHAT_REASONING_PROFILE.wire
+}
+
+const GEMINI_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
+  format: 'gemini' as const,
+  wire: {
+    off: { operations: [{ target: 'thinkingConfig.includeThoughts', value: { source: 'literal', value: false } }] },
+    auto: { operations: [{ target: 'thinkingConfig.includeThoughts', value: { source: 'literal', value: true } }] },
+    effort: { operations: [{ target: 'thinkingConfig.thinkingLevel', value: { source: 'effort' } }] }
+  }
+}
+
 beforeEach(() => {
   resolveModelMock.mockReset()
   resolveModelMock.mockReturnValue({
@@ -70,6 +91,13 @@ beforeEach(() => {
     registryOverride: null,
     reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
   })
+  resolveReasoningProfileMock.mockReset()
+  resolveReasoningProfileMock.mockImplementation((context, model) => ({
+    ...(resolveModelMock(context, model.id)?.reasoningProfile ?? {
+      format: 'openai-chat',
+      wire: { disabled: true }
+    })
+  }))
 })
 
 vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
@@ -77,7 +105,8 @@ vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
   return {
     ...actual,
     providerRegistryService: {
-      resolveModel: resolveModelMock
+      resolveModel: resolveModelMock,
+      resolveReasoningProfile: resolveReasoningProfileMock
     }
   }
 })
@@ -982,6 +1011,239 @@ describe('ModelService.create', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-new')))
 
     expect(rows).toHaveLength(0)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Manual reasoning capability → composer effort controls (#24161)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService — manual reasoning capability projects effort controls', () => {
+  const dbh = setupTestDatabase()
+
+  const MANUAL_REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+
+  beforeEach(() => {
+    resolveModelMock.mockReturnValue({
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+  })
+
+  it('gives an unknown reasoning-capable model manual selectableEfforts and preserves saved defaultEffort', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'tencent/hy4-preview',
+          name: 'Hy4 Preview',
+          capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+          reasoning: { defaultEffort: 'high' },
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    expect(created.capabilities).toContain(MODEL_CAPABILITY.REASONING)
+    expect(created.reasoning?.selectableEfforts).toEqual(MANUAL_REASONING_EFFORTS)
+    expect(created.reasoning?.defaultEffort).toBe('high')
+    expect(created.userDefaultReasoningEffort).toBe('high')
+    expect(modelService.getByKey('openai', 'tencent/hy4-preview').reasoning?.defaultEffort).toBe('high')
+  })
+
+  it('preserves saved defaultEffort on preset-fallback rows with manual reasoning controls', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('acme', 'Acme'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('acme', 'preset-alias', {
+        name: 'Preset Alias',
+        presetModelId: 'acme-preset',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: { defaultEffort: 'medium' },
+        endpointTypes: ['ollama-chat']
+      })
+    )
+    resolveReasoningProfileMock.mockImplementation((_context, _model, endpointType) =>
+      endpointType === 'ollama-chat' ? OLLAMA_REASONING_PROFILE : ANTHROPIC_REASONING_PROFILE
+    )
+
+    const [model] = modelService.list({ providerId: 'acme' })
+    expect(model.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'none'])
+    expect(model.reasoning?.defaultEffort).toBe('medium')
+    expect(model.userDefaultReasoningEffort).toBe('medium')
+  })
+
+  it('keeps registry-projected reasoning controls on catalog-known models', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const registryData = {
+      presetModel: {
+        id: 'claude-sonnet-5',
+        name: 'Claude Sonnet 5',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'effort' as const, values: ['low' as const, 'medium' as const, 'high' as const] }],
+          supportedEfforts: ['low' as const, 'medium' as const, 'high' as const]
+        }
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    }
+    resolveModelMock.mockReturnValue(registryData)
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'claude-sonnet-5',
+          name: 'Claude Sonnet 5',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        },
+        registryData
+      }
+    ])
+
+    expect(created.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high'])
+  })
+
+  it('prefers id-pattern heuristics over manual fallback when matched', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('stepfun', 'StepFun'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'stepfun',
+          modelId: 'step-5-preview',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    expect(created.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high'])
+  })
+
+  it('clears synthesized manual reasoning when capability is removed and restores it when re-added', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'acme-custom-v1',
+          name: 'Acme Custom',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        }
+      }
+    ])
+    expect(created.reasoning?.selectableEfforts).toEqual(MANUAL_REASONING_EFFORTS)
+
+    const removed = modelService.update('openai', 'acme-custom-v1', {
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    expect(removed.capabilities).not.toContain(MODEL_CAPABILITY.REASONING)
+    expect(removed.reasoning).toBeUndefined()
+
+    const restored = modelService.update('openai', 'acme-custom-v1', {
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
+    })
+    expect(restored.reasoning?.selectableEfforts).toEqual(MANUAL_REASONING_EFFORTS)
+  })
+
+  it('exposes no manual controls when the resolved wire profile disables reasoning', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('poe-like', 'Poe Like'))
+    resolveReasoningProfileMock.mockImplementation((_context, _model, endpointType) =>
+      endpointType === 'openai-chat-completions'
+        ? { format: 'openai-chat', wire: { disabled: true } }
+        : OPENAI_CHAT_REASONING_PROFILE
+    )
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'poe-like',
+          modelId: 'private-reasoner',
+          name: 'Private Reasoner',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          endpointTypes: ['openai-chat-completions'],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    expect(created.reasoning?.selectableEfforts ?? []).toEqual([])
+  })
+
+  it('projects Gemini vocabulary for gateway-routed Gemini models and lets explicit endpointTypes override win', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('aihubmix', 'AiHubMix'),
+      presetProviderId: 'aihubmix',
+      endpointConfigs: { 'google-generate-content': { baseUrl: 'https://aihubmix.com/gemini' } }
+    })
+    resolveReasoningProfileMock.mockImplementation((_context, _model, endpointType) => {
+      if (endpointType === 'google-generate-content') return GEMINI_REASONING_PROFILE
+      if (endpointType === 'ollama-chat') return OLLAMA_REASONING_PROFILE
+      return OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [routed] = modelService.create([
+      {
+        dto: {
+          providerId: 'aihubmix',
+          modelId: 'gemini-acme-thinker',
+          name: 'Acme Thinker',
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          supportsStreaming: true
+        }
+      }
+    ])
+
+    expect(routed.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high', 'none'])
+    expect(routed.reasoning?.controls).toEqual([
+      { kind: 'toggle' },
+      { kind: 'effort', values: ['low', 'medium', 'high'] }
+    ])
+
+    const overridden = modelService.update('aihubmix', 'gemini-acme-thinker', {
+      endpointTypes: ['openai-chat-completions']
+    })
+    expect(overridden.reasoning?.selectableEfforts).toEqual(MANUAL_REASONING_EFFORTS)
+  })
+
+  it('projects manual controls during reconcileForProvider and leaves non-reasoning models untouched', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const reconciled = modelService.reconcileForProvider('openai', {
+      toAdd: [
+        {
+          dto: {
+            providerId: 'openai',
+            modelId: 'custom-reasoner',
+            name: 'Custom Reasoner',
+            capabilities: [MODEL_CAPABILITY.REASONING],
+            supportsStreaming: true
+          }
+        },
+        {
+          dto: {
+            providerId: 'openai',
+            modelId: 'gpt-4o-custom',
+            name: 'GPT-4o Custom',
+            capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+            supportsStreaming: true
+          }
+        }
+      ],
+      toRemove: []
+    })
+
+    const reasoner = reconciled.find((m) => m.apiModelId === 'custom-reasoner')
+    const plain = reconciled.find((m) => m.apiModelId === 'gpt-4o-custom')
+    expect(reasoner?.reasoning?.selectableEfforts).toEqual(MANUAL_REASONING_EFFORTS)
+    expect(plain?.reasoning).toBeUndefined()
   })
 })
 
