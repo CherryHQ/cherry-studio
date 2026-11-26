@@ -28,7 +28,14 @@ export const NativeQueuedFollowups = memo(function NativeQueuedFollowups({ topic
     () =>
       (queue ?? []).map(({ id, parts }) => {
         const { text, draftTokens } = createEditableMessageDraft(parts, id)
-        return { id, draft: { text, tokens: draftTokens }, payload: { text, userMessageParts: parts } }
+        return {
+          id,
+          draft: { text, tokens: draftTokens },
+          payload: { text, userMessageParts: parts },
+          // Native queue rows have no drain arbitration; these satisfy the shared dock item contract.
+          status: 'pending' as const,
+          updatedAt: ''
+        }
       }),
     [queue]
   )
