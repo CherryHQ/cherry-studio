@@ -110,14 +110,14 @@ export function prepareClaudeBranch(
       backendId: backend.id,
       nativeThreadId: nativeId ?? uuid(),
       anchorMessageId: anchor,
-      ...((resetBoundaryId !== undefined || (opening && !nativeId)
+      ...(resetBoundaryId !== undefined || (opening && !nativeId)
         ? {
             checkpointMapping: {
               ...(resetBoundaryId !== undefined ? { staleResetHandled: resetBoundaryId } : {}),
               ...(opening && !nativeId ? { referenceHistory: true } : {})
             }
           }
-        : {}))
+        : {})
     })
   })
 }
