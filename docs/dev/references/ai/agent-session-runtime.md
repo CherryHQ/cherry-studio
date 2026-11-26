@@ -497,8 +497,9 @@ failed     permanent routing/admission failure; no automatic retry
 
 SQLite `accepted` rows are the only delivery queue. `AgentSessionDeliveryService` owns scheduling,
 state transitions, finalization, recovery, and shutdown coordination; `AgentSessionMessageService`
-provides synchronous transaction primitives for the message table. Busy, write-quiesced, and
-shutting-down targets remain `accepted` until a known wake event. A temporarily inaccessible
+provides synchronous transaction primitives for the message table. The startup delivery sweep
+waits for native recovery to claim resumable work. Busy, write-quiesced, and shutting-down
+targets remain `accepted` until a known wake event. A temporarily inaccessible
 workspace also remains `accepted` instead of destroying durable intent; missing paths and permanent
 permission failures are routing errors. Workspace probes are time-bounded so an unreachable mount
 cannot hold backup quiescing indefinitely, and repeated checks share the same underlying non-abortable

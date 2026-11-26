@@ -171,7 +171,10 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     await saveDurableRequest(this.runtime, this.handle.thread.id, this.input)
     await this.handle.durable.configure(root.agent)
     this.providerSessionId = await this.handle.durable.providerSessionId()
-    const observed = await this.handle.durable.observe((batch) => this.onObservation(batch))
+    const observed = await this.handle.durable.observe(
+      (batch) => this.onObservation(batch),
+      Object.keys(this.context.checkpointMapping?.root?.sources ?? {})
+    )
     if (observed.status !== 'confirmed') throw new Error(observed.error.message)
     this.observation = observed.value
     await this.observation.drain()
@@ -814,9 +817,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           Boolean(input.fastMode) !== Boolean(this.input.fastMode)
         )
           return 'rebuild'
-        if (nextInput.permissionModeOverride !== this.input.permissionModeOverride) {
+        if (
+          nextInput.permissionModeOverride !== this.input.permissionModeOverride ||
+          nextInput.headless !== this.input.headless
+        ) {
           await saveDurableRequest(this.runtime!, this.handle!.thread.id, nextInput)
           this.input.permissionModeOverride = nextInput.permissionModeOverride
+          this.input.headless = nextInput.headless
         }
         return next.permissionChanged ? 'patched' : 'current'
       } catch (error) {
