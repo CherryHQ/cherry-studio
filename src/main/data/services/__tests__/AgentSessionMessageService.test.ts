@@ -4213,4 +4213,131 @@ describe('AgentSessionMessageService', () => {
       expect(dbh.db.select().from(agentSessionToolOutputTable).all()).toHaveLength(0)
     })
   })
+
+  describe('isLocallyHandledReply', () => {
+    function markLocallyHandled(messageId: string, contextId: string): void {
+      application.get('DbService').withWriteTx((tx) => {
+        agentSessionMessageService.bindInputContextTx(tx, SESSION_ID, messageId, contextId)
+        agentSessionMessageService.markInputLocallyHandledTx(tx, SESSION_ID, messageId, contextId)
+      })
+    }
+
+    it('returns true for a single linked or unambiguous unlinked locally handled input', () => {
+      const context = prepareClaudeBranch(SESSION_ID, '/tmp/claude')
+
+      const linkedUser = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: '/clear' }] } }
+      })
+      const linkedReply = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: linkedUser.id,
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      agentSessionMessageService.linkReply(SESSION_ID, [linkedUser.id], linkedReply.id)
+      markLocallyHandled(linkedUser.id, context.id)
+
+      expect(agentSessionMessageService.isLocallyHandledReply(SESSION_ID, linkedReply.id)).toBe(true)
+
+      const unlinkedUser = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: '/clear' }] } }
+      })
+      const unlinkedReply = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: unlinkedUser.id,
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      markLocallyHandled(unlinkedUser.id, context.id)
+
+      expect(agentSessionMessageService.isLocallyHandledReply(SESSION_ID, unlinkedReply.id)).toBe(true)
+    })
+
+    it('returns false when a reply has an unlinked normal parent alongside a locally handled linked steer', () => {
+      const context = prepareClaudeBranch(SESSION_ID, '/tmp/claude')
+
+      const normalParent = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Explain this' }] } }
+      })
+      const reply = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: normalParent.id,
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      const steer = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: reply.id,
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: '/clear' }] } }
+      })
+      agentSessionMessageService.linkReply(SESSION_ID, [steer.id], reply.id)
+      markLocallyHandled(steer.id, context.id)
+
+      expect(agentSessionMessageService.isLocallyHandledReply(SESSION_ID, reply.id)).toBe(false)
+    })
+
+    it('returns false when an unlinked locally handled user parent has ambiguous assistant siblings', () => {
+      const context = prepareClaudeBranch(SESSION_ID, '/tmp/claude')
+
+      const user = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: '/clear' }] } }
+      })
+      const firstReply = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: user.id,
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      const secondReply = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: user.id,
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      markLocallyHandled(user.id, context.id)
+
+      expect(agentSessionMessageService.isLocallyHandledReply(SESSION_ID, firstReply.id)).toBe(false)
+      expect(agentSessionMessageService.isLocallyHandledReply(SESSION_ID, secondReply.id)).toBe(false)
+
+      // Once user explicitly links one sibling, only that sibling is attributable to it.
+      agentSessionMessageService.linkReply(SESSION_ID, [user.id], firstReply.id)
+      expect(agentSessionMessageService.isLocallyHandledReply(SESSION_ID, firstReply.id)).toBe(true)
+      expect(agentSessionMessageService.isLocallyHandledReply(SESSION_ID, secondReply.id)).toBe(false)
+    })
+
+    it('still returns true for an unlinked parent when an assistant sibling is claimed by another user input', () => {
+      const context = prepareClaudeBranch(SESSION_ID, '/tmp/claude')
+
+      const localUser = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: '/clear' }] } }
+      })
+      const localReply = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: localUser.id,
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      const claimedSibling = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        parentId: localUser.id,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Claimed' }] } }
+      })
+      const otherUser = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Other prompt' }] } }
+      })
+      agentSessionMessageService.linkReply(SESSION_ID, [otherUser.id], claimedSibling.id)
+      markLocallyHandled(localUser.id, context.id)
+
+      expect(agentSessionMessageService.isLocallyHandledReply(SESSION_ID, localReply.id)).toBe(true)
+    })
+
+    it('returns false when no user input is attributable to the reply', () => {
+      const standalone = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+
+      expect(agentSessionMessageService.isLocallyHandledReply(SESSION_ID, standalone.id)).toBe(false)
+    })
+  })
 })

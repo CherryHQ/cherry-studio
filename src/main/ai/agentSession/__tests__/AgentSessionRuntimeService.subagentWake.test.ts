@@ -41,6 +41,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
+    isLocallyHandledReply: () => false,
     branchTip: (_sessionId: string, messageId: string) => messageId,
     linkReply: vi.fn(),
     replaceMessageParts: mocks.replaceMessageParts,

@@ -15,7 +15,8 @@ import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Topic } from '@renderer/types/topic'
 import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { createClearContextPart } from '@shared/data/types/uiParts'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { AbsoluteFilePath } from '@shared/types/file'
@@ -932,6 +933,135 @@ describe('useAgentMessageListProviderValue', () => {
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
     expect(value?.state.streamingLayers?.liveMessageIds).toEqual([])
+  })
+
+  it('omits no-response fallback for context-boundary assistant replies while preserving error and empty fallbacks', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const clearPart = createClearContextPart()
+    const errorPart: CherryMessagePart = {
+      type: 'data-error',
+      data: { name: 'AgentRuntimeError', message: 'boom', stack: null }
+    }
+    const messages = [
+      {
+        id: 'assistant-clear-persisted',
+        role: 'assistant',
+        partIds: ['part-clear-1'],
+        parts: [clearPart],
+        metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'success' }
+      },
+      {
+        id: 'assistant-clear-live',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:01.000Z', status: 'success' }
+      },
+      {
+        id: 'assistant-clear-error',
+        role: 'assistant',
+        parts: [clearPart],
+        metadata: { createdAt: '2026-01-01T00:00:02.000Z', status: 'error' }
+      },
+      {
+        id: 'assistant-clear-with-error-part',
+        role: 'assistant',
+        parts: [clearPart, errorPart],
+        metadata: { createdAt: '2026-01-01T00:00:02.500Z', status: 'success' }
+      },
+      {
+        id: 'assistant-clear-live-source-error',
+        role: 'assistant',
+        parts: [errorPart],
+        metadata: { createdAt: '2026-01-01T00:00:02.600Z', status: 'success' }
+      },
+      {
+        id: 'assistant-clear-paused-source-error',
+        role: 'assistant',
+        parts: [errorPart],
+        metadata: { createdAt: '2026-01-01T00:00:02.700Z', status: 'paused' }
+      },
+      {
+        id: 'assistant-empty-success',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:03.000Z', status: 'success' }
+      },
+      {
+        id: 'assistant-paused',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:04.000Z', status: 'paused' }
+      }
+    ] as CherryUIMessage[]
+    const partsByMessageId: Record<string, CherryMessagePart[]> = {
+      'assistant-clear-persisted': [clearPart],
+      'assistant-clear-live': [clearPart],
+      'assistant-clear-error': [clearPart],
+      'assistant-clear-with-error-part': [clearPart, errorPart],
+      'assistant-clear-live-source-error': [clearPart],
+      'assistant-clear-paused-source-error': [clearPart],
+      'assistant-empty-success': [],
+      'assistant-paused': []
+    }
+    const streamingLayers = { historyPartsByMessageId: partsByMessageId, liveMessageIds: [] }
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId,
+        streamingLayers,
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+      return null
+    }
+
+    render(<Probe />)
+
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-clear-persisted')).toEqual([clearPart])
+    expect(messagePartsAt(value?.state.streamingLayers?.historyPartsByMessageId, 'assistant-clear-persisted')).toEqual([
+      clearPart
+    ])
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-clear-live')).toEqual([clearPart])
+    expect(messagePartsAt(value?.state.streamingLayers?.historyPartsByMessageId, 'assistant-clear-live')).toEqual([
+      clearPart
+    ])
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-clear-error')).toEqual([
+      clearPart,
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: 'error.no_response' }) })
+    ])
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-clear-with-error-part')).toEqual([
+      clearPart,
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: 'boom' }) })
+    ])
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-clear-live-source-error')).toEqual([
+      clearPart,
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: 'error.no_response' }) })
+    ])
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-clear-paused-source-error')).toEqual([clearPart])
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-empty-success')).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: 'error.no_response' }) })
+    ])
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-paused')).toEqual([])
+
+    const itemById = new Map(value?.state.messages.map((item) => [item.id, item]))
+    expect(itemById.get('assistant-clear-persisted')?.isContextBoundary).toBe(true)
+    expect(itemById.get('assistant-clear-live')?.isContextBoundary).toBe(true)
+    expect(itemById.get('assistant-clear-error')?.isContextBoundary).toBeUndefined()
+    expect(itemById.get('assistant-clear-with-error-part')?.isContextBoundary).toBeUndefined()
+    expect(itemById.get('assistant-clear-live-source-error')?.isContextBoundary).toBeUndefined()
+    expect(itemById.get('assistant-clear-paused-source-error')?.isContextBoundary).toBeUndefined()
+    expect(itemById.get('assistant-empty-success')?.isContextBoundary).toBeUndefined()
   })
 
   describe('Agent delete presentation policy', () => {

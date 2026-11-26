@@ -44,6 +44,7 @@ import type { ProjectionTarget } from '@shared/ai/messageProjection'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { hasClearContextPart } from '@shared/data/types/uiParts'
 import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -72,6 +73,17 @@ export function scrollAgentMessageListToEnd(topicId: string): void {
   agentMessageListRuntimes.get(topicId)?.scrollToBottom()
 }
 
+function hasErrorPart(parts: readonly CherryMessagePart[] | undefined): boolean {
+  return parts?.some((part) => part.type === 'data-error') ?? false
+}
+
+function isContextBoundaryParts(
+  parts: readonly CherryMessagePart[] | undefined,
+  sourceParts?: readonly CherryMessagePart[]
+): boolean {
+  return hasClearContextPart(parts) && !hasErrorPart(parts) && !hasErrorPart(sourceParts)
+}
+
 function withTerminalErrorFallback(
   messages: CherryUIMessage[],
   partsByMessageId: MessagePartRows,
@@ -97,8 +109,8 @@ function withTerminalErrorFallback(
       continue
     }
     const needsFallback =
-      (status === 'error' && !resolvedParts.some((part) => part.type === 'data-error')) ||
-      (status === 'success' && !hasVisiblePart)
+      (status === 'error' && !hasErrorPart(resolvedParts)) ||
+      (status === 'success' && !hasVisiblePart && !isContextBoundaryParts(resolvedParts, message.parts))
     if (!needsFallback) continue
 
     replacements.set(message.id, [
@@ -277,12 +289,16 @@ export function useAgentMessageListProviderValue({
       visibleRows.map((row) => {
         const cached = messageItemCacheRef.current.get(row)
         if (cached && cached.assistantId === resolvedAgentId && cached.topicId === topic.id) return cached.item
+        const rowParts = messageProjectionService.ownsRowParts(row.parts)
+          ? messageProjectionService.readParts(row.parts)
+          : row.parts
         const item: MessageListItem = {
           ...toMessageListItem(row.message, { assistantId: resolvedAgentId, topicId: topic.id }),
           id: row.id,
           partIds: row.partIds,
           presentation: row.kind,
           showHeader: row.showHeader,
+          isContextBoundary: isContextBoundaryParts(rowParts, row.message.parts) || undefined,
           ...(row.sourceMessageId && { parentId: null }),
           sourceMessageId: row.sourceMessageId,
           isRunBoundary: row.isRunBoundary,
