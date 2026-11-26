@@ -5,6 +5,7 @@ import path from 'node:path'
 import { Mutex } from 'async-mutex'
 
 import {
+  controlledSaveTime,
   createMemoryBackup,
   hasCompletedRecovery,
   hasOrderedRecovery,
@@ -729,7 +730,12 @@ export class MemoryStore {
       if (conflict) {
         if (restoringMerge) prerequisiteConflict = true
       } else {
-        changes.push({ path: step.path, before, after: decodeOriginal(step) })
+        changes.push({
+          path: step.path,
+          before,
+          after: decodeOriginal(step),
+          controlledSaveAt: controlledSaveTime(batch, step)
+        })
       }
     }
     return { changes, files }
@@ -772,7 +778,7 @@ export class MemoryStore {
       })
     )
       return
-    this.protectEntries(changes, scope, batch)
+    this.protectEntries(changes, scope, 'recovery')
   }
 
   private recoveryPlanHash(
@@ -806,7 +812,7 @@ export class MemoryStore {
   private protectEntries(
     changes: MemoryFileChange[],
     scope: Map<string, Buffer | null>,
-    mode: 'ordinary' | 'clear' | RecoveryBatch,
+    mode: 'ordinary' | 'clear' | 'recovery',
     revised: ReadonlySet<string> = new Set(),
     afterClear: ReadonlySet<string> = new Set()
   ): void {
@@ -835,7 +841,7 @@ export class MemoryStore {
       const before = parse(change.before)
       const oldEntries = entriesIn(before)
       let after = parse(change.after)
-      if (typeof mode === 'object') {
+      if (mode === 'recovery') {
         const facts = after
           .filter((part): part is string => typeof part === 'string')
           .join('')
@@ -895,7 +901,10 @@ export class MemoryStore {
           invalidEntries()
       } else {
         const blocksOriginalText = protectedEntries.some(
-          (entry) => mode.source !== 'controlled' || entry.clearedAt === undefined || entry.clearedAt >= mode.createdAt
+          (entry) =>
+            change.controlledSaveAt === undefined ||
+            entry.clearedAt === undefined ||
+            entry.clearedAt >= change.controlledSaveAt
         )
         if (blocksOriginalText && after.some((part) => typeof part === 'string' && part.trim())) invalidEntries()
         const localProtected = oldEntries.filter((entry) => entry.status !== 'active')
