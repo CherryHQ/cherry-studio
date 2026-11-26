@@ -497,7 +497,18 @@ export class ClaudeOwner {
       }
     }
     if (message.type === 'system' && this.consumeTask(message)) return
-    const agentId = 'agent_id' in message ? message.agent_id : undefined
+    const explicitAgentId = 'agent_id' in message ? message.agent_id : undefined
+    // SDK partial messages identify their spawning tool, not necessarily agent_id.
+    // Route only a unique known task; ambiguous or unknown parents stay unattributed.
+    const parentToolUseId = 'parent_tool_use_id' in message ? message.parent_tool_use_id : undefined
+    const parentTasks =
+      !explicitAgentId && parentToolUseId
+        ? [...this.tasks].filter(
+            ([, task]) =>
+              task.agent && task.sessionId === this.activeSession && task.origin?.toolCallId === parentToolUseId
+          )
+        : []
+    const agentId = explicitAgentId ?? (parentTasks.length === 1 ? parentTasks[0][0] : undefined)
     const task = agentId ? this.tasks.get(agentId) : undefined
     const root = this.projection(task?.sessionId ?? this.activeSession)
     const commandInput =

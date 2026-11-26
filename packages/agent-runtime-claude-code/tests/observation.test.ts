@@ -893,3 +893,55 @@ it('shares retained native history across critical frames held for a stalled obs
   )
   await observation.stop()
 })
+
+it('routes parented SDK partial messages without agent_id to the known child across root compaction', async () => {
+  const test = await wireFixture()
+  let childView: Awaited<ReturnType<typeof observe>> | undefined
+  try {
+    test.send(
+      assistantMessage(test.sessionId, [
+        { type: 'tool_use', id: 'spawn-child', name: 'Agent', input: { prompt: 'Child' } }
+      ])
+    )
+    test.send({
+      type: 'system',
+      subtype: 'task_started',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      task_id: 'child',
+      run_id: '001',
+      task_type: 'local_agent',
+      description: 'Child',
+      spawn_depth: 1,
+      tool_use_id: 'spawn-child'
+    })
+    await expect.poll(() => test.view.snapshot.subagents?.length).toBe(1)
+    const child = confirmed(await test.runtime.open(claudeThread(test.root.thread.backendId, test.sessionId, 'child')))
+    childView = await observe(child)
+    const partial = (event: SDKPartialAssistantMessage['event']) =>
+      test.send({
+        type: 'stream_event',
+        uuid: randomUUID(),
+        session_id: test.sessionId,
+        parent_tool_use_id: 'spawn-child',
+        event
+      })
+    partial({ type: 'message_start', message: test.assistant('').message })
+    partial({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '', citations: null } })
+    test.send({
+      type: 'system',
+      subtype: 'compact_boundary',
+      uuid: randomUUID(),
+      session_id: test.sessionId,
+      compact_metadata: { trigger: 'manual', pre_tokens: 1 }
+    } as SDKMessage)
+    const answer = '<analysis>Literal child example</analysis> Required output'
+    partial({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: answer } })
+    partial({ type: 'content_block_stop', index: 0 })
+    await expect.poll(() => textOf(childView!.snapshot)).toContain(answer)
+    expect(textOf(test.view.snapshot)).not.toContain(answer)
+    expect(test.view.snapshot.subagents?.[0].child).toEqual(child.thread)
+  } finally {
+    await test.close()
+  }
+})
