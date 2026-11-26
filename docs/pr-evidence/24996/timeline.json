@@ -1,0 +1,18 @@
+{
+  "topicId": "52bb7752-6801-4b72-96fe-84c33a39bad6",
+  "model": "claude-opus-4-6",
+  "requests": [
+    {
+      "id": 1,
+      "openedAt": 4587.2065,
+      "closedAt": 4609.407834
+    },
+    {
+      "id": 2,
+      "openedAt": 5090.781917,
+      "closedAt": 5097.101584
+    }
+  ],
+  "errors": [],
+  "profile": "/Volumes/cherrydev/development/cherry-studio/worktrees/.tasks/issue-24996/profile-e2e"
+}
