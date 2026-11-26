@@ -14,6 +14,7 @@ import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
   FileProcessorId,
+  FileProcessorOptionEdit,
   FileProcessorOverride,
   PreferenceDefaultScopeType,
   PreferenceKeyType,
@@ -277,6 +278,14 @@ export class PreferenceService extends BaseService {
       return this.resetFileProcessorOptions(processorId)
     })
 
+    this.ipcHandle(
+      IpcChannel.Preference_EditFileProcessorOption,
+      (event, processorId: FileProcessorId, edit: FileProcessorOptionEdit) => {
+        this.assertTrustedSender(event, IpcChannel.Preference_EditFileProcessorOption)
+        return this.editFileProcessorOption(processorId, edit)
+      }
+    )
+
     this.ipcHandle(IpcChannel.Preference_GetMultipleRaw, (event, keys: UnifiedPreferenceKeyType[]) => {
       this.assertTrustedSender(event, IpcChannel.Preference_GetMultipleRaw)
       return this.getMultipleRaw(keys)
@@ -360,6 +369,32 @@ export class PreferenceService extends BaseService {
     }
 
     return (this.cache[route.key] ?? DefaultPreferences.default[route.key]) as UnifiedPreferenceType[K]
+  }
+
+  /**
+   * Apply one field edit to a processor override against the current main-process value, so a
+   * save never writes back a stale whole-map snapshot captured by a renderer.
+   */
+  public async editFileProcessorOption(processorId: FileProcessorId, edit: FileProcessorOptionEdit): Promise<void> {
+    const key = 'feature.file_processing.overrides' as const
+    FileProcessorIdSchema.parse(processorId)
+    const current = this.get(key)
+    const override = current[processorId] ?? {}
+    let next: FileProcessorOverride
+    if (edit.type === 'apiKeys') {
+      next = { ...override, apiKeys: edit.apiKeys }
+    } else if (edit.type === 'langs') {
+      next = { ...override, options: { ...override.options, langs: edit.langs } }
+    } else {
+      next = {
+        ...override,
+        capabilities: {
+          ...override.capabilities,
+          [edit.feature]: { ...override.capabilities?.[edit.feature], [edit.field]: edit.value }
+        }
+      }
+    }
+    await this.set(key, { ...current, [processorId]: next })
   }
 
   public async resetFileProcessorOptions(processorId: FileProcessorId): Promise<void> {

@@ -34,85 +34,29 @@ describe('useFileProcessingPreferences', () => {
     setOverridesMock.mockResolvedValue(undefined)
   })
 
-  it('writes API keys by merging into the current overrides', async () => {
-    overridesMock.value = {
-      paddleocr: {
-        capabilities: {
-          document_to_markdown: {
-            modelId: 'PP-StructureV3'
-          }
-        }
-      }
-    }
-
+  it('routes single-field edits through the main process instead of writing a captured map', async () => {
+    overridesMock.value = { paddleocr: { apiKeys: ['paddle-key'] } }
     const { result } = renderHook(() => useFileProcessingPreferences())
 
     await result.current.setApiKeys('mistral', ['mistral-key'])
-
-    expect(setOverridesMock).toHaveBeenCalledWith({
-      paddleocr: {
-        capabilities: {
-          document_to_markdown: {
-            modelId: 'PP-StructureV3'
-          }
-        }
-      },
-      mistral: {
-        apiKeys: ['mistral-key']
-      }
-    })
-  })
-
-  it('writes capability fields by preserving existing processor override fields', async () => {
-    overridesMock.value = {
-      paddleocr: {
-        apiKeys: ['paddle-key'],
-        capabilities: {
-          image_to_text: {
-            modelId: 'PP-OCRv5'
-          }
-        }
-      }
-    }
-
-    const { result } = renderHook(() => useFileProcessingPreferences())
-
     await result.current.setCapabilityField('paddleocr', 'document_to_markdown', 'modelId', 'PP-StructureV3')
-
-    expect(setOverridesMock).toHaveBeenCalledWith({
-      paddleocr: {
-        apiKeys: ['paddle-key'],
-        capabilities: {
-          image_to_text: {
-            modelId: 'PP-OCRv5'
-          },
-          document_to_markdown: {
-            modelId: 'PP-StructureV3'
-          }
-        }
-      }
-    })
-  })
-
-  it('writes language options from the current overrides', async () => {
-    overridesMock.value = {
-      tesseract: {
-        apiKeys: ['unused-key']
-      }
-    }
-
-    const { result } = renderHook(() => useFileProcessingPreferences())
-
     await result.current.setLanguageOptions('tesseract', ['eng', 'chi_sim'])
 
-    expect(setOverridesMock).toHaveBeenCalledWith({
-      tesseract: {
-        apiKeys: ['unused-key'],
-        options: {
-          langs: ['eng', 'chi_sim']
-        }
-      }
+    expect(preferenceService.editFileProcessorOption).toHaveBeenNthCalledWith(1, 'mistral', {
+      type: 'apiKeys',
+      apiKeys: ['mistral-key']
     })
+    expect(preferenceService.editFileProcessorOption).toHaveBeenNthCalledWith(2, 'paddleocr', {
+      type: 'capability',
+      feature: 'document_to_markdown',
+      field: 'modelId',
+      value: 'PP-StructureV3'
+    })
+    expect(preferenceService.editFileProcessorOption).toHaveBeenNthCalledWith(3, 'tesseract', {
+      type: 'langs',
+      langs: ['eng', 'chi_sim']
+    })
+    expect(setOverridesMock).not.toHaveBeenCalled()
   })
 })
 

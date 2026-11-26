@@ -49,4 +49,30 @@ describe('atomic file processor option reset', () => {
     })
     await expect(service.resetFileProcessorOptions('unknown' as never)).rejects.toThrow()
   })
+
+  it('applies a single-field edit to the current value, so a stale renderer map cannot revive reset options', async () => {
+    const { PreferenceService } = await import('../PreferenceService')
+    const service = new PreferenceService()
+    await service._doInit()
+    await service.set(key, {
+      doc2x: { apiKeys: ['saved'], capabilities: { document_to_markdown: { modelId: 'custom' } } }
+    })
+    await service.resetFileProcessorOptions('doc2x')
+    await service.editFileProcessorOption('doc2x', {
+      type: 'capability',
+      feature: 'document_to_markdown',
+      field: 'apiHost',
+      value: 'https://edited.example'
+    })
+    await service.editFileProcessorOption('mistral', { type: 'apiKeys', apiKeys: ['m'] })
+    await service.editFileProcessorOption('tesseract', { type: 'langs', langs: ['eng'] })
+    expect(service.get(key)).toEqual({
+      doc2x: { apiKeys: ['saved'], capabilities: { document_to_markdown: { apiHost: 'https://edited.example' } } },
+      mistral: { apiKeys: ['m'] },
+      tesseract: { options: { langs: ['eng'] } }
+    })
+    await expect(
+      service.editFileProcessorOption('unknown' as never, { type: 'apiKeys', apiKeys: [] })
+    ).rejects.toThrow()
+  })
 })

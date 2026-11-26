@@ -99,6 +99,7 @@ export enum IpcChannel {
   Preference_Get = 'preference:get',
   Preference_Set = 'preference:set',
   Preference_ResetFileProcessorOptions = 'preference:reset-file-processor-options',
+  Preference_EditFileProcessorOption = 'preference:edit-file-processor-option',
   Preference_GetMultipleRaw = 'preference:get-multiple-raw',
   Preference_SetMultiple = 'preference:set-multiple',
   Preference_GetAll = 'preference:get-all',

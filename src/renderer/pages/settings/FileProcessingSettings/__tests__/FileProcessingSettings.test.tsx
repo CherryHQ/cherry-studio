@@ -593,10 +593,9 @@ describe('processing settings pages', () => {
     await user.tab()
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        mistral: {
-          apiKeys: ['key-1', 'key-2']
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('mistral', {
+        type: 'apiKeys',
+        apiKeys: ['key-1', 'key-2']
       })
     })
   })
@@ -636,14 +635,13 @@ describe('processing settings pages', () => {
     fireEvent.blur(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder'))
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        mistral: {
-          apiKeys: ['key-1']
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('mistral', {
+        type: 'apiKeys',
+        apiKeys: ['key-1']
       })
     })
 
-    overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
+    overridesMock.value = { mistral: { apiKeys: ['key-1'] } }
     preferencesMock.defaultImageProcessor = 'mistral'
     rerender(<OcrSettings />)
 
@@ -653,7 +651,7 @@ describe('processing settings pages', () => {
   it('reports API host save failures', async () => {
     const user = userEvent.setup()
     const error = new Error('persist failed')
-    setOverridesMock.mockRejectedValueOnce(error)
+    vi.mocked(preferenceService.editFileProcessorOption).mockRejectedValueOnce(error)
     render(<OcrSettings />)
 
     await user.click(
@@ -684,14 +682,11 @@ describe('processing settings pages', () => {
     await user.tab()
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        mistral: {
-          capabilities: {
-            image_to_text: {
-              apiHost: 'https://draft.example.com'
-            }
-          }
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('mistral', {
+        type: 'capability',
+        feature: 'image_to_text',
+        field: 'apiHost',
+        value: 'https://draft.example.com'
       })
     })
     expect(apiHostInput).toHaveValue('https://draft.example.com')
@@ -812,12 +807,9 @@ describe('processing settings pages', () => {
     fireEvent.click(await screen.findByRole('button', { name: /English \(en-us\)/ }))
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        system: {
-          options: {
-            langs: ['en-us']
-          }
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('system', {
+        type: 'langs',
+        langs: ['en-us']
       })
     })
   })
@@ -832,34 +824,25 @@ describe('processing settings pages', () => {
     await user.click(await screen.findByRole('button', { name: 'PP-OCRv5' }))
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        paddleocr: {
-          capabilities: {
-            image_to_text: {
-              modelId: 'PP-OCRv5'
-            }
-          }
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('paddleocr', {
+        type: 'capability',
+        feature: 'image_to_text',
+        field: 'modelId',
+        value: 'PP-OCRv5'
       })
     })
 
-    overridesMock.value = setOverridesMock.mock.calls.at(-1)?.[0] ?? {}
+    overridesMock.value = { paddleocr: { capabilities: { image_to_text: { modelId: 'PP-OCRv5' } } } }
     rerender(<DocumentProcessingSettings />)
 
     await user.click(await screen.findByRole('button', { name: 'PP-StructureV3' }))
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        paddleocr: {
-          capabilities: {
-            image_to_text: {
-              modelId: 'PP-OCRv5'
-            },
-            document_to_markdown: {
-              modelId: 'PP-StructureV3'
-            }
-          }
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('paddleocr', {
+        type: 'capability',
+        feature: 'document_to_markdown',
+        field: 'modelId',
+        value: 'PP-StructureV3'
       })
     })
   })
@@ -918,25 +901,16 @@ describe('processing settings pages', () => {
     await user.click(screen.getByRole('button', { name: /Chinese \(chi_sim\)/ }))
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        tesseract: {
-          options: {
-            langs: ['eng', 'chi_sim']
-          }
-        }
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('tesseract', {
+        type: 'langs',
+        langs: ['eng', 'chi_sim']
       })
     })
 
     await user.click(screen.getByRole('button', { name: /English \(eng\)/ }))
 
     await waitFor(() => {
-      expect(setOverridesMock).toHaveBeenCalledWith({
-        tesseract: {
-          options: {
-            langs: []
-          }
-        }
-      })
+      expect(preferenceService.editFileProcessorOption).toHaveBeenCalledWith('tesseract', { type: 'langs', langs: [] })
     })
   })
 })
