@@ -12,8 +12,13 @@ export const COMPOSER_BELOW_SELECTOR_BUTTON_CLASS =
   'h-8 shrink-0 gap-1.5 rounded-lg border border-transparent bg-transparent px-2.5 text-xs font-medium text-foreground shadow-none hover:bg-accent active:bg-accent disabled:bg-transparent disabled:text-foreground-disabled [&_svg]:text-muted-foreground hover:[&_svg]:text-foreground'
 export const COMPOSER_SEND_ACCESSORY_BUTTON_CLASS =
   'size-7.5 shrink-0 rounded-full text-muted-foreground! duration-150 ease-in-out hover:bg-accent/60 hover:text-foreground! dark:text-foreground! dark:disabled:text-muted-foreground! dark:data-[active=true]:text-primary! dark:data-[active=true]:hover:text-primary! data-[active=true]:bg-accent data-[active=true]:text-primary! data-[active=true]:hover:text-primary! [&_.lucide:not(.lucide-custom)]:text-current!'
+/** Lets a top-bar selector shorten its label to 5rem, never widening a shorter one, before the bar collapses to icons. */
+export const COMPOSER_TOP_BAR_SHRINK_CLASS = 'min-w-[calc-size(max-content,min(size,5rem))] shrink'
 export const COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS = 'w-8 justify-center px-0'
 export const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
+/** The top bar's Assistant / Agent avatar, a button of its own that toggles the profile pane. */
+export const COMPOSER_PROFILE_AVATAR_BUTTON_CLASS =
+  'flex size-7 shrink-0 items-center justify-center rounded-md outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-accent'
 
 type RenderContextControls = (args: { side: 'top' | 'bottom'; iconOnly: boolean }) => ReactNode
 

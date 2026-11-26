@@ -2,6 +2,7 @@ import { APICallError, JSONParseError, NoSuchToolError, RetryError, TypeValidati
 import { describe, expect, it } from 'vitest'
 
 import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
+import { createLocalError } from '@shared/utils/localError'
 
 import { serializeError } from '../serializeError'
 
@@ -13,6 +14,30 @@ describe('serializeError', () => {
 
     expect(serialized.name).toBe('PaintingGenerateError')
     expect(serialized.message).toBe('boom')
+  })
+
+  it('retains only the allowlisted local source distinction', () => {
+    const local = serializeError(createLocalError('[SQLITE_BUSY] database is locked'))
+    expect(JSON.parse(JSON.stringify(local))).toMatchObject({
+      errorSource: 'local',
+      message: '[SQLITE_BUSY] database is locked'
+    })
+    expect(
+      serializeError(Object.assign(new Error('ordinary failure'), { errorSource: 'arbitrary' }))
+    ).not.toHaveProperty('errorSource')
+  })
+
+  it('redacts local credentials before bounding diagnostic length', () => {
+    const error = createLocalError(
+      `[SQLITE_BUSY] database is locked; sk-${'a'.repeat(25)}; https://user:pass@example.com\napiKey=short-secret\n${'x'.repeat(600)}`
+    )
+    const serialized = serializeError(error)
+    expect(serialized.message).toContain('[SQLITE_BUSY] database is locked; <redacted>; https://<redacted>@example.com')
+    expect(serialized.message).toContain('apiKey="<redacted>"')
+    expect(serialized.message).toHaveLength(501)
+    expect(serialized.message?.endsWith('…')).toBe(true)
+    expect(JSON.stringify(serialized)).not.toMatch(/short-secret|user:pass|sk-aaaa/)
+    expect(serializeError(createLocalError('x'.repeat(16_385))).message).toBe('')
   })
 
   it('preserves reporting ownership for API errors and structured stream events without leaking payloads', () => {

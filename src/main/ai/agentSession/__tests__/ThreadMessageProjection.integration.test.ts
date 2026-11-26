@@ -5,7 +5,7 @@ import { num, obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
 import { createScriptedHost } from '@cherrystudio/agent-behavior'
-import { runtimeId, type OperationResult, type ThreadHandle } from '@cherrystudio/agent-runtime'
+import { runtimeId, type OperationResult, type Subagent, type ThreadHandle } from '@cherrystudio/agent-runtime'
 import { createPiRuntime, type PiSessionOptions } from '@cherrystudio/agent-runtime-pi'
 import { createPiDurableRuntime } from '@cherrystudio/agent-runtime-pi-durable'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -18,7 +18,7 @@ import {
   type TestStream
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, subagentCall } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
-import { ThreadMessageProjection, type ThreadProjectionUpdate } from '../ThreadMessageProjection'
+import { ThreadMessageProjection } from '../ThreadMessageProjection'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -30,27 +30,42 @@ const draft = (text: string, whenBusy: 'reject' | 'steer' = 'reject') => ({
   text,
   whenBusy
 })
-const answers = (view: ThreadMessageProjection) =>
-  view
+type ObservedThread = Awaited<ReturnType<typeof project>>
+const answers = ({ projection }: ObservedThread) =>
+  projection
     .snapshot()
     .messages.filter((message) => message.role === 'assistant')
     .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
-const outcome = (view: ThreadMessageProjection, id: string) =>
-  view.snapshot().inputs.find((input) => input.inputId === id)?.outcome
-const streamed = (updates: ThreadProjectionUpdate[]) =>
-  updates.some(
-    (update) =>
-      update.type === 'change' &&
-      update.messages.some((message) =>
-        message.parts.some((part) => part.type === 'text' && part.state === 'streaming' && part.text)
-      )
-  )
 
-async function project(handle: ThreadHandle) {
-  const view = new ThreadMessageProjection(handle.thread)
-  onTestFinished(() => view.close())
-  await view.attach(handle)
-  return view
+function firstChild({ children }: ObservedThread) {
+  const child = children.values().next().value?.child
+  if (!child) throw new Error('Expected an addressable child')
+  return child
+}
+
+async function project(handle: ThreadHandle, projection = new ThreadMessageProjection(handle.thread)) {
+  const children = new Map<string, Subagent>()
+  let sawStreaming = false
+  const observation = confirmed(
+    await handle.observe(async (event) => {
+      if (event.type === 'snapshot') {
+        children.clear()
+        for (const child of event.subagents ?? []) children.set(child.id, child)
+      } else if (event.type === 'subagent.upsert') children.set(event.subagent.id, event.subagent)
+      await projection.accept(event)
+      if (!sawStreaming)
+        sawStreaming = projection
+          .snapshot()
+          .messages.some((message) =>
+            message.parts.some((part) => part.type === 'text' && part.state === 'streaming' && part.text)
+          )
+    })
+  )
+  onTestFinished(async () => {
+    await observation.stop()
+    await projection.close()
+  })
+  return { projection, children, observation, streamed: () => sawStreaming }
 }
 
 async function pi(stream: TestStream) {
@@ -125,48 +140,50 @@ it('projects two Pi background children independently across parent release, sel
   const parent = await project(root)
   await root.input.submit(draft('delegate'))
   await Promise.all([a.reached, b.reached])
-  await expect.poll(() => outcome(parent, 'delegate')).toBe('completed')
-  expect(parent.snapshot().subagents).toHaveLength(2)
+  await expect
+    .poll(async () => (await runtime.lookupInput(parent.projection.thread, runtimeId('delegate')))?.outcome)
+    .toBe('completed')
+  expect(parent.children.size).toBe(2)
   const openChild = async (name: string) => {
-    const ref = parent.snapshot().subagents.find((relation) => relation.child?.id === children.get(name))?.child
+    const ref = [...parent.children.values()].find((relation) => relation.child?.id === children.get(name))?.child
     if (!ref) throw new Error(`Missing child ${name}`)
     return confirmed(await runtime.open(ref))
   }
   const childA = await openChild('A')
   const childB = await openChild('B')
-  const viewA = await project(childA)
+  let viewA = await project(childA)
   const viewB = await project(childB)
-  const panel: ThreadProjectionUpdate[] = []
-  const card: ThreadProjectionUpdate[] = []
-  const stopCard = viewA.subscribe((update) => card.push(update))
-  viewA.subscribe((update) => panel.push(update))
-  stopCard()
   await root.release()
-  await parent.close()
-  const savedParent = parent.snapshot()
+  await parent.observation.stop()
+  await parent.projection.close()
+  const savedParent = parent.projection.snapshot()
   a.open()
   await expect.poll(() => answers(viewA)).toEqual(['child A finished'])
-  await expect.poll(() => viewA.snapshot().activity.state).toBe('idle')
-  expect(streamed(panel)).toBe(true)
-  expect(card).toHaveLength(1)
+  await expect.poll(() => viewA.projection.snapshot().activity.state).toBe('idle')
+  expect(viewA.streamed()).toBe(true)
   expect(answers(viewB)).not.toContain('child A finished')
-  expect(viewB.snapshot().activity.state).toBe('active')
+  expect(viewB.projection.snapshot().activity.state).toBe('active')
   confirmed(await childB.interrupt!())
-  await expect.poll(() => viewB.snapshot().activity.state).toBe('idle')
+  await expect.poll(() => viewB.projection.snapshot().activity.state).toBe('idle')
   expect(answers(viewB)).not.toContain('child B finished')
-  expect(parent.snapshot()).toBe(savedParent)
+  expect(parent.projection.snapshot()).toBe(savedParent)
   expect(answers(parent)).toEqual(['parent finished'])
 
   expect(await childA.input.submit(draft('continue A', 'steer'))).toMatchObject({ status: 'acknowledged' })
   await continuation.reached
   const secondAccess = confirmed(await runtime.open(childA.thread))
-  await viewA.attach(secondAccess)
+  await viewA.observation.stop()
+  viewA = await project(secondAccess, viewA.projection)
   await childA.release()
   continuation.open()
-  await expect.poll(() => outcome(viewA, 'continue A')).toBe('completed')
+  await expect
+    .poll(async () => (await runtime.lookupInput(viewA.projection.thread, runtimeId('continue A')))?.outcome)
+    .toBe('completed')
   expect(answers(viewA)).toEqual(['child A finished', 'child A continued'])
-  expect(new Set(viewA.snapshot().messages.map((message) => message.id)).size).toBe(viewA.snapshot().messages.length)
-  expect(parent.snapshot()).toBe(savedParent)
+  expect(new Set(viewA.projection.snapshot().messages.map((message) => message.id)).size).toBe(
+    viewA.projection.snapshot().messages.length
+  )
+  expect(parent.projection.snapshot()).toBe(savedParent)
   expect(errors).toEqual([])
 })
 
@@ -186,14 +203,18 @@ it('shows Pi foreground cancellation in the parent and leaves its next turn isol
   const parent = await project(root)
   await root.input.submit(draft('delegate'))
   await held.reached
-  await expect.poll(() => parent.snapshot().subagents.length).toBe(1)
-  const child = confirmed(await runtime.open(parent.snapshot().subagents[0].child!))
+  await expect.poll(() => parent.children.size).toBe(1)
+  const child = confirmed(await runtime.open(firstChild(parent)))
   const view = await project(child)
   confirmed(await child.interrupt!())
-  await expect.poll(() => outcome(parent, 'delegate')).toBe('aborted')
+  await expect
+    .poll(async () => (await runtime.lookupInput(parent.projection.thread, runtimeId('delegate')))?.outcome)
+    .toBe('aborted')
   await root.input.submit(draft('next'))
   confirmed(await child.interrupt!())
-  await expect.poll(() => outcome(parent, 'next')).toBe('completed')
+  await expect
+    .poll(async () => (await runtime.lookupInput(parent.projection.thread, runtimeId('next')))?.outcome)
+    .toBe('completed')
   expect(answers(parent)).toContain('next parent answer')
   expect(answers(view)).not.toContain('cancelled child answer')
   expect(answers(view)).not.toContain('next parent answer')
@@ -260,29 +281,32 @@ it('projects a Durable parent, child and grandchild, then continues only the chi
   )
   const parent = await project(root)
   await root.input.submit(draft('delegate'))
-  await expect.poll(() => parent.snapshot().subagents.length).toBe(1)
-  const child = confirmed(await runtime.open(parent.snapshot().subagents[0].child!))
-  const childView = await project(child)
-  await expect.poll(() => childView.snapshot().subagents.length).toBe(1)
-  const grandchild = confirmed(await runtime.open(childView.snapshot().subagents[0].child!))
+  await expect.poll(() => parent.children.size).toBe(1)
+  const child = confirmed(await runtime.open(firstChild(parent)))
+  let childView = await project(child)
+  await expect.poll(() => childView.children.size).toBe(1)
+  const grandchild = confirmed(await runtime.open(firstChild(childView)))
   const grandchildView = await project(grandchild)
-  const updates: ThreadProjectionUpdate[] = []
-  grandchildView.subscribe((update) => updates.push(update))
   await leaf.reached
   leaf.open()
-  await expect.poll(() => outcome(parent, 'delegate'), { timeout: 5000 }).toBe('completed')
+  await expect
+    .poll(async () => (await runtime.lookupInput(parent.projection.thread, runtimeId('delegate')))?.outcome, {
+      timeout: 5000
+    })
+    .toBe('completed')
   expect(answers(parent)).toEqual(['parent answer'])
   expect(answers(childView)).toEqual(['child answer'])
   expect(answers(grandchildView)).toEqual(['grandchild answer'])
-  expect(streamed(updates)).toBe(true)
+  expect(grandchildView.streamed()).toBe(true)
   for (const view of [parent, childView, grandchildView])
-    expect(view.snapshot().subagents.every((relation) => relation.parent.id === view.thread.id)).toBe(true)
+    expect([...view.children.values()].every((relation) => relation.parent.id === view.projection.thread.id)).toBe(true)
 
   await root.release()
-  await parent.close()
-  const parentBefore = parent.snapshot()
-  const grandchildBefore = grandchildView.snapshot()
-  const firstChildMessages: readonly CherryUIMessage[] = childView.snapshot().messages
+  await parent.observation.stop()
+  await parent.projection.close()
+  const parentBefore = parent.projection.snapshot()
+  const grandchildBefore = grandchildView.projection.snapshot()
+  const firstChildMessages: readonly CherryUIMessage[] = childView.projection.snapshot().messages
   faux.setResponses([
     () => continuation.wait(fauxAssistantMessage('child interim')),
     (context) => {
@@ -295,16 +319,21 @@ it('projects a Durable parent, child and grandchild, then continues only the chi
   expect(await child.input.submit(draft('busy'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
   expect(await child.input.submit(draft('extra detail', 'steer'))).toMatchObject({ status: 'acknowledged' })
   const access = confirmed(await runtime.open(child.thread))
-  await childView.attach(access)
+  await childView.observation.stop()
+  childView = await project(access, childView.projection)
   await child.release()
   continuation.open()
-  await expect.poll(() => outcome(childView, 'extra detail'), { timeout: 5000 }).toBe('completed')
+  await expect
+    .poll(async () => (await runtime.lookupInput(childView.projection.thread, runtimeId('extra detail')))?.outcome, {
+      timeout: 5000
+    })
+    .toBe('completed')
   expect(answers(childView)).toEqual(['child answer', 'child interim', 'child continued'])
   for (const old of firstChildMessages)
-    expect(childView.snapshot().messages.find((message) => message.id === old.id)).toBe(old)
-  expect(parent.snapshot()).toBe(parentBefore)
-  expect(grandchildView.snapshot()).toBe(grandchildBefore)
-  expect(childView.snapshot().inputs.some((input) => input.inputId === 'busy')).toBe(false)
+    expect(childView.projection.snapshot().messages.find((message) => message.id === old.id)).toBe(old)
+  expect(parent.projection.snapshot()).toBe(parentBefore)
+  expect(grandchildView.projection.snapshot()).toBe(grandchildBefore)
+  expect(await runtime.lookupInput(child.thread, runtimeId('busy'))).toBeUndefined()
   expect(errors).toEqual([
     expect.objectContaining({ name: 'ConversationBusy', conversationId: Number(child.thread.id) })
   ])
