@@ -318,9 +318,10 @@ describe('processing settings pages', () => {
     overridesMock.value = {}
     rerender(<OcrSettings />)
     await waitFor(() => expect(host).not.toHaveValue('https://old.example'))
+    const saves = setOverridesMock.mock.calls.length
     await user.click(host)
     await user.tab()
-    expect(JSON.stringify(setOverridesMock.mock.calls.at(-1))).not.toContain('old.example')
+    expect(setOverridesMock.mock.calls).toHaveLength(saves)
   })
 
   it('rejects a failed reset action so the confirmation can offer retry', async () => {

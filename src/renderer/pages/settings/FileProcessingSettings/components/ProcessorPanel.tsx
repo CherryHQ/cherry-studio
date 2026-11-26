@@ -198,8 +198,10 @@ export function ProcessorPanel({
       toast.warning(t('settings.tool.file_processing.errors.invalid_api_host'))
       return
     }
+    // Leaving an untouched field must not turn the effective preset URL into an explicit override.
+    if (trimmedApiHost === (entry.capability.apiHost ?? '')) return
     await persist(() => onSetCapabilityField(processor.id, entry.feature, 'apiHost', trimmedApiHost), 'save API host')
-  }, [apiHostInput, entry.feature, onSetCapabilityField, persist, processor.id, t])
+  }, [apiHostInput, entry.capability.apiHost, entry.feature, onSetCapabilityField, persist, processor.id, t])
 
   const setModelIdInputAndPersist = useCallback(
     async (value: string) => {
