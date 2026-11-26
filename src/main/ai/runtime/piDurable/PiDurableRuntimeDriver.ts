@@ -9,6 +9,7 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
+import { openRuntimeMemoryGuard } from '@main/ai/memory/memoryRuntime'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { SequencerByKey } from '@shared/utils/async'
 
@@ -168,6 +169,13 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput) {
+    // Reserving a Durable branch creates checkpoint metadata that counts as native history.
+    const guard = openRuntimeMemoryGuard(input.sessionId, () => {})
+    try {
+      await guard.check()
+    } finally {
+      guard.dispose()
+    }
     const context = prepareDurableBranch(input.sessionId, input.branchHead)
     const opened = await this.connectBranch(input, context)
     if (!('status' in opened)) return opened
