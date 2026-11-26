@@ -230,6 +230,24 @@ describe('findKeybindingConflicts', () => {
     expect(getCommandAccelerator(['CommandOrControl', 'numenter'])).toBe('CommandOrControl+Enter')
   })
 
+  it('resolves an Alt+Space show shortcut to a registrable Electron accelerator', () => {
+    expect(getCommandAccelerator(['Alt', 'Space'])).toBe('Alt+Space')
+    expect(
+      resolveCommandKeybinding({
+        command: 'app.window.show',
+        preference: { binding: ['Alt', 'Space'], enabled: true },
+        context: () => undefined,
+        platform: 'win32'
+      })
+    ).toEqual(
+      expect.objectContaining({
+        binding: ['Alt', 'Space'],
+        enabled: true,
+        accelerator: 'Alt+Space'
+      })
+    )
+  })
+
   it('treats keypad Enter and main Return as one trigger when matching', () => {
     expect(
       findKeybindingConflicts({

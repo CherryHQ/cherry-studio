@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -456,5 +456,92 @@ describe('ShortcutService', () => {
         hasConflict: true
       })
     )
+  })
+
+  describe('Alt+Space show shortcut on Windows', () => {
+    const originalPlatform = process.platform
+
+    const stubWindows = () => {
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    }
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    const emitAltSpace = () => {
+      const event = { preventDefault: vi.fn() }
+      mainWindow.emitWebContents('before-input-event', event, {
+        type: 'keyDown',
+        key: ' ',
+        code: 'Space',
+        control: false,
+        meta: false,
+        alt: true,
+        shift: false,
+        isComposing: false
+      })
+      return event
+    }
+
+    it('registers Alt+Space as a global shortcut when configured', async () => {
+      stubWindows()
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+        binding: ['Alt', 'Space'],
+        enabled: true
+      })
+
+      await (service as any).onInit()
+
+      expect(globalShortcutMock.register).toHaveBeenCalledWith('Alt+Space', expect.any(Function))
+    })
+
+    it('surfaces a registration conflict when Alt+Space cannot be registered', async () => {
+      stubWindows()
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+        binding: ['Alt', 'Space'],
+        enabled: true
+      })
+      globalShortcutMock.register.mockImplementation((accelerator: string) => accelerator !== 'Alt+Space')
+
+      await (service as any).onInit()
+
+      expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith(
+        WindowType.Main,
+        IpcChannel.Shortcut_RegistrationConflict,
+        {
+          key: 'shortcut.app.window.show',
+          accelerator: 'Alt+Space',
+          hasConflict: true
+        }
+      )
+    })
+
+    it('suppresses the system menu when the focused window sees the configured Alt+Space', async () => {
+      stubWindows()
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+        binding: ['Alt', 'Space'],
+        enabled: true
+      })
+
+      await (service as any).onInit()
+
+      const event = emitAltSpace()
+
+      // The global shortcut drives the toggle; the menu must not open on top of it.
+      expect(event.preventDefault).toHaveBeenCalledOnce()
+      expect(commandServiceMock.execute).not.toHaveBeenCalled()
+    })
+
+    it('leaves Alt+Space alone when the show shortcut is not bound to it', async () => {
+      stubWindows()
+
+      await (service as any).onInit()
+
+      const event = emitAltSpace()
+
+      expect(event.preventDefault).not.toHaveBeenCalled()
+      expect(commandServiceMock.execute).not.toHaveBeenCalled()
+    })
   })
 })

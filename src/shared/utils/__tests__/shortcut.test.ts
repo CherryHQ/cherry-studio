@@ -155,6 +155,14 @@ describe('isValidShortcut', () => {
     expect(isValidShortcut(['Shift', 'Alt', '/'])).toBe(true)
   })
 
+  it('accepts Alt+Space so it can back the global show/hide shortcut on Windows', () => {
+    expect(isValidShortcut(['Alt', 'Space'])).toBe(true)
+    expect(getShortcutBindingFromKeyboardEvent({ key: ' ', code: 'Space', altKey: true }, 'win32')).toEqual([
+      'Alt',
+      'Space'
+    ])
+  })
+
   it('accepts a lone Escape, CapsLock or function key', () => {
     expect(isValidShortcut(['Escape'])).toBe(true)
     expect(isValidShortcut(['CapsLock'])).toBe(true)

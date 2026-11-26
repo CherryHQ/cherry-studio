@@ -49,7 +49,7 @@ import {
   NUMBER_COMMANDS,
   type NumberShortcutMode
 } from '@renderer/utils/numberShortcuts'
-import { isMac, platform } from '@renderer/utils/platform'
+import { isMac, isWin, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { SupportedPlatform } from '@shared/types/command'
@@ -91,6 +91,11 @@ const keyCodeToAccelerator: Record<string, ShortcutToken> = {
 
 const passthrough =
   /^(Page(Up|Down)|Insert|Home|End|CapsLock|Arrow(Up|Down|Left|Right)|F([1-9]|1\d|2[0-4])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
+
+// Windows opens the window system menu on Alt+Space before the recorder's
+// keydown can be captured, so the combination can never be recorded directly.
+// The manual fallback below assigns the same binding without key capture.
+const ALT_SPACE_BINDING: ShortcutBinding = ['Alt', 'Space']
 
 const usableEndKeys = (event: Pick<ReactKeyboardEvent, 'key' | 'code'>): ShortcutToken | null => {
   const { code } = event
@@ -323,6 +328,30 @@ const ShortcutSettings: FC = () => {
     toast.error(t('settings.shortcuts.conflict_with', { name: label }))
   }
 
+  const saveBinding = async (record: (typeof shortcuts)[number], binding: ShortcutBinding) => {
+    const conflict = findConflictLabel(record.command, { binding, enabled: true })
+    if (conflict) {
+      setConflictLabel(conflict)
+      clearTimeoutTimer('conflict-clear')
+      setTimeoutTimer('conflict-clear', () => setConflictLabel(null), 2000)
+      return
+    }
+
+    setConflictLabel(null)
+    try {
+      clearSystemConflict(record.key)
+      await updatePreference(record.key, { binding, enabled: true })
+      clearEditingState()
+    } catch (error) {
+      handleUpdateFailure(record, error)
+    }
+  }
+
+  const handleUseAltSpace = (record: (typeof shortcuts)[number]) => {
+    setPendingKeys(ALT_SPACE_BINDING)
+    void saveBinding(record, ALT_SPACE_BINDING)
+  }
+
   const handleKeyDown = async (event: ReactKeyboardEvent, record: (typeof shortcuts)[number]) => {
     event.preventDefault()
     event.stopPropagation()
@@ -356,22 +385,7 @@ const ShortcutSettings: FC = () => {
       return
     }
 
-    const conflict = findConflictLabel(record.command, { binding, enabled: true })
-    if (conflict) {
-      setConflictLabel(conflict)
-      clearTimeoutTimer('conflict-clear')
-      setTimeoutTimer('conflict-clear', () => setConflictLabel(null), 2000)
-      return
-    }
-
-    setConflictLabel(null)
-    try {
-      clearSystemConflict(record.key)
-      await updatePreference(record.key, { binding, enabled: true })
-      clearEditingState()
-    } catch (error) {
-      handleUpdateFailure(record, error)
-    }
+    await saveBinding(record, binding)
   }
 
   const handleResetAllShortcuts = async () => {
@@ -491,6 +505,8 @@ const ShortcutSettings: FC = () => {
     if (isEditing) {
       const pendingDisplay = pendingKeys.length > 0 ? formatShortcutDisplay(pendingKeys, isMac) : ''
       const hasConflict = conflictMessage !== null
+      // Windows intercepts Alt+Space for the system menu, so the recorder may never see it.
+      const showAltSpaceFallback = record.command === 'app.window.show' && isWin
 
       return (
         <div className="relative flex flex-col items-end">
@@ -506,14 +522,36 @@ const ShortcutSettings: FC = () => {
               hasConflict && 'border-error-border focus-visible:border-error-border'
             )}
             onKeyDown={(event) => void handleKeyDown(event, record)}
+            onKeyUp={(event) => {
+              // Swallow key release while recording so a captured Alt combination
+              // cannot bubble out and summon the Windows system menu afterwards.
+              event.preventDefault()
+              event.stopPropagation()
+            }}
             onBlur={(event) => {
-              const isUndoClick = (event.relatedTarget as HTMLElement)?.closest('.shortcut-undo-icon')
+              const isUndoClick = (event.relatedTarget as HTMLElement)?.closest(
+                '.shortcut-undo-icon, .shortcut-alt-space-btn'
+              )
               if (!isUndoClick) {
                 clearEditingState()
               }
             }}>
             {pendingDisplay || t('settings.shortcuts.press_shortcut')}
           </Button>
+          {showAltSpaceFallback && (
+            <div className="mt-1 flex max-w-56 flex-col items-end gap-1">
+              <span className="text-right text-muted-foreground text-xs">{t('settings.shortcuts.alt_space_hint')}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shortcut-alt-space-btn h-7 px-2 text-xs shadow-none"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => handleUseAltSpace(record)}>
+                {t('settings.shortcuts.use_alt_space')}
+              </Button>
+            </div>
+          )}
           {hasConflict && (
             <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-error text-xs">
               {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}

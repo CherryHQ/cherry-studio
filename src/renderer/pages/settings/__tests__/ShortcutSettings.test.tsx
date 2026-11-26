@@ -25,6 +25,7 @@ const setTimeoutTimerMock = vi.hoisted(() => vi.fn((_key: string, callback: () =
 const clearTimeoutTimerMock = vi.hoisted(() => vi.fn())
 const registrationConflictMock = vi.hoisted(() => vi.fn(() => vi.fn()))
 const preferenceServiceSetMultipleMock = vi.hoisted(() => vi.fn())
+const platformMock = vi.hoisted(() => ({ platform: undefined as string | undefined, isMac: false, isWin: false }))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -55,7 +56,15 @@ vi.mock('@renderer/utils/platform', async (importOriginal) => {
 
   return {
     ...actual,
-    isMac: false
+    get platform() {
+      return platformMock.platform
+    },
+    get isMac() {
+      return platformMock.isMac
+    },
+    get isWin() {
+      return platformMock.isWin
+    }
   }
 })
 
@@ -188,6 +197,9 @@ const renderShortcutSettings = (onKeyDown?: React.KeyboardEventHandler<HTMLDivEl
 describe('ShortcutSettings shortcut recorder', () => {
   beforeEach(() => {
     routerSearch.current = {}
+    platformMock.platform = undefined
+    platformMock.isMac = false
+    platformMock.isWin = false
     shortcutsMock.shortcuts = [makeShortcut()]
     shortcutsMock.updatePreference.mockReset()
     shortcutsMock.updatePreference.mockResolvedValue(undefined)
@@ -446,5 +458,88 @@ describe('ShortcutSettings shortcut recorder', () => {
     const focused = container.querySelectorAll('[data-focused]')
     expect(focused).toHaveLength(1)
     expect(focused[0]?.textContent).toContain('Next tab')
+  })
+
+  // Windows opens the system menu on Alt+Space before the recorder sees it, so the
+  // show/hide row offers a manual assignment instead of relying on key capture.
+  describe('Alt+Space fallback on Windows', () => {
+    const makeShowAppShortcut = () => {
+      const rule = REGISTERED_KEYBINDINGS.find((item) => item.command === 'app.window.show')!
+      return {
+        ...makeShortcut({
+          command: 'app.window.show',
+          binding: [],
+          enabled: false,
+          defaultPreference: { binding: [], enabled: false },
+          label: 'Show/Hide App'
+        }),
+        keybinding: rule
+      }
+    }
+
+    beforeEach(() => {
+      platformMock.platform = 'win32'
+      platformMock.isWin = true
+    })
+
+    it('offers a manual Alt+Space assignment while recording the show shortcut', () => {
+      shortcutsMock.shortcuts = [makeShowAppShortcut()]
+      renderShortcutSettings()
+
+      fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+
+      expect(screen.getByRole('button', { name: 'settings.shortcuts.use_alt_space' })).toBeInTheDocument()
+      expect(screen.getByText('settings.shortcuts.alt_space_hint')).toBeInTheDocument()
+    })
+
+    it('assigns Alt+Space without key capture', async () => {
+      shortcutsMock.shortcuts = [makeShowAppShortcut()]
+      renderShortcutSettings()
+
+      fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+      fireEvent.click(screen.getByRole('button', { name: 'settings.shortcuts.use_alt_space' }))
+
+      await waitFor(() => {
+        expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.window.show', {
+          binding: ['Alt', 'Space'],
+          enabled: true
+        })
+      })
+    })
+
+    it('blocks the manual Alt+Space assignment when another shortcut already uses it', async () => {
+      shortcutsMock.shortcuts = [
+        makeShowAppShortcut(),
+        makeShortcut({
+          command: 'app.search',
+          binding: ['Alt', 'Space'],
+          enabled: true,
+          defaultPreference: { binding: [], enabled: false },
+          label: 'Search everywhere'
+        })
+      ]
+      renderShortcutSettings()
+
+      fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+      // The shared timer mock fires immediately; keep the one-shot conflict
+      // label alive so the test can observe it like a real 2s timeout would.
+      setTimeoutTimerMock.mockImplementationOnce(() => {})
+      fireEvent.click(screen.getByRole('button', { name: 'settings.shortcuts.use_alt_space' }))
+
+      expect(await screen.findByText('settings.shortcuts.conflict_with')).toBeInTheDocument()
+      expect(shortcutsMock.updatePreference).not.toHaveBeenCalled()
+    })
+
+    it('hides the fallback off Windows and for other shortcuts', () => {
+      platformMock.platform = 'darwin'
+      platformMock.isMac = true
+      platformMock.isWin = false
+      shortcutsMock.shortcuts = [makeShowAppShortcut()]
+      renderShortcutSettings()
+
+      fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
+
+      expect(screen.queryByRole('button', { name: 'settings.shortcuts.use_alt_space' })).not.toBeInTheDocument()
+    })
   })
 })

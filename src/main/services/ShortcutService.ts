@@ -18,6 +18,7 @@ import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import {
   collectContextKeys,
   type CommandId,
+  commandShortcutPreferenceKey,
   evaluateContextExpr,
   findCommandDefinition,
   REGISTERED_KEYBINDINGS,
@@ -159,7 +160,13 @@ export class ShortcutService extends BaseService {
           canExecuteCommand: (candidate) => localCommands.has(candidate) && this.handlers.has(candidate)
         })
 
-        if (!command) return
+        if (!command) {
+          // The global show/hide shortcut still fires through `globalShortcut` when the
+          // main window is focused, but on Windows a configured Alt+Space would also
+          // summon the window system menu. Swallow it so only the toggle runs.
+          this.suppressWindowsSystemMenu(event, input)
+          return
+        }
 
         event.preventDefault()
         this.handlers.get(command)?.(window)
@@ -193,6 +200,35 @@ export class ShortcutService extends BaseService {
 
     if (!window.isDestroyed()) {
       this.registerGlobalShortcuts(window)
+    }
+  }
+
+  /**
+   * Swallows the Windows system-menu keystroke when it matches the configured
+   * global show/hide shortcut. `globalShortcut` drives the toggle itself, so the
+   * menu must not open on top of it when the main window is focused. Only
+   * Alt+Space can summon the menu, which keeps this check off the hot path.
+   */
+  private suppressWindowsSystemMenu(event: Electron.Event, input: Electron.Input): void {
+    if (process.platform !== 'win32') return
+    if (input.type !== 'keyDown' || input.isComposing) return
+    if (input.code !== 'Space' || !input.alt || input.control || input.meta || input.shift) return
+
+    const preferenceService = application.get('PreferenceService')
+    const resolved = resolveCommandKeybinding({
+      command: 'app.window.show',
+      preference: preferenceService.get(commandShortcutPreferenceKey('app.window.show')) as
+        | PreferenceShortcutType
+        | undefined,
+      context: (key) => {
+        if (key === 'platform') return process.platform
+        return toContextValue(preferenceService.get(key as PreferenceKeyType))
+      },
+      platform: process.platform
+    })
+
+    if (resolved?.enabled && resolved.accelerator === 'Alt+Space') {
+      event.preventDefault()
     }
   }
 
