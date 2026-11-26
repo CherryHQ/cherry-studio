@@ -12,6 +12,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode'
 import { ClaudeCodeSessionStateService } from '@main/ai/runtime/claudeCode/ClaudeCodeSessionStateService'
 import { surfaceExitPlanModeInput } from '@main/ai/runtime/claudeCode/hooks'
@@ -1392,4 +1393,153 @@ it.each([false, true])('retains approval=%s through native results, persistence 
     removed: []
   })
   expect(restored.parts(f.reply.id)).toEqual([expected])
+})
+
+it('releases unplaced inputBinding when recovering an unresolved steer across reconnect and skips already-placed bindings', async () => {
+  dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
+  dbh.db
+    .insert(userModelTable)
+    .values({
+      id: 'test::model',
+      providerId: 'test',
+      modelId: 'model',
+      name: 'Model',
+      capabilities: [],
+      supportsStreaming: true,
+      orderKey: 'a0'
+    })
+    .run()
+  dbh.db
+    .insert(agentTable)
+    .values({ id: 'agent', type: 'pi', name: 'Agent', instructions: '', model: 'test::model', orderKey: 'a0' })
+    .run()
+  dbh.db
+    .insert(agentWorkspaceTable)
+    .values({ id: 'workspace', name: 'Workspace', path: '/test', type: 'user', orderKey: 'a0' })
+    .run()
+  dbh.db
+    .insert(agentSessionTable)
+    .values({ id: 'root', agentId: 'agent', workspaceId: 'workspace', name: 'Root', orderKey: 'a0', lastPos: 0 })
+    .run()
+
+  const context = preparePiBranch('root')
+  const firstUser = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'First' }] } }
+  })
+  const firstReply = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'assistant', status: 'pending', data: { parts: [] } }
+  })
+  const unplacedSteer = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Unplaced steer' }] } }
+  })
+  const placedSteer = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Placed steer' }] } }
+  })
+
+  const q1 = new AsyncEventQueue<AgentRuntimeEvent>()
+  const q2 = new AsyncEventQueue<AgentRuntimeEvent>()
+  const sentOnSecond: string[] = []
+  let firstCallbacks: Parameters<Parameters<typeof runtimeDriverRegistry.register>[0]['connect']>[0] | undefined
+  runtimeDriverRegistry.register({
+    type: 'pi',
+    validateSession: () => {},
+    connect: vi
+      .fn()
+      .mockImplementationOnce(async (connectInput) => {
+        firstCallbacks = connectInput
+        return {
+          contextId: context.id,
+          events: q1,
+          send: ({ message }) => {
+            prepareNativeSubmission('root', message.id, context.id, 'reject')
+          },
+          redirect: ({ message }) => {
+            prepareNativeSubmission('root', message.id, context.id, 'steer')
+            firstCallbacks?.onInputPrepared?.(message.id, context.id)
+            return true
+          },
+          close: async () => q1.close()
+        }
+      })
+      .mockImplementationOnce(async () => ({
+        contextId: context.id,
+        events: q2,
+        send: ({ message }) => {
+          prepareNativeSubmission('root', message.id, context.id, 'reject')
+          sentOnSecond.push(message.id)
+        },
+        lookupInput: async () => ({
+          status: 'unknown',
+          error: { operation: 'lookup-input', code: 'unavailable', message: 'unavailable' }
+        }),
+        reconcile: async () => 'current',
+        close: async () => q2.close()
+      }))
+  })
+
+  const service = new AgentSessionRuntimeService()
+  onTestFinished(async () => {
+    await service.closeSession('root')
+    runtimeDriverRegistry.clearForTest()
+  })
+  const starts: StartRuntimeTurnInput[] = []
+  MockApplicationUtils.setService('AiStreamManager', {
+    startRuntimeTurn: (input: StartRuntimeTurnInput) => {
+      starts.push(input)
+    },
+    drainRuntimeReply: async () => {}
+  })
+
+  const handle = service.beginTurn({
+    sessionId: 'root',
+    topicId: 'agent-session:root',
+    agentId: 'agent',
+    agentType: 'pi',
+    modelId: 'test::model',
+    assistantMessageId: firstReply.id,
+    userMessage: firstUser
+  })
+  const source = service.openTurnStream({
+    sessionId: 'root',
+    turnId: handle.turnId,
+    signal: handle.abortController.signal
+  })
+  if (source.kind !== 'messages') throw new Error('Expected message source')
+  const reader = source.stream.getReader()
+  await reader.read()
+  await vi.waitFor(() => expect(messages.inputBinding('root', firstUser.id)?.contextId).toBe(context.id))
+
+  service.enqueueUserMessage('root', unplacedSteer)
+  service.enqueueUserMessage('root', placedSteer)
+  expect(messages.inputBinding('root', unplacedSteer.id)?.contextId).toBe(context.id)
+  expect(messages.inputBinding('root', placedSteer.id)?.contextId).toBe(context.id)
+  // Simulate native placement persisted in DB for placedSteer before connection loss.
+  messages.saveInputTimelinePosition('root', placedSteer.id, context.id, 1)
+
+  await service.closeSession('root')
+  await (service as any).ensureConnection((service as any).entries.get('root'))
+
+  await vi.waitFor(() => expect(starts).toHaveLength(1))
+  expect((service as any).entries.get('root')?.pendingInputs?.size ?? 0).toBe(0)
+  expect(starts[0].taskIds).toEqual([unplacedSteer.id])
+
+  const runtime = starts[0].request.runtime
+  if (runtime?.kind !== 'agent-session') throw new Error('Expected agent-session runtime')
+  const recoveredSource = service.openTurnStream({
+    sessionId: 'root',
+    turnId: runtime.turnId,
+    signal: starts[0].abortController!.signal
+  })
+  if (recoveredSource.kind !== 'messages') throw new Error('Expected message source')
+  const recoveredReader = recoveredSource.stream.getReader()
+  await recoveredReader.read()
+  await vi.waitFor(() => expect(sentOnSecond).toEqual([unplacedSteer.id]))
+  expect(messages.inputBinding('root', unplacedSteer.id)?.contextId).toBe(context.id)
+  expect(messages.replyTo('root', unplacedSteer.id)?.id).toBe(starts[0].request.messageId)
+  await reader.cancel().catch(() => undefined)
+  await recoveredReader.cancel().catch(() => undefined)
 })

@@ -318,7 +318,8 @@ export function useAgentChatRuntimeState({
       userMessageParts: getAgentTurnParts(input),
       reasoningEffort: input.options?.body?.reasoningEffort,
       serviceTier: input.options?.body?.serviceTier,
-      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
+      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {}),
+      ...(input.options?.body?.followUp === true ? { followUp: true } : {})
     }),
     []
   )
