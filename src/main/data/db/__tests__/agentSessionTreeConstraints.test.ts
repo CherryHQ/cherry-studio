@@ -158,6 +158,57 @@ describe('Session tree populated branch upgrade', () => {
   })
 })
 
+describe('Session tree upgrade from v2.2.2 after a root was selected', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0038_clammy_jigsaw' })
+
+  it('restores flat history underneath its already selected root', () => {
+    seedSessions(dbh)
+    dbh.sqlite.exec(`
+      INSERT INTO agent_session_message (id, session_id, role, parent_id, data, status, created_at, updated_at)
+      VALUES ('flat-root', 'flat', 'root', NULL, '{"parts":[]}', 'success', 300, 300),
+             ('first', 'flat', 'user', NULL, '{"parts":[{"type":"text","text":"original input"}]}', 'success', 100, 100),
+             ('reply', 'flat', 'assistant', NULL, '{"parts":[{"type":"text","text":"original reply"}]}', 'success', 200, 200);
+      UPDATE agent_session SET active_node_id = 'flat-root' WHERE id = 'flat';
+    `)
+
+    applyMigrations(dbh.db, resolveMigrationsPath())
+
+    expect(readAgentSessionPath(dbh.db, 'flat')).toMatchObject([
+      { id: 'first', parentId: 'flat-root', data: { parts: [{ type: 'text', text: 'original input' }] } },
+      { id: 'reply', parentId: 'first', data: { parts: [{ type: 'text', text: 'original reply' }] } }
+    ])
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+})
+
+describe('Session tree upgrade from v2.2.2 with mixed history', () => {
+  const dbh = setupTestDatabase({ beforeMigration: '0038_clammy_jigsaw' })
+
+  it('recovers a detached subtree without changing existing branches or the selected head', () => {
+    seedSessions(dbh)
+    dbh.sqlite.exec(`
+      INSERT INTO agent_session_message (id, session_id, role, parent_id, data, status, created_at, updated_at)
+      VALUES ('root', 'branched', 'root', NULL, '{"parts":[]}', 'success', 100, 100),
+             ('selected', 'branched', 'user', 'root', '{"parts":[]}', 'success', 200, 200),
+             ('sibling', 'branched', 'user', 'root', '{"parts":[]}', 'success', 300, 300),
+             ('detached', 'branched', 'user', NULL, '{"parts":[]}', 'success', 400, 400),
+             ('child', 'branched', 'assistant', 'detached', '{"parts":[]}', 'success', 500, 500);
+      UPDATE agent_session SET active_node_id = 'selected' WHERE id = 'branched';
+    `)
+
+    applyMigrations(dbh.db, resolveMigrationsPath())
+    applyMigrations(dbh.db, resolveMigrationsPath())
+
+    expect(readAgentSessionPath(dbh.db, 'branched')).toMatchObject([{ id: 'selected', parentId: 'root' }])
+    expect(readAgentSessionPath(dbh.db, 'branched', 'sibling')).toMatchObject([{ id: 'sibling', parentId: 'root' }])
+    expect(readAgentSessionPath(dbh.db, 'branched', 'child')).toMatchObject([
+      { id: 'detached', parentId: 'root' },
+      { id: 'child', parentId: 'detached' }
+    ])
+    expect(dbh.sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+})
+
 for (const invalidParent of ['missing', 'foreign']) {
   describe(`Session tree upgrade with ${invalidParent} parent`, () => {
     const dbh = setupTestDatabase({ beforeMigration: '0039_agent_session_tree_backfill' })
@@ -166,7 +217,9 @@ for (const invalidParent of ['missing', 'foreign']) {
       seedSessions(dbh)
       dbh.sqlite.exec(`
         INSERT INTO agent_session_message (id, session_id, role, data, status, created_at, updated_at)
-        VALUES ('other-root', 'branched', 'root', '{"parts":[]}', 'success', 100, 200);
+        VALUES ('other-root', 'branched', 'root', '{"parts":[]}', 'success', 100, 200),
+               ('recoverable', 'branched', 'user', '{"parts":[]}', 'success', 110, 210);
+        UPDATE agent_session SET active_node_id = 'other-root' WHERE id = 'branched';
       `)
       dbh.sqlite
         .prepare(`
