@@ -36,6 +36,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
   revalidate: vi.fn(),
+  refreshReservedMessages: vi.fn(),
   deleteSessionMessage: vi.fn(),
   useAgentSessionParts: vi.fn(),
   useChatWithHistory: vi.fn(),
@@ -652,6 +653,7 @@ describe('useAgentChatRuntimeState', () => {
     mocks.respondToolApproval.mockResolvedValue({ ok: true })
     mocks.refresh.mockResolvedValue([assistantMessage])
     mocks.revalidate.mockResolvedValue(undefined)
+    mocks.refreshReservedMessages.mockResolvedValue(undefined)
     mocks.deleteSessionMessage.mockResolvedValue(undefined)
     mocks.chatStop.mockResolvedValue(undefined)
     mocks.sendTurn.mockReset()
@@ -668,6 +670,7 @@ describe('useAgentChatRuntimeState', () => {
       refresh: mocks.refresh,
       displayIndex: (id: string) => (id === assistantMessage.id ? 0 : undefined),
       revalidate: mocks.revalidate,
+      refreshReservedMessages: mocks.refreshReservedMessages,
       deleteMessage: mocks.deleteSessionMessage
     })
     mocks.useChatWithHistory.mockReturnValue({
@@ -945,7 +948,7 @@ describe('useAgentChatRuntimeState', () => {
           activeExecutions: [execution],
           reservedMessages: [assistantMessage]
         })
-        mocks.revalidate.mockImplementationOnce(
+        mocks.refreshReservedMessages.mockImplementationOnce(
           () =>
             new Promise((_resolve, reject) => {
               finishStartup = () => reject(new Error('compact startup failed'))

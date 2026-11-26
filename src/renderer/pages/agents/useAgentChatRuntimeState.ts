@@ -3,6 +3,7 @@ import { type ComponentType, useCallback, useEffect, useLayoutEffect, useMemo, u
 import { useTranslation } from 'react-i18next'
 
 import type { ToastConfig } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
@@ -61,6 +62,8 @@ import { aiErrorCodes, agentSessionForkFailureReason } from '@shared/ipc/errors/
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { agentSessionForkReasonLabel } from './messages/agentSessionFork'
+
+const logger = loggerService.withContext('useAgentChatRuntimeState')
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -289,6 +292,7 @@ export function useAgentChatRuntimeState({
     selectAllPagination,
     refresh,
     revalidate,
+    refreshReservedMessages,
     displayIndex,
     deleteMessage: deleteSessionMessage
   } = useAgentSessionParts(sessionId, {
@@ -300,8 +304,10 @@ export function useAgentChatRuntimeState({
 
   useLayoutEffect(() => {
     if (!sessionMessagesEnabled || reservedMessages.length === 0) return
-    void revalidate()
-  }, [reservedMessages, revalidate, sessionMessagesEnabled])
+    void refreshReservedMessages(reservedMessages.map(({ id }) => id)).catch((error) =>
+      logger.warn('Could not refresh reserved history rows', { error })
+    )
+  }, [reservedMessages, refreshReservedMessages, sessionMessagesEnabled])
 
   const { activeExecutions, stop, projection } = useChatWithHistory(streamTopicId, refresh)
   const ensureConversation = useCallback(() => ({ topicId: sessionTopicId }), [sessionTopicId])
@@ -323,7 +329,8 @@ export function useAgentChatRuntimeState({
     buildStreamRequest,
     onAccepted: async (ack, input) => {
       errorToastsRef.current?.track(ack.activeExecutions, ack.reservedMessages)
-      if (input.editTarget || ack.reservedMessages?.length) await revalidate()
+      if (input.editTarget) await revalidate()
+      else if (ack.reservedMessages?.length) await refreshReservedMessages(ack.reservedMessages.map(({ id }) => id))
     },
     onError: (error, input) =>
       input.editTarget
