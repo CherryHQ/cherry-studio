@@ -728,7 +728,7 @@ describe('AgentSessionMessageService', () => {
         .items.map((row) => row.id)
         .reverse()
     ).toEqual(Array.from({ length: 8 }, (_, index) => 'tail-' + index))
-    expect(getImportedHistoryState(SESSION_ID)?.messageCount).toBe(8)
+    expect(getImportedHistoryState(dbh.db, SESSION_ID)?.messageCount).toBe(8)
     expect(dbh.db.select().from(appStateTable).all()).toHaveLength(9)
   })
 

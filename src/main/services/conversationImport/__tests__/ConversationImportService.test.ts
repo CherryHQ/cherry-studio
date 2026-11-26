@@ -518,7 +518,7 @@ describe('local history atomic import', () => {
     await source('tail', ['2026-01-01T00:00:00Z', '2026-01-01T00:00:01Z', '2026-01-01T00:00:02Z'])
     const p = await preview()
     const [result] = await service.commit('window', p.previewId, [p.items[0].ref])
-    const state = getImportedHistoryState(result.sessionId!)!
+    const state = getImportedHistoryState(dbh.db, result.sessionId!)!
     const directory = path.join(root, 'feature.agents.pi.sessions')
     const file = path.join(directory, (await readdir(directory))[0])
     const context = SessionManager.open(file, directory).buildSessionContext()
@@ -535,7 +535,7 @@ describe('local history atomic import', () => {
     const sessionId = created.sessionId!
     const message = agentSessionMessageService.saveMessage({
       sessionId,
-      runtimeResumeToken: getImportedHistoryState(sessionId)!.nativeSessionId,
+      runtimeResumeToken: getImportedHistoryState(dbh.db, sessionId)!.nativeSessionId,
       message: { role: 'assistant', status: 'pending', data: { parts: [] } }
     })
     agentSessionMessageService.resolveCrashOrphanedMessages([{ id: message.id, data: message.data }], [sessionId])
@@ -795,7 +795,7 @@ describe('local history atomic import', () => {
     })
     expect([newest.items[0].role, older.items[0].role]).toEqual(['assistant', 'user'])
     expect(newest.items[0].createdAt < older.items[0].createdAt).toBe(true)
-    expect(getImportedHistoryState(result.sessionId!)).toBeFalsy()
+    expect(getImportedHistoryState(dbh.db, result.sessionId!)).toBeFalsy()
     expect(agentSessionMessageService.getLastRuntimeResumeToken(result.sessionId!)).toBeFalsy()
   })
   it('does not let a target change create an orphan workspace', async () => {
@@ -889,7 +889,7 @@ describe('local history atomic import', () => {
     expect(agentSessionMessageService.listSessionMessages(created.sessionId!).items).toHaveLength(2)
     await ensureImportedSessionHistory(created.sessionId!)
     await ensureImportedSessionHistory(created.sessionId!)
-    expect(getImportedHistoryState(created.sessionId!)!.status).toBe('ready')
+    expect(getImportedHistoryState(dbh.db, created.sessionId!)!.status).toBe('ready')
     expect(counts()).toEqual([1, 2, 1, 3])
   })
   it('retries initialization from remaining messages after deletion', async () => {
@@ -909,7 +909,7 @@ describe('local history atomic import', () => {
     ).buildSessionContext()
     expect(JSON.stringify(context.messages)).toContain('Message 0')
     expect(JSON.stringify(context.messages)).not.toContain('Message 1')
-    expect(getImportedHistoryState(created.sessionId!)!.messageCount).toBe(1)
+    expect(getImportedHistoryState(dbh.db, created.sessionId!)!.messageCount).toBe(1)
     expect(counts()).toEqual([1, 1, 1, 2])
   })
   it('rolls back metadata, messages and workspace when a message-state insert fails', async () => {

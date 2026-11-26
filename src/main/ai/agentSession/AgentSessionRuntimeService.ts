@@ -2588,7 +2588,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private hydrateResumeToken(entry: AgentSessionRuntimeEntry): void {
-    const imported = getImportedHistoryState(entry.sessionId)
+    const imported = getImportedHistoryState(application.get('DbService').getDb(), entry.sessionId)
     if (imported?.status === 'pending') {
       entry.lastResumeToken = imported.nativeSessionId
       return
