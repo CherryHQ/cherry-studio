@@ -744,6 +744,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.clearAllMocks()
 })
 
@@ -2766,6 +2767,7 @@ describe('edit dialogs', () => {
   })
 
   it('persists the latest edit made while an earlier save is still in flight', async () => {
+    vi.useFakeTimers()
     let resolveFirstSave: (() => void) | undefined
     updateAssistantMock.mockImplementationOnce(
       () =>
@@ -2777,7 +2779,8 @@ describe('edit dialogs', () => {
 
     const nameInput = screen.getByLabelText('Name')
     fireEvent.change(nameInput, { target: { value: 'First Edit' } })
-    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    await act(() => vi.advanceTimersByTimeAsync(700))
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
     expect(updateAssistantMock).toHaveBeenNthCalledWith(1, {
       body: expect.objectContaining({ name: 'First Edit' })
     })
@@ -2785,11 +2788,11 @@ describe('edit dialogs', () => {
     // Keep editing while the first PATCH is still in flight.
     fireEvent.change(nameInput, { target: { value: 'Second Edit' } })
     // Let the debounce fire; the in-flight guard must queue — not drop — this edit.
-    await new Promise((resolve) => setTimeout(resolve, 700))
+    await act(() => vi.advanceTimersByTimeAsync(700))
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
 
-    resolveFirstSave?.()
-    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    await act(async () => resolveFirstSave?.())
+    expect(updateAssistantMock).toHaveBeenCalledTimes(2)
     expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
       body: expect.objectContaining({ name: 'Second Edit' })
     })

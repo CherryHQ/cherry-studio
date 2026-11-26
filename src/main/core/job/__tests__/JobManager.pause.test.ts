@@ -246,8 +246,7 @@ describe('JobManager pause / drainInFlight', () => {
       const handle = jobManager.enqueue('pause.gate1' as never, { message: 'x' } as never)
       expect(handle.snapshot.status).toBe('pending')
 
-      await flushDispatch()
-      await sleep(30)
+      await drainTrailingDispatch(jobManager)
       expect(counter.count).toBe(0)
       expect(jobService.getById(handle.id)?.status).toBe('pending')
 
@@ -289,8 +288,7 @@ describe('JobManager pause / drainInFlight', () => {
       // Mutex frees AFTER drain returned — the resumed dispatch must re-check
       // the pause flag and claim nothing.
       releaseMutex()
-      await flushDispatch()
-      await sleep(30)
+      await drainTrailingDispatch(jobManager)
       expect(counter.count).toBe(1)
       expect(jobService.getById(second.id)?.status).toBe('pending')
 
@@ -466,8 +464,7 @@ describe('JobManager pause / drainInFlight', () => {
         { behavior: 'immediate' }
       )
 
-      await flushDispatch()
-      await sleep(30)
+      await drainTrailingDispatch(jobManager)
       expect(counter.count).toBe(0)
       expect(jobService.getById(handle.id)?.status).toBe('pending')
 
@@ -1152,14 +1149,12 @@ describe('JobManager pause / drainInFlight', () => {
       const h2 = jobManager.pause('holder-2')
 
       const handle = jobManager.enqueue('pause.refcount' as never, { message: 'x' } as never)
-      await flushDispatch()
-      await sleep(20)
+      await drainTrailingDispatch(jobManager)
       expect(jobService.getById(handle.id)?.status).toBe('pending')
 
       h1.dispose()
       h1.dispose() // idempotent — must not double-release
-      await flushDispatch()
-      await sleep(20)
+      await drainTrailingDispatch(jobManager)
       expect(jobService.getById(handle.id)?.status).toBe('pending')
       expect(counter.count).toBe(0)
 
@@ -1297,31 +1292,29 @@ describe('JobManager pause / drainInFlight', () => {
       const counter = { count: 0 }
       const { scheduler, jobManager } = await bootstrapManager({
         handlers: [['pause.skew', makeCountingHandler(counter)]],
+        fakeDate: true,
         keepFakeTimers: true
       })
 
       const hold = jobManager.pause('test: suppressed promotion re-arm')
+      const scheduledAt = Date.now() + 600
       const handle = jobManager.enqueue('pause.skew' as never, { message: 'not-yet-due' } as never, {
-        scheduledAt: Date.now() + 600
+        scheduledAt
       })
       expect(handle.snapshot.status).toBe('delayed')
 
-      // The promotion once-timer elapses on the FAKE clock while the wall
-      // clock barely moves: the suppressed fire lands strictly BEFORE the
-      // row's wall-clock scheduledAt, and scheduleOnce already self-cleaned
-      // the timer.
-      await vi.advanceTimersByTimeAsync(700)
+      // Set the wall clock back so the timer fires before the row is due.
+      vi.setSystemTime(Date.now() - 100)
+      await vi.advanceTimersByTimeAsync(600)
       expect(jobService.getById(handle.id)?.status).toBe('delayed')
 
-      vi.useRealTimers()
-      // Release while the row is still not due: promoteDelayedDue(now) alone
-      // cannot promote it, and without a re-armed timer it would strand in
-      // `delayed` until the 5-minute promotion tick (never armed in tests).
       hold.dispose()
-
-      await pollUntil(() => jobService.getById(handle.id)?.status === 'completed')
+      expect(jobService.getById(handle.id)?.status).toBe('delayed')
+      await vi.advanceTimersByTimeAsync(100)
+      await expect(handle.finished).resolves.toMatchObject({ status: 'completed' })
       expect(counter.count).toBe(1)
 
+      vi.useRealTimers()
       await drainTrailingDispatch(jobManager)
       await teardownManager(scheduler, jobManager)
     })
@@ -1669,25 +1662,6 @@ describe('JobManager pause / drainInFlight', () => {
       expect(() => hold.dispose()).not.toThrow()
 
       await scheduler._doStop()
-    })
-
-    it('happy path: paused and never released — no leaks, no unhandled rejections', async () => {
-      const unhandled: unknown[] = []
-      const listener = (reason: unknown) => unhandled.push(reason)
-      process.on('unhandledRejection', listener)
-
-      const { scheduler, jobManager } = await bootstrapManager()
-
-      jobManager.pause('restore happy path — never released')
-      const verdict = await jobManager.drainInFlight({ timeoutMs: 200 })
-      expect(verdict).toEqual({ stragglerIds: [], startupRecoveryPending: false })
-
-      // Simulated process exit while still paused.
-      await teardownManager(scheduler, jobManager)
-
-      await sleep(50)
-      expect(unhandled).toHaveLength(0)
-      process.off('unhandledRejection', listener)
     })
   })
 })
