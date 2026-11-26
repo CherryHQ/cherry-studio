@@ -42,6 +42,7 @@ export async function createPiGatewayModelBinding(
 ): Promise<{
   modelRuntime: ModelRuntime
   model: NonNullable<ReturnType<ModelRuntime['getModel']>>
+  compaction: ReturnType<typeof resolvePiCompactionSettings>
   onRetry?: typeof onRetry
 }> {
   if (!isPiCompatibleModel(provider, model)) {
