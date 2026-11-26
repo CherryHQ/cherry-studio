@@ -11,7 +11,7 @@ export function reservePiBranchTx(
   sessionId: string,
   anchorMessageId: string,
   nativeId: string,
-  checkpointMapping?: { staleResetHandled?: string }
+  checkpointMapping?: { staleResetHandled?: string; referenceHistory?: boolean }
 ) {
   const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound')
   return contexts.reserveBranchTx(tx, {
@@ -23,7 +23,7 @@ export function reservePiBranchTx(
   })
 }
 
-export function preparePiBranch(sessionId: string, messageId?: string, nativeId?: string) {
+export function preparePiBranch(sessionId: string, messageId?: string, nativeId?: string, opening = false) {
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
@@ -41,7 +41,12 @@ export function preparePiBranch(sessionId: string, messageId?: string, nativeId?
           // Already recovered: preserve the healthy binding. A new native on a
           // descendant (e.g. post-recovery rotation) must not rewrite it in
           // place (#23519 review). Pi surfaces mismatches instead of forking.
-          if (nativeId && existing.nativeThreadId !== nativeId)
+          if (
+            !opening &&
+            nativeId &&
+            existing.nativeThreadId !== nativeId &&
+            !existing.checkpointMapping?.referenceHistory
+          )
             throw new Error('Requested Pi identity does not match the captured branch')
           return existing
         }
@@ -50,19 +55,20 @@ export function preparePiBranch(sessionId: string, messageId?: string, nativeId?
         // healthy recovered binding.
         return contexts.refreshResetBranchTx(tx, existing.id, nativeId ?? uuid(), resetBoundaryId)
       }
-      if (nativeId && existing.nativeThreadId !== nativeId)
+      if (!opening && nativeId && existing.nativeThreadId !== nativeId && !existing.checkpointMapping?.referenceHistory)
         throw new Error('Requested Pi identity does not match the captured branch')
       return existing
     }
     // Fresh branches anchor at the requested head (`anchor`, main). The hidden
     // root binding still occupies `(sessionId, root)` after a stale reset, so
     // the boundary marker is recorded and siblings keep the root binding.
-    return reservePiBranchTx(
-      tx,
-      sessionId,
-      anchor,
-      nativeId ?? uuid(),
-      resetBoundaryId !== undefined ? { staleResetHandled: resetBoundaryId } : undefined
-    )
+    // Opening without an explicit native creates a history-reference branch.
+    if (resetBoundaryId !== undefined || (opening && !nativeId)) {
+      return reservePiBranchTx(tx, sessionId, anchor, nativeId ?? uuid(), {
+        ...(resetBoundaryId !== undefined ? { staleResetHandled: resetBoundaryId } : {}),
+        ...(opening && !nativeId ? { referenceHistory: true } : {})
+      })
+    }
+    return reservePiBranchTx(tx, sessionId, anchor, nativeId ?? uuid())
   })
 }

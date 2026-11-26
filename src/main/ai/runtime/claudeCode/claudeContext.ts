@@ -1,12 +1,19 @@
 import { v4 as uuid } from 'uuid'
 
 import { application } from '@application'
+import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { ensureAgentSessionRootTx, getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 
-export function prepareClaudeBranch(sessionId: string, configDir: string, nativeId?: string, messageId?: string) {
+export function prepareClaudeBranch(
+  sessionId: string,
+  configDir: string,
+  nativeId?: string,
+  messageId?: string,
+  opening = false
+) {
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
@@ -89,27 +96,47 @@ export function prepareClaudeBranch(sessionId: string, configDir: string, native
           checkpointMapping: { staleResetHandled: resetBoundaryId }
         })
       }
-      if (!nativeId || existing.nativeThreadId === nativeId) return existing
+      if (opening || !nativeId || existing.nativeThreadId === nativeId) return existing
     }
     const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'claude-code', configDir }, 'bound')
     // Fresh branches anchor at the requested head (`anchor`, main). After a
     // stale-resume reset the pre-reset root binding is hidden from `branchTx`
     // but still occupies `(sessionId, root)`, so the boundary marker is
     // recorded; sibling paths exclude the boundary row and keep resolving to
-    // the retained root binding.
+    // the retained root binding. Opening without an explicit native marks a
+    // history-reference branch.
     return contexts.reserveBranchTx(tx, {
       sessionId,
       backendId: backend.id,
       nativeThreadId: nativeId ?? uuid(),
       anchorMessageId: anchor,
-      ...(resetBoundaryId !== undefined ? { checkpointMapping: { staleResetHandled: resetBoundaryId } } : {})
+      ...((resetBoundaryId !== undefined || (opening && !nativeId)
+        ? {
+            checkpointMapping: {
+              ...(resetBoundaryId !== undefined ? { staleResetHandled: resetBoundaryId } : {}),
+              ...(opening && !nativeId ? { referenceHistory: true } : {})
+            }
+          }
+        : {}))
     })
   })
 }
 
-export function reserveClaudeBranchTx(tx: DbOrTx, sessionId: string, anchor: string, nativeId: string) {
-  const parent = contexts.branchTx(tx, sessionId, anchor)
-  if (!parent || contexts.backendTx(tx, parent.backendId).locator.kind !== 'claude-code')
+export function claudeBranchQueryIdentity(context: AgentSessionContextRow, requestedResume?: string) {
+  const nativeId = context.nativeThreadId!
+  const resume = context.bindingState === 'bound' || requestedResume === nativeId ? nativeId : undefined
+  return { resume, sessionId: resume ? undefined : context.nativeThreadId! }
+}
+
+export function reserveClaudeBranchTx(
+  tx: DbOrTx,
+  sessionId: string,
+  anchor: string,
+  nativeId: string,
+  sourceBackendId?: string
+) {
+  const backendId = contexts.branchTx(tx, sessionId, anchor)?.backendId ?? sourceBackendId
+  if (!backendId || contexts.backendTx(tx, backendId).locator.kind !== 'claude-code')
     throw new Error('Claude edit requires an existing native backend')
   // An edit published at or below a stale-reset boundary must record the
   // boundary it has handled; otherwise first dispatch re-reserves the same
@@ -118,7 +145,7 @@ export function reserveClaudeBranchTx(tx: DbOrTx, sessionId: string, anchor: str
   const resetBoundaryId = contexts.lastStaleResetBoundaryTx(tx, sessionId, anchor)
   return contexts.reserveBranchTx(tx, {
     sessionId,
-    backendId: parent.backendId,
+    backendId,
     anchorMessageId: anchor,
     nativeThreadId: nativeId,
     ...(resetBoundaryId !== undefined ? { checkpointMapping: { staleResetHandled: resetBoundaryId } } : {})

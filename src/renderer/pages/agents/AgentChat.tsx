@@ -42,6 +42,7 @@ import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import { cn } from '@renderer/utils/style'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
@@ -60,7 +61,6 @@ import {
   AgentTaskProgressCapsule,
   useAgentRightPaneActions
 } from './components/AgentRightPane'
-import { AgentSessionNameControl } from './components/AgentSessionNameControl'
 import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -104,31 +104,20 @@ function getNewSessionWorkspaceDefaults(
   return session.workspaceId ? { workspaceId: session.workspaceId } : {}
 }
 
-type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'> & {
-  session?: Pick<AgentSessionEntity, 'id' | 'name'>
-}
+type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'>
 
-function AgentTopBarControls({ session, ...props }: AgentTopBarControlsProps) {
+function AgentTopBarControls(props: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
   const profilePane = useProfilePaneToggle()
 
   return (
-    <>
-      <AgentConversationControls
-        {...props}
-        side="bottom"
-        iconOnly={iconOnly}
-        onAvatarClick={profilePane?.toggle}
-        avatarActive={profilePane?.active}
-      />
-      {session && !iconOnly ? (
-        <AgentSessionNameControl
-          sessionId={session.id}
-          sessionName={session.name}
-          onCloseAutoFocus={props.onAgentDialogCloseAutoFocus}
-        />
-      ) : null}
-    </>
+    <AgentConversationControls
+      {...props}
+      side="bottom"
+      iconOnly={iconOnly}
+      onAvatarClick={profilePane?.toggle}
+      avatarActive={profilePane?.active}
+    />
   )
 }
 
@@ -189,7 +178,7 @@ interface AgentChatLayoutProps {
   paneManualToggle?: PaneManualToggleSignal
   paneOpen?: boolean
   panePosition?: ChatPanePosition
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   resourcePane?: ResourcePaneConfig | null
   resourcePaneRevealRequest?: ResourceListRevealRequest
   rightPanelDefaultOpen?: boolean
@@ -506,7 +495,6 @@ const AgentChat = ({
         conversationControls={
           activeAgent ? (
             <AgentTopBarControls
-              session={sessionSnapshot}
               agent={activeAgent}
               model={activeModel}
               workspace={sessionSnapshot.workspace}
@@ -712,6 +700,7 @@ const AgentChatSessionCenter = ({
         editing={runtime.editing}
         cancelEditing={runtime.cancelEditing}
         resendEditedMessage={runtime.resendEditedMessage}
+        providerQuotaExhausted={runtime.providerQuotaExhausted}
       />
     </div>
   )

@@ -1,6 +1,8 @@
 import path from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
+import { v4 as uuid } from 'uuid'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -12,8 +14,9 @@ import {
 import { agentSessionTable as sessions } from '@data/db/schemas/agentSession'
 import {
   agentSessionContextTable as contexts,
+  type AgentSessionContextRow,
   type AgentSessionCheckpoints,
-  type AgentSessionContextRow
+  type ClaudeCodeReplayEntry
 } from '@data/db/schemas/agentSessionContext'
 import { agentSessionMessageTable as messages } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
@@ -37,6 +40,63 @@ export interface RootProjectionCheckpoint {
 }
 
 class AgentSessionContextService {
+  private claudeCodeReplayContext(tx: DbOrTx, sessionId: string) {
+    return tx
+      .select({ id: contexts.id, checkpoint: contexts.checkpointMapping })
+      .from(contexts)
+      .innerJoin(backends, eq(backends.id, contexts.backendId))
+      .where(
+        and(
+          eq(contexts.sessionId, sessionId),
+          isNull(contexts.parentContextId),
+          sql`json_extract(${backends.locator}, '$.kind') = 'claude-code'`
+        )
+      )
+      .orderBy(
+        sql`json_type(${contexts.checkpointMapping}, '$.claudeCodeReplay') IS NULL`,
+        contexts.createdAt,
+        contexts.id
+      )
+      .limit(1)
+      .get()
+  }
+
+  readClaudeCodeReplay(sessionId: string) {
+    return this.claudeCodeReplayContext(application.get('DbService').getDb(), sessionId)?.checkpoint?.claudeCodeReplay
+  }
+
+  saveClaudeCodeReplay(
+    sessionId: string,
+    states: ReadonlyArray<[string, Exclude<ClaudeCodeReplayEntry, 'ambiguous'>]>
+  ): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const context = this.claudeCodeReplayContext(tx, sessionId)
+      if (!context) return
+      const claudeCodeReplay = { ...context.checkpoint?.claudeCodeReplay }
+      for (const [key, state] of states) {
+        // A repeated block with different state has no unambiguous origin.
+        claudeCodeReplay[key] =
+          !Object.hasOwn(claudeCodeReplay, key) || isDeepStrictEqual(claudeCodeReplay[key], state) ? state : 'ambiguous'
+      }
+      tx.update(contexts)
+        .set({ checkpointMapping: { ...context.checkpoint, claudeCodeReplay } })
+        .where(eq(contexts.id, context.id))
+        .run()
+    })
+  }
+
+  removedRootSourceIds(contextId: string): string[] {
+    const row = application
+      .get('DbService')
+      .getDb()
+      .select({ removed: sql<string | null>`json_extract(${contexts.checkpointMapping}, '$.root.removed')` })
+      .from(contexts)
+      .where(eq(contexts.id, contextId))
+      .get()
+    if (!row) throw new Error('Native context does not exist')
+    return row.removed ? JSON.parse(row.removed) : []
+  }
+
   saveRootProjectionTx(tx: DbOrTx, sessionId: string, checkpoint: RootProjectionCheckpoint): void {
     const context = tx.select().from(contexts).where(eq(contexts.id, checkpoint.contextId)).get()
     if (context?.sessionId !== sessionId) throw new Error('Projection belongs to another session')
@@ -65,6 +125,46 @@ class AgentSessionContextService {
       })
     }
   }
+  backendsNeedingRecovery(): AgentRuntimeBackendRow[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(backends)
+      .where(sql`${backends.needsRecoveryCheck} = 1`)
+      .all()
+  }
+
+  markRecoveryCheck(id: string, needed: boolean): void {
+    application
+      .get('DbService')
+      .getDb()
+      .update(backends)
+      .set({ needsRecoveryCheck: needed })
+      .where(and(eq(backends.id, id), eq(backends.needsRecoveryCheck, !needed)))
+      .run()
+  }
+
+  rootForThread(backendId: string, nativeThreadId: string): AgentSessionContextRow | undefined {
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .select({ context: contexts })
+      .from(contexts)
+      .innerJoin(sessions, eq(sessions.id, contexts.sessionId))
+      .where(
+        and(
+          eq(contexts.backendId, backendId),
+          eq(contexts.nativeThreadId, nativeThreadId),
+          isNull(contexts.parentContextId),
+          isNull(sessions.deletedAt)
+        )
+      )
+      .limit(2)
+      .all()
+    return rows.length === 1 ? rows[0].context : undefined
+  }
+
   roots(backendId: string): AgentSessionContextRow[] {
     return application
       .get('DbService')
@@ -72,7 +172,14 @@ class AgentSessionContextService {
       .select({ context: contexts })
       .from(contexts)
       .innerJoin(sessions, eq(sessions.id, contexts.sessionId))
-      .where(and(eq(contexts.backendId, backendId), isNull(contexts.parentContextId), isNull(sessions.deletedAt)))
+      .where(
+        and(
+          eq(contexts.backendId, backendId),
+          isNull(contexts.parentContextId),
+          isNotNull(contexts.anchorMessageId),
+          isNull(sessions.deletedAt)
+        )
+      )
       .all()
       .map((row) => row.context)
   }
@@ -120,16 +227,36 @@ class AgentSessionContextService {
     })
   }
 
-  findChild(ownerSessionId: string, toolCallId: string): AgentSessionContextRow | undefined {
+  childArchive(ownerSessionId: string, toolCallId: string) {
     const rows = application
       .get('DbService')
       .getDb()
-      .select({ context: contexts })
+      .select({
+        id: contexts.id,
+        sessionId: contexts.sessionId,
+        canSubmit:
+          sql<boolean>`${contexts.nativeThreadId} IS NOT NULL AND json_extract(${backends.locator}, '$.kind') != 'claude-code'`.mapWith(
+            Boolean
+          )
+      })
       .from(contexts)
       .innerJoin(sessions, eq(sessions.id, contexts.sessionId))
+      .innerJoin(backends, eq(backends.id, contexts.backendId))
       .where(and(eq(sessions.ownerSessionId, ownerSessionId), eq(contexts.spawnToolCallId, toolCallId)))
+      .limit(2)
       .all()
-    return rows.length === 1 ? rows[0].context : undefined
+    return rows.length === 1 ? rows[0] : undefined
+  }
+
+  childPageMetadata(contextId: string, messageIds: readonly string[]) {
+    type Composition = NonNullable<NonNullable<AgentSessionCheckpoints['child']>['composition']>
+    const saved = application.get('DbService').getDb().get<{ gap: string | null; groups: string }>(sql`
+      SELECT json_extract(checkpoint_mapping, '$.child.gap') AS gap,
+        (SELECT json_group_object(g.key, json(g.value)) FROM json_each(checkpoint_mapping, '$.child.composition') AS g
+         WHERE g.key IN (SELECT value FROM json_each(${JSON.stringify(messageIds)}))) AS groups
+      FROM agent_session_context WHERE id = ${contextId}
+    `)
+    return { diagnostic: saved?.gap ?? undefined, composition: JSON.parse(saved?.groups ?? '{}') as Composition }
   }
 
   saveProjectionTx(
@@ -199,6 +326,31 @@ class AgentSessionContextService {
       .toReversed()
       .map((row) => bindings.find((binding) => binding.anchorMessageId === row.id))
       .find((binding) => binding !== undefined)
+  }
+
+  detachBranchTx(tx: DbOrTx, contextId: string): void {
+    // Retain the context row for historical input and child archive references.
+    tx.update(contexts)
+      .set({ anchorMessageId: null, nativeThreadId: null, bindingState: 'pending', updatedAt: Date.now() })
+      .where(eq(contexts.id, contextId))
+      .run()
+  }
+
+  rebuildFileBranch(context: AgentSessionContextRow): AgentSessionContextRow {
+    return application.get('DbService').withWriteTx((tx) => {
+      const anchorMessageId = context.anchorMessageId!
+      const current = this.branchTx(tx, context.sessionId, anchorMessageId)
+      if (!current) throw new Error('The branch no longer exists')
+      if (current.id !== context.id) return current
+      this.detachBranchTx(tx, context.id)
+      return this.reserveBranchTx(tx, {
+        sessionId: context.sessionId,
+        backendId: context.backendId,
+        anchorMessageId,
+        nativeThreadId: uuid(),
+        checkpointMapping: { referenceHistory: true }
+      })
+    })
   }
 
   /**
@@ -317,13 +469,15 @@ class AgentSessionContextService {
     const context = this.branchTx(tx, sessionId, getAgentSessionHead(tx, sessionId)!)
     if (context?.nativeThreadId !== nativeId) throw new Error('Native edit identity does not match the selected branch')
     const staleResetHandled = context.checkpointMapping?.staleResetHandled
+    const claudeCodeReplay = context.checkpointMapping?.claudeCodeReplay
     tx.update(contexts)
       .set({
         nativeThreadId: nativeId,
         bindingState: 'bound',
         checkpointMapping: {
           fork: checkpointMapping,
-          ...(staleResetHandled !== undefined ? { staleResetHandled } : {})
+          ...(staleResetHandled !== undefined ? { staleResetHandled } : {}),
+          ...(claudeCodeReplay !== undefined ? { claudeCodeReplay } : {})
         }
       })
       .where(eq(contexts.id, context.id))

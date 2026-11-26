@@ -6,13 +6,7 @@ import type { Observation, OperationResult, Subagent, Thread } from '@cherrystud
 import { isUuid, nativeIdentity, rejected, runtimeError } from './identity'
 import { ClaudeOwner } from './owner'
 import type { ClaudeProjection } from './projection'
-import type {
-  ClaudeCodeRuntime,
-  ClaudeCodeRuntimeOptions,
-  ClaudeObservationSink,
-  ClaudeSessionOptions,
-  ClaudeThreadHandle
-} from './types'
+import type { ClaudeCodeRuntime, ClaudeCodeRuntimeOptions, ClaudeSessionOptions, ClaudeThreadHandle } from './types'
 
 export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): ClaudeCodeRuntime {
   options = { ...options }
@@ -52,10 +46,10 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
   ): ClaudeThreadHandle => {
     let released = false
     const observations = new Set<Observation>()
-    const observe = async (sink: ClaudeObservationSink): Promise<OperationResult<Observation>> => {
+    const observe: ClaudeThreadHandle['claude']['observe'] = async (sink, needsRecovery) => {
       if (released) return rejected('observe', 'released')
       try {
-        const native = projection.feed.observe(sink)
+        const native = projection.feed.observe(sink, needsRecovery)
         const observation = {
           drain: () => native.drain(),
           stop: async () => {
@@ -169,6 +163,11 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
     }
   }
   const runtime: ClaudeCodeRuntime = {
+    async lookupInput(thread, inputId) {
+      if (closed || thread.backendId !== options.backendId) return undefined
+      const { sessionId } = nativeIdentity(thread)
+      return (await owners.get(sessionId))?.lookupInput(thread, inputId)
+    },
     async create(config) {
       if (closed) return rejected('create', 'closed')
       try {
@@ -194,7 +193,10 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
             if (!config || closed) return undefined
             const owner = build(config, sessionId, false)
             try {
-              await owner.refresh(sessionId)
+              if (!(await owner.refresh(sessionId))) {
+                live.delete(owner)
+                return undefined
+              }
             } catch (error) {
               live.delete(owner)
               throw error

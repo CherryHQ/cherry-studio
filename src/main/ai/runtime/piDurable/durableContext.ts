@@ -36,21 +36,28 @@ export function reserveDurableBranchTx(
   })
 }
 
-export function prepareDurableBranch(sessionId: string, messageId?: string) {
+export function prepareDurableBranch(sessionId: string, messageId?: string, missingContextId?: string) {
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
-    const anchor = messageId ?? root
-    const existing = contexts.branchTx(tx, sessionId, anchor)
+    const anchorMessageId = messageId ?? root
+    const existing = contexts.branchTx(tx, sessionId, anchorMessageId)
     if (existing) {
       if (contexts.backendTx(tx, existing.backendId).locator.kind !== 'pi-durable')
         throw new Error('The selected branch belongs to another runtime')
-      return existing
+      if (existing.id !== missingContextId) return existing
+      contexts.detachBranchTx(tx, existing.id)
     }
     const backend = allocateDurableBackendTx(tx)
-    // Fresh branches anchor at the requested head (`anchor`, main). The hidden
-    // root binding still occupies `(sessionId, root)` after a stale reset, so
-    // anchoring at the failed head keeps siblings on root.
-    return contexts.reserveBranchTx(tx, { sessionId, backendId: backend.id, anchorMessageId: anchor })
+    // Fresh branches anchor at the requested head. The hidden root binding still
+    // occupies `(sessionId, root)` after a stale reset, so anchoring at the
+    // failed head keeps siblings on root. Reference history marks rebuilds from
+    // session messages.
+    return contexts.reserveBranchTx(tx, {
+      sessionId,
+      backendId: backend.id,
+      anchorMessageId,
+      checkpointMapping: { referenceHistory: true }
+    })
   })
 }

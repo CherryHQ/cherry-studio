@@ -89,6 +89,24 @@ describe('gateway protocol fidelity', () => {
     })
   })
 
+  it('keeps Chat ciphertext in one stream frame and in the assembled assistant message', () => {
+    const ciphertext = 'opaque-state'
+    const providerMetadata = { openaiCompatible: { reasoningEncryptedContent: ciphertext } }
+    const adapter = new AiSdkToOpenAiSse({ model: 'test' })
+    const output = events(adapter, [
+      { type: 'reasoning-end', id: 'r1', providerMetadata },
+      { ...call, providerMetadata },
+      { type: 'finish', finishReason: 'tool-calls' }
+    ])
+    expect(output.map((event) => event.choices[0].delta).filter((delta) => delta.encrypted_content)).toEqual([
+      { encrypted_content: ciphertext }
+    ])
+    expect(adapter.buildNonStreamingResponse().choices[0].message).toMatchObject({
+      encrypted_content: ciphertext,
+      tool_calls: [expect.objectContaining({ id: 'lookup_1' })]
+    })
+  })
+
   it('keeps cache writes distinct from cache reads and cache-inclusive input totals', () => {
     const chunks: UIMessageChunk[] = [
       {
