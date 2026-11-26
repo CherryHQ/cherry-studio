@@ -14,7 +14,7 @@
 import type { ReasoningControl } from '../schemas/model'
 import { matchReasoningControls } from './reasoning-families'
 import { REASONING_FAMILY_RULES } from './reasoning-families.gen'
-import { matchReasoningMembership } from './reasoning-membership'
+import { matchReasoningMembership, matchReasoningProfile } from './reasoning-membership'
 import { matchVendor, type VendorKey } from './vendor-patterns'
 
 const VENDOR_TO_CREATOR: Record<VendorKey, string> = {
@@ -57,6 +57,16 @@ export function inferReasoningMembership(rawModelId: string): boolean {
  */
 export function inferReasoningControls(rawModelId: string): ReasoningControl[] | undefined {
   return matchReasoningControls(rawModelId, REASONING_FAMILY_RULES)
+}
+
+/**
+ * Does this id match any PROFILE (non-template) family rule, regardless of
+ * whether that rule declares knobs? Used to distinguish a known fixed
+ * reasoner (e.g. `step-3`, intentionally knob-less) from a truly unmatched
+ * id before applying a synthetic fallback ladder (#25203).
+ */
+export function matchesReasoningFamilyProfile(rawModelId: string): boolean {
+  return matchReasoningProfile(rawModelId, REASONING_FAMILY_RULES)
 }
 
 /** Infer canonical creator metadata once for an unmatched/custom model. */

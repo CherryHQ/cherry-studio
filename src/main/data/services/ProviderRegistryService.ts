@@ -40,6 +40,7 @@ import {
   inferReasoningControls,
   inferReasoningMembership,
   inferReasoningOwnedBy,
+  matchesReasoningFamilyProfile,
   MODEL_CAPABILITY,
   REASONING_EFFORT,
   REASONING_FORMAT_PROFILES,
@@ -347,6 +348,10 @@ export function inferCustomModelReasoning(
   let controls = inferReasoningControls(modelId)
   if (!controls) {
     if (!options?.declaredReasoning) return undefined
+    // A PROFILE match with no knobs is an intentional fixed reasoner
+    // (e.g. `step-3`): respect the empty vocabulary instead of synthesizing
+    // an adjustable ladder. Only truly unmatched ids fall back (#25203).
+    if (matchesReasoningFamilyProfile(modelId)) return undefined
     controls = [{ kind: 'effort', values: [REASONING_EFFORT.LOW, REASONING_EFFORT.MEDIUM, REASONING_EFFORT.HIGH] }]
   }
   const proto: ProtoReasoningSupport = { controls, ...deriveLegacyReasoningFields(controls) }

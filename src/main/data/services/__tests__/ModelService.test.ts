@@ -1996,6 +1996,72 @@ describe('ModelService — reasoning descriptor enrichment', () => {
 
     expect(created.reasoning).toBeUndefined()
   })
+
+  it('respects a PROFILE match with no knobs instead of falling back (step-3, #25203)', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'my-compat',
+          modelId: 'step-3-5-flash-custom',
+          capabilities: [MODEL_CAPABILITY.REASONING]
+        }
+      }
+    ])
+
+    expect(created.reasoning).toBeUndefined()
+
+    const [listed] = modelService.list({ providerId: 'my-compat' })
+    expect(listed.reasoning).toBeUndefined()
+  })
+
+  it('clears a synthetic fallback when REASONING is removed (#25203)', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'my-compat',
+          modelId: 'acme-custom-reasoner-xyz',
+          capabilities: [MODEL_CAPABILITY.REASONING]
+        }
+      }
+    ])
+    expect(created.reasoning?.selectableEfforts).toEqual(['low', 'medium', 'high'])
+
+    const updated = modelService.update('my-compat', 'acme-custom-reasoner-xyz', { capabilities: [] })
+    expect(updated.reasoning).toBeUndefined()
+
+    const [listed] = modelService.list({ providerId: 'my-compat' })
+    expect(listed.reasoning).toBeUndefined()
+  })
+
+  it('preserves the recognized family vocabulary on Ollama instead of the generic fallback (#25203)', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('ollama', 'Ollama'))
+    const registryData = {
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OLLAMA_REASONING_PROFILE
+    }
+    resolveModelMock.mockReturnValue(registryData)
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'ollama',
+          modelId: 'deepseek-v4-custom',
+          capabilities: [MODEL_CAPABILITY.REASONING]
+        },
+        registryData
+      }
+    ])
+
+    expect(created.reasoning?.controls).toEqual([{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }])
+
+    const [listed] = modelService.list({ providerId: 'ollama' })
+    expect(listed.reasoning?.controls).toEqual([{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }])
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
