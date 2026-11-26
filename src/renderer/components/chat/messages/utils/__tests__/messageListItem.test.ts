@@ -6,6 +6,17 @@ import type { MessageListItem } from '../../types'
 import { getDirectAssistantModelsByUserId, toMessageListItem } from '../messageListItem'
 
 describe('toMessageListItem', () => {
+  it('keeps an unsent user message paused so the transcript can offer resend', () => {
+    const message: CherryUIMessage = {
+      id: 'withdrawn',
+      role: 'user',
+      parts: [{ type: 'text', text: 'Queued before Stop' }],
+      metadata: { status: 'paused' }
+    }
+
+    expect(toMessageListItem(message, { topicId: 'session' }).status).toBe('paused')
+  })
+
   it('projects the top-level totalTokens mirror into message stats', () => {
     const message = {
       id: 'message-1',

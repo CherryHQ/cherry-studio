@@ -9,6 +9,7 @@
  */
 
 import { loggerService } from '@logger'
+import { denyGuestNetwork } from '@main/core/security/guestNetwork'
 import { MINI_APP_SCHEME } from '@shared/types/miniAppManifest'
 
 import { buildMiniAppCsp } from './protocol'
@@ -87,7 +88,7 @@ export async function installNetworkPolicy(session: Electron.Session, appId: str
 
   // The THIRD containment layer, and the only one that sees WebRTC. AWAITED: a proxy
   // is not in effect until `setProxy` resolves, and the guest may attach before then.
-  await session.setProxy({ pacScript: `data:text/plain,${encodeURIComponent(DENY_ALL_PAC)}` })
+  await denyGuestNetwork(session)
 }
 
 /**
@@ -103,21 +104,3 @@ export async function installNetworkPolicy(session: Electron.Session, appId: str
 export function installWebRtcPolicy(contents: Electron.WebContents): void {
   contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp')
 }
-
-/** Unroutable on purpose: anything sent here fails rather than reaching a real proxy. */
-const DEAD_PROXY = '127.0.0.1:1'
-
-/**
- * Everything, unconditionally. The only layer that can refuse a WebRTC TURN connection,
- * because neither CSP nor `webRequest` ever observes one.
- *
- * There is no host list to interpolate: outbound traffic goes through
- * `cherry.network.fetch` in the main process, which does not use this
- * session. An allowlisted PAC was measured and is NOT enough — a host-only rule turns
- * "https on 443" into "any port on a declared host", a bidirectional channel
- * `webRequest` cannot see (design §8). Denying everything has no such edge.
- *
- * It also never needs rebuilding: it does not depend on grants, so revoking a domain
- * does not have to remember to call anything here.
- */
-export const DENY_ALL_PAC = `function FindProxyForURL(url, host) { return "PROXY ${DEAD_PROXY}"; }`

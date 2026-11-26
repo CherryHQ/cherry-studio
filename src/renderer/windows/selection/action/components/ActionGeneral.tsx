@@ -8,15 +8,15 @@ import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useStreamCommands } from '@renderer/hooks/useStreamCommands'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
+import { projectedReplies } from '@renderer/utils/message/projectedReplies'
 import { expandSelectionPrompt } from '@renderer/utils/selectionAction'
 import { cn } from '@renderer/utils/style'
 import { SELECTION_ACTION_RUNNER } from '@shared/data/preference/preferenceTypes'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { SELECTION_BUILTIN_ACTION_ID, type SelectionAction } from '@shared/types/selection'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
@@ -81,14 +81,17 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
   const [completionError, setCompletionError] = useState<string | null>(null)
   const [requestStartedAt, setRequestStartedAt] = useState('')
 
-  const { sendMessage, stop: stopChat } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (err) => {
+  const {
+    sendMessage,
+    stop: stopChat,
+    projection
+  } = useStreamCommands(temporaryTopicId ?? '', (err) => {
     setIsPreparing(false)
     setCompletionError(getSelectionActionErrorMessage(err, t))
   })
 
   // Temporary topics use the message identities assigned by Main.
-  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
-  const { liveAssistants } = useExecutionOverlay(temporaryTopicId ?? 'pending-temp', activeExecutions)
+  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? '')
 
   useEffect(() => {
     if (isPending) {
@@ -97,7 +100,10 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
     }
   }, [isPending, scrollToBottom])
 
-  const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => liveAssistants.at(-1), [liveAssistants])
+  const latestAssistantUIMsg = useMemo(
+    () => projectedReplies(projection, activeExecutions).at(-1)?.message,
+    [projection, activeExecutions]
+  )
 
   const partsMap = useMemo<Record<string, CherryMessagePart[]>>(
     () => (latestAssistantUIMsg ? { [latestAssistantUIMsg.id]: latestAssistantUIMsg.parts } : {}),

@@ -33,7 +33,7 @@ import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
 
-import type { FileContextMenuActions } from './FileContextMenu'
+import { FileContextMenu, type FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
 import { FileGrid } from './FileGrid'
 import type { SortDir, SortKey } from './FileList'
@@ -52,6 +52,8 @@ type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
 type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_entries'>
 
 interface EmbeddedFilePreview {
+  id: string
+  origin: 'internal' | 'external'
   fileName: string
   filePath: AbsoluteFilePath
   refreshKey: number
@@ -445,6 +447,8 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
             return
           }
           setEmbeddedPreview((current) => ({
+            id: file.id,
+            origin: file.origin,
             fileName: file.name,
             filePath: normalizedPath,
             refreshKey: current?.filePath === normalizedPath ? current.refreshKey + 1 : 0
@@ -476,6 +480,8 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         const filePath = physicalPaths[entry.id]
         if (!filePath) throw new Error(`Physical path is unavailable for file ${entry.id}`)
         setEmbeddedPreview({
+          id: entry.id,
+          origin: entry.origin,
           fileName: displayNameOf(entry),
           filePath: normalizeFilePreviewPath(filePath),
           refreshKey: 0
@@ -505,6 +511,19 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
       logger.error('Failed to show file in folder', error as Error)
     })
   }, [])
+
+  const handleCopyPreviewPath = useCallback(
+    async (path: string) => {
+      try {
+        await navigator.clipboard.writeText(path)
+        toast.success(t('common.copied'))
+      } catch (error) {
+        logger.error('Failed to copy file path', error as Error)
+        toast.error(t('common.copy_failed'))
+      }
+    },
+    [t]
+  )
 
   const handleImportPaths = useCallback(
     async (paths: AbsoluteFilePath[]) => {
@@ -815,6 +834,51 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
     [handleDeleteOne, handleShowInFolder, handleToggleFileSidebar, isFilePinnedToSidebar, startInlineRename]
   )
 
+  const previewListedFile = useMemo<FileItem | null>(() => {
+    if (!embeddedPreview) return null
+    return files.find((file) => file.id === embeddedPreview.id) ?? null
+  }, [embeddedPreview, files])
+
+  // Route-targeted (e.g. pinned) entries may not be in the current page. Rename
+  // needs a visible list row for its inline editor and delete resolves targets
+  // from `files`, so both are hidden until their prerequisites exist. Show in
+  // folder, copy path and pin work from the resolved entry and stay available.
+  const isPreviewActionable = previewListedFile !== null
+
+  const previewMenuFile = useMemo<FileItem | null>(() => {
+    if (!embeddedPreview) return null
+    if (previewListedFile) return previewListedFile
+    // Build a minimal item so the preview area still offers the safe subset of
+    // the list menu for entries outside the current page.
+    const dotIndex = embeddedPreview.fileName.lastIndexOf('.')
+    const format = dotIndex > 0 ? embeddedPreview.fileName.slice(dotIndex + 1) : ''
+    return {
+      id: embeddedPreview.id,
+      name: embeddedPreview.fileName,
+      format,
+      size: '—',
+      sizeBytes: 0,
+      createdAt: '—',
+      updatedAt: '—',
+      trashed: false,
+      isMissing: false,
+      sourcePath: embeddedPreview.filePath,
+      origin: embeddedPreview.origin,
+      type: 'document'
+    }
+  }, [embeddedPreview, previewListedFile])
+
+  const previewMenuActions = useMemo<FileContextMenuActions>(
+    () => ({
+      ...listMenuActions,
+      onRename: (id: string) => {
+        closeEmbeddedPreview()
+        startInlineRename(id)
+      }
+    }),
+    [closeEmbeddedPreview, listMenuActions, startInlineRename]
+  )
+
   const handleSort = useCallback(
     (key: SortKey) => {
       if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -1007,30 +1071,93 @@ function FilesPage({ entryId, onEntryIdChange }: FilesPageProps) {
         </div>
       </div>
 
-      {embeddedPreview && (
-        <section
-          aria-label={embeddedPreview.fileName}
-          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden">
-          <FilePreview
-            filePath={embeddedPreview.filePath}
-            refreshKey={embeddedPreview.refreshKey}
-            header={
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t('common.back')}
-                  className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
-                  onClick={closeEmbeddedPreview}>
-                  <ArrowLeft className="size-3.5" />
-                </Button>
-                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{embeddedPreview.fileName}</span>
-              </>
-            }
-          />
-        </section>
-      )}
+      {embeddedPreview &&
+        previewMenuFile && (
+          // The outer trigger covers the host surface only: HTML previews render
+          // inside a sandboxed iframe with a separate document, so in-frame
+          // right-clicks never bubble here. The header below stays outside the
+          // iframe and keeps the same actions reachable via right-click or the
+          // explicit header menu button.
+          <FileContextMenu
+            file={previewMenuFile}
+            actions={previewMenuActions}
+            showRename={isPreviewActionable}
+            showDelete={isPreviewActionable}
+            deleteDisabled={deleteRequestPending}>
+            <section
+              aria-label={embeddedPreview.fileName}
+              className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden">
+              <FilePreview
+                filePath={embeddedPreview.filePath}
+                refreshKey={embeddedPreview.refreshKey}
+                header={
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t('common.back')}
+                      className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                      onClick={closeEmbeddedPreview}>
+                      <ArrowLeft className="size-3.5" />
+                    </Button>
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">{embeddedPreview.fileName}</span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={t('files.actions')}
+                          className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                          onClick={(event) => event.stopPropagation()}>
+                          <MoreHorizontal className="size-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-36">
+                        {!previewMenuFile.isMissing && isPreviewActionable && (
+                          <DropdownMenuItem onSelect={() => previewMenuActions.onRename(previewMenuFile.id)}>
+                            {t('files.rename')}
+                          </DropdownMenuItem>
+                        )}
+                        {!previewMenuFile.isMissing && (
+                          <DropdownMenuItem onSelect={() => previewMenuActions.onShowInFolder(previewMenuFile.id)}>
+                            {t('files.show_in_folder')}
+                          </DropdownMenuItem>
+                        )}
+                        {previewMenuFile.sourcePath && (
+                          <DropdownMenuItem
+                            onSelect={() => void handleCopyPreviewPath(previewMenuFile.sourcePath as string)}>
+                            {t('agent.preview_pane.copy_path')}
+                          </DropdownMenuItem>
+                        )}
+                        {(!previewMenuFile.isMissing || previewMenuActions.isSidebarPinned(previewMenuFile.id)) && (
+                          <DropdownMenuItem onSelect={() => previewMenuActions.onToggleSidebar(previewMenuFile)}>
+                            {t(
+                              previewMenuActions.isSidebarPinned(previewMenuFile.id)
+                                ? 'launchpad.unpin_from_sidebar'
+                                : 'launchpad.pin_to_sidebar'
+                            )}
+                          </DropdownMenuItem>
+                        )}
+                        {isPreviewActionable && (
+                          <DropdownMenuItem
+                            disabled={deleteRequestPending}
+                            variant="destructive"
+                            onSelect={() => previewMenuActions.onDelete(previewMenuFile.id)}>
+                            {previewMenuFile.origin === 'external'
+                              ? t('files.remove_from_library')
+                              : t('files.delete.label')}
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
+                }
+              />
+            </section>
+          </FileContextMenu>
+        )}
     </div>
   )
 }
