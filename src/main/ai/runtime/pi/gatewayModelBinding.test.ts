@@ -749,6 +749,7 @@ it.each([true, false])(
       capabilities: [],
       maxOutputTokens: 8192
     })
+    registerGatewayModels(provider, [model])
     const binding = await createPiGatewayModelBinding({ sessionId: 'limit-session' }, provider, model)
     const observed: unknown[] = []
     const stream = binding.modelRuntime.streamSimple(

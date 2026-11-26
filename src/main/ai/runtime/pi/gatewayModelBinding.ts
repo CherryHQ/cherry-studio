@@ -149,6 +149,12 @@ export async function createPiGatewayModelBinding(
             if (event.type === 'done') {
               const message = event.message as ReplayAssistantMessage
               message.cherryReplayRouteId = routeId
+              if (message.stopReason === 'length') {
+                message.errorMessage = formatPiOutputLimitDiagnostic({
+                  configuredMaxTokens: model.maxTokens,
+                  ...reported
+                })
+              }
               if (needsPlainToolReasoning(endpoint.endpointType, current.model))
                 message.cherryRequiresToolReasoning = true
             }
@@ -182,12 +188,6 @@ export async function createPiGatewayModelBinding(
       void output
         .result()
         .then((message) => {
-          if (message.stopReason === 'length') {
-            message.errorMessage = formatPiOutputLimitDiagnostic({
-              configuredMaxTokens: model.maxTokens,
-              ...reported
-            })
-          }
           if (!options?.readOnlyFork) onUsage?.(message.usage, options?.sessionId, message.responseId)
         })
         .catch((error) => {
