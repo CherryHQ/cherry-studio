@@ -50,6 +50,13 @@ export class AutomationKernel {
       const tracked = operation
         .then(
           (value) => {
+            if (
+              value &&
+              typeof value === 'object' &&
+              'approvalWaitMs' in value &&
+              typeof value.approvalWaitMs === 'number'
+            )
+              this.deadline += Math.max(0, value.approvalWaitMs)
             const serialized = JSON.stringify(value)
             if (serialized.length > 256_000) {
               using error = runtime.newError('Observation exceeds 256 KB; narrow the next observation')

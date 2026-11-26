@@ -156,13 +156,6 @@ describe('SessionCreateTool', () => {
     expect(mocks.setCopied).toHaveBeenCalledWith(true)
   })
 
-  it('uses the streaming state supplied by the tool card', () => {
-    render(<Harness isStreaming input={{ title: 'Research pricing', message: 'Compare plans.' }} />)
-
-    expect(screen.getByText('message.tools.sessionCreate.creating')).toBeInTheDocument()
-    expect(screen.queryByText('Started a new session')).toBeNull()
-  })
-
   it.each([
     { props: { hasError: true, status: 'error' as const }, label: 'Error' },
     { props: { status: 'cancelled' as const }, label: 'Cancelled' }

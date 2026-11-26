@@ -165,7 +165,7 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
           </p>
         )}
       </div>
-      <div className="@container min-h-0 flex-1 px-4 pb-4" aria-busy={isRefreshing}>
+      <div className="@container min-h-0 flex-1" aria-busy={isRefreshing}>
         {isLoading && !items.length ? (
           <p role="status" className="flex items-center justify-center gap-2 py-10 text-muted-foreground text-sm">
             <LoaderCircle aria-hidden="true" className="size-4 motion-safe:animate-spin" />
@@ -186,6 +186,7 @@ function BrowserHistoryContent({ onOpenPage }: { onOpenPage: () => void }) {
           </div>
         ) : (
           <GroupedVirtualList
+            contentProps={{ className: 'px-4 pb-4' }}
             key={search}
             groups={groups}
             className="h-full"

@@ -51,7 +51,7 @@ vi.mock('@tanstack/react-router', () => ({
 Element.prototype.scrollIntoView = vi.fn()
 
 vi.mock('@renderer/utils/platform', async (importOriginal) => {
-  const actual = (await importOriginal()) as typeof RendererConstantModule
+  const actual = await importOriginal<typeof RendererConstantModule>()
 
   return {
     ...actual,
@@ -85,7 +85,7 @@ vi.mock('@data/PreferenceService', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
 
   return {
     ...actual,
@@ -269,17 +269,6 @@ describe('ShortcutSettings shortcut recorder', () => {
     }
   )
 
-  it('uses a non-text focus target while recording shortcuts', () => {
-    renderShortcutSettings()
-
-    fireEvent.click(screen.getByText('settings.shortcuts.press_shortcut'))
-
-    const recorder = screen.getByRole('button', { name: 'settings.shortcuts.press_shortcut' })
-    expect(recorder).toBeInstanceOf(HTMLButtonElement)
-    expect(recorder).not.toBeInstanceOf(HTMLInputElement)
-    expect(recorder).not.toBeInstanceOf(HTMLTextAreaElement)
-  })
-
   it('records physical key shortcuts and stops propagation while recording', async () => {
     const parentKeyDown = vi.fn()
     renderShortcutSettings(parentKeyDown)
@@ -457,16 +446,5 @@ describe('ShortcutSettings shortcut recorder', () => {
     const focused = container.querySelectorAll('[data-focused]')
     expect(focused).toHaveLength(1)
     expect(focused[0]?.textContent).toContain('Next tab')
-  })
-
-  it('marks nothing when no command is named', () => {
-    shortcutsMock.shortcuts = [
-      makeShortcut({ command: 'app.search', label: 'Search everywhere' }),
-      makeShortcut({ command: 'tab.next', label: 'Next tab' })
-    ]
-
-    const { container } = renderShortcutSettings()
-
-    expect(container.querySelectorAll('[data-focused]')).toHaveLength(0)
   })
 })

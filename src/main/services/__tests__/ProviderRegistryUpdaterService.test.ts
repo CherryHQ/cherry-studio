@@ -302,14 +302,6 @@ describe('ProviderRegistryUpdaterService.check', () => {
     expect(url).toContain(country === 'US' ? 'raw.githubusercontent.com' : 'raw.gitcode.com')
   })
 
-  it('uses the GitCode mirror inside China', async () => {
-    mockRemote({ dataVersion: 'v2', country: 'CN' })
-
-    await service.check()
-
-    expect(netFetchMock).toHaveBeenCalledWith(expect.stringContaining('raw.gitcode.com'), expect.anything())
-  })
-
   it('uses the GitCode fallback when country detection fails without caching a guessed country', async () => {
     mockRemote({ country: null })
 

@@ -3,14 +3,6 @@ import { isEmoji } from '@renderer/utils/naming'
 
 import type { SidebarUser } from './types'
 
-export function DefaultLogo({ title }: { title: string }) {
-  return (
-    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 text-sm font-medium text-primary">
-      {title ? title.slice(0, 1).toUpperCase() : ''}
-    </div>
-  )
-}
-
 /** Returns true if the string is NOT a URL — i.e., should be rendered as text (emoji or initial). */
 function isTextAvatar(str?: string): boolean {
   if (

@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode, Ref } from 'react'
@@ -188,6 +189,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
 describe('SkillDetails', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUsePreferenceUtils.resetMocks()
     mocks.query = { data: createSkill(), error: undefined, isLoading: false }
     mocks.search = {}
     mocks.folder = {
@@ -200,6 +202,18 @@ describe('SkillDetails', () => {
     mocks.updateGlobalEnabled.mockResolvedValue(undefined)
     mocks.flushBrowser.mockResolvedValue(undefined)
     mocks.refetch.mockResolvedValue(undefined)
+  })
+
+  it('prevents per-skill export changes while the app-wide switch is off', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('agent.skills.external_export.enabled', false)
+    render(<SkillDetails skillId="skill-1" />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'common.more' }))
+    const toggle = screen.getByRole('menuitemcheckbox', { name: 'Available to external agents' })
+    expect(toggle).toHaveAttribute('aria-disabled', 'true')
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByText('settings.skills.externalExportOverridden')).toBeInTheDocument()
+    fireEvent.click(toggle)
+    expect(mocks.setMirrorEnabled).not.toHaveBeenCalled()
   })
 
   it('renders loading and not-found states without constructing a file browser', () => {
@@ -255,6 +269,7 @@ describe('SkillDetails', () => {
   })
 
   it('keeps export changes pending until saved, then displays the refreshed preference', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
     const user = userEvent.setup()
     let complete!: (skill: InstalledSkill) => void
     mocks.setMirrorEnabled.mockReturnValueOnce(
@@ -284,6 +299,7 @@ describe('SkillDetails', () => {
   })
 
   it('preserves the export preference after failure and allows retry', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('agent.skills.external_export.enabled', true)
     const user = userEvent.setup()
     mocks.setMirrorEnabled.mockRejectedValueOnce(new Error('export conflict'))
     render(<SkillDetails skillId="skill-1" />)

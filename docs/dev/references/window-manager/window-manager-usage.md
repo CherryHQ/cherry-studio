@@ -202,7 +202,7 @@ WindowManager exposes four lifecycle methods, arranged in two layers:
 |---|---|
 | "I need my setup to run only on fresh windows" | Subscribe to `onWindowCreatedByType` — it fires only on fresh, never on reuse |
 | "I need to be sure no duplicate singleton exists" | Registry `lifecycle: 'singleton'` already guarantees it; `open()` returns the existing instance |
-| "My service's local `windowId` must match WindowManager's" | Subscribe to `onWindowDestroyedByType` to clear local state in sync with WM's `'closed'` tracking |
+| "My service's local `windowId` must match WindowManager's" | Subscribe to `onWindowDestroyedByType` to clear local state in sync with WM's `'closed'` tracking; for a recycling pool also subscribe to `onWindowReleasedToPoolByType`, since a close that returns the window to the pool destroys nothing |
 
 **Why `destroy()` is not a consumer API.** On non-pooled windows (default and singleton) `close()` falls through to the same `destroyWindow()` call — there is no behavioral difference. On pooled windows, `destroy()` bypasses the pool, which is almost never what a consumer actually wants; the correct API for "stop the whole pool" is `suspendPool(type)`, which destroys idle windows and prevents further recycling without touching in-use windows.
 

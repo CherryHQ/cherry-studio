@@ -10,17 +10,19 @@ import {
   type FauxResponseStep
 } from '@earendil-works/pi-ai'
 import { defineTool, ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
-import { obj } from '@earendil-works/pi-schema'
+import { arr, obj, str } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
 import {
   runtimeId,
   type ObservationPayload,
   type OperationResult,
-  type ThreadHandle
+  type ThreadHandle,
+  type RuntimeMessage
 } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime, type AgentRuntimeEvent, type PiRuntimeOptions } from '../src'
+import { observationReplay } from './observationReplay'
 import { createTestBehavior } from './sessionSupport'
 
 function gate() {
@@ -90,8 +92,8 @@ it('shares streamed item identities across handles while releasing only one obse
   })
   const messages = (events: ObservationPayload[]) =>
     events.filter(
-      (event): event is Extract<ObservationPayload, { type: 'message.upsert' }> =>
-        event.type === 'message.upsert' && event.message.role === 'assistant'
+      (event): event is Extract<ObservationPayload, { type: 'message.reconcile' }> =>
+        event.type === 'message.reconcile' && event.message.role === 'assistant'
     )
   await expect.poll(() => messages(right).length).toBeGreaterThan(0)
   expect(messages(left).map((event) => event.message.id)).toEqual(messages(right).map((event) => event.message.id))
@@ -258,7 +260,9 @@ it('correlates identical transformed inputs and shares one response across batch
   await handle.input.submit(input('steer-2', 'steer'))
   await handle.input.submit(input('follow', 'follow-up'))
   finish.resolve()
-  await expect.poll(() => events.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+  await expect
+    .poll(() => events.findLast((event) => event.type === 'activity.changed')?.activity.state, { timeout: 10_000 })
+    .toBe('idle')
 
   const after = await observe(confirmed(await runtime.open(handle.thread)))
   await expect.poll(() => after[0]?.type).toBe('snapshot')
@@ -459,7 +463,7 @@ it.each(['stop', 'error'] as const)(
     })
     if (terminal[0].type !== 'input.changed') throw new Error('Missing input outcome')
     expect(
-      events.findLast((event) => event.type === 'message.upsert' && event.message.role === 'assistant')
+      events.findLast((event) => event.type === 'message.reconcile' && event.message.role === 'assistant')
     ).toMatchObject({
       message: { parts: [{ type: 'text', text: 'final response' }] }
     })
@@ -494,7 +498,7 @@ it.each(['error', 'length', 'toolUse'] as const)(
     expect(events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          type: 'message.upsert',
+          type: 'message.reconcile',
           message: expect.objectContaining({
             role: 'assistant',
             parts: [expect.objectContaining({ type: 'text', text: 'partial output' })]
@@ -586,7 +590,11 @@ it('continues an observed child through its owner, keeps one relationship, and r
   )
   const parentEvents = await observe(parent)
   await parent.input.submit(input('delegate'))
-  await expect.poll(() => parentEvents.at(-1)).toMatchObject({ type: 'activity.changed', activity: { state: 'idle' } })
+  await expect
+    .poll(() => parentEvents.findLast((event) => event.type === 'activity.changed')?.activity.state, {
+      timeout: 10_000
+    })
+    .toBe('idle')
   const relation = parentEvents.find((event) => event.type === 'subagent.upsert')
   if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('Missing child')
   const child = confirmed(await runtime.open(relation.subagent.child))
@@ -634,7 +642,7 @@ it('continues an observed child through its owner, keeps one relationship, and r
     .poll(() =>
       childEvents.some(
         (event) =>
-          event.type === 'message.upsert' &&
+          event.type === 'message.reconcile' &&
           event.message.metadata?.completeness === 'complete' &&
           event.message.parts.find((part) => part.type === 'text')?.text === 'continued child answer'
       )
@@ -647,7 +655,7 @@ it('continues an observed child through its owner, keeps one relationship, and r
       () =>
         after.some(
           (event) =>
-            event.type === 'message.upsert' &&
+            event.type === 'message.reconcile' &&
             event.message.parts.find((part) => part.type === 'text')?.text === 'parent received the result' &&
             event.message.metadata?.completeness === 'complete'
         ) ||
@@ -730,8 +738,7 @@ it('streams interleaved content and preliminary tool output in the same native m
   await handle.input.submit(input('stream content'))
   const latest = () =>
     events
-      .filter((event) => event.type === 'message.upsert')
-      .map((event) => event.message)
+      .flatMap(observationReplay())
       .findLast((message) => message.parts.some((part) => part.type === 'dynamic-tool'))!
   await expect
     .poll(() => latest()?.parts[2])
@@ -767,10 +774,10 @@ it('reads native context without submitting work and rejects released access', a
   expect(before.contextWindow).toBe(options.model.contextWindow)
   expect(before.used?.precision).toBe('estimated')
   expect(before.breakdown?.categories.map((row) => row.key)).toContain('messages')
-  const messages = events.filter((event) => event.type === 'message.upsert')
+  const messages = events.filter((event) => event.type === 'message.reconcile')
   expect(confirmed(await handle.contextUsage())).toEqual(before)
   await Promise.resolve()
-  expect(events.filter((event) => event.type === 'message.upsert')).toEqual(messages)
+  expect(events.filter((event) => event.type === 'message.reconcile')).toEqual(messages)
   expect(events.filter((event) => event.type === 'activity.changed' && event.activity.state === 'active')).toEqual([])
   await handle.release()
   expect(await handle.contextUsage()).toMatchObject({ status: 'rejected', error: { code: 'released' } })
@@ -921,3 +928,216 @@ it('publishes a local extension model switch to existing and newly attached obse
   )
   expect(provider.state.callCount).toBe(0)
 })
+
+it.each([false, true])('retains nested results across outer failure and reopen (%s)', async (fails) => {
+  const { runtime, options, faux } = await setup()
+  const manager = SessionManager.create(options.cwd, options.cwd)
+  const value = 'retained-'.repeat(60)
+  let executions = 0
+  const tools = [
+    defineTool({
+      name: 'leaf',
+      label: 'Leaf',
+      description: 'Return evidence',
+      parameters: obj({ value: str() }),
+      prepareArguments: () => ({ value }),
+      execute: async (_id, args, _signal, update) => {
+        executions++
+        update?.({ content: [{ type: 'text', text: 'working' }], details: {} })
+        return {
+          content: [{ type: 'text' as const, text: (args as { value: string }).value }],
+          details: { proof: true }
+        }
+      }
+    }),
+    defineTool({
+      name: 'script',
+      label: 'Script',
+      description: 'Call nested tools',
+      parameters: obj({}),
+      execute: async (_id, _args, _signal, _update, context) => {
+        await Promise.all([
+          context.executeTool('leaf', { value: 'repair me' }),
+          context.executeTool('leaf', { value: 'repair me' })
+        ])
+        if (fails) throw new Error('outer failure')
+        return { content: [{ type: 'text' as const, text: 'done' }], details: {} }
+      }
+    })
+  ]
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create({ ...options, tools, sessionManager: manager }))
+  const events = await observe(handle)
+  await handle.input.submit(input('nested'))
+  await handle.pi.settled()
+  const parts = handle.pi
+    .archive()
+    .messages.flatMap((message) => message.parts)
+    .filter((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')
+  expect(parts).toHaveLength(2)
+  expect(new Set(parts.map((part) => (part.type === 'dynamic-tool' ? part.toolCallId : ''))).size).toBe(2)
+  for (const part of parts)
+    expect(part).toMatchObject({
+      state: 'output-available',
+      input: { value },
+      output: { content: [{ type: 'text', text: value }], details: { proof: true } },
+      callProviderMetadata: { pi: { parentToolCallId: 'script' } }
+    })
+  expect(
+    events
+      .flatMap(observationReplay())
+      .some((message) =>
+        message.parts.some(
+          (part) =>
+            part.type === 'dynamic-tool' &&
+            part.toolName === 'leaf' &&
+            part.state === 'output-available' &&
+            part.preliminary
+        )
+      )
+  ).toBe(true)
+  await runtime.shutdown()
+  const reopenedRuntime = confirmed(await createPiRuntime({ backendId: runtimeId('reopened') }))
+  onTestFinished(async () => {
+    await reopenedRuntime.shutdown()
+  })
+  const reopened = confirmed(
+    await reopenedRuntime.create({ ...options, tools, sessionManager: SessionManager.open(manager.getSessionFile()!) })
+  )
+  expect(
+    reopened.pi
+      .archive()
+      .messages.flatMap((message) => message.parts)
+      .filter((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')
+  ).toEqual(parts)
+  expect(executions).toBe(2)
+})
+
+it.each([false, true])('retains recursive failures and cancellation (cancel=%s)', async (cancel) => {
+  const { runtime, options, faux } = await setup()
+  const reached = gate()
+  const tools = [
+    defineTool({
+      name: 'leaf',
+      label: 'Leaf',
+      description: 'Fail or wait',
+      parameters: obj({}),
+      execute: async (_id, _args, signal) => {
+        reached.resolve()
+        if (cancel)
+          await new Promise<never>((_resolve, reject) => {
+            if (signal?.aborted) reject(signal.reason)
+            else signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+        throw new Error('nested failure')
+      }
+    }),
+    defineTool({
+      name: 'middle',
+      label: 'Middle',
+      description: 'Nested owner',
+      parameters: obj({}),
+      execute: async (_id, _args, _signal, _update, context) => {
+        const result = await context.executeTool('leaf', {})
+        return { ...result.result, isError: result.isError }
+      }
+    }),
+    defineTool({
+      name: 'script',
+      label: 'Script',
+      description: 'Outer owner',
+      parameters: obj({}),
+      execute: async (_id, _args, _signal, _update, context) => {
+        await context.executeTool('middle', {})
+        return { content: [{ type: 'text' as const, text: 'outer' }], details: {} }
+      }
+    })
+  ]
+  faux.setResponses([
+    fauxAssistantMessage(fauxToolCall('script', {}, { id: 'script' }), { stopReason: 'toolUse' }),
+    fauxAssistantMessage('done')
+  ])
+  const handle = confirmed(await runtime.create({ ...options, tools }))
+  await handle.input.submit(input('recursive'))
+  await reached.promise
+  if (cancel) confirmed(await handle.interrupt!())
+  await handle.pi.settled()
+  const parts = handle.pi.archive().messages.flatMap((message) => message.parts)
+  expect(parts.find((part) => part.type === 'dynamic-tool' && part.toolName === 'leaf')).toMatchObject({
+    state: 'output-error',
+    callProviderMetadata: { pi: { parentToolCallId: 'script/1' } }
+  })
+  expect(parts.find((part) => part.type === 'dynamic-tool' && part.toolName === 'middle')).toMatchObject({
+    state: 'output-error'
+  })
+})
+it.each([false, true])(
+  'retains native nested-call evidence in live and reopened projections (outer failure=%s)',
+  async (fails) => {
+    const { runtime, options, faux } = await setup()
+    const manager = SessionManager.create(options.cwd, options.cwd)
+    const declaration = { artifacts: [{ path: '/workspace/report.html' }] }
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall('script', {}, { id: 'script' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage('done')
+    ])
+    const tools = [
+      defineTool({
+        name: 'declare',
+        label: 'Declare',
+        description: 'Declare a file',
+        parameters: obj({ artifacts: arr(obj({ path: str() })) }),
+        execute: async () => ({ content: [{ type: 'text' as const, text: 'recorded' }], details: undefined })
+      }),
+      defineTool({
+        name: 'script',
+        label: 'Script',
+        description: 'Call a declaration',
+        parameters: obj({}),
+        execute: async (_id, _args, _signal, _update, context) => {
+          await context.executeTool('declare', declaration)
+          if (fails) throw new Error('Failure after declaration')
+          return { content: [{ type: 'text' as const, text: 'script finished' }], details: undefined }
+        }
+      })
+    ]
+    const handle = confirmed(await runtime.create({ ...options, tools, sessionManager: manager }))
+    const events = await observe(handle)
+    await handle.input.submit(input('declare a file'))
+    await handle.pi.settled()
+    const partOf = (messages: readonly RuntimeMessage[]) =>
+      messages
+        .flatMap((message) => message.parts)
+        .find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'script')!
+    const resultOf = (part: ReturnType<typeof partOf>) => {
+      if (part.type !== 'dynamic-tool') throw new Error('Missing script call')
+      return part.state === 'output-available'
+        ? part.output
+        : part.state === 'output-error'
+          ? part.resultProviderMetadata?.pi?.result
+          : undefined
+    }
+    const live = partOf(events.flatMap(observationReplay()).reverse())
+    expect(resultOf(live)).toMatchObject({
+      nestedCalls: { complete: true, calls: [{ name: 'declare', status: 'ok', arguments: declaration }] }
+    })
+    const saved = partOf(handle.pi.archive().messages)
+    expect(resultOf(saved)).toEqual(resultOf(live))
+    await runtime.shutdown()
+    const reopenedRuntime = confirmed(await createPiRuntime({ backendId: runtimeId('reopened') }))
+    onTestFinished(async () => {
+      await reopenedRuntime.shutdown()
+    })
+    const reopened = confirmed(
+      await reopenedRuntime.create({
+        ...options,
+        tools,
+        sessionManager: SessionManager.open(manager.getSessionFile()!)
+      })
+    )
+    expect(resultOf(partOf(reopened.pi.archive().messages))).toEqual(resultOf(saved))
+  }
+)

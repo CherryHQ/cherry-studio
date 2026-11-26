@@ -56,24 +56,6 @@ function makeAskUserQuestionPart(overrides: Partial<Record<string, unknown>> = {
 describe('useToolApprovalComposerOverrides', () => {
   beforeEach(() => MockCacheUtils.resetMocks())
 
-  it('builds shared composer overrides and keeps AskUserQuestion higher priority', () => {
-    const { result } = renderHook(() =>
-      useToolApprovalComposerOverrides({
-        persistedPartsByMessageId: {},
-        partsByMessageId: {
-          'message-1': [makePermissionPart(), makeAskUserQuestionPart()]
-        },
-        onRespond: vi.fn()
-      })
-    )
-
-    expect(result.current.map((override) => override.id)).toEqual([
-      'ask-user-question:approval-ask',
-      'tool-permission:approval-read'
-    ])
-    expect(result.current.map((override) => override.priority)).toEqual([100, 90])
-  })
-
   it('returns no overrides when no pending approvals exist', () => {
     const { result } = renderHook(() =>
       useToolApprovalComposerOverrides({

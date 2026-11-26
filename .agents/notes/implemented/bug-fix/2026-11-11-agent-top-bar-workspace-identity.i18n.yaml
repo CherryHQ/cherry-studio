@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-11-agent-top-bar-workspace-identity.md
+2026-11-11-agent-top-bar-workspace-identity.md: da8bc60b887c5d3e8f7599c997b2cf2c40572578
+2026-11-11-agent-top-bar-workspace-identity.zh.md: 818d290fed315d7ea53db8cff4e0cb0e8d8ec80c

@@ -170,7 +170,7 @@ describe('reply ownership and delivery', () => {
     m.send({ type: 'reserve-steer', reservation: second })
     expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(first)
     m.send({ type: 'steer-boundary', turn: second })
-    const chunk = { type: 'data-status', data: 'waiting' } as const
+    const chunk = { type: 'message-metadata', messageMetadata: { stats: { outputTokens: 1 } } } as const
     m.send({ type: 'buffer-chunk', turn: second, chunk })
     m.finish(second)
     expect(m.state.launch.kind).toBe('idle')
@@ -205,6 +205,48 @@ describe('reply ownership and delivery', () => {
     expect(m.state.launch).toEqual({ kind: 'scheduled', target: { kind: 'reply', turn: first } })
   })
 
+  // AC4: Durable places queued input inside native work it started on its own.
+  it('starts the reply of an input placed during autonomous work after that work persists', () => {
+    const third = { id: 'third' }
+    const m = machine(undefined)
+    m.send({ type: 'autonomous-turn-started', turn: second, deferCurrentTurn: false })
+    m.send({ type: 'turn-prepared', turn: second })
+    m.open(second)
+    m.completeLaunch()
+
+    expect(m.send({ type: 'steer-boundary', turn: third })).toEqual([
+      { type: 'settle-turn', turn: second, outcome: { status: 'success' } }
+    ])
+    expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(third)
+    m.persist(second)
+    expect(m.state.launch).toEqual({ kind: 'scheduled', target: { kind: 'reply', turn: third } })
+  })
+
+  it('resumes the deferred user turn when native work places its input', () => {
+    const m = machine()
+    m.open(first)
+    m.send({ type: 'turn-admitted', turn: first })
+    m.send({ type: 'autonomous-turn-started', turn: second, deferCurrentTurn: true })
+    m.send({ type: 'turn-suspended', turn: first })
+    m.send({ type: 'turn-prepared', turn: second })
+    m.open(second)
+    m.completeLaunch()
+
+    m.send({ type: 'steer-boundary', turn: first })
+    expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(first)
+    m.persist(second)
+    expect(m.state.launch).toEqual({ kind: 'scheduled', target: { kind: 'reply', turn: first } })
+    expect(getAgentSessionRuntimeReply(m.state, first)?.admission).toBe('admitted')
+  })
+
+  // Rolling away from a reply with no stream would leave it unpersisted and block the successor.
+  it('keeps output on an autonomous reply that has not opened yet', () => {
+    const m = machine(undefined)
+    m.send({ type: 'autonomous-turn-started', turn: second, deferCurrentTurn: false })
+    m.send({ type: 'steer-boundary', turn: { id: 'third' } })
+    expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(second)
+  })
+
   it('keeps a failed autonomous reply as fact owner until release and retries its own preparation', () => {
     const m = machine()
     m.send({ type: 'autonomous-turn-started', turn: second, deferCurrentTurn: true })
@@ -214,7 +256,7 @@ describe('reply ownership and delivery', () => {
     m.finish(second)
     expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(second)
     expect(m.state.launch.kind).toBe('idle')
-    const chunk = { type: 'data-status', data: 'last A fact' } as const
+    const chunk = { type: 'message-metadata', messageMetadata: { stats: { outputTokens: 2 } } } as const
     m.send({ type: 'buffer-chunk', turn: second, chunk })
     m.send({ type: 'autonomous-turn-finished' })
     expect(m.state.launch).toEqual({ kind: 'scheduled', target: { kind: 'reply', turn: second } })
@@ -247,7 +289,7 @@ describe('reply ownership and delivery', () => {
     m.finish(second)
     m.send({ type: 'autonomous-turn-finished' })
     expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(first)
-    const chunk = { type: 'data-status', data: 'B' } as const
+    const chunk = { type: 'message-metadata', messageMetadata: { stats: { outputTokens: 3 } } } as const
     m.send({ type: 'buffer-chunk', turn: first, chunk })
     m.finish(first)
     m.persist(second)

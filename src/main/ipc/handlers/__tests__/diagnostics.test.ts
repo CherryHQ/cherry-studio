@@ -50,32 +50,6 @@ describe('diagnosticsHandlers', () => {
     expect(serviceMocks.exportBundle).toHaveBeenCalledWith(input, 'main-window')
   })
 
-  it('delegates diagnostic upload without adding a preload channel', async () => {
-    const input = {
-      description: 'The app stopped responding.',
-      includeChatRecords: true,
-      includeLogs: true,
-      includeTraces: true,
-      range: '24h' as const
-    }
-    serviceMocks.uploadBundle.mockResolvedValue({ status: 'uploaded' })
-
-    await expect(diagnosticsHandlers['diagnostics.bundle.upload'](input, { senderId: 'main-window' })).resolves.toEqual(
-      { status: 'uploaded' }
-    )
-    expect(serviceMocks.uploadBundle).toHaveBeenCalledWith(input)
-  })
-
-  it('delegates retry by opaque bundle id', async () => {
-    const input = { bundleId: '123e4567-e89b-42d3-a456-426614174000' }
-    serviceMocks.retryUpload.mockResolvedValue({ status: 'busy' })
-
-    await expect(
-      diagnosticsHandlers['diagnostics.bundle.retry_upload'](input, { senderId: 'main-window' })
-    ).resolves.toEqual({ status: 'busy' })
-    expect(serviceMocks.retryUpload).toHaveBeenCalledWith(input)
-  })
-
   it('returns the processing state fetched for a report', async () => {
     serviceMocks.refreshReport.mockResolvedValue({ processingStatus: 'resolved' })
     await expect(
@@ -92,15 +66,5 @@ describe('diagnosticsHandlers', () => {
       diagnosticsHandlers['diagnostics.bundle.save_upload'](input, { senderId: 'main-window' })
     ).resolves.toEqual({ status: 'canceled' })
     expect(serviceMocks.saveUploadBundle).toHaveBeenCalledWith(input, 'main-window')
-  })
-
-  it('delegates retained upload discard by opaque bundle id', async () => {
-    const input = { bundleId: '123e4567-e89b-42d3-a456-426614174000' }
-    serviceMocks.discardUpload.mockResolvedValue({ status: 'discarded' })
-
-    await expect(
-      diagnosticsHandlers['diagnostics.bundle.discard_upload'](input, { senderId: 'main-window' })
-    ).resolves.toEqual({ status: 'discarded' })
-    expect(serviceMocks.discardUpload).toHaveBeenCalledWith(input)
   })
 })

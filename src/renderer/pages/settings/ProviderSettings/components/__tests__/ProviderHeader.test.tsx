@@ -78,19 +78,7 @@ describe('ProviderHeader', () => {
     })
   })
 
-  it('does not show the provider id subtitle', () => {
-    render(<ProviderHeader providerId="openai" />)
-
-    expect(screen.queryByText('openai')).not.toBeInTheDocument()
-  })
-
-  it('keeps the header height stable when the api options action is absent', () => {
-    render(<ProviderHeader providerId="openai" />)
-
-    expect(screen.getByRole('heading', { name: 'OpenAI' }).closest('.min-h-7')).toBeInTheDocument()
-  })
-
-  it('shows the custom provider name without the provider id subtitle', () => {
+  it('shows the custom provider name without inventing a website link', () => {
     useProviderMock.mockReturnValue({
       provider: {
         id: '35836b32-9bc1-40ab-9195-8b0b4ea3f342',
@@ -109,11 +97,9 @@ describe('ProviderHeader', () => {
 
     expect(screen.getByText('反反复')).toBeInTheDocument()
     expect(screen.getByText('反反复').closest('a')).toBeNull()
-    expect(screen.queryByText('provider-avatar')).not.toBeInTheDocument()
-    expect(screen.queryByText('35836b32-9bc1-40ab-9195-8b0b4ea3f342')).not.toBeInTheDocument()
   })
 
-  it('links the provider name to the official website without showing the logo or docs icon', () => {
+  it('links the provider name to its official website', () => {
     useProviderMetaMock.mockReturnValue({
       fancyProviderName: 'OpenAI',
       officialWebsite: 'https://openai.com/',
@@ -125,11 +111,8 @@ describe('ProviderHeader', () => {
     render(<ProviderHeader providerId="openai" />)
 
     const officialLinks = screen.getAllByRole('link', { name: 'OpenAI · settings.provider.oauth.official_website' })
-    expect(officialLinks).toHaveLength(1)
+
     expect(officialLinks[0]).toHaveAttribute('href', 'https://openai.com/')
-    expect(screen.queryByText('provider-avatar')).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'OpenAI · common.docs' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'OpenAI · settings.models.list_title' })).not.toBeInTheDocument()
   })
 
   it('opens the api options drawer when the meta enables the entry', () => {

@@ -1,23 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { SiliconImageModel } from '../silicon/SiliconImageModel'
 import { createSiliconProvider } from '../silicon/siliconProvider'
 
 describe('createSiliconProvider', () => {
-  it('uses OpenAI-compatible chat + embedding and bespoke SiliconImageModel for image', () => {
-    const provider = createSiliconProvider({
-      apiKey: 'sk-test',
-      baseURL: 'https://api.siliconflow.cn/v1',
-      fetch: vi.fn()
-    })
-
-    expect(provider.languageModel('Qwen/Qwen3-8B').provider).toBe('silicon.chat')
-    expect(provider.embeddingModel('BAAI/bge-m3').provider).toBe('silicon.embedding')
-    expect(provider.imageModel('Qwen/Qwen-Image')).toBeInstanceOf(SiliconImageModel)
-    expect(provider.imageModel('Kwai-Kolors/Kolors')).toBeInstanceOf(SiliconImageModel)
-    expect(provider.imageModel('stable-diffusion-xl')).toBeInstanceOf(SiliconImageModel)
-  })
-
   it('builds the SiliconFlow body with snake_case + image_size + batch_size and parses images[]', async () => {
     const imageUrl = 'https://siliconflow.cdn.example/out.png'
     const fetch = vi.fn().mockResolvedValue(
@@ -104,5 +89,38 @@ describe('createSiliconProvider', () => {
     expect(sent.image2).toBe('https://x/in2.png')
     expect(sent).not.toHaveProperty('image3')
     expect(sent).not.toHaveProperty('batch_size')
+    expect(sent).not.toHaveProperty('image_size')
+  })
+
+  it.each([
+    { size: undefined, expectedSize: '1024x1024' },
+    { size: '832x1216' as const, expectedSize: '832x1216' }
+  ])('sends a valid MOSS image size when the requested size is $size', async ({ size, expectedSize }) => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ images: [{ b64_json: 'aW1hZ2U=' }] }), {
+        headers: { 'content-type': 'application/json' },
+        status: 200
+      })
+    )
+    const provider = createSiliconProvider({ apiKey: 'sk-test', fetch })
+
+    await provider.imageModel('OpenMOSS-Team/MOSS-Image').doGenerate({
+      prompt: 'a fox',
+      n: 1,
+      size,
+      aspectRatio: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerOptions: {}
+    })
+
+    expect(fetch.mock.calls[0][0]).toBe('https://api.siliconflow.cn/v1/images/generations')
+    const sent = JSON.parse((fetch.mock.calls[0][1] as RequestInit).body as string)
+    expect(sent).toEqual({
+      model: 'OpenMOSS-Team/MOSS-Image',
+      prompt: 'a fox',
+      image_size: expectedSize
+    })
   })
 })

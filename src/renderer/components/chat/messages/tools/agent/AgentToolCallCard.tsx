@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import {
@@ -12,9 +13,11 @@ import {
   type ToolInput,
   type ToolOutput
 } from '../shared/agentToolTypes'
+import { DeferredToolDetails } from '../shared/DeferredToolDetails'
 import { type ToolStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
+import { useToolOutputReference } from '../useToolResponsePreview'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
 import { SessionCreateTool } from './SessionCreateTool'
 import { SessionSendTool } from './SessionSendTool'
@@ -52,7 +55,7 @@ export function AgentToolCallCard({
   toolCallId,
   toolName,
   input,
-  output,
+  output: rawOutput,
   isStreaming = false,
   status,
   hasError = false,
@@ -71,6 +74,8 @@ export function AgentToolCallCard({
   openFlowOnClick?: boolean
   showInlineDetails?: boolean
 }) {
+  const deferredOutput = useToolOutputReference(rawOutput, toolCallId)
+  const output = isDeferredToolOutput(rawOutput) || isPersistedToolOutput(rawOutput) ? undefined : rawOutput
   const actions = useOptionalMessageListActions()
   const { t } = useTranslation()
   const renderedItem =
@@ -95,6 +100,10 @@ export function AgentToolCallCard({
           })
       : undefined
   if (openToolFlow) {
+    const requestedModel =
+      input && typeof input === 'object' && 'model' in input && typeof input.model === 'string'
+        ? input.model.trim()
+        : ''
     const title = getAgentToolFlowTitle(toolName, input) ?? t('agent.right_pane.info.subagents')
     const running = status === 'streaming' || status === 'invoking'
     const failed = hasError || status === 'error'
@@ -138,6 +147,11 @@ export function AgentToolCallCard({
             <Icon aria-hidden="true" className={cn('size-3.5', running && 'motion-safe:animate-spin')} />
           </span>
           <span className="min-w-0 flex-1 truncate text-left">{title}</span>
+          {requestedModel && (
+            <span className="max-w-[55%] truncate text-xs text-muted-foreground" title={requestedModel}>
+              {t('message.tools.subagent.requestedModel', { model: requestedModel })}
+            </span>
+          )}
           {status === 'done' && !failed ? (
             <span className="sr-only">{label}</span>
           ) : (
@@ -153,6 +167,7 @@ export function AgentToolCallCard({
 
   const toolContentItem: ToolDisclosureItem = {
     ...renderedItem,
+    ...(deferredOutput ? { children: <DeferredToolDetails resultRef={deferredOutput.$deferredToolResult} /> } : {}),
     label: (
       <AgentToolDisclosureLabel
         label={
@@ -170,7 +185,7 @@ export function AgentToolCallCard({
     }
   }
   const canShowInlineDetails =
-    showInlineDetails && renderedItem.children !== undefined && renderedItem.children !== null
+    showInlineDetails && toolContentItem.children !== undefined && toolContentItem.children !== null
 
   return (
     <AgentToolDisclosure
@@ -181,6 +196,7 @@ export function AgentToolCallCard({
       onOpenDetails={openToolFlow}
       stateId={toolCallId}
       showInlineDetails={canShowInlineDetails}
+      unmountOnClose={!!deferredOutput}
     />
   )
 }

@@ -8,10 +8,12 @@ const useProviderMock = vi.fn()
 const updateProviderMock = vi.fn()
 const syncProviderModelsMock = vi.fn()
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async () => {
   const React = require('react')
+  const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
 
   return {
+    HelpTooltip: MockCherrystudioUI.HelpTooltip,
     Badge: ({ children, ...props }: any) => React.createElement('span', props, children),
     Button: ({ children, onClick, ...props }: any) =>
       React.createElement('button', { ...props, onClick, type: props.type ?? 'button' }, children),

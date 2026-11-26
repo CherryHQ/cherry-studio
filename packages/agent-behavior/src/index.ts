@@ -1,6 +1,7 @@
 export type {
   CallKey,
   UsageFact,
+  GoalOwner,
   ToolCallFact,
   EntryKind,
   GoalPhase,
@@ -32,7 +33,6 @@ export type {
 export { callKeyOf, ENTRY_KINDS } from './core/facts'
 export type {
   CallRef,
-  ApprovalOutcome,
   ToolCategory,
   ApprovalHostFacts,
   ApprovalAnswer,
@@ -50,6 +50,7 @@ export type {
   HostSettingsSnapshot
 } from './core/hostFacts'
 export type { EncodedEntry, RawEntry } from './core/entryCodec'
+export { needsReopen } from './core/driver/lifecycle'
 export { decodeEntry, encodeEntry } from './core/entryCodec'
 export type {
   TurnInput,
@@ -64,7 +65,8 @@ export type {
   Step
 } from './core/decisions'
 export type { Key } from './core/keys'
-export { turnOrigin } from './core/goal/goalHistory'
+export { nativeSummaryKey, subagentMessageKey } from './core/keys'
+export { goalForRequest, turnOrigin } from './core/goal/goalHistory'
 export { delegationStatus, subagentViews, subagentResults } from './core/subagents/subagentLedger'
 export type { DelegationStatus, SubagentResults } from './core/subagents/subagentLedger'
 export { DEFAULT_MAX_BACKGROUND, FORK_PLACEHOLDER_RESULT, INTERRUPTED_CALL_RESULT } from './core/subagents/subagentText'
@@ -95,8 +97,6 @@ export type {
   RequestAllowance,
   RequestMeterHandler,
   RequestMeter,
-  CompactionRequest,
-  CompactionVerdict,
   LifecycleHandlers,
   Lifecycle,
   HarnessPorts,
@@ -113,13 +113,19 @@ export type {
   Verifier,
   OutputFile,
   OutputStore,
-  SummaryRequest,
-  Summarizer,
   Observation,
   Settings,
   HostPorts
 } from './ports/host'
 export { install } from './orchestration/install'
+export {
+  TOOL_INTENT_ARG,
+  TOOL_INTENT_GUIDE,
+  withoutToolIntent,
+  createToolIntent,
+  offersToolIntent
+} from './orchestration/toolIntent'
+export type { IntentTool } from './orchestration/toolIntent'
 export type { Installation } from './orchestration/install'
 export type { Entries } from './orchestration/entries'
 export type { SubagentMessageReceipt } from './orchestration/tools/subagents'

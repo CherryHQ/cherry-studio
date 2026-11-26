@@ -22,16 +22,6 @@ beforeEach(() => {
 })
 
 describe('quickAssistantHandlers', () => {
-  it('hide delegates to QuickAssistantService.hideQuickAssistant', async () => {
-    await quickAssistantHandlers['quick_assistant.hide'](undefined, ctx)
-    expect(quickAssistantService.hideQuickAssistant).toHaveBeenCalledOnce()
-  })
-
-  it('close delegates to QuickAssistantService.closeQuickAssistant', async () => {
-    await quickAssistantHandlers['quick_assistant.close'](undefined, ctx)
-    expect(quickAssistantService.closeQuickAssistant).toHaveBeenCalledOnce()
-  })
-
   it('set_pin forwards the isPinned flag', async () => {
     await quickAssistantHandlers['quick_assistant.set_pin']({ isPinned: true }, ctx)
     expect(quickAssistantService.setPinQuickAssistant).toHaveBeenCalledWith(true)

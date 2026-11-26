@@ -34,6 +34,24 @@ export type {
 } from './agent/resources'
 export { agentMethods } from './agent/methods'
 export type { AgentMethod, AgentMutation, AgentParams, AgentResult } from './agent/methods'
+export {
+  taskMethods,
+  taskStatusSchema,
+  taskTriggerSchema,
+  taskSummarySchema,
+  taskDetailSchema,
+  taskRunSchema,
+  taskResultLocationSchema
+} from './agent/tasks'
+export type {
+  TaskMethod,
+  TaskStatus,
+  TaskTrigger,
+  TaskSummary,
+  TaskDetail,
+  TaskRun,
+  TaskResultLocation
+} from './agent/tasks'
 export { agentEventSchema, agentEventBatchSchema, agentNotificationSchema, agentProjectionSchema } from './agent/events'
 export type { AgentEvent, AgentEventBatch, AgentProjection } from './agent/events'
 export {
@@ -43,7 +61,7 @@ export {
 } from './agent/checkpoints'
 export type { AgentCheckpointDescriptor, AgentCheckpointPage } from './agent/checkpoints'
 export { encodeAgentCommand } from './agent/commands'
-export { applyAgentEvents, installAgentCheckpoint, textByteLength } from './agent/reducer'
+export { applyAgentEvents, createAgentJournalWriter, installAgentCheckpoint, textByteLength } from './agent/reducer'
 export type { MaterializedContent, ApplyAgentEventsResult, InstallAgentCheckpointResult } from './agent/reducer'
 
 export { agentUploadLimits, uploadMetadataSchema, uploadReferenceSchema, uploadReferencesSchema } from './agent/uploads'

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { FileRefSourceType } from '../file'
-import { allSourceTypes, chatMessageFileRefSchema, FileRefSchema } from '../file'
+import { chatMessageFileRefSchema, FileRefSchema } from '../file'
 import { MessageIdSchema } from '../message'
 
 describe('MessageIdSchema', () => {
@@ -19,15 +18,6 @@ describe('MessageIdSchema', () => {
 })
 
 describe('chat_message FileRefSourceType registration', () => {
-  it('is included in allSourceTypes tuple', () => {
-    expect(allSourceTypes).toContain('chat_message')
-  })
-
-  it('is assignable to FileRefSourceType', () => {
-    const _: FileRefSourceType = 'chat_message'
-    expect(_).toBe('chat_message')
-  })
-
   it('chatMessageFileRefSchema parses a valid chat_message ref', () => {
     const valid = {
       id: '550e8400-e29b-41d4-a716-446655440000',

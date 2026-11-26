@@ -223,7 +223,7 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
     const thread = { backendId: options.backendId, id: runtimeId<'thread'>(sessionId) }
     const owner: Owner = {
       thread,
-      projection: new Projection(sessionId, report),
+      projection: new Projection(sessionId, thread, report),
       inputs: new Set(),
       observations: new Set(),
       work: Promise.resolve(),
@@ -432,6 +432,7 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
   }
 
   return {
+    // oxlint-disable-next-line no-restricted-globals -- Initialize once: detach negotiated protocol metadata from the native connection.
     initialize: () => operation('initialize', async () => structuredClone(await start())),
     authenticate: async (methodId) => {
       const ready = await operation('authenticate', start)

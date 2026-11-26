@@ -9,7 +9,7 @@ const Gpt4oMiniTts = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const Gpt4oMiniTtsIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Gpt4oMiniTts, {
   Avatar: Gpt4oMiniTtsAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#ae94eb'
 })
 
 export default Gpt4oMiniTtsIcon

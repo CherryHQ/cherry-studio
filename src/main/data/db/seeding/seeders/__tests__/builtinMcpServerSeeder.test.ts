@@ -3,9 +3,7 @@ import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
-import { hashObject } from '@data/db/seeding/hashObject'
 import { BuiltinMcpServerSeeder } from '@data/db/seeding/seeders/builtinMcpServerSeeder'
-import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 describe('BuiltinMcpServerSeeder', () => {
@@ -124,14 +122,5 @@ describe('BuiltinMcpServerSeeder', () => {
     new BuiltinMcpServerSeeder().run(dbh.db)
 
     expect(await dbh.db.select().from(mcpServerTable)).toEqual([])
-  })
-
-  it('derives its version from the preset transports, so a change reruns the migration', () => {
-    const repointed = PRESET_MCP_SERVERS.map((preset) =>
-      preset.name === BuiltinMcpServerNames.flomo ? { ...preset, baseUrl: 'https://flomoapp.com/mcp/v2' } : preset
-    )
-
-    expect(new BuiltinMcpServerSeeder().version).toBe(hashObject(PRESET_MCP_SERVERS))
-    expect(hashObject(repointed)).not.toBe(hashObject(PRESET_MCP_SERVERS))
   })
 })

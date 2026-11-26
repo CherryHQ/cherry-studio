@@ -97,11 +97,15 @@ describe('host preview options', () => {
     await screen.findByText('Landscape page')
     const region = screen.getByRole('region', { name: 'layout.docx' })
     // Inset ownership is the layout contract: outer padding creates the reported fixed strip.
-    expect(screen.getByTestId('file-preview-content')).toHaveClass('pb-[var(--file-preview-bottom-inset,0px)]')
+    expect(screen.getByTestId('file-preview-content').firstElementChild).toHaveClass(
+      'pb-[var(--file-preview-bottom-inset,0px)]'
+    )
     expect(region.style.paddingBottom).toBe('')
 
     view.rerender(<Preview source={source} options={{ bottomInset: 'content' }} />)
-    expect(screen.getByTestId('file-preview-content')).not.toHaveClass('pb-[var(--file-preview-bottom-inset,0px)]')
+    expect(screen.getByTestId('file-preview-content').firstElementChild).not.toHaveClass(
+      'pb-[var(--file-preview-bottom-inset,0px)]'
+    )
     expect(region.style.paddingBottom).toBe('var(--file-preview-bottom-inset, 0px)')
     expect(screen.getByTestId('docx-preview-content').style.paddingBottom).toBe('')
     expect(source.open).toHaveBeenCalledTimes(1)

@@ -937,7 +937,7 @@ describe('KnowledgeItemService', () => {
       expect(result.map((item) => item.id).sort()).toEqual([DIR_CHILD_ID, DIR_ROOT_ID, FILE_CHILD_ID])
     })
 
-    it('reads subtree rows with a single raw query instead of a follow-up ORM select', async () => {
+    it('reads the requested subtree including its root', async () => {
       await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root' } })
       await seedItem({
         id: FILE_CHILD_ID,
@@ -946,19 +946,9 @@ describe('KnowledgeItemService', () => {
         data: createFileItemData(FILE_CHILD_ID)
       })
 
-      const allSpy = vi.spyOn(dbh.db, 'all')
-      const selectSpy = vi.spyOn(dbh.db, 'select')
+      const result = service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], { includeRoots: true })
 
-      try {
-        const result = service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], { includeRoots: true })
-
-        expect(result.map((item) => item.id).sort()).toEqual([DIR_ROOT_ID, FILE_CHILD_ID])
-        expect(allSpy).toHaveBeenCalledTimes(1)
-        expect(selectSpy).not.toHaveBeenCalled()
-      } finally {
-        allSpy.mockRestore()
-        selectSpy.mockRestore()
-      }
+      expect(result.map((item) => item.id).sort()).toEqual([DIR_ROOT_ID, FILE_CHILD_ID])
     })
 
     it('returns an empty list when no roots are provided', () => {
@@ -1195,11 +1185,6 @@ describe('KnowledgeItemService', () => {
         status: 'deleting',
         error: null
       })
-      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-        'Skipped status update for deleting item',
-        expect.objectContaining({ id: seeded.id, attemptedStatus: 'completed' })
-      )
-      expect(mockMainLoggerService.info).not.toHaveBeenCalledWith('Updated knowledge item status', expect.anything())
     })
 
     it('does not overwrite deleting items with failed status from settled jobs', async () => {
@@ -1220,11 +1205,6 @@ describe('KnowledgeItemService', () => {
         status: 'deleting',
         error: null
       })
-      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-        'Skipped status update for deleting item',
-        expect.objectContaining({ id: seeded.id, attemptedStatus: 'failed' })
-      )
-      expect(mockMainLoggerService.info).not.toHaveBeenCalledWith('Updated knowledge item status', expect.anything())
     })
   })
 

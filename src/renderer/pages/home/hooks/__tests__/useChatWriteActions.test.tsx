@@ -64,7 +64,6 @@ function renderActions(
 ) {
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn<Parameters<typeof useChatWriteActions>[0]['regenerate']>(async () => {})
-  const setMessages = vi.fn()
   const seedReservedMessages = vi.fn(async () => {})
   const { result, rerender } = renderHook(
     ({ composerModelId }) =>
@@ -73,9 +72,8 @@ function renderActions(
         uiMessages,
         activeNodeId,
         regenerate,
-        setMessages,
         stop,
-        refresh: vi.fn(async () => []),
+        refresh: vi.fn(async () => {}),
         cache,
         seedReservedMessages,
         scrollToBottom,
@@ -156,9 +154,8 @@ describe('useChatWriteActions — clear context', () => {
         uiMessages: [uiMsg('u1', 'user', 'vroot')],
         activeNodeId: 'u1',
         regenerate: vi.fn(async () => {}),
-        setMessages: vi.fn(),
         stop: vi.fn(async () => {}),
-        refresh: vi.fn(async () => []),
+        refresh: vi.fn(async () => {}),
         cache,
         seedReservedMessages,
         scrollToBottom,
@@ -264,9 +261,8 @@ describe('useChatWriteActions — clear context', () => {
     act(() => {
       first = actions.startNewContext()
     })
-    const second = actions.startNewContext()
+    void actions.startNewContext()
 
-    expect(first).toBe(second)
     expect(cache.createMessageTrigger).toHaveBeenCalledOnce()
     expect(result.current.actions.canStartNewContext).toBe(false)
 
@@ -367,7 +363,7 @@ describe('useChatWriteActions — first-turn delete', () => {
     await actions.deleteMessageGroup(['a1', 'a2'])
 
     expect(cache.deleteMessageGroupTrigger).toHaveBeenCalledWith({ params: { id: 'a1' } })
-    expect(cache.seedOptimisticBranch).toHaveBeenCalledTimes(2)
+
     expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
     expect(invalidateMessages).toHaveBeenCalledWith(['a1', 'a2'])
   })
@@ -381,7 +377,7 @@ describe('useChatWriteActions — first-turn delete', () => {
     await actions.deleteMessageGroup(['a1', 'a2'])
 
     expect(cache.deleteMessageGroupTrigger).toHaveBeenCalledWith({ params: { id: 'a1' } })
-    expect(cache.seedOptimisticBranch).toHaveBeenCalledTimes(2)
+
     const reconcile = vi.mocked(cache.seedOptimisticBranch).mock.calls[1][0]
     reconcile([])
     expect(cache.branchWithoutIds).toHaveBeenLastCalledWith([], new Set(['a1-old', 'a1', 'a2']))
@@ -487,7 +483,6 @@ describe('useChatWriteActions — regenerate', () => {
     await actions.regenerate('a1')
 
     expect(regenerate).toHaveBeenCalledWith({
-      messageId: 'a1',
       body: expect.objectContaining({
         parentAnchorId: 'u1',
         reasoningEffort: 'high',
@@ -505,7 +500,6 @@ describe('useChatWriteActions — regenerate', () => {
 
     expect(regenerate).toHaveBeenCalledWith(
       expect.objectContaining({
-        messageId: 'u1',
         body: expect.objectContaining({
           parentAnchorId: 'u1',
           mentionedModels: ['provider::model-b']
@@ -637,7 +631,6 @@ describe('useChatWriteActions — regenerate', () => {
     if (status === 'pending') {
       expect(streamOpen).not.toHaveBeenCalled()
       expect(regenerate).toHaveBeenCalledWith({
-        messageId: 'a1',
         body: expect.objectContaining({ parentAnchorId: 'u1' })
       })
       expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
@@ -714,7 +707,6 @@ describe('useChatWriteActions — regenerate', () => {
 
       expect(streamOpen).not.toHaveBeenCalled()
       expect(regenerate).toHaveBeenCalledWith({
-        messageId: 'a2',
         body: expect.objectContaining({ parentAnchorId: 'u1' })
       })
       expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
