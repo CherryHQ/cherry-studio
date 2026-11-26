@@ -3182,6 +3182,7 @@
   "models.amd_free.open_failed": "Impossibile aprire la pagina AMD, riprova",
   "models.amd_free.sign_in_hint": "Accedi e autorizza AMD per usarlo gratis",
   "models.amd_free.tag": "Accesso AMD",
+  "models.detail.cloud_request_limited": "Questa richiesta è temporaneamente limitata",
   "models.detail.context_window": "Finestra di contesto",
   "models.detail.free_quota_exhausted": "Quota gratuita esaurita; in attesa del ripristino",
   "models.detail.image_modes": "Modalità immagine",

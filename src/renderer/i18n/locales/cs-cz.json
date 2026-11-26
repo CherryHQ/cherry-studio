@@ -3186,6 +3186,7 @@
   "models.amd_free.open_failed": "Stránku AMD se nepodařilo otevřít, zkuste to prosím znovu",
   "models.amd_free.sign_in_hint": "Po přihlášení a autorizaci u AMD jej můžete používat zdarma",
   "models.amd_free.tag": "Autorizace AMD",
+  "models.detail.cloud_request_limited": "Tento požadavek je dočasně omezen",
   "models.detail.context_window": "Kontextové okno",
   "models.detail.free_quota_exhausted": "Bezplatný limit vyčerpán; čeká se na obnovení",
   "models.detail.image_modes": "Režimy obrázků",

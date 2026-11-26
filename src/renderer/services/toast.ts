@@ -52,9 +52,11 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
   const category = context.category ?? classification.category
   const provider = context.provider
   const cloudPresentation = getCherryCloudErrorPresentation(serialized, provider?.id, category)
-  const planQuota = cloudPresentation.quota
-  const presentation: ErrorToastPresentation = planQuota ? { type: 'warning' } : errorToastPresentations[category]
-  const details = planQuota ? cloudPresentation.text : providerErrorText(serialized)
+  const planQuota = cloudPresentation.kind === 'plan_quota'
+  // No billing shortcut for any Cloud quota refusal: AMD free models have no plan to pay for.
+  const presentation: ErrorToastPresentation =
+    cloudPresentation.kind && category === 'quota' ? { type: 'warning' } : errorToastPresentations[category]
+  const details = cloudPresentation.kind ? cloudPresentation.text : providerErrorText(serialized)
   const configure = provider
     ? () => openSettingsTab(`/settings/provider?id=${encodeURIComponent(provider.id)}`)
     : undefined
@@ -76,9 +78,11 @@ function errorFromException(error: unknown, context: ErrorToastContext = {}): st
     key: context.key,
     title: planQuota
       ? i18n.t('models.detail.quota_insufficient_for_request')
-      : category === 'unknown'
-        ? details || i18n.t('error.unknown')
-        : i18n.t(diagnosisKey),
+      : cloudPresentation.kind === 'limited'
+        ? i18n.t('models.detail.cloud_request_limited')
+        : category === 'unknown'
+          ? details || i18n.t('error.unknown')
+          : i18n.t(diagnosisKey),
     description:
       [
         context.mcpServer?.name ?? provider?.name,

@@ -3182,6 +3182,7 @@
   "models.amd_free.open_failed": "ไม่สามารถเปิดหน้า AMD ได้ โปรดลองอีกครั้ง",
   "models.amd_free.sign_in_hint": "เข้าสู่ระบบและอนุญาต AMD เพื่อใช้งานฟรี",
   "models.amd_free.tag": "อนุญาต AMD",
+  "models.detail.cloud_request_limited": "คำขอนี้ถูกจำกัดชั่วคราว",
   "models.detail.context_window": "หน้าต่างคอนเท็กซ์",
   "models.detail.free_quota_exhausted": "โควตาฟรีหมดแล้ว รอการรีเซ็ต",
   "models.detail.image_modes": "โหมดรูปภาพ",

@@ -40,7 +40,7 @@ required service tier.`
     const key = toast.errorFromException(
       {
         name: 'Error',
-        message: `429: ${JSON.stringify({ message: planText, type: 'rate_limit_error' })}`,
+        message: `429: ${JSON.stringify({ type: 'error', error: { type: 'quota_error', code: 'QUOTA_EXHAUSTED', message: planText } })}`,
         statusCode: 429,
         providerErrorCategory: 'quota'
       },
@@ -62,8 +62,44 @@ it('keeps Cloud rate limits retryable even when their text mentions quota', asyn
     { provider: { id: 'cherryai-subscription', name: 'CherryAI' }, actions: { retry } }
   )
   const shown = toast.getToastQueue().toasts.find((item) => item.key === key)!
-  expect(shown.title).toBe(enUS['error.diagnosis.rate_limit'])
+  expect(shown.title).toBe(enUS['models.detail.cloud_request_limited'])
+  expect(shown.details).toBe('额度不足是另一种错误；本次仅为请求频率过高')
   expect(shown.action?.label).toBe(enUS['toast.error.retry'])
   await shown.action!.onClick()
   expect(retry).toHaveBeenCalledOnce()
+})
+
+it('shows an AMD daily-quota 429 with its reset text and no plan wording or billing action', () => {
+  const resetText = 'Daily quota exhausted. Your quota resets at 00:00 (UTC+8). 今日额度已用完，将于 0 点重置。'
+  const key = toast.errorFromException(
+    {
+      name: 'AI_APICallError',
+      statusCode: 429,
+      message: resetText,
+      providerErrorCategory: 'quota',
+      providerErrorCode: 'daily_quota_exceeded'
+    },
+    { provider: { id: 'cherryai-subscription', name: 'CherryAI' } }
+  )
+
+  expect(toast.getToastQueue().toasts.find((item) => item.key === key)).toMatchObject({
+    title: enUS['models.detail.cloud_request_limited'],
+    details: resetText,
+    action: undefined
+  })
+})
+
+it('offers no billing action for a textless Cloud quota refusal', () => {
+  const key = toast.errorFromException(
+    {
+      name: 'AI_APICallError',
+      statusCode: 429,
+      message: '',
+      providerErrorCategory: 'quota',
+      providerErrorCode: 'insufficient_quota'
+    },
+    { provider: { id: 'cherryai-subscription', name: 'CherryAI' } }
+  )
+
+  expect(toast.getToastQueue().toasts.find((item) => item.key === key)).toMatchObject({ action: undefined })
 })

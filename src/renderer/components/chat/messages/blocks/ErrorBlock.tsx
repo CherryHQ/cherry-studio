@@ -151,15 +151,16 @@ const MessageErrorInfo: React.FC<{
   const classification = useMemo(() => classifyError(error, providerId), [error, providerId])
   const localModelFailure = useMemo(() => getLocalModelResolutionFailure(error), [error])
   const cloudPresentation = getCherryCloudErrorPresentation(error, providerId, classification.category)
-  const cherryCloudQuotaRejection = cloudPresentation.quota
-  const cherryCloudQuotaText = cherryCloudQuotaRejection ? cloudPresentation.text : ''
+  const cherryCloudKind = cloudPresentation.kind
+  const cherryCloudText = cherryCloudKind ? cloudPresentation.text : ''
   // An app-owned i18nKey is the throwing code's own display text — prefer it over a
   // pattern-matched category heading, which can name the wrong subsystem entirely (an
   // OCR-fallback failure must not present as a chat-provider auth error). Keys that
   // interpolate <provider> still go through the classification branch: plain `t()`
   // would render the raw tags, and the provider branch needs the <Trans> link form.
   const localizedErrorMessage = useMemo(() => {
-    if (cherryCloudQuotaRejection) return t('models.detail.quota_insufficient_for_request')
+    if (cherryCloudKind === 'plan_quota') return t('models.detail.quota_insufficient_for_request')
+    if (cherryCloudKind === 'limited') return t('models.detail.cloud_request_limited')
     if (hasAppOwnedI18nKey && !providerId) return t(appOwnedErrorKey)
     if (localModelFailure) {
       const { providerId: failedProviderId, modelId } = localModelFailure
@@ -169,15 +170,7 @@ const MessageErrorInfo: React.FC<{
       })
     }
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
-  }, [
-    cherryCloudQuotaRejection,
-    hasAppOwnedI18nKey,
-    appOwnedErrorKey,
-    classification.i18nKey,
-    localModelFailure,
-    providerId,
-    t
-  ])
+  }, [cherryCloudKind, hasAppOwnedI18nKey, appOwnedErrorKey, classification.i18nKey, localModelFailure, providerId, t])
 
   const canDiagnose =
     dataCollectionEnabled &&
@@ -243,7 +236,7 @@ const MessageErrorInfo: React.FC<{
 
   const canOpenDetail = !!openErrorDetail
   const canRemoveErrorPart = !!removeMessageErrorPart
-  const canNavigate = !!classification.navTarget && !!navigateErrorTarget && !cherryCloudQuotaRejection
+  const canNavigate = !!classification.navTarget && !!navigateErrorTarget && !cherryCloudKind
 
   return (
     <div
@@ -276,9 +269,13 @@ const MessageErrorInfo: React.FC<{
 
       {/* Description */}
       <div
-        className="ml-5.75 line-clamp-3 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link"
+        className={cn(
+          'ml-5.75 text-xs leading-normal [overflow-wrap:anywhere] [&_a]:text-link',
+          // Cloud text ends with how long to wait, so it must not be clipped.
+          !cherryCloudText && 'line-clamp-3'
+        )}
         style={{ color: ERROR_DESCRIPTION_COLOR }}>
-        {cherryCloudQuotaText || <ErrorMessage error={error} category={classification.category} />}
+        {cherryCloudText || <ErrorMessage error={error} category={classification.category} />}
       </div>
 
       {canDiagnose && diagnosisError && (

@@ -1,6 +1,7 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { APICallError, RetryError } from 'ai'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -388,43 +389,52 @@ required service tier.`
   })
 
   const planText = '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 30天8小时59分钟57秒后重试。'
-  it.each([
-    ['its JSON body', JSON.stringify({ message: planText, type: 'rate_limit_error', code: 'rate_limit_exceeded' })],
-    ['the agent runtime status prefix', `API Error: Request rejected (429) · ${planText}`],
-    ['the last attempt of a retried request', 'Failed after 3 attempts. Last error: Too Many Requests'],
-    ['the Pi agent status prefix', `429: ${JSON.stringify({ message: planText, type: 'rate_limit_error' })}`]
-  ])('shows only the Cherry AI plan wording from %s, without a settings shortcut', (_case, body) => {
-    const navigateErrorTarget = vi.fn()
-    mocks.actions = { navigateErrorTarget }
-    const cloudMessage = {
-      ...message,
-      model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
-    }
+  const cloudMessage = {
+    ...message,
+    model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
+  }
+  const cloudBody = (text: string, error: { type: string; code?: string }) =>
+    JSON.stringify({ type: 'error', error: { ...error, message: text } })
+  const planBody = cloudBody(planText, { type: 'quota_error', code: 'QUOTA_EXHAUSTED' })
+  const cloudApiError = (body: string) =>
+    new APICallError({
+      message: 'Too Many Requests',
+      url: 'https://cloud.cherryai.com/v1/messages',
+      requestBodyValues: {},
+      statusCode: 429,
+      responseBody: body,
+      isRetryable: true
+    })
+  // Round-trip through JSON like the IPC boundary, so only what main serialized survives.
+  const serializeCloudError = (error: Error) => JSON.parse(JSON.stringify(serializeError(error))) as SerializedError
 
-    render(
-      <ErrorBlock
-        partId="message-1-part-0"
-        error={
-          body.startsWith('Failed after')
-            ? {
-                name: 'AI_RetryError',
-                message: body,
-                stack: null,
-                cause: null,
-                reason: 'maxRetriesExceeded',
-                lastError: {
-                  name: 'AI_APICallError',
-                  statusCode: 429,
-                  providerErrorCategory: 'quota',
-                  responseBody: JSON.stringify({ error: { message: planText, type: 'rate_limit_error' } })
-                },
-                errors: []
-              }
-            : { name: 'AI_APICallError', message: body, stack: null, statusCode: 429, providerErrorCategory: 'quota' }
-        }
-        message={cloudMessage}
-      />
-    )
+  it.each<[string, () => SerializedError]>([
+    ['a serialized API error', () => serializeCloudError(cloudApiError(planBody))],
+    [
+      'the last attempt of a retried request',
+      () =>
+        serializeCloudError(
+          new RetryError({
+            message: 'Failed after 3 attempts. Last error: Too Many Requests',
+            reason: 'maxRetriesExceeded',
+            errors: [cloudApiError(planBody)]
+          })
+        )
+    ],
+    [
+      'the Pi agent status prefix',
+      () => ({
+        name: 'Error',
+        message: `429: ${planBody}`,
+        stack: null,
+        statusCode: 429,
+        providerErrorCategory: 'quota'
+      })
+    ]
+  ])('shows only the Cherry AI plan wording from %s, without a settings shortcut', (_case, error) => {
+    mocks.actions = { navigateErrorTarget: vi.fn() }
+
+    render(<ErrorBlock partId="message-1-part-0" error={error()} message={cloudMessage} />)
 
     expect(screen.getByText('models.detail.quota_insufficient_for_request')).toBeInTheDocument()
     expect(screen.getByText(planText)).toBeInTheDocument()
@@ -432,12 +442,87 @@ required service tier.`
     expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
   })
 
-  it('keeps an unspecified Cloud HTTP 429 as a rate limit', () => {
-    const cloudMessage = {
-      ...message,
-      model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
-    }
+  // AMD's upstream 429s reach the client verbatim, without Cloud's QUOTA_EXHAUSTED code.
+  it.each([
+    [
+      'a per-minute limit',
+      cloudBody('Rate limit exceeded: 20 requests per minute. Please retry in 42 seconds. 请 42 秒后重试。', {
+        type: 'rate_limit_error',
+        code: 'rate_limit_exceeded'
+      })
+    ],
+    [
+      'a used-up daily quota',
+      cloudBody(
+        'Daily quota exhausted. Your quota resets at 2026-11-26 00:00 (UTC+8). 今日额度已用完，将于 0 点重置。',
+        {
+          type: 'insufficient_quota'
+        }
+      )
+    ],
+    [
+      'a busy service',
+      cloudBody('服务繁忙，并发已满。Please retry in 5 seconds. 请 5 秒后重试。', { type: 'overloaded' })
+    ]
+  ])('shows the server text in full under a neutral heading for %s', (_case, body) => {
+    mocks.actions = { navigateErrorTarget: vi.fn() }
+    const serverText = JSON.parse(body).error.message as string
 
+    render(
+      <ErrorBlock partId="message-1-part-0" error={serializeCloudError(cloudApiError(body))} message={cloudMessage} />
+    )
+
+    expect(screen.getByText('models.detail.cloud_request_limited')).toBeInTheDocument()
+    expect(screen.queryByText('models.detail.quota_insufficient_for_request')).toBeNull()
+    const description = screen.getByText(serverText)
+    expect(description).not.toHaveClass('line-clamp-3')
+    expect(screen.queryByText(/HTTP 429/)).toBeNull()
+    expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
+  })
+
+  it('offers no provider settings for a textless Cloud quota refusal', () => {
+    mocks.actions = { navigateErrorTarget: vi.fn() }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: '',
+          stack: null,
+          statusCode: 429,
+          providerErrorCategory: 'quota',
+          providerErrorCode: 'insufficient_quota'
+        }}
+        message={cloudMessage}
+      />
+    )
+
+    expect(screen.queryByText('models.detail.quota_insufficient_for_request')).toBeNull()
+    expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
+  })
+
+  it('shows a Claude Code plan refusal, which carries no Cloud code, as a limit with the plan text', () => {
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'Error',
+          message: `API Error: Request rejected (429) · ${planText}`,
+          stack: null,
+          statusCode: 429,
+          providerErrorCategory: 'quota'
+        }}
+        message={cloudMessage}
+      />
+    )
+
+    expect(screen.getByText('models.detail.cloud_request_limited')).toBeInTheDocument()
+    expect(screen.getByText(planText)).toBeInTheDocument()
+    expect(screen.queryByText(/API Error/)).toBeNull()
+  })
+
+  it('keeps an unspecified Cloud HTTP 429 as a rate limit', () => {
     render(
       <ErrorBlock
         partId="message-1-part-0"

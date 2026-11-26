@@ -3182,6 +3182,7 @@
   "models.amd_free.open_failed": "AMD 페이지를 열 수 없습니다. 다시 시도하세요",
   "models.amd_free.sign_in_hint": "로그인하고 AMD를 인증하면 무료로 사용할 수 있습니다",
   "models.amd_free.tag": "AMD 인증",
+  "models.detail.cloud_request_limited": "이 요청은 일시적으로 제한되었습니다",
   "models.detail.context_window": "컨텍스트 창",
   "models.detail.free_quota_exhausted": "무료 할당량 소진, 초기화 대기 중",
   "models.detail.image_modes": "이미지 모드",

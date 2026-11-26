@@ -282,6 +282,53 @@ describe('Groq service-tier serialization', () => {
   })
 })
 
+// The body is dropped on serialization, so its code is the only way to tell Cherry Cloud's own
+// plan-quota refusal from an upstream 429 whose wording also says "quota".
+describe('provider error code serialization', () => {
+  const cloudQuotaRefusal = () =>
+    new APICallError({
+      message: 'Too Many Requests',
+      url: 'https://cloud.cherryai.com/v1/messages',
+      requestBodyValues: {},
+      statusCode: 429,
+      responseBody: JSON.stringify({
+        type: 'error',
+        error: {
+          type: 'quota_error',
+          code: 'QUOTA_EXHAUSTED',
+          message: '当前套餐额度已耗尽或不足以完成本次请求，建议 5秒后重试。'
+        }
+      }),
+      isRetryable: true
+    })
+
+  it('keeps the body code of an API error and of each retry attempt', () => {
+    expect(serializeNestedProviderError(cloudQuotaRefusal())).toMatchObject({ providerErrorCode: 'QUOTA_EXHAUSTED' })
+    const retry = new RetryError({
+      message: 'Failed after 1 attempt',
+      reason: 'maxRetriesExceeded',
+      errors: [cloudQuotaRefusal()]
+    })
+    expect(serializeNestedProviderError(retry)).toMatchObject({
+      lastError: { providerErrorCode: 'QUOTA_EXHAUSTED' },
+      errors: [{ providerErrorCode: 'QUOTA_EXHAUSTED' }]
+    })
+  })
+
+  it('reads a top-level code and leaves the field out when the body has none', () => {
+    const error = (responseBody: string) =>
+      new APICallError({ message: 'Too Many Requests', url: '', requestBodyValues: {}, statusCode: 429, responseBody })
+
+    expect(serializeNestedProviderError(error(JSON.stringify({ code: 'daily_limit', message: 'x' })))).toMatchObject({
+      providerErrorCode: 'daily_limit'
+    })
+    expect(serializeNestedProviderError(error('Too Many Requests'))).not.toHaveProperty('providerErrorCode')
+    expect(serializeNestedProviderError(error(JSON.stringify({ error: { code: 429 } })))).not.toHaveProperty(
+      'providerErrorCode'
+    )
+  })
+})
+
 // These cases catch payload echoes and false diagnoses before evidence is discarded.
 describe('response processing diagnostics', () => {
   const sentinel = 'SENTINEL_PAYLOAD_9f3'

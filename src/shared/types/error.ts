@@ -13,6 +13,8 @@ import type { Serializable } from './serializable'
  *   provider diagnostic. Set by error handlers that own their recovery text
  *   (e.g. the non-vision OCR fallback in attachmentRouting).
  * - `providerErrorCategory?: ErrorCategory` — Diagnosis retained before provider payload redaction.
+ * - `providerErrorCode?: string` — The provider body's own `code` (e.g. Cherry Cloud `QUOTA_EXHAUSTED`),
+ *   kept because the body itself is dropped.
  * - `errorSource?: 'local'` — Local diagnostic text; bypasses provider payload parsing and guidance.
  * - `streamStage?: 'response-stream'` — Boundary where the failure was observed;
  *   does not identify a provider or network cause.

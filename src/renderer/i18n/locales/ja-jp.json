@@ -3182,6 +3182,7 @@
   "models.amd_free.open_failed": "AMD のページを開けませんでした。もう一度お試しください",
   "models.amd_free.sign_in_hint": "AMD にログインして認証すると無料で利用できます",
   "models.amd_free.tag": "AMD 認証",
+  "models.detail.cloud_request_limited": "このリクエストは一時的に制限されています",
   "models.detail.context_window": "コンテキストウィンドウ",
   "models.detail.free_quota_exhausted": "無料枠を使い切りました。リセットをお待ちください",
   "models.detail.image_modes": "画像モード",

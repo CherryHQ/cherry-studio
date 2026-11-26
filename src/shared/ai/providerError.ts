@@ -123,6 +123,26 @@ function providerErrorCodes(value: unknown, decodeDepth = 0): string {
     .join('\n')
 }
 
+/** The provider's own machine code (`error.code`, else top-level `code`), e.g. Cherry Cloud's `QUOTA_EXHAUSTED`. */
+export function getProviderErrorCode(value: unknown): string | undefined {
+  let payload = value
+  if (typeof payload === 'string') {
+    if (payload.length > MAX_PROVIDER_ERROR_INPUT_LENGTH) return undefined
+    try {
+      payload = JSON.parse(payload)
+    } catch {
+      return undefined
+    }
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return undefined
+  const record = payload as Record<string, unknown>
+  const error = record.error && typeof record.error === 'object' ? (record.error as Record<string, unknown>) : null
+  const code = error?.code ?? record.code
+  return typeof code === 'string' && code && code.length <= MAX_PROVIDER_ERROR_MESSAGE_LENGTH
+    ? redactSecretText(code)
+    : undefined
+}
+
 const CLAUDE_CODE_REJECTION_PREFIX = /^API Error: Request rejected \(\d{3}\) \u00b7 /
 
 /** Drops the `API Error: Request rejected (429) · ` prefix Claude Code puts before a provider's own rejection text. */
@@ -255,9 +275,11 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
       ].join('\n'),
       status: value.statusCode
     })
+    const code = getProviderErrorCode(value.responseBody) ?? getProviderErrorCode(value.data)
     return {
       name: value.name,
       message,
+      ...(code ? { providerErrorCode: code } : {}),
       providerErrorCategory:
         diagnostic === INTERRUPTED_RESPONSE_MESSAGE
           ? 'network'
