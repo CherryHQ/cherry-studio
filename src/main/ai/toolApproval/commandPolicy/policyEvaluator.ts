@@ -314,6 +314,20 @@ function hidesSelectedSubcommand(command: CommandSemantics, rules: readonly Comm
   return command.args.some(({ value }) => value !== undefined && selected.has(value))
 }
 
+/**
+ * Every command an invocation runs, including wrapped, substituted and nested-shell commands.
+ * `complete` is false when any part could not be resolved, so a caller can fail closed.
+ */
+export async function resolveInvocationCommands(
+  command: string,
+  dialect: CommandDialect
+): Promise<{ commands: CommandSemantics[]; complete: boolean }> {
+  await initializeCommandParser()
+  const analysis: CommandAnalysis = { sources: [], commands: [], redirections: [], heredocs: [], diagnostics: [] }
+  const commands = appendSource(analysis, command, dialect, 0)
+  return { commands, complete: analysis.diagnostics.length === 0 }
+}
+
 /** Folds the whole invocation before callers may execute any constituent command. */
 export async function evaluateCommandPolicy(
   input: CommandPolicyInput,
