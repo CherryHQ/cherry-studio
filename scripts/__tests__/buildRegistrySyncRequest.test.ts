@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -15,6 +16,44 @@ afterEach(() => {
 })
 
 describe('buildRegistrySyncRequest', () => {
+  it('represents a staged rename as a deletion and an addition', () => {
+    const rootDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'registry-sync-request-'))
+    temporaryDirectories.push(rootDirectory)
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: rootDirectory, encoding: 'utf8' }).trim()
+    git('init', '--quiet')
+    git('config', 'user.name', 'Registry Sync Test')
+    git('config', 'user.email', 'registry-sync@example.test')
+    git('config', 'commit.gpgsign', 'false')
+    git('config', 'diff.renames', 'true')
+
+    const oldPath = 'old catalog.json'
+    const newPath = 'new catalog.json'
+    const catalog = '{"models":[]}\n'
+    fs.writeFileSync(path.join(rootDirectory, oldPath), catalog)
+    git('add', '--', oldPath)
+    git('commit', '--quiet', '-m', 'initial catalog')
+    git('mv', '--', oldPath, newPath)
+    expect(git('diff', '--cached', '--name-status')).toBe(`R100\t${oldPath}\t${newPath}`)
+
+    const output = path.join(rootDirectory, 'request.json')
+    execFileSync(process.execPath, [path.resolve(__dirname, '../buildRegistrySyncRequest.js'), output], {
+      cwd: rootDirectory,
+      env: {
+        ...process.env,
+        REGISTRY_SYNC_REF_ID: 'branch-id',
+        REGISTRY_SYNC_EXPECTED_HEAD_OID: git('rev-parse', 'HEAD'),
+        REGISTRY_SYNC_HEADLINE: 'sync catalog',
+        REGISTRY_SYNC_BODY: 'source revision'
+      }
+    })
+
+    const request = JSON.parse(fs.readFileSync(output, 'utf8'))
+    expect(request.variables.input.fileChanges).toEqual({
+      additions: [{ path: newPath, contents: Buffer.from(catalog).toString('base64') }],
+      deletions: [{ path: oldPath }]
+    })
+  })
+
   it('includes catalog files larger than Linux single-argument limits without truncation', () => {
     const rootDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'registry-sync-request-'))
     temporaryDirectories.push(rootDirectory)

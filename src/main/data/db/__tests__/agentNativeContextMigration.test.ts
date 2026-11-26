@@ -98,7 +98,7 @@ describe('native context migrate-forward', () => {
 })
 
 describe('agent backend recovery migrate-forward', () => {
-  const dbh = setupTestDatabase({ beforeMigration: '0047_agent_session_reply_and_recovery' })
+  const dbh = setupTestDatabase({ beforeMigration: '0042_agent_history_artifacts_and_mcp' })
 
   it('marks only previously bound Pi Durable backends and preserves a completed recovery on restart', () => {
     const insert = dbh.sqlite.prepare(

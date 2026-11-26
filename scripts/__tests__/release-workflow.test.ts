@@ -1390,7 +1390,7 @@ describe('release workflow gates', () => {
       fs.rmSync(path.join(root, 'dist'), { recursive: true, force: true })
       for (const file of expected.files) write(root, `dist/${file}`, 'installer')
       for (const manifest of expected.manifests) {
-        write(root, `dist/${manifest.file}`, JSON.stringify({ files: manifest.urls.map((url) => ({ url })) }))
+        write(root, `dist/${manifest.file}`, JSON.stringify({ version, files: manifest.urls.map((url) => ({ url })) }))
       }
       const env = { ...process.env, EDITION: edition, PLATFORM: platform, ARCH: architecture }
       execFileSync('bash', ['-e', '-c', validation.run], { cwd: root, env, stdio: 'pipe' })
