@@ -12,6 +12,7 @@ const mockFsRename = vi.fn()
 const mockFsLstat = vi.fn()
 const mockFsReaddir = vi.fn()
 const mockFsReadFile = vi.fn()
+const mockFsRm = vi.fn()
 const mockFindSkillMdPath = vi.fn()
 
 vi.mock('@main/utils/legacyFile', () => ({
@@ -28,7 +29,8 @@ vi.mock('fs', () => ({
     rename: (...args: unknown[]) => mockFsRename(...args),
     lstat: (...args: unknown[]) => mockFsLstat(...args),
     readdir: (...args: unknown[]) => mockFsReaddir(...args),
-    readFile: (...args: unknown[]) => mockFsReadFile(...args)
+    readFile: (...args: unknown[]) => mockFsReadFile(...args),
+    rm: (...args: unknown[]) => mockFsRm(...args)
   }
 }))
 
@@ -45,6 +47,7 @@ describe('SkillInstaller', () => {
     vi.clearAllMocks()
     mockDeleteDirectoryRecursive.mockReset().mockResolvedValue(undefined)
     mockFsLstat.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
+    mockFsRm.mockResolvedValue(undefined)
     mockFindSkillMdPath.mockResolvedValue(resolvePath('/global-skills/my-skill/SKILL.md'))
     mockFsReadFile.mockResolvedValue('# skill')
     installer = new SkillInstaller()

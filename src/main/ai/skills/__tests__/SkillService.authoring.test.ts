@@ -1734,4 +1734,53 @@ describe('SkillService authoring and remote updates', () => {
     )
     await expect(fs.promises.readFile(path.join(otherDest, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo other\n')
   })
+
+  it('aborts slot reuse when the obsolete marker cannot be cleared so edits survive a crash', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const obsoleteMarker = `${backupPath}.obsolete`
+    const sourceDir = path.join(root, 'source-obsolete-marker-denied')
+    const oldDir = path.join(root, 'old-obsolete-marker-denied')
+    const newDir = path.join(root, 'new-obsolete-marker-denied')
+    await writeSkill(oldDir, { supportingContent: 'echo old\n' })
+    await writeSkill(newDir, { supportingContent: 'echo edited\n' })
+    await writeSkill(sourceDir, { supportingContent: 'echo replacement\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.rm(obsoleteMarker, { force: true })
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    await fs.promises.writeFile(obsoleteMarker, 'obsolete:stale', 'utf-8')
+    const baseline = await installer.computeContentHash(newDir)
+
+    // Deny removal of the obsolete record only: retirement of the `.bak` directory
+    // itself still succeeds, but the stale record would mis-mark the fresh `.bak`.
+    const originalRm = fs.promises.rm
+    const rmSpy = vi.spyOn(fs.promises, 'rm').mockImplementation(async (...args: unknown[]) => {
+      const target = args[0] as string
+      if (typeof target === 'string' && target === obsoleteMarker) {
+        throw Object.assign(new Error('EACCES'), { code: 'EACCES' })
+      }
+      return (originalRm as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    try {
+      await expect(installer.prepareInstall(sourceDir, destPath, baseline)).rejects.toThrow(/obsolete marker/)
+    } finally {
+      rmSpy.mockRestore()
+    }
+
+    // Publication must abort before `rename(dest, .bak)`: the edited tree stays in
+    // place and no stale-marked backup is created.
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo edited\n')
+    await expect(fs.promises.access(obsoleteMarker)).resolves.toBeUndefined()
+
+    // Retry without the fault retires the obsolete tree and clears the record, so
+    // the verified install commits with no stale marker left behind.
+    const prepared = await installer.prepareInstall(sourceDir, destPath, baseline)
+    await prepared.commit()
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo replacement\n'
+    )
+    await expect(fs.promises.lstat(obsoleteMarker)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
 })

@@ -101,7 +101,12 @@ export class SkillInstaller {
         if (await pathExists(backupPath)) {
           throw new Error(`Cannot reuse skill backup slot while obsolete backup cannot be retired: ${destPath}`)
         }
-        await this.clearObsoleteMarker(backupPath)
+        // Verified absence: a stale `<backup>.obsolete` left behind (e.g. retirement
+        // succeeded but marker removal was denied) would mis-mark the new `.bak`
+        // created below as obsolete, so a crash after `rename(dest, .bak)` would delete
+        // the only copy of the edits. Abort before the rename when the record cannot
+        // be cleared and verified gone.
+        await this.ensureObsoleteMarkerCleared(backupPath)
       } else {
         stashedBackupPath = `${backupPath}.stash-${Date.now()}-${process.pid}`
         try {
@@ -117,12 +122,12 @@ export class SkillInstaller {
         }
         // The marker belongs to the previous generation: a stale `<backup>.obsolete`
         // left by an earlier crash must not mis-mark the new `.bak` created below.
-        await this.clearObsoleteMarker(backupPath)
+        await this.ensureObsoleteMarkerCleared(backupPath)
       }
     } else {
       // No backup directory, but a stale `<backup>.obsolete` from an earlier
       // generation would mis-mark the new `.bak`; drop it before reusing the slot.
-      await this.clearObsoleteMarker(backupPath)
+      await this.ensureObsoleteMarkerCleared(backupPath)
     }
     let hasBackup = false
     let publishStarted = false
@@ -1083,6 +1088,36 @@ export class SkillInstaller {
     } catch {
       // Best-effort: a leftover `.obsolete` file is inert and ignored by recovery.
     }
+  }
+
+  /**
+   * Strict marker cleanup for backup-slot reuse. `clearObsoleteMarker` swallows
+   * removal failures, which is safe for post-commit best-effort cleanup but not
+   * before `rename(dest, .bak)`: a surviving `<backup>.obsolete` would mis-mark
+   * the fresh `.bak` (edited tree) as obsolete, so a crash before the replacement
+   * copy would let recovery delete the only copy of the edits. Require verified
+   * absence and abort the publish before the rename when the record cannot be
+   * cleared.
+   */
+  private async ensureObsoleteMarkerCleared(markerPath: string): Promise<void> {
+    const obsoletePath = this.getObsoleteMarkerPath(markerPath)
+    try {
+      await fs.promises.rm(obsoletePath, { force: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw new Error(
+        `Cannot reuse skill backup slot while obsolete marker cannot be cleared: ${markerPath}: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+    try {
+      await fs.promises.lstat(obsoletePath)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw new Error(
+        `Cannot reuse skill backup slot while obsolete marker cannot be verified as cleared: ${markerPath}: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+    throw new Error(`Cannot reuse skill backup slot while obsolete marker still exists: ${markerPath}`)
   }
 
   private async listRetiredMarkerPaths(destPath: string): Promise<string[]> {
