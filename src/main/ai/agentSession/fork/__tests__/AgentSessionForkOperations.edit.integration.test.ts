@@ -89,7 +89,7 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
       SESSION_ID,
       targetFor(USER_MESSAGE_ID),
       async () => {},
-      (_tx, nativeSessionId, _nativeContextId, storedUserParts) => {
+      (_tx, nativeSessionId, _nativeContextId, _sourceBackendId, storedUserParts) => {
         seen.storedUserParts = storedUserParts
         expect(nativeSessionId).toBeTruthy()
         return 'persisted'
@@ -123,7 +123,7 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
       SESSION_ID,
       targetFor(USER_MESSAGE_ID),
       async () => {},
-      (_tx, _native, _nativeContextId, parts) => {
+      (_tx, _native, _nativeContextId, _sourceBackendId, parts) => {
         storedUserParts = parts
       }
     )
@@ -155,7 +155,7 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
       SESSION_ID,
       targetFor(USER_MESSAGE_ID),
       async () => {},
-      (_tx, _native, _nativeContextId, storedUserParts) => {
+      (_tx, _native, _nativeContextId, _sourceBackendId, storedUserParts) => {
         persistedParts = restoreStoredChannelContext(rendererParts, storedUserParts)
       }
     )
@@ -188,7 +188,7 @@ describe('AgentSessionForkOperations edit persist contract (real database)', () 
       SESSION_ID,
       targetFor(USER_MESSAGE_ID),
       async () => {},
-      (_tx, _native, _nativeContextId, storedUserParts) => {
+      (_tx, _native, _nativeContextId, _sourceBackendId, storedUserParts) => {
         persistedParts = restoreStoredChannelContext(
           stripChannelContextParts([{ type: 'text', text: 're-sent' } as never]),
           storedUserParts
