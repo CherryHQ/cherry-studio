@@ -1,4 +1,4 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
+import { messagePartsAt, type MessagePartRows } from '@renderer/utils/message/messagePartRows'
 
 import { projectCompletedMessageParts } from '../blocks/messagePartLayouts'
 import type { MessageListItem } from '../types'
@@ -10,14 +10,14 @@ export function getMessageGroupKey(message: MessageListItem): string {
 
 export function withHistoricalProcessGroups(
   messages: MessageListItem[],
-  partsByMessageId: Record<string, CherryMessagePart[]> | null,
+  partsByMessageId: MessagePartRows | null,
   cache: WeakMap<MessageListItem, MessageListItem>
 ): MessageListItem[] {
   const result = [...messages]
   let groupId: string | undefined
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index]
-    const parts = partsByMessageId?.[message.id] ?? []
+    const parts = messagePartsAt(partsByMessageId, message.id) ?? []
     if (message.role !== 'assistant' || !parts.length) {
       groupId = undefined
       continue

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { PartOverrides } from '@renderer/utils/message/messagePartRows'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import type { MessageListItem } from '../../types'
@@ -79,7 +80,8 @@ describe('messageGroupKey', () => {
       'later-reasoning': [{ type: 'reasoning' as const, text: 'next thought' }],
       'later-tool': [tool('later')]
     }
-    const projected = withHistoricalProcessGroups(messages, parts, new WeakMap())
+    const currentParts = new PartOverrides({ ...parts, text: [] }, new Map([['text', parts.text]]))
+    const projected = withHistoricalProcessGroups(messages, currentParts, new WeakMap())
     expect(Object.values(groupMessageListItems(projected)).map((group) => group.map((message) => message.id))).toEqual([
       ['reasoning', 'call', 'error', 'paused', 'text'],
       ['next-task'],
