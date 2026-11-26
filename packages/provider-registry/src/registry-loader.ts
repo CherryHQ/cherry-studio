@@ -80,6 +80,7 @@ export interface RegistryLoaderOptions {
   idleTtlMs?: number
   fallbacks?: Partial<RegistryCatalog>
   onFallback?: (event: { file: RegistryFileName; path: string; error: unknown }) => void
+  onDiskLoad?: (event: { file: RegistryFileName; path: string }) => void
 }
 
 /** Default idle TTL in milliseconds (30 seconds). */
@@ -103,6 +104,7 @@ export class RegistryLoader {
   private overrideIndex: ProviderModelIndex | null = null
 
   private idleTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly fallbackRetryAt = new Map<RegistryFileName, number>()
   private readonly idleTtlMs: number
   private readonly options: RegistryLoaderOptions
 
@@ -115,13 +117,23 @@ export class RegistryLoader {
   }
 
   private read<T>(file: RegistryFileName, path: string, fallback: T | undefined, read: (path: string) => T): T {
+    let data: T
     try {
-      return read(path)
+      data = read(path)
     } catch (error) {
       if (fallback === undefined) throw error
+      this.fallbackRetryAt.set(file, Date.now() + this.idleTtlMs)
       this.options.onFallback?.({ file, path, error })
       return fallback
     }
+    this.fallbackRetryAt.delete(file)
+    this.options.onDiskLoad?.({ file, path })
+    return data
+  }
+
+  private canUseCache(file: RegistryFileName): boolean {
+    const retryAt = this.fallbackRetryAt.get(file)
+    return retryAt === undefined || Date.now() < retryAt
   }
 
   /** Reset the idle timer. Called on every public access. */
@@ -133,7 +145,7 @@ export class RegistryLoader {
   /** Load and cache models.json. Returns models array. */
   loadModels(): ModelConfig[] {
     this.touch()
-    if (this.models) return this.models
+    if (this.models && this.canUseCache('models.json')) return this.models
     const data = this.read('models.json', this.paths.models, this.options.fallbacks?.models, readModelRegistry)
     // Copy loaded arrays so callers cannot mutate the shared in-bundle arrays.
     this.models = data.models?.slice() ?? []
@@ -145,7 +157,7 @@ export class RegistryLoader {
   /** Load and cache providers.json. Returns providers array. */
   loadProviders(): ProviderConfig[] {
     this.touch()
-    if (this.providers) return this.providers
+    if (this.providers && this.canUseCache('providers.json')) return this.providers
     const data = this.read(
       'providers.json',
       this.paths.providers,
@@ -160,7 +172,7 @@ export class RegistryLoader {
   /** Load and cache provider-models.json. Returns overrides array. */
   loadProviderModels(): ProviderModelOverride[] {
     this.touch()
-    if (this.providerModels) return this.providerModels
+    if (this.providerModels && this.canUseCache('provider-models.json')) return this.providerModels
     const data = this.read(
       'provider-models.json',
       this.paths.providerModels,
@@ -213,6 +225,7 @@ export class RegistryLoader {
 
   /** Release all cached data and indexes. Next access triggers a fresh load. */
   invalidate(): void {
+    this.fallbackRetryAt.clear()
     this.models = null
     this.providers = null
     this.providerModels = null

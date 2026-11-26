@@ -3,11 +3,14 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { bundledCatalog } from '@cherrystudio/provider-registry/data'
 import { REGISTRY_FILES, REGISTRY_SCHEMA_VERSION } from '@cherrystudio/provider-registry/node'
+import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSeeder'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import type * as Platform from '@main/core/platform'
 import { ScreenCaptureError } from '@main/services/screenshot'
@@ -182,6 +185,28 @@ describe('install-provider-registry-readable', () => {
   let fixtureRoot: string
   let bundledRoot: string
   let overrideRoot: string
+  const modelFiles = ['models.json', 'provider-models.json'] as const
+  const overrideFiles = {
+    'models.json': { version: 'models', models: [] },
+    'provider-models.json': { version: 'provider-models', overrides: [] }
+  }
+
+  function writeOverride() {
+    mkdirSync(overrideRoot, { recursive: true })
+    for (const file of modelFiles) {
+      writeFileSync(path.join(overrideRoot, file), JSON.stringify(overrideFiles[file]))
+    }
+    writeFileSync(
+      path.join(overrideRoot, 'manifest.json'),
+      JSON.stringify({
+        minAppVersion: app.getVersion(),
+        sourceAppVersion: app.getVersion(),
+        revision: 1,
+        schemaVersion: REGISTRY_SCHEMA_VERSION,
+        files: { 'models.json': 'models', 'provider-models.json': 'provider-models' }
+      })
+    )
+  }
 
   beforeEach(() => {
     platform.isPortable = false
@@ -199,6 +224,7 @@ describe('install-provider-registry-readable', () => {
 
   afterEach(() => {
     providerRegistryService.clearCache()
+    vi.useRealTimers()
     vi.restoreAllMocks()
     rmSync(fixtureRoot, { recursive: true })
   })
@@ -214,7 +240,13 @@ describe('install-provider-registry-readable', () => {
 
     expect(providerRegistryService.isRegistryProvider('openai')).toBe(true)
     expect(providerRegistryService.getRegistryFallbacks()).toEqual([
-      { file: 'providers.json', path: providers, message: `Failed to load registry file: ${providers}` }
+      {
+        file: 'providers.json',
+        path: providers,
+        namespace: 'bundled',
+        message: `Failed to load registry file: ${providers}`,
+        cause: 'ENOENT'
+      }
     ])
 
     await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
@@ -241,6 +273,7 @@ describe('install-provider-registry-readable', () => {
     await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
       status: 'warn',
       detail: { variant: 'unreadable', params: { file: 'providers.json' } },
+      devMessage: 'Using the in-bundle provider registry for providers.json (namespace: bundled)',
       evidence: expect.arrayContaining([
         { key: 'cause', value: expect.stringMatching(/\S/), dataClass: 'consent_required' }
       ])
@@ -257,28 +290,137 @@ describe('install-provider-registry-readable', () => {
   })
 
   it('attributes invalid provider-model metadata to the active override', async () => {
-    mkdirSync(overrideRoot)
+    writeOverride()
     const providerModels = path.join(overrideRoot, 'provider-models.json')
-    writeFileSync(path.join(overrideRoot, 'models.json'), '{"version":"models","models":[]}')
     writeFileSync(providerModels, '{"version":"provider-models","overrides":{}}')
-    writeFileSync(
-      path.join(overrideRoot, 'manifest.json'),
-      JSON.stringify({
-        minAppVersion: app.getVersion(),
-        sourceAppVersion: app.getVersion(),
-        revision: 1,
-        schemaVersion: REGISTRY_SCHEMA_VERSION,
-        files: { 'models.json': 'models', 'provider-models.json': 'provider-models' }
-      })
-    )
 
     await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
       status: 'warn',
-      detail: { variant: 'unreadable', params: { file: 'provider-models.json' } },
+      detail: { variant: 'unreadable_override', params: { file: 'provider-models.json' } },
       evidence: expect.arrayContaining([
         { key: 'namespace', value: 'override', dataClass: 'public' },
         { key: 'path', value: providerModels, dataClass: 'local_only' }
       ])
+    })
+  })
+
+  it.each(modelFiles)('uses bundled model versions together when the downloaded %s fails validation', (file) => {
+    vi.useFakeTimers()
+    writeOverride()
+    expect(providerRegistryService.getCatalogVersion('models.json')).toBe('models')
+    expect(providerRegistryService.getCatalogVersion('provider-models.json')).toBe('provider-models')
+
+    const invalid = file === 'models.json' ? { models: {} } : { overrides: {} }
+    const filePath = path.join(overrideRoot, file)
+    writeFileSync(filePath, JSON.stringify({ ...overrideFiles[file], ...invalid }))
+    vi.advanceTimersByTime(30_000)
+
+    const other = file === 'models.json' ? 'provider-models.json' : 'models.json'
+    const bundledVersions = {
+      'models.json': bundledCatalog.models.version,
+      'provider-models.json': bundledCatalog.providerModels.version
+    }
+    expect(providerRegistryService.getCatalogVersion(other)).toBe(bundledVersions[other])
+    expect(providerRegistryService.getCatalogVersion(file)).toBe(bundledVersions[file])
+    expect(providerRegistryService.getRegistryFallbacks()).toEqual([
+      {
+        file,
+        path: filePath,
+        namespace: 'override',
+        message: `Failed to load registry file: ${filePath}`,
+        cause: 'ZodError'
+      }
+    ])
+  })
+
+  it('reports a downloaded file that breaks after selection and clears the warning after repair', async () => {
+    vi.useFakeTimers()
+    writeOverride()
+    expect(providerRegistryService.getCatalogVersion('models.json')).toBe('models')
+    const file = 'provider-models.json'
+    const filePath = path.join(overrideRoot, file)
+    unlinkSync(filePath)
+    vi.advanceTimersByTime(30_000)
+    expect(providerRegistryService.getCatalogVersion(file)).toBe(bundledCatalog.providerModels.version)
+
+    await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
+      status: 'warn',
+      detail: { variant: 'unreadable_override', params: { file } },
+      evidence: expect.arrayContaining([{ key: 'cause', value: 'ENOENT', dataClass: 'consent_required' }])
+    })
+
+    writeFileSync(filePath, JSON.stringify(overrideFiles[file]))
+    await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({ status: 'warn' })
+    vi.advanceTimersByTime(30_000)
+    await expect(providerRegistryReadable.run(ctx)).resolves.toEqual({ status: 'pass' })
+    expect(providerRegistryService.getRegistryFallbacks()).toEqual([])
+    expect(providerRegistryService.getCatalogVersion('models.json')).toBe('models')
+    expect(providerRegistryService.getCatalogVersion(file)).toBe('provider-models')
+  })
+
+  it('waits for the downloaded pair to match its manifest before switching back', () => {
+    vi.useFakeTimers()
+    writeOverride()
+    expect(providerRegistryService.getCatalogVersion('models.json')).toBe('models')
+    const file = 'provider-models.json'
+    const filePath = path.join(overrideRoot, file)
+    unlinkSync(filePath)
+    vi.advanceTimersByTime(30_000)
+    expect(providerRegistryService.getCatalogVersion(file)).toBe(bundledCatalog.providerModels.version)
+
+    writeFileSync(filePath, JSON.stringify({ ...overrideFiles[file], version: 'another-snapshot' }))
+    vi.advanceTimersByTime(30_000)
+    expect(providerRegistryService.getCatalogVersion('models.json')).toBe(bundledCatalog.models.version)
+    expect(providerRegistryService.getCatalogVersion(file)).toBe(bundledCatalog.providerModels.version)
+  })
+
+  it('clears a bundled-file warning after the cached fallback expires and the repaired file loads', async () => {
+    vi.useFakeTimers()
+    const providersPath = path.join(bundledRoot, 'providers.json')
+    unlinkSync(providersPath)
+    expect(providerRegistryService.isRegistryProvider('openai')).toBe(true)
+
+    copyFileSync(path.resolve('packages/provider-registry/data/providers.json'), providersPath)
+    await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({ status: 'warn' })
+    vi.advanceTimersByTime(30_000)
+    await expect(providerRegistryReadable.run(ctx)).resolves.toEqual({ status: 'pass' })
+    expect(providerRegistryService.getRegistryFallbacks()).toEqual([])
+  })
+
+  it('logs a structured fallback at most once per file in ten minutes, including across cache clears', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.now() + 20 * 60_000)
+    const providersPath = path.join(bundledRoot, 'providers.json')
+    unlinkSync(providersPath)
+    expect(providerRegistryService.getCatalogVersion('providers.json')).toBe(bundledCatalog.providers.version)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledExactlyOnceWith('Using the in-bundle provider registry', {
+      file: 'providers.json',
+      path: providersPath,
+      namespace: 'bundled',
+      message: `Failed to load registry file: ${providersPath}`,
+      cause: 'ENOENT'
+    })
+
+    providerRegistryService.clearCache()
+    vi.advanceTimersByTime(10 * 60_000 - 1)
+    expect(providerRegistryService.getCatalogVersion('providers.json')).toBe(bundledCatalog.providers.version)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
+    providerRegistryService.clearCache()
+    vi.advanceTimersByTime(1)
+    expect(providerRegistryService.getCatalogVersion('providers.json')).toBe(bundledCatalog.providers.version)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(2)
+  })
+
+  it('logs the structured cause when the seeder falls back to in-bundle providers', () => {
+    vi.useFakeTimers()
+    const providersPath = path.join(bundledRoot, 'providers.json')
+    writeFileSync(providersPath, '{')
+    expect(new PresetProviderSeeder().version).toBe(`${bundledCatalog.providers.version}:1`)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledExactlyOnceWith('Using the in-bundle provider registry', {
+      file: 'providers.json',
+      path: providersPath,
+      message: `Failed to load registry file: ${providersPath}`,
+      cause: 'SyntaxError'
     })
   })
 

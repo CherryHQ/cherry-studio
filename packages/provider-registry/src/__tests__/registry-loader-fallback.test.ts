@@ -26,6 +26,7 @@ describe('RegistryLoader disk fallback', () => {
 
   afterEach(() => {
     loader.invalidate()
+    vi.useRealTimers()
     rmSync(dir, { recursive: true, force: true })
   })
 
@@ -95,5 +96,26 @@ describe('RegistryLoader disk fallback', () => {
     expect(loader.loadProviders()).toMatchObject([repairedProvider])
     expect(loader.getProvidersVersion()).toBe('2099.01.01')
     expect(onFallback).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries a fallback on schedule while accesses keep the idle cache alive', () => {
+    vi.useFakeTimers()
+    loader = new RegistryLoader(paths, { idleTtlMs: 100, fallbacks: bundledCatalog, onFallback })
+    expect(loader.getProvidersVersion()).toBe(bundledCatalog.providers.version)
+    vi.advanceTimersByTime(50)
+    expect(loader.findProvider('openai')).toMatchObject({ id: 'openai' })
+    expect(onFallback).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(50)
+    expect(loader.getProvidersVersion()).toBe(bundledCatalog.providers.version)
+    expect(onFallback).toHaveBeenCalledTimes(2)
+
+    const repairedProvider = { id: 'openai', name: 'Repaired OpenAI', metadata: { website: {} } }
+    writeFileSync(paths.providers, JSON.stringify({ version: '2099.01.01', providers: [repairedProvider] }))
+    vi.advanceTimersByTime(50)
+    expect(loader.getProvidersVersion()).toBe(bundledCatalog.providers.version)
+    vi.advanceTimersByTime(50)
+    expect(loader.getProvidersVersion()).toBe('2099.01.01')
+    expect(loader.findProvider('openai')).toMatchObject(repairedProvider)
+    expect(onFallback).toHaveBeenCalledTimes(2)
   })
 })

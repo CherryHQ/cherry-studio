@@ -4953,6 +4953,7 @@
   "settings.doctor.checks.install-native-modules.detail.unavailable": "คอมโพเนนต์ native ที่จำเป็นใช้งานไม่ได้",
   "settings.doctor.checks.install-native-modules.title": "คอมโพเนนต์ native",
   "settings.doctor.checks.install-provider-registry-readable.detail.unreadable": "Cherry Studio ไม่สามารถอ่านไฟล์ทะเบียนผู้ให้บริการที่มาพร้อมแอป ({{file}}) ให้ติดตั้งแอปใหม่หรือย้ายแอปออกจากโฟลเดอร์ชั่วคราว แล้วตรวจอีกครั้ง",
+  "settings.doctor.checks.install-provider-registry-readable.detail.unreadable_override": "Cherry Studio ไม่สามารถอ่านไฟล์แค็ตตาล็อกที่ดาวน์โหลดมา ({{file}}) ได้ ขณะนี้กำลังใช้แค็ตตาล็อกในตัวและจะลองดาวน์โหลดไฟล์อีกครั้ง",
   "settings.doctor.checks.install-provider-registry-readable.title": "ไฟล์ทะเบียนผู้ให้บริการ",
   "settings.doctor.checks.install-update-available.detail.available": "มี Cherry Studio เวอร์ชันใหม่กว่านี้",
   "settings.doctor.checks.install-update-available.detail.unsupported": "การติดตั้งนี้ไม่รองรับการตรวจสอบอัปเดต",

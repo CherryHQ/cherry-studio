@@ -171,7 +171,7 @@ export const DOCTOR_CHECK_CATALOG = {
     tier: 'quick',
     scope: 'any',
     fixes: [],
-    details: ['unreadable'],
+    details: ['unreadable', 'unreadable_override'],
     requires: []
   },
   'permission-screen-capture': {

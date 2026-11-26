@@ -1,13 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { netFetchMock, getCatalogVersionMock, notifyDataChangeMock, readActiveManifestMock, writeSnapshotMock } =
-  vi.hoisted(() => ({
-    netFetchMock: vi.fn(),
-    getCatalogVersionMock: vi.fn(),
-    notifyDataChangeMock: vi.fn(),
-    readActiveManifestMock: vi.fn(),
-    writeSnapshotMock: vi.fn()
-  }))
+const {
+  netFetchMock,
+  getCatalogVersionMock,
+  getRegistryFallbacksMock,
+  notifyDataChangeMock,
+  readActiveManifestMock,
+  writeSnapshotMock
+} = vi.hoisted(() => ({
+  netFetchMock: vi.fn(),
+  getCatalogVersionMock: vi.fn(),
+  getRegistryFallbacksMock: vi.fn(),
+  notifyDataChangeMock: vi.fn(),
+  readActiveManifestMock: vi.fn(),
+  writeSnapshotMock: vi.fn()
+}))
 
 vi.mock('@main/services/AppUpdaterService', () => ({ RELEASE_HISTORY_URL: 'https://updates.example' }))
 vi.mock('@main/services/cherryCloud/CherryCloudService', () => ({
@@ -39,7 +46,10 @@ vi.mock('@application', async () => {
 })
 vi.mock('@main/utils/systemInfo', () => ({ generateUserAgent: () => 'test-ua' }))
 vi.mock('@main/data/services/ProviderRegistryService', () => ({
-  providerRegistryService: { getCatalogVersion: getCatalogVersionMock }
+  providerRegistryService: {
+    getCatalogVersion: getCatalogVersionMock,
+    getRegistryFallbacks: getRegistryFallbacksMock
+  }
 }))
 vi.mock('@main/data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataChangeMock }))
 vi.mock('@main/data/services/utils/registryDataPaths', () => ({
@@ -124,6 +134,7 @@ describe('ProviderRegistryUpdaterService.check', () => {
   beforeEach(() => {
     netFetchMock.mockReset()
     getCatalogVersionMock.mockReset()
+    getRegistryFallbacksMock.mockReset().mockReturnValue([])
     MockMainCacheServiceUtils.resetMocks()
     notifyDataChangeMock.mockReset()
     readActiveManifestMock.mockReset()
@@ -283,14 +294,28 @@ describe('ProviderRegistryUpdaterService.check', () => {
     expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/models.json'), expect.anything())
   })
 
-  it('rejects a snapshot revision that is not newer than the active override', async () => {
-    readActiveManifestMock.mockReturnValue({ revision: 3 })
+  it.each([3, 4])('rejects revision 3 when the healthy override is at revision %i', async (revision) => {
+    readActiveManifestMock.mockReturnValue({ revision })
     mockRemote({ revision: 3, dataVersion: 'v2' })
 
     await service.check()
 
     expect(writeSnapshotMock).not.toHaveBeenCalled()
     expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/models.json'), expect.anything())
+  })
+
+  it('re-downloads the current revision when the service has fallen back from an unreadable override', async () => {
+    readActiveManifestMock.mockReturnValue({ revision: 3 })
+    getCatalogVersionMock.mockReturnValue('v2')
+    getRegistryFallbacksMock.mockReturnValue([{ namespace: 'override' }])
+    mockRemote({ revision: 3, dataVersion: 'v2' })
+
+    await service.check()
+
+    expect(writeSnapshotMock).toHaveBeenCalledWith(
+      { 'models.json': '{"version":"v2"}', 'provider-models.json': '{"version":"v2"}' },
+      expect.any(String)
+    )
   })
 
   it.each(['US', 'CN', null])('diagnoses the updater mirror with a cold country cache (%s)', async (country) => {

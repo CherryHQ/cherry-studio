@@ -63,6 +63,10 @@ const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
 // only fires after one full interval, so the initial pull is scheduled separately.
 const INITIAL_CHECK_DELAY_MS = 30_000
 
+function hasOverrideFallback(): boolean {
+  return providerRegistryService.getRegistryFallbacks().some(({ namespace }) => namespace === 'override')
+}
+
 interface StagedFile {
   file: RemoteRegistryFileName
   body: string
@@ -100,7 +104,11 @@ export class ProviderRegistryUpdaterService extends BaseService {
       if (!result) return
       const { staged, manifest, manifestBody } = result
       const currentManifest = readActiveOverrideManifest()
-      if (!this.hasChanges(staged) && (!currentManifest || currentManifest.revision === manifest.revision)) {
+      if (
+        !this.hasChanges(staged) &&
+        !hasOverrideFallback() &&
+        (!currentManifest || currentManifest.revision === manifest.revision)
+      ) {
         logger.debug('registry update: catalog already current')
         return
       }
@@ -148,7 +156,13 @@ export class ProviderRegistryUpdaterService extends BaseService {
       return null
     }
     const activeManifest = readActiveOverrideManifest()
-    if (activeManifest && manifest.revision <= activeManifest.revision) {
+    if (
+      activeManifest &&
+      (manifest.revision < activeManifest.revision ||
+        (manifest.revision === activeManifest.revision &&
+          providerRegistryService.getCatalogVersion('models.json') !== null &&
+          !hasOverrideFallback()))
+    ) {
       logger.debug(
         `registry update: remote revision ${manifest.revision} is not newer than active revision ${activeManifest.revision}, skipping`
       )

@@ -4953,6 +4953,7 @@
   "settings.doctor.checks.install-native-modules.detail.unavailable": "필수 네이티브 구성 요소를 사용할 수 없습니다.",
   "settings.doctor.checks.install-native-modules.title": "네이티브 구성 요소",
   "settings.doctor.checks.install-provider-registry-readable.detail.unreadable": "Cherry Studio가 앱에 포함된 제공자 레지스트리 파일({{file}})을 읽을 수 없습니다. 앱을 다시 설치하거나 임시 폴더 밖으로 옮긴 후 검사를 다시 실행하세요.",
+  "settings.doctor.checks.install-provider-registry-readable.detail.unreadable_override": "Cherry Studio에서 다운로드한 카탈로그 파일({{file}})을 읽을 수 없습니다. 내장 카탈로그를 사용하고 파일 다운로드를 다시 시도합니다.",
   "settings.doctor.checks.install-provider-registry-readable.title": "제공자 레지스트리 파일",
   "settings.doctor.checks.install-update-available.detail.available": "새 버전의 Cherry Studio를 사용할 수 있습니다.",
   "settings.doctor.checks.install-update-available.detail.unsupported": "이 설치에서는 업데이트 확인을 사용할 수 없습니다.",

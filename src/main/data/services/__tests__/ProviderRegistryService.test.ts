@@ -119,6 +119,11 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
       this.loadProviderModels()
       return '1.0'
     }
+    invalidate() {
+      this.cachedModels = null
+      this.cachedProviders = null
+      this.cachedProviderModels = null
+    }
   }
 
   return { readModelRegistry, readProviderModelRegistry, readProviderRegistry, RegistryLoader }
@@ -388,26 +393,6 @@ describe('ProviderRegistryService', () => {
         endpointConfigs: null,
         models: []
       })
-    })
-  })
-
-  describe('registry load failure', () => {
-    it('should throw when models.json cannot be read', async () => {
-      setupRegistryData()
-      mockReadModels.mockImplementation(() => {
-        throw new Error('ENOENT: no such file')
-      })
-
-      expect(() => providerRegistryService.lookupModel('openai', 'gpt-4o')).toThrow('ENOENT')
-    })
-
-    it('should throw when providers.json cannot be read', async () => {
-      setupRegistryData()
-      mockReadProviders.mockImplementation(() => {
-        throw new Error('ENOENT: no such file')
-      })
-
-      expect(() => providerRegistryService.lookupModel('openai', 'gpt-4o')).toThrow('ENOENT')
     })
   })
 

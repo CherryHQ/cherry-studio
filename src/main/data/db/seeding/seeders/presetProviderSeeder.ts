@@ -8,6 +8,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
+import { describeRegistryLoadFailure } from '@data/services/utils/registryLoadFailure'
 import { loggerService } from '@logger'
 import type { AuthConfig } from '@shared/data/types/provider'
 
@@ -65,7 +66,7 @@ export class PresetProviderSeeder implements ISeeder {
       this._loader = new RegistryLoader(resolveRegistryPaths(), {
         fallbacks: bundledCatalog,
         onFallback: once(({ file, path, error }) => {
-          logger.warn('Using the in-bundle provider registry', { file, path, error })
+          logger.warn('Using the in-bundle provider registry', { file, path, ...describeRegistryLoadFailure(error) })
         })
       })
     }

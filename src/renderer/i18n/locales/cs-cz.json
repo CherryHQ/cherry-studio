@@ -4957,6 +4957,7 @@
   "settings.doctor.checks.install-native-modules.detail.unavailable": "Požadovaná nativní součást není dostupná.",
   "settings.doctor.checks.install-native-modules.title": "Nativní součásti",
   "settings.doctor.checks.install-provider-registry-readable.detail.unreadable": "Cherry Studio nemůže přečíst soubor registru poskytovatelů dodávaný s aplikací ({{file}}). Přeinstalujte aplikaci nebo ji přesuňte mimo dočasnou složku a spusťte kontroly znovu.",
+  "settings.doctor.checks.install-provider-registry-readable.detail.unreadable_override": "Cherry Studio nemůže přečíst stažený soubor katalogu ({{file}}). Používá vestavěný katalog a pokusí se soubor stáhnout znovu.",
   "settings.doctor.checks.install-provider-registry-readable.title": "Soubory registru poskytovatelů",
   "settings.doctor.checks.install-update-available.detail.available": "Je k dispozici novější verze Cherry Studio.",
   "settings.doctor.checks.install-update-available.detail.unsupported": "Pro tuto instalaci nelze kontrolovat aktualizace.",
