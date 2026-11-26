@@ -25,6 +25,7 @@ import {
 import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
 import type { LocalAgentBrowserLease } from './LocalAgentMcpBridgeService'
+import { stopLocalAgentProcess } from './localAgentProcess'
 import { LocalConnection } from './LocalConnection'
 import { localContent } from './localContent'
 
@@ -112,7 +113,7 @@ export class ClaudeConnection extends LocalConnection {
   async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
     this.cwd = cwd
     this.resume = resume
-    this.launch = await resolveLocalAgentLaunch(this.config, this.abort.signal, false, this.headless)
+    this.launch = await resolveLocalAgentLaunch(this.config, this.abort.signal, { headless: this.headless })
     if (!probe) {
       this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, this.launch.env)
       this.browserLease = await acquireLocalAgentBrowserLease({
@@ -548,7 +549,7 @@ export class ClaudeConnection extends LocalConnection {
       await this.waitForTurn()
     }
     this.query?.close()
-    await Promise.all([...this.processes].map((child) => this.stopProcess(child)))
+    await Promise.all([...this.processes].map((child) => stopLocalAgentProcess(child)))
   }
   protected override dispose() {
     void this.browserLease?.dispose().catch(() => {})

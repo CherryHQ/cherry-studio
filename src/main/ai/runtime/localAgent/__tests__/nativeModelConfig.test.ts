@@ -161,6 +161,12 @@ describe('extra CLI nativeModelConfig targets', () => {
     expect(cleared).toContain('other = 1')
   })
 
+  it('releases Cherry-owned Grok auxiliary roles when switching back to a native model', () => {
+    const initial = '[models]\ndefault = "cherry-old"\nsession_summary = "cherry-old"\nprompt_suggestion = "personal"\n'
+    const updated = updateNativeModelConfig('grok-config', initial, 'grok-4.6')
+    expect(toml.parse(updated).models).toEqual({ default: 'grok-4.6', prompt_suggestion: 'personal' })
+  })
+
   it('updates, reads, and clears omp-settings YAML provider and model', () => {
     const updated = updateNativeModelConfig('omp-settings', 'custom: false\n', 'cherry-gateway/openai:gpt-5')
     expect(readNativeModelConfig('omp-settings', updated)).toBe('cherry-gateway/openai:gpt-5')

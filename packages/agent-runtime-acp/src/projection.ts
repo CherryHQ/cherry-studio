@@ -53,7 +53,7 @@ export class Projection {
   }
 
   state(): AcpSessionState {
-    // oxlint-disable-next-line no-restricted-globals -- Capture full ACP recovery state for observers; desktop does not use this adapter yet.
+    // oxlint-disable-next-line no-restricted-globals -- Detach native state for an explicit recovery snapshot.
     return structuredClone({
       configuration: this.configuration,
       turns: this.turns,
@@ -61,6 +61,14 @@ export class Projection {
       tools: [...this.tools.values()],
       metadata: [...this.metadata.values()]
     })
+  }
+
+  get modes() {
+    return this.configuration.modes
+  }
+
+  configOption(id: string) {
+    return this.configuration.configOptions?.find((option) => option.id === id)
   }
 
   configure(value: AcpSessionState['configuration']): void {

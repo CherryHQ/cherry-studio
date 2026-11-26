@@ -50,6 +50,7 @@ import * as z from 'zod'
 
 import { TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import { ElicitationFormSchema, type ElicitationForm } from '@shared/ai/elicitation'
+import { InterviewActionSchema, type InterviewAction, NativeInteractionInputSchema } from '@shared/ai/nativeInteraction'
 
 import type { ToolDisclosureItem } from './ToolDisclosure'
 
@@ -205,6 +206,9 @@ export const AskUserQuestionItemSchema = z.object({
 export const AskUserQuestionAnswerSchema = z.record(z.string(), z.string())
 
 export const AskUserQuestionToolInputSchema = z.object({
+  responseMode: NativeInteractionInputSchema.shape.responseMode.optional(),
+  interviewActions: z.array(InterviewActionSchema).optional(),
+  interviewAction: InterviewActionSchema.optional(),
   elicitation: z.object({ schema: ElicitationFormSchema, message: z.string(), agentName: z.string() }).optional(),
   questions: z.array(AskUserQuestionItemSchema).min(1),
   answers: AskUserQuestionAnswerSchema.optional(),
@@ -224,6 +228,9 @@ export type AskUserQuestionItem = Omit<SDKAskUserQuestionItem, 'options'> & {
   options: AskUserQuestionOption[]
 }
 export type AskUserQuestionToolInput = Omit<AskUserQuestionInput, 'questions'> & {
+  responseMode?: 'native-request'
+  interviewActions?: InterviewAction[]
+  interviewAction?: InterviewAction
   elicitation?: { schema: ElicitationForm; message: string; agentName: string }
   questions: AskUserQuestionItem[]
 }

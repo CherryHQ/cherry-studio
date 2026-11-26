@@ -433,9 +433,6 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
-      '@agentclientprotocol/sdk':
-        specifier: ^1.5.0
-        version: 1.9.0(zod@4.4.3)
       '@ai-sdk/amazon-bedrock':
         specifier: ^4.0.96
         version: 4.0.96(patch_hash=7f2fa5c38067d9e6a9f575a279b30ca54ee5bfc4984d97ad2f13a7c2662d85ee)(zod@4.4.3)
@@ -2515,11 +2512,6 @@ packages:
 
   '@agentclientprotocol/sdk@0.26.0':
     resolution: {integrity: sha512-ialrcI+RzKOYe+fw+TfpyTdRmEoqIkXLlwbTi6XgaXXfdhNcdod7TmE1VsTnG3yTlox8TMTSMQgWbLLbz3r86Q==}
-    peerDependencies:
-      zod: ^3.25.0 || ^4.0.0
-
-  '@agentclientprotocol/sdk@1.9.0':
-    resolution: {integrity: sha512-saCOTPYBK1iqWqJFAYHXbg3+zCoFXyZZFoqQAwdTWkbrZZPpAETr80QOnYr2l+dzPwL0jpNhn3eDY8MoEIDbUA==}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
@@ -16292,10 +16284,6 @@ snapshots:
   '@agentclientprotocol/sdk@0.26.0(zod@3.25.76)':
     dependencies:
       zod: 3.25.76
-
-  '@agentclientprotocol/sdk@1.9.0(zod@4.4.3)':
-    dependencies:
-      zod: 4.4.3
 
   '@agentclientprotocol/sdk@2.4.0(@modelcontextprotocol/server@2.4.0)(zod@4.4.3)':
     dependencies:

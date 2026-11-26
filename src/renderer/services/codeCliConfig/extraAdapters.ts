@@ -6,7 +6,13 @@ import { type Document, stringify as stringifyYaml } from 'yaml'
 import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
-import { type CliConfigTarget, type CliConfigWriteFile, getCliConfigTargets } from '@shared/utils/cliConfig'
+import { GROK_SESSION_SUMMARY_PATH } from '@shared/utils/apiGateway'
+import {
+  type CliConfigTarget,
+  type CliConfigWriteFile,
+  getCliConfigTargets,
+  setGrokAuxiliaryModels
+} from '@shared/utils/cliConfig'
 
 import type { CliConfigAdapter } from './adapters'
 import { CHERRY_PROVIDER_PREFIX, PI_ENDPOINTS } from './constants'
@@ -95,7 +101,9 @@ export const grokBuildAdapter: CliConfigAdapter = {
     const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const existing = readAndParseDraftFile('grok-config', parseTomlOrThrow, args.files, read)
-    const models = { ...asRecord(existing.models), default: providerKey }
+    const models: Record<string, unknown> = { ...asRecord(existing.models), default: providerKey }
+    const summaryKey = args.gateway ? `${providerKey}-session-summary` : providerKey
+    setGrokAuxiliaryModels(models, providerKey, summaryKey)
     const modelTable = omitKeysByPrefix(asRecord(existing.model), CHERRY_PROVIDER_PREFIX)
     modelTable[providerKey] = {
       model,
@@ -105,6 +113,15 @@ export const grokBuildAdapter: CliConfigAdapter = {
       ...(endpoint === 'openai-responses' ? { api_backend: 'responses' } : {}),
       ...(modelRecord?.contextWindow ? { context_window: modelRecord.contextWindow } : {}),
       ...(modelRecord?.maxOutputTokens ? { max_completion_tokens: modelRecord.maxOutputTokens } : {})
+    }
+    if (args.gateway && models.session_summary === summaryKey) {
+      modelTable[summaryKey] = {
+        model,
+        base_url: `${withoutTrailingSlash(baseUrl)}${GROK_SESSION_SUMMARY_PATH}`,
+        api_key: apiKey,
+        api_backend: 'chat_completions',
+        hidden: true
+      }
     }
     return [makeDraftFile('grok-config', stringifyToml({ ...existing, models, model: modelTable }), read)]
   },
@@ -123,6 +140,7 @@ export const grokBuildAdapter: CliConfigAdapter = {
     if (Object.keys(modelTable).length > 0) next.model = modelTable
     else delete next.model
     const models = { ...asRecord(existing.models) }
+    setGrokAuxiliaryModels(models, undefined)
     if (typeof models.default === 'string' && models.default.startsWith(CHERRY_PROVIDER_PREFIX)) {
       delete models.default
     }

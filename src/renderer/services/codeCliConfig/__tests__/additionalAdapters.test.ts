@@ -423,6 +423,63 @@ describe('extra custom-endpoint local agent adapters', () => {
     ).toBeNull()
   })
 
+  it('routes Grok auxiliary calls through the selected provider and preserves an explicit user pin on clear', async () => {
+    const adapter = getAdapter('grok-build')!
+    const files = makeInitialFiles('grok-build')
+    const build = (content: string) =>
+      adapter.buildDraft({ cliTool: 'grok-build', modelId: 'test::model', files: [{ ...files[0], content }] }, context)
+    const [fresh] = await build(files[0].content)
+    const { models } = parseToml(fresh.content)
+    expect(models).toMatchObject({
+      default: 'cherry-Test',
+      session_summary: 'cherry-Test',
+      prompt_suggestion: 'cherry-Test'
+    })
+
+    const [changed] = await build('[models]\nsession_summary = "cherry-Previous"\nprompt_suggestion = "personal"\n')
+    expect(parseToml(changed.content).models).toMatchObject({
+      session_summary: 'cherry-Test',
+      prompt_suggestion: 'personal'
+    })
+    vi.spyOn(ipcApi, 'request').mockResolvedValue({ files: [changed] })
+    const [cleared] = await adapter.buildClearFiles()
+    expect(parseToml(cleared.content!).models).toEqual({ prompt_suggestion: 'personal' })
+  })
+
+  it('gives only the Grok summary its own Chat Completions endpoint when the primary uses Responses', async () => {
+    const adapter = getAdapter('grok-build')!
+    const provider = {
+      ...context.provider,
+      id: 'cherry:api-gateway',
+      endpointConfigs: { 'openai-responses': { baseUrl: 'http://localhost:23333/v1' } }
+    }
+    const [draft] = await adapter.buildDraft(
+      {
+        cliTool: 'grok-build',
+        modelId: 'test::model',
+        files: makeInitialFiles('grok-build'),
+        gateway: { provider, apiKey: context.apiKey }
+      },
+      { ...context, provider, modelRecord: { ...context.modelRecord!, endpointTypes: ['openai-responses'] } }
+    )
+    expect(parseToml(draft.content)).toMatchObject({
+      models: {
+        default: 'cherry-gateway',
+        session_summary: 'cherry-gateway-session-summary',
+        prompt_suggestion: 'cherry-gateway'
+      },
+      model: {
+        'cherry-gateway': { api_backend: 'responses', base_url: 'http://localhost:23333/v1' },
+        'cherry-gateway-session-summary': {
+          model: context.model,
+          base_url: 'http://localhost:23333/v1/agents/grok-build/session-summary',
+          api_backend: 'chat_completions',
+          hidden: true
+        }
+      }
+    })
+  })
+
   it('writes api_backend = "responses" for grok-build only on openai-responses', async () => {
     const adapter = getAdapter('grok-build')!
     const responsesDraft = await adapter.buildDraft(

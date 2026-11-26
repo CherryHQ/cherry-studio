@@ -67,6 +67,7 @@ import {
 } from '@shared/ai/agentSessionDelivery'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
+import { NativeInteractionInputSchema } from '@shared/ai/nativeInteraction'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import {
   applyApprovalDecisions,
@@ -3771,7 +3772,12 @@ export class AgentSessionMessageService {
    * after this returns true, so a displayed question cannot resume its agent while remaining stuck
    * as `approval-requested` in history.
    */
-  applyToolApprovalDecision(sessionId: string, messageId: string, decision: ApprovalDecision): boolean {
+  applyToolApprovalDecision(
+    sessionId: string,
+    messageId: string,
+    decision: ApprovalDecision,
+    delivery: 'live' | 'undelivered'
+  ): boolean {
     const applied = application.get('DbService').withWriteTx((tx) => {
       const existingRow = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existingRow) return false
@@ -3788,7 +3794,11 @@ export class AgentSessionMessageService {
         return { ...part, errorText: undefined, state: 'approval-requested', approval: { id: decision.approvalId } }
       })
       const hasPendingApproval = parts.some(
-        (part) => isToolUIPart(part) && part.state === 'approval-requested' && part.approval.id === decision.approvalId
+        (part) =>
+          isToolUIPart(part) &&
+          part.state === 'approval-requested' &&
+          part.approval.id === decision.approvalId &&
+          (delivery === 'live' || !NativeInteractionInputSchema.safeParse(part.input).success)
       )
       if (!hasPendingApproval) return false
 

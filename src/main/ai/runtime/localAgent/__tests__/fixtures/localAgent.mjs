@@ -143,6 +143,7 @@ const semanticConfig = () => [
   extraConfig()[1]
 ]
 let promptId
+let previousGrokPromptId
 const finish = () => {
   if (protocol === 'acp')
     reply(promptId, {
@@ -314,7 +315,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         }
       })
     }
-    if (scenario === 'initial-updates' || scenario.startsWith('resume')) {
+    if (scenario === 'initial-updates' || scenario === 'close-management-catalog' || scenario.startsWith('resume')) {
       update({
         sessionUpdate: 'available_commands_update',
         availableCommands: [{ name: 'review', description: 'Review code' }]
@@ -342,6 +343,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
             options: [{ value: 'updated-model', name: 'Updated model' }]
           }
         ]
+      })
+    }
+    if (scenario === 'close-management-catalog') {
+      emit({
+        method: 'session/update',
+        params: { sessionId: 'unrelated', update: { sessionUpdate: 'config_option_update', configOptions: [] } }
       })
     }
     reply(id, {
@@ -415,6 +422,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       update({ sessionUpdate: 'config_option_update', configOptions: [thought()] })
     update({ sessionUpdate: 'current_mode_update', currentModeId: modeValue })
     reply(id, {})
+  } else if (scenario === 'grok-prediction' && method === '_x.ai/suggestPrompt') {
+    const { sessionId, generation } = message.params
+    return reply(id, {
+      generation: generation === 1 ? generation : generation - 1,
+      suggestion: sessionId === 'native-session' ? 'run the tests' : null
+    })
   } else if (method === 'session/set_config_option') {
     if (scenario === 'config-semantics') return reply(id, { configOptions: [extraConfig()[1], mode()] })
     if (scenario === 'config-multiple') {
@@ -1061,36 +1074,72 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         }
       })
     }
-    if (scenario === 'xai-usage') {
-      if (turn === 1) {
+    if (scenario.startsWith('grok-question') || scenario === 'grok-plan') {
+      const target = {
+        sessionId: scenario === 'grok-question-foreign' ? 'other-session' : message.params.sessionId,
+        toolCallId: 'grok-interaction'
+      }
+      const pending =
+        scenario === 'grok-plan'
+          ? requestClient('x.ai/exit_plan_mode', { ...target, planContent: '# Release plan' })
+          : requestClient('_x.ai/ask_user_question', {
+              ...target,
+              mode: scenario === 'grok-question-plan' ? 'plan' : 'default',
+              questions: [
+                { question: 'Which?', options: [{ label: 'A, B' }, { label: 'C' }], multiSelect: true },
+                { question: 'Why?', options: [] },
+                { question: 'Preview?', options: [{ label: 'Show', preview: 'Diagram' }] }
+              ]
+            })
+      if (scenario === 'grok-question-cancel')
+        setTimeout(() => emit({ method: '$/cancel_request', params: { requestId: 'callback-1' } }), 50)
+      void pending.then(() => {
+        update({ sessionUpdate: 'tool_call_update', toolCallId: target.toolCallId, status: 'completed' })
+        finish()
+      })
+      return
+    }
+    if (scenario.startsWith('xai-usage')) {
+      const { sessionId, _meta } = message.params
+      const nativePromptId = _meta?.promptId
+      const ledger = {
+        inputTokens: 100,
+        outputTokens: 20,
+        totalTokens: 120,
+        cachedReadTokens: 40,
+        cacheCreationTokens: 10,
+        reasoningTokens: 5
+      }
+      const foreign = { inputTokens: 999, outputTokens: 1, totalTokens: 1000 }
+      const completed = (sessionId, identity, usage, meta, method = '_x.ai/session_notification') =>
         emit({
-          method: '_x.ai/session/update',
-          params: {
-            sessionId: 'native-session',
-            update: {
-              sessionUpdate: 'turn_completed',
-              usage: {
-                inputTokens: 100,
-                outputTokens: 20,
-                totalTokens: 120,
-                cachedReadTokens: 40,
-                cacheCreationTokens: 10,
-                reasoningTokens: 5
-              }
-            }
-          }
+          method,
+          params: { sessionId, _meta: meta, update: { sessionUpdate: 'turn_completed', ...identity, usage } }
+        })
+
+      if (turn === 1) {
+        if (scenario === 'xai-usage-legacy')
+          completed(sessionId, { promptId: nativePromptId }, ledger, undefined, '_x.ai/session/update')
+        else completed(sessionId, { prompt_id: nativePromptId }, ledger)
+      }
+      if (previousGrokPromptId) completed(sessionId, { promptId: previousGrokPromptId }, foreign)
+      previousGrokPromptId = nativePromptId
+      completed('unrelated', { promptId: nativePromptId }, foreign)
+      completed(sessionId, { promptId: 'task-completed-background' }, foreign, undefined, '_x.ai/session/update')
+      completed(sessionId, {}, foreign)
+      completed(sessionId, { promptId: nativePromptId }, foreign, { isReplay: true })
+
+      if (scenario === 'xai-usage-response') {
+        const meta = { promptId: nativePromptId, usage: { inputTokens: 7, outputTokens: 2 } }
+        return reply(id, {
+          stopReason: 'end_turn',
+          _meta: meta,
+          ...(turn === 2 && { usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } })
         })
       }
-      emit({
-        method: '_x.ai/session/update',
-        params: {
-          sessionId: 'unrelated',
-          update: {
-            sessionUpdate: 'turn_completed',
-            usage: { inputTokens: 999, outputTokens: 1, totalTokens: 1000 }
-          }
-        }
-      })
+      if (scenario === 'xai-usage-reassigned')
+        return reply(id, { stopReason: 'end_turn', _meta: { promptId: 'different-prompt' } })
+      return reply(id, { stopReason: 'end_turn' })
     }
     if (scenario === 'config-extra') update({ sessionUpdate: 'config_option_update', configOptions: [] })
     if (scenario === 'session-title') {

@@ -39,24 +39,27 @@ export interface AcpHostContext {
 }
 
 type HostMethod = Exclude<keyof ClientRequestParamsByMethod, 'session/request_permission'>
-export type AcpHostHandler<M extends HostMethod> = (
+export type AcpHostHandler<M extends HostMethod, Context = AcpHostContext> = (
   params: ClientRequestParamsByMethod[M],
-  context: AcpHostContext
+  context: Context
 ) => Promise<ClientRequestResponsesByMethod[M]>
 
-export interface AcpHostCallbacks {
-  permission?: (params: RequestPermissionRequest, context: AcpHostContext) => Promise<RequestPermissionResponse>
-  readTextFile?: AcpHostHandler<'fs/read_text_file'>
-  writeTextFile?: AcpHostHandler<'fs/write_text_file'>
+interface HostCallbacks<Context> {
+  permission?: (params: RequestPermissionRequest, context: Context) => Promise<RequestPermissionResponse>
+  readTextFile?: AcpHostHandler<'fs/read_text_file', Context>
+  writeTextFile?: AcpHostHandler<'fs/write_text_file', Context>
   terminal?: {
-    create: AcpHostHandler<'terminal/create'>
-    output: AcpHostHandler<'terminal/output'>
-    release: AcpHostHandler<'terminal/release'>
-    waitForExit: AcpHostHandler<'terminal/wait_for_exit'>
-    kill: AcpHostHandler<'terminal/kill'>
+    create: AcpHostHandler<'terminal/create', Context>
+    output: AcpHostHandler<'terminal/output', Context>
+    release: AcpHostHandler<'terminal/release', Context>
+    waitForExit: AcpHostHandler<'terminal/wait_for_exit', Context>
+    kill: AcpHostHandler<'terminal/kill', Context>
   }
-  elicitation?: AcpHostHandler<'elicitation/create'>
+  elicitation?: AcpHostHandler<'elicitation/create', Context>
 }
+
+export type AcpHostCallbacks = HostCallbacks<AcpHostContext>
+export type AcpClientCallbacks = HostCallbacks<Pick<AcpHostContext, 'signal'>>
 
 export interface AcpRuntimeOptions {
   readonly backendId: BackendId
@@ -73,8 +76,9 @@ export interface AcpNativeMessage {
   readonly nativeId?: string
   readonly chunks: readonly Extract<SessionUpdate, { content: ContentBlock }>[]
 }
+export type AcpSessionConfiguration = Omit<NewSessionResponse, 'sessionId'>
 export interface AcpSessionState {
-  readonly configuration: Omit<NewSessionResponse, 'sessionId'>
+  readonly configuration: AcpSessionConfiguration
   readonly turns: readonly { inputId: InputId; response: PromptResponse }[]
   readonly messages: readonly AcpNativeMessage[]
   readonly tools: readonly ToolCallUpdate[]

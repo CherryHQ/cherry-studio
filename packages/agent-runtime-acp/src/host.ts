@@ -1,0 +1,99 @@
+import { Readable, Writable } from 'node:stream'
+
+import { ndJsonStream, RequestError } from '@agentclientprotocol/sdk'
+
+import { acpAuthMethods, acpModelCatalog, connectAcpClient, type AcpClientOptions } from './client'
+import type { AcpSessionConfiguration } from './types'
+
+function stdioStream(stdin: Writable, stdout: Readable) {
+  return ndJsonStream(Writable.toWeb(stdin), Readable.toWeb(stdout) as ReadableStream<Uint8Array>)
+}
+
+export function connectAcpStdio(
+  stdin: Writable,
+  stdout: Readable,
+  options: Omit<AcpClientOptions, 'sessionCapabilities'>
+) {
+  return connectAcpClient(stdioStream(stdin, stdout), {
+    ...options,
+    sessionCapabilities: { configOptions: { boolean: {} }, notices: {}, compaction: {} }
+  })
+}
+
+/** Management connections can inspect, authenticate and read a temporary session's model catalog. */
+export function connectAcpManagementStdio(
+  stdin: Writable,
+  stdout: Readable,
+  clientInfo: AcpClientOptions['clientInfo']
+) {
+  let optionsBySession: Map<string, AcpSessionConfiguration['configOptions']> | undefined
+  const client = connectAcpClient(stdioStream(stdin, stdout), {
+    clientInfo,
+    callbacks: {},
+    sessionCapabilities: { configOptions: { boolean: {} } },
+    update({ sessionId, update }) {
+      if (update.sessionUpdate === 'config_option_update') optionsBySession?.set(sessionId, update.configOptions)
+    }
+  })
+  return {
+    signal: client.signal,
+    close: client.close,
+    async initialize() {
+      const agent = await client.initialize()
+      return {
+        response: agent.response,
+        async authenticate(methodId: string) {
+          const method = acpAuthMethods(agent.response).find((item) => item.id === methodId)
+          if (!method) throw new Error('Unsupported authentication method')
+          if (method.type === 'terminal') throw new Error('This authentication method requires external setup')
+          await agent.authenticate(method.id)
+        },
+        async readModels(cwd: string) {
+          if (optionsBySession) throw new Error('ACP model discovery is already running')
+          optionsBySession = new Map()
+          try {
+            const { session, configuration } = await agent.create({ cwd, mcpServers: [] })
+            const { activeModel, models } = acpModelCatalog(
+              optionsBySession.get(session.id) ?? configuration.configOptions,
+              session.legacyModels
+            )
+            return { activeModel, models, closeSession: session.close }
+          } finally {
+            optionsBySession = undefined
+          }
+        }
+      }
+    }
+  }
+}
+
+export type AcpManagementAgent = Awaited<ReturnType<ReturnType<typeof connectAcpManagementStdio>['initialize']>>
+
+export const acpHostError = {
+  invalidRequest: (reason: string): Error => RequestError.invalidParams(reason),
+  cancelled: (): Error => RequestError.requestCancelled()
+}
+
+export function formatAcpError(
+  error: unknown,
+  stderr: string | undefined,
+  format: (message: string, detail: string) => string
+): unknown {
+  if (!(error instanceof Error)) return error
+  const data: unknown = error instanceof RequestError ? error.data : undefined
+  let detail =
+    typeof data === 'string'
+      ? data
+      : data && typeof data === 'object'
+        ? 'details' in data
+          ? data.details
+          : 'message' in data
+            ? data.message
+            : undefined
+        : undefined
+  if (typeof detail !== 'string' && /^(?:ACP connection closed|Local agent process exited)$/.test(error.message))
+    detail = stderr
+  if (typeof detail !== 'string' || !detail.trim()) return error
+  const message = format(error.message, detail)
+  return error instanceof RequestError ? new RequestError(error.code, message) : new Error(message)
+}

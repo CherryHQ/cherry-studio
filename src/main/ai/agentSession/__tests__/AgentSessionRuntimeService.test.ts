@@ -725,6 +725,39 @@ describe('AgentSessionRuntimeService', () => {
     }
   )
 
+  it('rejects a pending local suggestion after the native session switches models', async () => {
+    await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', true)
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, agentType: 'local', modelId: 'runtime:agent-1' })
+    const entry = getEntry(service)
+    const info = { activeModel: { id: 'native-a' }, models: [], images: false, resume: true }
+    let finish!: (text: string) => void
+    entry.connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      localSessionInfo: info,
+      predictPrompt: () => new Promise<string>((resolve) => (finish = resolve))
+    }
+    service.markTurnTerminal('session-1', 'success')
+    const input = {
+      sessionId: 'session-1',
+      replyId: 'assistant-1',
+      localModelId: 'native-a',
+      requestId: crypto.randomUUID()
+    }
+    const pending = service.predictPrompt(input)
+    await Promise.resolve()
+    info.activeModel = { id: 'native-b' }
+    service['handleRuntimeEvent'](entry, { type: 'local-session-info', info })
+    info.activeModel = { id: 'native-a' }
+    service['handleRuntimeEvent'](entry, { type: 'local-session-info', info })
+    finish('stale suggestion')
+    expect(await pending).toEqual({ supported: true, text: '' })
+    expect(await service.predictPrompt({ ...input, localModelId: 'native-b' })).toEqual({ supported: true, text: '' })
+    await service.closeSession('session-1')
+  })
+
   it('binds predictions to the completed reply and cancels them when a new turn starts', async () => {
     await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', true)
     const service = new AgentSessionRuntimeService()
@@ -938,11 +971,16 @@ describe('AgentSessionRuntimeService', () => {
         service.respondToolApproval('approval-bg', { approved: true, updatedInput }, 'approval-message-1')
       ).toEqual({ ok: true })
 
-      expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
-        approvalId: 'approval-bg',
-        approved: true,
-        updatedInput
-      })
+      expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith(
+        'session-1',
+        'approval-message-1',
+        {
+          approvalId: 'approval-bg',
+          approved: true,
+          updatedInput
+        },
+        'live'
+      )
       expect(resolve).toHaveBeenCalledWith({ approved: true, updatedInput })
       expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
     })
@@ -988,11 +1026,16 @@ describe('AgentSessionRuntimeService', () => {
         )
       ).toEqual({ ok: false, reason: 'undelivered' })
 
-      expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith('session-1', 'approval-message-1', {
-        approvalId: 'approval-gone',
-        approved: true,
-        updatedInput
-      })
+      expect(mocks.applyToolApprovalDecision).toHaveBeenCalledWith(
+        'session-1',
+        'approval-message-1',
+        {
+          approvalId: 'approval-gone',
+          approved: true,
+          updatedInput
+        },
+        'undelivered'
+      )
     })
     it('does not offer a second replay after another window settled the card', () => {
       mocks.applyToolApprovalDecision.mockReturnValueOnce(true).mockReturnValueOnce(false)

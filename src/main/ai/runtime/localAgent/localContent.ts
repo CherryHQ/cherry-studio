@@ -3,9 +3,8 @@ import { stat } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import type { ContentBlock, PromptCapabilities } from '@agentclientprotocol/sdk'
-
 import { application } from '@application'
+import type { AcpContentBlock, AcpPromptCapabilities } from '@cherrystudio/agent-runtime-acp/v1'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { t } from '@main/i18n'
 import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
@@ -57,9 +56,9 @@ function localFilePath(part: FileUIPart): string | undefined {
 
 export async function acpContent(
   input: AgentRuntimeUserInput,
-  capabilities: PromptCapabilities
-): Promise<ContentBlock[]> {
-  const content: ContentBlock[] = []
+  capabilities: AcpPromptCapabilities
+): Promise<AcpContentBlock[]> {
+  const content: AcpContentBlock[] = []
   for (const [index, part] of (input.message.data.parts ?? []).entries()) {
     if (part.type === 'data-knowledge-scope') continue
     if (part.type === 'file' && part.mediaType.startsWith('audio/')) {

@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { CommandFailedError, executeCommand } from '@main/utils/processRunner'
 
 import { getLocalAgentAuthStatus, parseOpenCodeAuthStatus } from '../authStatus'
-import { resolveLocalAgentLaunch } from '../launch'
+import { resolveLocalAgentCli } from '../launch'
 
-vi.mock('../launch', () => ({ resolveLocalAgentLaunch: vi.fn() }))
+vi.mock('../launch', () => ({ resolveLocalAgentCli: vi.fn() }))
 vi.mock(import('@main/utils/processRunner'), async (original) => ({ ...(await original()), executeCommand: vi.fn() }))
 
 const config = { protocol: 'acp' as const, presetId: 'opencode', enabled: true, args: [], env: {} }
@@ -28,10 +28,9 @@ describe('native authentication status', () => {
   ] as const)(
     'reads %s account status from its configured CLI: %s %j %s',
     async (presetId, protocol, args, output, expected) => {
-      vi.mocked(resolveLocalAgentLaunch).mockResolvedValue({
+      vi.mocked(resolveLocalAgentCli).mockResolvedValue({
         executable: '/configured/cli',
         source: 'system',
-        args: [],
         env: { PATH: '/configured' }
       })
       vi.mocked(executeCommand).mockResolvedValue(output)
@@ -53,10 +52,9 @@ describe('native authentication status', () => {
   ] as const)(
     'recognizes only explicit signed-out results on a failed %s check',
     async (presetId, stdout, stderr, expected) => {
-      vi.mocked(resolveLocalAgentLaunch).mockResolvedValue({
+      vi.mocked(resolveLocalAgentCli).mockResolvedValue({
         executable: '/configured/cli',
         source: 'system',
-        args: [],
         env: {}
       })
       vi.mocked(executeCommand).mockRejectedValue(new CommandFailedError(1, stdout, stderr))

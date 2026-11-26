@@ -56,6 +56,11 @@ cancels on input, context invalidation, connection closure or preference changes
 `ai.agent.session.abort_prediction` cancels the matching consumer request.
 Tab or the text-direction forward arrow accepts editable text without sending.
 
+Grok Build asks its bound ACP session for the next input with `x.ai/suggestPrompt`.
+The CLI chooses the configured `prompt_suggestion` model. The composer reads the
+result by reply ID and native model ID, so a local Agent can show a suggestion
+without a Cherry model record. An empty native result leaves the composer empty.
+
 Claude Code enables the SDK's `promptSuggestions` option for interactive cold and
 warm queries. Its native `prompt_suggestion` arrives after `result` through the existing
 reader. Native suppression yields no host fallback. A resident native snapshot can seed

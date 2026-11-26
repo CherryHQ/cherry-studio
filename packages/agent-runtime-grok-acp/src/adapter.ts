@@ -1,43 +1,119 @@
+import { randomUUID } from 'node:crypto'
+
 import * as z from 'zod'
 
-import type { AcpHarnessAdapter } from '@cherrystudio/agent-runtime-acp/v1'
+import type { AcpHarnessAdapter, AcpTurnUsage } from '@cherrystudio/agent-runtime-acp/v1'
 
-const XaiSessionUpdateSchema = z.object({
+import { grokInteractions, type GrokInteractionHost } from './interactions'
+
+const tokens = z.number().int().nonnegative()
+const grokUsage = z
+  .object({
+    inputTokens: tokens,
+    outputTokens: tokens,
+    totalTokens: tokens.nullish(),
+    cachedReadTokens: tokens.nullish(),
+    cachedWriteTokens: tokens.nullish(),
+    cacheCreationTokens: tokens.nullish(),
+    thoughtTokens: tokens.nullish(),
+    reasoningTokens: tokens.nullish()
+  })
+  .transform(
+    (usage): AcpTurnUsage => ({
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      totalTokens: usage.totalTokens ?? usage.inputTokens + usage.outputTokens,
+      cachedReadTokens: usage.cachedReadTokens,
+      cachedWriteTokens: usage.cachedWriteTokens ?? usage.cacheCreationTokens,
+      thoughtTokens: usage.thoughtTokens ?? usage.reasoningTokens
+    })
+  )
+
+const sessionNotification = z.object({
   sessionId: z.string(),
-  update: z
-    .object({
-      sessionUpdate: z.string(),
-      usage: z
-        .object({
-          inputTokens: z.number(),
-          outputTokens: z.number(),
-          totalTokens: z.number(),
-          cachedReadTokens: z.number().nullish(),
-          cachedWriteTokens: z.number().nullish(),
-          cacheCreationTokens: z.number().nullish(),
-          thoughtTokens: z.number().nullish(),
-          reasoningTokens: z.number().nullish()
-        })
-        .optional()
-    })
-    .passthrough()
+  _meta: z.object({ isReplay: z.boolean().optional() }).nullish(),
+  update: z.object({
+    sessionUpdate: z.string(),
+    prompt_id: z.string().nullish(),
+    promptId: z.string().nullish(),
+    usage: z.unknown().optional()
+  })
 })
-export const grokAcpAdapter: Required<Pick<AcpHarnessAdapter, 'register'>> = {
-  register(host) {
-    host.onNotification('_x.ai/session/update', XaiSessionUpdateSchema, (params) => {
-      if (!host.isActiveSession(params.sessionId)) return
-      if (params.update.sessionUpdate !== 'turn_completed' || !params.update.usage) return
-      const usage = params.update.usage
-      const cachedWriteTokens = usage.cachedWriteTokens ?? usage.cacheCreationTokens
-      const thoughtTokens = usage.thoughtTokens ?? usage.reasoningTokens
-      host.usage({
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        totalTokens: usage.totalTokens,
-        ...(usage.cachedReadTokens != null ? { cachedReadTokens: usage.cachedReadTokens } : {}),
-        ...(cachedWriteTokens != null ? { cachedWriteTokens } : {}),
-        ...(thoughtTokens != null ? { thoughtTokens } : {})
-      })
-    })
+
+interface PendingPrompt {
+  readonly sessionId: string
+  usage?: AcpTurnUsage
+}
+
+const registerPromptUsage: NonNullable<AcpHarnessAdapter['registerPromptUsage']> = (host) => {
+  const pending = new Map<string, PendingPrompt>()
+
+  function onNotification({ sessionId, update, _meta }: z.infer<typeof sessionNotification>) {
+    if (_meta?.isReplay || update.sessionUpdate !== 'turn_completed') return
+    const promptId = update.prompt_id ?? update.promptId
+    const prompt = promptId ? pending.get(promptId) : undefined
+    if (!prompt || prompt.sessionId !== sessionId) return
+    const parsed = grokUsage.safeParse(update.usage)
+    if (parsed.success) prompt.usage = parsed.data
+  }
+
+  for (const method of ['_x.ai/session_notification', '_x.ai/session/update', 'x.ai/session_notification']) {
+    host.onNotification(method, sessionNotification, onNotification)
+  }
+
+  return (sessionId) => {
+    const promptId = randomUUID()
+    const prompt: PendingPrompt = { sessionId }
+    pending.set(promptId, prompt)
+    return {
+      metadata: { promptId },
+      read({ _meta }) {
+        const ledger = grokUsage.safeParse(_meta?.usage).data
+        if (ledger) return ledger
+        const responseId = _meta?.promptId ?? _meta?.requestId
+        return responseId == null || responseId === promptId ? prompt.usage : undefined
+      },
+      release() {
+        pending.delete(promptId)
+      }
+    }
+  }
+}
+
+const prediction = z.object({ generation: z.number().int().nonnegative(), suggestion: z.string().nullable() })
+
+export function createGrokAcpAdapter(host: GrokInteractionHost): AcpHarnessAdapter {
+  return {
+    registerPromptUsage,
+    registerRequests: grokInteractions(host),
+    bind({ agent, sessionId }) {
+      let generation = 0
+      let unavailable = false
+      return {
+        async predictPrompt(signal) {
+          if (unavailable || signal.aborted) return ''
+          const requested = ++generation
+          try {
+            const result = prediction.parse(
+              await agent.request(
+                '_x.ai/suggestPrompt',
+                { sessionId, generation: requested },
+                {
+                  cancellationSignal: signal,
+                  stopWaitingOnCancel: true
+                }
+              )
+            )
+            return !signal.aborted && requested === generation && result.generation === requested
+              ? (result.suggestion ?? '')
+              : ''
+          } catch (error) {
+            if (!(error instanceof Error && 'code' in error && error.code === -32601)) throw error
+            unavailable = true
+            return ''
+          }
+        }
+      }
+    }
   }
 }

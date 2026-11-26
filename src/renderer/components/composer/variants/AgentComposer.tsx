@@ -1684,6 +1684,7 @@ const AgentComposerInner = ({
     sessionId,
     messages,
     model,
+    localModelId: localInfo?.activeModel?.id,
     busy: isStreaming,
     blocked:
       !layerActive ||

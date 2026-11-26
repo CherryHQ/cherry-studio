@@ -52,6 +52,12 @@ are preserved.
   context before publishing addressed text, reasoning, plan and tool updates.
   Opening history reads known session capabilities. A command request or send can
   acquire a connection.
+- ACP chat and Settings use separate entries in `@cherrystudio/agent-runtime-acp/v1`.
+  Chat binds prompt, configuration, cancel and close to the native session ID. Checks
+  and sign-in only perform the handshake and the requested authentication. Model
+  discovery opens a temporary session, reads its reported catalog and closes it when
+  supported. Settings connections expose no host files, terminals or browser MCP.
+  Main owns the child process and reads conversation history from Cherry's archive.
 - Streams use `runtime:<agent-id>` as execution identity. It belongs to the stream.
   Persisted messages retain author and native model attribution when available.
 - Cursor uses the local TypeScript SDK for new chats. The bundled SDK owns login, the model catalog and session recovery.
@@ -81,6 +87,12 @@ appropriate. Stale editor drafts fail before writing. Gateway selections keep
 the Cherry model ID separately from the native ID and inject only Cherry gateway
 credentials. Switching back removes Cherry-owned configuration while preserving
 user settings and credentials.
+
+For Grok Build, applying a Cherry model also binds the native `session_summary`
+and `prompt_suggestion` roles. User-pinned roles keep their own model. Gateway
+configuration gives the summary a dedicated Chat Completions endpoint, including
+when the primary conversation uses Responses. Existing installations pick up the
+binding the next time the model configuration is applied.
 
 New chats, terminal sessions and managed WebUIs use the native default. Model
 arguments, environment and project settings can override it. Open sessions keep
@@ -137,7 +149,7 @@ own executable names, arguments and package sources.
   Existing mise installations can be reused and removed. See
   [BinaryManager discovery rules](../binary-manager/README.md).
 - Pi uses a bundled ACP adapter and the installed native CLI. OMP requires
-  Bun 1.4.4 or newer. Amp and ZCode require separate native executables.
+  Bun 1.4.4 or newer. Amp chat requires both `amp-acp` and `amp`. Its terminal and CLI sign-in use `amp` directly. ZCode requires a separate native executable.
   Antigravity's terminal entry requires `agy`. DeepAgents checks its Anthropic
   and OpenAI provider packages even when reusing its adapter. Installation fails
   if a required dependency is missing after setup.
@@ -251,7 +263,11 @@ wait leaves the terminal running. Interactive ACP turns expose output/request
 limits and refusal as stream finish reasons. Scheduled runs fail on those stop
 reasons and retain any partial reply.
 
-ACP usage comes from prompt responses and session usage updates. For a normal Pi
+ACP per-turn usage comes from the prompt result. The Grok Build adapter also
+reads the prompt's `_meta.usage`. When both response fields omit usage, it accepts
+a live completion only for the same native session and prompt ID. Background
+completions and replayed notifications cannot contribute to the foreground turn.
+Session usage updates report context occupancy and cumulative cost. For a normal Pi
 reply, the bundled bridge reports the last model request’s input tokens and model
 window. Tool-loop billing still sums all successful calls. Inspecting the meter
 queries the live Pi session for current occupancy. Compaction or missing request
@@ -269,6 +285,23 @@ outside a conversation return `cancel`. Flat fields keep native IDs and types.
 Users can review defaults and explicitly submit, decline or cancel. Renderer and
 Main validate against the schema. Cancellation and shutdown release pending
 questions.
+
+Grok Build uses two native reverse requests. For `ask_user_question`, Cherry
+returns the selected labels as an array for each answered question. A free-text
+answer uses Grok’s `Other` choice and carries the text in the question’s notes.
+The answer belongs to the open request. Submitting an expired card cannot start
+another turn.
+
+In a plan interview, **Discuss first** and **Skip interview and plan** are
+available from the first question, including before any answer. Both respond to
+the pending request with the selected action and the answers filled in so far.
+Grok receives the selected labels for each answered question. A free-text-only
+answer appears as `Other`; the draft text stays in the composer. Selecting the
+last option leaves the interview open for the user’s decision.
+
+For `exit_plan_mode`, approving the displayed plan returns `approved`. Denying
+with written feedback returns `cancelled` with the feedback so Grok can revise
+the plan. Denying without feedback or running unattended returns `abandoned`.
 
 See [Adding a Runtime](./adding-a-runtime.md) and
 [Agent Session Runtime](./agent-session-runtime.md) for the host contract.

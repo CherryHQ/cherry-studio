@@ -11,7 +11,14 @@ import { type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
-import { detectLocalAgents, openLocalAgentTerminal, resolveLocalAgentLaunch, systemAgentEntry } from '../launch'
+import {
+  detectLocalAgents,
+  openLocalAgentTerminal,
+  resolveLocalAgentCli,
+  resolveLocalAgentLaunch,
+  resolveLocalAgentModelLaunch,
+  systemAgentEntry
+} from '../launch'
 
 const inventory = vi.hoisted(() => ({
   getRawShellEnv: vi.fn(),
@@ -91,8 +98,7 @@ describe('local agent installation resolution', () => {
           env
         },
         undefined,
-        false,
-        true
+        { headless: true }
       )
       expect(launch.nativeModel).toBe('gateway-model')
       expect(launch.env.ANTHROPIC_BASE_URL).toBe(endpoint)
@@ -282,7 +288,7 @@ agent_servers:
       POOLSIDE_API_KEY: 'gateway-key',
       POOLSIDE_STANDALONE_BASE_URL: 'http://127.0.0.1:1234/v1'
     })
-    const catalog = await resolveLocalAgentLaunch(selected, undefined, 'models')
+    const catalog = await resolveLocalAgentModelLaunch(selected)
     expect(catalog.nativeModel).toBe('poolside/native-model')
     expect(catalog.env).not.toHaveProperty('POOLSIDE_API_KEY')
     await openLocalAgentTerminal(selected)
@@ -403,7 +409,8 @@ agent_servers:
   it.each([false, true])('makes bundled Bun available to omp (terminal=%s)', async (terminal) => {
     installSystemCommands('omp')
     inventory.snapshots.bun = { name: 'bun', availability: { source: 'bundled', path: '/bundled/bin/bun' } }
-    const launch = await resolveLocalAgentLaunch({ ...config, presetId: 'omp', protocol: 'acp' }, undefined, terminal)
+    const selected = { ...config, presetId: 'omp', protocol: 'acp' } as const
+    const launch = terminal ? await resolveLocalAgentCli(selected) : await resolveLocalAgentLaunch(selected)
     expect(launch.env.PATH.split(path.delimiter)).toContain('/bundled/bin')
     expect(launch.env.HOME).toBe('/user/home')
   })
@@ -567,9 +574,9 @@ agent_servers:
 
   it('excludes SDK-only Cursor from discovery and rejects direct CLI launches', async () => {
     expect((await detectLocalAgents()).some((agent) => agent.presetId === 'cursor')).toBe(false)
-    await expect(
-      resolveLocalAgentLaunch({ ...config, presetId: 'cursor', protocol: 'cursor' }, undefined, true)
-    ).rejects.toThrow('Invalid local agent preset')
+    await expect(resolveLocalAgentCli({ ...config, presetId: 'cursor', protocol: 'cursor' })).rejects.toThrow(
+      'Invalid local agent preset'
+    )
     await expect(
       resolveLocalAgentLaunch({
         ...config,
@@ -836,6 +843,16 @@ agent_servers:
       env: { LOCALAPPDATA: path.join(directory, 'localappdata') }
     })
     expect(viaWinBundle.executable).toBe('/user/bin/zcode-acp')
+  })
+
+  it('opens Amp login with only the native CLI installed', async () => {
+    installSystemCommands('amp')
+    const selected = { ...config, presetId: 'amp-acp', protocol: 'acp' } as const
+    await openLocalAgentTerminal({ ...selected, login: true })
+    expect(inventory.openTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({ executable: '/user/bin/amp', args: ['login'] })
+    )
+    await expect(resolveLocalAgentLaunch(selected)).rejects.toMatchObject({ code: 'LOCAL_AGENT_NOT_INSTALLED' })
   })
 
   it('requires amp CLI when launching amp-acp bridge without an executable override', async () => {

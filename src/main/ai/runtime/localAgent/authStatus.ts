@@ -5,7 +5,7 @@ import { getShellEnv } from '@main/utils/shellEnv'
 import { LOCAL_CLI_AGENT_PRESETS, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { OutputFor } from '@shared/ipc/types'
 
-import { resolveLocalAgentLaunch } from './launch'
+import { resolveLocalAgentCli } from './launch'
 
 type AuthStatus = OutputFor<'ai.local_agents.auth_status'>
 
@@ -59,7 +59,7 @@ export async function getLocalAgentAuthStatus(config: LocalAgentConfiguration): 
   )
     return 'unsupported'
   try {
-    const launch = await resolveLocalAgentLaunch(config)
+    const launch = await resolveLocalAgentCli(config)
     return await executeCommand(launch.executable, [...preset.authStatusArgs], {
       env: launch.env,
       includeStderr: preset.id === 'codex',

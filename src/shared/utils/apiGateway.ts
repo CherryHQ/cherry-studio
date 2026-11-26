@@ -7,6 +7,9 @@ import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
  */
 export const ANTIGRAVITY_MODEL_PATH_SEPARATOR = '/models/'
 
+/** Base for Grok's auxiliary Chat Completions client, relative to the authenticated /v1 API. */
+export const GROK_SESSION_SUMMARY_PATH = '/agents/grok-build/session-summary'
+
 /**
  * The origin a client uses to reach the gateway, derived from its bind host.
  * A bind host is not a connect target: `0.0.0.0`/`::` mean "every interface" and must become a

@@ -190,7 +190,6 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@agentclientprotocol/sdk": "^1.5.0",
     "@ai-sdk/amazon-bedrock": "^4.0.96",
     "@ai-sdk/anthropic": "^3.0.125",
     "@ai-sdk/azure": "^3.0.116",

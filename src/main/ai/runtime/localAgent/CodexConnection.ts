@@ -18,6 +18,7 @@ import { acquireLocalAgentBrowserLease, LOCAL_AGENT_AUTOMATION_SERVER_NAME } fro
 import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
 import type { LocalAgentBrowserLease } from './LocalAgentMcpBridgeService'
+import { stopLocalAgentProcess } from './localAgentProcess'
 import { LocalConnection } from './LocalConnection'
 import { localContent } from './localContent'
 
@@ -920,7 +921,7 @@ export class CodexConnection extends LocalConnection {
     if (this.active) await this.waitForTurn()
     this.rejectPending(new Error('Codex connection closed'))
     this.lines?.close()
-    await this.stopProcess(this.process)
+    await stopLocalAgentProcess(this.process)
   }
   protected override dispose() {
     void this.browserLease?.dispose().catch(() => {})

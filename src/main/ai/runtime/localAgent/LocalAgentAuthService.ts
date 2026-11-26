@@ -8,9 +8,9 @@ import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@m
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 import { isSensitiveKey, redactLiteral } from '@shared/utils/redaction'
 
-import { AcpConnection } from './AcpConnection'
+import { AcpManagement } from './AcpManagement'
 import { type CliAuthCommandSpec, type CliAuthOptions, extractAuthPrompt, resolveCliAuthCommand } from './cliAuth'
-import { resolveLocalAgentLaunch } from './launch'
+import { resolveLocalAgentCli } from './launch'
 
 const AUTH_TIMEOUT_MS = 300_000
 const MAX_OUTPUT_CHARS = 4000
@@ -61,15 +61,12 @@ export class LocalAgentAuthService extends BaseService {
     }
     if (config.protocol !== 'acp') throw new Error('ACP authentication is unavailable')
 
-    const live = new AcpConnection(`local-agent-auth:${requestId}`, '', config)
-    this.pending.set(requestId, () => live.close())
+    const management = new AcpManagement(config)
+    this.pending.set(requestId, () => management.close())
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       await Promise.race([
-        (async () => {
-          await live.start(application.getPath('cherry.bin'), undefined, true)
-          await live.authenticate(methodId)
-        })(),
+        management.authenticate(application.getPath('cherry.bin'), methodId),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new Error('Authentication timed out')), AUTH_TIMEOUT_MS)
         })
@@ -80,7 +77,7 @@ export class LocalAgentAuthService extends BaseService {
     } finally {
       clearTimeout(timer)
       try {
-        await live.close()
+        await management.close()
       } finally {
         this.pending.delete(requestId)
       }
@@ -101,7 +98,7 @@ export class LocalAgentAuthService extends BaseService {
 
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
-      const launch = await resolveLocalAgentLaunch(config, undefined, true)
+      const launch = await resolveLocalAgentCli(config)
       if (aborted) throw new Error('Authentication cancelled')
 
       await new Promise<void>((resolve, reject) => {

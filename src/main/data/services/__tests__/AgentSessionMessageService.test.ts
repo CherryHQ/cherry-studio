@@ -379,10 +379,15 @@ describe('AgentSessionMessageService', () => {
     })
 
     expect(
-      agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
-        approvalId: 'approval-1',
-        approved: true
-      })
+      agentSessionMessageService.applyToolApprovalDecision(
+        SESSION_ID,
+        ASSISTANT_MESSAGE_ID,
+        {
+          approvalId: 'approval-1',
+          approved: true
+        },
+        'live'
+      )
     ).toBe(true)
 
     const parts = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts
@@ -1941,11 +1946,16 @@ describe('AgentSessionMessageService', () => {
 
     now.mockReturnValue(2_000)
     expect(
-      agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
-        approvalId: 'approval-1',
-        approved: true,
-        updatedInput
-      })
+      agentSessionMessageService.applyToolApprovalDecision(
+        SESSION_ID,
+        ASSISTANT_MESSAGE_ID,
+        {
+          approvalId: 'approval-1',
+          approved: true,
+          updatedInput
+        },
+        'live'
+      )
     ).toBe(true)
 
     const saved = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
@@ -2021,8 +2031,12 @@ describe('AgentSessionMessageService', () => {
       updatedInput: { questions: [], answers: { Choice: 'SQLite' } }
     }
 
-    expect(agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision)).toBe(true)
-    expect(agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision)).toBe(false)
+    expect(
+      agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision, 'undelivered')
+    ).toBe(true)
+    expect(
+      agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision, 'undelivered')
+    ).toBe(false)
     expect(
       agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).data.parts?.[0]
     ).toMatchObject({
@@ -2031,6 +2045,41 @@ describe('AgentSessionMessageService', () => {
       approval: { id: 'approval-1', approved: true }
     })
   })
+
+  it.each([false, true])(
+    'rejects an undeliverable native answer using the original persisted card (retired=%s)',
+    (retired) => {
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'tool-AskUserQuestion',
+                toolCallId: 'tool-call',
+                state: 'approval-requested',
+                input: { responseMode: 'native-request', questions: [] },
+                approval: { id: 'approval' }
+              }
+            ]
+          }
+        }
+      })
+      if (retired) agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval', 'connection closed')
+      const decision = { approvalId: 'approval', approved: true, updatedInput: { answers: { Choice: 'SQLite' } } }
+      expect(
+        agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, decision, 'undelivered')
+      ).toBe(false)
+      const saved = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+      expect(saved.data.parts?.[0]).toMatchObject({
+        state: retired ? 'output-error' : 'approval-requested',
+        input: { responseMode: 'native-request' }
+      })
+    }
+  )
 
   it('leaves an answered approval card and other sessions untouched when retiring an abandoned one', async () => {
     await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
@@ -2054,11 +2103,16 @@ describe('AgentSessionMessageService', () => {
         data: { parts: [{ ...answered, approval: { id: 'approval-other' } }] }
       }
     })
-    agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
-      approvalId: 'approval-answered',
-      approved: true,
-      updatedInput: { questions: [], answers: { Choice: 'SQLite' } }
-    })
+    agentSessionMessageService.applyToolApprovalDecision(
+      SESSION_ID,
+      ASSISTANT_MESSAGE_ID,
+      {
+        approvalId: 'approval-answered',
+        approved: true,
+        updatedInput: { questions: [], answers: { Choice: 'SQLite' } }
+      },
+      'live'
+    )
 
     expect(
       agentSessionMessageService.retireAbandonedApproval(SESSION_ID, 'approval-answered', 'connection closed')

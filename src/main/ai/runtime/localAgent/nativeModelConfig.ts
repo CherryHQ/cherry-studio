@@ -5,7 +5,7 @@ import { isCollection, parseDocument } from 'yaml'
 import { t } from '@main/i18n'
 import { getEnvironmentValue } from '@main/utils/env'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
-import { POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
+import { POOLSIDE_GATEWAY_SERVER, setGrokAuxiliaryModels } from '@shared/utils/cliConfig'
 
 function parseToml(content: string) {
   try {
@@ -81,6 +81,8 @@ export function updateNativeModelConfig(target: CliConfigTarget, content: string
   if (target === 'grok-config') {
     const config = parseToml(content ?? '')
     const models = tomlTable(config.models)
+    const summary = model && `${model}-session-summary`
+    setGrokAuxiliaryModels(models, model, summary && asRecord(config.model)?.[summary] ? summary : model)
     if (model === undefined) {
       delete models.default
       if (Object.keys(models).length === 0) delete config.models

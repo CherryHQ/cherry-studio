@@ -18,9 +18,11 @@ vi.mock('react-i18next', async (importOriginal) => ({
         {
           'agent.askUserQuestion.close': 'Close',
           'agent.askUserQuestion.customPlaceholder': 'Enter your answer...',
+          'agent.askUserQuestion.discuss': 'Discuss first',
           'agent.askUserQuestion.next': 'Next',
           'agent.askUserQuestion.previous': 'Previous',
           'agent.askUserQuestion.skip': 'Skip',
+          'agent.askUserQuestion.skipInterview': 'Skip interview and plan',
           'agent.askUserQuestion.submit': 'Submit'
         }[key] ?? key
       )
@@ -74,6 +76,62 @@ function makeRequest(
 }
 
 describe('AskUserQuestionComposer', () => {
+  it.each([
+    ['Discuss first', 'discuss'],
+    ['Skip interview and plan', 'skip-interview']
+  ] as const)(
+    'allows %s after the final single choice and keeps unsent note text out of the reply',
+    async (label, action) => {
+      const onRespond = vi.fn()
+      const request = makeRequest()
+      request.input.responseMode = 'native-request'
+      request.input.interviewActions = ['discuss', 'skip-interview']
+      render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+      fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'draft for me' } })
+      fireEvent.click(screen.getByText('Next'))
+      fireEvent.click(screen.getByRole('button', { name: /Bunyan/ }))
+      expect(onRespond).not.toHaveBeenCalled()
+      fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'more draft text' } })
+      fireEvent.click(screen.getByRole('button', { name: label }))
+      await waitFor(() =>
+        expect(onRespond).toHaveBeenCalledWith({
+          approved: true,
+          match: request.match,
+          updatedInput: {
+            ...request.input,
+            action,
+            selections: [{ selected: [], freeform: true }, { selected: ['Bunyan'] }]
+          }
+        })
+      )
+    }
+  )
+
+  it('keeps option labels intact when a native request needs each selection', async () => {
+    const onRespond = vi.fn()
+    const request = makeRequest([
+      { question: 'Choose', header: 'Choose', options: [{ label: 'A, B' }, { label: 'C' }], multiSelect: true }
+    ])
+    request.input.responseMode = 'native-request'
+    render(<AskUserQuestionComposer request={request} onRespond={onRespond} />)
+    expect(screen.queryByRole('button', { name: 'Skip interview and plan' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /A, B/ }))
+    fireEvent.click(screen.getByText('C'))
+    fireEvent.change(screen.getByPlaceholderText('Enter your answer...'), { target: { value: 'Keep both' } })
+    fireEvent.click(screen.getByText('Submit'))
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          approved: true,
+          updatedInput: expect.objectContaining({
+            answers: { Choose: 'A, B, C' },
+            selections: [{ selected: ['A, B', 'C'], notes: 'Keep both' }]
+          })
+        })
+      )
+    )
+  })
+
   it('reviews ACP defaults without auto-submitting, then sends typed edited values', async () => {
     const user = userEvent.setup()
     const onRespond = vi.fn()

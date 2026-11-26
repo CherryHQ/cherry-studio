@@ -153,7 +153,7 @@ async function readCliConfigFilesSafe(
 async function injectPresetConfigEnv(
   presetId: string | undefined,
   env: Record<string, string>,
-  mode: boolean | 'models',
+  purpose: 'chat' | 'models',
   lookupEnv: NodeJS.ProcessEnv
 ): Promise<string | undefined> {
   let nativeModel: string | undefined
@@ -163,7 +163,7 @@ async function injectPresetConfigEnv(
       const document = parseDocument(file.content)
       if (document.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
       const server =
-        mode !== 'models' && document.getIn(['pool', 'default_agent_server']) === POOLSIDE_GATEWAY_SERVER
+        purpose !== 'models' && document.getIn(['pool', 'default_agent_server']) === POOLSIDE_GATEWAY_SERVER
           ? POOLSIDE_GATEWAY_SERVER
           : 'Poolside'
       const model = document.getIn(['agent_servers', server, 'default_config_options', 'model'])
@@ -206,7 +206,7 @@ async function injectPresetConfigEnv(
     if (baseUrl) env.ACP_GLM_BASE_URL = baseUrl
     if (model) {
       env.ACP_GLM_MODEL = model
-      if (mode !== 'models') env.ACP_GLM_AVAILABLE_MODELS = model
+      if (purpose !== 'models') env.ACP_GLM_AVAILABLE_MODELS = model
       nativeModel = model
     }
     return nativeModel
@@ -371,13 +371,29 @@ async function resolveWindowsShellPath(
   return undefined
 }
 
-export async function resolveLocalAgentLaunch(
+export function resolveLocalAgentLaunch(
   config: LocalAgentConfiguration,
   signal?: AbortSignal,
-  mode: boolean | 'models' = false,
-  headless = false
+  options?: { headless: boolean }
 ) {
-  const terminal = mode === true
+  return resolveProgram(config, options?.headless ? 'scheduled-chat' : 'chat', signal)
+}
+
+export function resolveLocalAgentModelLaunch(config: LocalAgentConfiguration, signal?: AbortSignal) {
+  return resolveProgram(config, 'models', signal)
+}
+
+export async function resolveLocalAgentCli(config: LocalAgentConfiguration, signal?: AbortSignal) {
+  const { executable, source, env } = await resolveProgram(config, 'cli', signal)
+  return { executable, source, env }
+}
+
+async function resolveProgram(
+  config: LocalAgentConfiguration,
+  purpose: 'chat' | 'scheduled-chat' | 'models' | 'cli',
+  signal?: AbortSignal
+) {
+  const terminal = purpose === 'cli'
   const definition = LOCAL_CLI_AGENT_PRESETS.find((p) => p.id === config.presetId)
   const preset =
     terminal && definition?.terminalCli
@@ -469,7 +485,7 @@ export async function resolveLocalAgentLaunch(
   }
   let nativeModel =
     !terminal && (config.presetId !== 'cline' || usesGlobalClineProfile(lookupEnv, shellEnv))
-      ? await injectPresetConfigEnv(config.presetId, env, mode, lookupEnv)
+      ? await injectPresetConfigEnv(config.presetId, env, purpose === 'models' ? 'models' : 'chat', lookupEnv)
       : undefined
   if (config.presetId === 'pi-acp' && !terminal && !config.executableOverride) {
     const nativeExecutable = executable
@@ -499,7 +515,7 @@ export async function resolveLocalAgentLaunch(
       if (gitBashPath) childEnv.CLAUDE_CODE_GIT_BASH_PATH = gitBashPath
     }
   }
-  if (headless && config.protocol === 'claude') {
+  if (purpose === 'scheduled-chat' && config.protocol === 'claude') {
     const [settings] = await application.get('CodeCliService').readConfigFiles(['claude-settings'], childEnv)
     const savedEnv = parseJsonRecord(settings?.content)?.env as Record<string, unknown> | undefined
     const providerEnv = Object.fromEntries(
@@ -572,7 +588,7 @@ export async function openLocalAgentTerminal(config: InputFor<'ai.local_agents.o
   } else if (config.login && preset.id === 'pi-acp') {
     throw new Error('Pi login requires a provider')
   }
-  const launch = await resolveLocalAgentLaunch(config, undefined, true)
+  const launch = await resolveLocalAgentCli(config)
   const envKeys = new Set(['PATH', ...Object.keys(mergeEnvironment(preset.env, config.env))])
   const env = Object.fromEntries(
     Object.entries(launch.env).filter(

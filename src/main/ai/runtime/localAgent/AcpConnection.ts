@@ -3,30 +3,22 @@ import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { Readable, Writable } from 'node:stream'
 
-import {
-  client,
-  ndJsonStream,
-  RequestError,
-  type ClientConnection,
-  type PromptResponse,
-  type McpCapabilities,
-  type McpServer,
-  type NewSessionResponse,
-  type LoadSessionResponse,
-  type ResumeSessionResponse,
-  type SessionConfigOption,
-  type PromptCapabilities,
-  type SessionUpdate,
-  type SetSessionConfigOptionResponse
-} from '@agentclientprotocol/sdk'
 import type { FinishReason } from 'ai'
-import { app as electronApp } from 'electron'
-import * as z from 'zod'
 
 import { application } from '@application'
-import type { AcpHarnessSession } from '@cherrystudio/agent-runtime-acp/v1'
+import {
+  acpHostError,
+  acpModelCatalog,
+  connectAcpStdio,
+  type AcpHarnessSession,
+  type AcpClientCallbacks,
+  type AcpMcpServer,
+  type AcpPromptCapabilities,
+  type AcpSession,
+  type AcpSessionConfiguration,
+  type AcpSessionUpdate
+} from '@cherrystudio/agent-runtime-acp/v1'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
@@ -61,6 +53,8 @@ import {
   recordAcpAlwaysAllowGrant,
   selectAutoAllowPermissionOption
 } from './acpPermissionPolicy'
+import { AcpProcess } from './AcpProcess'
+import { acpProtocolInfo } from './acpSessionInfo'
 import {
   acquireLocalAgentBrowserLease,
   isHostBrowserControlAllowed,
@@ -70,6 +64,7 @@ import {
 import { bindLocalGatewayUsage } from './gatewayUsage'
 import { resolveLocalAgentLaunch } from './launch'
 import type { LocalAgentBrowserLease } from './LocalAgentMcpBridgeService'
+import { stopLocalAgentProcess } from './localAgentProcess'
 import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
 import { LocalConnection } from './LocalConnection'
 import { acpContent } from './localContent'
@@ -78,12 +73,6 @@ import { buildStdioHttpMcpShimConfig } from './stdioHttpMcpShim'
 
 const logger = loggerService.withContext('AcpConnection')
 const HOST_ALLOW_SESSION_OPTION_ID = '__cherry_allow_session__'
-const LegacyModelsSchema = z.object({
-  currentModelId: z.string(),
-  availableModels: z.array(z.object({ modelId: z.string(), name: z.string() }))
-})
-type SessionResponse = (NewSessionResponse | LoadSessionResponse | ResumeSessionResponse) & { models?: unknown }
-
 type Terminal = {
   child: ChildProcess
   output: string
@@ -95,37 +84,60 @@ type Terminal = {
 export class AcpConnection extends LocalConnection {
   private gatewayLease?: { dispose: () => void | Promise<void> }
   private browserLease?: LocalAgentBrowserLease
-  private openClawLease?: { dispose: () => Promise<void> }
-  private releasingOpenClaw?: Promise<void>
   private defaultModel?: string
   private launchNativeModel?: string
-  private stderr = ''
-  private promptCapabilities: PromptCapabilities = {}
+  private readonly process = new AcpProcess()
+  private promptCapabilities: AcpPromptCapabilities = {}
   private messageId?: string
-  private process?: ChildProcess
-  private connection?: ClientConnection
-  private nativeId?: string
-  private supportsClose = false
+  private session?: AcpSession
   private readonly terminals = new Map<string, Terminal>()
-  private readonly harness = localAcpHarness(this.config.presetId)
+  private readonly harness = localAcpHarness(
+    this.config.presetId,
+    async (target, tool, toolInput, requestSignal, settle) => {
+      const turn = this.turnAbort.signal
+      if (
+        !this.active ||
+        this.loading ||
+        target.sessionId !== this.session?.id ||
+        turn.aborted ||
+        this.abort.signal.aborted ||
+        requestSignal.aborted
+      )
+        return settle({ approved: false }).reply
+      if (this.headless) return settle(this.denyUnattendedRequest()).reply
+      this.toolInputs.delete(target.toolCallId)
+      const input = { ...toolInput, responseMode: 'native-request' }
+      const answer = await this.approve(target.toolCallId, tool, input, requestSignal)
+      if (turn.aborted || this.abort.signal.aborted) return settle({ approved: false }).reply
+      if (requestSignal.aborted) {
+        this.result(target.toolCallId, acpHostError.cancelled().message, true)
+        return settle({ approved: false }).reply
+      }
+      const { reply, output } = settle(answer)
+      this.result(target.toolCallId, output)
+      return reply
+    }
+  )
   private harnessSession?: AcpHarnessSession
   private loading = false
   private modelConfigId?: string
-  private legacyModels = false
   private configChange?: Promise<void>
   private modeConfigId?: string
-  private legacyMode?: NonNullable<NewSessionResponse['modes']>
+  private legacyMode?: NonNullable<AcpSessionConfiguration['modes']>
   private readonly compactions = new Map<string, boolean>()
   private planPart?: number
   private planId?: string
-  private turnUsage?: NonNullable<PromptResponse['usage']>
-  private pendingUpdates: Array<{ sessionId: string; update: SessionUpdate }> = []
+  private pendingUpdates: Array<{ sessionId: string; update: AcpSessionUpdate }> = []
   private readonly approvedWrites: Array<{ path: string; content: string }> = []
   private readonly permissionGrants = createAcpSessionPermissionGrants()
   private readonly toolInputs = new Map<string, LocalAcpTool>()
 
   get inspectContextUsage() {
     return this.harnessSession?.inspectContextUsage
+  }
+
+  get predictPrompt() {
+    return this.harnessSession?.predictPrompt
   }
 
   private effectivePermissionMode() {
@@ -137,24 +149,17 @@ export class AcpConnection extends LocalConnection {
     return this.localSessionInfo.resume !== true
   }
 
-  async authenticate(methodId: string): Promise<void> {
-    const method = this.localSessionInfo.protocolInfo?.authMethods?.find((method) => method.id === methodId)
-    if (!this.connection || !method) throw new Error('Unsupported authentication method')
-    if (method.type !== 'agent') throw new Error('This authentication method requires external setup')
-    await this.connection.agent.request('authenticate', { methodId })
-  }
-
-  async start(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
+  async start(cwd: string, resume?: string): Promise<this> {
     try {
-      return await this.startConnection(cwd, resume, probe)
+      return await this.startConnection(cwd, resume)
     } catch (error) {
-      throw acpError(error, this.stderr)
+      throw acpError(error, this.process.stderr)
     }
   }
-  private async startConnection(cwd: string, resume?: string, probe: boolean | 'models' = false): Promise<this> {
-    const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal, probe === 'models' ? 'models' : false)
+  private async startConnection(cwd: string, resume?: string): Promise<this> {
+    const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
     let dshPermissionMode: (typeof DSH_LOCAL_MODE_OPTIONS)[number]['value'] | undefined
-    if (!probe && this.config.presetId === 'deepseek-harness') {
+    if (this.config.presetId === 'deepseek-harness') {
       let savedModeValue: string | undefined
       try {
         const savedMode = application.get('CacheService').getPersist?.('local_agent.session_overrides')?.[
@@ -170,7 +175,7 @@ export class AcpConnection extends LocalConnection {
       dshPermissionMode = matched?.value ?? 'workspace-write'
       launch.env.DSH_PERMISSION_MODE = dshPermissionMode
     }
-    if (!probe && this.config.presetId === 'deepseek-harness' && !this.config.env.DSH_HOME) {
+    if (this.config.presetId === 'deepseek-harness' && !this.config.env.DSH_HOME) {
       const usesDefaultProfile = launch.args.length === 2 && launch.args[0] === '--profile' && launch.args[1] === 'acp'
       const prepared = await application
         .get('DeepSeekHarnessService')
@@ -186,24 +191,14 @@ export class AcpConnection extends LocalConnection {
       }
       launch.nativeModel = prepared?.nativeModel
     }
-    if (
-      this.config.presetId === 'openclaw' &&
-      !this.config.env.OPENCLAW_STATE_DIR &&
-      !this.config.env.OPENCLAW_CONFIG_PATH &&
-      !this.config.env.OPENCLAW_GATEWAY_URL &&
-      !launch.args.some((arg) => arg === '--url' || arg.startsWith('--url='))
-    ) {
-      const lease = await application.get('OpenClawService').acquireGateway(this.abort.signal)
+    if (!this.gatewayLease) {
+      const lease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
       if (this.abort.signal.aborted) {
-        await lease.dispose()
+        lease?.dispose()
         this.abort.signal.throwIfAborted()
       }
-      this.openClawLease = lease
-      launch.env.OPENCLAW_GATEWAY_URL = lease.url
-      if (lease.token) launch.env.OPENCLAW_GATEWAY_TOKEN = lease.token
+      this.gatewayLease = lease
     }
-    if (!probe && !this.gatewayLease)
-      this.gatewayLease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
     this.launchNativeModel = launch.nativeModel
     if (this.config.presetId === 'cline') {
       this.defaultModel = launch.env.CLINE_MODEL || undefined
@@ -214,51 +209,152 @@ export class AcpConnection extends LocalConnection {
           : (this.config.nativeModel ?? launch.nativeModel)
     }
     this.abort.signal.throwIfAborted()
-    const child = crossPlatformSpawn(launch.executable, launch.args, {
+    const client = await this.process.open(
+      this.config,
+      launch,
       cwd,
-      env: launch.env,
-      detached: process.platform !== 'win32'
+      this.abort.signal,
+      (stdin, stdout, clientInfo) =>
+        connectAcpStdio(stdin, stdout, {
+          clientInfo,
+          // Antigravity owns its native diff edits.
+          denyMutation:
+            this.headless || this.config.presetId === 'antigravity-acp'
+              ? (id) => {
+                  this.requireSession(id)
+                  return acpHostError.invalidRequest(
+                    this.headless ? this.denyUnattendedRequest().reason : 'Host writes and terminals are disabled'
+                  )
+                }
+              : undefined,
+          callbacks: this.hostCallbacks(cwd, launch.env),
+          update: (params) => {
+            if (this.loading) {
+              if (
+                params.update.sessionUpdate === 'available_commands_update' ||
+                params.update.sessionUpdate === 'config_option_update' ||
+                params.update.sessionUpdate === 'usage_update' ||
+                params.update.sessionUpdate === 'session_info_update' ||
+                params.update.sessionUpdate === 'notice' ||
+                params.update.sessionUpdate === 'current_mode_update' ||
+                params.update.sessionUpdate === this.harness?.setupUpdate
+              )
+                this.pendingUpdates.push(params)
+            } else if (params.sessionId === this.session?.id) this.update(params.update)
+          },
+          harness: this.harness
+        }),
+      (error) => {
+        this.finish(error)
+        this.dispose()
+      }
+    )
+    const agent = await client.initialize()
+    const { response } = agent
+    this.localSessionInfo.protocolInfo = acpProtocolInfo(response)
+    logger.info('ACP handshake completed', {
+      agentId: this.agentId,
+      protocolVersion: response.protocolVersion,
+      agent: this.localSessionInfo.protocolInfo.agent
     })
-    this.process = child
-    child.stderr?.setEncoding('utf8').on('data', (data: string) => {
-      this.stderr = (this.stderr + data).slice(-4000)
+    // OpenClaw resume loses bridge UUID mappings across processes; load reads its persisted ledger.
+    const restore = this.config.presetId === 'openclaw' ? (agent.load ?? agent.resume) : (agent.resume ?? agent.load)
+    this.localSessionInfo.resume = !!restore
+    this.promptCapabilities = response.agentCapabilities?.promptCapabilities ?? {}
+    this.localSessionInfo.images = this.promptCapabilities.image === true
+    this.localSessionInfo.audio = this.promptCapabilities.audio === true
+    this.browserLease = await acquireLocalAgentBrowserLease({
+      sessionId: this.sessionId,
+      agentId: this.agentId,
+      config: this.config,
+      headless: this.headless,
+      signal: this.abort.signal,
+      isReadOnly: () => this.effectivePermissionMode() === 'plan'
     })
-    child.on('error', (error) => {
-      this.connection?.close(error)
-      this.finish(error)
-    })
-    child.on('exit', () => {
-      this.connection?.close(new Error('Local agent process exited'))
-      this.finish(new Error('Local agent process exited'))
-      this.dispose()
-    })
-    if (!child.stdin || !child.stdout) throw new Error('Local agent stdio is unavailable')
-    const app = client({ name: 'cherry-studio' })
-      .onNotification('session/update', ({ params }) => {
-        if (this.loading) {
-          if (
-            params.update.sessionUpdate === 'available_commands_update' ||
-            params.update.sessionUpdate === 'config_option_update' ||
-            params.update.sessionUpdate === 'usage_update' ||
-            params.update.sessionUpdate === 'session_info_update' ||
-            params.update.sessionUpdate === 'notice' ||
-            params.update.sessionUpdate === 'current_mode_update' ||
-            params.update.sessionUpdate === this.harness?.setupUpdate
-          )
-            this.pendingUpdates.push(params)
-        } else if (params.sessionId === this.nativeId) this.update(params.update)
-      })
-      .onRequest('elicitation/create', async ({ params, signal: requestSignal }) => {
-        if (params.mode !== 'form') throw RequestError.invalidParams('Unsupported elicitation mode')
-        if (!this.active || !('sessionId' in params) || params.sessionId !== this.nativeId || this.abort.signal.aborted)
+    const mcpServers = this.buildBrowserMcpServers(response.agentCapabilities?.mcpCapabilities?.http === true)
+    this.loading = true
+    try {
+      if (resume && !restore)
+        throw new LocalAgentSessionRestoreError(
+          'This agent cannot restore the previous conversation; create a new session'
+        )
+      const { configuration, session } =
+        resume && restore
+          ? await restore({ cwd, sessionId: resume, mcpServers })
+          : await agent.create({ cwd, mcpServers })
+      this.session = session
+      this.legacyMode = configuration.modes ?? undefined
+      this.readConfigOptions(configuration.configOptions, session.legacyModels)
+      this.harnessSession = session.bindHarness(() => this.localSessionInfo.activeModel?.id)
+      for (const pending of this.pendingUpdates.splice(0)) {
+        if (pending.sessionId === this.session?.id) this.update(pending.update)
+      }
+      if (this.defaultModel && this.config.sourceModelId) {
+        this.defaultModel = resolveConfiguredAcpModel(
+          this.config.presetId,
+          this.defaultModel,
+          (this.localSessionInfo.models ?? []).map((model) => model.id)
+        )
+      }
+      if (this.defaultModel && this.localSessionInfo.activeModel?.id !== this.defaultModel) {
+        const allowUnlistedModelSelection = this.config.presetId === 'cline' && Boolean(this.modelConfigId)
+        if (
+          !allowUnlistedModelSelection &&
+          this.localSessionInfo.models?.length &&
+          !this.localSessionInfo.models.some((model) => model.id === this.defaultModel)
+        )
+          throw new Error(t('local_agent.model_unavailable', { model: this.defaultModel }))
+        if (this.modelConfigId) {
+          const updated = await session.setConfigOption(this.modelConfigId, this.defaultModel)
+          this.readConfigOptions(updated.configOptions)
+        } else if (session.legacyModels) {
+          await session.legacyModels.select(this.defaultModel)
+          this.localSessionInfo.activeModel = { id: this.defaultModel }
+        } else if (
+          this.config.presetId === 'snow' &&
+          this.launchNativeModel &&
+          this.defaultModel === this.launchNativeModel &&
+          !this.localSessionInfo.models?.length
+        ) {
+          // Snow follows its native config without advertising a model selector.
+          this.localSessionInfo.activeModel = { id: this.defaultModel }
+        } else throw new Error('This agent does not support model selection')
+      }
+      if (dshPermissionMode && !this.localSessionInfo.mode) {
+        this.localSessionInfo.mode = {
+          id: DSH_LOCAL_MODE_ID,
+          currentValue: dshPermissionMode,
+          options: DSH_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
+        }
+      }
+      this.localSessionInfo.protocolInfo.verified.push('session')
+      this.publishResumeToken(session.id)
+    } finally {
+      this.loading = false
+      for (const pending of this.pendingUpdates.splice(0)) {
+        if (pending.sessionId === this.session?.id) this.update(pending.update)
+      }
+    }
+    return this
+  }
+  private hostCallbacks(cwd: string, env: NodeJS.ProcessEnv): AcpClientCallbacks {
+    return {
+      elicitation: async (params, { signal: requestSignal }) => {
+        if (params.mode !== 'form') throw acpHostError.invalidRequest('Unsupported elicitation mode')
+        if (
+          !this.active ||
+          !('sessionId' in params) ||
+          params.sessionId !== this.session?.id ||
+          this.abort.signal.aborted
+        )
           return { action: 'cancel' }
         const parsed = ElicitationFormSchema.safeParse(params.requestedSchema)
-        if (!parsed.success) throw RequestError.invalidParams('Unsupported elicitation schema')
+        if (!parsed.success) throw acpHostError.invalidRequest('Unsupported elicitation schema')
         let validator: ReturnType<typeof elicitationValidator>
         try {
           validator = elicitationValidator(parsed.data)
         } catch {
-          throw RequestError.invalidParams('Invalid elicitation schema')
+          throw acpHostError.invalidRequest('Invalid elicitation schema')
         }
         const questions = Object.entries(parsed.data.properties).map(([id, field]) => ({
           id,
@@ -300,9 +396,9 @@ export class AcpConnection extends LocalConnection {
             elicitationOutcome: outcome
           })
         return outcome
-      })
-      .onRequest('session/request_permission', async ({ params, signal: requestSignal }) => {
-        if (!this.active || params.sessionId !== this.nativeId || this.abort.signal.aborted)
+      },
+      permission: async (params, { signal: requestSignal }) => {
+        if (!this.active || params.sessionId !== this.session?.id || this.abort.signal.aborted)
           return { outcome: { outcome: 'cancelled' } }
         if (this.headless) {
           this.denyUnattendedRequest()
@@ -395,15 +491,15 @@ export class AcpConnection extends LocalConnection {
         }
         if (!autoSelected && !knownTool && this.active) this.result(id, outcome)
         return { outcome }
-      })
-      .onRequest('fs/read_text_file', async ({ params, signal }) => {
+      },
+      readTextFile: async (params, { signal }) => {
         this.requireSession(params.sessionId)
         const readPath = this.headless ? path.resolve(cwd, params.path) : params.path
         if (this.headless && !isPathWithinWorkspace(readPath, cwd)) {
-          throw RequestError.invalidParams(this.denyUnattendedRequest().reason)
+          throw acpHostError.invalidRequest(this.denyUnattendedRequest().reason)
         }
         const content = await fs.readFile(readPath, { encoding: 'utf8', signal }).catch((error) => {
-          if (signal.aborted) throw RequestError.requestCancelled()
+          if (signal.aborted) throw acpHostError.cancelled()
           throw error
         })
         const lines = content.split('\n')
@@ -415,11 +511,10 @@ export class AcpConnection extends LocalConnection {
             )
             .join('\n')
         }
-      })
-      .onRequest('fs/write_text_file', async ({ params, signal: requestSignal }) => {
+      },
+      writeTextFile: async (params, { signal: requestSignal }) => {
         this.requireSession(params.sessionId)
-        if (this.headless) throw RequestError.invalidParams(this.denyUnattendedRequest().reason)
-        if (!this.active) throw RequestError.invalidParams('Inactive ACP session')
+        if (!this.active) throw acpHostError.invalidRequest('Inactive ACP session')
         const id = randomUUID()
         const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
         const grant = this.approvedWrites.findIndex(
@@ -460,301 +555,148 @@ export class AcpConnection extends LocalConnection {
               this.permissionGrants.allowWrite = true
             }
           }
-          if (signal.aborted) throw RequestError.requestCancelled()
+          if (signal.aborted) throw acpHostError.cancelled()
           await fs.writeFile(params.path, params.content, { signal })
           if (needsPrompt) this.result(id, { path: params.path })
           return {}
         } catch (error) {
           if (needsPrompt) this.result(id, String(error), true)
-          if (signal.aborted) throw RequestError.requestCancelled()
+          if (signal.aborted) throw acpHostError.cancelled()
           throw error
         }
-      })
-      .onRequest('terminal/create', async ({ params, signal: requestSignal }) => {
-        this.requireSession(params.sessionId)
-        if (this.headless) throw RequestError.invalidParams(this.denyUnattendedRequest().reason)
-        const id = randomUUID()
-        const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
-        const decision = evaluateAcpClientTerminal({
-          mode: this.effectivePermissionMode(),
-          grants: this.permissionGrants
-        })
-        const needsPrompt = decision === 'ask'
-        if (needsPrompt) {
-          const answer = await this.approve(
-            id,
-            'ACP: Terminal',
-            {
-              command: params.command,
-              args: params.args,
-              cwd: params.cwd ?? cwd,
-              env: params.env ?? [],
-              localPermissionOptions: [
-                { optionId: 'allow', name: 'Allow', label: 'allow', kind: 'allow_once' },
-                { optionId: 'allow_session', name: 'Allow for session', label: 'allow_session', kind: 'allow_always' },
-                { optionId: 'deny', name: 'Deny', label: 'deny', kind: 'reject_once' }
-              ]
-            },
-            signal
-          )
-          if (!answer.approved || this.abort.signal.aborted || signal.aborted) {
-            this.result(id, 'Terminal execution denied', true)
-            if (signal.aborted) throw RequestError.requestCancelled()
-            throw new Error('Terminal execution denied')
-          }
-          if (answer.updatedInput?.localPermissionOption === 'allow_session') {
-            this.permissionGrants.allowExecute = true
-          }
-        }
-        const terminalId = randomUUID()
-        const terminalCwd = params.cwd ?? cwd
-        const env = { ...launch.env, ...Object.fromEntries((params.env ?? []).map((e) => [e.name, e.value])) }
-        const shell =
-          params.args === undefined &&
-          /\s/.test(params.command) &&
-          !(await fs.access(path.resolve(terminalCwd, params.command)).then(
-            () => true,
-            () => false
-          )) &&
-          !(await findExecutableInEnv(params.command, { env, signal }))
-        signal.throwIfAborted()
-        const proc = crossPlatformSpawn(params.command, params.args ?? [], {
-          cwd: terminalCwd,
-          env,
-          shell,
-          detached: process.platform !== 'win32'
-        })
-        const terminal: Terminal = {
-          child: proc,
-          output: '',
-          truncated: false,
-          exited: new Promise((resolve) => {
-            proc.once('close', (code, signal) => resolve({ exitCode: code ?? undefined, signal: signal ?? undefined }))
-            proc.once('error', (error) => {
-              receive(error.message)
-              resolve({ exitCode: 1 })
-            })
-          })
-        }
-        const limit = Math.min(params.outputByteLimit ?? 1024 * 1024, 1024 * 1024)
-        const receive = (data: string) => {
-          terminal.output += data
-          const bytes = Buffer.from(terminal.output)
-          if (bytes.length > limit) {
-            let start = bytes.length - limit
-            while ((bytes[start] & 0xc0) === 0x80) start++
-            terminal.output = bytes.subarray(start).toString('utf8')
-            terminal.truncated = true
-          }
-          this.publishTerminal(terminalId)
-        }
-        proc.stdout?.setEncoding('utf8').on('data', receive)
-        proc.stderr?.setEncoding('utf8').on('data', receive)
-        this.terminals.set(terminalId, terminal)
-        void terminal.exited.then((status) => {
-          terminal.exitStatus = status
-          this.publishTerminal(terminalId)
-        })
-        if (needsPrompt) this.result(id, { terminalId })
-        return { terminalId }
-      })
-      .onRequest('terminal/output', async ({ params }) => {
-        this.requireSession(params.sessionId)
-        const terminal = this.terminal(params.terminalId)
-        return {
-          output: terminal.output,
-          truncated: terminal.truncated,
-          ...(terminal.exitStatus ? { exitStatus: terminal.exitStatus } : {})
-        }
-      })
-      .onRequest('terminal/wait_for_exit', async ({ params, signal }) => {
-        this.requireSession(params.sessionId)
-        const terminal = this.terminal(params.terminalId)
-        if (!terminal.exitStatus) {
-          await once(terminal.child, 'close', { signal }).catch(() => {
-            if (signal.aborted) throw RequestError.requestCancelled()
-          })
-        }
-        return terminal.exited
-      })
-      .onRequest('terminal/kill', async ({ params }) => {
-        this.requireSession(params.sessionId)
-        await this.stopProcess(this.terminal(params.terminalId).child)
-        return {}
-      })
-      .onRequest('terminal/release', async ({ params }) => {
-        this.requireSession(params.sessionId)
-        await this.stopProcess(this.terminal(params.terminalId).child)
-        this.terminals.delete(params.terminalId)
-        return {}
-      })
-    this.harness?.register?.({
-      onNotification: (method, schema, handle) => {
-        app.onNotification(method, schema, ({ params }) => handle(params))
       },
-      isActiveSession: (sessionId) =>
-        this.active && !this.loading && !this.abort.signal.aborted && this.nativeId === sessionId,
-      usage: (value) => {
-        this.turnUsage = value
-      }
-    })
-    this.connection = app.connect(
-      ndJsonStream(Writable.toWeb(child.stdin), Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>)
-    )
-    const isAntigravity = this.config.presetId === 'antigravity-acp'
-    const response = await this.connection.agent.request('initialize', {
-      protocolVersion: 1,
-      clientInfo: { name: 'cherry-studio', version: electronApp.getVersion() },
-      clientCapabilities: {
-        // Keep Antigravity's native diff edits by withholding client writes and terminals.
-        fs: { readTextFile: true, writeTextFile: !this.headless && !isAntigravity },
-        terminal: !this.headless && !isAntigravity,
-        elicitation: { form: {} },
-        session: { configOptions: { boolean: {} }, notices: {}, compaction: {} }
-      }
-    })
-    if (response.protocolVersion !== 1) throw new Error('Unsupported ACP protocol version')
-    this.localSessionInfo.protocolInfo = {
-      protocolVersion: response.protocolVersion,
-      agent: response.agentInfo
-        ? {
-            name: response.agentInfo.name,
-            version: response.agentInfo.version,
-            ...(response.agentInfo.title ? { title: response.agentInfo.title } : {})
-          }
-        : undefined,
-      capabilities: response.agentCapabilities ?? {},
-      authMethods: (response.authMethods ?? []).map((method) => ({
-        id: method.id,
-        name: method.name,
-        type: ('type' in method && method.type === 'terminal') || method._meta?.['terminal-auth'] ? 'terminal' : 'agent'
-      })),
-      verified: ['handshake']
-    }
-    logger.info('ACP handshake completed', {
-      agentId: this.agentId,
-      protocolVersion: response.protocolVersion,
-      agent: this.localSessionInfo.protocolInfo.agent
-    })
-    // OpenClaw resume loses bridge UUID mappings across processes; load reads its persisted ledger.
-    const supportsResume =
-      response.agentCapabilities?.sessionCapabilities?.resume != null &&
-      !(this.config.presetId === 'openclaw' && response.agentCapabilities?.loadSession === true)
-    this.supportsClose = response.agentCapabilities?.sessionCapabilities?.close != null
-    this.localSessionInfo.resume = supportsResume || response.agentCapabilities?.loadSession === true
-    this.promptCapabilities = response.agentCapabilities?.promptCapabilities ?? {}
-    this.localSessionInfo.images = this.promptCapabilities.image === true
-    this.localSessionInfo.audio = this.promptCapabilities.audio === true
-    if (probe === true) return this
-    this.browserLease = probe
-      ? undefined
-      : await acquireLocalAgentBrowserLease({
-          sessionId: this.sessionId,
-          agentId: this.agentId,
-          config: this.config,
-          headless: this.headless,
-          signal: this.abort.signal,
-          isReadOnly: () => this.effectivePermissionMode() === 'plan'
-        })
-    const mcpServers = this.buildBrowserMcpServers(response.agentCapabilities?.mcpCapabilities)
-    this.loading = true
-    try {
-      let newSessionMetadata: NewSessionResponse['_meta']
-      if (resume) {
-        if (!this.localSessionInfo.resume)
-          throw new LocalAgentSessionRestoreError(
-            'This agent cannot restore the previous conversation; create a new session'
-          )
-        const session = await this.connection.agent.request<SessionResponse>(
-          supportsResume ? 'session/resume' : 'session/load',
-          {
-            cwd,
-            sessionId: resume,
-            mcpServers
-          }
-        )
-        this.readSessionModels(session)
-        this.nativeId = resume
-      } else {
-        const session = await this.connection.agent.request<NewSessionResponse & { models?: unknown }>('session/new', {
-          cwd,
-          mcpServers
-        })
-        newSessionMetadata = session._meta
-        this.nativeId = session.sessionId
-        this.readSessionModels(session)
-      }
-      this.harnessSession = this.harness?.bind?.({
-        agent: this.connection.agent,
-        agentCapabilities: response.agentCapabilities,
-        sessionId: this.nativeId,
-        newSessionMetadata,
-        currentModel: () => this.localSessionInfo.activeModel?.id
-      })
-      for (const pending of this.pendingUpdates.splice(0)) {
-        if (pending.sessionId === this.nativeId) this.update(pending.update)
-      }
-      if (this.defaultModel && this.config.sourceModelId) {
-        this.defaultModel = resolveConfiguredAcpModel(
-          this.config.presetId,
-          this.defaultModel,
-          (this.localSessionInfo.models ?? []).map((model) => model.id)
-        )
-      }
-      if (this.defaultModel && this.localSessionInfo.activeModel?.id !== this.defaultModel) {
-        const allowUnlistedModelSelection = this.config.presetId === 'cline' && Boolean(this.modelConfigId)
-        if (
-          !allowUnlistedModelSelection &&
-          this.localSessionInfo.models?.length &&
-          !this.localSessionInfo.models.some((model) => model.id === this.defaultModel)
-        )
-          throw new Error(t('local_agent.model_unavailable', { model: this.defaultModel }))
-        if (this.modelConfigId) {
-          const updated = await this.connection.agent.request<SetSessionConfigOptionResponse>(
-            'session/set_config_option',
-            {
-              sessionId: this.nativeId,
-              configId: this.modelConfigId,
-              value: this.defaultModel
-            }
-          )
-          this.readConfigOptions(updated.configOptions)
-        } else if (this.legacyModels) {
-          await this.connection.agent.request('session/set_model', {
-            sessionId: this.nativeId,
-            modelId: this.defaultModel
+      terminal: {
+        create: async (params, { signal: requestSignal }) => {
+          this.requireSession(params.sessionId)
+          const id = randomUUID()
+          const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
+          const decision = evaluateAcpClientTerminal({
+            mode: this.effectivePermissionMode(),
+            grants: this.permissionGrants
           })
-          this.localSessionInfo.activeModel = { id: this.defaultModel }
-        } else if (
-          this.config.presetId === 'snow' &&
-          this.launchNativeModel &&
-          this.defaultModel === this.launchNativeModel &&
-          !this.localSessionInfo.models?.length
-        ) {
-          // Snow follows its native config without advertising a model selector.
-          this.localSessionInfo.activeModel = { id: this.defaultModel }
-        } else throw new Error('This agent does not support model selection')
-      }
-      if (dshPermissionMode && !this.localSessionInfo.mode) {
-        this.localSessionInfo.mode = {
-          id: DSH_LOCAL_MODE_ID,
-          currentValue: dshPermissionMode,
-          options: DSH_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
+          const needsPrompt = decision === 'ask'
+          if (needsPrompt) {
+            const answer = await this.approve(
+              id,
+              'ACP: Terminal',
+              {
+                command: params.command,
+                args: params.args,
+                cwd: params.cwd ?? cwd,
+                env: params.env ?? [],
+                localPermissionOptions: [
+                  { optionId: 'allow', name: 'Allow', label: 'allow', kind: 'allow_once' },
+                  {
+                    optionId: 'allow_session',
+                    name: 'Allow for session',
+                    label: 'allow_session',
+                    kind: 'allow_always'
+                  },
+                  { optionId: 'deny', name: 'Deny', label: 'deny', kind: 'reject_once' }
+                ]
+              },
+              signal
+            )
+            if (!answer.approved || this.abort.signal.aborted || signal.aborted) {
+              this.result(id, 'Terminal execution denied', true)
+              if (signal.aborted) throw acpHostError.cancelled()
+              throw new Error('Terminal execution denied')
+            }
+            if (answer.updatedInput?.localPermissionOption === 'allow_session') {
+              this.permissionGrants.allowExecute = true
+            }
+          }
+          const terminalId = randomUUID()
+          const terminalCwd = params.cwd ?? cwd
+          const terminalEnv = { ...env, ...Object.fromEntries((params.env ?? []).map((e) => [e.name, e.value])) }
+          const shell =
+            params.args === undefined &&
+            /\s/.test(params.command) &&
+            !(await fs.access(path.resolve(terminalCwd, params.command)).then(
+              () => true,
+              () => false
+            )) &&
+            !(await findExecutableInEnv(params.command, { env: terminalEnv, signal }))
+          signal.throwIfAborted()
+          const proc = crossPlatformSpawn(params.command, params.args ?? [], {
+            cwd: terminalCwd,
+            env: terminalEnv,
+            shell,
+            detached: process.platform !== 'win32'
+          })
+          const terminal: Terminal = {
+            child: proc,
+            output: '',
+            truncated: false,
+            exited: new Promise((resolve) => {
+              proc.once('close', (code, signal) =>
+                resolve({ exitCode: code ?? undefined, signal: signal ?? undefined })
+              )
+              proc.once('error', (error) => {
+                receive(error.message)
+                resolve({ exitCode: 1 })
+              })
+            })
+          }
+          const limit = Math.min(params.outputByteLimit ?? 1024 * 1024, 1024 * 1024)
+          const receive = (data: string) => {
+            terminal.output += data
+            const bytes = Buffer.from(terminal.output)
+            if (bytes.length > limit) {
+              let start = bytes.length - limit
+              while ((bytes[start] & 0xc0) === 0x80) start++
+              terminal.output = bytes.subarray(start).toString('utf8')
+              terminal.truncated = true
+            }
+            this.publishTerminal(terminalId)
+          }
+          proc.stdout?.setEncoding('utf8').on('data', receive)
+          proc.stderr?.setEncoding('utf8').on('data', receive)
+          this.terminals.set(terminalId, terminal)
+          void terminal.exited.then((status) => {
+            terminal.exitStatus = status
+            this.publishTerminal(terminalId)
+          })
+          if (needsPrompt) this.result(id, { terminalId })
+          return { terminalId }
+        },
+        output: async (params) => {
+          this.requireSession(params.sessionId)
+          const terminal = this.terminal(params.terminalId)
+          return {
+            output: terminal.output,
+            truncated: terminal.truncated,
+            ...(terminal.exitStatus ? { exitStatus: terminal.exitStatus } : {})
+          }
+        },
+        waitForExit: async (params, { signal }) => {
+          this.requireSession(params.sessionId)
+          const terminal = this.terminal(params.terminalId)
+          if (!terminal.exitStatus) {
+            await once(terminal.child, 'close', { signal }).catch(() => {
+              if (signal.aborted) throw acpHostError.cancelled()
+            })
+          }
+          return terminal.exited
+        },
+        kill: async (params) => {
+          this.requireSession(params.sessionId)
+          await stopLocalAgentProcess(this.terminal(params.terminalId).child)
+          return {}
+        },
+        release: async (params) => {
+          this.requireSession(params.sessionId)
+          await stopLocalAgentProcess(this.terminal(params.terminalId).child)
+          this.terminals.delete(params.terminalId)
+          return {}
         }
       }
-      this.localSessionInfo.protocolInfo.verified.push('session')
-      this.publishResumeToken(this.nativeId)
-    } finally {
-      this.loading = false
-      for (const pending of this.pendingUpdates.splice(0)) {
-        if (pending.sessionId === this.nativeId) this.update(pending.update)
-      }
     }
-    return this
   }
-  private buildBrowserMcpServers(capabilities?: McpCapabilities): McpServer[] {
+
+  private buildBrowserMcpServers(supportsHttp: boolean): AcpMcpServer[] {
     if (!this.browserLease) return []
-    if (capabilities?.http) {
+    if (supportsHttp) {
       return [
         {
           type: 'http',
@@ -771,19 +713,6 @@ export class AcpConnection extends LocalConnection {
       }
     ]
   }
-  private readSessionModels(session: SessionResponse) {
-    this.legacyMode = session.modes ?? undefined
-    const legacy = LegacyModelsSchema.safeParse(session.models)
-    this.legacyModels = legacy.success
-    if (legacy.success) {
-      this.localSessionInfo.models = legacy.data.availableModels.map((model) => ({
-        id: model.modelId,
-        name: model.name
-      }))
-      this.localSessionInfo.activeModel = { id: legacy.data.currentModelId }
-    }
-    this.readConfigOptions(session.configOptions)
-  }
   async setConfigOption(configId: string, value: string | boolean) {
     return this.setSelection('config', configId, value)
   }
@@ -795,7 +724,7 @@ export class AcpConnection extends LocalConnection {
   }
   private async setSelection(category: 'mode' | 'thoughtLevel' | 'config', configId: string, value: string | boolean) {
     if (this.headless) throw new Error('Scheduled tasks use the agent configuration')
-    if (!this.connection || !this.nativeId || this.closed || this.active || this.configChange)
+    if (!this.session || this.closed || this.active || this.configChange)
       throw new Error('ACP session is unavailable or busy')
     const selection =
       category === 'config'
@@ -813,22 +742,15 @@ export class AcpConnection extends LocalConnection {
     )
       throw new Error('This session option is no longer available')
     if (category === 'mode' && !this.modeConfigId && typeof value === 'string') {
-      this.configChange = this.connection.agent
-        .request('session/set_mode', { sessionId: this.nativeId, modeId: value })
-        .then(() => {
-          if (this.legacyMode) this.legacyMode.currentModeId = value
-          if (this.localSessionInfo.mode) this.localSessionInfo.mode.currentValue = value
-          // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable ACP session/tool state before queuing an event.
-          this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
-        })
+      this.configChange = this.session.setMode(value).then(() => {
+        if (this.legacyMode) this.legacyMode.currentModeId = value
+        if (this.localSessionInfo.mode) this.localSessionInfo.mode.currentValue = value
+        // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable ACP session/tool state before queuing an event.
+        this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+      })
     } else {
-      this.configChange = this.connection.agent
-        .request<SetSessionConfigOptionResponse>('session/set_config_option', {
-          sessionId: this.nativeId,
-          configId,
-          ...(typeof value === 'boolean' ? { type: 'boolean' as const } : {}),
-          value
-        })
+      this.configChange = this.session
+        .setConfigOption(configId, value)
         .then((response) => this.readConfigOptions(response.configOptions))
     }
     try {
@@ -839,11 +761,13 @@ export class AcpConnection extends LocalConnection {
     }
   }
 
-  private readConfigOptions(options?: SessionConfigOption[] | null) {
+  private readConfigOptions(
+    options?: AcpSessionConfiguration['configOptions'],
+    initialLegacy?: AcpSession['legacyModels']
+  ) {
     if (options != null) this.legacyMode = undefined
     const mode = options?.find((option) => option.category === 'mode' && option.type === 'select')
     const thought = options?.find((option) => option.category === 'thought_level' && option.type === 'select')
-    const model = options?.find((option) => option.category === 'model' && option.type === 'select')
     this.localSessionInfo.configOptions =
       options
         ?.filter((option) => option.type === 'select' || option.type === 'boolean')
@@ -889,30 +813,25 @@ export class AcpConnection extends LocalConnection {
               .map(({ value, name }) => ({ value, name }))
           }
         : undefined
-    this.modelConfigId = model?.id
-    if (!model && !this.legacyModels) {
-      this.localSessionInfo.activeModel = undefined
-      this.localSessionInfo.models = []
-    }
-    if (model?.type === 'select') {
-      this.localSessionInfo.activeModel = { id: model.currentValue }
-      this.localSessionInfo.models = model.options
-        .flatMap((option) => ('group' in option ? option.options : [option]))
-        .map((option) => ({ id: option.value, name: option.name }))
+    const catalog = acpModelCatalog(options, initialLegacy)
+    this.modelConfigId = catalog.configId
+    if (catalog.configId || initialLegacy || !this.session?.legacyModels) {
+      this.localSessionInfo.activeModel = catalog.activeModel
+      this.localSessionInfo.models = catalog.models
     }
     // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable ACP session/tool state before queuing an event.
     this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
   }
   private requireSession(sessionId: string) {
-    if (sessionId !== this.nativeId || this.closed || this.abort.signal.aborted)
-      throw RequestError.invalidParams('Inactive ACP session')
+    if (sessionId !== this.session?.id || this.closed || this.abort.signal.aborted)
+      throw acpHostError.invalidRequest('Inactive ACP session')
   }
   private terminal(id: string): Terminal {
     const terminal = this.terminals.get(id)
     if (!terminal) throw new Error('Unknown session terminal')
     return terminal
   }
-  private update(update: SessionUpdate) {
+  private update(update: AcpSessionUpdate) {
     if (
       update.sessionUpdate === 'agent_message_chunk' &&
       update.content.type === 'text' &&
@@ -953,9 +872,9 @@ export class AcpConnection extends LocalConnection {
     )
       this.events.push({ type: 'session-title', title: update.title })
 
-    if (update.sessionUpdate === 'usage_update' && update.cost && this.nativeId) {
+    if (update.sessionUpdate === 'usage_update' && update.cost && this.session?.id) {
       const snapshot = AgentSessionCostSnapshotSchema.safeParse({
-        nativeSessionId: this.nativeId,
+        nativeSessionId: this.session.id,
         reportedAt: Date.now(),
         cost: { amount: update.cost.amount, currency: update.cost.currency }
       })
@@ -1016,6 +935,8 @@ export class AcpConnection extends LocalConnection {
     }
     if (update.sessionUpdate === 'config_option_update') this.readConfigOptions(update.configOptions)
     if ((update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') && this.active) {
+      const owner = this.tools.get(update.toolCallId)?.value.toolName
+      if (owner === 'AskUserQuestion' || owner === 'ExitPlanMode') return
       this.endContent()
       const previous = this.toolInputs.get(update.toolCallId)
       const tool: LocalAcpTool = { title: 'Tool', ...previous }
@@ -1073,24 +994,20 @@ export class AcpConnection extends LocalConnection {
     this.toolInputs.clear()
     this.begin(input.message.id)
     try {
-      if (!this.connection || !this.nativeId) throw new Error('ACP session is not connected')
+      if (!this.session) throw new Error('ACP session is not connected')
       const model = this.localSessionInfo.activeModel?.id ?? null
-      this.turnUsage = undefined
-      const response = await this.connection.agent.request<PromptResponse>('session/prompt', {
-        sessionId: this.nativeId,
+      const { response, usage } = await this.session.prompt(
         prompt,
-        _meta: this.config.presetId === 'openclaw' ? { prefixCwd: false } : this.harnessSession?.promptMeta
-      })
+        this.config.presetId === 'openclaw' ? { prefixCwd: false } : this.harnessSession?.promptMeta
+      )
       const lastRequest = this.harnessSession?.contextAfterPrompt?.(response, input.message.id)
       if (lastRequest) this.events.push({ type: 'context-usage', result: { status: 'confirmed', value: lastRequest } })
-      const usage = response.usage ?? this.turnUsage
-      this.turnUsage = undefined
       if (usage) {
         // ACP totals already include cached tokens.
         const cachedRead = usage.cachedReadTokens ?? 0
         const cachedWrite = usage.cachedWriteTokens ?? 0
         const summary = LocalAgentTurnUsageSchema.safeParse({
-          nativeSessionId: this.nativeId,
+          nativeSessionId: this.session.id,
           model,
           reportedAt: Date.now(),
           correlation: this.gatewayLease ? 'gateway' : 'unknown',
@@ -1148,7 +1065,7 @@ export class AcpConnection extends LocalConnection {
       }
     }
     this.clearCompaction()
-    super.finish(acpError(error, this.stderr), finishReason)
+    super.finish(acpError(error, this.process.stderr), finishReason)
   }
   protected override dispose() {
     this.clearCompaction()
@@ -1156,45 +1073,20 @@ export class AcpConnection extends LocalConnection {
     this.browserLease = undefined
     void this.gatewayLease?.dispose()
     this.gatewayLease = undefined
-    void this.releaseOpenClaw()?.catch((error) => logger.warn('Failed to release OpenClaw Gateway', { error }))
     super.dispose()
   }
-  private releaseOpenClaw() {
-    if (!this.releasingOpenClaw && this.openClawLease) {
-      this.releasingOpenClaw = this.openClawLease.dispose()
-      this.openClawLease = undefined
-    }
-    return this.releasingOpenClaw
-  }
   protected async stop() {
-    if (this.active && this.nativeId) {
-      await this.connection?.agent.notify('session/cancel', { sessionId: this.nativeId }).catch(() => {})
+    if (this.active && this.session) {
+      await this.session.cancel().catch(() => {})
       await this.waitForTurn()
     }
-    if (this.supportsClose && this.nativeId && this.connection && !this.connection.signal.aborted) {
-      let timer: ReturnType<typeof setTimeout> | undefined
-      try {
-        await Promise.race([
-          this.connection.agent.request('session/close', { sessionId: this.nativeId }),
-          new Promise<never>((_, reject) => {
-            timer = setTimeout(() => reject(new Error('ACP session close timed out')), 2000)
-          })
-        ])
-      } catch (error) {
-        logger.warn('ACP session close failed; terminating owned processes', { sessionId: this.sessionId, error })
-      } finally {
-        clearTimeout(timer)
-      }
-    }
-    this.connection?.close()
     try {
       await Promise.all([
-        ...[...this.terminals.values()].map((terminal) => this.stopProcess(terminal.child)),
-        this.stopProcess(this.process)
+        ...[...this.terminals.values()].map((terminal) => stopLocalAgentProcess(terminal.child)),
+        this.process.close(this.session?.close)
       ])
     } finally {
       this.terminals.clear()
-      await this.releaseOpenClaw()
     }
   }
 }

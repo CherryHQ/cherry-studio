@@ -19,7 +19,7 @@ import { isInjectedAcpAutomationTool } from '../browserBridge'
 import { CodexConnection } from '../CodexConnection'
 import { LocalAgentAuthService } from '../LocalAgentAuthService'
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
-import { listLocalAgentModels } from '../LocalRuntimeDriver'
+import { checkLocalAgent, listLocalAgentModels } from '../LocalRuntimeDriver'
 import { observedParts } from './observedParts'
 
 vi.mock('../localContext', () => ({
@@ -77,6 +77,16 @@ describe('local protocol processes', () => {
     })
   }
 
+  function fixtureConfig(protocol: 'acp' | 'codex', scenario: string): LocalAgentConfiguration {
+    return {
+      protocol,
+      enabled: true,
+      executableOverride: process.execPath,
+      args: [fixture, protocol, scenario],
+      env: { FIXTURE_LOG: path.join(cwd, 'wire.jsonl') }
+    }
+  }
+
   function create(
     protocol: 'acp' | 'codex',
     scenario = 'normal',
@@ -85,16 +95,7 @@ describe('local protocol processes', () => {
     sourceModelId?: LocalAgentConfiguration['sourceModelId'],
     headless = false
   ) {
-    const config: LocalAgentConfiguration = {
-      protocol,
-      presetId,
-      nativeModel,
-      sourceModelId,
-      enabled: true,
-      executableOverride: process.execPath,
-      args: [fixture, protocol, scenario],
-      env: { FIXTURE_LOG: path.join(cwd, 'wire.jsonl') }
-    }
+    const config = { ...fixtureConfig(protocol, scenario), presetId, nativeModel, sourceModelId }
     const connection =
       protocol === 'acp'
         ? new AcpConnection('session', 'agent', config, headless)
@@ -187,43 +188,36 @@ describe('local protocol processes', () => {
   it.each(['auth-terminal', 'auth-legacy-terminal'])(
     'does not report terminal setup as completed authentication: %s',
     async (scenario) => {
-      const { connection } = create('acp', scenario)
-      await connection.start(cwd, undefined, true)
-      expect(connection.localSessionInfo.protocolInfo?.verified).toEqual(['handshake'])
-      expect(connection.localSessionInfo.protocolInfo?.authMethods).toEqual([
-        { id: 'oauth-personal', name: 'Google', type: 'terminal' }
-      ])
-      await expect((connection as AcpConnection).authenticate('oauth-personal')).rejects.toThrow(
-        'requires external setup'
-      )
+      const config = fixtureConfig('acp', scenario)
+      const result = await checkLocalAgent(config)
+      expect(result.protocolInfo?.verified).toEqual(['handshake'])
+      expect(result.protocolInfo?.authMethods).toEqual([{ id: 'oauth-personal', name: 'Google', type: 'terminal' }])
+      await expect(
+        new LocalAgentAuthService().authenticate('terminal-login', config, 'oauth-personal')
+      ).rejects.toThrow('requires external setup')
       const log = await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')
       expect(log).not.toContain('"method":"authenticate"')
     }
   )
 
   it('authenticates with advertised native IDs without creating a conversation', async () => {
-    const { connection } = create('acp', 'auth-success')
-    await connection.start(cwd, undefined, true)
-    await (connection as AcpConnection).authenticate('oauth-personal')
-    const wire = await readFile(path.join(cwd, 'wire.jsonl'), 'utf8')
-    expect(wire).toContain('"methodId":"oauth-personal"')
-    expect(wire).not.toContain('session/new')
-    await expect((connection as AcpConnection).authenticate('unknown')).rejects.toThrow(
+    const config = fixtureConfig('acp', 'auth-success')
+    const service = new LocalAgentAuthService()
+    await service.authenticate('success', config, 'oauth-personal')
+    await expect(service.authenticate('unknown', config, 'unknown')).rejects.toThrow(
       'Unsupported authentication method'
     )
+    const wire = await readWire()
+    expect(wire.filter(({ method }) => method === 'authenticate').map(({ params }) => params.methodId)).toEqual([
+      'oauth-personal'
+    ])
+    expect(wire.some(({ method }) => method === 'session/new')).toBe(false)
   })
 
-  it('preserves authentication failures and interrupts pending login when closed', async () => {
-    const { connection } = create('acp', 'auth-rejected')
-    await connection.start(cwd, undefined, true)
-    await expect((connection as AcpConnection).authenticate('oauth-personal')).rejects.toThrow(
-      'not available in your location'
-    )
-    const pending = create('acp', 'auth-pending').connection as AcpConnection
-    await pending.start(cwd, undefined, true)
-    const rejected = expect(pending.authenticate('oauth-personal')).rejects.toThrow()
-    await pending.close()
-    await rejected
+  it('preserves native authentication failures', async () => {
+    await expect(
+      new LocalAgentAuthService().authenticate('failure', fixtureConfig('acp', 'auth-rejected'), 'oauth-personal')
+    ).rejects.toThrow('not available in your location')
   })
 
   it.each(['cancel', 'stop'])('cleans up an outstanding authentication process on %s', async (action) => {
@@ -851,32 +845,220 @@ describe('local protocol processes', () => {
     expect(events.filter((event) => event.type === 'usage')).toEqual([])
   })
 
-  it('captures _x.ai/session/update turn_completed usage when prompt response omits usage and resets between turns', async () => {
-    const { connection, events, closeAndDrain } = create('acp', 'xai-usage', undefined, 'grok-build')
+  it('reads suggestions from the bound Grok session and drops a response for an older request', async () => {
+    const { connection, closeAndDrain } = create('acp', 'grok-prediction', undefined, 'grok-build')
+    const grok = connection as AcpConnection
+    await grok.start(cwd)
+    const signal = new AbortController().signal
+    expect(await grok.predictPrompt?.(signal)).toBe('run the tests')
+    expect(await grok.predictPrompt?.(signal)).toBe('')
+    await closeAndDrain()
+  })
+
+  it('answers the original Grok question with exact labels, notes and option previews', async () => {
+    const { connection, events, closeAndDrain } = create('acp', 'grok-question', undefined, 'grok-build')
+    await connection.start(cwd)
+    const sending = connection.send(input)
+    const { request } = await waitForApproval(events)
+    expect(request).toMatchObject({
+      toolName: 'AskUserQuestion',
+      toolCallId: 'grok-interaction',
+      input: { responseMode: 'native-request' }
+    })
+    toolApprovalRegistry.dispatch(request.approvalId, {
+      approved: true,
+      updatedInput: {
+        selections: [{ selected: ['A, B', 'C'] }, { selected: [], notes: 'Because' }, { selected: ['Show'] }],
+        answers: { 'Which?': 'A, B, C', 'Why?': 'Because', 'Preview?': 'Show' }
+      }
+    })
+    await sending
+    await closeAndDrain()
+    expect((await readWire()).find((message) => message.id === 'callback-1')?.result).toEqual({
+      outcome: 'accepted',
+      answers: { 'Which?': ['A, B', 'C'], 'Why?': ['Other'], 'Preview?': ['Show'] },
+      annotations: { 'Why?': { notes: 'Because' }, 'Preview?': { preview: 'Diagram' } }
+    })
+    const last = observedParts(events)
+      .filter((part) => part.type === 'dynamic-tool' && part.toolCallId === request.toolCallId)
+      .at(-1)
+    expect(last).toMatchObject({
+      toolName: 'AskUserQuestion',
+      state: 'output-available',
+      output: { answers: { 'Why?': 'Because' } }
+    })
+  })
+
+  it.each([
+    [{ approved: true }, { outcome: 'approved' }],
+    [
+      { approved: false, reason: 'Change the release date', reasonSource: 'user' },
+      { outcome: 'cancelled', feedback: 'Change the release date' }
+    ],
+    [{ approved: false, reasonSource: 'user' }, { outcome: 'abandoned' }],
+    [{ approved: false, reason: 'The runtime closed' }, { outcome: 'abandoned' }]
+  ] as const)('returns the Grok plan decision on its native request (%j)', async (decision, expected) => {
+    const { connection, events, closeAndDrain } = create('acp', 'grok-plan', undefined, 'grok-build')
+    await connection.start(cwd)
+    const sending = connection.send(input)
+    const { request } = await waitForApproval(events)
+    expect(request).toMatchObject({ toolName: 'ExitPlanMode', input: { plan: '# Release plan' } })
+    toolApprovalRegistry.dispatch(request.approvalId, decision)
+    await sending
+    await closeAndDrain()
+    expect((await readWire()).find((message) => message.id === 'callback-1')?.result).toEqual(expected)
+  })
+
+  it.each([
+    ['grok-question-plan', 'discuss', 'chat_about_this'],
+    ['grok-question-plan', 'skip-interview', 'skip_interview'],
+    ['grok-question', 'skip-interview', 'cancelled']
+  ] as const)(
+    'scopes %s %s to the original wire request and archives the delivered decision',
+    async (scenario, action, outcome) => {
+      const { connection, events, closeAndDrain } = create('acp', scenario, undefined, 'grok-build')
+      await connection.start(cwd)
+      const sending = connection.send(input)
+      const { request } = await waitForApproval(events)
+      if (scenario === 'grok-question-plan')
+        expect(request.input).toMatchObject({ interviewActions: ['discuss', 'skip-interview'] })
+      else expect(request.input).not.toHaveProperty('interviewActions')
+      toolApprovalRegistry.dispatch(request.approvalId, {
+        approved: true,
+        updatedInput: {
+          action,
+          selections: [
+            { selected: ['C', 'A, B'] },
+            { selected: [], freeform: true, notes: 'private draft' },
+            { selected: [] }
+          ],
+          answers: { 'Which?': 'stale answer' }
+        }
+      })
+      await sending
+      await closeAndDrain()
+      const wire = await readWire()
+      const partial = { 'Which?': 'A, B, C', 'Why?': 'Other' }
+      expect(wire.find((message) => message.id === 'callback-1')?.result).toEqual(
+        outcome === 'cancelled' ? { outcome } : { outcome, partial_answers: partial }
+      )
+      expect(wire.filter((message) => message.method === 'session/prompt')).toHaveLength(1)
+      const last = observedParts(events)
+        .filter((part) => part.type === 'dynamic-tool' && part.toolCallId === request.toolCallId)
+        .at(-1)
+      expect(last).toMatchObject({
+        state: 'output-available',
+        output: outcome === 'cancelled' ? { approved: false } : { interviewAction: action, answers: partial }
+      })
+    }
+  )
+
+  it('can skip the entire Grok plan interview before answering the first question', async () => {
+    const { connection, events, closeAndDrain } = create('acp', 'grok-question-plan', undefined, 'grok-build')
+    await connection.start(cwd)
+    const sending = connection.send(input)
+    const { request } = await waitForApproval(events)
+    toolApprovalRegistry.dispatch(request.approvalId, {
+      approved: true,
+      updatedInput: { action: 'skip-interview', selections: [{ selected: [] }, { selected: [] }, { selected: [] }] }
+    })
+    await sending
+    await closeAndDrain()
+    expect((await readWire()).find((message) => message.id === 'callback-1')?.result).toEqual({
+      outcome: 'skip_interview',
+      partial_answers: {}
+    })
+  })
+
+  it.each(['grok-question-cancel', 'grok-question-invalid'])('retires a Grok question after %s', async (scenario) => {
+    const { connection, events, closeAndDrain } = create('acp', scenario, undefined, 'grok-build')
+    await connection.start(cwd)
+    const sending = connection.send(input)
+    const { request } = await waitForApproval(events)
+    if (scenario === 'grok-question-invalid') {
+      toolApprovalRegistry.dispatch(request.approvalId, {
+        approved: true,
+        updatedInput: { selections: [{ selected: ['invented'] }, { selected: [] }, { selected: [] }] }
+      })
+    }
+    await sending
+    expect(toolApprovalRegistry.hasSession('session')).toBe(false)
+    expect(toolApprovalRegistry.dispatch(request.approvalId, { approved: true })).toBeUndefined()
+    await closeAndDrain()
+    expect((await readWire()).find((message) => message.id === 'callback-1')?.result).toEqual({ outcome: 'cancelled' })
+  })
+
+  it.each([
+    ['grok-question-foreign', 'grok-build', false, { result: { outcome: 'cancelled' } }],
+    ['grok-plan', 'grok-build', true, { result: { outcome: 'abandoned' } }],
+    ['grok-question', 'custom', false, { error: { code: -32601 } }]
+  ] as const)(
+    'only opens native Grok approvals in the owning interactive session (%s, %s)',
+    async (scenario, preset, headless, expected) => {
+      const { connection, events, closeAndDrain } = create('acp', scenario, undefined, preset, undefined, headless)
+      await connection.start(cwd)
+      await connection.send(input)
+      await closeAndDrain()
+      expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(0)
+      expect((await readWire()).find((message) => message.id === 'callback-1')).toMatchObject(expected)
+    }
+  )
+
+  it.each(['xai-usage', 'xai-usage-legacy'])(
+    'attributes only matching foreground completions for %s',
+    async (scenario) => {
+      const { connection, events, closeAndDrain } = create('acp', scenario, undefined, 'grok-build')
+      await connection.start(cwd)
+      await connection.send(input)
+      await connection.send(input)
+      await closeAndDrain()
+      const invocations = events.flatMap((event) => (event.type === 'local-turn-usage' ? [event.summary] : []))
+      expect(invocations).toHaveLength(1)
+      expect(invocations[0].usage).toEqual({
+        inputTokens: 100,
+        outputTokens: 20,
+        totalTokens: 120,
+        noCacheTokens: 50,
+        reasoningTokens: 5,
+        cacheReadTokens: 40,
+        cacheWriteTokens: 10
+      })
+      expect(events.filter((event) => event.type === 'usage')).toEqual([])
+      const requests = (await readWire()).filter(({ method }) => method === 'session/prompt')
+      const ids = requests.map(({ params }) => params._meta.promptId)
+      expect(ids).toHaveLength(2)
+      expect(ids[0]).not.toBe(ids[1])
+    }
+  )
+
+  it('prefers the Grok prompt result over fallback notifications and keeps reported zero usage', async () => {
+    const { connection, events, closeAndDrain } = create('acp', 'xai-usage-response', undefined, 'grok-build')
     await connection.start(cwd)
     await connection.send(input)
     await connection.send(input)
     await closeAndDrain()
-    const invocations = events.flatMap((event) => (event.type === 'local-turn-usage' ? [event.summary] : []))
-    expect(invocations).toHaveLength(1)
-    expect(invocations[0].usage).toEqual({
-      inputTokens: 100,
-      outputTokens: 20,
-      totalTokens: 120,
-      noCacheTokens: 50,
-      reasoningTokens: 5,
-      cacheReadTokens: 40,
-      cacheWriteTokens: 10
-    })
-    expect(events.filter((event) => event.type === 'usage')).toEqual([])
+    expect(events.flatMap((event) => (event.type === 'local-turn-usage' ? [event.summary.usage] : []))).toEqual([
+      { inputTokens: 7, outputTokens: 2, totalTokens: 9, noCacheTokens: 7 },
+      { inputTokens: 0, outputTokens: 0, totalTokens: 0, noCacheTokens: 0 }
+    ])
   })
 
-  it('ignores Grok billing notifications on another named ACP harness', async () => {
-    const { connection, events, closeAndDrain } = create('acp', 'xai-usage', undefined, 'copilot')
+  it('leaves usage unknown when Grok returns a different native prompt ID', async () => {
+    const { connection, events, closeAndDrain } = create('acp', 'xai-usage-reassigned', undefined, 'grok-build')
     await connection.start(cwd)
     await connection.send(input)
     await closeAndDrain()
     expect(events.some((event) => event.type === 'local-turn-usage')).toBe(false)
+  })
+
+  it.each(['copilot', 'custom', undefined])('uses ordinary ACP usage for preset %s', async (presetId) => {
+    const { connection, events, closeAndDrain } = create('acp', 'xai-usage-response', undefined, presetId)
+    await connection.start(cwd)
+    await connection.send(input)
+    await closeAndDrain()
+    expect(events.some((event) => event.type === 'local-turn-usage')).toBe(false)
+    const request = (await readWire()).find(({ method }) => method === 'session/prompt')
+    expect(request.params._meta?.promptId).toBeUndefined()
   })
 
   it('keeps Codex usage scoped to the turn without counting history or duplicate notifications', async () => {
@@ -951,6 +1133,21 @@ describe('local protocol processes', () => {
     ).toBe(false)
   })
 
+  it('reads setup model updates for the queried ACP session without granting host access', async () => {
+    const catalog = await listLocalAgentModels(fixtureConfig('acp', 'close-management-catalog'))
+    expect(catalog).toMatchObject({
+      models: [{ id: 'updated-model', name: 'Updated model' }],
+      activeModel: { id: 'updated-model' }
+    })
+    const wire = await readWire()
+    expect(wire.map(({ method }) => method)).toEqual(['initialize', 'session/new', 'session/close'])
+    const capabilities = wire[0].params.clientCapabilities
+    expect(capabilities.fs).toEqual({ readTextFile: false, writeTextFile: false })
+    expect(capabilities.terminal).toBe(false)
+    expect(capabilities).not.toHaveProperty('elicitation')
+    expect(wire[1].params.mcpServers).toEqual([])
+  })
+
   it('loads terminal Antigravity models when the separate adapter has no sign-in', async () => {
     const commands: Record<string, string> = {}
     for (const [name, scenario] of [
@@ -1009,9 +1206,7 @@ describe('local protocol processes', () => {
   })
 
   it.each(['acp', 'codex'] as const)('%s handshake never sends a prompt', async (protocol) => {
-    const { connection } = create(protocol)
-    await connection.start(cwd, undefined, true)
-    await connection.close()
+    expect((await checkLocalAgent(fixtureConfig(protocol, 'normal'))).ok).toBe(true)
     const wire = await readWire()
     expect(
       wire.some((message) => ['session/prompt', 'turn/start', 'thread/start', 'session/new'].includes(message.method))
@@ -1963,6 +2158,16 @@ describe('local protocol processes', () => {
     const standardInit = (await readWire()).find((message) => message.method === 'initialize')
     expect(standardInit.params.clientCapabilities.fs).toEqual({ readTextFile: true, writeTextFile: true })
     expect(standardInit.params.clientCapabilities.terminal).toBe(true)
+  })
+
+  it('keeps Antigravity edits native even if the agent requests unadvertised host tools', async () => {
+    const { connection, text, closeAndDrain } = create('acp', 'acp-policy-yolo', undefined, 'antigravity-acp')
+    await connection.start(cwd)
+    await connection.setMode?.('agent-mode', 'yolo')
+    await connection.send(input)
+    expect(JSON.parse(text())).toMatchObject({ wrote: false, terminalDenied: true })
+    await expect(readFile(path.join(cwd, 'yolo.txt'))).rejects.toMatchObject({ code: 'ENOENT' })
+    await closeAndDrain()
   })
 
   it('auto-approves ACP permission requests, writes, and terminals in yolo mode using allow_once', async () => {

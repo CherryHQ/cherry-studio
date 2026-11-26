@@ -6,6 +6,16 @@ Implementation follows the [ACP Spec](../../.agents/notes/implemented/architectu
 
 ## Ownership
 
+Desktop chat uses `connectAcpStdio(stdin, stdout, options)`. It receives native updates through `options.update`. After `initialize()`, the negotiated agent exposes `create` and the supported `load` and `resume` methods. Each returns the configuration and operations bound to the native session ID. Main owns process termination and the Cherry timeline.
+
+Settings use `connectAcpManagementStdio(stdin, stdout, clientInfo)`. Its handshake returns agent information, authentication and model discovery. Authentication checks the advertised method ID and distinguishes terminal sign-in. Model discovery opens a temporary session with an empty MCP list, reads its model options and returns its negotiated close operation to the process owner. The management client installs no filesystem, terminal or elicitation callbacks. Chat, management and `createAcpRuntime` share one protocol implementation. Only `createAcpRuntime` constructs a recovery projection.
+
+The package pins the TypeScript SDK to 2.4.0. Its default import selects stable ACP v1 and the handshake sends protocol version 1.
+
+Desktop `session.prompt` returns the native response and its optional validated token usage together. Some v1 agents include a top-level `usage` extension. The Grok Build adapter can also read its native response metadata or a live completion for that exact prompt. Custom ACP presets use the generic path.
+
+Chat adapters can register typed reverse requests through `AcpHarnessAdapter.registerRequests`. The SDK routes each reply to the incoming JSON-RPC request and supplies its cancellation signal. The Grok Build adapter owns the question and plan wire formats. The desktop host checks the active session and turn before presenting either request.
+
 Create one runtime per backend connection. `create` starts a native session; `open` reuses a live owner or loads native history using the host's saved configuration. Observing and releasing handles never prompt, reload, cancel, or close sessions. `shutdown` joins the host transport lease and drains published observations. A failed join returns `unknown` and may be retried.
 
 Only one local prompt may run per session. Submission acknowledges dispatch, not acceptance or durable placement. Interrupt waits for the captured prompt's response. Transport loss leaves the outcome unknown. No request is automatically retried.

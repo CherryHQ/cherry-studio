@@ -242,6 +242,12 @@ const projectionTargetSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('child'), sessionId: z.string().min(1), toolCallId: z.string().min(1) })
 ]) satisfies z.ZodType<ProjectionTarget>
 
+const predictionRequest = z.strictObject({
+  sessionId: z.string().min(1),
+  replyId: z.string().min(1),
+  requestId: z.uuid()
+})
+
 export const aiRequestSchemas = {
   'ai.agent.delegation.read': defineRoute({
     input: z.strictObject({ originSessionId: z.string().min(1), requestId: z.string().min(1) }),
@@ -263,12 +269,10 @@ export const aiRequestSchemas = {
     output: z.boolean()
   }),
   'ai.agent.session.predict_prompt': defineRoute({
-    input: z.strictObject({
-      sessionId: z.string().min(1),
-      replyId: z.string().min(1),
-      modelId: UniqueModelIdSchema,
-      requestId: z.uuid()
-    }),
+    input: z.union([
+      predictionRequest.extend({ modelId: UniqueModelIdSchema }),
+      predictionRequest.extend({ localModelId: z.string().min(1) })
+    ]),
     output: z.object({ supported: z.boolean(), text: z.string() })
   }),
   'ai.agent.session.abort_prediction': defineRoute({

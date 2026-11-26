@@ -79,6 +79,7 @@ import {
   type LocalAgentSessionInfo,
   type LocalAgentSessionOverrides
 } from '@shared/ai/localAgent'
+import { resolveEffectiveLocalPermissionMode } from '@shared/ai/localAgentPermission'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
@@ -93,6 +94,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
+import type { InputFor } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { prepareAgentConfigApproval } from '../agents/agentConfigTool'
@@ -330,6 +332,7 @@ type AgentSessionRuntimeEntry = {
     requestId?: string
     replyId: string
     modelId: ExecutionId
+    localModelId?: string
     controller: AbortController
     result: Promise<string>
   }
@@ -720,21 +723,24 @@ export class AgentSessionRuntimeService extends BaseService {
     return isAgentSessionRuntimeTurnLive(entry.runtimeState, turn)
   }
 
-  async predictPrompt(input: {
-    sessionId: string
-    replyId: string
-    modelId: UniqueModelId
-    requestId: string
-  }): Promise<{ supported: boolean; text: string }> {
+  async predictPrompt(
+    input: InputFor<'ai.agent.session.predict_prompt'>
+  ): Promise<{ supported: boolean; text: string }> {
     const entry = this.entries.get(input.sessionId)
-    const supported = !entry || ['claude-code', 'pi', 'pi-durable'].includes(entry.agentType)
+    const connection = entry && this.currentConnection(entry)
+    const supported = !connection || !!connection.predictPrompt
     const empty = { supported, text: '' }
     const prediction = entry?.prediction
-    if (!supported || !prediction || prediction.replyId !== input.replyId || prediction.modelId !== input.modelId)
-      return empty
+    if (!supported || !prediction || prediction.replyId !== input.replyId) return empty
+    const matchesModel = () =>
+      'localModelId' in input
+        ? prediction.localModelId === input.localModelId &&
+          connection?.localSessionInfo?.activeModel?.id === input.localModelId
+        : prediction.modelId === input.modelId
+    if (!matchesModel()) return empty
     prediction.requestId = input.requestId
     const text = await prediction.result
-    return prediction.controller.signal.aborted ? empty : { supported, text }
+    return prediction.controller.signal.aborted || !matchesModel() ? empty : { supported, text }
   }
 
   private startPromptPrediction(entry: AgentSessionRuntimeEntry): void {
@@ -742,8 +748,18 @@ export class AgentSessionRuntimeService extends BaseService {
     const turn = getAgentSessionRuntimeCurrentTurn(entry.runtimeState)
     if (!turn || !connection?.predictPrompt || entry.prediction?.replyId === turn.assistantMessageId) return
     const modelId = entry.modelId
+    const localModelId = connection.localSessionInfo?.activeModel?.id
+    if (entry.agentType === 'local' && !localModelId) return
+    const allowsSuggestions = () => {
+      const config = agentService.getAgent(entry.agentId)?.configuration
+      return (
+        config?.permission_mode !== 'plan' &&
+        resolveEffectiveLocalPermissionMode(connection.localSessionInfo, config?.localRuntime?.presetId) !== 'plan'
+      )
+    }
     const eligible = () =>
       entry.modelId === modelId &&
+      connection.localSessionInfo?.activeModel?.id === localModelId &&
       this.isCurrentEntry(entry) &&
       !entry.closing &&
       this.runtimeStatus(entry) === 'idle' &&
@@ -753,7 +769,7 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.runtimeState.lastTerminal === 'success' &&
       !turn.headless &&
       !turn.origin &&
-      agentService.getAgent(entry.agentId)?.configuration?.permission_mode !== 'plan' &&
+      allowsSuggestions() &&
       application.get('PreferenceService').get('agent.input.suggestions.enabled')
     if (
       !eligible() ||
@@ -768,9 +784,9 @@ export class AgentSessionRuntimeService extends BaseService {
       try {
         const text = await connection.predictPrompt!(controller.signal)
         return eligible() && !controller.signal.aborted
-          ? entry.agentType === 'claude-code'
-            ? text
-            : normalizePromptSuggestion(text)
+          ? entry.agentType === 'pi' || entry.agentType === 'pi-durable'
+            ? normalizePromptSuggestion(text)
+            : text
           : ''
       } catch (error) {
         if (!controller.signal.aborted)
@@ -778,7 +794,7 @@ export class AgentSessionRuntimeService extends BaseService {
         return ''
       }
     })
-    entry.prediction = { replyId: turn.assistantMessageId, modelId: entry.modelId, controller, result }
+    entry.prediction = { replyId: turn.assistantMessageId, modelId, localModelId, controller, result }
   }
 
   abortPromptPrediction(sessionId: string, requestId: string): void {
@@ -2016,12 +2032,17 @@ export class AgentSessionRuntimeService extends BaseService {
       // Only the first decision recorded on an abandoned card may become a new user message.
       // A missing registry entry alone also covers decisions already delivered in another window.
       if (anchorId && topicId && isAgentSessionTopic(topicId)) {
-        const applied = agentSessionMessageService.applyToolApprovalDecision(extractAgentSessionId(topicId), anchorId, {
-          approvalId,
-          approved: decision.approved,
-          ...(decision.reason !== undefined && { reason: decision.reason }),
-          ...(decision.updatedInput !== undefined && { updatedInput: decision.updatedInput })
-        })
+        const applied = agentSessionMessageService.applyToolApprovalDecision(
+          extractAgentSessionId(topicId),
+          anchorId,
+          {
+            approvalId,
+            approved: decision.approved,
+            ...(decision.reason !== undefined && { reason: decision.reason }),
+            ...(decision.updatedInput !== undefined && { updatedInput: decision.updatedInput })
+          },
+          'undelivered'
+        )
         return { ok: false, reason: applied ? 'undelivered' : 'rejected' }
       }
       return { ok: false, reason: 'rejected' }
@@ -2036,12 +2057,17 @@ export class AgentSessionRuntimeService extends BaseService {
         logger.warn('Persisted tool approval response is missing its anchor message', { approvalId })
         return { ok: false, reason: 'rejected' }
       }
-      const applied = agentSessionMessageService.applyToolApprovalDecision(pending.sessionId, anchorId, {
-        approvalId,
-        approved: guardedDecision.approved,
-        ...(guardedDecision.reason !== undefined && { reason: guardedDecision.reason }),
-        ...(guardedDecision.updatedInput !== undefined && { updatedInput: guardedDecision.updatedInput })
-      })
+      const applied = agentSessionMessageService.applyToolApprovalDecision(
+        pending.sessionId,
+        anchorId,
+        {
+          approvalId,
+          approved: guardedDecision.approved,
+          ...(guardedDecision.reason !== undefined && { reason: guardedDecision.reason }),
+          ...(guardedDecision.updatedInput !== undefined && { updatedInput: guardedDecision.updatedInput })
+        },
+        'live'
+      )
       if (!applied) {
         logger.warn('Persisted tool approval response did not match a pending card', {
           approvalId,
@@ -4404,6 +4430,8 @@ export class AgentSessionRuntimeService extends BaseService {
     options?: { clearSnapshots?: boolean; restoreUnavailable?: boolean }
   ): void {
     if (this.isShuttingDown) return
+    const prediction = entry.prediction
+    if (prediction?.localModelId && prediction.localModelId !== info?.activeModel?.id) prediction.controller.abort()
     application.get('IpcApiService').broadcast('ai.local_agents.session_updated', {
       sessionId: entry.sessionId,
       info,

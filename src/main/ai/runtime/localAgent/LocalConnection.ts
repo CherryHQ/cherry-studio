@@ -1,4 +1,3 @@
-import type { ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 
 import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
@@ -7,7 +6,6 @@ import type { DynamicToolUIPart, FinishReason } from 'ai'
 import { runtimeId, type ItemRef, type RuntimePartEdit } from '@cherrystudio/agent-runtime'
 import { agentService } from '@data/services/AgentService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
-import { terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { LocalAgentConfiguration, LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import { AsyncEventQueue } from '@shared/utils/async'
@@ -83,25 +81,6 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     } finally {
       clearTimeout(timer)
     }
-  }
-  protected async stopProcess(child?: ChildProcess) {
-    if (!child?.pid) return
-    if (process.platform === 'win32') {
-      // Headless console processes ignore non-forced taskkill; signal EOF briefly then force-reap the tree.
-      try {
-        child.stdin?.end()
-      } catch {
-        /* ignore closed stdio */
-      }
-      if (await waitForProcessExit(child, 150)) return
-      await terminateProcessTree(child, true, 'local agent')
-      if (!(await waitForProcessExit(child, 1000))) throw new Error('Local agent process did not exit')
-      return
-    }
-    await terminateProcessTree(child, false, 'local agent')
-    if (await waitForProcessExit(child, 1000)) return
-    await terminateProcessTree(child, true, 'local agent')
-    if (!(await waitForProcessExit(child, 1000))) throw new Error('Local agent process did not exit')
   }
 
   async reconcile({ headless = false }: { headless?: boolean } = {}): Promise<AgentRuntimeReconcileResult> {

@@ -34,6 +34,22 @@
   },
   "overrides": [
     {
+      "files": ["src/main/**/*.{js,mjs,cjs,ts,tsx,mts,cts}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@agentclientprotocol/sdk", "@agentclientprotocol/sdk/**"],
+                "message": "Use @cherrystudio/agent-runtime-acp/v1 for desktop ACP sessions and host callbacks."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": [
         "src/main/ai/agentSession/childTimelines.ts",
         "src/main/ai/agentSession/childArchive.ts",

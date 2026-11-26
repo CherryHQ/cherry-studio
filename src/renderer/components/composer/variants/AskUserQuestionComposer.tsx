@@ -8,6 +8,7 @@ import type { MessageToolApprovalInput } from '@renderer/components/chat/message
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { elicitationChoices, elicitationContent, elicitationValidator } from '@shared/ai/elicitation'
+import type { NativeQuestionReply, InterviewAction } from '@shared/ai/nativeInteraction'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { AskUserQuestionComposerRequest } from './askUserQuestionComposerRequest'
@@ -45,6 +46,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
   const { t } = useTranslation()
   const questions = request.input.questions
   const form = request.input.elicitation?.schema
+  const interviewActions = request.input.responseMode === 'native-request' ? request.input.interviewActions : undefined
   const validator = useMemo(() => (form ? elicitationValidator(form) : undefined), [form])
   const [invalidFields, setInvalidFields] = useState<string[]>([])
   // Answers are restored from the cache so a remount (switching conversations and
@@ -126,7 +128,8 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
   const selectedForCurrent = selectedAnswers[currentIndex] ?? []
   const hasAnyAnswerValue = useMemo(() => hasAnyAnswer(), [hasAnyAnswer])
-  const customActionSubmitsAll = isLastQuestion && (form != null || hasAnyAnswerValue)
+  const needsInterviewDecision = isLastQuestion && !!interviewActions?.length
+  const customActionSubmitsAll = isLastQuestion && (form != null || hasAnyAnswerValue || needsInterviewDecision)
   const hasCurrentAnswer = hasAnswerAt(currentIndex)
   const isPrimaryAction = form != null || customActionSubmitsAll || hasCurrentAnswer
 
@@ -209,12 +212,23 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
       setInvalidFields([])
 
       const annotations = buildAnnotations(answersByIndex)
+      const nativeReply: NativeQuestionReply | undefined =
+        request.input.responseMode === 'native-request'
+          ? {
+              action: 'submit',
+              selections: questions.map((_, index) => ({
+                selected: answersByIndex[index] ?? [],
+                notes: customAnswers[index]?.trim() || undefined
+              }))
+            }
+          : undefined
       await respond({
         match: request.match,
         approved: true,
         updatedInput: {
           ...request.input,
           answers: buildAnswers(answersByIndex),
+          ...nativeReply,
           ...(form && { elicitationContent: content }),
           ...(annotations && { annotations })
         }
@@ -226,6 +240,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
       validator,
       buildAnnotations,
       buildAnswers,
+      questions,
       hasAnyAnswer,
       isSubmitting,
       request.input,
@@ -234,6 +249,22 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
       selectedAnswers
     ]
   )
+
+  function finishInterview(action: InterviewAction) {
+    if (isSubmitting || !interviewActions?.includes(action)) return
+    const reply: NativeQuestionReply = {
+      action,
+      selections: questions.map((_, index) => {
+        const labels = selectedAnswers[index] ?? []
+        return { selected: labels, ...(!labels.length && customAnswers[index]?.trim() && { freeform: true as const }) }
+      })
+    }
+    return respond({
+      match: request.match,
+      approved: true,
+      updatedInput: { questions, responseMode: request.input.responseMode, interviewActions, ...reply }
+    })
+  }
 
   const handleDismiss = useCallback(async () => {
     if (isSubmitting) return
@@ -274,9 +305,18 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
 
       setInvalidFields([])
       setSelectedAnswers(nextSelectedAnswers)
-      if (!form && !isMultiSelect && nextForCurrent.length > 0) completeCurrentQuestion(nextSelectedAnswers)
+      if (!form && !isMultiSelect && nextForCurrent.length > 0 && !needsInterviewDecision)
+        completeCurrentQuestion(nextSelectedAnswers)
     },
-    [form, completeCurrentQuestion, currentIndex, currentQuestion, isSubmitting, selectedAnswers]
+    [
+      form,
+      completeCurrentQuestion,
+      currentIndex,
+      currentQuestion,
+      isSubmitting,
+      selectedAnswers,
+      needsInterviewDecision
+    ]
   )
 
   const handleCustomAction = useCallback(async () => {
@@ -473,7 +513,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
                 : 'px-2.5 text-muted-foreground hover:bg-transparent hover:text-foreground'
             )}
             loading={customActionSubmitsAll && isSubmitting}
-            disabled={isSubmitting}
+            disabled={isSubmitting || (needsInterviewDecision && !hasAnyAnswerValue)}
             onClick={handleCustomAction}>
             {isPrimaryAction
               ? isLastQuestion
@@ -482,6 +522,21 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
               : t('agent.askUserQuestion.skip')}
           </Button>
         </div>
+        {!!interviewActions?.length && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {interviewActions.map((action) => (
+              <Button
+                key={action}
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={isSubmitting}
+                onClick={() => void finishInterview(action)}>
+                {action === 'discuss' ? t('agent.askUserQuestion.discuss') : t('agent.askUserQuestion.skipInterview')}
+              </Button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

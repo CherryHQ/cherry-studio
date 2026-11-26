@@ -217,6 +217,7 @@ guard, described below.
 | `POST /v1/messages` | Anthropic | `anthropic` → `anthropic` |
 | `POST /v1/messages/count_tokens` | Anthropic | token estimate over the converted request; anthropic-dialect endpoints forward it to the provider's own `count_tokens` (via the app proxy/auth), other dialects stay local; no stream |
 | `POST /v1/chat/completions` | OpenAI Chat | `openai` → `openai` |
+| `POST /v1/agents/grok-build/session-summary/chat/completions` | Grok Build session summary | OpenAI Chat with a route-specific reasoning default for the forced `session_title` tool |
 | `POST /v1/responses` | OpenAI Responses | `openai-responses` → `openai-responses` |
 | `POST /v1beta/models/{provider:model}:generateContent` | Gemini | `gemini` → Gemini JSON |
 | `POST /v1beta/models/{provider:model}:streamGenerateContent?alt=sse` | Gemini | `gemini` → Gemini SSE |
@@ -231,6 +232,10 @@ guard, described below.
 
 The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
+
+Agent-specific routes share authentication, model resolution and protocol conversion
+with the standard gateway routes. The Grok Build route requests reasoning effort
+`none` for its title tool. The selected model's adapter owns the upstream wire format.
 
 Gemini routes carry a separate local auth guard because Gemini clients use
 `x-goog-api-key` or `?key=`. The `/v1` scoped guard must not intercept `/v1beta`.

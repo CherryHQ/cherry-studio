@@ -10,7 +10,7 @@ import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 const mocks = vi.hoisted(() => ({
   broadcast: vi.fn(),
   openExternal: vi.fn().mockResolvedValue(undefined),
-  resolveLocalAgentLaunch: vi.fn()
+  resolveLocalAgentCli: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -25,7 +25,7 @@ vi.mock('@application', async () => {
 })
 
 vi.mock('../launch', () => ({
-  resolveLocalAgentLaunch: mocks.resolveLocalAgentLaunch
+  resolveLocalAgentCli: mocks.resolveLocalAgentCli
 }))
 
 import { LocalAgentAuthService } from '../LocalAgentAuthService'
@@ -37,7 +37,7 @@ describe('LocalAgentAuthService', () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'local-agent-auth-'))
     mocks.broadcast.mockReset()
     mocks.openExternal.mockReset().mockResolvedValue(undefined)
-    mocks.resolveLocalAgentLaunch.mockReset()
+    mocks.resolveLocalAgentCli.mockReset()
     vi.mocked(application.getPath).mockImplementation(() => tmpDir)
   })
 
@@ -72,10 +72,9 @@ describe('LocalAgentAuthService', () => {
       args: [],
       env: {}
     }
-    mocks.resolveLocalAgentLaunch.mockResolvedValue({
+    mocks.resolveLocalAgentCli.mockResolvedValue({
       executable: shim,
       source: 'system',
-      args: [],
       env: { ...process.env }
     })
 
@@ -97,10 +96,9 @@ describe('LocalAgentAuthService', () => {
       await fs.writeFile(hanging, `#!/bin/sh\nexec "${process.execPath}" "${helper}" --hang "$@"\n`, 'utf8')
       await fs.chmod(hanging, 0o755)
     }
-    mocks.resolveLocalAgentLaunch.mockResolvedValue({
+    mocks.resolveLocalAgentCli.mockResolvedValue({
       executable: hanging,
       source: 'system',
-      args: [],
       env: { ...process.env }
     })
 
