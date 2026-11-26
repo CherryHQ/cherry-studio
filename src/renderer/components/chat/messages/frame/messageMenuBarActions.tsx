@@ -31,12 +31,14 @@ import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import { readMessageAloud } from '@renderer/services/voice'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
+import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { getTranslationFromParts, hasTextParts } from '@renderer/utils/message/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
@@ -196,8 +198,9 @@ async function withMessageCaptureLease<T>(context: MessageMenuBarActionContext, 
   }
 }
 
-registerCommand('message.copy', async ({ actions, mainTextContent, messageParts, setCopied, t }) => {
-  const richContent = actions.copyRichContent ? createComposerRichClipboardContentFromParts(messageParts) : null
+registerCommand('message.copy', async ({ actions, messageParts, setCopied, t }) => {
+  const parts = messageProjectionService.readParts(messageParts)
+  const richContent = actions.copyRichContent ? createComposerRichClipboardContentFromParts(parts) : null
   if (richContent) {
     // Match the plain copy path's text/plain normalization; the private fragment
     // keeps the original text so paste restoration stays lossless.
@@ -209,7 +212,7 @@ registerCommand('message.copy', async ({ actions, mainTextContent, messageParts,
       }
     )
   } else {
-    await actions.copyText?.(removeTrailingDoubleSpaces(mainTextContent.trimStart()), {
+    await actions.copyText?.(removeTrailingDoubleSpaces(getComposerTextFromParts(parts).trimStart()), {
       successMessage: t('message.copied')
     })
   }
@@ -285,9 +288,15 @@ registerCommand('message.exportNotes', async ({ actions, messageForExport }) => 
 
 registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }) => {
   const { messageToPlainText } = await import('@renderer/utils/export')
-  await actions.copyText?.(await messageToPlainText(messageForExport), {
-    successMessage: t('message.copy.success')
-  })
+  await actions.copyText?.(
+    await messageToPlainText({
+      ...messageForExport,
+      parts: messageProjectionService.readParts(messageForExport.parts)
+    }),
+    {
+      successMessage: t('message.copy.success')
+    }
+  )
 })
 
 registerCommand('message.copyImage', async (context) => {
