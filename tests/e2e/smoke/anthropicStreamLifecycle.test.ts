@@ -3,47 +3,17 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import path from 'node:path'
 
-import { createProfileEnvironment } from '../../../scripts/e2e/regression/lifecycle'
-import { getRunPaths } from '../../../scripts/e2e/regression/paths'
 import { MessageSchema } from '../../../src/shared/data/types/message'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { readTopicMessages } from '../regression/helpers/chat'
 import { selectSidebarApp } from '../regression/helpers/navigation'
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend<{ isolatedEnvironment: void }>({
-  isolatedEnvironment: [
-    async ({}, use) => {
-      const profile = process.env.CS_DEV_PROFILE_ROOT
-      if (!profile || !path.isAbsolute(profile)) throw new Error('Run with an absolute CS_DEV_PROFILE_ROOT')
-      const environment = {
-        ...createProfileEnvironment(getRunPaths(profile), 'authenticated'),
-        CS_DEV_PROFILE_ROOT: profile
-      }
-      const previous = new Map<string, string | undefined>()
-      try {
-        for (const [key, value] of Object.entries(environment)) {
-          if (value === process.env[key]) continue
-          previous.set(key, process.env[key])
-          process.env[key] = value
-        }
-        await use()
-      } finally {
-        for (const [key, value] of previous) {
-          if (value === undefined) delete process.env[key]
-          else process.env[key] = value
-        }
-      }
-    },
-    { auto: true }
-  ]
-})
+import { expect, test } from './fixtures/electron.fixture'
 
 test('closes a failed Anthropic response before the next request', async ({ mainWindow: page }, testInfo) => {
   test.setTimeout(180_000)
   page.setDefaultTimeout(30_000)
   const profile = process.env.CS_DEV_PROFILE_ROOT
-  expect(profile, 'Run with an isolated CS_DEV_PROFILE_ROOT').toBeTruthy()
+  expect(profile, 'The shared fixture must set CS_DEV_PROFILE_ROOT').toBeTruthy()
   expect(path.isAbsolute(profile!), 'The isolated profile root must be absolute').toBe(true)
 
   const sse = (type: string, data: unknown) => `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`
