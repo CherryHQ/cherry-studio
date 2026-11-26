@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.loaded": "Načteno",
   "agent.right_pane.info.context_details.partial": "Částečný rozpis",
   "agent.right_pane.info.context_usage": "Využití kontextu",
+  "agent.right_pane.info.context_usage_unsupported": "Tento agent nehlásí využití kontextu",
   "agent.right_pane.info.context_used": "Využito {{percent}} %",
   "agent.right_pane.info.desktop_control.active": "Ovládání probíhá",
   "agent.right_pane.info.desktop_control.load_failed": "Stav ovládání plochy se nepodařilo načíst",

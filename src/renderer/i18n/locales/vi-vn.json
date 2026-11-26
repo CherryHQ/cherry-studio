@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.loaded": "Đã tải",
   "agent.right_pane.info.context_details.partial": "Chi tiết một phần",
   "agent.right_pane.info.context_usage": "Sử dụng ngữ cảnh",
+  "agent.right_pane.info.context_usage_unsupported": "Tác nhân này không báo cáo mức sử dụng ngữ cảnh",
   "agent.right_pane.info.context_used": "Đã dùng {{percent}}%",
   "agent.right_pane.info.desktop_control.active": "Đang điều khiển",
   "agent.right_pane.info.desktop_control.load_failed": "Không thể tải trạng thái điều khiển máy tính",

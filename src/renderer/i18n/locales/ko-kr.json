@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.loaded": "로드됨",
   "agent.right_pane.info.context_details.partial": "부분 상세 내역",
   "agent.right_pane.info.context_usage": "컨텍스트 사용량",
+  "agent.right_pane.info.context_usage_unsupported": "이 에이전트에서 컨텍스트 사용량을 보고하지 않습니다",
   "agent.right_pane.info.context_used": "{{percent}}% 사용",
   "agent.right_pane.info.desktop_control.active": "제어 중",
   "agent.right_pane.info.desktop_control.load_failed": "데스크톱 제어 상태를 불러오지 못했습니다",

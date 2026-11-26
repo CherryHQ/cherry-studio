@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.loaded": "Cargado",
   "agent.right_pane.info.context_details.partial": "Desglose parcial",
   "agent.right_pane.info.context_usage": "Uso de contexto",
+  "agent.right_pane.info.context_usage_unsupported": "No informado por este agente",
   "agent.right_pane.info.context_used": "{{percent}}% utilizado",
   "agent.right_pane.info.desktop_control.active": "Controlando",
   "agent.right_pane.info.desktop_control.load_failed": "No se pudo cargar el estado del control de escritorio",

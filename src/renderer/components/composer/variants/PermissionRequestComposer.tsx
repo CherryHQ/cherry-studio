@@ -27,7 +27,7 @@ import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpToo
 import { cn } from '@renderer/utils/style'
 import type { AgentConfigToolKind } from '@shared/ai/agentConfigToolKind'
 import type { AgentConfigChangePreview as ConfigPreview } from '@shared/ai/agentConfigToolOutput'
-import { LocalAcpToolSchema, LocalPermissionOptionsSchema } from '@shared/ai/localAgent'
+import { isLocalAllowDecision, LocalAcpToolSchema, LocalPermissionOptionsSchema } from '@shared/ai/localAgent'
 
 import type { ComposerOverride } from '../ComposerContext'
 import { AgentConfigChangePreview } from './AgentConfigChangePreview'
@@ -302,13 +302,16 @@ export default function PermissionRequestComposer({
   const hasRejectionReason = rejectionReason.trim().length > 0
   const parsedOptions = LocalPermissionOptionsSchema.safeParse(request.toolResponse.arguments)
   const localOptions = parsedOptions.success ? parsedOptions.data.localPermissionOptions : undefined
+  const optionWarnings = localOptions
+    ? [...new Set(localOptions.flatMap((option) => (option.warning?.trim() ? [option.warning.trim()] : [])))]
+    : []
   const primaryAllowOption = localOptions
-    ? (localOptions.find((option) => option.kind === 'allow_once') ??
-      localOptions.find((option) => option.kind.startsWith('allow_')))
+    ? (localOptions.find((option) => option.decision === 'accept') ??
+      localOptions.find((option) => isLocalAllowDecision(option.decision)))
     : undefined
   const primaryRejectOption = localOptions
-    ? (localOptions.find((option) => option.kind === 'reject_once') ??
-      localOptions.find((option) => option.kind.startsWith('reject_')))
+    ? (localOptions.find((option) => option.decision === 'decline') ??
+      localOptions.find((option) => !isLocalAllowDecision(option.decision)))
     : undefined
   const configKind = getAgentConfigToolKind(request.toolResponse)
   const { data: configPreview, error: configPreviewError } = useSWRImmutable(
@@ -542,37 +545,44 @@ export default function PermissionRequestComposer({
           </div>
         )}
 
+        {optionWarnings.length > 0 && (
+          <div
+            data-testid="permission-option-warnings"
+            className="mt-2 space-y-1 rounded-[12px] border border-border bg-background px-3 py-2">
+            {optionWarnings.map((warning) => (
+              <p key={warning} className="flex items-start gap-1.5 text-warning-subtle-foreground text-xs leading-4">
+                <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+                <span>{warning}</span>
+              </p>
+            ))}
+          </div>
+        )}
+
         <div className="mt-2.5 flex flex-wrap justify-end gap-2 px-1 pb-0.5">
           {localOptions ? (
             localOptions.map((option) => {
               const isPrimaryAllow = option === primaryAllowOption
               const isPrimaryReject = option === primaryRejectOption
-              const isAllow = option.kind.startsWith('allow_')
+              const isAllow = isLocalAllowDecision(option.decision)
               const buttonLabel = option.label
                 ? t(
                     (
                       {
                         allow: 'agent.toolPermission.button.allow',
+                        allow_once: 'local_agents.allow_once',
                         allow_session: 'local_agents.allow_session',
+                        allow_always: 'local_agents.allow_always',
                         deny: 'agent.toolPermission.button.deny',
                         cancel: 'common.cancel'
                       } as const
                     )[option.label]
                   )
-                : /^allow$/i.test(option.name) && option.kind === 'allow_once'
-                  ? t('agent.toolPermission.button.allow')
-                  : /^allow once$/i.test(option.name) && option.kind === 'allow_once'
-                    ? t('local_agents.allow_once')
-                    : /^(?:reject|deny)$/i.test(option.name) && option.kind === 'reject_once'
-                      ? t('agent.toolPermission.button.deny')
-                      : /^(?:always allow|allow always)(?:\s*\(risky\))?$/i.test(option.name) &&
-                          option.kind === 'allow_always'
-                        ? t('local_agents.allow_always')
-                        : option.name
+                : option.name
               return (
                 <Button
                   key={option.optionId}
                   type="button"
+                  title={option.warning}
                   variant={isPrimaryAllow ? 'emphasis' : isAllow ? 'secondary' : 'outline'}
                   disabled={isSubmitting}
                   onClick={() =>

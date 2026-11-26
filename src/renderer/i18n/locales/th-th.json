@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.loaded": "โหลดแล้ว",
   "agent.right_pane.info.context_details.partial": "รายละเอียดบางส่วน",
   "agent.right_pane.info.context_usage": "การใช้คอนเท็กซ์",
+  "agent.right_pane.info.context_usage_unsupported": "เอเจนต์นี้ไม่รายงานการใช้บริบท",
   "agent.right_pane.info.context_used": "ใช้แล้ว {{percent}}%",
   "agent.right_pane.info.desktop_control.active": "กำลังควบคุม",
   "agent.right_pane.info.desktop_control.load_failed": "โหลดสถานะการควบคุมเดสก์ท็อปไม่สำเร็จ",

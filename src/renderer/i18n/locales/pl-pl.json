@@ -323,6 +323,7 @@
   "agent.right_pane.info.context_details.loaded": "Załadowane",
   "agent.right_pane.info.context_details.partial": "Podział częściowy",
   "agent.right_pane.info.context_usage": "Użycie kontekstu",
+  "agent.right_pane.info.context_usage_unsupported": "Nie zgłaszane przez tego agenta",
   "agent.right_pane.info.context_used": "Wykorzystano {{percent}}%",
   "agent.right_pane.info.desktop_control.active": "Sterowanie aktywne",
   "agent.right_pane.info.desktop_control.load_failed": "Nie udało się załadować stanu sterowania pulpitem",

@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.loaded": "Încărcat",
   "agent.right_pane.info.context_details.partial": "Defalcare parțială",
   "agent.right_pane.info.context_usage": "Utilizarea contextului",
+  "agent.right_pane.info.context_usage_unsupported": "Neraportat de acest agent",
   "agent.right_pane.info.context_used": "{{percent}}% utilizat",
   "agent.right_pane.info.desktop_control.active": "În control",
   "agent.right_pane.info.desktop_control.load_failed": "Nu s-a putut încărca starea controlului desktopului",

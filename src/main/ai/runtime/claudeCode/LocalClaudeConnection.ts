@@ -17,6 +17,7 @@ import {
   type LocalAgentConfiguration,
   type LocalAgentSessionInfo
 } from '@shared/ai/localAgent'
+import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import {
@@ -27,6 +28,7 @@ import {
 import { bindLocalGatewayUsage } from '../localAgent/gatewayUsage'
 import { resolveLocalAgentLaunch, resolveLocalAgentModelLaunch } from '../localAgent/launch'
 import type { LocalAgentBrowserLease } from '../localAgent/LocalAgentMcpBridgeService'
+import { resolveLocalModelContextWindow } from '../localAgent/modelContextWindow'
 import type {
   AgentRuntimeCommand,
   AgentRuntimeConnectInput,
@@ -84,6 +86,7 @@ const UNSUPPORTED_CLAUDE_SLASH_COMMANDS = new Set([
 function localSessionTitle(message: { subtype: string }): string | undefined {
   if (message.subtype === 'session_title_changed' && 'title' in message && typeof message.title === 'string')
     return message.title
+  return undefined
 }
 
 function localSdkOptions(
@@ -222,14 +225,14 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
           {
             ...input,
             localPermissionOptions: [
-              { optionId: 'allow', name: 'Allow', label: 'allow' as const, kind: 'allow_once' as const },
+              { optionId: 'allow', decision: 'accept' as const, label: 'allow' as const, name: 'Allow' },
               {
                 optionId: 'allow_session',
-                name: 'Allow for session',
+                decision: 'acceptForSession' as const,
                 label: 'allow_session' as const,
-                kind: 'allow_always' as const
+                name: 'Allow for session'
               },
-              { optionId: 'deny', name: 'Deny', label: 'deny' as const, kind: 'reject_once' as const }
+              { optionId: 'deny', decision: 'decline' as const, label: 'deny' as const, name: 'Deny' }
             ]
           },
           options.signal
@@ -271,7 +274,13 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
     if (this.resumeToken || context.bindingState === 'bound')
       options.resume = this.resumeToken ?? context.nativeThreadId ?? undefined
     else options.sessionId = context.nativeThreadId ?? undefined
-    await this.startSdk(options, context)
+    const initialModel = model ?? this.localSessionInfo.activeModel?.id
+    const initialWindow = resolveLocalModelContextWindow(initialModel)
+    await this.startSdk(
+      options,
+      context,
+      initialModel && initialWindow ? { model: initialModel, tokens: initialWindow } : undefined
+    )
     const models = await this.handle!.claude.supportedModels()
     if (models.status === 'confirmed')
       this.localSessionInfo.models = models.value.map((m) => ({ id: m.value, name: m.displayName }))
@@ -381,6 +390,57 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
       if (message.type === 'system') {
         const title = localSessionTitle(message)
         if (title !== undefined) this.eventQueue.push({ type: 'session-title', title })
+      }
+      if (
+        message.type === 'result' &&
+        !('local_command' in message && message.local_command) &&
+        'usage' in message &&
+        message.usage
+      ) {
+        const noCacheTokens = message.usage.input_tokens ?? 0
+        const cacheReadTokens = message.usage.cache_read_input_tokens ?? 0
+        const cacheWriteTokens = message.usage.cache_creation_input_tokens ?? 0
+        const inputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
+        const outputTokens = message.usage.output_tokens ?? 0
+        const model = this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? null
+        const summary = LocalAgentTurnUsageSchema.safeParse({
+          nativeSessionId: message.session_id,
+          model,
+          reportedAt: Date.now(),
+          correlation: this.gatewayLease ? 'gateway' : 'unknown',
+          usage: {
+            inputTokens,
+            outputTokens,
+            totalTokens: inputTokens + outputTokens,
+            noCacheTokens,
+            cacheReadTokens,
+            cacheWriteTokens
+          }
+        })
+        if (summary.success) this.eventQueue.push({ type: 'local-turn-usage', summary: summary.data })
+        const modelUsageMap =
+          'modelUsage' in message && message.modelUsage && typeof message.modelUsage === 'object'
+            ? (message.modelUsage as Record<string, { contextWindow?: number } | undefined>)
+            : undefined
+        const matchedUsage =
+          (model ? modelUsageMap?.[model] : undefined) ??
+          Object.values(modelUsageMap ?? {}).find((u) => (u?.contextWindow ?? 0) > 0)
+        const contextWindow = resolveLocalModelContextWindow(model, matchedUsage?.contextWindow)
+        if (contextWindow && inputTokens > 0) {
+          this.eventQueue.push({
+            type: 'context-usage',
+            result: {
+              status: 'confirmed',
+              value: {
+                model: model ?? '',
+                revision: `${message.session_id}:${message.uuid}`,
+                contextWindow,
+                basis: 'last-request',
+                used: { tokens: inputTokens, precision: 'reported' }
+              }
+            }
+          })
+        }
       }
     }
   }

@@ -640,6 +640,21 @@ describe('installed agent translations', () => {
 
     expect(
       isLocalThoughtConfigOption({
+        id: 'custom_id',
+        name: 'Custom',
+        category: 'thinking',
+        role: 'reasoning',
+        type: 'select',
+        currentValue: 'low',
+        options: [
+          { value: 'low', name: 'Low' },
+          { value: 'high', name: 'High' }
+        ]
+      })
+    ).toBe(true)
+
+    expect(
+      isLocalThoughtConfigOption({
         id: 'workflow_mode',
         name: 'Workflow mode',
         type: 'select',

@@ -451,7 +451,7 @@ vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
-  useAgentSessionContextUsage: () => ({ percentage: null, usage: null })
+  useAgentSessionContextUsage: () => ({ percentage: null, usage: null, status: null })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentSessionBackgroundTasks', () => ({

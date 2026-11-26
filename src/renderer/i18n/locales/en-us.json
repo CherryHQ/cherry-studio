@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.loaded": "Loaded",
   "agent.right_pane.info.context_details.partial": "Partial breakdown",
   "agent.right_pane.info.context_usage": "Context usage",
+  "agent.right_pane.info.context_usage_unsupported": "Not reported by this agent",
   "agent.right_pane.info.context_used": "Used {{percent}}%",
   "agent.right_pane.info.desktop_control.active": "Controlling",
   "agent.right_pane.info.desktop_control.load_failed": "Failed to load desktop control status",

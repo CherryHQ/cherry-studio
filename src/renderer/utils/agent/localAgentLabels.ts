@@ -166,7 +166,9 @@ export function isLocalThoughtConfigOption(
   if (option.type !== 'select') return false
   const flattened = option.options.flatMap((choice) => ('group' in choice ? choice.options : [choice]))
   if (flattened.length <= 1) return false
-  if (option.category === 'thought_level') return true
+  if (option.role === 'reasoning' || option.category === 'thought_level' || option.category === 'thinking') {
+    return true
+  }
   const id = option.id.trim().toLowerCase()
   const name = option.name.trim().toLowerCase()
   if (!THOUGHT_CONFIG_OPTION_IDENTIFIERS.has(id) && !THOUGHT_CONFIG_OPTION_IDENTIFIERS.has(name)) return false
@@ -513,7 +515,7 @@ export function localAgentConfigOptions(options: LocalAgentConfigOption[], prese
     const labels = config?.get(option.id) ?? {}
     const translated = translateLabel(option, { ...configNameKeys, ...labels }, t)
     const translate = (choice: { value: string; name: string; description?: string | null }) => {
-      if (option.category === 'mode')
+      if (option.role === 'mode' || option.category === 'mode')
         return localAgentModeOptions(
           {
             id: option.id,
@@ -531,7 +533,7 @@ export function localAgentConfigOptions(options: LocalAgentConfigOption[], prese
         },
         t
       )
-      return option.category === 'thought_level'
+      return option.role === 'reasoning' || option.category === 'thought_level' || option.category === 'thinking'
         ? { ...result, name: reasoningEffortLabel(choice.value, t, result.name) }
         : result
     }

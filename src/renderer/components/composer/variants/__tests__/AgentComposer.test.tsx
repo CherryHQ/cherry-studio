@@ -1854,6 +1854,68 @@ describe('AgentComposer', () => {
     expect(getControls().queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
   })
 
+  it('promotes ACP thinking/reasoning role configOptions into LocalAgentThoughtControl and omits unsupported context meter', async () => {
+    const thinkingOption = {
+      id: 'reasoning-budget',
+      name: 'Thinking Budget',
+      category: 'thinking',
+      role: 'reasoning' as const,
+      type: 'select' as const,
+      currentValue: 'high',
+      options: [
+        { value: 'low', name: 'Low' },
+        { value: 'medium', name: 'Medium' },
+        { value: 'high', name: 'High' }
+      ]
+    }
+    const extraBool = {
+      id: 'notifications',
+      name: 'Notifications',
+      type: 'boolean' as const,
+      currentValue: true
+    }
+    MockUseCacheUtils.setCacheValue('agent.session.local_options', {
+      'session-thinking-role': {
+        configOptions: [thinkingOption, extraBool]
+      }
+    })
+    MockUseCacheUtils.setSharedCacheValue('agent.session.context_usage.session-thinking-role', {
+      result: {
+        status: 'unsupported',
+        error: { operation: 'contextUsage', code: 'unsupported', message: 'Not supported' }
+      }
+    })
+    mocks.ipcApiRequest.mockResolvedValue(null)
+    mocks.sessionLayout = 'time'
+
+    render(
+      <AgentComposer
+        sessionId="session-thinking-role"
+        agentId="agent-acp-thinking"
+        resolvedAgent={{
+          ...createControlledAgent(),
+          type: 'local',
+          configuration: { localRuntime: { protocol: 'acp', presetId: 'antigravity-acp' } } as any
+        }}
+        resolvedModel={undefined}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const accessory = within(screen.getByTestId('composer-send-accessory'))
+    expect(accessory.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+      'assistants.settings.reasoning_effort.high'
+    )
+    expect(accessory.queryByRole('menuitemradio', { name: 'High' })).not.toBeInTheDocument()
+    expect(accessory.getByRole('button', { name: 'local_agents.configuration' })).toBeInTheDocument()
+    expect(accessory.getByRole('menuitemradio', { name: 'common.enabled' })).toBeInTheDocument()
+    expect(accessory.queryByRole('meter')).not.toBeInTheDocument()
+    expect(accessory.queryByRole('status')).not.toBeInTheDocument()
+    expect(accessory.queryByLabelText(/context_usage/)).not.toBeInTheDocument()
+  })
+
   it('allows arbitrary workspace files for local agents while honoring ACP image/audio capability exclusions', async () => {
     mocks.ipcApiRequest.mockImplementation(async (route) =>
       route === 'ai.local_agents.session_info' ? { images: false, audio: false, supportsEmbeddedContext: false } : null

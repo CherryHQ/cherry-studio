@@ -28,6 +28,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.button.allow': 'Allow',
         'local_agents.allow_always': '始终允许',
         'local_agents.allow_once': '允许一次',
+        'local_agents.allow_session': '本次会话内允许',
         'agent.toolPermission.button.allowOnce': 'Allow this invocation',
         'agent.toolPermission.workingDirectory': 'Working directory',
         'agent.toolPermission.policyEvidence': 'Matching command details',
@@ -105,8 +106,8 @@ describe('PermissionRequestComposer', () => {
     const request = makeRequest()
     request.toolResponse.arguments = {
       localPermissionOptions: [
-        { optionId: 'native-session-grant', kind: 'allow_always', name: 'Allow during this session' },
-        { optionId: 'native-deny', kind: 'reject_once', name: 'Reject this operation' }
+        { optionId: 'native-session-grant', decision: 'acceptForSession', name: 'Allow during this session' },
+        { optionId: 'native-deny', decision: 'decline', name: 'Reject this operation' }
       ]
     }
     render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
@@ -122,29 +123,36 @@ describe('PermissionRequestComposer', () => {
   })
 
   it.each([
-    { allowName: 'Always Allow', rejectName: 'Reject' },
-    { allowName: 'Always allow', rejectName: 'Reject' },
-    { allowName: 'Allow Always', rejectName: 'Deny' },
-    { allowName: 'Allow Always (risky)', rejectName: 'Deny' }
-  ])('translates $allowName and $rejectName without widening custom grants', async ({ allowName, rejectName }) => {
+    { label: 'allow_always' as const, expectedText: '始终允许' },
+    { label: 'allow_session' as const, expectedText: '本次会话内允许' }
+  ])('translates explicit $label option labels and shows option warnings', async ({ label, expectedText }) => {
     const onRespond = vi.fn().mockResolvedValue(undefined)
     const request = makeRequest()
     request.toolResponse.arguments = {
       localPermissionOptions: [
-        { optionId: 'allow_always', kind: 'allow_always', name: allowName },
-        { optionId: 'custom', kind: 'allow_always', name: 'Allow only /tmp/project' },
-        { optionId: 'reject', kind: 'reject_once', name: rejectName }
+        {
+          optionId: 'allow_scoped',
+          decision: label === 'allow_always' ? 'acceptAlways' : 'acceptForSession',
+          label,
+          name: 'Scoped allow',
+          warning: 'Runs shell commands without further prompts'
+        },
+        { optionId: 'custom', decision: 'acceptAlways', name: 'Allow only /tmp/project' },
+        { optionId: 'reject', decision: 'decline', label: 'deny', name: 'Reject' }
       ]
     }
     render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByTestId('permission-option-warnings')).toHaveTextContent(
+      'Runs shell commands without further prompts'
+    )
     expect(screen.getByRole('button', { name: 'Allow only /tmp/project' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Deny' })).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: '始终允许' }))
+    fireEvent.click(screen.getByRole('button', { name: expectedText }))
     await waitFor(() =>
       expect(onRespond).toHaveBeenCalledWith({
         match: request.match,
         approved: true,
-        updatedInput: { localPermissionOption: 'allow_always' }
+        updatedInput: { localPermissionOption: 'allow_scoped' }
       })
     )
   })
@@ -154,7 +162,7 @@ describe('PermissionRequestComposer', () => {
     const request = makeRequest()
     request.toolResponse.arguments = {
       command: 'pnpm build',
-      localPermissionOptions: [{ optionId: 'session', kind: 'allow_always', name: 'Allow for session' }]
+      localPermissionOptions: [{ optionId: 'session', decision: 'acceptForSession', name: 'Allow for session' }]
     }
     render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
     expect(screen.getByText(/pnpm build/)).toBeVisible()
@@ -167,7 +175,7 @@ describe('PermissionRequestComposer', () => {
     request.toolResponse.arguments = {
       localAcpTool: { title: 'Write report', rawInput: { file_path: '/tmp/report.txt', content: 'report body' } },
       tool: { toolCallId: 'call-1' },
-      localPermissionOptions: [{ optionId: 'once', kind: 'allow_once', name: 'Allow once' }]
+      localPermissionOptions: [{ optionId: 'once', decision: 'accept', label: 'allow_once', name: 'Allow once' }]
     }
     render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
     expect(screen.getByText('/tmp/report.txt')).toBeVisible()
@@ -187,9 +195,9 @@ describe('PermissionRequestComposer', () => {
     const request = makeRequest()
     request.toolResponse.arguments = {
       localPermissionOptions: [
-        { optionId: 'allow-once', kind: 'allow_once', name: 'Allow once' },
-        { optionId: 'allow-session', kind: 'allow_always', name: 'Always allow' },
-        { optionId: 'deny-once', kind: 'reject_once', name: 'Reject' }
+        { optionId: 'allow-once', decision: 'accept', label: 'allow_once', name: 'Allow once' },
+        { optionId: 'allow-session', decision: 'acceptAlways', label: 'allow_always', name: 'Always allow' },
+        { optionId: 'deny-once', decision: 'decline', label: 'deny', name: 'Reject' }
       ]
     }
     const { rerender } = render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
@@ -772,5 +780,54 @@ describe('PermissionRequestComposer', () => {
     )
 
     expect(await screen.findByText('tool_kimi.txt')).toBeInTheDocument()
+  })
+
+  it('deduplicates repeated option warnings and falls back Enter/Esc shortcuts to session/cancel decisions', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    const request = makeRequest()
+    request.toolResponse.arguments = {
+      localPermissionOptions: [
+        {
+          optionId: 'session-1',
+          decision: 'acceptForSession',
+          label: 'allow_session',
+          name: 'Session',
+          warning: 'Repeated security warning'
+        },
+        {
+          optionId: 'always-1',
+          decision: 'acceptAlways',
+          label: 'allow_always',
+          name: 'Always',
+          warning: 'Repeated security warning'
+        },
+        { optionId: 'cancel-1', decision: 'cancel', label: 'cancel', name: 'Cancel' }
+      ]
+    }
+    const { rerender } = render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.getAllByText('Repeated security warning')).toHaveLength(1)
+    fireEvent.keyDown(document, { key: 'Enter' })
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: request.match,
+        approved: true,
+        updatedInput: { localPermissionOption: 'session-1' }
+      })
+    )
+
+    const nextRequest = makeRequest({
+      approvalId: 'approval-cancel',
+      match: { ...makeRequest().match, approvalId: 'approval-cancel' }
+    })
+    nextRequest.toolResponse.arguments = request.toolResponse.arguments
+    rerender(<PermissionRequestComposer request={nextRequest} onRespond={onRespond} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() =>
+      expect(onRespond).toHaveBeenCalledWith({
+        match: nextRequest.match,
+        approved: false,
+        updatedInput: { localPermissionOption: 'cancel-1' }
+      })
+    )
   })
 })

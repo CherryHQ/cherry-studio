@@ -9,7 +9,9 @@ import {
   CODEX_LOCAL_MODE_ID,
   CODEX_LOCAL_MODE_OPTIONS,
   CODEX_LOCAL_THOUGHT_LEVEL_ID,
-  CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS
+  CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS,
+  isLocalAllowDecision,
+  type LocalPermissionOption
 } from '@shared/ai/localAgent'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 
@@ -21,6 +23,7 @@ import type { LocalAgentBrowserLease } from './LocalAgentMcpBridgeService'
 import { stopLocalAgentProcess } from './localAgentProcess'
 import { LocalConnection } from './LocalConnection'
 import { localContent } from './localContent'
+import { resolveLocalModelContextWindow } from './modelContextWindow'
 
 const CODEX_BROWSER_MCP_TOKEN_ENV = 'CHERRY_BROWSER_MCP_TOKEN'
 
@@ -122,7 +125,11 @@ const TokenUsageSchema = z.object({
   reasoningOutputTokens: tokenCount,
   cacheWriteInputTokens: tokenCount.optional()
 })
-const TokenUsageUpdateSchema = z.object({ total: TokenUsageSchema, last: TokenUsageSchema })
+const TokenUsageUpdateSchema = z.object({
+  total: TokenUsageSchema,
+  last: TokenUsageSchema,
+  modelContextWindow: tokenCount.nullish()
+})
 
 const CODEX_EFFORT_LABELS: Record<string, string> = {
   default: 'Default',
@@ -132,7 +139,8 @@ const CODEX_EFFORT_LABELS: Record<string, string> = {
   medium: 'Medium',
   high: 'High',
   xhigh: 'Extra High',
-  max: 'Max'
+  max: 'Max',
+  ultra: 'Ultra'
 }
 
 function buildCodexThoughtLevelOptions(
@@ -170,6 +178,7 @@ export class CodexConnection extends LocalConnection {
   private lastTokenUsage?: z.infer<typeof TokenUsageSchema>
   private skillsLoaded = false
   private readonly skillByName = new Map<string, { name: string; path: string; description: string }>()
+  private readonly modelContextWindows = new Map<string, number>()
   private readonly approvalItems = new Map<string, z.infer<typeof ItemSchema>>()
   private readonly pending = new Map<
     number,
@@ -272,6 +281,10 @@ export class CodexConnection extends LocalConnection {
       inputModalities?: string[]
       supportedReasoningEfforts?: Array<{ reasoningEffort: string; description?: string }>
       defaultReasoningEffort?: string
+      contextWindow?: number
+      context_window?: number
+      maxContextTokens?: number
+      max_context_tokens?: number
     }> = []
     let cursor: string | null = null
     do {
@@ -286,7 +299,11 @@ export class CodexConnection extends LocalConnection {
               supportedReasoningEfforts: z
                 .array(z.object({ reasoningEffort: z.string(), description: z.string().optional() }))
                 .optional(),
-              defaultReasoningEffort: z.string().optional()
+              defaultReasoningEffort: z.string().optional(),
+              contextWindow: z.number().int().positive().optional(),
+              context_window: z.number().int().positive().optional(),
+              maxContextTokens: z.number().int().positive().optional(),
+              max_context_tokens: z.number().int().positive().optional()
             })
           ),
           nextCursor: z.string().nullish()
@@ -295,6 +312,12 @@ export class CodexConnection extends LocalConnection {
       models.push(...catalog.data)
       cursor = catalog.nextCursor ?? null
     } while (cursor)
+    this.modelContextWindows.clear()
+    for (const model of models) {
+      const declaredWindow =
+        model.contextWindow ?? model.context_window ?? model.maxContextTokens ?? model.max_context_tokens
+      if (declaredWindow) this.modelContextWindows.set(model.model ?? model.id, declaredWindow)
+    }
     this.localSessionInfo.models = models.map((model) => ({ id: model.model ?? model.id, name: model.displayName }))
     if (probe === 'models') return this
     const mcpServers = this.headless
@@ -504,9 +527,22 @@ export class CodexConnection extends LocalConnection {
           const { host, action } = decision.applyNetworkPolicyAmendment.network_policy_amendment
           return `${action === 'allow' ? 'Always allow' : 'Always deny'} host: ${host}`
         }
-        const options = decisions.map((decision) => ({
+        const options: LocalPermissionOption[] = decisions.map((decision) => ({
           optionId: typeof decision === 'string' ? decision : JSON.stringify(decision),
           name: formatDecisionName(decision),
+          decision:
+            typeof decision !== 'string'
+              ? 'applyNetworkPolicyAmendment' in decision &&
+                decision.applyNetworkPolicyAmendment.network_policy_amendment.action === 'deny'
+                ? 'decline'
+                : 'acceptAlways'
+              : decision === 'acceptForSession'
+                ? 'acceptForSession'
+                : decision === 'accept'
+                  ? 'accept'
+                  : decision === 'decline'
+                    ? 'decline'
+                    : 'cancel',
           label:
             typeof decision !== 'string'
               ? undefined
@@ -516,18 +552,7 @@ export class CodexConnection extends LocalConnection {
                   ? 'allow_session'
                   : decision === 'decline'
                     ? 'deny'
-                    : 'cancel',
-          kind:
-            typeof decision !== 'string'
-              ? 'applyNetworkPolicyAmendment' in decision &&
-                decision.applyNetworkPolicyAmendment.network_policy_amendment.action === 'deny'
-                ? 'reject_always'
-                : 'allow_always'
-              : decision === 'acceptForSession'
-                ? 'allow_always'
-                : decision === 'accept'
-                  ? 'allow_once'
-                  : 'reject_once'
+                    : 'cancel'
         }))
         const fullAccessDecision = this.isFullAccess()
           ? decisions.includes('accept')
@@ -547,7 +572,9 @@ export class CodexConnection extends LocalConnection {
         )
         const requested = answer.updatedInput?.localPermissionOption
         const index = options.findIndex(
-          (option) => option.optionId === requested && option.kind.startsWith(answer.approved ? 'allow_' : 'reject_')
+          (option) =>
+            option.optionId === requested &&
+            (answer.approved ? isLocalAllowDecision(option.decision) : !isLocalAllowDecision(option.decision))
         )
         const decision = this.abort.signal.aborted
           ? 'cancel'
@@ -568,15 +595,15 @@ export class CodexConnection extends LocalConnection {
           })
           return
         }
-        const localPermissionOptions = [
-          { optionId: 'accept', name: 'Allow', label: 'allow' as const, kind: 'allow_once' as const },
+        const localPermissionOptions: LocalPermissionOption[] = [
+          { optionId: 'accept', decision: 'accept', label: 'allow', name: 'Allow' },
           {
             optionId: 'acceptForSession',
-            name: 'Allow for session',
-            label: 'allow_session' as const,
-            kind: 'allow_always' as const
+            decision: 'acceptForSession',
+            label: 'allow_session',
+            name: 'Allow for session'
           },
-          { optionId: 'decline', name: 'Deny', label: 'deny' as const, kind: 'reject_once' as const }
+          { optionId: 'decline', decision: 'decline', label: 'deny', name: 'Deny' }
         ]
         const answer = await this.approve(String(params.itemId), 'Codex: Permissions', {
           ...params,
@@ -630,6 +657,38 @@ export class CodexConnection extends LocalConnection {
         }
       })
       if (summary.success) this.events.push({ type: 'local-turn-usage', summary: summary.data })
+      const model = this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? ''
+      const contextWindow = resolveLocalModelContextWindow(
+        model,
+        parsed.data.modelContextWindow ?? this.modelContextWindows.get(model)
+      )
+      if (contextWindow) {
+        this.events.push({
+          type: 'context-usage',
+          result: {
+            status: 'confirmed',
+            value: {
+              model,
+              revision: `${model}:${this.turnId ?? ''}`,
+              contextWindow,
+              basis: 'last-request',
+              used: { tokens: last.inputTokens, precision: 'reported' }
+            }
+          }
+        })
+      } else {
+        this.events.push({
+          type: 'context-usage',
+          result: {
+            status: 'unknown',
+            error: {
+              operation: 'contextUsage',
+              code: 'unknown-window',
+              message: 'Context window size is unknown for this Codex model'
+            }
+          }
+        })
+      }
     }
     if (message.method === 'item/started' || message.method === 'item/completed') {
       const item = ItemSchema.parse(params.item)

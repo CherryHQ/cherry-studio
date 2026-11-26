@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.loaded": "Chargé",
   "agent.right_pane.info.context_details.partial": "Répartition partielle",
   "agent.right_pane.info.context_usage": "Utilisation du contexte",
+  "agent.right_pane.info.context_usage_unsupported": "Non signalé par cet agent",
   "agent.right_pane.info.context_used": "{{percent}}% utilisé",
   "agent.right_pane.info.desktop_control.active": "Contrôle en cours",
   "agent.right_pane.info.desktop_control.load_failed": "Impossible de charger l’état du contrôle du bureau",

@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.loaded": "Yüklendi",
   "agent.right_pane.info.context_details.partial": "Kısmi döküm",
   "agent.right_pane.info.context_usage": "Bağlam kullanımı",
+  "agent.right_pane.info.context_usage_unsupported": "Bu ajan tarafından bildirilmiyor",
   "agent.right_pane.info.context_used": "%{{percent}} kullanıldı",
   "agent.right_pane.info.desktop_control.active": "Kontrol ediliyor",
   "agent.right_pane.info.desktop_control.load_failed": "Masaüstü kontrol durumu yüklenemedi",

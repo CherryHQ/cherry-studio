@@ -569,6 +569,7 @@ export type LocalAgentConfigOption = {
   name: string
   description?: string | null
   category?: string | null
+  role?: 'mode' | 'reasoning'
 } & (
   | { type: 'boolean'; currentValue: boolean }
   | {
@@ -581,8 +582,10 @@ export type LocalAgentConfigOption = {
     }
 )
 
-export function isLocalPermissionConfigOption(option: Pick<LocalAgentConfigOption, 'id' | 'category'>): boolean {
-  return option.category === 'mode' || isLocalPermissionConfigOptionId(option.id)
+export function isLocalPermissionConfigOption(
+  option: Pick<LocalAgentConfigOption, 'id' | 'category' | 'role'>
+): boolean {
+  return option.role === 'mode' || option.category === 'mode' || isLocalPermissionConfigOptionId(option.id)
 }
 
 export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
@@ -595,13 +598,21 @@ export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
   resume: boolean
 }
 
+export const LocalApprovalDecisionSchema = z.enum(['accept', 'acceptForSession', 'acceptAlways', 'decline', 'cancel'])
+export type LocalApprovalDecision = z.infer<typeof LocalApprovalDecisionSchema>
+
+export function isLocalAllowDecision(decision: LocalApprovalDecision): boolean {
+  return decision === 'accept' || decision === 'acceptForSession' || decision === 'acceptAlways'
+}
+
 export const LocalPermissionOptionsSchema = z.object({
   localPermissionOptions: z.array(
     z.object({
       optionId: z.string(),
-      label: z.enum(['allow', 'allow_session', 'deny', 'cancel']).optional(),
+      decision: LocalApprovalDecisionSchema,
+      label: z.enum(['allow', 'allow_once', 'allow_session', 'allow_always', 'deny', 'cancel']).optional(),
       name: z.string(),
-      kind: z.enum(['allow_once', 'allow_always', 'reject_once', 'reject_always'])
+      warning: z.string().optional()
     })
   )
 })

@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.loaded": "已載入",
   "agent.right_pane.info.context_details.partial": "部分明細",
   "agent.right_pane.info.context_usage": "上下文用量",
+  "agent.right_pane.info.context_usage_unsupported": "此 Agent 未回報上下文用量",
   "agent.right_pane.info.context_used": "已使用 {{percent}}%",
   "agent.right_pane.info.desktop_control.active": "正在控制",
   "agent.right_pane.info.desktop_control.load_failed": "無法載入桌面控制狀態",

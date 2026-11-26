@@ -7,12 +7,14 @@ import type { LocalAgentBrowserLease } from './LocalAgentMcpBridgeService'
 import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
 import { LocalConnection } from './LocalConnection'
 import { localContent } from './localContent'
+import { resolveLocalModelContextWindow } from './modelContextWindow'
 
 export class CursorConnection extends LocalConnection {
   private agent?: SDKAgent
   private browser?: LocalAgentBrowserLease
   private mode: 'plan' | 'default' = 'default'
   private pendingRun?: Promise<Run>
+  private hasContextUsageReading = false
 
   async start(cwd: string, resume?: string): Promise<this> {
     const apiKey = await getCursorApiKey(this.config, this.abort.signal)
@@ -99,17 +101,62 @@ export class CursorConnection extends LocalConnection {
       })
       const run = await this.pendingRun
       const completed = await run.wait()
-      if (completed.usage)
+      const model = completed.model?.id ?? agent.model?.id ?? this.localSessionInfo.activeModel?.id ?? null
+      if (completed.usage) {
         this.events.push({
           type: 'local-turn-usage',
           summary: {
             nativeSessionId: agent.agentId,
-            model: completed.model?.id ?? agent.model?.id ?? null,
+            model,
             reportedAt: Date.now(),
             correlation: 'unknown',
             usage: completed.usage
           }
         })
+        const contextWindow = resolveLocalModelContextWindow(model)
+        if (contextWindow) {
+          this.hasContextUsageReading = true
+          this.events.push({
+            type: 'context-usage',
+            result: {
+              status: 'confirmed',
+              value: {
+                model: model ?? '',
+                revision: model ?? '',
+                contextWindow,
+                basis: 'last-request',
+                used: { tokens: completed.usage.inputTokens, precision: 'estimated' }
+              }
+            }
+          })
+        } else if (!this.hasContextUsageReading) {
+          this.hasContextUsageReading = true
+          this.events.push({
+            type: 'context-usage',
+            result: {
+              status: 'unsupported',
+              error: {
+                operation: 'contextUsage',
+                code: 'unsupported',
+                message: 'This agent does not report context window size'
+              }
+            }
+          })
+        }
+      } else if (!this.hasContextUsageReading) {
+        this.hasContextUsageReading = true
+        this.events.push({
+          type: 'context-usage',
+          result: {
+            status: 'unsupported',
+            error: {
+              operation: 'contextUsage',
+              code: 'unsupported',
+              message: 'This agent does not report context usage'
+            }
+          }
+        })
+      }
       if (completed.status === 'error') throw new Error(completed.error?.message || 'Cursor run failed')
       this.finish(undefined, completed.status === 'cancelled' || signal.aborted ? 'cancelled' : 'stop')
     } catch (error) {

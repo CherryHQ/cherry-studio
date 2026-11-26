@@ -1773,7 +1773,7 @@ function AgentDetailsContent() {
   const actions = useAgentRightPaneActions()
   const details = useAgentSessionDetails()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId, meta.model)
+  const { usage, percentage, status: contextUsageStatus } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const cost = useAgentSessionCost(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const desktopControls = use(DesktopControlsContext)
@@ -1788,6 +1788,7 @@ function AgentDetailsContent() {
             cost={cost}
             usage={usage}
             percentage={percentage}
+            status={contextUsageStatus}
             isCompacting={compaction.status === 'compacting'}
             className="py-2"
           />

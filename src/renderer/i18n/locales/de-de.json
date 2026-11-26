@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.loaded": "Geladen",
   "agent.right_pane.info.context_details.partial": "Teilweise Aufschlüsselung",
   "agent.right_pane.info.context_usage": "Kontextverwendung",
+  "agent.right_pane.info.context_usage_unsupported": "Von diesem Agenten nicht gemeldet",
   "agent.right_pane.info.context_used": "{{percent}}% verwendet",
   "agent.right_pane.info.desktop_control.active": "Wird gesteuert",
   "agent.right_pane.info.desktop_control.load_failed": "Desktopsteuerungsstatus konnte nicht geladen werden",

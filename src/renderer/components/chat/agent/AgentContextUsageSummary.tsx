@@ -2,7 +2,7 @@ import { startCase } from 'es-toolkit'
 import { ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import type { ThreadContextUsage, ContextCategoryKey } from '@cherrystudio/agent-runtime'
+import type { OperationResult, ThreadContextUsage, ContextCategoryKey } from '@cherrystudio/agent-runtime'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, ScrollArea } from '@cherrystudio/ui'
 import { ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
@@ -61,6 +61,7 @@ function resourceLabel(
 interface AgentContextUsageSummaryProps {
   usage: ThreadContextUsage | null
   percentage: number | null
+  status?: OperationResult<ThreadContextUsage>['status'] | null
   className?: string
   isCompacting?: boolean
   modelName?: string
@@ -73,6 +74,7 @@ interface AgentContextUsageSummaryProps {
 export function AgentContextUsageSummary({
   usage,
   percentage,
+  status,
   className,
   isCompacting = false,
   modelName,
@@ -144,7 +146,7 @@ export function AgentContextUsageSummary({
   return (
     <ContextUsageSummary
       title={t(showCategories ? 'agent.right_pane.info.context' : 'agent.right_pane.info.context_usage')}
-      emptyLabel={t('common.unknown')}
+      emptyLabel={status === 'unsupported' ? t('agent.right_pane.info.context_usage_unsupported') : t('common.unknown')}
       data={data}
       className={className}
       summaryClassName={showCategories ? 'px-3' : undefined}

@@ -5,6 +5,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
+  classifyAcpToolKind,
   createAcpSessionPermissionGrants,
   evaluateAcpClientTerminal,
   evaluateAcpClientWrite,
@@ -197,5 +198,96 @@ describe('acpPermissionPolicy', () => {
     expect(evaluateAcpClientTerminal({ mode: 'default', grants })).toBe('ask')
     recordAcpAlwaysAllowGrant(grants, { kind: 'execute', title: 'Bash' })
     expect(evaluateAcpClientTerminal({ mode: 'default', grants })).toBe('allow')
+
+    // Auto mode asks initially, honors session grants once granted, keeps categories isolated, and plan stays closed
+    const autoGrants = createAcpSessionPermissionGrants()
+    expect(
+      evaluateAcpPermissionRequest({
+        mode: 'auto',
+        tool: { title: 'echo 111', rawInput: { CommandLine: 'echo 111' } },
+        cwd: workspace,
+        grants: autoGrants
+      })
+    ).toBe('ask')
+    expect(classifyAcpToolKind({ title: 'echo 111', rawInput: { CommandLine: 'echo 111' } })).toBe('execute')
+    expect(classifyAcpToolKind({ title: 'ls', rawInput: { command: 'ls -la' } })).toBe('execute')
+    expect(classifyAcpToolKind({ title: 'pwd', rawInput: { cmd: 'pwd' } })).toBe('execute')
+    expect(classifyAcpToolKind({ title: 'blank', rawInput: { command: '   ' } })).toBe('other')
+    recordAcpAlwaysAllowGrant(autoGrants, { title: 'echo 111', rawInput: { CommandLine: 'echo 111' } })
+    expect(
+      evaluateAcpPermissionRequest({
+        mode: 'auto',
+        tool: { title: 'echo 222', rawInput: { CommandLine: 'echo 222' } },
+        cwd: workspace,
+        grants: autoGrants
+      })
+    ).toBe('allow')
+    // Execute grant must not silently authorize workspace edits or arbitrary named tools in auto mode
+    expect(
+      evaluateAcpPermissionRequest({
+        mode: 'auto',
+        tool: { kind: 'edit', locations: [{ path: path.join(workspace, 'a.ts') }] },
+        cwd: workspace,
+        grants: autoGrants
+      })
+    ).toBe('ask')
+    recordAcpAlwaysAllowGrant(autoGrants, { kind: 'edit', title: 'Edit file' })
+    expect(
+      evaluateAcpPermissionRequest({
+        mode: 'auto',
+        tool: { kind: 'edit', locations: [{ path: path.join(workspace, 'b.ts') }] },
+        cwd: workspace,
+        grants: autoGrants
+      })
+    ).toBe('allow')
+    expect(
+      evaluateAcpPermissionRequest({
+        mode: 'auto',
+        tool: { kind: 'edit', locations: [{ path: path.join(outside, 'secret.txt') }] },
+        cwd: workspace,
+        grants: autoGrants
+      })
+    ).toBe('ask')
+    expect(
+      evaluateAcpPermissionRequest({
+        mode: 'auto',
+        tool: { kind: 'edit', locations: [{ path: path.join(workspace, 'escape-dir', 'secret.txt') }] },
+        cwd: workspace,
+        grants: autoGrants
+      })
+    ).toBe('ask')
+    recordAcpAlwaysAllowGrant(autoGrants, { kind: 'other', name: 'web_fetch', title: 'Fetch' })
+    expect(
+      evaluateAcpPermissionRequest({
+        mode: 'auto',
+        tool: { kind: 'other', name: 'mcp_danger', title: 'Danger' },
+        cwd: workspace,
+        grants: autoGrants
+      })
+    ).toBe('ask')
+    expect(
+      evaluateAcpPermissionRequest({
+        mode: 'plan',
+        tool: { kind: 'execute', title: 'echo 222' },
+        cwd: workspace,
+        grants: autoGrants
+      })
+    ).toBe('ask')
+    expect(
+      evaluateAcpPermissionRequest({
+        mode: 'plan',
+        tool: { kind: 'edit', locations: [{ path: path.join(workspace, 'b.ts') }] },
+        cwd: workspace,
+        grants: autoGrants
+      })
+    ).toBe('ask')
+    expect(
+      evaluateAcpPermissionRequest({
+        mode: 'plan',
+        tool: { kind: 'other', name: 'web_fetch' },
+        cwd: workspace,
+        grants: autoGrants
+      })
+    ).toBe('ask')
   })
 })

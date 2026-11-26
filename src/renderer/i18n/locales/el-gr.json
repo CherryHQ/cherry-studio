@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.loaded": "Φορτώθηκε",
   "agent.right_pane.info.context_details.partial": "Μερική ανάλυση",
   "agent.right_pane.info.context_usage": "Χρήση πλαισίου",
+  "agent.right_pane.info.context_usage_unsupported": "Δεν αναφέρεται από αυτόν τον πράκτορα",
   "agent.right_pane.info.context_used": "Χρησιμοποιήθηκε {{percent}}%",
   "agent.right_pane.info.desktop_control.active": "Σε έλεγχο",
   "agent.right_pane.info.desktop_control.load_failed": "Αποτυχία φόρτωσης κατάστασης ελέγχου επιφάνειας εργασίας",
