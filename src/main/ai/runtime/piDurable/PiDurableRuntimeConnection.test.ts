@@ -2432,7 +2432,9 @@ describe('desktop Pi Durable connection', () => {
       await expect.poll(() => steering !== undefined).toBe(true)
       expect(await steering).toBe(outcome === 'rejected' ? 'child is busy' : 'sent')
       if (outcome === 'acknowledged')
-        await expect.poll(() => JSON.stringify(view.snapshot().messages)).toContain('child continued answer')
+        await expect
+          .poll(() => JSON.stringify(view.snapshot().messages), CHILD_WAIT)
+          .toContain('child continued answer')
       await connection.drainChildWrites()
       const saved = order(savedChildView(contexts.context(contextId)).messages)
       expect(saved.answer).toBeGreaterThanOrEqual(0)

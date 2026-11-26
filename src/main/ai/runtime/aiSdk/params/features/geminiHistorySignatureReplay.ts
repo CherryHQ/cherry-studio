@@ -1,18 +1,10 @@
 import type { JSONObject, JSONValue, SharedV3ProviderOptions } from '@ai-sdk/provider'
 import { isToolUIPart, type LanguageModelMiddleware, type UIMessage } from 'ai'
 
+import { geminiSignatures } from '@main/ai/messages/geminiTextSignature'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 
 import type { AssistantPart } from './providerStateReplay'
-
-function geminiSignatures(options: SharedV3ProviderOptions | undefined): Array<[string, string]> {
-  const signatures: Array<[string, string]> = []
-  for (const [namespace, optionsValue] of Object.entries(options ?? {})) {
-    const signature = optionsValue?.thoughtSignature
-    if (typeof signature === 'string' && signature.trim()) signatures.push([namespace, signature])
-  }
-  return signatures
-}
 
 function asObject(value: JSONValue | undefined): JSONObject {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}

@@ -75,6 +75,10 @@ unrecognized. Normalization can relax the constraints sent to the provider. MCP
 tools still validate against the original schema, and gateway callers validate
 their own tools.
 
+On `google-generate-content`, any tool `enum` or `const` the Google adapter would
+still reject moves into the description with a warning naming the tool, so one
+tool schema cannot abort the whole request.
+
 Chat records the provider connection, protocol, SDK adapter, wire model, and
 Base URL with replayable state. `buildAgentParams` derives the route ID once
 from the resolved SDK configuration for use by replay middleware and retries.

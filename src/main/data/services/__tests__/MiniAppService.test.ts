@@ -651,11 +651,6 @@ describe('MiniAppService', () => {
       expect(() => miniAppService.delete('com.example.a')).toThrow(/uninstall/i)
     })
 
-    it('still allows enabling and reordering an installed app', () => {
-      seedInstalledApp('com.example.a', '1.0.0')
-      expect(() => miniAppService.update('com.example.a', { status: 'disabled' })).not.toThrow()
-    })
-
     it('shows the Chinese name under a Chinese UI and the English one otherwise', () => {
       // The bug this guards: storing one resolved string. Switching the app language
       // would then require rewriting rows, and until someone did, the name would lie.
@@ -694,7 +689,8 @@ describe('MiniAppService', () => {
       seedInstalledApp('com.example.a', '1.0.0')
       expect(miniAppService.update('com.example.a', { status: 'disabled' })).toMatchObject({
         kind: 'app',
-        version: '1.0.0'
+        version: '1.0.0',
+        status: 'disabled'
       })
     })
   })
