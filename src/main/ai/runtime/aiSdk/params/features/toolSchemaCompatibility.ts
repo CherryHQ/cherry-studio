@@ -273,9 +273,13 @@ function describeEnum(node: JSONSchema7): JSONSchema7 {
   const descriptions = [node.description]
   if (values !== undefined) descriptions.push(`Original enum values (JSON): ${JSON.stringify(values)}.`)
   if (constant !== undefined) descriptions.push(`Required value (JSON): ${JSON.stringify(constant)}.`)
+  // Arrays stay `string`: Gemini requires typed `items`, which a bare value cannot supply.
+  const members = values ?? [constant]
+  const objects =
+    members.length > 0 && members.every((value) => typeof value === 'object' && value !== null && !Array.isArray(value))
   return {
     ...rest,
-    type: type ?? (node.$ref || node.anyOf || node.allOf || node.oneOf ? undefined : 'string'),
+    type: type ?? (node.$ref || node.anyOf || node.allOf || node.oneOf ? undefined : objects ? 'object' : 'string'),
     description: descriptions.filter(Boolean).join(' ')
   }
 }
