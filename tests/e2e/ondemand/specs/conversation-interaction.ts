@@ -374,6 +374,8 @@ export default async function conversationInteraction(context: ScenarioContext) 
     await returnToLatest()
 
     await editor.fill(prompts.finish)
+    const toolbar = composer.locator('[data-composer-toolbar]')
+    const readyLayout = await Promise.all([composer.boundingBox(), toolbar.boundingBox(), send.boundingBox()])
     await measureInteraction(page, 'send-to-user-row', async () => {
       await send.click()
       await expect(messages.getByText(prompts.finish, { exact: true }).last()).toBeInViewport()
@@ -381,6 +383,9 @@ export default async function conversationInteraction(context: ScenarioContext) 
     server.startFinishReply()
     await expect(reply('finish')).toBeVisible()
     await expect(pause).toBeVisible()
+    await expect
+      .poll(() => Promise.all([composer.boundingBox(), toolbar.boundingBox(), pause.boundingBox()]))
+      .toEqual(readyLayout)
     await measureInteraction(page, 'type-during-output', async () => {
       await editor.pressSequentially(queuedDraft, { delay: 8 })
       const session = await page.context().newCDPSession(page)
@@ -420,11 +425,14 @@ export default async function conversationInteraction(context: ScenarioContext) 
       )
     ).toHaveLength(1)
 
-    await submit('pause')
+    await editor.fill(prompts.pause)
+    const beforePause = await send.boundingBox()
+    await send.click()
     await expect(reply('pause')).toBeVisible()
     await measureInteraction(page, 'pause-to-ready', async () => {
       await pause.click()
       await expect(pause).toBeHidden()
+      await expect.poll(() => send.boundingBox()).toEqual(beforePause)
       const partial = await saved(reply('pause'), 'paused')
       expect(partial.data.parts?.some((part) => part.type === 'text' && part.text.includes(lastMarker('pause')))).toBe(
         true

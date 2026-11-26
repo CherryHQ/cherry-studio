@@ -315,6 +315,7 @@
   "agent.right_pane.info.context_details.last_request": "Последний запрос к модели",
   "agent.right_pane.info.context_details.loaded": "Загружено",
   "agent.right_pane.info.context_details.partial": "Частичная детализация",
+  "agent.right_pane.info.context_details.unavailable": "Нет данных об использовании",
   "agent.right_pane.info.context_usage": "Использование контекста",
   "agent.right_pane.info.context_used": "Использовано {{percent}}%",
   "agent.right_pane.info.desktop_control.active": "Управление",

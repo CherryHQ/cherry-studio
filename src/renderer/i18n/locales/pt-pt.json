@@ -315,6 +315,7 @@
   "agent.right_pane.info.context_details.last_request": "Último pedido ao modelo",
   "agent.right_pane.info.context_details.loaded": "Carregado",
   "agent.right_pane.info.context_details.partial": "Discriminação parcial",
+  "agent.right_pane.info.context_details.unavailable": "Sem dados de utilização",
   "agent.right_pane.info.context_usage": "Uso de contexto",
   "agent.right_pane.info.context_used": "{{percent}}% utilizado",
   "agent.right_pane.info.desktop_control.active": "A controlar",

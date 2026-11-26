@@ -192,9 +192,9 @@ describe('AgentContextUsageSummary', () => {
     expect(within(meter).queryByTitle(/Deferred/)).not.toBeInTheDocument()
   })
 
-  it('shows unknown after compaction instead of a zero-percent meter', () => {
+  it('shows that usage is unavailable after compaction without a zero-percent meter', () => {
     renderSummary({ usage: { ...usage, used: undefined }, percentage: null })
-    expect(screen.getByText('Unknown')).toBeInTheDocument()
+    expect(screen.getByText('No usage data')).toBeInTheDocument()
     expect(screen.queryByRole('meter')).not.toBeInTheDocument()
   })
 

@@ -315,6 +315,7 @@
   "agent.right_pane.info.context_details.last_request": "Dernière requête au modèle",
   "agent.right_pane.info.context_details.loaded": "Chargé",
   "agent.right_pane.info.context_details.partial": "Répartition partielle",
+  "agent.right_pane.info.context_details.unavailable": "Aucune donnée d’utilisation",
   "agent.right_pane.info.context_usage": "Utilisation du contexte",
   "agent.right_pane.info.context_used": "{{percent}}% utilisé",
   "agent.right_pane.info.desktop_control.active": "Contrôle en cours",

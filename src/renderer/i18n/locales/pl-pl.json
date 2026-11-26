@@ -319,6 +319,7 @@
   "agent.right_pane.info.context_details.last_request": "Ostatnie żądanie do modelu",
   "agent.right_pane.info.context_details.loaded": "Załadowane",
   "agent.right_pane.info.context_details.partial": "Podział częściowy",
+  "agent.right_pane.info.context_details.unavailable": "Brak danych o użyciu",
   "agent.right_pane.info.context_usage": "Użycie kontekstu",
   "agent.right_pane.info.context_used": "Wykorzystano {{percent}}%",
   "agent.right_pane.info.desktop_control.active": "Sterowanie aktywne",

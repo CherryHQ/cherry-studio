@@ -127,7 +127,7 @@ export function AgentContextUsageSummary({
   return (
     <ContextUsageSummary
       title={t(showCategories ? 'agent.right_pane.info.context' : 'agent.right_pane.info.context_usage')}
-      emptyLabel={t('common.unknown')}
+      emptyLabel={t('agent.right_pane.info.context_details.unavailable')}
       data={data}
       className={className}
       summaryClassName={showCategories ? 'px-3' : undefined}

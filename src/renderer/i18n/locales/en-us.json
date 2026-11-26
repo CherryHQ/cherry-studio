@@ -315,6 +315,7 @@
   "agent.right_pane.info.context_details.last_request": "Last model request",
   "agent.right_pane.info.context_details.loaded": "Loaded",
   "agent.right_pane.info.context_details.partial": "Partial breakdown",
+  "agent.right_pane.info.context_details.unavailable": "No usage data",
   "agent.right_pane.info.context_usage": "Context usage",
   "agent.right_pane.info.context_used": "Used {{percent}}%",
   "agent.right_pane.info.desktop_control.active": "Controlling",

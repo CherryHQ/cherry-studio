@@ -315,6 +315,7 @@
   "agent.right_pane.info.context_details.last_request": "Son model isteği",
   "agent.right_pane.info.context_details.loaded": "Yüklendi",
   "agent.right_pane.info.context_details.partial": "Kısmi döküm",
+  "agent.right_pane.info.context_details.unavailable": "Kullanım verisi yok",
   "agent.right_pane.info.context_usage": "Bağlam kullanımı",
   "agent.right_pane.info.context_used": "%{{percent}} kullanıldı",
   "agent.right_pane.info.desktop_control.active": "Kontrol ediliyor",
