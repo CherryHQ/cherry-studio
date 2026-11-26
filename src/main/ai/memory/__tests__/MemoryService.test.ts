@@ -5,7 +5,7 @@ import * as fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq, like } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,7 +14,6 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelSessionTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
@@ -209,16 +208,13 @@ describe('lifecycle memory owner', () => {
     } finally {
       fresh.dispose()
     }
-    dbh.db
-      .insert(agentSessionMessageTable)
-      .values({
-        sessionId,
-        parentId: ensureAgentSessionRootTx(dbh.db, sessionId),
-        role: 'assistant',
-        status: 'success',
-        data: { parts: [{ type: 'text', text: 'New answer' }] }
-      })
-      .run()
+    insertAgentSessionMessages(dbh.db, {
+      sessionId,
+      parentId: ensureAgentSessionRootTx(dbh.db, sessionId),
+      role: 'assistant',
+      status: 'success',
+      data: { parts: [{ type: 'text', text: 'New answer' }] }
+    })
     await service._doStop()
     BaseService.resetInstances()
     service = new MemoryService()
@@ -504,36 +500,36 @@ describe('lifecycle memory owner', () => {
     }
   )
 
-  it.each(['reply', 'native', 'resume-token'] as const)('rejects unrecorded old Agent %s history', async (kind) => {
-    const { sessionId } = await seedAgentSession()
-    if (kind === 'native') {
-      const context = prepareClaudeBranch(sessionId, fixture, 'old-native')
-      agentSessionContextService.bindContext(context.id, 'old-native')
-    } else
-      dbh.db
-        .insert(agentSessionMessageTable)
-        .values({
+  it.each(['reply', 'pending-reply', 'native', 'resume-token'] as const)(
+    'rejects unrecorded old Agent %s history',
+    async (kind) => {
+      const { sessionId } = await seedAgentSession()
+      if (kind === 'native') {
+        const context = prepareClaudeBranch(sessionId, fixture, 'old-native')
+        agentSessionContextService.bindContext(context.id, 'old-native')
+      } else
+        insertAgentSessionMessages(dbh.db, {
           sessionId,
           parentId: ensureAgentSessionRootTx(dbh.db, sessionId),
-          role: kind === 'reply' ? 'assistant' : 'user',
+          role: kind === 'resume-token' ? 'user' : 'assistant',
           runtimeResumeToken: kind === 'resume-token' ? 'old-native' : null,
-          status: 'success',
+          status: kind === 'pending-reply' ? 'pending' : 'success',
           data: { parts: [{ type: 'text', text: 'OLD_HOME' }] }
         })
-        .run()
-    MockApplicationUtils.setService('MemoryService', service)
-    const editor = service.open(authority())
-    await editor.entry()
-    await fs.writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'OLD_HOME')
-    await editor.clear((await editor.previewClear()).token, approve)
-    editor.dispose()
-    const guard = openRuntimeMemoryGuard(sessionId, () => {})
-    try {
-      await expect(guard.check()).rejects.toThrow('isolation')
-    } finally {
-      guard.dispose()
+      MockApplicationUtils.setService('MemoryService', service)
+      const editor = service.open(authority())
+      await editor.entry()
+      await fs.writeFile(path.join(fixture, 'feature.memory.data', 'MEMORY.md'), 'OLD_HOME')
+      await editor.clear((await editor.previewClear()).token, approve)
+      editor.dispose()
+      const guard = openRuntimeMemoryGuard(sessionId, () => {})
+      try {
+        await expect(guard.check()).rejects.toThrow('isolation')
+      } finally {
+        guard.dispose()
+      }
     }
-  })
+  )
 
   it.each(['disable', 'owner'] as const)(
     'permanently expires a channel edit after %s and restoration',

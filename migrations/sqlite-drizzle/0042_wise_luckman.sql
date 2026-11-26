@@ -1,1 +1,0 @@
-ALTER TABLE `mcp_server` ADD `skill_permissions` text;

@@ -21,6 +21,7 @@ import type * as Warmup from '../agentSessionWarmup'
 import { ClaudeCodeRuntimeDriver } from '../ClaudeCodeRuntimeDriver'
 import { ClaudeCodeSessionStateService } from '../ClaudeCodeSessionStateService'
 import { ClaudeCodeWarmQueryManager } from '../ClaudeCodeWarmQueryManager'
+import { claudeBranchQueryIdentity, prepareClaudeBranch } from '../claudeContext'
 import { forkClaudeSession } from '../claudeFork'
 import { createClaudeCodeIdentityHooks } from '../identityHooks'
 import * as processDiagnostics from '../processExitDiagnostics'
@@ -825,13 +826,18 @@ describe('Claude warm memory handoff', () => {
       await editor.clear(preview.token, async () => () => undefined)
     }
     const warm = { query: () => undefined, [Symbol.asyncDispose]: async () => undefined }
-    const request = { key: 'session', options: { model: 'sonnet', resume: 'native-old', cwd: root }, settings: {} }
+    const branch = prepareClaudeBranch('session', root)
+    const request = {
+      key: 'session',
+      options: { model: 'sonnet', ...claudeBranchQueryIdentity(branch), cwd: root, env: { CLAUDE_CONFIG_DIR: root } },
+      settings: {}
+    }
     memoryRuntimeMocks.build.mockResolvedValue(request)
     memoryRuntimeMocks.startup.mockResolvedValue(warm)
     const received: unknown[] = []
     let observe: ((batch: any) => Promise<void>) | undefined
     const handle = {
-      thread: { id: 'native-old' },
+      thread: { id: branch.nativeThreadId },
       claude: {
         start: (query: unknown) => {
           received.push(query)
@@ -845,7 +851,7 @@ describe('Claude warm memory handoff', () => {
       }
     }
     memoryRuntimeMocks.runtime.mockReturnValue({
-      open: async () => {
+      create: async () => {
         if (phase === 'open') await clear()
         return { status: 'confirmed', value: handle }
       },
@@ -864,8 +870,7 @@ describe('Claude warm memory handoff', () => {
       const connecting = new ClaudeCodeRuntimeDriver().connect({
         agentId: 'agent',
         sessionId: 'session',
-        modelId: 'test::test',
-        resumeToken: 'native-old'
+        modelId: 'test::test'
       })
       if (phase === 'none') {
         const connection = await connecting

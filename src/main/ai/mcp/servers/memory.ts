@@ -8,6 +8,8 @@ import * as z from 'zod'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { TraceMethod } from '@main/ai/observability'
+import { atomicWriteFile, realpath } from '@main/utils/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import type { BuiltinMcpEndpoint } from './factory'
 
@@ -41,299 +43,218 @@ interface KnowledgeGraph {
   relations: Relation[]
 }
 
-// The KnowledgeGraphManager class contains all operations to interact with the knowledge graph
+// Loose entities keep fields this server does not know about when the file is rewritten.
+const KnowledgeGraphFileSchema = z.object({
+  entities: z
+    .array(z.looseObject({ name: z.string(), entityType: z.string(), observations: z.array(z.string()).default([]) }))
+    .default([]),
+  relations: z.array(RelationSchema).default([])
+})
+
+const sameRelation = (a: Relation, b: Relation) =>
+  a.from === b.from && a.to === b.to && a.relationType === b.relationType
+
 class KnowledgeGraphManager {
-  private memoryPath: string
-  private entities: Map<string, Entity> // Use Map for efficient entity lookup
-  private relations: Set<string> // Store stringified relations for easy Set operations
-  private fileMutex: Mutex // Mutex for file writing
+  private readonly memoryPath: AbsoluteFilePath
+  private readonly fileMutex = new Mutex()
 
   private constructor(memoryPath: string) {
-    this.memoryPath = memoryPath
-    this.entities = new Map<string, Entity>()
-    this.relations = new Set<string>()
-    this.fileMutex = new Mutex()
+    this.memoryPath = AbsoluteFilePathSchema.parse(memoryPath)
   }
 
-  // Static async factory method for initialization
   @TraceMethod({ spanName: 'create', tag: 'KnowledgeGraph' })
   public static async create(memoryPath: string): Promise<KnowledgeGraphManager> {
     const manager = new KnowledgeGraphManager(memoryPath)
-    await manager._ensureMemoryPathExists()
-    await manager._loadGraphFromDisk()
+    await fs.mkdir(path.dirname(manager.memoryPath), { recursive: true })
     return manager
   }
 
-  private async _ensureMemoryPathExists(): Promise<void> {
+  private async resolveTarget(): Promise<AbsoluteFilePath> {
     try {
-      const directory = path.dirname(this.memoryPath)
-      await fs.mkdir(directory, { recursive: true })
-      try {
-        await fs.access(this.memoryPath)
-      } catch (error) {
-        // File doesn't exist, create an empty file with initial structure
-        await fs.writeFile(this.memoryPath, JSON.stringify({ entities: [], relations: [] }, null, 2))
-      }
+      return await realpath(this.memoryPath)
     } catch (error) {
-      logger.error('Failed to ensure memory path exists:', error as Error)
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return this.memoryPath
       throw error
     }
   }
 
-  // Load graph from disk into memory (called once during initialization)
-  private async _loadGraphFromDisk(): Promise<void> {
+  private async loadGraph(target: AbsoluteFilePath): Promise<KnowledgeGraph> {
+    let data: string
     try {
-      const data = await fs.readFile(this.memoryPath, 'utf-8')
-      // Handle empty file case
-      if (data.trim() === '') {
-        this.entities = new Map()
-        this.relations = new Set()
-        // Optionally write the initial empty structure back
-        await this._persistGraph()
-        return
-      }
-      const graph: KnowledgeGraph = JSON.parse(data)
-      this.entities.clear()
-      this.relations.clear()
-      graph.entities.forEach((entity) => this.entities.set(entity.name, entity))
-      graph.relations.forEach((relation) => this.relations.add(this._serializeRelation(relation)))
+      data = await fs.readFile(target, 'utf-8')
     } catch (error) {
-      if (error instanceof Error && 'code' in error && (error as any).code === 'ENOENT') {
-        // File doesn't exist (should have been created by _ensureMemoryPathExists, but handle defensively)
-        this.entities = new Map()
-        this.relations = new Set()
-        await this._persistGraph() // Create the file with empty structure
-      } else if (error instanceof SyntaxError) {
-        logger.error('Failed to parse memory.json, initializing with empty graph:', error)
-        // If JSON is invalid, start fresh and overwrite the corrupted file
-        this.entities = new Map()
-        this.relations = new Set()
-        await this._persistGraph()
-      } else {
-        logger.error('Failed to load knowledge graph from disk:', error as Error)
-        throw error
-      }
-    }
-  }
-
-  // Persist the current in-memory graph to disk using a mutex
-  private async _persistGraph(): Promise<void> {
-    const release = await this.fileMutex.acquire()
-    try {
-      const graphData: KnowledgeGraph = {
-        entities: Array.from(this.entities.values()),
-        relations: Array.from(this.relations).map((rStr) => this._deserializeRelation(rStr))
-      }
-      await fs.writeFile(this.memoryPath, JSON.stringify(graphData, null, 2))
-    } catch (error) {
-      logger.error('Failed to save knowledge graph:', error as Error)
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { entities: [], relations: [] }
       throw error
-    } finally {
-      release()
+    }
+    if (data.trim() === '') return { entities: [], relations: [] }
+    try {
+      return KnowledgeGraphFileSchema.parse(JSON.parse(data))
+    } catch (error) {
+      const backupPath = `${target}.corrupt-${Date.now()}`
+      await fs.rename(target, backupPath)
+      logger.error(
+        `Failed to parse memory file, moved it to ${backupPath} and started with an empty graph:`,
+        error as Error
+      )
+      return { entities: [], relations: [] }
     }
   }
 
-  // Helper to consistently serialize relations for Set storage
-  private _serializeRelation(relation: Relation): string {
-    // Simple serialization, ensure order doesn't matter if properties are consistent
-    return JSON.stringify({ from: relation.from, to: relation.to, relationType: relation.relationType })
+  private readGraph(): Promise<KnowledgeGraph> {
+    return this.fileMutex.runExclusive(async () => this.loadGraph(await this.resolveTarget()))
   }
 
-  // Helper to deserialize relations from Set storage
-  private _deserializeRelation(relationStr: string): Relation {
-    return JSON.parse(relationStr) as Relation
+  private updateGraph<T>(mutate: (graph: KnowledgeGraph) => { result: T; changed: boolean }): Promise<T> {
+    return this.fileMutex.runExclusive(async () => {
+      const target = await this.resolveTarget()
+      const graph = await this.loadGraph(target)
+      const { result, changed } = mutate(graph)
+      if (changed) {
+        try {
+          const mode = await fs.stat(target).then(
+            (stats) => stats.mode & 0o777,
+            () => undefined
+          )
+          await atomicWriteFile(target, JSON.stringify(graph, null, 2), { mode })
+        } catch (error) {
+          logger.error('Failed to save knowledge graph:', error as Error)
+          throw error
+        }
+      }
+      return result
+    })
   }
 
   @TraceMethod({ spanName: 'createEntities', tag: 'KnowledgeGraph' })
   async createEntities(entities: Entity[]): Promise<Entity[]> {
-    const newEntities: Entity[] = []
-    entities.forEach((entity) => {
-      if (!this.entities.has(entity.name)) {
-        // Ensure observations is always an array
+    return this.updateGraph((graph) => {
+      const created: Entity[] = []
+      for (const entity of entities) {
+        if (graph.entities.some((e) => e.name === entity.name)) continue
         const newEntity = { ...entity, observations: Array.isArray(entity.observations) ? entity.observations : [] }
-        this.entities.set(entity.name, newEntity)
-        newEntities.push(newEntity)
+        graph.entities.push(newEntity)
+        created.push(newEntity)
       }
+      return { result: created, changed: created.length > 0 }
     })
-    if (newEntities.length > 0) {
-      await this._persistGraph()
-    }
-    return newEntities
   }
 
   @TraceMethod({ spanName: 'createRelations', tag: 'KnowledgeGraph' })
   async createRelations(relations: Relation[]): Promise<Relation[]> {
-    const newRelations: Relation[] = []
-    relations.forEach((relation) => {
-      // Ensure related entities exist before creating a relation
-      if (!this.entities.has(relation.from) || !this.entities.has(relation.to)) {
-        logger.warn(`Skipping relation creation: Entity not found for relation ${relation.from} -> ${relation.to}`)
-        return // Skip this relation
+    return this.updateGraph((graph) => {
+      const created: Relation[] = []
+      for (const relation of relations) {
+        const hasEntity = (name: string) => graph.entities.some((e) => e.name === name)
+        if (!hasEntity(relation.from) || !hasEntity(relation.to)) {
+          logger.warn(`Skipping relation creation: Entity not found for relation ${relation.from} -> ${relation.to}`)
+          continue
+        }
+        if (graph.relations.some((r) => sameRelation(r, relation))) continue
+        const newRelation = { from: relation.from, to: relation.to, relationType: relation.relationType }
+        graph.relations.push(newRelation)
+        created.push(newRelation)
       }
-      const relationStr = this._serializeRelation(relation)
-      if (!this.relations.has(relationStr)) {
-        this.relations.add(relationStr)
-        newRelations.push(relation)
-      }
+      return { result: created, changed: created.length > 0 }
     })
-    if (newRelations.length > 0) {
-      await this._persistGraph()
-    }
-    return newRelations
   }
 
   @TraceMethod({ spanName: 'addObservtions', tag: 'KnowledgeGraph' })
   async addObservations(
     observations: { entityName: string; contents: string[] }[]
   ): Promise<{ entityName: string; addedObservations: string[] }[]> {
-    const results: { entityName: string; addedObservations: string[] }[] = []
-    let changed = false
-    observations.forEach((o) => {
-      const entity = this.entities.get(o.entityName)
-      if (!entity) {
-        throw new Error(`Entity with name ${o.entityName} not found`)
-      }
-      // Ensure observations array exists
-      if (!Array.isArray(entity.observations)) {
-        entity.observations = []
-      }
-      const newObservations = o.contents.filter((content) => !entity.observations.includes(content))
-      if (newObservations.length > 0) {
-        entity.observations.push(...newObservations)
-        results.push({ entityName: o.entityName, addedObservations: newObservations })
-        changed = true
-      } else {
-        // Still include in results even if nothing was added, to confirm processing
-        results.push({ entityName: o.entityName, addedObservations: [] })
-      }
+    return this.updateGraph((graph) => {
+      const results = observations.map((o) => {
+        const entity = graph.entities.find((e) => e.name === o.entityName)
+        if (!entity) {
+          throw new Error(`Entity with name ${o.entityName} not found`)
+        }
+        const addedObservations = o.contents.filter((content) => !entity.observations.includes(content))
+        entity.observations.push(...addedObservations)
+        return { entityName: o.entityName, addedObservations }
+      })
+      return { result: results, changed: results.some((r) => r.addedObservations.length > 0) }
     })
-    if (changed) {
-      await this._persistGraph()
-    }
-    return results
   }
 
   @TraceMethod({ spanName: 'deleteEntities', tag: 'KnowledgeGraph' })
   async deleteEntities(entityNames: string[]): Promise<void> {
-    let changed = false
-    const namesToDelete = new Set(entityNames)
-
-    // Delete entities
-    namesToDelete.forEach((name) => {
-      if (this.entities.delete(name)) {
-        changed = true
-      }
+    return this.updateGraph((graph) => {
+      const names = new Set(entityNames)
+      const entities = graph.entities.filter((e) => !names.has(e.name))
+      const relations = graph.relations.filter((r) => !names.has(r.from) && !names.has(r.to))
+      const changed = entities.length !== graph.entities.length || relations.length !== graph.relations.length
+      graph.entities = entities
+      graph.relations = relations
+      return { result: undefined, changed }
     })
-
-    // Delete relations involving deleted entities
-    const relationsToDelete = new Set<string>()
-    this.relations.forEach((relStr) => {
-      const rel = this._deserializeRelation(relStr)
-      if (namesToDelete.has(rel.from) || namesToDelete.has(rel.to)) {
-        relationsToDelete.add(relStr)
-      }
-    })
-
-    relationsToDelete.forEach((relStr) => {
-      if (this.relations.delete(relStr)) {
-        changed = true
-      }
-    })
-
-    if (changed) {
-      await this._persistGraph()
-    }
   }
 
   @TraceMethod({ spanName: 'deleteObservations', tag: 'KnowledgeGraph' })
   async deleteObservations(deletions: { entityName: string; observations: string[] }[]): Promise<void> {
-    let changed = false
-    deletions.forEach((d) => {
-      const entity = this.entities.get(d.entityName)
-      if (entity && Array.isArray(entity.observations)) {
-        const initialLength = entity.observations.length
+    return this.updateGraph((graph) => {
+      let changed = false
+      for (const d of deletions) {
+        const entity = graph.entities.find((e) => e.name === d.entityName)
+        if (!entity) continue
         const observationsToDelete = new Set(d.observations)
-        entity.observations = entity.observations.filter((o) => !observationsToDelete.has(o))
-        if (entity.observations.length !== initialLength) {
+        const kept = entity.observations.filter((o) => !observationsToDelete.has(o))
+        if (kept.length !== entity.observations.length) {
+          entity.observations = kept
           changed = true
         }
       }
+      return { result: undefined, changed }
     })
-    if (changed) {
-      await this._persistGraph()
-    }
   }
 
   @TraceMethod({ spanName: 'deleteRelations', tag: 'KnowledgeGraph' })
   async deleteRelations(relations: Relation[]): Promise<void> {
-    let changed = false
-    relations.forEach((rel) => {
-      const relStr = this._serializeRelation(rel)
-      if (this.relations.delete(relStr)) {
-        changed = true
-      }
+    return this.updateGraph((graph) => {
+      const kept = graph.relations.filter((r) => !relations.some((d) => sameRelation(r, d)))
+      const changed = kept.length !== graph.relations.length
+      graph.relations = kept
+      return { result: undefined, changed }
     })
-    if (changed) {
-      await this._persistGraph()
-    }
   }
 
-  // Read the current state from memory
   @TraceMethod({ spanName: 'readGraph', tag: 'KnowledgeGraph' })
-  async readGraph(): Promise<KnowledgeGraph> {
-    // Return a deep copy to prevent external modification of the internal state
-    return JSON.parse(
-      JSON.stringify({
-        entities: Array.from(this.entities.values()),
-        relations: Array.from(this.relations).map((rStr) => this._deserializeRelation(rStr))
-      })
-    )
+  async serializeGraph(): Promise<string> {
+    return JSON.stringify(await this.readGraph(), null, 2)
   }
 
-  // Search operates on the in-memory graph
   @TraceMethod({ spanName: 'searchNodes', tag: 'KnowledgeGraph' })
   async searchNodes(query: string): Promise<KnowledgeGraph> {
+    const graph = await this.readGraph()
     const lowerCaseQuery = query.toLowerCase()
-    const filteredEntities = Array.from(this.entities.values()).filter(
+    const filteredEntities = graph.entities.filter(
       (e) =>
         e.name.toLowerCase().includes(lowerCaseQuery) ||
         e.entityType.toLowerCase().includes(lowerCaseQuery) ||
-        (Array.isArray(e.observations) && e.observations.some((o) => o.toLowerCase().includes(lowerCaseQuery)))
+        e.observations.some((o) => o.toLowerCase().includes(lowerCaseQuery))
     )
-
     const filteredEntityNames = new Set(filteredEntities.map((e) => e.name))
-
-    const filteredRelations = Array.from(this.relations)
-      .map((rStr) => this._deserializeRelation(rStr))
-      .filter((r) => filteredEntityNames.has(r.from) && filteredEntityNames.has(r.to))
-
-    return {
-      entities: filteredEntities,
-      relations: filteredRelations
-    }
+    const filteredRelations = graph.relations.filter(
+      (r) => filteredEntityNames.has(r.from) && filteredEntityNames.has(r.to)
+    )
+    return { entities: filteredEntities, relations: filteredRelations }
   }
 
-  // Open operates on the in-memory graph
   @TraceMethod({ spanName: 'openNodes', tag: 'KnowledgeGraph' })
   async openNodes(names: string[]): Promise<KnowledgeGraph> {
+    const graph = await this.readGraph()
     const nameSet = new Set(names)
-    const filteredEntities = Array.from(this.entities.values()).filter((e) => nameSet.has(e.name))
+    const filteredEntities = graph.entities.filter((e) => nameSet.has(e.name))
     const filteredEntityNames = new Set(filteredEntities.map((e) => e.name))
-
-    const filteredRelations = Array.from(this.relations)
-      .map((rStr) => this._deserializeRelation(rStr))
-      .filter((r) => filteredEntityNames.has(r.from) && filteredEntityNames.has(r.to))
-
-    return {
-      entities: filteredEntities,
-      relations: filteredRelations
-    }
+    const filteredRelations = graph.relations.filter(
+      (r) => filteredEntityNames.has(r.from) && filteredEntityNames.has(r.to)
+    )
+    return { entities: filteredEntities, relations: filteredRelations }
   }
 }
 
 /**
- * Builtin memory endpoint. The knowledge graph loads once per endpoint activation and every
- * protocol instance it creates shares it.
+ * Builtin memory endpoint. The memory file is the only state: every tool call reads it, and every
+ * change rewrites it atomically, so a failed write leaves nothing half-applied.
  */
 export function createMemoryEndpoint(envPath = ''): BuiltinMcpEndpoint {
   const memoryPath = envPath
@@ -458,7 +379,7 @@ function registerMemoryTools(server: McpServer, getManager: () => Promise<Knowle
   )
 
   server.registerTool('read_graph', { description: 'Read the entire knowledge graph from memory.' }, async () =>
-    json(await (await getManager()).readGraph())
+    text(await (await getManager()).serializeGraph())
   )
 
   server.registerTool(
