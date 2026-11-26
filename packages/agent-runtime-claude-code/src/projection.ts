@@ -96,6 +96,15 @@ export class ClaudeProjection {
     return { session: this.thread, id: runtimeId(uuid) }
   }
 
+  /** Native continuation context stays intact; the product feed omits compaction sources. */
+  private withoutCompaction(events: ObservationPayload[]): ObservationPayload[] {
+    return events.filter((event) => {
+      if (event.type === 'message.reconcile') return !this.compactionSources.has(event.message.id)
+      if (event.type === 'message.parts') return !this.compactionSources.has(event.ref.id)
+      return true
+    })
+  }
+
   private updateSource(
     message: RuntimeMessage,
     replaces?: readonly ItemRef[],
@@ -488,7 +497,7 @@ export class ClaudeProjection {
         )
     }
     this.feed.publish(
-      events.filter((event) => event.type !== 'message.upsert' || !this.compactionSources.has(event.message.id)),
+      this.withoutCompaction(events),
       selected.map((message): ClaudeNativeMessage => {
         const entry = metadata.get(message.uuid)
         return {
@@ -565,7 +574,7 @@ export class ClaudeProjection {
       this.control.accept(native)
     }
     this.feed.publish(
-      events.filter((event) => event.type !== 'message.upsert' || !this.compactionSources.has(event.message.id)),
+      this.withoutCompaction(events),
       message ? [message] : [],
       this.legacyChanged ? this.legacy : undefined,
       invocations,
