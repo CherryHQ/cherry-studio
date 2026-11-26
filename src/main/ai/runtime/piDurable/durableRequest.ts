@@ -13,6 +13,7 @@ const requestSchema = z.object({
   reasoningEffort: ReasoningEffortOptionSchema.optional(),
   serviceTier: ServiceTierSelectionSchema.optional(),
   fastMode: z.boolean().optional(),
+  headless: z.boolean().optional(),
   permissionModeOverride: AgentPermissionModeSchema.optional(),
   knowledgeBaseIds: z.array(z.string()).optional()
 })

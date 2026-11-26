@@ -129,6 +129,8 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 export class TopicService {
   private readonly memoryAccessRevoked = new Emitter<string>()
   readonly onMemoryAccessRevoked = this.memoryAccessRevoked.event
+  private readonly changed = new Emitter<readonly string[]>()
+  readonly onChanged = this.changed.event
 
   notifyReadModelChange(
     topicIds: readonly string[],
@@ -138,6 +140,7 @@ export class TopicService {
     if (topicIds.length === 0) return
     const entityIds = [...new Set(topicIds)]
     if (options.deleted) for (const id of entityIds) this.memoryAccessRevoked.fire(id)
+    this.changed.fire(entityIds)
     // A terminal single delete scopes its by-id effect to that exact id; batches keep
     // one broadcast-wide entry per the shared data-change contract (batch = one entry,
     // and one entry can carry only one routeParams).

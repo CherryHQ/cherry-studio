@@ -10,6 +10,7 @@ import { PI_TRANSPORT } from './PiMessageMetadata'
 export async function requestPiToolApproval(request: {
   id: string
   sessionId: string
+  contextId?: string
   toolCallId: string
   parentToolCallId?: string
   name: string
@@ -26,6 +27,7 @@ export async function requestPiToolApproval(request: {
     const pending = toolApprovalRegistry.register({
       approvalId: id,
       sessionId,
+      contextId: request.contextId,
       toolCallId,
       toolName: name,
       originalInput: args,
