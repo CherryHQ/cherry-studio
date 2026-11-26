@@ -89,7 +89,7 @@ export function collectChangeScope({ base, head = 'HEAD' }, cwd = process.cwd())
   const root = decode(
     requireGit(cwd, ['rev-parse', '--show-toplevel'], 'cannot locate a Git worktree'),
     'repository root'
-  ).trim()
+  ).replace(/\n$/u, '')
   const baseSha = resolveCommit(root, 'base', base)
   const headSha = resolveCommit(root, 'head', head)
   const mergeBases = decode(

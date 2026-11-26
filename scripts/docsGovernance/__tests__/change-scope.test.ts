@@ -29,6 +29,20 @@ afterEach(() => {
 })
 
 describe('change:scope', () => {
+  it('keeps trailing whitespace in the worktree directory name', () => {
+    const originalRoot = makeRepo()
+    const root = `${originalRoot}\u00a0`
+    fs.renameSync(originalRoot, root)
+    tempDirs.push(root)
+    fs.writeFileSync(path.join(root, 'untracked.txt'), 'untracked\n')
+
+    const report = JSON.parse(
+      execFileSync(process.execPath, [script, '--base', 'HEAD'], { cwd: root, encoding: 'utf8' })
+    )
+    expect(fs.realpathSync(report.repositoryRoot)).toBe(fs.realpathSync(root))
+    expect(report.paths.untracked).toEqual(['untracked.txt'])
+  })
+
   it('separates committed, staged, unstaged, and untracked paths', () => {
     const root = makeRepo()
     const base = git(root, 'rev-parse', 'HEAD')
