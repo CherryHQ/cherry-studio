@@ -9,7 +9,7 @@ import {
   serializeMemoryEntries
 } from '../dist/index.mjs'
 
-test('ordinary markdown retains its bytes and preview truncates whole UTF-8 lines', () => {
+void test('ordinary markdown retains its bytes and preview truncates whole UTF-8 lines', () => {
   const text = '界'.repeat(8333) + '\n下一行\n'
   assert.equal(serializeMemoryEntries(parseMemoryEntries(text)), text)
   assert.deepEqual(memoryEntryPreview(text), { content: text.split('\n')[0] + '\n', truncated: true })
