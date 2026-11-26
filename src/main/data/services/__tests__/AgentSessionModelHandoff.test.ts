@@ -148,7 +148,7 @@ describe('model-switch handoff persistence and generation', () => {
       replyId: run.id,
       parentId: run.id,
       pos: 3,
-      data: { ...user.data, nativePlaced: true }
+      data: { ...user.data, nativePlaced: true as const }
     }
     const handoff = {
       ...assistant,
