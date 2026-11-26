@@ -6,6 +6,7 @@ import {
   asc,
   desc,
   eq,
+  getTableColumns,
   gt,
   gte,
   inArray,
@@ -84,7 +85,8 @@ import type {
 } from '@shared/data/api/schemas/agentSessionMessages'
 import {
   AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
-  AGENT_SESSION_MESSAGES_MAX_LIMIT
+  AGENT_SESSION_MESSAGES_MAX_LIMIT,
+  AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET
 } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -1892,27 +1894,24 @@ export class AgentSessionMessageService {
       )
     }
 
-    const rows = database
-      .select({
-        id: sessionMessagesTable.id,
-        parentId: sessionMessagesTable.parentId,
-        createdAt: sessionMessagesTable.createdAt
-      })
-      .from(sessionMessagesTable)
-      .where(and(...filters))
-      .orderBy(...ordering.orderBy)
-      .limit(limit + 1)
-      .all()
+    const readCandidates = (count: number, after?: SQL) =>
+      database
+        .select({
+          id: sessionMessagesTable.id,
+          parentId: sessionMessagesTable.parentId,
+          createdAt: sessionMessagesTable.createdAt,
+          replyId: sessionMessagesTable.replyId
+        })
+        .from(sessionMessagesTable)
+        .where(and(...filters, after))
+        .orderBy(...ordering.orderBy)
+        .limit(count + 1)
+        .all()
 
-    const hasNext = rows.length > limit
+    const rows = readCandidates(limit)
+    let hasNext = rows.length > limit
     const pageRows = hasNext ? rows.slice(0, limit) : rows
-    const readRow = database
-      .select()
-      .from(sessionMessagesTable)
-      .where(eq(sessionMessagesTable.id, sql.placeholder('id')))
-      .prepare()
-    let selectedRows = pageRows.map(({ id }) => readRow.get({ id })!)
-    const ownerIds = [...new Set(selectedRows.flatMap((row) => (row.replyId ? [row.replyId] : [])))]
+    const ownerIds = [...new Set(pageRows.flatMap((row) => (row.replyId ? [row.replyId] : [])))]
     const owner = ownerIds.length
       ? database
           .select({
@@ -1928,11 +1927,73 @@ export class AgentSessionMessageService {
           .get()
       : undefined
     const pageTail = pageRows.at(-1)
-    if (
+    const ownerBeforePage =
       owner &&
       pageTail &&
       (owner.createdAt < pageTail.createdAt || (owner.createdAt === pageTail.createdAt && owner.id < pageTail.id))
-    ) {
+        ? owner
+        : undefined
+
+    const deferToolOutputs = options.deferToolOutputs === true
+    let keptRows = pageRows
+    if (deferToolOutputs) {
+      keptRows = []
+      let candidates = pageRows
+      let bytes = 0
+      while (candidates.length) {
+        const sizes = database
+          .select({
+            messageId: sessionMessagePartsTable.messageId,
+            bytes: sql<number>`sum(length(cast(${sessionMessagePartsTable.payload} as blob)))`
+          })
+          .from(sessionMessagePartsTable)
+          .where(
+            inArray(
+              sessionMessagePartsTable.messageId,
+              candidates.map(({ id }) => id)
+            )
+          )
+          .groupBy(sessionMessagePartsTable.messageId)
+          .all()
+        const bytesById = new Map(sizes.map(({ messageId, bytes }) => [messageId, bytes]))
+        for (const row of candidates) {
+          const nextBytes = bytes + (bytesById.get(row.id) ?? 0)
+          if (keptRows.length && nextBytes > AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET) break
+          keptRows.push(row)
+          bytes = nextBytes
+        }
+
+        const tail = keptRows.at(-1)!
+        if (tail.id !== candidates.at(-1)!.id) {
+          hasNext = true
+          break
+        }
+        if (!ownerBeforePage || tail.id === ownerBeforePage.id || bytes > AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET) {
+          break
+        }
+
+        // Seek toward the owner in bounded batches so only a contiguous span can extend the page.
+        const olderRows = readCandidates(
+          AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
+          ordering.where({ key: tail.createdAt, id: tail.id })
+        )
+        candidates = olderRows.slice(0, AGENT_SESSION_MESSAGES_DEFAULT_LIMIT)
+        const ownerIndex = candidates.findIndex(({ id }) => id === ownerBeforePage.id)
+        if (ownerIndex >= 0) candidates = candidates.slice(0, ownerIndex + 1)
+        hasNext = olderRows.length > candidates.length
+      }
+    }
+
+    const readRow = database
+      .select({
+        ...getTableColumns(sessionMessagesTable),
+        searchableText: deferToolOutputs ? sql<string>`''` : sessionMessagesTable.searchableText
+      })
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.id, sql.placeholder('id')))
+      .prepare()
+    let selectedRows = keptRows.map(({ id }) => readRow.get({ id })!)
+    if (!deferToolOutputs && ownerBeforePage) {
       selectedRows = database
         .select()
         .from(sessionMessagesTable)
@@ -1940,8 +2001,11 @@ export class AgentSessionMessageService {
           and(
             ...filters,
             or(
-              gt(sessionMessagesTable.createdAt, owner.createdAt),
-              and(eq(sessionMessagesTable.createdAt, owner.createdAt), gte(sessionMessagesTable.id, owner.id))
+              gt(sessionMessagesTable.createdAt, ownerBeforePage.createdAt),
+              and(
+                eq(sessionMessagesTable.createdAt, ownerBeforePage.createdAt),
+                gte(sessionMessagesTable.id, ownerBeforePage.id)
+              )
             )
           )
         )

@@ -29,6 +29,7 @@ import type { CursorPaginationResponse } from '../types'
  *  back to the newest page. */
 export const AGENT_SESSION_MESSAGES_MAX_LIMIT = 200
 export const AGENT_SESSION_MESSAGES_DEFAULT_LIMIT = 50
+export const AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET = 4 * 1024 * 1024
 
 export const AgentSessionMessagesListQuerySchema = z.strictObject({
   cursor: z.string().optional(),

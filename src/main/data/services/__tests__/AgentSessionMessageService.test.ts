@@ -42,6 +42,8 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { DEFER_TOOL_OUTPUT_BYTES } from '@main/utils/messageOutputProjection'
 import { isDeferredToolOutput } from '@shared/ai/transport'
+import { AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET } from '@shared/data/api/schemas/agentSessionMessages'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -2823,6 +2825,138 @@ describe('AgentSessionMessageService', () => {
     expect(older.items.map((message) => message.id)).toEqual([prompt.id])
   })
 
+  describe('deferred history byte budget', () => {
+    function seedHistory(messages: { parts: CherryMessagePart[]; replyId?: string }[]) {
+      const ids = messages.map((_, index) => `history-${String(index).padStart(3, '0')}`)
+      const rootId = seedSessionRoot(dbh.db, SESSION_ID)
+      insertAgentSessionMessages(
+        dbh.db,
+        messages.map(({ parts, replyId }, index) => ({
+          id: ids[index],
+          parentId: rootId,
+          sessionId: SESSION_ID,
+          role: replyId ? 'user' : 'assistant',
+          status: 'success',
+          replyId,
+          data: { parts },
+          createdAt: 1 + Math.floor(index / 3),
+          updatedAt: 1 + Math.floor(index / 3)
+        }))
+      )
+      linkSessionMessageChain(dbh.db, SESSION_ID, ids)
+      return ids
+    }
+
+    function inlineBytes(items: { data: { parts?: CherryMessagePart[] } }[]) {
+      return items.reduce(
+        (total, item) =>
+          total + (item.data.parts ?? []).reduce((bytes, part) => bytes + Buffer.byteLength(JSON.stringify(part)), 0),
+        0
+      )
+    }
+
+    it('returns a 13 MiB message whole and alone, then continues with older history', () => {
+      const oversized: CherryMessagePart = { type: 'reasoning', text: 'x'.repeat(13 * 1024 * 1024) }
+      const [oldest, middle, newest] = seedHistory([
+        { parts: [{ type: 'text', text: 'oldest' }] },
+        { parts: [{ type: 'text', text: 'middle' }] },
+        { parts: [oversized] }
+      ])
+
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
+      expect(page.items.map(({ id }) => id)).toEqual([newest])
+      expect(page.items[0].data.parts).toEqual([oversized])
+      expect(page.nextCursor).toBeDefined()
+
+      const older = agentSessionMessageService.listSessionMessages(SESSION_ID, {
+        deferToolOutputs: true,
+        cursor: page.nextCursor
+      })
+      expect(older.items.map(({ id }) => id)).toEqual([middle, oldest])
+      expect(inlineBytes(older.items)).toBeLessThanOrEqual(AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET)
+      expect(older.nextCursor).toBeUndefined()
+    })
+
+    it('visits mixed-size history exactly once in descending timestamp and ID order', () => {
+      const largeText = 'é'.repeat(1100 * 1024)
+      const ids = seedHistory(
+        Array.from({ length: 120 }, (_, index) => ({
+          parts: [21, 49, 85, 110].includes(index)
+            ? [{ type: 'reasoning', text: largeText }]
+            : [{ type: 'text', text: `message ${index}` }]
+        }))
+      )
+      const seen: string[] = []
+      let cursor: string | undefined
+      let pages = 0
+      do {
+        const page = agentSessionMessageService.listSessionMessages(SESSION_ID, {
+          deferToolOutputs: true,
+          limit: 50,
+          cursor
+        })
+        expect(page.items.length).toBeGreaterThan(0)
+        expect(inlineBytes(page.items)).toBeLessThanOrEqual(AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET)
+        seen.push(...page.items.map(({ id }) => id))
+        cursor = page.nextCursor
+        pages++
+      } while (cursor && pages < ids.length)
+
+      expect(seen).toEqual(ids.toReversed())
+      expect(cursor).toBeUndefined()
+    })
+
+    it('blanks deferred list search text while the journal call returns all 50 rows with their text', () => {
+      const oversized: CherryMessagePart = { type: 'reasoning', text: 'x'.repeat(5 * 1024 * 1024) }
+      const texts = Array.from({ length: 50 }, (_, index) => `searchable message ${index}`)
+      const ids = seedHistory(
+        texts.map((text, index) => ({
+          parts: [{ type: 'text', text }, ...(index === 25 ? [oversized] : [])]
+        }))
+      )
+
+      const deferred = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 50, deferToolOutputs: true })
+      expect(deferred.items.map(({ id }) => id)).toEqual(ids.slice(26).reverse())
+      expect(deferred.items.map((item) => item.searchableText)).toEqual(texts.slice(26).map(() => ''))
+      expect(deferred.nextCursor).toBeDefined()
+
+      const journal = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 50 })
+      expect(journal.items).toHaveLength(50)
+      expect(journal.items.map((item) => item.searchableText)).toEqual(texts.toReversed())
+      expect(journal.items.find(({ id }) => id === ids[25])?.data.parts?.[1]).toEqual(oversized)
+      expect(journal.nextCursor).toBeUndefined()
+    })
+
+    it.each([
+      { mibPerPart: 1, fits: true },
+      { mibPerPart: 3, fits: false }
+    ])('back-fills a reply owner through intervening rows at $mibPerPart MiB per part', ({ mibPerPart, fits }) => {
+      const part: CherryMessagePart = { type: 'reasoning', text: 'x'.repeat(mibPerPart * 1024 * 1024) }
+      const ids = seedHistory([
+        { parts: [part] },
+        { parts: [part] },
+        ...Array.from({ length: 50 }, () => ({ parts: [] })),
+        { parts: [{ type: 'text', text: 'steer' }], replyId: 'history-000' }
+      ])
+
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 1, deferToolOutputs: true })
+      expect(page.items.map(({ id }) => id)).toEqual(ids.slice(fits ? 0 : 1).reverse())
+      expect(inlineBytes(page.items)).toBeLessThanOrEqual(AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET)
+      if (fits) {
+        expect(page.nextCursor).toBeUndefined()
+      } else {
+        expect(page.nextCursor).toBeDefined()
+        const older = agentSessionMessageService.listSessionMessages(SESSION_ID, {
+          limit: 1,
+          deferToolOutputs: true,
+          cursor: page.nextCursor
+        })
+        expect(older.items.map(({ id }) => id)).toEqual([ids[0]])
+        expect(older.nextCursor).toBeUndefined()
+      }
+    })
+  })
+
   it('publishes the first native placement so an already visible input can become a timeline boundary', () => {
     const input = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
@@ -4039,7 +4173,8 @@ describe('AgentSessionMessageService', () => {
       const rendered = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
         deferToolOutputs: true
       })
-      expect(rendered).toEqual(deferredPage.items[0])
+      expect(deferredPage.items[0].searchableText).toBe('')
+      expect(rendered).toEqual({ ...deferredPage.items[0], searchableText: 'Done reading' })
       expect(sidecar.mock.calls.length).toBe(0)
       sidecar.mockRestore()
       const deferredLargePart = deferredPage.items[0]?.data.parts?.[1] as { output?: unknown } | undefined
