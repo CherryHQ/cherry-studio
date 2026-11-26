@@ -46,12 +46,13 @@ export interface WireProfile {
 
 /**
  * OpenAI-compatible diffusion family (SiliconFlow / zhipu / deepseek / ppio /
- * openrouter / any unlisted compat provider). Reproduces the old `diffusionBody`
- * — the providers' real snake_case sampling fields, `seed` duplicated into the
- * body. Registered with `passthrough` so vendor-bag fields the profile doesn't
- * map (SiliconFlow Qwen-Image's `cfg`, …) still ride through, exactly as the
- * legacy `diffusion` emitter's `jsonBagFields` merge did. The `silicon` boundary
- * test is the oracle.
+ * openrouter / remaining extension providers not listed in {@link WIRE_REGISTRY};
+ * `'openai-compatible'` has its own {@link WIRE_REGISTRY} row). Reproduces the
+ * old `diffusionBody` — the providers' real snake_case sampling fields, `seed`
+ * duplicated into the body. Registered with `passthrough` so vendor-bag fields
+ * the profile doesn't map (SiliconFlow Qwen-Image's `cfg`, …) still ride
+ * through, exactly as the legacy `diffusion` emitter's `jsonBagFields` merge
+ * did. The `silicon` boundary test is the oracle.
  */
 export const DIFFUSION_WIRE_PROFILE: WireProfile = {
   forward: ['negativePrompt', 'seed', 'numInferenceSteps', 'guidanceScale', 'promptEnhancement', 'quality']
@@ -308,8 +309,9 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
 
 /**
  * Fallback for any provider not in {@link WIRE_REGISTRY} and not on the legacy
- * emitter allowlist — the OpenAI-compatible diffusion family (silicon and every
- * unlisted compat provider). Byte-identical to the legacy `diffusion` emitter.
+ * emitter allowlist — the remaining unlisted extension providers in the
+ * diffusion family (such as `silicon`; `'openai-compatible'` has its own row in
+ * {@link WIRE_REGISTRY}). Byte-identical to the legacy `diffusion` emitter.
  */
 export const DEFAULT_DIFFUSION_REGISTRATION: WireRegistration = {
   profile: DIFFUSION_WIRE_PROFILE,

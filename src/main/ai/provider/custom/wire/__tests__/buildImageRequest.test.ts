@@ -429,6 +429,66 @@ describe('buildVendorProviderOptions — OpenAI-compatible generic adapter', () 
     expect(requests[0].body).not.toHaveProperty('outputFormat')
   })
 
+  it('sends snake_case vendor params and seed in the /images/edits FormData body without auto values via @ai-sdk/openai-compatible', async () => {
+    const paramValues = {
+      numImages: 2,
+      size: '1024x1536',
+      quality: 'auto',
+      background: 'auto',
+      moderation: 'low',
+      outputFormat: 'webp',
+      seed: 42,
+      cfg: 7.5
+    }
+    const { structured, providerOptions } = buildCompatOptions('custom-relay', paramValues)
+
+    const requests: Array<{ url: string; body: FormData }> = []
+    const model = createOpenAICompatible({
+      baseURL: 'https://custom-relay.example/v1',
+      apiKey: 'test-key',
+      name: 'custom-relay',
+      fetch: async (input, init) => {
+        requests.push({
+          url: String(input),
+          body: init?.body as FormData
+        })
+        return new Response(JSON.stringify({ data: [{ b64_json: 'QUJD' }] }), {
+          headers: { 'content-type': 'application/json' }
+        })
+      }
+    }).imageModel('gpt-image-1')
+
+    await model.doGenerate({
+      prompt: 'a fox',
+      n: structured.n ?? 1,
+      size: structured.size as `${number}x${number}`,
+      aspectRatio: undefined,
+      seed: structured.seed,
+      files: [{ type: 'file', data: new Uint8Array([1, 2, 3]), mediaType: 'image/png' }],
+      mask: undefined,
+      providerOptions
+    })
+
+    expect(requests).toHaveLength(1)
+    expect(requests[0].url).toBe('https://custom-relay.example/v1/images/edits')
+    expect(requests[0].body).toBeInstanceOf(FormData)
+
+    const form = requests[0].body
+    expect(form.get('model')).toBe('gpt-image-1')
+    expect(form.get('prompt')).toBe('a fox')
+    expect(form.get('n')).toBe('2')
+    expect(form.get('size')).toBe('1024x1536')
+    expect(form.get('image')).toBeInstanceOf(Blob)
+    expect(form.get('moderation')).toBe('low')
+    expect(form.get('output_format')).toBe('webp')
+    expect(form.has('outputFormat')).toBe(false)
+    expect(form.get('seed')).toBe('42')
+    expect(form.get('cfg')).toBe('7.5')
+    expect(form.has('quality')).toBe(false)
+    expect(form.has('background')).toBe(false)
+    expect(Array.from(form.values())).not.toContain('auto')
+  })
+
   it("drops 'auto' and unset fields instead of leaking them via passthrough, while keeping falsy values", () => {
     expect(
       buildCompatOptions('custom-relay', {
