@@ -121,6 +121,7 @@ function current(events: ObservationPayload[]) {
 describe('Pi Durable runtime contract', () => {
   it.each([
     [new Error('Storage is read-only'), ' — Storage is read-only'],
+    [new Error('[SQLITE_BUSY] database is locked'), ' — [SQLITE_BUSY] database is locked'],
     ['Storage is locked', ' — Storage is locked'],
     [{ internal: 'opaque' }, '']
   ])('keeps available storage failure text in the runtime initialization diagnosis (%s)', async (cause, detail) => {

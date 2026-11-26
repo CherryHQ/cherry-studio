@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
@@ -1557,6 +1558,28 @@ describe('desktop Pi Durable connection', () => {
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
+  it('preserves a bracketed native initialization cause through desktop serialization', async () => {
+    const runtimeRequire = createRequire(
+      createRequire(import.meta.url).resolve('@cherrystudio/agent-runtime-pi-durable')
+    )
+    const { Harness } = await import(runtimeRequire.resolve('@earendil-works/pi-durable'))
+    vi.spyOn(Harness, 'open').mockRejectedValueOnce(new Error('[SQLITE_BUSY] database is locked; apiKey=private-key'))
+    let failure: unknown
+    try {
+      await connect()
+    } catch (error) {
+      failure = error
+    }
+
+    expect(failure).toBeInstanceOf(Error)
+    const serialized = serializeError(failure)
+    expect(serialized).toMatchObject({
+      errorSource: 'local',
+      message: 'Pi Durable initialize: native-error — [SQLITE_BUSY] database is locked; apiKey="<redacted>"'
+    })
+    expect(JSON.stringify(serialized)).not.toContain('private-key')
+  })
+
   it('preserves output truncation through the desktop error boundary', async () => {
     const response = assistantReply('', 'length')
     response.content = [{ type: 'thinking', thinking: 'Partial reasoning' }]

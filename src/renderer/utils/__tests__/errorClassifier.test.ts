@@ -82,10 +82,10 @@ describe('classifyError', () => {
     }
   )
 
-  it.each(['Pi Durable initialize: native-error', 'Pi Durable initialize: native-error — operation timed out'])(
-    'keeps local Pi Durable initialization diagnostics out of network guidance (%s)',
+  it.each(['[SQLITE_BUSY] database is locked', 'Local initialization failed — operation timed out'])(
+    'keeps local diagnostics out of provider and stream guidance (%s)',
     (message) => {
-      const error = makeError({ name: 'PiDurableInitializationError', message, streamStage: 'response-stream' })
+      const error = makeError({ errorSource: 'local', message, streamStage: 'response-stream' })
       expect(classifyError(error)).toEqual({
         category: 'unknown',
         i18nKey: 'error.diagnosis.unknown',

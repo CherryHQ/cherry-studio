@@ -14,11 +14,10 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { openDurableStorage, prepareDurableRoot } from '@main/ai/agentSession/durableNativeContext'
 import { createPiTelemetry } from '@main/ai/observability'
-import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import type { Model } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { createLocalError } from '@shared/utils/localError'
 import { getRawModelId } from '@shared/utils/model'
-import { redactSecretTokens } from '@shared/utils/redaction'
 
 import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
 import { createPiBehaviorHost } from '../pi/piBehaviorHost'
@@ -150,8 +149,8 @@ export class DurableBackend {
       })
       if (created.status !== 'confirmed') {
         const { operation, code, message } = created.error
-        const safeMessage = getSafeProviderErrorMessage({ message: redactSecretTokens(message) })
-        const failure = new Error(safeMessage || `Pi Durable ${operation}: ${code}`)
+        const failure = createLocalError(message)
+        if (!failure.message) failure.message = `Pi Durable ${operation}: ${code}`
         failure.name = 'PiDurableInitializationError'
         throw failure
       }
