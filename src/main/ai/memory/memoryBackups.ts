@@ -22,6 +22,7 @@ const stepSchema = z.strictObject({
   before: z.string().nullable(),
   beforeHash: hashSchema,
   afterHash: hashSchema,
+  controlledSaveAt: z.number().int().nonnegative().optional(),
   outcome: z.enum(['pending', 'applied', 'unchanged', 'conflict'])
 })
 const batchSchema = z.strictObject({
@@ -54,6 +55,7 @@ export interface MemoryLegacyOriginal {
 }
 export interface MemoryFileChange {
   transferTarget?: boolean
+  controlledSaveAt?: number
   path: string
   before: Buffer | null
   after: Buffer | null
@@ -111,24 +113,41 @@ async function storedBatches(root: string): Promise<StoredBatch[]> {
       )
         throw new MemoryError('invalid-backup', 'Legacy memory backup content does not match its hash')
     }
-    batches.push({ filename, reservedBytes: Math.max(bytes.length, reservedBatchBytes(batch)), batch })
+    batches.push({ filename, reservedBytes: bytes.length, batch })
   }
   batches.sort(
     (left, right) => left.batch.createdAt - right.batch.createdAt || left.filename.localeCompare(right.filename)
   )
-  // Reconstruct older clear/undo manifests only when their complete inverse is still on disk.
+  // Older reverse manifests can inherit provenance while the matching parent is still on disk.
   for (const { batch } of batches) {
-    if (
-      batch.recoveryOf &&
-      !batch.clearScopeHash &&
-      !batch.undoClearScopeHash &&
-      batch.steps.every((step) => step.outcome === 'applied')
-    ) {
-      const parent = batches.find((item) => item.batch.id === batch.recoveryOf)?.batch
-      if (parent) inheritClearDirection(parent, batch)
-    }
+    if (batch.source !== 'recovery' || !batch.recoveryOf) continue
+    const parent = batches.find((item) => item.batch.id === batch.recoveryOf)?.batch
+    if (!parent) continue
+    inheritControlledSaveTimes(parent, batch)
+    if (!batch.clearScopeHash && !batch.undoClearScopeHash && batch.steps.every((step) => step.outcome === 'applied'))
+      inheritClearDirection(parent, batch)
   }
+  for (const item of batches) item.reservedBytes = Math.max(item.reservedBytes, reservedBatchBytes(item.batch))
   return batches
+}
+
+export function controlledSaveTime(batch: MemoryBatch, step: MemoryBatch['steps'][number]): number | undefined {
+  if (batch.source === 'controlled') return batch.createdAt
+  return batch.source === 'recovery' && batch.recoveryOf ? step.controlledSaveAt : undefined
+}
+
+function inheritControlledSaveTimes(parent: MemoryBatch, reverse: MemoryBatch): void {
+  const originals = new Map(parent.steps.map((step) => [step.path, step]))
+  for (const step of reverse.steps) {
+    if (step.controlledSaveAt !== undefined) continue
+    const original = originals.get(step.path)
+    if (
+      original?.outcome === 'applied' &&
+      step.beforeHash === original.afterHash &&
+      step.afterHash === original.beforeHash
+    )
+      step.controlledSaveAt = controlledSaveTime(parent, original)
+  }
 }
 
 function inheritClearDirection(parent: MemoryBatch, reverse: MemoryBatch): void {
@@ -276,7 +295,10 @@ export async function createMemoryBackup(
     }
   }
   if (parent?.recoveryOf && needsRecoveryPredecessor(parent, batch)) protectedIds.add(parent.recoveryOf)
-  if (parent) inheritClearDirection(parent, batch)
+  if (parent) {
+    inheritControlledSaveTimes(parent, batch)
+    inheritClearDirection(parent, batch)
+  }
   if (parent && hasOrderedRecovery(parent)) {
     const order = new Map(parent.steps.toReversed().map((step, index) => [step.path, index]))
     batch.steps.sort((left, right) => order.get(left.path)! - order.get(right.path)!)
