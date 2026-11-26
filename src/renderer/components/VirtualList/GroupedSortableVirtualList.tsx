@@ -49,6 +49,7 @@ type ItemDragData<TGroup, TItem> = DragDataBase<TGroup> & {
 }
 
 type GroupDragData<TGroup> = DragDataBase<TGroup> & {
+  groupRowType: 'header' | 'footer'
   rowType: 'group'
 }
 
@@ -160,6 +161,8 @@ export type GroupedSortableVirtualListDragCapabilities = {
   items?: boolean
   itemSameGroup?: boolean
   itemCrossGroup?: boolean
+  /** A same-group header release is a no-op. */
+  itemOwnGroupHeaderNoop?: boolean
 }
 
 export interface GroupedSortableVirtualListProps<
@@ -208,7 +211,10 @@ export interface GroupedSortableVirtualListProps<
 
 const DEFAULT_GROUP_HEADER_SIZE = 32
 const DEFAULT_GROUP_FOOTER_SIZE = 32
-const DEFAULT_DRAG_CAPABILITIES: Required<GroupedSortableVirtualListDragCapabilities> = {
+const DEFAULT_DRAG_CAPABILITIES: Omit<
+  Required<GroupedSortableVirtualListDragCapabilities>,
+  'itemOwnGroupHeaderNoop'
+> = {
   groups: false,
   items: true,
   itemSameGroup: true,
@@ -235,6 +241,12 @@ function getEventData<TGroup, TItem>(data: unknown): RowDragData<TGroup, TItem> 
 
 function isItemDragData<TGroup, TItem>(data: RowDragData<TGroup, TItem>): data is ItemDragData<TGroup, TItem> {
   return data.rowType === 'item'
+}
+
+function isItemOverOwnGroupHeader<TGroup, TItem>(active: RowDragData<TGroup, TItem>, over: RowDragData<TGroup, TItem>) {
+  return (
+    isItemDragData(active) && !isItemDragData(over) && over.groupRowType === 'header' && active.groupId === over.groupId
+  )
 }
 
 function joinClassNames(...classNames: Array<false | null | string | undefined>) {
@@ -280,10 +292,12 @@ function buildDragStartPayload<TGroup, TItem>(
 function buildGroupDragData<TGroup>(
   group: TGroup,
   groupId: UniqueIdentifier,
-  groupIndex: number
+  groupIndex: number,
+  groupRowType: GroupDragData<TGroup>['groupRowType']
 ): GroupDragData<TGroup> {
   return {
     rowType: 'group',
+    groupRowType,
     group,
     groupId,
     groupIndex
@@ -389,11 +403,13 @@ function getDropPosition<TGroup, TItem>(
 
 function buildDropPayloadFromOperation<TGroup, TItem>(
   operation: DragOperation,
-  activeDragData: RowDragData<TGroup, TItem> | null
+  activeDragData: RowDragData<TGroup, TItem> | null,
+  itemOwnGroupHeaderNoop: boolean
 ) {
   const active = getEventData<TGroup, TItem>(operation.source?.data) ?? activeDragData
   const over = getEventData<TGroup, TItem>(operation.target?.data)
   if (!active || !over) return null
+  if (itemOwnGroupHeaderNoop && isItemOverOwnGroupHeader(active, over)) return null
 
   const position = getDropPosition(operation, active, over)
   const payload = buildDragEndPayload(active, over, position)
@@ -417,15 +433,18 @@ function buildDropPayloadFromStateOrOperation<TGroup, TItem>(
   operation: DragOperation,
   activeDragData: RowDragData<TGroup, TItem> | null,
   dropState: OverDropState | null,
+  itemOwnGroupHeaderNoop: boolean,
   groupAppendDropTargets?: Map<UniqueIdentifier, ItemDragData<TGroup, TItem>>
 ) {
   const active = getEventData<TGroup, TItem>(operation.source?.data) ?? activeDragData
   const over = getEventData<TGroup, TItem>(operation.target?.data)
   if (!active || !over) return null
+  if (itemOwnGroupHeaderNoop && isItemOverOwnGroupHeader(active, over)) return null
 
   const statePosition = getDropPositionFromState(over, dropState)
+  // Non-opted consumers require matching hover state before rewriting a group payload to an item anchor.
   const appendDropTarget =
-    statePosition !== null && isItemDragData(active) && !isItemDragData(over)
+    (itemOwnGroupHeaderNoop || statePosition !== null) && isItemDragData(active) && !isItemDragData(over)
       ? groupAppendDropTargets?.get(over.groupId)
       : undefined
   const payloadOver = appendDropTarget ?? over
@@ -492,7 +511,7 @@ function getDropTargetRowState<TGroup, TItem>({
 
 function shouldDropPayload<TGroup, TItem>(
   payload: GroupedSortableVirtualListDragPayload<TGroup, TItem>,
-  dragCapabilities: Required<GroupedSortableVirtualListDragCapabilities>,
+  dragCapabilities: GroupedSortableVirtualListDragCapabilities,
   canDropGroup?: (args: CanDropGroupArgs<TGroup, TItem>) => boolean,
   canDropItem?: (args: CanDropItemArgs<TGroup, TItem>) => boolean
 ) {
@@ -838,11 +857,12 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
         continue
       }
 
+      if (effectiveDragCapabilities.itemOwnGroupHeaderNoop && targets.get(groupId)?.row.type === 'item') continue
       targets.set(groupId, { position: 'before', row })
     }
 
     return targets
-  }, [getGroupId, rows])
+  }, [effectiveDragCapabilities.itemOwnGroupHeaderNoop, getGroupId, rows])
 
   const groupAppendDropTargets = useMemo(() => {
     const targets = new Map<UniqueIdentifier, ItemDragData<TGroup, TItem>>()
@@ -942,11 +962,11 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
     (row: GroupedSortableVirtualListRow<TGroup, TItem, THeader, TFooter>): RowDragData<TGroup, TItem> | null => {
       const groupId = getGroupId(row.group, row.groupIndex)
       if (row.type === 'group-header') {
-        return buildGroupDragData(row.group, groupId, row.groupIndex)
+        return buildGroupDragData(row.group, groupId, row.groupIndex, 'header')
       }
 
       if (row.type === 'group-footer') {
-        return buildGroupDragData(row.group, groupId, row.groupIndex)
+        return buildGroupDragData(row.group, groupId, row.groupIndex, 'footer')
       }
 
       if (row.type === 'item') {
@@ -1056,7 +1076,11 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
 
   const resolveOverDropState = useCallback(
     (operation: DragOperation): OverDropState | null => {
-      const result = buildDropPayloadFromOperation<TGroup, TItem>(operation, activeDragDataRef.current)
+      const result = buildDropPayloadFromOperation<TGroup, TItem>(
+        operation,
+        activeDragDataRef.current,
+        effectiveDragCapabilities.itemOwnGroupHeaderNoop === true
+      )
       if (!result || !canDragActive(result.active)) return null
 
       if (
@@ -1140,6 +1164,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
             operation,
             activeDragDataRef.current,
             overDropStateRef.current,
+            effectiveDragCapabilities.itemOwnGroupHeaderNoop === true,
             groupAppendDropTargets
           )
       clearDragState()
@@ -1168,7 +1193,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       const sourcePlaceholder = activeGroupPlaceholderId === groupId
 
       if (row.type === 'group-header') {
-        const data = buildGroupDragData(row.group, groupId, row.groupIndex)
+        const data = buildGroupDragData(row.group, groupId, row.groupIndex, 'header')
 
         return (
           <GroupHeaderRow
@@ -1188,7 +1213,7 @@ function GroupedSortableVirtualList<TGroup, TItem, THeader = TGroup, TFooter = u
       }
 
       if (row.type === 'group-footer') {
-        const data = buildGroupDragData(row.group, groupId, row.groupIndex)
+        const data = buildGroupDragData(row.group, groupId, row.groupIndex, 'footer')
 
         return (
           <GroupFooterRow

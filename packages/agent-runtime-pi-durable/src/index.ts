@@ -12,3 +12,5 @@ export type {
 } from './runtime'
 
 export type { DurableObservation } from './projection'
+
+export type { DurableFollowup, DurableFollowupChange } from './followups'

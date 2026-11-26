@@ -70,15 +70,24 @@ it('ends a Durable delivery turn whose input never reached the runtime', () => {
   expect(messages.getSessionMessage('target', request.id).delivery?.status).not.toBe('delivering')
 })
 
+it('ends a dispatched delivery whose native context was detached', () => {
+  const { request, reply, context } = interruptedDelivery(true)
+  application.get('DbService').withWriteTx((tx) => contexts.detachBranchTx(tx, context.id))
+
+  recoverSessionDeliveries()
+  expect(messages.getSessionMessage('target', reply.id).status).toBe('error')
+  expect(messages.getSessionMessage('target', request.id).delivery?.status).not.toBe('delivering')
+})
+
 it('keeps the original delivery pending when its captured Durable target cannot reconnect', async () => {
   const { request, reply } = interruptedDelivery(true)
   const recoverPendingReplies = vi.fn(async () => {})
   dbh.db.update(agentTable).set({ type: 'pi' }).run()
   MockApplicationUtils.setService('AgentSessionRuntimeService', {
-    whenStartupRecoverySettles: async () => {},
     onTurnTerminal: () => ({ dispose() {} }),
     onRuntimeIdle: () => ({ dispose() {} }),
     isSessionBusy: () => false,
+    whenStartupRecoverySettles: async () => {},
     recoverPendingReplies
   })
   MockApplicationUtils.setService('AiStreamManager', {

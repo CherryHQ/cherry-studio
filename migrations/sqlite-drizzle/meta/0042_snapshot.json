@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "da0ca127-9aa9-4030-800b-b57b79ac14fb",
+  "id": "a662b912-5300-498c-b2ed-925b2a0db0e2",
   "prevId": "0d9b5b57-e4df-4ee3-8c04-bcf3f26301d3",
   "tables": {
     "agent": {
@@ -652,6 +652,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "needs_recovery_check": {
+          "name": "needs_recovery_check",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -668,6 +676,14 @@
         }
       },
       "indexes": {
+        "agent_runtime_backend_recovery_idx": {
+          "name": "agent_runtime_backend_recovery_idx",
+          "columns": [
+            "id"
+          ],
+          "isUnique": false,
+          "where": "\"agent_runtime_backend\".\"needs_recovery_check\" = 1"
+        },
         "agent_runtime_backend_locator_uniq": {
           "name": "agent_runtime_backend_locator_uniq",
           "columns": [
@@ -783,6 +799,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "last_pos": {
+          "name": "last_pos",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "order_key": {
           "name": "order_key",
@@ -1111,6 +1135,130 @@
         }
       }
     },
+    "agent_session_message_part": {
+      "name": "agent_session_message_part",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "message_id": {
+          "name": "message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "seq": {
+          "name": "seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pos": {
+          "name": "pos",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "agent_session_message_part_message_seq_uniq": {
+          "name": "agent_session_message_part_message_seq_uniq",
+          "columns": [
+            "message_id",
+            "seq"
+          ],
+          "isUnique": true
+        },
+        "agent_session_message_part_session_idx": {
+          "name": "agent_session_message_part_session_idx",
+          "columns": [
+            "session_id"
+          ],
+          "isUnique": false
+        },
+        "agent_session_message_part_pos_uniq": {
+          "name": "agent_session_message_part_pos_uniq",
+          "columns": [
+            "session_id",
+            "pos"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "agent_session_message_part_message_id_agent_session_message_id_fk": {
+          "name": "agent_session_message_part_message_id_agent_session_message_id_fk",
+          "tableFrom": "agent_session_message_part",
+          "tableTo": "agent_session_message",
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_session_message_part_session_id_agent_session_id_fk": {
+          "name": "agent_session_message_part_session_id_agent_session_id_fk",
+          "tableFrom": "agent_session_message_part",
+          "tableTo": "agent_session",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "agent_session_message": {
       "name": "agent_session_message",
       "columns": {
@@ -1209,6 +1357,13 @@
         "reply_id": {
           "name": "reply_id",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "pos": {
+          "name": "pos",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
@@ -1319,6 +1474,23 @@
             "\"id\" asc"
           ],
           "isUnique": false
+        },
+        "agent_session_message_reply_idx": {
+          "name": "agent_session_message_reply_idx",
+          "columns": [
+            "session_id",
+            "reply_id"
+          ],
+          "isUnique": false,
+          "where": "\"agent_session_message\".\"reply_id\" IS NOT NULL"
+        },
+        "agent_session_message_pending_reply_idx": {
+          "name": "agent_session_message_pending_reply_idx",
+          "columns": [
+            "session_id"
+          ],
+          "isUnique": false,
+          "where": "\"agent_session_message\".\"role\" = 'assistant' AND \"agent_session_message\".\"status\" = 'pending'"
         },
         "agent_session_message_status_idx": {
           "name": "agent_session_message_status_idx",
@@ -1452,6 +1624,101 @@
           "value": "(\"agent_session_message\".\"delivery_status\" = 'delivering' AND \"agent_session_message\".\"delivery_turn_ref\" IS NOT NULL) OR (\"agent_session_message\".\"delivery_status\" != 'delivering' AND \"agent_session_message\".\"delivery_turn_ref\" IS NULL) OR (\"agent_session_message\".\"delivery_status\" IS NULL AND \"agent_session_message\".\"delivery_turn_ref\" IS NULL)"
         }
       }
+    },
+    "agent_session_tool_output": {
+      "name": "agent_session_tool_output",
+      "columns": {
+        "message_id": {
+          "name": "message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tool_call_id": {
+          "name": "tool_call_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "output": {
+          "name": "output",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "agent_session_tool_output_session_idx": {
+          "name": "agent_session_tool_output_session_idx",
+          "columns": [
+            "session_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "agent_session_tool_output_message_id_agent_session_message_id_fk": {
+          "name": "agent_session_tool_output_message_id_agent_session_message_id_fk",
+          "tableFrom": "agent_session_tool_output",
+          "tableTo": "agent_session_message",
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_session_tool_output_session_id_agent_session_id_fk": {
+          "name": "agent_session_tool_output_session_id_agent_session_id_fk",
+          "tableFrom": "agent_session_tool_output",
+          "tableTo": "agent_session",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "agent_session_tool_output_message_id_tool_call_id_pk": {
+          "columns": [
+            "message_id",
+            "tool_call_id"
+          ],
+          "name": "agent_session_tool_output_message_id_tool_call_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "agent_skill": {
       "name": "agent_skill",
@@ -2142,6 +2409,155 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "artifact": {
+      "name": "artifact",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "topic_id": {
+          "name": "topic_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "file_entry_id": {
+          "name": "file_entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reported_at": {
+          "name": "reported_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "artifact_session_path_uq": {
+          "name": "artifact_session_path_uq",
+          "columns": [
+            "session_id",
+            "path"
+          ],
+          "isUnique": true
+        },
+        "artifact_agent_reported_idx": {
+          "name": "artifact_agent_reported_idx",
+          "columns": [
+            "agent_id",
+            "reported_at"
+          ],
+          "isUnique": false
+        },
+        "artifact_topic_idx": {
+          "name": "artifact_topic_idx",
+          "columns": [
+            "topic_id"
+          ],
+          "isUnique": false
+        },
+        "artifact_file_entry_idx": {
+          "name": "artifact_file_entry_idx",
+          "columns": [
+            "file_entry_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "artifact_agent_id_agent_id_fk": {
+          "name": "artifact_agent_id_agent_id_fk",
+          "tableFrom": "artifact",
+          "tableTo": "agent",
+          "columnsFrom": [
+            "agent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "artifact_session_id_agent_session_id_fk": {
+          "name": "artifact_session_id_agent_session_id_fk",
+          "tableFrom": "artifact",
+          "tableTo": "agent_session",
+          "columnsFrom": [
+            "session_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "artifact_topic_id_topic_id_fk": {
+          "name": "artifact_topic_id_topic_id_fk",
+          "tableFrom": "artifact",
+          "tableTo": "topic",
+          "columnsFrom": [
+            "topic_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "artifact_owner_check": {
+          "name": "artifact_owner_check",
+          "value": "(\"artifact\".\"agent_id\" IS NOT NULL AND \"artifact\".\"session_id\" IS NOT NULL AND \"artifact\".\"topic_id\" IS NULL AND \"artifact\".\"path\" IS NOT NULL AND \"artifact\".\"file_entry_id\" IS NULL) OR (\"artifact\".\"agent_id\" IS NULL AND \"artifact\".\"session_id\" IS NULL AND \"artifact\".\"topic_id\" IS NOT NULL AND \"artifact\".\"path\" IS NULL AND \"artifact\".\"file_entry_id\" IS NOT NULL)"
+        }
+      }
     },
     "assistant": {
       "name": "assistant",

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-26-gateway-token-count-budget.md
+2026-11-26-gateway-token-count-budget.md: 5eec55be350a31adbafb02a2fdd6a7a926d29030
+2026-11-26-gateway-token-count-budget.zh.md: 35d6b58210fed86d9b91ba08c86ba815c9b25c5d

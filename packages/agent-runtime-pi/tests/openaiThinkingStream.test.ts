@@ -12,10 +12,24 @@ function gate() {
   return { promise, resolve }
 }
 
-it('ends thinking before answer and tool output while retaining late reasoning replay data', async () => {
+const details = [{ type: 'reasoning.encrypted', data: 'opaque-replay-data' }]
+const encryptedContent = 'opaque-ciphertext'
+
+it.each([
+  {
+    replay: 'reasoning_details',
+    sendEncryptedContent: false,
+    signature: JSON.stringify(details)
+  },
+  {
+    replay: 'reasoning_details and encrypted_content',
+    sendEncryptedContent: true,
+    signature: JSON.stringify({ encrypted_content: encryptedContent, reasoning_details: details })
+  }
+])('ends thinking before output and retains late $replay', async (fixture) => {
+  const { sendEncryptedContent, signature } = fixture
   const firstAnswer = gate()
   const finish = gate()
-  const details = [{ type: 'reasoning.encrypted', data: 'opaque-replay-data' }]
   const chunk = (delta: object, finishReason: 'tool_calls' | null = null) => ({
     id: 'response',
     object: 'chat.completion.chunk' as const,
@@ -41,6 +55,7 @@ it('ends thinking before answer and tool output while retaining late reasoning r
             yield chunk({ reasoning_content: 'Second thought.' })
             yield chunk({ tool_calls: [{ index: 0, id: 'call_1', function: { name: 'echo', arguments: '{}' } }] })
             await finish.promise
+            if (sendEncryptedContent) yield chunk({ encrypted_content: encryptedContent })
             yield chunk({}, 'tool_calls')
           })()
         })
@@ -72,9 +87,9 @@ it('ends thinking before answer and tool output while retaining late reasoning r
   expect(await reply.result()).toMatchObject({
     stopReason: 'toolUse',
     content: [
-      { type: 'thinking', thinking: 'First thought continues.', thinkingSignature: JSON.stringify(details) },
+      { type: 'thinking', thinking: 'First thought continues.', thinkingSignature: signature },
       { type: 'text', text: 'First answer.' },
-      { type: 'thinking', thinking: 'Second thought.' },
+      { type: 'thinking', thinking: 'Second thought.', thinkingSignature: 'reasoning_content' },
       { type: 'toolCall', id: 'call_1', name: 'echo', arguments: {} }
     ]
   })
