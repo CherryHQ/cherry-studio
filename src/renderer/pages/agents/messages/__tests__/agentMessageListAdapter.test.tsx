@@ -225,6 +225,100 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
+  it('allows fork only at the final display segment and addresses the durable Run', async () => {
+    const topic = { id: 'agent-session:fork-timeline', name: 'Timeline' } as Topic
+    const run: CherryUIMessage = {
+      id: 'run',
+      role: 'assistant',
+      metadata: { status: 'success', stats: { totalTokens: 20 } },
+      partIds: ['before', 'after'],
+      partPositions: [1, 3],
+      parts: [
+        { type: 'text', text: 'Before' },
+        { type: 'text', text: 'After' }
+      ]
+    }
+    const steer: CherryUIMessage = {
+      id: 'steer',
+      role: 'user',
+      timeline: { pos: 2 },
+      parts: [{ type: 'text', text: 'Steer' }]
+    }
+    const { result } = renderHook(() =>
+      useAgentMessageListProviderValue({
+        topic,
+        messages: [run, steer],
+        partsByMessageId: { run: run.parts, steer: steer.parts },
+        historyActions: { run: { fork: null, edit: 'busy' } },
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+    )
+    const [before, , after] = result.current.state.messages
+    expect(result.current.actions.forkSession?.availability(before)).toMatchObject({ enabled: false })
+    expect(result.current.actions.forkSession?.availability(after)).toMatchObject({ enabled: true })
+    expect(before.stats).toBeUndefined()
+    expect(after.stats?.totalTokens).toBe(20)
+    expect(messagePartsAt(result.current.state.partsByMessageId, after.id)).toEqual([{ type: 'text', text: 'After' }])
+    ipcApiRequest.mockResolvedValueOnce({ sessionId: 'forked' })
+    await result.current.actions.forkSession?.run(after.id)
+    expect(ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.fork', {
+      sourceSessionId: 'fork-timeline',
+      messageId: 'run'
+    })
+  })
+
+  it('routes an approval on a later display segment to its original Run', async () => {
+    const topic = { id: 'agent-session:approval-timeline', name: 'Timeline' } as Topic
+    const tool = {
+      type: 'dynamic-tool',
+      toolName: 'Write',
+      toolCallId: 'write',
+      state: 'approval-requested',
+      input: {},
+      approval: { id: 'approval' }
+    } as const
+    const run: CherryUIMessage = {
+      id: 'run',
+      role: 'assistant',
+      metadata: { status: 'pending' },
+      partIds: ['before', 'approval'],
+      partPositions: [1, 3],
+      parts: [{ type: 'text', text: 'Before' }, tool]
+    }
+    const steer: CherryUIMessage = {
+      id: 'steer',
+      role: 'user',
+      timeline: { pos: 2 },
+      parts: [{ type: 'text', text: 'Steer' }]
+    }
+    const respond = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      useAgentMessageListProviderValue({
+        topic,
+        messages: [run, steer],
+        partsByMessageId: { run: run.parts, steer: steer.parts },
+        respondToolApproval: respond,
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+    )
+    const after = result.current.state.messages.at(-1)!
+    await result.current.actions.respondToolApproval?.({
+      approved: true,
+      match: {
+        messageId: after.id,
+        toolCallId: 'write',
+        approvalId: 'approval',
+        state: 'approval-requested',
+        part: tool
+      }
+    })
+    expect(respond).toHaveBeenCalledWith(
+      expect.objectContaining({ match: expect.objectContaining({ messageId: 'run' }), approved: true })
+    )
+  })
+
   it('keys Agent lists by session topic while keeping tool steps collapsed', () => {
     const topic = { id: 'agent-session:first', assistantId: 'agent-1', name: 'First', messages: [] } as unknown as Topic
     const { result, rerender } = renderHook(

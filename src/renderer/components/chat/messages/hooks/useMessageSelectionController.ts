@@ -155,6 +155,8 @@ export function useMessageSelectionController({
           (message) =>
             // Mirrors MessageFrame's isContextBoundary early return — no checkbox is rendered there.
             !message.isContextBoundary &&
+            message.presentation !== 'marker' &&
+            message.presentation !== 'interrupted' &&
             // Hidden fold-layout siblings of multi-model groups; remove if multi-select ever unhides them (PRD D6).
             !(message.role === 'assistant' && message.siblingsGroupId != null && message.isActiveBranch === false)
         )

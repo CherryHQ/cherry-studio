@@ -7,7 +7,7 @@ import { finalizeInterruptedParts } from '../streamManager'
 /** The original Durable target whose submission state governs recovery of this delivery. */
 export function durableDeliveryTarget(request: AgentSessionMessageEntity) {
   const target = agentSessionMessageService.inputTarget(request.sessionId, request.id)
-  return target?.kind === 'pi-durable' && !target.locallyHandled ? target : undefined
+  return target?.kind === 'pi-durable' && target.anchor !== null && !target.locallyHandled ? target : undefined
 }
 
 export function recoverSessionDeliveries(): Set<string> {

@@ -18,11 +18,12 @@ import { createPiTelemetry } from '@main/ai/observability'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { createLocalError } from '@shared/utils/localError'
 import { getRawModelId } from '@shared/utils/model'
 
 import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
 import { createPiBehaviorHost } from '../pi/piBehaviorHost'
-import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
+import { type AgentRuntimeConnectInput, type AgentRuntimeEvent, unavailableNativeContext } from '../types'
 import { prepareDurableDesktop } from './durableDesktop'
 import { readDurableRequest } from './durableRequest'
 
@@ -89,6 +90,7 @@ export class DurableBackend {
     ])
     const owner = new DurableBackend(createRegistry())
     const root = await prepareDurableRoot(context.id)
+    if ('status' in root) return root
     let storageOwned = true
     try {
       const recovery = discovered ?? (await DurableBackend.readWork(context.backendId, root.storage))
@@ -159,7 +161,13 @@ export class DurableBackend {
         // A diagnostic only: Durable keeps its work and records a real failure as the input's outcome.
         onError: (error) => logger.error('Durable backend failed', { backendId: context.backendId, error })
       })
-      if (created.status !== 'confirmed') throw new Error(created.error.message)
+      if (created.status !== 'confirmed') {
+        const { operation, code, message } = created.error
+        const failure = createLocalError(message)
+        if (!failure.message) failure.message = `Pi Durable ${operation}: ${code}`
+        failure.name = 'PiDurableInitializationError'
+        throw failure
+      }
       owner.runtime = created.value
       for (const refs of recovery.modelRefs.values())
         for (const ref of refs)
@@ -176,6 +184,8 @@ export class DurableBackend {
               owner.nativeRoots.set(runtimeId(String(id)), host.context.id)
             }
           })
+      if (opened.status === 'rejected' && opened.error.code === 'not-found')
+        return owner.shutdown().then(() => unavailableNativeContext(context, opened.error.message))
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
       owner.bind(host, Number(opened.value.thread.id) as ConversationId)
       await opened.value.release()
