@@ -508,29 +508,21 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
   useChatWithHistory: () => ({
     activeExecutions: [],
     sendMessage: vi.fn(),
-    stop: vi.fn(),
-    setMessages: vi.fn()
+    stop: vi.fn()
   })
 }))
 
-vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({
-    overlay: {},
-    liveAssistants: [],
-    disposeOverlay: vi.fn(),
-    reset: vi.fn()
-  })
-}))
+vi.mock('@renderer/hooks/useHistoryReplies', () => ({ useHistoryReplies: () => [] }))
+vi.mock('@renderer/hooks/useTopicSpeech', () => ({ useTopicSpeech: () => {} }))
+vi.mock('@renderer/hooks/useTopicCompletion', () => ({ useTopicCompletion: () => {} }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => ({ isPending: false }),
-  useTopicOverlayHandoffOnTerminal: () => {}
+  useTopicStreamStatus: () => ({ isPending: false })
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
   buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
-    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
-  buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -727,7 +719,7 @@ describe('AgentChat artifact pane', () => {
       hasOlder: false,
       loadOlder: vi.fn(),
       refresh: vi.fn(),
-      seedReservedMessages: vi.fn(),
+      revalidate: vi.fn(),
       deleteMessage: vi.fn()
     })
     activeSessionMocks.result = {

@@ -65,11 +65,13 @@ import {
   AgentChatContextProvider
 } from '@main/ai/streamManager/context/AgentChatContextProvider'
 import { PersistenceListener } from '@main/ai/streamManager/listeners/PersistenceListener'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle'
 import { FileManager, FileIntakeService } from '@main/services/file'
 import type { FileManagerDeps } from '@main/services/file/internal/deps'
 import { createInternal } from '@main/services/file/internal/entry/create'
+import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -117,7 +119,7 @@ const fake = vi.hoisted(() => {
       async prepareBranch() {},
       isSessionBusy: () => false,
       isSessionBusyForArchive: () => false,
-      respondToolApproval: vi.fn(() => true),
+      respondToolApproval: vi.fn((): AiToolApprovalRespondResponse => ({ ok: true })),
       cancelSessionForks: async () => {},
       closeSession: async () => {},
       recoverSessionForks: async () => {}
@@ -1555,6 +1557,73 @@ describe('remote agent access', () => {
     ).rejects.toMatchObject({ data: { reason: 'IDEMPOTENCY_CONFLICT' } })
   })
 
+  it('reports a refused configuration approval as denied even when the remote user sent Allow', async () => {
+    const { session } = await call('agent.sessions.get', { sessionId })
+    await call('agent.messages.send', {
+      commandId: randomUUID(),
+      sessionId,
+      expectedIdleRevision: session.idleRevision,
+      text: 'Change the Agent description'
+    })
+    const anchor = randomUUID()
+    const input = { agentId: session.agentId, description: 'New description' }
+    toolApprovalRegistry.register({
+      approvalId: 'edit-approval',
+      sessionId,
+      toolCallId: 'edit-call',
+      toolName: 'mcp__assistant__update_agent',
+      originalInput: input,
+      resolve: () => {}
+    })
+    emit(
+      {
+        type: 'tool-input-available',
+        toolCallId: 'edit-call',
+        toolName: 'mcp__assistant__update_agent',
+        input
+      },
+      anchor
+    )
+    emit({ type: 'tool-approval-request', toolCallId: 'edit-call', approvalId: 'edit-approval' }, anchor)
+    try {
+      const listed = (await call('agent.interactions.list', { sessionId })).items.find(
+        (item) => item.interactionId === 'edit-approval'
+      )!
+      const { interaction } = await call('agent.interactions.get', { sessionId, interactionId: 'edit-approval' })
+      expect(interaction).toMatchObject({
+        configPreview: { ok: true, summary: expect.arrayContaining([expect.stringContaining('New description')]) }
+      })
+      const params = {
+        sessionId,
+        interactionId: interaction.interactionId,
+        expectedRevision: interaction.revision,
+        expectedExecutionId: interaction.executionId,
+        decision: 'approve'
+      }
+      expect(
+        await call('agent.interactions.respond', {
+          ...params,
+          commandId: randomUUID(),
+          inputDigest: listed.inputDigest
+        })
+      ).toMatchObject({ status: 'rejected', error: { reason: 'CONFLICT' } })
+      expect(fake.runtime.respondToolApproval).not.toHaveBeenCalled()
+      fake.runtime.respondToolApproval.mockReturnValueOnce({ ok: true, approved: false })
+      const receipt = await call('agent.interactions.respond', {
+        ...params,
+        commandId: randomUUID(),
+        inputDigest: interaction.inputDigest
+      })
+
+      expect(receipt).toMatchObject({ status: 'applied', result: { decision: 'deny' } })
+      expect(
+        (await call('agent.interactions.get', { sessionId, interactionId: 'edit-approval' })).interaction.status
+      ).toBe('denied')
+    } finally {
+      toolApprovalRegistry.abort(sessionId)
+    }
+  })
+
   it('forwards a denial reason without treating it as updated tool input', async () => {
     const { session } = await call('agent.sessions.get', { sessionId })
     await call('agent.messages.send', {
@@ -1617,6 +1686,89 @@ describe('remote agent access', () => {
     other.dispose()
   })
 
+  it.each([
+    [20, 20],
+    [20_000, 20],
+    [20, 20_000]
+  ])(
+    'appends through the desktop journal without reading %i old messages or %i sibling IDs',
+    async (history, siblings) => {
+      const journal = hub.journal(sessionId)
+      await journal.startRun('hi', 'agent-1', () => {})
+      const sink = [...(fake.streams.get(`agent-session:${sessionId}`) ?? [])].find(
+        (listener) => listener.content
+      )?.content
+      if (!sink) throw new Error('Missing live feed')
+      const answer = randomUUID()
+      sink.snapshot({ id: answer, role: 'assistant', parts: [] }, 'messages')
+      sink.part({ type: 'part-open', messageId: answer, partId: 'tail', pos: 1, kind: 'text' })
+      const state = journal.projection
+      const row = Object.values(state.messages).find((message) => message.role === 'assistant')!
+      const active = row.partIds[0]
+      for (let i = 0; i < history; i++) {
+        const id = `prior-${i}`
+        state.messages[id] = { ...row, messageId: id, partIds: [] }
+        state.parts[id] = { ...state.parts[active], partId: id }
+      }
+      const visited = () => {
+        throw new Error('Unrelated projection data was visited')
+      }
+      const guard = {
+        ownKeys: visited,
+        get<T extends object>(target: T, key: PropertyKey, receiver: unknown) {
+          if (typeof key === 'string' && key.startsWith('prior-')) visited()
+          return Reflect.get(target, key, receiver)
+        }
+      }
+      state.messages = new Proxy<typeof state.messages>(state.messages, guard)
+      state.parts = new Proxy<typeof state.parts>(state.parts, guard)
+      row.partIds = new Proxy([...Array.from({ length: siblings }, (_, i) => `sibling-${i}`), active], { get: visited })
+      sink.part({ type: 'part-append', partId: 'tail', text: '世界' })
+      expect(journal.projection.parts[active]).toMatchObject({ content: { text: '世界' } })
+    }
+  )
+
+  it('replays a targeted insertion, suffix and tool output with stable remote identities', async () => {
+    const journal = hub.journal(sessionId)
+    await journal.startRun('hi', 'agent-1', () => {})
+    const epoch = journal.epoch
+    const answer = randomUUID()
+    const call = { type: 'dynamic-tool', toolCallId: 'tool', toolName: 'Read', input: {} } as const
+    for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? []) {
+      const sink = listener.content
+      if (!sink) continue
+      sink.snapshot(
+        {
+          id: answer,
+          role: 'assistant',
+          partIds: ['tool', 'tail'],
+          parts: [
+            { ...call, state: 'input-available' },
+            { type: 'text', text: 'Tail', state: 'done' }
+          ]
+        },
+        'messages'
+      )
+      sink.part({ type: 'part-open', messageId: answer, partId: 'answer', pos: 3, kind: 'text' })
+      sink.part({ type: 'part-append', partId: 'answer', text: '界'.repeat(4200) })
+      sink.part({ type: 'part-finish', partId: 'answer' })
+      sink.part({
+        type: 'part-put',
+        archiveMessageId: answer,
+        partId: 'tool',
+        part: { ...call, state: 'output-available', output: 'result' }
+      })
+    }
+    const parts = journal.projection.messages[answer].partIds.map((id) => journal.projection.parts[id])
+    expect(parts).toMatchObject([
+      { kind: 'tool-input' },
+      { kind: 'tool-output', content: { text: '"result"' } },
+      { kind: 'text', content: { text: 'Tail' } },
+      { kind: 'text', content: { text: '界'.repeat(4200) }, state: 'completed' }
+    ])
+    expect(journal.epoch).toBe(epoch)
+  })
+
   it('keeps streaming replacements across the content-reference threshold in the same journal epoch', async () => {
     const journal = hub.journal(sessionId)
     await journal.startRun('hi', 'agent-1', () => {})
@@ -1625,9 +1777,8 @@ describe('remote agent access', () => {
     for (const length of [4096, 4097, 5000]) {
       const text = '界'.repeat(length)
       for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
-        listener.onMessage?.(
+        listener.content?.snapshot(
           { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
-          undefined,
           'messages'
         )
       expect(journal.epoch).toBe(epoch)
@@ -1660,9 +1811,8 @@ describe('remote agent access', () => {
     const answerId = randomUUID()
     const text = '界'.repeat(5000)
     for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? []) {
-      listener.onMessage?.(
+      listener.content?.snapshot(
         { id: answerId, role: 'assistant', parts: [{ type: 'text', text, state: 'streaming' }] },
-        undefined,
         'messages'
       )
     }
@@ -1707,7 +1857,7 @@ describe('remote agent access', () => {
     await journal.startRun('hi', 'agent-1', () => {})
     const publish = (parts: CherryMessagePart[]) => {
       for (const listener of fake.streams.get(`agent-session:${sessionId}`) ?? [])
-        listener.onMessage?.({ id: 'answer', role: 'assistant', parts }, undefined, 'messages')
+        listener.content?.snapshot({ id: 'answer', role: 'assistant', parts }, 'messages')
     }
     publish([
       { type: 'text', text: 'Withdrawn', state: 'streaming' },

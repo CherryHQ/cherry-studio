@@ -2,7 +2,7 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { application } from '@application'
-import type { AiPlugin } from '@cherrystudio/ai-core'
+import { type AiPlugin, definePlugin } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { topicService } from '@data/services/TopicService'
@@ -46,6 +46,7 @@ import { collectRetainedContext, type RetainedContext } from '../../../messages/
 import { applyHttpTrace, type AgentRuntimeTraceContext } from '../../../observability'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import { getReplayRouteId } from '../../../provider/replayRoute'
 import { resolveSdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
@@ -80,7 +81,7 @@ import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
 import { resolveCapabilities } from './capabilities'
-import { collectFromFeatures } from './collectFromFeatures'
+import { collectFromFeatures, type FeatureContributions } from './collectFromFeatures'
 import { createCustomParamsFetch, selectCustomBodyParameters } from './customParamsFetch'
 import type { RequestFeature } from './feature'
 import { hasAnchorRow } from './features/contextBuild'
@@ -120,6 +121,8 @@ export interface BuildAgentParamsInput {
 
 export interface BuiltAgentParams {
   sdkConfig: SdkConfig
+  replayRouteId: string
+  endpointType: EndpointType | undefined
   /** Non-secret receipt for the credential path selected for this request. */
   credentialReceipt: ServingCredentialReceipt
   tools: ToolSet | undefined
@@ -143,6 +146,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     resolvedEndpoint,
     request.apiKeyOverride
   )
+  const replayRouteId = getReplayRouteId(provider.id, resolvedEndpoint.endpointType, sdkConfig)
   applyHttpTrace(sdkConfig.providerSettings, {
     topicId: input.traceContext?.topicId ?? request.conversation.topicId,
     modelName: model.name ?? model.id
@@ -160,7 +164,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(
     model,
     request.conversation,
-    assistant?.settings.contextSettings
+    request.contextOwner === 'caller' ? { enabled: false } : assistant?.settings.contextSettings
   )
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
   // A marker minted on the last permitted tool step can never be read back —
@@ -327,6 +331,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     capabilities,
     sdkConfig,
+    replayRouteId,
     endpointType,
     aiSdkProviderId,
     reasoningProfile,
@@ -366,7 +371,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
           })
   const options = buildAgentOptions(
     scope,
-    contributions.stopConditions,
+    contributions,
     customParameters,
     requestedMaxOutputTokens,
     input.getRepairUsagePlugins
@@ -395,6 +400,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   return {
     sdkConfig,
+    replayRouteId,
+    endpointType,
     credentialReceipt,
     tools,
     plugins: contributions.modelAdapters,
@@ -649,7 +656,7 @@ function resolveHasAnyKnowledgeBase(): boolean {
  */
 function buildAgentOptions(
   scope: RequestScope,
-  featureStopConditions: StopCondition<ToolSet>[],
+  contributions: FeatureContributions,
   customParameters: ReturnType<typeof extractAiSdkStandardParams>,
   requestedMaxOutputTokens: number | undefined,
   getRepairUsagePlugins?: () => AiPlugin[]
@@ -701,14 +708,45 @@ function buildAgentOptions(
       ...(topP !== undefined && { topP })
     }
 
-    if (Object.keys(customParameters.providerParams).length > 0) {
-      bodyParams = selectCustomBodyParameters(customParameters.providerParams, providerOptions, provider.id)
+    let { providerParams } = customParameters
+    if (Object.keys(providerParams).length > 0) {
+      bodyParams = selectCustomBodyParameters(providerParams, providerOptions, provider.id)
+      const customChoice = bodyParams.tool_choice
+      if (
+        endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
+        (customChoice === 'auto' || customChoice === 'none' || customChoice === 'any' || customChoice === 'required')
+      ) {
+        delete bodyParams.tool_choice
+        providerParams = { ...providerParams }
+        delete providerParams.tool_choice
+        const type = customChoice === 'any' ? 'required' : customChoice
+        contributions.modelAdapters.push(
+          definePlugin({
+            name: 'anthropic-custom-tool-choice',
+            enforce: 'post',
+            configureContext: (context) => {
+              context.middlewares ??= []
+              context.middlewares.push({
+                specificationVersion: 'v3',
+                transformParams: async ({ params }) =>
+                  params.tools?.length && params.toolChoice === undefined ? { ...params, toolChoice: { type } } : params
+              })
+            }
+          })
+        )
+      }
       providerOptions = mergeCustomProviderParameters(
         providerOptions,
-        customParameters.providerParams,
+        providerParams,
         provider.id,
         sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
       )
+      if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES && typeof bodyParams.reasoning_effort === 'string') {
+        const { reasoning_effort, ...remainingBodyParams } = bodyParams
+        bodyParams = remainingBodyParams
+        const key = sdkConfig.providerOptionsKey
+        providerOptions[key] = { ...providerOptions[key], reasoningEffort: reasoning_effort }
+      }
     }
   }
 
@@ -783,7 +821,8 @@ function buildAgentOptions(
     : callerHeaders
   const toolCallLimit = resolveToolCallLimit(assistant)
   const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
-  const stopWhen = request.contextOwner === 'caller' ? undefined : composeStopWhen(baseStopWhen, featureStopConditions)
+  const stopWhen =
+    request.contextOwner === 'caller' ? undefined : composeStopWhen(baseStopWhen, contributions.stopConditions)
   const telemetry = buildTelemetry(scope)
 
   return {

@@ -21,11 +21,15 @@ import type { TranslationPartData } from '@shared/data/types/uiParts'
  * translation would silently drop from export/copy.
  */
 export function getTextFromParts(parts: CherryMessagePart[]): string {
-  return parts
-    .filter((p): p is Extract<CherryMessagePart, { type: 'text' }> => p.type === 'text')
-    .map((p) => p.text)
-    .filter((t) => t.trim().length > 0)
-    .join('\n\n')
+  return joinMessageText(
+    parts.filter((p): p is Extract<CherryMessagePart, { type: 'text' }> => p.type === 'text').map((p) => p.text)
+  )
+}
+
+export function joinMessageText(fragments: Iterable<string>): string {
+  let result = ''
+  for (const text of fragments) if (text.trim()) result += result ? `\n\n${text}` : text
+  return result
 }
 
 /**

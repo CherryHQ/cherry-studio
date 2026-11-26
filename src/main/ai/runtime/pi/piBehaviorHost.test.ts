@@ -1,14 +1,17 @@
 import { setupTestDatabase } from '@test-helpers/db'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { callKeyOf } from '@cherrystudio/agent-behavior'
 import { runtimeId } from '@cherrystudio/agent-runtime'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
 
 import { createTestBinding, scriptedModel } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
-import { createPiBehaviorHost } from './piBehaviorHost'
+import type { AgentRuntimeEvent } from '../types'
+import { createPiBehaviorHost, createPiInteractionPorts } from './piBehaviorHost'
 
 const root = runtimeId<'thread'>('root')
 const child = { backendId: runtimeId<'backend'>('pi'), id: runtimeId<'thread'>('restored-child') }
@@ -169,5 +172,97 @@ describe('Pi behavior host model lookup', () => {
       throw new Error('Catalog should already be cached')
     }
     expect((await configureChild({ thread: child, modelKey: openRouterKey })).model.id).toBe('router::sonnet')
+  })
+})
+
+describe('Pi approval identity', () => {
+  // Separate Durable stores number their conversations and tasks alike, so two chats can ask with the same CallRef.
+  it('keeps approvals from two sessions with the same call apart', async () => {
+    const call = { thread: runtimeId<'thread'>('1'), key: callKeyOf('1') }
+    const requests: { sessionId: string; approvalId: string }[] = []
+    const ask = (sessionId: string) =>
+      createPiInteractionPorts({
+        input: { sessionId, agentId: 'agent', modelId: 'test::model' },
+        approval: {
+          sessionId,
+          workspacePath: '/workspace',
+          agentDataPath: '/agent',
+          additionalReadOnlyRoots: [],
+          getPermissionMode: () => 'default',
+          getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
+          isDisabled: () => false,
+          autoApprovedTools: new Set(),
+          approvalRequiredTools: new Set(),
+          nonBypassableApprovalTools: new Set(),
+          delegationTools: new Set()
+        },
+        toolCallIdentity: async () => ({ toolCallId: `${sessionId}-call` }),
+        emit: (event: AgentRuntimeEvent) => {
+          if (event.type === 'tool-approval-request') requests.push({ sessionId, approvalId: event.request.approvalId })
+        }
+      }).approvals.ask(
+        {
+          call,
+          tool: { callId: 'c1', callKey: call.key, name: 'Bash', args: { command: 'ls' } },
+          presentation: 'stream'
+        },
+        new AbortController().signal
+      )
+
+    const first = ask('s1')
+    const second = ask('s2')
+    await vi.waitFor(() => expect(requests).toHaveLength(2))
+    expect(requests[0].approvalId).not.toBe(requests[1].approvalId)
+
+    toolApprovalRegistry.dispatch(requests[1].approvalId, { approved: true })
+    toolApprovalRegistry.dispatch(requests[0].approvalId, { approved: false })
+
+    await expect(second).resolves.toMatchObject({ kind: 'granted' })
+    await expect(first).resolves.toMatchObject({ kind: 'denied' })
+  })
+
+  // An edit and resend can start a fresh Durable store under the same session, which numbers its calls again.
+  it('gives each registration its own approval ID within one session', async () => {
+    const call = { thread: runtimeId<'thread'>('1'), key: callKeyOf('1') }
+    const ids: string[] = []
+    const ports = createPiInteractionPorts({
+      input: { sessionId: 's1', agentId: 'agent', modelId: 'test::model' },
+      approval: {
+        sessionId: 's1',
+        workspacePath: '/workspace',
+        agentDataPath: '/agent',
+        additionalReadOnlyRoots: [],
+        getPermissionMode: () => 'default',
+        getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' }),
+        isDisabled: () => false,
+        autoApprovedTools: new Set(),
+        approvalRequiredTools: new Set(),
+        nonBypassableApprovalTools: new Set(),
+        delegationTools: new Set()
+      },
+      toolCallIdentity: async () => ({ toolCallId: 'call' }),
+      emit: (event: AgentRuntimeEvent) => {
+        if (event.type === 'tool-approval-request') ids.push(event.request.approvalId)
+      }
+    })
+    const askOnce = async () => {
+      const answer = ports.approvals.ask(
+        {
+          call,
+          tool: { callId: 'c1', callKey: call.key, name: 'Bash', args: { command: 'ls' } },
+          presentation: 'stream'
+        },
+        new AbortController().signal
+      )
+      await vi.waitFor(() => expect(toolApprovalRegistry.peek(ids.at(-1) ?? '')).toBeDefined())
+      toolApprovalRegistry.dispatch(ids.at(-1)!, { approved: true })
+      return answer
+    }
+
+    await askOnce()
+    await askOnce()
+
+    expect(ids).toHaveLength(2)
+    expect(ids[0]).not.toBe(ids[1])
   })
 })

@@ -10,8 +10,16 @@ import {
 const TOOL_LOADOUT_STATE = 'cherry.tool-loadout'
 
 export type CompactionReason = SessionBeforeCompactEvent['reason']
+type AppendedEntry =
+  | { readonly id: string; readonly type: Exclude<SessionEntry['type'], 'message'> }
+  | {
+      readonly id: string
+      readonly type: 'message'
+      readonly role: Extract<SessionEntry, { type: 'message' }>['message']['role']
+    }
+
 export type AgentRuntimeEvent =
-  | { type: 'session-append'; entries: SessionEntry[] }
+  | { type: 'session-append'; entries: readonly AppendedEntry[] }
   | { type: 'input-placed'; inputId: string; entryId: string }
   | { type: 'compaction-start'; reason: CompactionReason }
   | { type: 'compaction-end'; reason: CompactionReason; error?: string; aborted?: boolean }
@@ -72,18 +80,24 @@ export class SessionEvents {
     }
   }
 
-  flush(): SessionEntry[] {
-    if (this.manager.getEntryCount() === this.cursor) return []
+  flush(): void {
+    if (this.manager.getEntryCount() === this.cursor) return
     const start = this.cursor
     const entries = this.manager.getEntries().slice(start)
     for (const entry of entries) {
       if (entry.type === 'message' && entry.message.role === 'system') this.saveToolLoadout(entry.id)
     }
-    const appended = this.manager.getEntries().slice(start)
     this.cursor = this.manager.getEntryCount()
-    const copied: SessionEntry[] = JSON.parse(JSON.stringify(appended))
-    this.listener({ type: 'session-append', entries: copied })
-    return copied
+    const appended = this.cursor === start + entries.length ? entries : this.manager.getEntries().slice(start)
+    this.listener({
+      type: 'session-append',
+      entries: appended.map(
+        (entry): AppendedEntry =>
+          entry.type === 'message'
+            ? { id: entry.id, type: entry.type, role: entry.message.role }
+            : { id: entry.id, type: entry.type }
+      )
+    })
   }
 
   private saveToolLoadout(entryId: string): void {

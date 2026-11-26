@@ -663,10 +663,16 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
 }))
 
 vi.mock('../components/AgentCreateDialog', () => ({
-  AgentCreateDialog: ({ open, onCreated }: { open?: boolean; onCreated?: (agentId: string) => void }) =>
+  AgentCreateDialog: ({
+    open,
+    onStartConversation
+  }: {
+    open?: boolean
+    onStartConversation?: (agentId: string) => void
+  }) =>
     open ? (
       <div data-testid="agent-create-dialog">
-        <button type="button" onClick={() => onCreated?.('agent-b')}>
+        <button type="button" onClick={() => onStartConversation?.('agent-b')}>
           Create resource agent
         </button>
       </div>
