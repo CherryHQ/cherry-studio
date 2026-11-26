@@ -1,6 +1,7 @@
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
-import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
+import type { ExecutionContentUpdate } from '@renderer/types/message'
+import { getTextFromParts, joinMessageText } from '@renderer/utils/message/partsHelpers'
 import { SpeechInputKind, SpeechOutputKind } from '@shared/ai/voice'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { VoiceErrorReason } from '@shared/ipc/errors/voice'
@@ -25,6 +26,8 @@ export interface AutoReadCompletion {
   readonly eligible?: boolean
   readonly scope?: string
 }
+
+type AutoReadUpdate = ExecutionContentUpdate & Pick<AutoReadCompletion, 'enabled' | 'eligible' | 'scope'>
 
 export type AutoReadResult =
   | { status: 'started'; key: string }
@@ -63,6 +66,9 @@ interface StreamingRead {
   readonly parser: IncrementalReadableText
   readonly input: SpeechTextInput
   text: string
+  parts?: Map<string, { text: string; next?: string }>
+  firstTextPartId?: string
+  lastTextPartId?: string
   final: boolean
   fallback: boolean
   checked: boolean
@@ -112,7 +118,8 @@ export class AutoReadService {
     }
   }
 
-  update(input: Omit<AutoReadCompletion, 'isAbort' | 'isError'>): void {
+  update(input: AutoReadUpdate): void {
+    if (input.type !== 'snapshot') return this.#changeText(input)
     const key = `auto-read:${input.message.id}:${input.attemptId}`
     if (this.#completionKeys.has(key)) return
     if (!input.enabled || this.#enabled === false || input.eligible === false || input.message.role !== 'assistant') {
@@ -151,7 +158,61 @@ export class AutoReadService {
       })
     }
     if (record.final || record.fallback) return
-    record.text = getTextFromParts(input.message.parts ?? [])
+    record.parts = undefined
+    record.lastTextPartId = undefined
+    record.firstTextPartId = undefined
+    const ids = input.message.partIds
+    if (ids || input.message.parts.length === 0) {
+      const parts: NonNullable<StreamingRead['parts']> = new Map()
+      for (const [index, part] of input.message.parts.entries()) {
+        if (part.type === 'text') {
+          const id = ids![index]
+          if (record.lastTextPartId) parts.get(record.lastTextPartId)!.next = id
+          else record.firstTextPartId = id
+          parts.set(id, { text: part.text })
+          record.lastTextPartId = id
+        }
+      }
+      record.parts = parts
+      record.text = joinMessageText([...parts.values()].map((part) => part.text))
+    } else record.text = getTextFromParts(input.message.parts ?? [])
+    this.#updated(record)
+  }
+
+  #changeText(input: Exclude<AutoReadUpdate, { type: 'snapshot' }>): void {
+    const record = this.#streams.get(`auto-read:${input.messageId}:${input.attemptId}`)
+    if (!record || record.final || record.fallback) return
+    if (!input.enabled || input.eligible === false || this.#enabled === false) {
+      this.#cancel(record)
+      return
+    }
+    const parts = record.parts
+    if (!parts) return
+    const slot = parts.get(input.partId)
+    if (input.type === 'text-open') {
+      if (slot) return
+      const after = input.afterTextPartId && parts.get(input.afterTextPartId)
+      if (input.afterTextPartId && !after) return
+      const next = after ? after.next : record.firstTextPartId
+      parts.set(input.partId, { text: '', next })
+      if (after) after.next = input.partId
+      else record.firstTextPartId = input.partId
+      if (!next) record.lastTextPartId = input.partId
+      return
+    }
+    if (!slot || (input.type === 'text-append' && (slot.text.length !== input.offset || !input.text))) return
+    const previous = slot.text
+    slot.text = input.type === 'text-append' ? previous + input.text : input.text
+    if (input.type === 'text-correct' || record.lastTextPartId !== input.partId) {
+      const ordered: string[] = []
+      for (let id = record.firstTextPartId; id; id = parts.get(id)!.next) ordered.push(parts.get(id)!.text)
+      record.text = joinMessageText(ordered)
+    } else if (previous.trim()) record.text += input.text
+    else if (input.text.trim()) record.text += record.text ? `\n\n${slot.text}` : slot.text
+    this.#updated(record)
+  }
+
+  #updated(record: StreamingRead): void {
     if (record.text.length > 20_000) {
       this.#cancel(record)
       this.#reportError('text_limit')
@@ -237,6 +298,7 @@ export class AutoReadService {
         return { status: 'skipped', key, reason: input.isAbort ? 'aborted' : input.isError ? 'error' : 'disabled' }
       }
       record.text = getTextFromParts(input.message.parts ?? [])
+      record.parts = undefined
       record.final = true
       record.version++
       if (record.draining) await record.draining

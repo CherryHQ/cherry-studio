@@ -1,3 +1,5 @@
+import type { ProviderMetadata } from 'ai'
+
 /** Cross-process wire contract for tool results resolved on demand through `ai.tool.get_result`. */
 
 /** Where a deferred tool result can be fetched from. */
@@ -5,8 +7,8 @@ export interface DeferredToolResultRef {
   topicId: string
   messageId: string
   toolCallId: string
-  /** Identifies the projected value so a replacement invalidates renderer caches. */
-  revision?: string
+  /** Stable timeline identity when the live Agent owns this part. */
+  partId?: string
 }
 
 /** Head/tail preview carried alongside a deferred reference so the renderer
@@ -21,11 +23,14 @@ export interface DeferredToolOutputExcerpt {
 /** Replaces a tool part's `output` when the real value was too large to send. */
 export interface DeferredToolOutput {
   $deferredToolResult: DeferredToolResultRef
+  hasMcpApp?: true
   /** Present when the stored output is a persisted excerpt (`$persistedToolOutput`). */
   excerpt?: DeferredToolOutputExcerpt
   /** Bounded identity/citation fields carried when available, either from a
    *  persisted entities envelope or derived from an oversized citable output. */
   skeleton?: unknown
+  /** The archive sidecar holds the original output and its native result metadata together. */
+  archivedProviderMetadata?: true
 }
 
 export function isDeferredToolOutput(value: unknown): value is DeferredToolOutput {
@@ -39,7 +44,22 @@ export function isDeferredToolOutput(value: unknown): value is DeferredToolOutpu
     typeof ref.messageId === 'string' &&
     !!ref.messageId &&
     typeof ref.toolCallId === 'string' &&
-    !!ref.toolCallId &&
-    (ref.revision === undefined || typeof ref.revision === 'string')
+    !!ref.toolCallId
   )
+}
+
+/** The value served under the same archive key before and after a tool completes. */
+export function toolResultValue(
+  part:
+    | { state: 'output-available'; output: unknown }
+    | { state: 'output-error'; errorText: string; resultProviderMetadata?: ProviderMetadata }
+): unknown {
+  if (part.state === 'output-available') return part.output
+  const deferred = part.resultProviderMetadata?.cherry?.deferredToolOutput
+  if (isDeferredToolOutput(deferred)) return deferred
+  return {
+    isError: true,
+    content: [{ type: 'text', text: part.errorText }],
+    ...(part.resultProviderMetadata && { resultProviderMetadata: part.resultProviderMetadata })
+  }
 }

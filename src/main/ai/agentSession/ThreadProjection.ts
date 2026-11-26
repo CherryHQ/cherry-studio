@@ -1,55 +1,91 @@
 import { randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 
-import type { ObservationPayload, Thread } from '@cherrystudio/agent-runtime'
+import {
+  cloneObservationValue,
+  type LivePartInput,
+  type ProjectionEvents,
+  type RuntimeMessage,
+  type Thread
+} from '@cherrystudio/agent-runtime'
 import type { RuntimeMessageProjection } from '@main/ai/runtime/types'
+import type { CherryUIMessage } from '@shared/data/types/message'
 
-import { ThreadMessageProjection, type MessageDecorator } from './ThreadMessageProjection'
+import { type MessageDecorator, projectRuntimeMessage } from './ThreadMessageProjection'
 
-/** Root observation uses the same materialized message view as child observation. */
+/** Converts root recovery sources without keeping a second native or display transcript. */
 export class ThreadProjection {
-  private readonly view: ThreadMessageProjection
+  private seen = new Map<string, WeakRef<RuntimeMessage>>()
+  private hasGap = false
 
   constructor(
-    thread: Thread,
+    private readonly thread: Thread,
     private readonly contextId: string,
     private readonly emit: (projection: RuntimeMessageProjection) => void,
-    decorate?: MessageDecorator
-  ) {
-    this.view = new ThreadMessageProjection(thread, decorate)
-  }
+    private readonly decorate?: MessageDecorator
+  ) {}
 
-  async accept(batch: {
-    readonly events: readonly ObservationPayload[]
+  accept(batch: {
+    readonly events: Exclude<ProjectionEvents, readonly LivePartInput[]>
     readonly live: readonly string[]
     readonly aliases: Readonly<Record<string, string>>
-  }): Promise<void> {
-    const changed = await this.view.accept(batch.events)
-    const inputs = batch.events
-      .flatMap((event) =>
-        event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
-      )
-      .flatMap((message) =>
-        message.role === 'user' && message.metadata?.inputId ? [[message.id, message.metadata.inputId] as const] : []
-      )
+  }): void {
+    const messages = new Map<string, CherryUIMessage>()
+    const inputs: Record<string, string> = {}
+    const replaces = Object.fromEntries(Object.entries(batch.aliases).map(([committed, live]) => [live, committed]))
+    const removed: string[] = []
+    const project = (source: RuntimeMessage, before?: RuntimeMessage): void => {
+      if (source.role === 'user' && source.metadata?.inputId) inputs[source.id] = source.metadata.inputId
+      if (before && (before === source || isDeepStrictEqual(before, source))) return
+      const parts = cloneObservationValue(source.parts) as CherryUIMessage['parts']
+      messages.set(source.id, projectRuntimeMessage(source, parts, this.decorate))
+    }
+    for (const event of batch.events) {
+      if (event.type === 'snapshot') {
+        const previous = this.seen
+        for (const message of event.messages) project(message, previous.get(message.id)?.deref())
+        this.seen = new Map(event.messages.map((message) => [message.id, new WeakRef(message)]))
+        this.hasGap = false
+      } else if (event.type === 'message.reconcile' && !this.hasGap) {
+        const { message } = event
+        project(message, this.seen.get(message.id)?.deref())
+        this.seen.set(message.id, new WeakRef(message))
+        for (const ref of event.replaces ?? []) {
+          this.assertThread(ref.session)
+          replaces[ref.id] = message.id
+          if (ref.id !== message.id) {
+            this.seen.delete(ref.id)
+            messages.delete(ref.id)
+          }
+        }
+      } else if (event.type === 'message.remove') {
+        this.assertThread(event.ref.session)
+        this.seen.delete(event.ref.id)
+        messages.delete(event.ref.id)
+        removed.push(event.ref.id)
+      } else if (event.type === 'gap' || event.type === 'closed') this.hasGap = true
+    }
+    const live = new Set(batch.live)
     this.emit({
       contextId: this.contextId,
-      messages: changed,
-      ...(inputs.length > 0 && { inputs: Object.fromEntries(inputs) }),
-      live: changed.filter((message) => batch.live.includes(message.id)).map((message) => message.id),
-      replaces: {
-        ...Object.fromEntries(Object.entries(batch.aliases).map(([committed, live]) => [live, committed])),
-        ...Object.fromEntries(
-          batch.events.flatMap((event) =>
-            event.type === 'message.upsert' ? (event.replaces ?? []).map((ref) => [ref.id, event.message.id]) : []
-          )
-        )
-      },
-      removed: batch.events.flatMap((event) => (event.type === 'message.remove' ? [event.ref.id] : []))
+      messages: [...messages.values()],
+      ...(Object.keys(inputs).length > 0 && { inputs }),
+      live: [...messages.keys()].filter((id) => live.has(id)),
+      replaces,
+      removed
     })
   }
 
-  close(): Promise<void> {
-    return this.view.close()
+  acceptPart(event: LivePartInput, live: readonly string[]): boolean {
+    this.assertThread(event.ref.session)
+    if (this.hasGap || !live.includes(event.ref.id)) return false
+    this.seen.delete(event.ref.id)
+    return true
+  }
+
+  private assertThread(thread: Thread): void {
+    if (thread.backendId !== this.thread.backendId || thread.id !== this.thread.id)
+      throw new Error('Observation belongs to a different thread')
   }
 
   /** Local command replies belong to the product message, outside native model history. */

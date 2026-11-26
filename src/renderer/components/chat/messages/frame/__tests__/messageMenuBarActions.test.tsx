@@ -669,6 +669,7 @@ describe('messageMenuBarActions', () => {
     const setCopied = vi.fn()
     const context = createActionContext({
       actions: { copyText },
+      messageParts: [{ type: 'text', text: 'hello' }],
       setCopied
     })
 
