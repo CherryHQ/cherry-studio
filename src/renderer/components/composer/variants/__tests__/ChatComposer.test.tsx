@@ -1705,7 +1705,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
   })
 
-  it('puts the classic-layout empty topic action first in the toolbar and passes the selected assistant', () => {
+  it('opens a classic-layout empty topic with the selected assistant from the toolbar, slash action, and shortcut', () => {
     mocks.topicLayout = 'classic'
     const onCreateEmptyTopic = vi.fn()
 
@@ -1728,6 +1728,10 @@ describe('ChatComposer', () => {
     })
 
     expect(onCreateEmptyTopic).toHaveBeenCalledTimes(2)
+    expect(onCreateEmptyTopic).toHaveBeenLastCalledWith({ assistantId: 'assistant-1' })
+
+    mocks.commandHandlers.get('topic.create')?.()
+    expect(onCreateEmptyTopic).toHaveBeenCalledTimes(3)
     expect(onCreateEmptyTopic).toHaveBeenLastCalledWith({ assistantId: 'assistant-1' })
 
     act(() => {
@@ -1759,7 +1763,7 @@ describe('ChatComposer', () => {
     expect(onCreateEmptyTopic).not.toHaveBeenCalled()
   })
 
-  it('puts the modern-layout new topic action first in the toolbar', () => {
+  it('routes the modern-layout new topic slash action to the empty topic handler', () => {
     mocks.topicLayout = 'modern'
     const onNewTopic = vi.fn()
     const onCreateEmptyTopic = vi.fn()
@@ -1778,25 +1782,6 @@ describe('ChatComposer', () => {
 
     expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
     expect(onNewTopic).not.toHaveBeenCalled()
-  })
-
-  it('shows the empty topic slash panel action when a create handler is available', () => {
-    mocks.topicLayout = 'modern'
-    const onCreateEmptyTopic = vi.fn()
-
-    const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
-
-    const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
-
-    newTopicItem?.action?.({
-      context: {} as any,
-      action: 'enter',
-      item: newTopicItem
-    })
-    expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
-
-    mocks.topicLayout = 'classic'
-    rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
   })
 
   it('sends unlinked home topics through the default model fallback', async () => {
@@ -3408,21 +3393,6 @@ describe('ChatComposer', () => {
 
     expect(onNewTopic).toHaveBeenCalledWith(undefined)
     expect(mocks.createTopic).not.toHaveBeenCalled()
-  })
-
-  it('routes classic-layout new topic shortcuts through the empty topic action', () => {
-    mocks.topicLayout = 'classic'
-    const onNewTopic = vi.fn()
-    const onCreateEmptyTopic = vi.fn()
-
-    render(
-      <ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} onCreateEmptyTopic={onCreateEmptyTopic} />
-    )
-
-    mocks.commandHandlers.get('topic.create')?.()
-
-    expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
-    expect(onNewTopic).not.toHaveBeenCalled()
   })
 
   it('routes draft home assistant changes to the draft handler', async () => {
@@ -5229,21 +5199,6 @@ describe('ChatComposer', () => {
         dock().items[0].payload,
         'capturing must rebuild instead of spreading obsolete optional fields'
       ).not.toHaveProperty('fastMode')
-    })
-
-    it('returns unchanged A under its original identity and supports switching back', async () => {
-      const {
-        dock,
-        originals: [a, b],
-        edit
-      } = await setup()
-      await edit(a.id)
-      await edit(b.id)
-      expect(dock()?.items, 'switching to B must preserve the entire queued A').toEqual([a])
-      expect(mocks.surfaceProps?.text, 'B must own the editor after the switch').toBe('B')
-      await edit(a.id)
-      expect(dock()?.items, 'switching back must preserve B under its original id').toEqual([b])
-      expect(mocks.surfaceProps?.text, 'A must reopen').toBe('A')
     })
 
     it('rebuilds edited A from the live document before restoring B', async () => {

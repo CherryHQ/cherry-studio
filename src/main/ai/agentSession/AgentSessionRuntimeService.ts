@@ -52,6 +52,7 @@ import {
   type AgentSessionEditDraft,
   type AgentSessionEditTarget
 } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_FOLLOWUPS_CACHE_KEY, type AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
@@ -139,7 +140,7 @@ import {
 import { AgentSessionUsageAttribution } from './AgentSessionUsageAttribution'
 import { childTimelines } from './childTimelines'
 import { validateEditedInput } from './editInput'
-import { markLocalInput, nativeOutcomeTerminal } from './nativeSubmission'
+import { markLocalInput, nativeOutcomeTerminal, releaseNativeInputBinding } from './nativeSubmission'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { relocateSystemWorkspaces } from './relocateSystemWorkspaces'
 import { RootMessageProjection } from './RootMessageProjection'
@@ -231,13 +232,16 @@ export interface AgentSessionInteractionState {
   userResponse: 'unavailable' | 'stream' | 'message'
 }
 
-type AgentSessionTurn = {
+type AgentSessionRun = {
   taskIds: readonly string[]
+  inputOutcomes?: Map<string, NativeInputState>
   forkAnchor?: RuntimeForkAnchor
+  /** Stream attachment correlation, independent of durable execution ownership. */
   turnId: string
   /** True when the user message arrived as a steer — admission wraps it in a system-reminder. */
   systemReminder?: boolean
-  assistantMessageId: string
+  /** The existing assistant record ID; steer never changes this owner. */
+  runId: string
   userMessage: AgentSessionMessageEntity
   modelId: UniqueModelId
   /** Immutable author snapshot captured when this exact turn was submitted. */
@@ -264,7 +268,7 @@ type AgentSessionTurn = {
   continuedInBackground?: boolean
 }
 
-type PendingAgentSessionTurn = {
+type QueuedAgentSessionInput = {
   message: AgentSessionMessageEntity
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
@@ -291,8 +295,18 @@ type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
   permissionModeOverride?: AgentPermissionMode
 }
 
-type RuntimeState = AgentSessionRuntimeState<AgentSessionTurn, PendingAgentSessionTurn>
-type RuntimeStateEvent = AgentSessionRuntimeStateEvent<AgentSessionTurn, PendingAgentSessionTurn>
+type PendingNativeInput = {
+  input: AgentRuntimeUserInput
+  generation?: string
+  contextId?: string
+  turnOptions?: Pick<
+    QueuedAgentSessionInput,
+    'reasoningEffort' | 'serviceTier' | 'fastMode' | 'permissionModeOverride' | 'trustedNotifyChannels'
+  >
+}
+
+type RuntimeState = AgentSessionRuntimeState<AgentSessionRun, QueuedAgentSessionInput>
+type RuntimeStateEvent = AgentSessionRuntimeStateEvent<AgentSessionRun, QueuedAgentSessionInput>
 
 type AgentSessionRuntimeEntry = {
   prediction?: {
@@ -305,19 +319,27 @@ type AgentSessionRuntimeEntry = {
   closing?: true
   /**
    * User Stop on a retained connection; `confirmed` runs on native confirmation, disconnect or close.
-   * `input` records the stopped input's native outcome, which may differ from the paused reply.
+   * `input` retains all admitted input outcomes so one completed input cannot settle a stopped Run.
    */
   stopping?: {
     connection: AgentRuntimeConnection
     confirmed: () => void
     settled: Promise<void>
-    input?: { id: string; replyId: string; outcome?: NativeInputState; terminal?: AgentSessionTurnTerminalEvent }
+    input?: {
+      ids: readonly string[]
+      replyId: string
+      outcomes: Map<string, NativeInputState>
+      terminal?: AgentSessionTurnTerminalEvent
+    }
   }
   /** Follow-up placements waiting for the current reply to open; each starts its own reply, in order. */
   deferredPlacements?: (readonly string[])[]
   recoveryHeadless?: boolean
-  /** Inputs whose reply a follow-up placement settled before Durable reported their outcome, mapped to that reply. */
-  followedReplies?: Map<string, string>
+  compactionAnchorId?: string
+  /** Native answers can arrive while their queued placement still awaits a reply. */
+  pendingRunCheckpoints?: Map<string, RuntimeForkAnchor>
+  /** Pending input outcomes share one aggregate per Run provisionally settled by a queued placement. */
+  followedReplies?: Map<string, { runId: string; pending: Set<string>; outcomes: NativeInputState[] }>
   interactionWindowId?: string
   sessionId: string
   topicId: string
@@ -334,14 +356,7 @@ type AgentSessionRuntimeEntry = {
   connectionLoop?: Promise<void>
   connectionGeneration?: string
   /** Pending product handoffs outlive the connection that attempted native admission. */
-  pendingInputs?: Map<
-    string,
-    {
-      input: AgentRuntimeUserInput
-      generation?: string
-      contextId?: string
-    }
-  >
+  pendingInputs?: Map<string, PendingNativeInput>
   lastResumeToken?: string
   branchHead?: string
   secondaryContextId?: string
@@ -588,7 +603,7 @@ export class AgentSessionRuntimeService extends BaseService {
           (!this.isSessionBusyForArchive(sessionId) &&
             !application.get('AiStreamManager').hasUnsettledTopicWork(buildAgentSessionTopicId(sessionId)))) &&
         !this.forks.edits.has(sessionId) &&
-        !this.entryForTurn(sessionId, (turn) => turn.assistantMessageId === runId),
+        !this.entryForTurn(sessionId, (turn) => turn.runId === runId),
       scope,
       (sessionId) => this.liveTimeline(sessionId)
     )
@@ -677,18 +692,18 @@ export class AgentSessionRuntimeService extends BaseService {
 
   getLiveAssistantMessageId(sessionId: string): string | undefined {
     const entry = this.entries.get(sessionId)
-    return entry ? this.liveTurn(entry)?.assistantMessageId : undefined
+    return entry ? this.liveTurn(entry)?.runId : undefined
   }
 
-  private currentTurn(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
+  private currentTurn(entry: AgentSessionRuntimeEntry): AgentSessionRun | undefined {
     return getAgentSessionRuntimeCurrentTurn(entry.runtimeState)
   }
 
-  private liveTurn(entry: AgentSessionRuntimeEntry): AgentSessionTurn | undefined {
+  private liveTurn(entry: AgentSessionRuntimeEntry): AgentSessionRun | undefined {
     return getAgentSessionRuntimeLiveTurn(entry.runtimeState)
   }
 
-  private isTurnLive(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): boolean {
+  private isTurnLive(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): boolean {
     return isAgentSessionRuntimeTurnLive(entry.runtimeState, turn)
   }
 
@@ -712,7 +727,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private startPromptPrediction(entry: AgentSessionRuntimeEntry): void {
     const connection = this.currentConnection(entry)
     const turn = getAgentSessionRuntimeCurrentTurn(entry.runtimeState)
-    if (!turn || !connection?.predictPrompt || entry.prediction?.replyId === turn.assistantMessageId) return
+    if (!turn || !connection?.predictPrompt || entry.prediction?.replyId === turn.runId) return
     const modelId = entry.modelId
     const eligible = () =>
       entry.modelId === modelId &&
@@ -750,7 +765,7 @@ export class AgentSessionRuntimeService extends BaseService {
         return ''
       }
     })
-    entry.prediction = { replyId: turn.assistantMessageId, modelId: entry.modelId, controller, result }
+    entry.prediction = { replyId: turn.runId, modelId: entry.modelId, controller, result }
   }
 
   abortPromptPrediction(sessionId: string, requestId: string): void {
@@ -789,12 +804,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private placementWaits(entry: AgentSessionRuntimeEntry): boolean {
     const execution = entry.runtimeState.execution
     return (
-      execution.kind === 'steer-transition' ||
+      execution.kind === 'run-handoff' ||
       (execution.kind === 'autonomous-turn' &&
         !['open', 'awaiting-persistence', 'settled'].includes(execution.reply.delivery.kind)) ||
-      (execution.kind === 'turn' &&
-        (execution.reservation !== undefined ||
-          !['open', 'awaiting-persistence'].includes(execution.reply.delivery.kind)))
+      (execution.kind === 'turn' && !['open', 'awaiting-persistence'].includes(execution.reply.delivery.kind))
     )
   }
 
@@ -813,7 +826,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private applyRuntimeStateEffect(
     entry: AgentSessionRuntimeEntry,
-    effect: AgentSessionRuntimeStateEffect<AgentSessionTurn>
+    effect: AgentSessionRuntimeStateEffect<AgentSessionRun>
   ): void {
     switch (effect.type) {
       case 'suspend-turn':
@@ -826,10 +839,7 @@ export class AgentSessionRuntimeService extends BaseService {
           manager.broadcastTopicError(entry.topicId, effect.turn.modelId, error)
         } else {
           try {
-            agentSessionMessageService.markAssistantMessageTerminalError(
-              entry.sessionId,
-              effect.turn.assistantMessageId
-            )
+            agentSessionMessageService.markAssistantMessageTerminalError(entry.sessionId, effect.turn.runId)
           } catch (persistenceError) {
             logger.warn('Failed to mark unsubmitted reply as error', {
               sessionId: entry.sessionId,
@@ -910,9 +920,9 @@ export class AgentSessionRuntimeService extends BaseService {
     const messageSnapshot = input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined
     const existing = this.selectRecoveredRoot(input.sessionId, input.assistantMessageId)
     if (existing && this.runtimeStatus(existing) === 'active') throw new AgentSessionEditError('busy')
-    const turn = createSessionTurn({
+    const turn = createSessionRun({
       taskIds: input.userMessage ? [input.userMessage.id] : [],
-      assistantMessageId: input.assistantMessageId,
+      runId: input.assistantMessageId,
       userMessage,
       modelId: input.modelId,
       messageSnapshot,
@@ -946,7 +956,6 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.messageSnapshot = messageSnapshot
       existing.branchHead = input.assistantMessageId
       this.applyRuntimeStateEvent(existing, { type: 'begin-turn', turn, clearQueue: true })
-      this.applyRuntimeStateEvent(existing, { type: 'clear-steer-reservation' })
 
       return {
         listeners: [
@@ -989,24 +998,21 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Resolve the trusted gateway correlation into the reserved continuation or active turn.
+   * Resolve the trusted gateway correlation into the active Run.
    * The gateway calls this at provider-request ingress, before any later agent edit,
    * message roll, or deletion can affect usage persistence.
    */
   getActiveUsageContext(sessionId: string, responseId?: string): InProcessUsageContext | undefined {
     const entry = this.entries.get(sessionId)
     if (!entry) return undefined
-    const execution = entry.runtimeState.execution
-    const turn =
-      (execution.kind === 'turn' ? execution.reservation : undefined) ??
-      getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
     const attribution = (entry.usageAttribution ??= new AgentSessionUsageAttribution())
     const correlation = responseId ?? turn?.turnId
     if (turn && correlation && !responseId) this.bindUsage(entry, correlation, turn)
     return {
       agentSessionId: sessionId,
       traceContext: this.sessionTraceContext(entry, turn?.modelId),
-      ...(turn ? { assistantMessageId: turn.assistantMessageId } : {}),
+      ...(turn ? { assistantMessageId: turn.runId } : {}),
       source:
         sourceSnapshotFromMessageSnapshot(turn?.messageSnapshot ?? entry.messageSnapshot) ??
         (entry.messageSnapshot ? null : this.captureUsageSource(entry.agentId)),
@@ -1014,8 +1020,8 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private bindUsage(entry: AgentSessionRuntimeEntry, responseId: string, turn: AgentSessionTurn): void {
-    const { assistantMessageId } = turn
+  private bindUsage(entry: AgentSessionRuntimeEntry, responseId: string, turn: AgentSessionRun): void {
+    const { runId: assistantMessageId } = turn
     // Owners live as long as the session (Pi never idle-closes); a collected turn is no longer a reply.
     const turnRef = new WeakRef(turn)
     ;(entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(responseId, assistantMessageId, () => {
@@ -1049,12 +1055,12 @@ export class AgentSessionRuntimeService extends BaseService {
     const deferred = execution.kind === 'autonomous-turn' ? execution.deferred?.turn : undefined
     if (deferred && ids.includes(deferred.userMessage.id)) {
       if (followUp) this.awaitFollowedOutcome(entry)
-      this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn: deferred })
+      this.applyRuntimeStateEvent(entry, { type: 'run-placed', turn: deferred })
       return true
     }
     const owned = new Set(getAgentSessionRuntimeTurns(entry.runtimeState).flatMap((turn) => turn.taskIds))
     const placed = ids.filter((id) => !owned.has(id))
-    const inputs = this.pendingInputValues(entry, placed, true)
+    const inputs = this.pendingInputValues(entry, ids, true).filter((input) => !owned.has(input.message.id))
     if (connection?.followUp && connection.contextId)
       for (const id of placed) {
         if (inputs.some((input) => input.message.id === id)) continue
@@ -1064,10 +1070,18 @@ export class AgentSessionRuntimeService extends BaseService {
           systemReminder: true
         })
       }
-    if (!inputs.length) return false
-    const turn = this.reserveSteerContinuation(entry, inputs)
+    if (!inputs.length) return ids.some((id) => owned.has(id))
+    if (!followUp) {
+      const run = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+      if (run && this.isTurnLive(entry, run)) {
+        this.attachRunInputs(entry, run, inputs)
+        return true
+      }
+      return false
+    }
+    const turn = this.reservePlacedRun(entry, inputs)
     if (turn && followUp) this.awaitFollowedOutcome(entry)
-    if (turn) this.applyRuntimeStateEvent(entry, { type: 'steer-boundary', turn })
+    if (turn) this.applyRuntimeStateEvent(entry, { type: 'run-placed', turn })
     return turn !== undefined
   }
 
@@ -1077,30 +1091,42 @@ export class AgentSessionRuntimeService extends BaseService {
     if (execution.kind !== 'turn' && execution.kind !== 'autonomous-turn') return
     const { turn, delivery } = execution.reply
     if (delivery.kind !== 'open') return
-    for (const id of turn.taskIds) (entry.followedReplies ??= new Map()).set(id, turn.assistantMessageId)
+    const outcomes = turn.taskIds.flatMap((id) => turn.inputOutcomes?.get(id) ?? [])
+    const pending = new Set(turn.taskIds.filter((id) => !turn.inputOutcomes?.has(id)))
+    const followed = { runId: turn.runId, pending, outcomes }
+    for (const id of pending) (entry.followedReplies ??= new Map()).set(id, followed)
+    if (!pending.size) this.correctFollowedRun(entry, followed, this.currentConnection(entry)?.contextId)
   }
 
-  private reserveSteerContinuation(
+  private attachRunInputs(
+    entry: AgentSessionRuntimeEntry,
+    run: AgentSessionRun,
+    inputs: AgentRuntimeUserInput[]
+  ): void {
+    const taskIds = [...new Set([...run.taskIds, ...inputs.map(({ message }) => message.id)])]
+    agentSessionMessageService.linkReply(entry.sessionId, taskIds, run.runId)
+    run.taskIds = taskIds
+    this.attachPendingRunCheckpoints(entry, run)
+  }
+
+  private attachPendingRunCheckpoints(entry: AgentSessionRuntimeEntry, run: AgentSessionRun): void {
+    for (const id of run.taskIds) {
+      const anchor = entry.pendingRunCheckpoints?.get(id)
+      if (!anchor) continue
+      run.forkAnchor = anchor
+      entry.pendingRunCheckpoints!.delete(id)
+    }
+  }
+
+  private reservePlacedRun(
     entry: AgentSessionRuntimeEntry,
     inputs: AgentRuntimeUserInput[]
-  ): AgentSessionTurn | undefined {
+  ): AgentSessionRun | undefined {
     if (!this.isCurrentEntry(entry)) return undefined
-    const execution = entry.runtimeState.execution
-    const reserved =
-      execution.kind === 'turn'
-        ? execution.reservation
-        : execution.kind === 'steer-transition'
-          ? execution.reply.turn
-          : undefined
-    if (reserved) {
-      reserved.taskIds = [...new Set([...reserved.taskIds, ...inputs.map(({ message }) => message.id)])]
-      agentSessionMessageService.linkReply(entry.sessionId, reserved.taskIds, reserved.assistantMessageId)
-      return reserved
-    }
     const source = this.currentTurn(entry)
     const input = inputs[0]
     if (!source || !input) return undefined
-    const turn = createSessionTurn({
+    const turn = createSessionRun({
       taskIds: inputs.map(({ message }) => message.id),
       userMessage: input.message,
       parentId: input.message.id,
@@ -1113,7 +1139,6 @@ export class AgentSessionRuntimeService extends BaseService {
       headless: source.headless === true && inputs.every((item) => item.headless === true),
       trustedNotifyChannels: source.trustedNotifyChannels
     })
-    if (execution.kind === 'turn') this.applyRuntimeStateEvent(entry, { type: 'reserve-steer', reservation: turn })
     return turn
   }
 
@@ -1129,6 +1154,15 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch {
       return null
     }
+  }
+
+  async changeFollowups(topicId: string, change: AgentSessionFollowupChange): Promise<boolean> {
+    if (!isAgentSessionTopic(topicId) || this.isWriteQuiesced || this.isShuttingDown) return false
+    const sessionId = extractAgentSessionId(topicId)
+    this.assertSessionWritable(sessionId)
+    const entry = this.entryForContext(sessionId, extractAgentContextId(topicId))
+    if (!entry || entry.topicId !== topicId || entry.closing || entry.stopping) return false
+    return (await this.currentConnection(entry)?.changeFollowups?.(change)) ?? false
   }
 
   async listSessionCommands(sessionId: string): Promise<AgentSessionSlashCommand[]> {
@@ -1252,7 +1286,17 @@ export class AgentSessionRuntimeService extends BaseService {
           this.liveTurn(entry) !== undefined ||
           isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
           hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
-        if (!hasLiveTurn) this.closeConnectionAsync(entry)
+        if (!hasLiveTurn) {
+          this.closeConnectionAsync(entry)
+          if (entry.pendingInputs?.size && !entry.closing && !this.isShuttingDown) {
+            void this.ensureConnection(entry).catch((error) =>
+              logger.warn('Failed to reconnect for pending inputs after rebuild', {
+                sessionId: entry.sessionId,
+                error
+              })
+            )
+          }
+        }
         return
       }
       case 'invalid':
@@ -1301,13 +1345,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     if (input.interactionWindowId) entry.interactionWindowId = input.interactionWindowId
 
-    const start = async (controller: NonNullable<AgentSessionTurn['controller']>) => {
+    const start = async (controller: NonNullable<AgentSessionRun['controller']>) => {
       try {
         this.clearIdleTimer(entry)
         turn.controller = controller
         this.applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
-        if (turn.projection)
-          this.publishTurnMessage(entry, turn, turn.projection.replyEntries(turn.assistantMessageId) ?? [])
+        if (turn.projection) this.publishTurnMessage(entry, turn, turn.projection.replyEntries(turn.runId) ?? [])
 
         const onAbort = () => {
           // A native abort already ended the run; a retained connection has nothing to stop.
@@ -1323,7 +1366,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
 
         controller.enqueue({ type: 'start' })
-        // A steer/autonomous transition owns any chunks that arrived before this controller. The
+        // A queued/autonomous handoff owns any chunks that arrived before this controller. The
         // state transition atomically transfers that buffer to this exact turn before admission.
         this.applyRuntimeStateEvent(entry, { type: 'flush-transition', turn })
         if (!this.isTurnLive(entry, turn)) return
@@ -1345,7 +1388,7 @@ export class AgentSessionRuntimeService extends BaseService {
       kind: 'messages',
       onPart: parts.event,
       onMessageReconciled: reconciled.event,
-      readParts: () => turn.projection?.replyEntries(turn.assistantMessageId) ?? [],
+      readParts: () => turn.projection?.replyEntries(turn.runId) ?? [],
       stream: new ReadableStream<MessageStreamEvent>({
         start: (controller) =>
           start({
@@ -1427,7 +1470,17 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       const pending = (entry.pendingInputs ??= new Map())
       if (pending.has(message.id)) return true
-      pending.set(message.id, { input, generation: entry.connectionGeneration })
+      pending.set(message.id, {
+        input,
+        generation: entry.connectionGeneration,
+        turnOptions: {
+          reasoningEffort,
+          serviceTier,
+          fastMode,
+          ...(opts.permissionModeOverride ? { permissionModeOverride: opts.permissionModeOverride } : {}),
+          ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
+        }
+      })
       if (submit({ message: input.message, systemReminder: true })) return true
       pending.delete(message.id)
       return false
@@ -1478,13 +1531,12 @@ export class AgentSessionRuntimeService extends BaseService {
     const reply = getAgentSessionRuntimeReply(entry.runtimeState, completedTurn)
     if (!reply || ['suspending', 'settled', 'failed'].includes(reply.delivery.kind)) return
     const isRowRoll =
-      entry.runtimeState.execution.kind === 'steer-transition' &&
-      entry.runtimeState.execution.source.turn === completedTurn
+      entry.runtimeState.execution.kind === 'run-handoff' && entry.runtimeState.execution.source.turn === completedTurn
     this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
     if (status === 'success' && !isRowRoll) this.startPromptPrediction(entry)
     const terminal: AgentSessionTurnTerminalEvent = {
       sessionId,
-      assistantMessageId: completedTurn.assistantMessageId,
+      assistantMessageId: completedTurn.runId,
       status,
       boundary: isRowRoll ? 'row-roll' : 'turn'
     }
@@ -1517,7 +1569,7 @@ export class AgentSessionRuntimeService extends BaseService {
       confirmed: () => confirmation.resolve(),
       settled: Promise.resolve(),
       ...(turn &&
-        !turn.continuedInBackground && { input: { id: turn.userMessage.id, replyId: turn.assistantMessageId } })
+        !turn.continuedInBackground && { input: { ids: turn.taskIds, replyId: turn.runId, outcomes: new Map() } })
     }
     entry.stopping = stopping
     // Stop withdraws queued follow-ups; input arriving after Stop waits for the native confirmation.
@@ -1555,13 +1607,18 @@ export class AgentSessionRuntimeService extends BaseService {
   ): Promise<void> {
     if (!stopped || !connection.contextId) return
     try {
-      let outcome = stopped.outcome
-      // An outcome observed before Stop registered was not captured; Durable's record still holds it.
-      if (!outcome && connection.lookupInput) {
-        const recorded = await connection.lookupInput(connection.contextId, stopped.id)
-        if (recorded.status === 'confirmed' && recorded.value.found) outcome = recorded.value.input
+      const outcomes: NativeInputState[] = []
+      for (const id of stopped.ids) {
+        let outcome = stopped.outcomes.get(id)
+        if (!outcome && connection.lookupInput) {
+          const recorded = await connection.lookupInput(connection.contextId, id)
+          if (recorded.status === 'confirmed' && recorded.value.found) outcome = recorded.value.input
+        }
+        if (!outcome?.outcome) return
+        outcomes.push(outcome)
       }
-      if (!outcome?.outcome || outcome.outcome === 'aborted') return
+      const outcome = runInputOutcome(outcomes)
+      if (!outcome || outcome.outcome === 'aborted') return
       await application.get('AiStreamManager').drainRuntimeReply(entry.topicId, stopped.replyId)
       if (!this.isCurrentEntry(entry)) return
       // The native settle reports its own terminal in place of the held paused one.
@@ -1729,8 +1786,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const contextId = extractAgentContextId(topicId)
     const entry = this.entryForContext(extractAgentSessionId(topicId), contextId)
     if (entry?.topicId !== topicId) return false
-    // A steer transition means A1a just closed and the continuation (A2) is coming — keep the
-    // stream alive so A2 carries the renderer listeners.
+    // A native run handoff keeps the stream alive until its successor carries the listeners.
     // `compacting`: a compaction is mid-flight between turns; keep the stream alive so its
     // compaction-anchor / completion chunks (and the resumed turn) still reach the renderer.
     return willAgentSessionRuntimeContinue(entry.runtimeState)
@@ -1744,7 +1800,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return {
       sessionId: entry.sessionId,
       topicId: entry.topicId,
-      assistantMessageId: turn?.assistantMessageId,
+      assistantMessageId: turn?.runId,
       status: this.runtimeStatus(entry),
       pendingMessageCount: entry.runtimeState.queue.length,
       lastTerminalStatus: entry.runtimeState.lastTerminal,
@@ -1755,7 +1811,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   // ── Write quiesce (backup restore) ───────────────────────────────
   // Contract shared with JobManager / AiStreamManager / ChannelManager (issues
-  // #16849/#16850). Every queued, steer-continuation, receive-only and deferred launch
+  // #16849/#16850). Every queued, native Run handoff, receive-only and deferred launch
   // enters through the same state-machine gate before it can consume state or write a
   // placeholder. A pause therefore leaves work represented in memory and DB-consistent;
   // the last hold's disposal re-kicks the exact suppressed target.
@@ -1768,7 +1824,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Pause autonomous launches: queued follow-ups, steer continuations, receive-only wakes
+   * Pause autonomous launches: queued follow-ups, native Run handoffs, receive-only wakes
    * and deferred turns are suppressed before their launch body while any hold is live.
    * In-flight launches keep running until drained. No resume() — dispose your own hold;
    * the last disposal re-kicks suppressed starts. A dropped hold fails closed.
@@ -2069,7 +2125,7 @@ export class AgentSessionRuntimeService extends BaseService {
       return false
     }
     const completedAt = Date.now()
-    return application.get('AiStreamManager').addCompletedRuntimeSpan(entry.topicId, turn.assistantMessageId, {
+    return application.get('AiStreamManager').addCompletedRuntimeSpan(entry.topicId, turn.runId, {
       id: `tool:${input.toolCallId}`,
       kind: 'tool-execution',
       toolCallId: input.toolCallId,
@@ -2154,7 +2210,7 @@ export class AgentSessionRuntimeService extends BaseService {
     yield* this.secondaryRoots.values()
   }
 
-  private entryForTurn(sessionId: string, matches: (turn: AgentSessionTurn) => boolean) {
+  private entryForTurn(sessionId: string, matches: (turn: AgentSessionRun) => boolean) {
     const owns = (entry: AgentSessionRuntimeEntry) =>
       entry.sessionId === sessionId && getAgentSessionRuntimeTurns(entry.runtimeState).some(matches)
     const selected = this.entries.get(sessionId)
@@ -2194,6 +2250,14 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.connectionGeneration = attemptId
     this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
     this.observeConnection(entry, connection, input.modelId, attemptId)
+    if (entry.pendingInputs?.size) {
+      void this.reconcilePendingInputs(entry, connection, attemptId).catch((error) =>
+        logger.warn('Failed to reconcile pending inputs on adopted connection', {
+          sessionId: entry.sessionId,
+          error
+        })
+      )
+    }
   }
 
   private isCurrentEntry(entry: AgentSessionRuntimeEntry): boolean {
@@ -2201,29 +2265,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return !!entry.secondaryContextId && this.secondaryRoots.get(entry.secondaryContextId) === entry
   }
 
-  /**
-   * Model the session's connection should serve right now. A live turn runs on the model captured
-   * when it was created — its assistant row, persistence and trace are already stamped with it, so
-   * a model edit landing between turn creation and its stream opening must NOT retarget the
-   * connection (the turn would execute on a different model than it records). A steer roll counts as
-   * live too: at a `steer-boundary` A1a is already terminal while the steer-transition stays active and the
-   * same SDK query keeps streaming the post-steer response on A1a's captured model — retargeting in
-   * that gap (e.g. a re-prime re-entering `ensureConnection`) would close the connection and drop the
-   * continuation. Mirrors the live-turn test in `applyAgentModelUpdate`. Without a live turn or roll
-   * the connection follows the agent's latest model and its configured reasoning effort — the same
-   * fallback a fresh turn takes (`AgentChatContextProvider`), so an idle reconcile finds no drift.
-   *
-   * The turn's Fast and knowledge selections are frozen for exactly the same reason and on the same schedule.
-   * Note the idle branch's `knowledgeBaseIds: []` means "no per-turn composer selection", NOT "no
-   * knowledge": it is fed through `resolveKnowledgeBaseScope` against the agent's binding below, so a
-   * statically bound agent still serves its full binding while idle. Idle deliberately converges on
-   * the agent's own configuration, so any turn that carried a composer selection (an unbound agent's
-   * whole scope, or a bound agent's narrowing) costs one rebuild once it goes idle. That is
-   * intentional: the next turn's *selection* is unknowable, and prewarm builds binding-only scope
-   * too, so pinning the last turn's selection would only move the rebuild onto the next turn that
-   * does not repeat it. A configured reasoning effort is not a selection — it is what the next turn
-   * uses absent an override — so reading it here is what keeps idle free of permanent drift.
-   */
+  /** Resolve live work against its captured configuration; idle connections follow the agent's current settings. */
   private connectionTarget(
     entry: AgentSessionRuntimeEntry,
     // `agentService.getAgent` is four queries (the row, its MCPs, its knowledge bases, the model
@@ -2301,12 +2343,8 @@ export class AgentSessionRuntimeService extends BaseService {
       const target = this.connectionTarget(entry)
       const connection = this.currentConnection(entry)
       if (connection) {
-        // A connection carrying a live SDK stream is NEVER reconciled here: closing it would drop
-        // the stream. The execution admission phase is load-bearing — the steer continuation (A2)
-        // is pre-admitted and `flush-transition` moves it to a normal turn BEFORE openTurnStream reaches
-        // this point, so `admitted` alone protects the still-streaming roll. (This also closes
-        // #16796's steer-window edge case: the continuation always reuses the transition's connection.)
-        // A fresh, unadmitted turn DOES reconcile — it must run on the latest config.
+        // Reconciliation would close an admitted native execution, including its queued Run handoff.
+        // Fresh unadmitted work still reconciles to the current configuration.
         const turn = this.currentTurn(entry)
         if (
           isAgentSessionRuntimeAutonomous(entry.runtimeState) ||
@@ -2466,8 +2504,9 @@ export class AgentSessionRuntimeService extends BaseService {
   ): Pick<AgentRuntimeConnectInput, 'onSteerInjected' | 'onInputPrepared'> {
     return {
       onSteerInjected: (inputIds) => {
-        if (this.isCurrentGeneration(entry, attemptId))
-          this.reserveSteerContinuation(entry, this.pendingInputValues(entry, inputIds))
+        const run = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
+        if (run && this.isTurnLive(entry, run) && this.isCurrentGeneration(entry, attemptId))
+          this.attachRunInputs(entry, run, this.pendingInputValues(entry, inputIds))
       },
       onInputPrepared: (inputId, contextId) => {
         if (!this.isCurrentGeneration(entry, attemptId)) return
@@ -2511,22 +2550,68 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private queueUndeliveredInputs(entry: AgentSessionRuntimeEntry, inputIds: readonly string[]): void {
-    for (const input of this.pendingInputValues(entry, inputIds, true)) {
-      const turn = this.currentTurn(entry)
-      this.applyRuntimeStateEvent(entry, {
-        type: 'queue-turn',
-        turn: {
-          message: input.message,
-          reasoningEffort: turn?.reasoningEffort ?? 'default',
-          serviceTier: turn?.serviceTier ?? 'standard',
-          knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? [],
-          fastMode: turn?.fastMode ?? false,
-          steer: true,
-          ...(input.headless ? { headless: true } : {}),
-          ...(input.messageSnapshot ? { messageSnapshot: input.messageSnapshot } : {})
-        }
+    for (const id of inputIds) {
+      const pending = entry.pendingInputs?.get(id)
+      if (!pending) continue
+      this.recoverPendingInput(entry, id, pending)
+    }
+  }
+
+  private recoverPendingInput(
+    entry: AgentSessionRuntimeEntry,
+    inputId: string,
+    pending: PendingNativeInput,
+    reason?: string
+  ): void {
+    entry.pendingInputs?.delete(inputId)
+    if (pending.contextId) {
+      releaseNativeInputBinding(entry.sessionId, pending.contextId, inputId)
+      // A still-present binding means DB already recorded native placement or local handling — avoid duplicating it.
+      if (agentSessionMessageService.inputBinding(entry.sessionId, inputId)) {
+        logger.info('Skipping queue recovery for already-bound native input', {
+          sessionId: entry.sessionId,
+          inputId,
+          contextId: pending.contextId,
+          reason
+        })
+        return
+      }
+    }
+    if (!agentSessionMessageService.hasSessionMessage(entry.sessionId, inputId)) {
+      logger.warn('Dropping unrecoverable pending native input whose message no longer exists', {
+        sessionId: entry.sessionId,
+        inputId,
+        reason
+      })
+      return
+    }
+    if (reason) {
+      logger.warn('Recovering unresolved pending native input as queued steer', {
+        sessionId: entry.sessionId,
+        inputId,
+        contextId: pending.contextId,
+        reason
       })
     }
+    const turn = this.currentTurn(entry)
+    const options = pending.turnOptions
+    this.applyRuntimeStateEvent(entry, {
+      type: 'queue-turn',
+      turn: {
+        message: pending.input.message,
+        reasoningEffort: options?.reasoningEffort ?? turn?.reasoningEffort ?? 'default',
+        serviceTier: options?.serviceTier ?? turn?.serviceTier ?? 'standard',
+        knowledgeBaseIds: getKnowledgeBaseIdsFromParts(pending.input.message.data.parts ?? []) ?? [],
+        fastMode: options?.fastMode ?? turn?.fastMode ?? false,
+        steer: true,
+        ...(pending.input.headless ? { headless: true } : {}),
+        ...(options?.permissionModeOverride ? { permissionModeOverride: options.permissionModeOverride } : {}),
+        ...(options?.trustedNotifyChannels !== undefined
+          ? { trustedNotifyChannels: options.trustedNotifyChannels }
+          : {}),
+        ...(pending.input.messageSnapshot ? { messageSnapshot: pending.input.messageSnapshot } : {})
+      }
+    })
   }
 
   private pendingInputValues(
@@ -2564,25 +2649,72 @@ export class AgentSessionRuntimeService extends BaseService {
     connection: AgentRuntimeConnection,
     generation: string
   ): Promise<void> {
-    if (!connection.lookupInput) return
-    for (const [inputId, pending] of entry.pendingInputs ?? []) {
-      if (pending.generation === generation || !pending.contextId) continue
+    for (const [inputId, pending] of [...(entry.pendingInputs ?? [])]) {
+      if (
+        !this.isCurrentGeneration(entry, generation) ||
+        this.currentConnection(entry) !== connection ||
+        entry.closing ||
+        this.isShuttingDown
+      )
+        return
+      if (pending.generation === generation) continue
+      if (entry.pendingInputs?.get(inputId) !== pending) continue
+      if (!pending.contextId || !connection.lookupInput) {
+        this.recoverPendingInput(entry, inputId, pending, !pending.contextId ? 'missing-context' : 'no-lookup')
+        continue
+      }
       let result: Awaited<ReturnType<NonNullable<AgentRuntimeConnection['lookupInput']>>>
       try {
         result = await connection.lookupInput(pending.contextId, inputId)
       } catch (error) {
         logger.warn('Pending native input lookup failed', { sessionId: entry.sessionId, inputId, error })
+        if (
+          !this.isCurrentGeneration(entry, generation) ||
+          this.currentConnection(entry) !== connection ||
+          entry.closing ||
+          this.isShuttingDown
+        )
+          return
+        if (entry.pendingInputs?.get(inputId) === pending) {
+          this.recoverPendingInput(entry, inputId, pending, 'lookup-failed')
+        }
         continue
       }
-      if (!this.isCurrentGeneration(entry, generation) || this.currentConnection(entry) !== connection) return
-      if (result.status === 'confirmed' && result.value.found)
-        this.resolvePendingInput(entry, pending.contextId, result.value.input)
-      else
-        logger.warn('Pending native input remains unresolved', {
-          sessionId: entry.sessionId,
-          inputId,
-          contextId: pending.contextId
-        })
+      if (
+        !this.isCurrentGeneration(entry, generation) ||
+        this.currentConnection(entry) !== connection ||
+        entry.closing ||
+        this.isShuttingDown
+      )
+        return
+      if (entry.pendingInputs?.get(inputId) !== pending) continue
+      if (result.status === 'confirmed' && result.value.found) {
+        const input = result.value.input
+        if (input.outcome || input.facts.includes('locally-handled')) {
+          this.resolvePendingInput(entry, pending.contextId, input)
+          continue
+        }
+        if (
+          entry.agentType === 'pi-durable' &&
+          connection.contextId === pending.contextId &&
+          (input.facts.includes('queued') || input.facts.includes('placed'))
+        ) {
+          pending.generation = generation
+          continue
+        }
+        if (input.facts.includes('placed')) {
+          entry.pendingInputs?.delete(inputId)
+          logger.warn('Clearing already-placed pending native input from prior generation', {
+            sessionId: entry.sessionId,
+            inputId,
+            contextId: pending.contextId
+          })
+          continue
+        }
+        this.recoverPendingInput(entry, inputId, pending, 'unplaced')
+        continue
+      }
+      this.recoverPendingInput(entry, inputId, pending, result.status === 'confirmed' ? 'not-found' : result.status)
     }
   }
 
@@ -2628,7 +2760,7 @@ export class AgentSessionRuntimeService extends BaseService {
         if (!projection) break
         for (const { messageId, patch, completed } of projection.changePart(event)) {
           const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
-          if (turn?.assistantMessageId === messageId && turn.controller && this.isTurnLive(entry, turn)) {
+          if (turn?.runId === messageId && turn.controller && this.isTurnLive(entry, turn)) {
             if (patch.type === 'part-put' || patch.type === 'part-add') this.clearApiRetry(entry)
             if ((patch.type === 'part-put' || patch.type === 'part-add') && isToolUIPart(patch.part) && !completed)
               turn.activeToolIds.add(patch.part.toolCallId)
@@ -2652,14 +2784,13 @@ export class AgentSessionRuntimeService extends BaseService {
         const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
         const projection = this.rootProjection(entry, event.projection.contextId)
         if (turn) turn.projection = projection
-        const changed = projection.accept(event.projection, turn?.assistantMessageId)
+        const changed = projection.accept(event.projection, turn?.runId)
         for (const [id, entries] of changed) this.publishRootMessage(entry, projection, id, entries)
         break
       }
       case 'response-start': {
         const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
-        if (turn && (!event.messageId || event.messageId === turn.assistantMessageId))
-          this.bindUsage(entry, event.responseId, turn)
+        if (turn && (!event.messageId || event.messageId === turn.runId)) this.bindUsage(entry, event.responseId, turn)
         else if (event.messageId)
           (entry.usageAttribution ??= new AgentSessionUsageAttribution()).bind(event.responseId, event.messageId)
         break
@@ -2682,14 +2813,23 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'input-submission': {
         const pending = entry.pendingInputs?.get(event.result.inputId)
-        if (!pending || pending.generation !== entry.connectionGeneration || pending.contextId !== event.contextId)
-          break
+        if (!pending || pending.contextId !== event.contextId) break
+        if (pending.generation !== entry.connectionGeneration && connection !== this.currentConnection(entry)) break
         if (event.result.status === 'rejected' || event.result.status === 'unsupported')
           this.queueUndeliveredInputs(entry, [event.result.inputId])
         else if (event.result.status === 'acknowledged' && event.result.facts.includes('locally-handled'))
           entry.pendingInputs?.delete(event.result.inputId)
         break
       }
+      case 'followup-queue':
+        for (const { id, revision, parts } of event.queue) {
+          const pending = revision > 0 ? entry.pendingInputs?.get(id) : undefined
+          if (pending && pending.generation === entry.connectionGeneration) {
+            pending.input.message.data.parts = parts
+          }
+        }
+        application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), event.queue)
+        break
       case 'input-state':
         if (event.input.facts.includes('locally-handled'))
           markLocalInput(entry.sessionId, event.contextId, event.input.inputId)
@@ -2707,10 +2847,12 @@ export class AgentSessionRuntimeService extends BaseService {
         this.noteNativeOutcome(entry, event.contextId, event.input)
         break
       case 'steer-boundary':
-        // Each follow-up placement keeps its place behind earlier ones and gets its own reply.
-        if (event.followUp && (entry.deferredPlacements || this.placementWaits(entry)))
+        this.startPlacedInputs(entry, event.inputIds, connection)
+        break
+      case 'run-started':
+        if (entry.deferredPlacements || this.placementWaits(entry))
           (entry.deferredPlacements ??= []).push(event.inputIds)
-        else this.startPlacedInputs(entry, event.inputIds, connection, event.followUp)
+        else this.startPlacedInputs(entry, event.inputIds, connection, true)
         break
       case 'steer-undelivered':
         this.queueUndeliveredInputs(entry, event.inputIds)
@@ -2773,7 +2915,7 @@ export class AgentSessionRuntimeService extends BaseService {
         if (
           event.recoveredInputId &&
           !recoveredReply &&
-          this.startPlacedInputs(entry, [event.recoveredInputId], connection)
+          this.startPlacedInputs(entry, [event.recoveredInputId], connection, true)
         )
           break
         const assistantMessageId =
@@ -2782,8 +2924,8 @@ export class AgentSessionRuntimeService extends BaseService {
             ? sourceReply?.admission === 'pending' || !source
               ? ((owners.size === 1 ? owners.values().next().value : undefined) ??
                 projection?.lastMessageId ??
-                source?.assistantMessageId)
-              : source.assistantMessageId
+                source?.runId)
+              : source.runId
             : undefined)
         if (background) {
           if (!assistantMessageId) {
@@ -2793,7 +2935,7 @@ export class AgentSessionRuntimeService extends BaseService {
           const current = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
           const reply = current && getAgentSessionRuntimeReply(entry.runtimeState, current)
           if (
-            current?.assistantMessageId === assistantMessageId &&
+            current?.runId === assistantMessageId &&
             reply &&
             ['open', 'attaching', 'unopened'].includes(reply.delivery.kind)
           ) {
@@ -2803,7 +2945,7 @@ export class AgentSessionRuntimeService extends BaseService {
           }
         }
         if (
-          entry.runtimeState.execution.kind === 'steer-transition' ||
+          entry.runtimeState.execution.kind === 'run-handoff' ||
           entry.runtimeState.execution.kind === 'autonomous-turn'
         )
           break
@@ -2814,11 +2956,11 @@ export class AgentSessionRuntimeService extends BaseService {
             ? entry.recoveryHeadless !== false
             : this.getInteractionState(entry.sessionId).userResponse === 'unavailable')
         const saved =
-          assistantMessageId && assistantMessageId !== source?.assistantMessageId
+          assistantMessageId && assistantMessageId !== source?.runId
             ? agentSessionMessageService.getSessionMessage(entry.sessionId, assistantMessageId)
             : undefined
         const modelId = saved?.modelId ? UniqueModelIdSchema.parse(saved.modelId) : (source?.modelId ?? entry.modelId)
-        const turn = createSessionTurn({
+        const turn = createSessionRun({
           ...this.connectionTarget(entry),
           modelId: background ? modelId : entry.modelId,
           taskIds: recoveredInput ? [recoveredInput] : [],
@@ -2831,7 +2973,7 @@ export class AgentSessionRuntimeService extends BaseService {
             : entry.messageSnapshot,
           headless,
           origin: event.origin,
-          ...(background ? { assistantMessageId } : {})
+          ...(background ? { runId: assistantMessageId } : {})
         })
         if (background) turn.projection = projection
         this.clearIdleTimer(entry)
@@ -2845,10 +2987,26 @@ export class AgentSessionRuntimeService extends BaseService {
         })
         break
       }
+      case 'run-checkpoint': {
+        if (event.contextId !== connection?.contextId) break
+        const run = getAgentSessionRuntimeTurns(entry.runtimeState).find((run) => run.taskIds.includes(event.inputId))
+        const runId = run?.runId ?? agentSessionMessageService.replyTo(entry.sessionId, event.inputId)?.id
+        if (!runId) {
+          ;(entry.pendingRunCheckpoints ??= new Map()).set(event.inputId, event.forkAnchor)
+          break
+        }
+        if (run) run.forkAnchor = event.forkAnchor
+        try {
+          agentSessionMessageService.saveRunCheckpoint(entry.sessionId, runId, event.forkAnchor)
+        } catch (error) {
+          logger.warn('Could not persist Run checkpoint', { sessionId: entry.sessionId, runId, error })
+        }
+        break
+      }
       case 'turn-complete': {
         const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
         if (turn) {
-          turn.forkAnchor = event.forkAnchor
+          turn.forkAnchor ??= event.forkAnchor
             ? { ...event.forkAnchor, excludedMessageIds: entry.runtimeState.queue.map((item) => item.message.id) }
             : undefined
           // A native abort that Cherry did not start must still end the renderer stream as paused.
@@ -2860,8 +3018,6 @@ export class AgentSessionRuntimeService extends BaseService {
             outcome: { status: event.status ?? 'success' }
           })
         }
-        if (entry.runtimeState.execution.kind === 'turn')
-          this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
         this.clearApiRetry(entry)
         this.refreshContextUsage(entry)
         break
@@ -2888,6 +3044,12 @@ export class AgentSessionRuntimeService extends BaseService {
     trigger: AgentSessionCompactionTrigger | undefined
   ): void {
     this.invalidateContextUsage(entry)
+    entry.compactionAnchorId = crypto.randomUUID()
+    this.deliverRuntimeChunk(entry, {
+      type: 'data-compaction-anchor',
+      id: entry.compactionAnchorId,
+      data: { status: 'compacting', phase: 'agent-session', trigger, startedAt: new Date().toISOString() }
+    })
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: true })
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
       status: 'compacting',
@@ -2946,16 +3108,14 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
-    this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
-
-    const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
-    if (anchor && turn && this.isTurnLive(entry, turn)) {
+    if (anchor || entry.compactionAnchorId)
       this.deliverRuntimeChunk(entry, {
         type: 'data-compaction-anchor',
-        id: crypto.randomUUID(),
-        data: anchor
+        id: entry.compactionAnchorId ?? crypto.randomUUID(),
+        data: anchor ?? { status: 'skipped', phase: 'agent-session' }
       })
-    }
+    delete entry.compactionAnchorId
+    this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
 
     // Completed-run metrics ride the `data-compaction-anchor` chunk above (the UI's source); the cache
     // state only tracks `status`. A no-anchor success (which can follow the boundary, or arrive on its
@@ -2984,6 +3144,13 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private settleCompactionError(entry: AgentSessionRuntimeEntry, error?: string): void {
+    if (entry.compactionAnchorId)
+      this.deliverRuntimeChunk(entry, {
+        type: 'data-compaction-anchor',
+        id: entry.compactionAnchorId,
+        data: { status: 'skipped', phase: 'agent-session' }
+      })
+    delete entry.compactionAnchorId
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'compaction', active: false })
     if (error) logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
     application
@@ -3070,9 +3237,9 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), tasks)
   }
 
-  private backgroundCallIds(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Set<string> {
+  private backgroundCallIds(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): Set<string> {
     const pending = getAgentSessionRuntimeReply(entry.runtimeState, turn)?.pendingResultToolCallIds ?? []
-    const parts = turn.projection?.parts(turn.assistantMessageId) ?? []
+    const parts = turn.projection?.parts(turn.runId) ?? []
     return new Set([...pending, ...parts.flatMap((part) => (isToolUIPart(part) ? [part.toolCallId] : []))])
   }
 
@@ -3244,7 +3411,7 @@ export class AgentSessionRuntimeService extends BaseService {
         const projection = turn.projection ?? (contextId ? this.rootProjection(entry, contextId) : undefined)
         if (projection) {
           turn.projection = projection
-          projection.control(turn.assistantMessageId, {
+          projection.control(turn.runId, {
             type: 'tool-input-available',
             toolCallId: request.toolCallId,
             toolName: request.toolName,
@@ -3329,13 +3496,13 @@ export class AgentSessionRuntimeService extends BaseService {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-finished' })
     }
     const cache = application.get('CacheService')
+    if (connection.changeFollowups) cache.setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), [])
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
     this.clearApiRetry(entry)
-    this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
     const compaction = application.get('CacheService').getShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId))
     if (
       isAgentSessionRuntimeCompacting(entry.runtimeState) ||
@@ -3351,7 +3518,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const execution = entry.runtimeState.execution
     if (
       turn &&
-      (execution.kind === 'steer-transition' ||
+      (execution.kind === 'run-handoff' ||
         execution.kind === 'autonomous-turn' ||
         (execution.kind === 'turn' && this.isTurnLive(entry, turn)))
     ) {
@@ -3370,7 +3537,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private async admitTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
+  private async admitTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
     this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
@@ -3406,9 +3573,7 @@ export class AgentSessionRuntimeService extends BaseService {
     messageId: string,
     entries: readonly ExecutionPart[]
   ): void {
-    const turn = getAgentSessionRuntimeTurns(entry.runtimeState).find(
-      (candidate) => candidate.assistantMessageId === messageId
-    )
+    const turn = getAgentSessionRuntimeTurns(entry.runtimeState).find((candidate) => candidate.runId === messageId)
     if (turn && !entry.persistedMessageIds?.has(messageId)) {
       this.publishTurnMessage(entry, turn, entries)
       return
@@ -3427,7 +3592,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private publishTurnMessage(
     entry: AgentSessionRuntimeEntry,
-    turn: AgentSessionTurn,
+    turn: AgentSessionRun,
     entries: readonly ExecutionPart[]
   ): void {
     if (!turn.controller?.message || !this.isTurnLive(entry, turn)) return
@@ -3445,7 +3610,7 @@ export class AgentSessionRuntimeService extends BaseService {
   /** Persists parts that reached their own completion; deltas of unfinished parts write nothing. */
   private saveCompletedParts(
     entry: AgentSessionRuntimeEntry,
-    turn: AgentSessionTurn,
+    turn: AgentSessionRun,
     changed: ExecutionPart | readonly ExecutionPart[]
   ): void {
     const projection = turn.projection
@@ -3457,18 +3622,16 @@ export class AgentSessionRuntimeService extends BaseService {
             parts: new Map([[changed.partId, changed.payload]]),
             positions: new Map([[changed.partId, changed.pos]])
           }
-        : projection.completions(
-            'partId' in changed ? (projection.replyEntries(turn.assistantMessageId) ?? []) : changed
-          )
+        : projection.completions('partId' in changed ? (projection.replyEntries(turn.runId) ?? []) : changed)
     if (!completed.parts.size) return
     try {
-      if (agentSessionMessageService.saveCompletedMessageParts(entry.sessionId, turn.assistantMessageId, completed))
+      if (agentSessionMessageService.saveCompletedMessageParts(entry.sessionId, turn.runId, completed))
         projection.committed(completed.parts)
     } catch (error) {
       // Reply completion saves the same parts again; a failed early save only narrows crash recovery.
       logger.warn('Failed to save completed agent reply parts', {
         sessionId: entry.sessionId,
-        messageId: turn.assistantMessageId,
+        messageId: turn.runId,
         error
       })
     }
@@ -3476,11 +3639,8 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private rootCheckpoint(entry: AgentSessionRuntimeEntry, projection: RootMessageProjection, savingMessageId: string) {
     const pending = getAgentSessionRuntimeTurns(entry.runtimeState)
-      .filter(
-        (turn) =>
-          turn.assistantMessageId !== savingMessageId && !entry.persistedMessageIds?.has(turn.assistantMessageId)
-      )
-      .map((turn) => turn.assistantMessageId)
+      .filter((turn) => turn.runId !== savingMessageId && !entry.persistedMessageIds?.has(turn.runId))
+      .map((turn) => turn.runId)
     return projection.checkpoint(new Set(pending))
   }
 
@@ -3510,7 +3670,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private unsettledReply(entry: AgentSessionRuntimeEntry, inputId: string): string | undefined {
-    if (entry.stopping?.input?.id === inputId) return entry.stopping.input.replyId
+    if (entry.stopping?.input?.ids.includes(inputId)) return entry.stopping.input.replyId
     const reply = agentSessionMessageService.replyTo(entry.sessionId, inputId)
     return reply?.status === 'pending' ? reply.id : undefined
   }
@@ -3518,19 +3678,22 @@ export class AgentSessionRuntimeService extends BaseService {
   /** Records a native outcome for a reply that no runtime turn will settle. */
   private noteNativeOutcome(entry: AgentSessionRuntimeEntry, contextId: string, input: NativeInputState): void {
     if (entry.agentType !== 'pi-durable' || !input.outcome) return
-    if (entry.stopping?.input?.id === input.inputId) {
-      entry.stopping.input.outcome = input
+    if (entry.stopping?.input?.ids.includes(input.inputId)) {
+      entry.stopping.input.outcomes.set(input.inputId, input)
       return
     }
+    const run = getAgentSessionRuntimeTurns(entry.runtimeState).find((run) => run.taskIds.includes(input.inputId))
+    if (run) (run.inputOutcomes ??= new Map()).set(input.inputId, input)
     const followed = entry.followedReplies?.get(input.inputId)
     if (followed) {
       entry.followedReplies!.delete(input.inputId)
-      if (input.outcome !== 'completed') void this.correctFollowedReply(entry, contextId, followed, input)
+      followed.pending.delete(input.inputId)
+      followed.outcomes.push(input)
+      if (!followed.pending.size) this.correctFollowedRun(entry, followed, contextId)
       return
     }
     const replyId = this.unsettledReply(entry, input.inputId)
-    if (replyId && getAgentSessionRuntimeTurns(entry.runtimeState).some((turn) => turn.assistantMessageId === replyId))
-      return
+    if (replyId && getAgentSessionRuntimeTurns(entry.runtimeState).some((turn) => turn.runId === replyId)) return
     if (replyId)
       void this.recoverPendingReplies({ sessionId: entry.sessionId, runId: replyId }).catch((error) =>
         logger.warn('Could not recover terminal input', { replyId, error })
@@ -3542,6 +3705,16 @@ export class AgentSessionRuntimeService extends BaseService {
       !agentSessionMessageService.replyTo(entry.sessionId, input.inputId)
     )
       agentSessionMessageService.markUserMessageUnsent(entry.sessionId, input.inputId)
+  }
+
+  private correctFollowedRun(
+    entry: AgentSessionRuntimeEntry,
+    followed: { runId: string; outcomes: NativeInputState[] },
+    contextId: string | undefined
+  ): void {
+    const outcome = runInputOutcome(followed.outcomes)
+    if (contextId && outcome && outcome.outcome !== 'completed')
+      void this.correctFollowedReply(entry, contextId, followed.runId, outcome)
   }
 
   private async correctFollowedReply(
@@ -3615,9 +3788,9 @@ export class AgentSessionRuntimeService extends BaseService {
       const contextId = this.currentConnection(entry)?.contextId
       if (!turn.projection && contextId) turn.projection = this.rootProjection(entry, contextId)
       if (turn.projection) {
-        const change = turn.projection.control(turn.assistantMessageId, chunk)
+        const change = turn.projection.control(turn.runId, chunk)
         if (change === 'reconcile') {
-          const entries = turn.projection.replyEntries(turn.assistantMessageId)
+          const entries = turn.projection.replyEntries(turn.runId)
           if (entries) this.publishTurnMessage(entry, turn, entries)
         } else if (change && turn.controller && this.isTurnLive(entry, turn)) {
           turn.controller.part(change.patch)
@@ -3633,7 +3806,7 @@ export class AgentSessionRuntimeService extends BaseService {
     return true
   }
 
-  private enqueueTurnChunk(turn: AgentSessionTurn, chunk: AgentControlChunk): void {
+  private enqueueTurnChunk(turn: AgentSessionRun, chunk: AgentControlChunk): void {
     if (chunk.type === 'tool-input-available') turn.activeToolIds.add(chunk.toolCallId)
     turn.controller?.enqueue(chunk)
   }
@@ -3641,7 +3814,7 @@ export class AgentSessionRuntimeService extends BaseService {
   /** Pure resource release. Terminality itself lives in the machine (the `settle-turn` transition
    *  is synchronous, so a trailing event in the same connection loop already reads not-live
    *  and never touches the closed controller). */
-  private closeTurn(turn: AgentSessionTurn): void {
+  private closeTurn(turn: AgentSessionRun): void {
     try {
       turn.controller?.close()
     } catch {
@@ -3651,7 +3824,7 @@ export class AgentSessionRuntimeService extends BaseService {
     turn.activeToolIds.clear()
   }
 
-  private errorTurn(turn: AgentSessionTurn, error: unknown): void {
+  private errorTurn(turn: AgentSessionRun, error: unknown): void {
     try {
       turn.controller?.error(error)
     } catch {
@@ -3661,7 +3834,7 @@ export class AgentSessionRuntimeService extends BaseService {
     turn.activeToolIds.clear()
   }
 
-  private async refreshTurnTraceContext(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
+  private async refreshTurnTraceContext(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     const traceContext = this.sessionTraceContext(entry, turn.modelId)
     if (traceContext) await this.currentConnection(entry)?.refreshTraceContext?.(traceContext)
@@ -3669,7 +3842,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private scheduleRuntimeLaunch(
     entry: AgentSessionRuntimeEntry,
-    target: AgentSessionRuntimeLaunchTarget<AgentSessionTurn>
+    target: AgentSessionRuntimeLaunchTarget<AgentSessionRun>
   ): void {
     if (
       !this.isCurrentEntry(entry) ||
@@ -3722,7 +3895,7 @@ export class AgentSessionRuntimeService extends BaseService {
             .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [sessionOverride])
             .get(sessionOverride) ?? parseUniqueModelId(sessionOverride).modelId)
         : liveAgent?.modelName
-    const turn = createSessionTurn({
+    const turn = createSessionRun({
       taskIds: [pending.message.id],
       userMessage: pending.message,
       parentId: pending.message.id,
@@ -3755,7 +3928,7 @@ export class AgentSessionRuntimeService extends BaseService {
     await this.prepareReply(entry, turn)
   }
 
-  private suspendTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+  private suspendTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): void {
     const suspended = application.get('AiStreamManager').suspendUnadmittedRuntimeTurn(entry.topicId)
     this.closeTurn(turn)
     void suspended
@@ -3763,13 +3936,13 @@ export class AgentSessionRuntimeService extends BaseService {
       .finally(() => this.applyRuntimeStateEvent(entry, { type: 'turn-suspended', turn }))
   }
 
-  private saveReply(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+  private saveReply(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): void {
     const background = turn.origin?.kind === 'background-work'
-    if (background) entry.persistedMessageIds?.delete(turn.assistantMessageId)
+    if (background) entry.persistedMessageIds?.delete(turn.runId)
     agentSessionMessageService.saveMessage(
       {
         sessionId: entry.sessionId,
-        ...turn.projection?.partPlacement(turn.assistantMessageId),
+        ...turn.projection?.partPlacement(turn.runId),
         parentId: turn.parentId
           ? agentSessionMessageService.branchTip(
               entry.sessionId,
@@ -3779,27 +3952,28 @@ export class AgentSessionRuntimeService extends BaseService {
             )
           : undefined,
         message: {
-          id: turn.assistantMessageId,
+          id: turn.runId,
           role: 'assistant',
           status: 'pending',
-          data: { parts: turn.projection?.parts(turn.assistantMessageId) ?? [] },
+          data: { parts: turn.projection?.parts(turn.runId) ?? [] },
           modelId: turn.modelId,
           messageSnapshot: turn.messageSnapshot
         }
       },
       { publishDataChange: true }
     )
-    agentSessionMessageService.linkReply(entry.sessionId, turn.taskIds, turn.assistantMessageId)
-    if (!background) entry.branchHead = turn.assistantMessageId
+    agentSessionMessageService.linkReply(entry.sessionId, turn.taskIds, turn.runId)
+    this.attachPendingRunCheckpoints(entry, turn)
+    if (!background) entry.branchHead = turn.runId
     if (turn.origin)
       application
         .get('CacheService')
-        .setShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(entry.sessionId, turn.assistantMessageId), turn.origin)
+        .setShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(entry.sessionId, turn.runId), turn.origin)
     this.applyRuntimeStateEvent(entry, { type: 'turn-prepared', turn })
-    entry.usageAttribution?.flush(turn.assistantMessageId)
+    entry.usageAttribution?.flush(turn.runId)
   }
 
-  private async prepareReply(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
+  private async prepareReply(entry: AgentSessionRuntimeEntry, turn: AgentSessionRun): Promise<void> {
     if (!this.isCurrentEntry(entry) || entry.closing || this.currentTurn(entry) !== turn) return
     let rootSpan: Span | undefined
     try {
@@ -3817,7 +3991,7 @@ export class AgentSessionRuntimeService extends BaseService {
         rootSpan?.end()
         return
       }
-      const messages = createRuntimeSeedMessages(turn.userMessage, turn.assistantMessageId)
+      const messages = createRuntimeSeedMessages(turn.userMessage, turn.runId)
       if (rootSpan)
         applyTurnInputAttributes(rootSpan, {
           modelId: turn.modelId,
@@ -3834,7 +4008,7 @@ export class AgentSessionRuntimeService extends BaseService {
         request: {
           conversation: { id: entry.sessionId, topicId: entry.topicId },
           trigger: 'submit-message',
-          messageId: turn.assistantMessageId,
+          messageId: turn.runId,
           messages,
           reasoningEffort: turn.reasoningEffort,
           serviceTier: turn.serviceTier,
@@ -3872,7 +4046,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const turn = this.liveTurn(entry)
     const execution = entry.runtimeState.execution
     const currentTurn = turn ? (turn.headless === true ? 'headless' : 'interactive') : 'none'
-    if (execution.kind === 'steer-transition')
+    if (execution.kind === 'run-handoff')
       return { currentTurn, userResponse: execution.reply.turn.headless ? 'unavailable' : 'stream' }
     const backgroundResponder = getAgentSessionRuntimeOccupancy(entry.runtimeState)?.background?.responder
     if (backgroundResponder) {
@@ -3933,8 +4107,8 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private createPersistenceListener(entry: AgentSessionRuntimeEntry, currentTurn: AgentSessionTurn): StreamListener {
-    const { assistantMessageId, modelId } = currentTurn
+  private createPersistenceListener(entry: AgentSessionRuntimeEntry, currentTurn: AgentSessionRun): StreamListener {
+    const { runId: assistantMessageId, modelId } = currentTurn
     const userText = extractMessageText(currentTurn.userMessage)
     const afterPersist = currentTurn.shouldAutoName
       ? async (finalMessage: CherryUIMessage) => {
@@ -3952,9 +4126,7 @@ export class AgentSessionRuntimeService extends BaseService {
         runtimeResumeToken: () => entry.lastResumeToken,
         forkAnchor: () => currentTurn.forkAnchor,
         projection: () =>
-          currentTurn.projection
-            ? this.rootCheckpoint(entry, currentTurn.projection, currentTurn.assistantMessageId)
-            : undefined,
+          currentTurn.projection ? this.rootCheckpoint(entry, currentTurn.projection, currentTurn.runId) : undefined,
         partPlacement: (messageId) => currentTurn.projection?.partPlacement(messageId),
         onPersisted: () => {
           currentTurn.projection?.committedReply(assistantMessageId)
@@ -4017,7 +4189,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.closing = true
     const turns = getAgentSessionRuntimeTurns(entry.runtimeState)
     const streamDrain = Promise.allSettled(
-      turns.map((turn) => application.get('AiStreamManager').drainRuntimeReply(entry.topicId, turn.assistantMessageId))
+      turns.map((turn) => application.get('AiStreamManager').drainRuntimeReply(entry.topicId, turn.runId))
     )
     for (const turn of turns) this.closeTurn(turn)
     const connectionAttempt = this.connectionAttempts.get(entry)?.promise
@@ -4043,22 +4215,22 @@ export class AgentSessionRuntimeService extends BaseService {
             ? reply.delivery.status
             : (reply?.terminal?.status ?? 'paused')
       const message: CherryUIMessage = {
-        id: turn.assistantMessageId,
+        id: turn.runId,
         role: 'assistant',
-        parts: turn.projection?.parts(turn.assistantMessageId) ?? []
+        parts: turn.projection?.parts(turn.runId) ?? []
       }
       new AgentSessionMessageBackend({
         sessionId: entry.sessionId,
-        assistantMessageId: turn.assistantMessageId,
+        assistantMessageId: turn.runId,
         modelId: turn.modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
-        projection: () =>
-          turn.projection ? this.rootCheckpoint(entry, turn.projection, turn.assistantMessageId) : undefined,
+        forkAnchor: () => turn.forkAnchor,
+        projection: () => (turn.projection ? this.rootCheckpoint(entry, turn.projection, turn.runId) : undefined),
         partPlacement: (messageId) => turn.projection?.partPlacement(messageId),
         onPersisted: () => {
-          turn.projection?.committedReply(turn.assistantMessageId)
-          ;(entry.persistedMessageIds ??= new Set()).add(turn.assistantMessageId)
-          entry.usageAttribution?.flush(turn.assistantMessageId)
+          turn.projection?.committedReply(turn.runId)
+          ;(entry.persistedMessageIds ??= new Set()).add(turn.runId)
+          entry.usageAttribution?.flush(turn.runId)
         }
       }).persistAssistant({ finalMessage: turn.projection?.prepare(message, status) ?? message, status })
       this.closeTurn(turn)
@@ -4251,16 +4423,25 @@ function extractMessageText(message: AgentSessionMessageEntity): string {
   )
 }
 
-function createSessionTurn(
+function runInputOutcome(inputs: readonly NativeInputState[]): NativeInputState | undefined {
+  if (!inputs.length || inputs.some((input) => !input.outcome)) return undefined
+  return (
+    inputs.find((input) => input.outcome === 'failed' || input.outcome === 'unanswered') ??
+    inputs.find((input) => input.outcome === 'aborted') ??
+    inputs[0]
+  )
+}
+
+function createSessionRun(
   input: Omit<
-    AgentSessionTurn,
-    'turnId' | 'assistantMessageId' | 'abortController' | 'activeToolIds' | 'controller' | 'projection'
-  > & { assistantMessageId?: string }
-): AgentSessionTurn {
+    AgentSessionRun,
+    'turnId' | 'runId' | 'abortController' | 'activeToolIds' | 'controller' | 'projection'
+  > & { runId?: string }
+): AgentSessionRun {
   return {
     ...input,
     turnId: crypto.randomUUID(),
-    assistantMessageId: input.assistantMessageId ?? uuidv7(),
+    runId: input.runId ?? uuidv7(),
     // oxlint-disable-next-line no-restricted-globals -- Detach per-turn model/settings metadata from the caller-owned turn input.
     messageSnapshot: input.messageSnapshot ? structuredClone(input.messageSnapshot) : undefined,
     abortController: new AbortController(),

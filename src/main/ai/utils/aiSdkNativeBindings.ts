@@ -13,6 +13,7 @@
  * the others are diffusion / OpenAI-image knobs that migrate into per-provider
  * WireProfiles in PR4+.
  */
+import { normalizeImageSize } from '@shared/ai/imageSize'
 import type { CanonicalParamKey } from '@shared/data/types/model'
 
 interface NativeBinding {
@@ -43,7 +44,10 @@ export function normalizeAspectRatio(value: string | undefined): string | undefi
 // delivery) / the transports (job delivery), never this table.
 export const AI_SDK_NATIVE_BINDINGS = {
   numImages: { option: 'n' },
-  size: { option: 'size' },
+  size: {
+    option: 'size',
+    map: (v: unknown) => normalizeImageSize(typeof v === 'string' ? v : undefined)
+  },
   seed: { option: 'seed' },
   aspectRatio: {
     option: 'aspectRatio',

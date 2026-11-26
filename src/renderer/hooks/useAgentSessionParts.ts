@@ -119,6 +119,8 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
     role: row.role,
     parts: row.data.parts ?? [],
     partIds: row.partIds,
+    partPositions: row.partPositions,
+    timeline: { pos: row.pos, replyId: row.replyId },
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined
   }
 }

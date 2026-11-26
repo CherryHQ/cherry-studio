@@ -31,6 +31,8 @@ overrides:
   "brace-expansion@>=2.0.0 <2.1.4": "2.1.4"
   "brace-expansion@>=5.0.0 <5.0.9": "5.0.9"
   "@smithy/types": "4.7.1"
+  # CVE-2026-54673: cross-origin redirect leaks Authorization/PRIVATE-TOKEN headers (#388, #386).
+  "builder-util-runtime@<9.7.0": "9.7.0"
   # All consumers accept this version; one core avoids repeated nested copies in release packages.
   "@smithy/core": "3.35.0"
   "@codemirror/state": "6.5.4"
@@ -141,6 +143,8 @@ patchedDependencies:
   "@earendil-works/pi-coding-agent@1.5.2": patches/@earendil-works__pi-coding-agent@1.5.2.patch
 
   "@earendil-works/pi-durable@1.5.2": patches/@earendil-works__pi-durable@1.5.2.patch
+  "@radix-ui/react-collapsible@1.1.12": patches/@radix-ui__react-collapsible@1.1.12.patch
+  "@radix-ui/react-presence@1.1.5": patches/@radix-ui__react-presence@1.1.5.patch
 
 allowBuilds:
   "@google/genai": false
