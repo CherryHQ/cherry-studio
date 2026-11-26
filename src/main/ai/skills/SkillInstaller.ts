@@ -83,16 +83,46 @@ export class SkillInstaller {
     // install in place. Stash the preserved marker aside so the next publish has a free
     // rollback slot; the stash is deleted only after the new verified install commits
     // (durable publish state), and restored to `.bak` if the retry fails.
+    // An obsolete `.bak` is superseded and must never be stashed: stashing would leave
+    // its `<backup>.obsolete` record behind while the edited tree moved from `dest`
+    // reuses the `.bak` path, so a crash after `rename(dest, .bak)` would look
+    // obsolete and delete the only copy of the edits. Retire the obsolete tree and
+    // its record before reusing the slot instead.
     let stashedBackupPath: string | null = null
     if (await pathExists(backupPath)) {
-      stashedBackupPath = `${backupPath}.stash-${Date.now()}-${process.pid}`
+      let backupIsObsolete = false
       try {
-        await fs.promises.rename(backupPath, stashedBackupPath)
-        logger.info('Stashed preserved skill backup to free rollback slot', { destPath, backupPath, stashedBackupPath })
-      } catch (error) {
-        stashedBackupPath = null
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        backupIsObsolete = await this.isMarkedObsolete(backupPath)
+      } catch {
+        backupIsObsolete = false
       }
+      if (backupIsObsolete) {
+        await this.retireAndRemoveMarker(backupPath, 'obsolete skill backup')
+        if (await pathExists(backupPath)) {
+          throw new Error(`Cannot reuse skill backup slot while obsolete backup cannot be retired: ${destPath}`)
+        }
+        await this.clearObsoleteMarker(backupPath)
+      } else {
+        stashedBackupPath = `${backupPath}.stash-${Date.now()}-${process.pid}`
+        try {
+          await fs.promises.rename(backupPath, stashedBackupPath)
+          logger.info('Stashed preserved skill backup to free rollback slot', {
+            destPath,
+            backupPath,
+            stashedBackupPath
+          })
+        } catch (error) {
+          stashedBackupPath = null
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        }
+        // The marker belongs to the previous generation: a stale `<backup>.obsolete`
+        // left by an earlier crash must not mis-mark the new `.bak` created below.
+        await this.clearObsoleteMarker(backupPath)
+      }
+    } else {
+      // No backup directory, but a stale `<backup>.obsolete` from an earlier
+      // generation would mis-mark the new `.bak`; drop it before reusing the slot.
+      await this.clearObsoleteMarker(backupPath)
     }
     let hasBackup = false
     let publishStarted = false

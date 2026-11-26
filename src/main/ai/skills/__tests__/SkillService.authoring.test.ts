@@ -1146,6 +1146,88 @@ describe('SkillService authoring and remote updates', () => {
     await expect(fs.promises.access(path.join(backupPath, 'SKILL.md'))).resolves.toBeUndefined()
   })
 
+  it('retires an obsolete backup before reusing the slot so an interrupted retry preserves edits', async () => {
+    const destPath = path.join(skillsRoot, 'writer')
+    const backupPath = path.join(skillsRoot, '.writer.bak')
+    const oldDir = path.join(root, 'old-obsolete-reuse')
+    const newDir = path.join(root, 'new-obsolete-reuse')
+    const sourceDir = path.join(root, 'source-obsolete-reuse')
+    await writeSkill(oldDir, { supportingContent: 'echo old\n' })
+    await writeSkill(newDir, { supportingContent: 'echo new\n' })
+    await writeSkill(sourceDir, { supportingContent: 'echo replacement\n' })
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.rm(`${backupPath}.obsolete`, { force: true })
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.cp(oldDir, backupPath, { recursive: true })
+    const baseline = await installer.computeContentHash(newDir)
+
+    // Fail `.bak` -> `.cleanup` staging so recovery leaves an obsolete `.bak`
+    // with a durable `<backup>.obsolete` record.
+    const originalRename = fs.promises.rename
+    const stagingSpy = vi.spyOn(fs.promises, 'rename').mockImplementation(async (...args: unknown[]) => {
+      const [from, to] = args as [string, string]
+      if (from === backupPath && to === path.join(skillsRoot, '.writer.cleanup')) {
+        throw Object.assign(new Error('staging failed'), { code: 'EACCES' })
+      }
+      return (originalRename as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    try {
+      await installer.recoverInterruptedInstallWithBaseline(destPath, baseline)
+    } finally {
+      stagingSpy.mockRestore()
+    }
+    await expect(fs.promises.access(`${backupPath}.obsolete`)).resolves.toBeUndefined()
+
+    // User edits before the next retry: the destination no longer matches the baseline.
+    await fs.promises.writeFile(path.join(destPath, 'scripts', 'run.sh'), 'echo edited\n', 'utf-8')
+
+    // The retry must retire the obsolete tree and its record before reusing `.bak`.
+    // At copy time the new `.bak` (edited tree) must not inherit the stale record,
+    // otherwise a crash after `rename(dest, .bak)` would delete the only copy.
+    const originalCopyFile = fs.promises.copyFile
+    let observedObsoleteDuringCopy: boolean | null = null
+    const copySpy = vi.spyOn(fs.promises, 'copyFile').mockImplementation(async (...args: unknown[]) => {
+      if (observedObsoleteDuringCopy === null) {
+        try {
+          await fs.promises.access(`${backupPath}.obsolete`)
+          observedObsoleteDuringCopy = true
+        } catch {
+          observedObsoleteDuringCopy = false
+        }
+      }
+      return (originalCopyFile as (...a: unknown[]) => Promise<void>)(...args)
+    })
+    try {
+      const prepared = await installer.prepareInstall(sourceDir, destPath, baseline)
+      await prepared.commit()
+    } finally {
+      copySpy.mockRestore()
+    }
+
+    expect(observedObsoleteDuringCopy).toBe(false)
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo replacement\n'
+    )
+    await expect(fs.promises.lstat(backupPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(fs.promises.lstat(`${backupPath}.obsolete`)).rejects.toMatchObject({ code: 'ENOENT' })
+    const stashes = (await fs.promises.readdir(skillsRoot)).filter((name) => name.startsWith('.writer.bak.stash-'))
+    expect(stashes).toEqual([])
+
+    // Simulate the crash window with the fixed layout: `dest` missing, `.bak` holds
+    // the only copy of the edits, and no stale `.obsolete` remains. Recovery must
+    // restore the edits instead of deleting them.
+    await fs.promises.rm(destPath, { recursive: true, force: true })
+    await fs.promises.rm(backupPath, { recursive: true, force: true })
+    await fs.promises.cp(newDir, destPath, { recursive: true })
+    await fs.promises.writeFile(path.join(destPath, 'scripts', 'run.sh'), 'echo edited\n', 'utf-8')
+    await fs.promises.rename(destPath, backupPath)
+    await expect(fs.promises.lstat(destPath)).rejects.toMatchObject({ code: 'ENOENT' })
+
+    await installer.recoverInterruptedInstallWithBaseline(destPath, baseline)
+    await expect(fs.promises.readFile(path.join(destPath, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe('echo edited\n')
+  })
+
   it('restores the only complete copy when the replacement is partial and no tree matches the baseline', async () => {
     const destPath = path.join(skillsRoot, 'writer')
     const backupPath = path.join(skillsRoot, '.writer.bak')
