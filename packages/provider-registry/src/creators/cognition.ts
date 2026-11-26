@@ -19,6 +19,10 @@ const swe21Reasoning = {
 export default defineCreator({
   id: 'cognition',
   name: 'Cognition',
+  reasoningFamilies: [
+    { pattern: '^swe-2(?:-flash)?$', effort: swe2Reasoning.controls[0].values },
+    { pattern: '^swe-2[.-]1(?:-ultrafast)?$', effort: swe21Reasoning.controls[0].values }
+  ],
   models: [
     { ...swe, id: 'swe-1-6', name: 'SWE-1.6' },
     { ...swe, id: 'swe-1-7', name: 'SWE-1.7' },
