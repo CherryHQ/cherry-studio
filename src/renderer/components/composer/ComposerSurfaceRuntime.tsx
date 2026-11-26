@@ -137,7 +137,7 @@ interface ComposerFocusRestoreSnapshot {
 export interface ComposerSurfaceActions {
   focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
-  replaceDraft: (draft: ComposerSerializedDraft) => void
+  replaceDraft: (draft: ComposerSerializedDraft, options?: { emitUpdate?: boolean }) => boolean
   appendText: (text: string) => boolean
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
@@ -376,15 +376,15 @@ function addMissingToken(
   insertComposerTokenAtCursor(editor, token)
 }
 
-/** Sole write path for `emitUpdate: false` content: keeps the last-serialized-draft ref in step
- *  with the document, so a torn-down `getDraft()` serves an atomic current pair, not a stale one. */
+/** Keeps the cached draft current even when replacing content without an update event. */
 function setComposerEditorContent(
   editor: Editor,
   lastSerializedDraftRef: { current: ComposerSerializedDraft | null },
-  content: JSONContent
+  content: JSONContent,
+  emitUpdate = false
 ) {
   lastSerializedDraftRef.current = serializeComposerDocument(content)
-  editor.commands.setContent(content, { emitUpdate: false })
+  editor.commands.setContent(content, { emitUpdate })
 }
 
 function hasComposerTokenBeforeSelection(editor: Editor) {
@@ -1014,18 +1014,20 @@ export default function ComposerSurfaceRuntime({
   }, [])
 
   const replaceDraft = useCallback(
-    (draft: ComposerSerializedDraft) => {
+    (draft: ComposerSerializedDraft, options?: { emitUpdate?: boolean }) => {
       const editor = editorRef.current
-      if (!editor || editor.isDestroyed) return
+      if (!editor || editor.isDestroyed) return false
 
       textRef.current = draft.text
       pendingLocalTextEchoRef.current = null
       setComposerEditorContent(
         editor,
         lastSerializedDraftRef,
-        createComposerDraftContent(draft, { literalFencedCode: markdownLivePreview })
+        createComposerDraftContent(draft, { literalFencedCode: markdownLivePreview }),
+        options?.emitUpdate
       )
       trackedTokenSignatureRef.current = getTrackedTokenSignature(draft.tokens)
+      return true
     },
     [markdownLivePreview]
   )
@@ -2377,11 +2379,11 @@ export default function ComposerSurfaceRuntime({
   const compactControls = renderCompactControls?.(inputAdapter, unifiedPanelControl)
   const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
   const sendAction = showPauseButton ? (
-    <Tooltip content={t('chat.input.pause')} placement="top">
+    <Tooltip content={t('chat.input.pause')} placement="top" asChild>
       <button
         data-ui="chat.composer.action.pause"
         type="button"
-        className="text-error flex size-7.5 items-center justify-center rounded-full hover:bg-accent"
+        className="text-error flex size-7.5 shrink-0 items-center justify-center rounded-full hover:bg-accent"
         aria-label={t('chat.input.pause')}
         onClick={() => void onPause()}>
         <CirclePause size={20} />

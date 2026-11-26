@@ -11,6 +11,8 @@ const mint = (value: string): Key => value as Key // eslint-disable-line no-rest
 
 export const nativeSummaryKey = (compactionKey: string): Key => mint(`cherry.summary-usage:${compactionKey}`)
 
+export const subagentMessageKey = (child: ThreadId, run: number): Key => mint(`subagent-msg:${child}:${run}`)
+
 type NotifiedRun = { readonly child: ThreadId; readonly run: number }
 // Code-unit order, not localeCompare: the key must not depend on the host's locale.
 const byChildThenRun = ([childA, runA]: readonly [string, number], [childB, runB]: readonly [string, number]) =>
@@ -24,7 +26,7 @@ export const keys = {
     mint(`goal-round:${goalId}:r${round}:v${revision}:a${armSeq}`),
   goalAdmit: (roundKey: Key): Key => mint(`goal-admit:${roundKey}`),
   subagentSpawn: (call: CallKey): Key => mint(`subagent-spawn:${call}`),
-  subagentMessage: (child: ThreadId, run: number): Key => mint(`subagent-msg:${child}:${run}`),
+  subagentMessage: subagentMessageKey,
   subagentEnd: (child: ThreadId, run: number): Key => mint(`subagent-end:${child}:${run}`),
   /**
    * Keyed by the batch's content in any order; JSON-encoding the pairs keeps ids containing `:` apart. `stops` is

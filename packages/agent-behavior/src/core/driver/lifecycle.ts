@@ -12,6 +12,15 @@ import { runActive, startsTurn, stoppedTurn } from '../turns'
 import { goalStop, quietDelivery } from './idle'
 import { ensureDriver } from './jobs'
 
+/** Durable work the built-in lifecycle may reconcile in the absence of a schedulable task. */
+export function needsReopen(history: readonly HistoryEntry[]): boolean {
+  return (
+    currentGoal(history)?.phase === 'active' ||
+    readSubagents(history).some(({ latest }) => latest.status === 'running') ||
+    pendingResults(history).length > 0
+  )
+}
+
 /**
  * `onOpen` (D13, G-f, S-g; H12 stop before resume). `open.reopened` is the flag `onOpen` receives; `open.supportsTools`
  * whether the conversation's model can call tools (from the host's `Models.current`). On any open a goal whose model

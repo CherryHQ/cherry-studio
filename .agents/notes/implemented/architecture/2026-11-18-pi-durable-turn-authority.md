@@ -68,7 +68,7 @@ Durable follows an observation gap with a recovery snapshot, and the connection 
 
 A message sent while a turn runs is submitted to Durable and persisted at once:
 
-- Enter while busy sends a native follow-up (`whenBusy: 'follow-up'`). The `nativeFollowUp` runtime capability makes the composer send at once instead of using its follow-up dock.
+- Enter while busy sends a native follow-up (`whenBusy: 'follow-up'`). The `nativeFollowUp` runtime capability makes the composer submit at once. The follow-up dock displays the native queue.
 - The steer shortcut sends a steer (`whenBusy: 'steer'`) that Durable places before the next model call.
 
 The connection admits these sends while native work runs; it refuses input only during compaction. Main opens a queued input's reply when Durable places the input, so each queued input gets its own reply. A placement that arrives while the previous reply is still starting waits for it instead of joining it; steers placed into the running turn still share its continuation. Durable reports each input's outcome when the run ends, after the next input was placed; Main then replaces the earlier reply when its input did not complete, such as an answer cut off by the output limit. Main's own queue only holds input that Durable refuses, input whose submission fails before it reaches Durable, and input that arrives when no native work is running.
@@ -83,6 +83,10 @@ Product rows are projections of Durable's record. On reopen:
 Only replies that are still pending are rebuilt; a row already stored with a terminal status keeps it.
 
 Boot recovery never marks a `pi-durable` reply as `error` without a Durable outcome; it leaves an admitted delivery turn pending for the runtime to resume. When the recovered Session cannot connect, no runtime can resume the turn, and Main ends it as an error.
+
+Main adopts the resumed input and its reply before the startup delivery sweep. This lets a user follow-up that Durable already accepted open its own reply when placed, even if another Session also has a delivery waiting. The restored snapshot matches saved previews using native task and generation identity, preserving a single copy of interrupted output.
+
+Durable persists whether the running request has an interactive responder. On shutdown Main closes the native runtime before clearing the approval registry. A resumed interactive request can register a new pending approval or question against the restored turn. Requests with no recorded responder stay headless.
 
 ### Delivery
 
@@ -103,7 +107,7 @@ The decision shipped as a Spec-first stack:
 
 ## Consequences
 
-- A `pi-durable` message sent during a turn is saved before it runs, survives a crash, and gets its own reply. The follow-up dock is not used for `pi-durable`; Claude Code and Pi keep it.
+- A `pi-durable` message sent during a turn is saved before it runs, survives a crash, and gets its own reply. The follow-up dock displays pending input from Pi Durable; Claude Code and Pi keep their local queues.
 - When several messages are queued before the first of them is answered, the transcript lists those messages before their replies: each reply is saved at the end of the branch, after the messages already in it.
 - User rows of agent sessions gain a nullable `reply_id` column, added by an appended migration; rows saved before it fall back to their direct assistant child.
 - A message that Stop withdrew stays in the transcript, marked as not sent. Resend sends a new copy and keeps the marked row.

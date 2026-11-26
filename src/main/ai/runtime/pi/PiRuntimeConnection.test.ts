@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
 import { obj } from '@earendil-works/pi-schema'
+import { childTimeline } from '@test-helpers/childTimeline'
 import { setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
@@ -16,13 +17,17 @@ import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
 import type { PiThreadHandle } from '@cherrystudio/agent-runtime-pi'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
+import { savedChildView } from '@main/ai/agentSession/childArchive'
+import { childTimelines } from '@main/ai/agentSession/childTimelines'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
+import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
@@ -48,6 +53,7 @@ import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
+import { PiRuntimeDriver } from './PiRuntimeDriver'
 import { buildPiLoginPathPrefix } from './piShell'
 
 const modelId = 'test::test-model'
@@ -221,8 +227,11 @@ describe('desktop Pi root connection', () => {
       message: { id: uuid(), role: 'user', data: { parts: [{ type: 'text', text }] } }
     })
   }
-  async function connect() {
-    const connection = await new PiRuntimeConnection(input).start()
+  async function connect(rebuild = false) {
+    const connection = rebuild
+      ? await new PiRuntimeDriver().connect(input)
+      : await new PiRuntimeConnection(input).start()
+    if ('status' in connection) throw new Error(connection.reason)
     connections.push(connection)
     const nativeInputs: InputState[] = []
     const handle = (connection as unknown as { handle: PiThreadHandle }).handle
@@ -742,7 +751,7 @@ describe('desktop Pi root connection', () => {
     await done(events, 15_000)
     const firstChild = child
     expect(events.filter((event) => event.type === 'error')).toEqual([])
-    const access = await connection.childProjection('spawn')
+    const access = childTimeline(input.sessionId, 'spawn')
     expect(access).toBeDefined()
     expect(access!.snapshot().canSubmit).toBe(true)
     const childText = () =>
@@ -799,13 +808,13 @@ describe('desktop Pi root connection', () => {
     await connection.close()
     const requests = script.calls.length
     const reopened = (await connect()).connection
-    const recovered = await reopened.childProjection('spawn')
+    const recovered = childTimeline(input.sessionId, 'spawn')
     expect(recovered).toBeDefined()
     await expect
       .poll(() => recovered!.snapshot().messages.map((value) => value.id))
       .toEqual(archived.messages.map((value) => value.id))
     expect(script.calls.length).toBe(requests)
-    expect(contexts.findChild(input.sessionId, 'spawn')?.sessionId).toBe(archived.sessionId)
+    expect(contexts.childArchive(input.sessionId, 'spawn')?.sessionId).toBe(archived.sessionId)
     expect(() => preparePiBranch(archived.sessionId)).toThrow('native owner')
     await expect(reopened.messageChild(archived.contextId, 'continue after restart')).rejects.toThrow(
       'turn was stopped'
@@ -833,8 +842,14 @@ describe('desktop Pi root connection', () => {
     first.events.length = 0
     await first.connection.send({ message: message('delegate now') })
     await done(first.events)
-    const child = await first.connection.childProjection('spawn')
+    const child = childTimeline(input.sessionId, 'spawn')
     expect(child).toBeDefined()
+    await expect
+      .poll(() => child!.snapshot().messages.at(-1))
+      .toMatchObject({
+        metadata: { status: 'success' },
+        parts: [{ type: 'text', text: 'saved child answer' }]
+      })
     const archive = child!.snapshot()
     await first.connection.close()
     const createHost = piBehaviorHost.createPiBehaviorHost
@@ -848,7 +863,7 @@ describe('desktop Pi root connection', () => {
     const reopened = await connect()
     expect(script.calls).toHaveLength(before)
     expect(await reopened.connection.reconcile(input)).toBe('current')
-    expect(await reopened.connection.childProjection('spawn')).toBeUndefined()
+    expect(childTimeline(input.sessionId, 'spawn')?.snapshot().messages).toEqual(archive.messages)
     const saved = savedChildView(contexts.context(archive.contextId))
     expect(saved.available).toBe(false)
     expect(saved.messages).toEqual(archive.messages)
@@ -878,7 +893,7 @@ describe('desktop Pi root connection', () => {
     try {
       await connection.send({ message: message('delegate now') })
       await done(events)
-      const access = (await connection.childProjection('spawn'))!
+      const access = childTimeline(input.sessionId, 'spawn')!
       await connection.messageChild(access.snapshot().contextId, 'continue')
       await answering.reached
       let drained = false
@@ -932,15 +947,21 @@ describe('desktop Pi root connection', () => {
     try {
       await connection.send({ message: message('delegate now') })
       await configuring.reached
-      const attaching = connection.childProjection('spawn')
+      expect(childTimelines.source(input.sessionId, 'spawn').snapshot()).toBeNull()
       configuring.open()
-      const access = await attaching
-      expect(access).toBeDefined()
+      await expect.poll(() => !!childTimeline(input.sessionId, 'spawn')).toBe(true)
+      const access = childTimeline(input.sessionId, 'spawn')
       const updates: AgentChildUpdate[] = []
       access!.subscribe((update) => updates.push(update))
       answering.open()
       await expect
-        .poll(() => updates.some((update) => update.active && update.patches.some((patch) => patch.type === 'append')))
+        .poll(
+          () =>
+            access!.snapshot().active &&
+            updates.some(
+              (update) => update.type === 'parts' && update.patches.some((patch) => patch.type === 'part-append')
+            )
+        )
         .toBe(true)
       const partial = access!.snapshot()
       // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
@@ -987,12 +1008,11 @@ describe('desktop Pi root connection', () => {
     try {
       await connection.send({ message: message('delegate now') })
       await configuring.reached
-      const attaching = connection.childProjection('spawn')
+      expect(childTimelines.source(input.sessionId, 'spawn').snapshot()).toBeNull()
       if (outcome === 'closed') closing = connection.close()
       else configuring.open()
-      await expect(attaching).resolves.toBeUndefined()
       if (!closing) await done(events)
-      expect(contexts.findChild(input.sessionId, 'spawn')).toBeUndefined()
+      expect(contexts.childArchive(input.sessionId, 'spawn')).toBeUndefined()
       expect(script.calls.every((call) => call.sessionId === root)).toBe(true)
     } finally {
       configuring.open()
@@ -1129,7 +1149,9 @@ describe('desktop Pi root connection', () => {
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     expect(text(events)).toBe('Hello world')
-    expect(messages.inputBinding(input.sessionId, user.id)).toMatchObject({ nativeInputId: expect.any(String) })
+    expect(await connection.lookupInput(connection.contextId!, user.id)).toMatchObject({
+      value: { found: true, input: { inputId: user.id, outcome: 'completed' } }
+    })
     const completion = events.find((event) => event.type === 'turn-complete')
     expect(completion).toMatchObject({ forkAnchor: { checkpoint: { runtime: 'pi', leafId: expect.any(String) } } })
     expect(nativeFiles()).toHaveLength(1)
@@ -1255,7 +1277,7 @@ describe('desktop Pi root connection', () => {
     expect(JSON.stringify(script.calls[1].messages)).toContain('native tool result')
   })
 
-  it('rejects missing or ambiguous history without creating a replacement', async () => {
+  it('reports missing or ambiguous history without creating a replacement', async () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('save history') })
     await done(events)
@@ -1265,10 +1287,116 @@ describe('desktop Pi root connection', () => {
       application.getPath('feature.agents.pi.sessions', file),
       application.getPath('feature.agents.pi.sessions', `copy_${file}`)
     )
-    await expect(connect()).rejects.toThrow('ambiguous')
+    await expect(new PiRuntimeConnection(input).start()).resolves.toMatchObject({
+      status: 'native-context-unavailable',
+      reason: 'Pi session identity is ambiguous'
+    })
     for (const file of nativeFiles()) rmSync(application.getPath('feature.agents.pi.sessions', file))
-    await expect(connect()).rejects.toThrow('missing')
+    await expect(new PiRuntimeConnection(input).start()).resolves.toMatchObject({
+      status: 'native-context-unavailable',
+      reason: 'Pi session history is missing'
+    })
     expect(nativeFiles()).toEqual([])
+  })
+
+  it.each(['missing file', 'ambiguous files', 'mismatched file identity', 'missing binding', 'invalid token'])(
+    'rebuilds Pi context from the selected product history after %s',
+    async (failure) => {
+      const first = await connect()
+      const original = contexts.context(first.connection.contextId!)
+      const previous = message('Remember the blue notebook')
+      await first.connection.send({ message: previous })
+      await done(first.events)
+      const answer = messages.saveMessage({
+        sessionId: input.sessionId,
+        runtimeResumeToken: original.nativeThreadId!,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Notebook saved' }] } }
+      })
+      await first.connection.close()
+      input.branchHead = answer.id
+      const file = nativeFiles()[0]
+      const path = application.getPath('feature.agents.pi.sessions', file)
+      if (failure === 'missing file') rmSync(path)
+      if (failure === 'ambiguous files')
+        copyFileSync(path, application.getPath('feature.agents.pi.sessions', `copy_${file}`))
+      if (failure === 'mismatched file identity') {
+        const [header, ...entries] = readFileSync(path, 'utf8').split('\n')
+        writeFileSync(path, [JSON.stringify({ ...JSON.parse(header), id: uuid() }), ...entries].join('\n'))
+      }
+      if (failure === 'missing binding') {
+        dbh.db.transaction((tx) => contexts.detachBranchTx(tx, original.id))
+        rmSync(path)
+      }
+      if (failure === 'invalid token') {
+        input.resumeToken = '../invalid'
+        dbh.db
+          .update(agentSessionContextTable)
+          .set({ nativeThreadId: input.resumeToken })
+          .where(eq(agentSessionContextTable.id, original.id))
+          .run()
+      }
+
+      const next = message('What should you remember?')
+      if (failure === 'missing file') {
+        dbh.db.transaction((tx) => {
+          messages.bindInputContextTx(tx, input.sessionId, next.id, original.id)
+          tx.update(agentSessionMessageTable)
+            .set({ nativeInputId: 'stale-input' })
+            .where(eq(agentSessionMessageTable.id, next.id))
+            .run()
+        })
+      }
+      setScript([assistantReply('Context recovered')])
+      const rebuilt = await connect(true)
+      expect(rebuilt.connection.contextId).not.toBe(original.id)
+      expect(script.calls).toHaveLength(0)
+      await rebuilt.connection.send({
+        message: next,
+        context: await readSessionHistory(input.sessionId, next.id, rebuilt.connection.contextId)
+      })
+      await done(rebuilt.events)
+      expect(text(rebuilt.events)).toBe('Context recovered')
+      const request = JSON.stringify(script.calls[0].messages)
+      expect(request).toContain('Remember the blue notebook')
+      expect(request).toContain('Notebook saved')
+      expect(messages.inputBinding(input.sessionId, next.id)).toMatchObject({ contextId: rebuilt.connection.contextId })
+      expect(messages.inputBinding(input.sessionId, next.id)?.nativeInputId).not.toBe('stale-input')
+      await rebuilt.connection.close()
+
+      input.resumeToken = original.nativeThreadId!
+      const reopened = await connect(true)
+      expect(reopened.connection.contextId).toBe(rebuilt.connection.contextId)
+      const followup = message('Continue again')
+      expect(await readSessionHistory(input.sessionId, followup.id, reopened.connection.contextId)).toBeUndefined()
+    }
+  )
+
+  it('reuses the original Pi history with a stale hint or missing product binding', async () => {
+    const first = await connect()
+    await first.connection.send({ message: message('Remember the blue notebook') })
+    await done(first.events)
+    const original = contexts.context(first.connection.contextId!)
+    const answer = messages.saveMessage({
+      sessionId: input.sessionId,
+      runtimeResumeToken: original.nativeThreadId!,
+      message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Hello world' }] } }
+    })
+    await first.connection.close()
+    input.branchHead = answer.id
+    input.resumeToken = 'stale-token'
+    const reopened = await connect(true)
+    expect(reopened.connection.contextId).toBe(original.id)
+    await reopened.connection.close()
+    dbh.db.transaction((tx) => contexts.detachBranchTx(tx, original.id))
+
+    const restored = await connect(true)
+    expect(contexts.context(restored.connection.contextId!).nativeThreadId).toBe(original.nativeThreadId)
+    const next = message('What should you remember?')
+    expect(await readSessionHistory(input.sessionId, next.id, restored.connection.contextId)).toBeUndefined()
+    await restored.connection.send({ message: next })
+    await done(restored.events)
+    expect(JSON.stringify(script.calls[1].messages)).toContain('Remember the blue notebook')
+    expect(nativeFiles()).toHaveLength(1)
   })
 
   it('never initializes a missing file for a prepared but unresolved submission', async () => {
@@ -1276,7 +1404,10 @@ describe('desktop Pi root connection', () => {
     const context = preparePiBranch(input.sessionId)
     prepareNativeSubmission(input.sessionId, user.id, context.id, 'reject')
     expect(context.bindingState).toBe('pending')
-    await expect(connect()).rejects.toThrow('missing')
+    await expect(new PiRuntimeConnection(input).start()).resolves.toMatchObject({
+      status: 'native-context-unavailable',
+      reason: 'Pi session history is missing'
+    })
     expect(nativeFiles()).toEqual([])
   })
 
@@ -1510,7 +1641,7 @@ describe('desktop Pi root connection', () => {
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     expect(JSON.stringify(script.calls[0].messages)).toContain(JSON.stringify(attachmentPath).slice(1, -1))
-    expect(messages.inputBinding(input.sessionId, user.id)?.nativeInputId).toBeDefined()
+    expect(messages.inputBinding(input.sessionId, user.id)?.contextId).toBe(connection.contextId)
     const saved = messages.getSessionMessage(input.sessionId, user.id)
     expect(saved).not.toHaveProperty('inputContextId')
     expect(saved).not.toHaveProperty('nativeInputId')
@@ -1596,8 +1727,8 @@ describe('desktop Pi root connection', () => {
     try {
       await connection.send({ message: message('delegate retry work') })
       await expect.poll(() => childSessions.size, { timeout: 10000 }).toBe(2)
-      const first = await connection.childProjection('retry-A')
-      const second = await connection.childProjection('retry-B')
+      const first = childTimeline(input.sessionId, 'retry-A')
+      const second = childTimeline(input.sessionId, 'retry-B')
       expect(first).toBeDefined()
       expect(second).toBeDefined()
       const detachFirst = first!.subscribe(() => {})
@@ -1611,11 +1742,10 @@ describe('desktop Pi root connection', () => {
         await expect.poll(() => statuses(first!), { timeout: 10000 }).toHaveLength(1)
         await expect.poll(() => statuses(second!), { timeout: 10000 }).toHaveLength(1)
         expect(statuses(first!)[0]).not.toEqual(statuses(second!)[0])
-        expect(
-          events.flatMap((event) =>
-            event.type === 'chunk' && event.chunk.type === 'data-retry' ? [event.chunk.data] : []
-          )
-        ).toEqual([{ state: 'retrying', modelId: 'root-model', attempt: 2, reason: 'http 429' }, { state: 'settled' }])
+        expect(events.flatMap((event) => (event.type === 'data-retry' ? [event.data] : []))).toEqual([
+          { state: 'retrying', modelId: 'root-model', attempt: 2, reason: 'http 429' },
+          { state: 'settled' }
+        ])
         held.open()
         await expect.poll(() => statuses(first!), { timeout: 10000 }).toEqual([])
         await expect.poll(() => statuses(second!), { timeout: 10000 }).toEqual([])

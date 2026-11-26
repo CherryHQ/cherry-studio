@@ -198,7 +198,12 @@ export function useS3RestoreModal({
       toast.success(t('message.restore.success'))
       setIsRestoreModalVisible(false)
     } catch (error) {
-      toast.error(getLocalizedBackupErrorMessage(error, 'message.restore.failed'))
+      void popup.error({
+        title: t('message.restore.failed'),
+        content: getLocalizedBackupErrorMessage(error, 'message.restore.failed'),
+        centered: true,
+        maskClosable: false
+      })
     } finally {
       setRestoring(false)
     }
