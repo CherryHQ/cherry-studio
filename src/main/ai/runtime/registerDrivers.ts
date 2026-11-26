@@ -12,7 +12,7 @@ import {
   createClaudeCodeRuntimeDriver,
   readClaudeTranscriptEvidence
 } from './claudeCode'
-import { LocalRuntimeDriver } from './localAgent/LocalRuntimeDriver'
+import { LocalRuntimeDriver } from './LocalRuntimeDriver'
 import { listEntries, reclaimStale } from './orphanSessionReclaim'
 import { PiRuntimeDriver } from './pi/PiRuntimeDriver'
 import { PiDurableRuntimeDriver } from './piDurable/PiDurableRuntimeDriver'

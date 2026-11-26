@@ -1,6 +1,12 @@
 import type { Document } from 'yaml'
 
-import type { CliInstallPlan } from '@cherrystudio/agent-runtime/cli'
+import { cliConfigRecord as acpConfigRecord, type CliInstallPlan } from '@cherrystudio/agent-runtime/cli'
+
+export { acpConfigRecord }
+export { tomlModelField, type TomlModelProfile } from '@cherrystudio/agent-runtime/cli'
+
+export type { PermissionModeCatalog } from '@cherrystudio/agent-runtime/cli'
+export type { AcpPermissionModes } from './permissionMode'
 
 export type AcpEnv = Record<string, string | undefined>
 export type AcpLaunch = { args: string[]; env: Record<string, string>; nativeModel?: string }
@@ -51,25 +57,6 @@ export function jsonModelField<Target extends string>(target: Target, ...path: s
       return typeof value === 'string' && value ? value : undefined
     },
     writeModel: (_doc, model) => [[path, model]]
-  }
-}
-
-export interface TomlModelProfile<Target extends string = string> {
-  format: 'toml'
-  target: Target
-  readModel(document: Record<string, unknown>): string | undefined
-  writeModel(document: Record<string, unknown>, model: string | undefined): void
-}
-
-export function tomlModelField<Target extends string>(target: Target, key: string): TomlModelProfile<Target> {
-  return {
-    format: 'toml',
-    target,
-    readModel: (doc) => (typeof doc[key] === 'string' ? doc[key] : undefined),
-    writeModel(doc, model) {
-      if (model === undefined) delete doc[key]
-      else doc[key] = model
-    }
   }
 }
 
@@ -150,10 +137,6 @@ export function acpProviderModelGateway(doc: Record<string, unknown>, model: str
 export function acpGatewayPath(api: unknown) {
   if (api === 'anthropic' || api === 'anthropic_messages' || api === 'anthropic-messages') return '/v1/messages'
   return api === 'responses' || api === 'openai-responses' ? '/v1/responses' : '/v1/chat/completions'
-}
-
-export function acpConfigRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
 }
 
 export interface AcpHostBinary {

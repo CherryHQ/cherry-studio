@@ -1,8 +1,13 @@
+import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const hermesCli = {
   modelConfig: { target: 'hermes-config', overrides: ['HERMES_HOME'] },
   id: 'hermes',
   terminalArgs: [],
-  permissionMode: { values: { session: { canonicalMode: 'auto', priority: 0 } } },
+  permissionMode: {
+    values: { ask: 'default', workspace_session: 'acceptEdits', session: 'auto' },
+    configIds: ['edit_approval_policy']
+  } satisfies AcpPermissionModes,
   name: 'Hermes',
   protocol: 'acp',
   executable: 'hermes',

@@ -1,17 +1,16 @@
 import { createInstance } from 'i18next'
 import { beforeAll, describe, expect, it } from 'vitest'
 
+import { acpPermissionChoice } from '@cherrystudio/agent-runtime-acp/v1'
 import en from '@renderer/i18n/locales/en-us.json'
 import zh from '@renderer/i18n/locales/zh-cn.json'
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
-import type { LocalAgentConfigOption } from '@shared/ai/localAgent'
+import { getDefaultLocalAgentMode, localCliPresetById, type LocalAgentConfigOption } from '@shared/ai/localAgent'
 
 import {
   findLocalDefaultNonPlanOption,
   findLocalPermissionConfigOption,
   findLocalPlanModeOption,
-  getLocalOptionRiskLevel,
-  isHighRiskLocalOption,
   isLocalThoughtConfigOption,
   isUnifiedLocalPermissionMode,
   localAgentConfigOptions,
@@ -235,7 +234,7 @@ describe('installed agent translations', () => {
     expect(options[0].name).toBe('Allow All')
   })
 
-  it('translates Codex read-only/workspace modes and detects high-risk permission options', () => {
+  it('translates Codex read-only/workspace modes and selects a safe mode when leaving Plan', () => {
     const mode = {
       id: 'codex-mode',
       currentValue: 'workspace',
@@ -256,46 +255,7 @@ describe('installed agent translations', () => {
       'Full Access (High Risk)'
     ])
 
-    expect(isHighRiskLocalOption({ kind: 'mode', optionId: 'mode', value: 'yolo', name: 'YOLO' })).toBe(true)
-    expect(isHighRiskLocalOption({ kind: 'mode', optionId: 'mode', value: 'autopilot', name: 'Autopilot' })).toBe(true)
-    expect(isHighRiskLocalOption({ kind: 'mode', optionId: 'mode', value: 'danger-full-access' })).toBe(true)
-    expect(isHighRiskLocalOption({ kind: 'mode', optionId: 'mode', value: 'workspace', name: 'Workspace' })).toBe(false)
-
-    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'allow_all', value: true })).toBe(true)
-    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'allow_all', value: 'on' })).toBe(true)
-    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'allow_all', value: false })).toBe(false)
-    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'allow_all', value: 'off' })).toBe(false)
-
-    expect(
-      isHighRiskLocalOption({ kind: 'config', optionId: 'sandbox', value: 'false', name: 'Local Environment' })
-    ).toBe(true)
-    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'sandbox', value: false })).toBe(true)
-    expect(
-      isHighRiskLocalOption({ kind: 'config', optionId: 'sandbox', value: 'true', name: 'Sandbox Environment' })
-    ).toBe(false)
-
-    expect(getLocalOptionRiskLevel({ kind: 'mode', optionId: 'mode', value: 'plan', name: 'Plan' })).toBe('readonly')
-    expect(getLocalOptionRiskLevel({ kind: 'mode', optionId: 'mode', value: 'readOnly', name: 'Read Only' })).toBe(
-      'readonly'
-    )
-    expect(
-      getLocalOptionRiskLevel({ kind: 'mode', optionId: 'mode', value: 'acceptEdits', name: 'Accept Edits' })
-    ).toBe('auto_edit')
-    expect(getLocalOptionRiskLevel({ kind: 'mode', optionId: 'mode', value: 'workspace', name: 'Workspace' })).toBe(
-      'auto_edit'
-    )
-    expect(getLocalOptionRiskLevel({ kind: 'mode', optionId: 'mode', value: 'default', name: 'Default' })).toBe('ask')
-    expect(getLocalOptionRiskLevel({ kind: 'mode', optionId: 'mode', value: 'yolo', name: 'YOLO' })).toBe('full_access')
-
-    const codexMode = {
-      id: 'codex-mode',
-      currentValue: 'fullAccess',
-      options: [
-        { value: 'fullAccess', name: 'Full Access' },
-        { value: 'readOnly', name: 'Read Only' },
-        { value: 'workspace', name: 'Workspace' }
-      ]
-    }
+    const codexMode = getDefaultLocalAgentMode('codex')!
     expect(findLocalPlanModeOption(codexMode)?.value).toBe('readOnly')
     expect(findLocalDefaultNonPlanOption(codexMode, 'readOnly')?.value).toBe('workspace')
 
@@ -303,8 +263,8 @@ describe('installed agent translations', () => {
       id: 'mode',
       currentValue: 'plan',
       options: [
-        { value: 'plan', name: 'Plan' },
-        { value: 'yolo', name: 'YOLO' }
+        { value: 'plan', name: 'Plan', permissionMode: 'plan' as const },
+        { value: 'yolo', name: 'YOLO', requiresConfirmation: true as const }
       ]
     }
     expect(findLocalDefaultNonPlanOption(riskyOnlyMode, 'plan')).toBeUndefined()
@@ -335,62 +295,30 @@ describe('installed agent translations', () => {
     expect(qwenLocalized[0]?.name).toBe(zh['code.adv.permission_modes.auto_edit'])
   })
 
-  it('localizes the canonical permission tiers and flags full access', () => {
-    const claude = resolveUnifiedLocalPermissionModes(
-      {
-        id: 'claude-mode',
-        currentValue: 'default',
-        options: [
-          { value: 'bypassPermissions', name: 'Bypass Permissions' },
-          { value: 'auto', name: 'Auto' },
-          { value: 'default', name: 'Default' },
-          { value: 'plan', name: 'Plan' },
-          { value: 'acceptEdits', name: 'Accept Edits' }
-        ]
-      },
-      i18n.t,
-      'claude'
-    )
+  it('exposes the declared Claude permission choices in menu order', () => {
+    const claude = resolveUnifiedLocalPermissionModes(getDefaultLocalAgentMode('claude'))
     expect(claude?.currentCanonicalMode).toBe('default')
-    expect(claude?.options.map((o) => [o.canonicalMode, o.value, o.name, o.dangerous])).toEqual([
-      ['plan', 'plan', zh['agent.settings.tooling.permissionMode.plan.title'], false],
-      ['default', 'default', zh['agent.settings.tooling.permissionMode.default.title'], false],
-      ['acceptEdits', 'acceptEdits', zh['agent.settings.tooling.permissionMode.acceptEdits.title'], false],
-      ['auto', 'auto', zh['agent.settings.tooling.permissionMode.auto.title'], false],
-      [
-        'bypassPermissions',
-        'bypassPermissions',
-        zh['agent.settings.tooling.permissionMode.bypassPermissions.title'],
-        true
-      ]
-    ])
-  })
-
-  it('excludes unmapped CodeBuddy modes from the unified selector', () => {
-    const codebuddy = resolveUnifiedLocalPermissionModes(
-      {
-        id: 'mode',
-        currentValue: 'default',
-        options: [
-          { value: 'default', name: 'Default' },
-          { value: 'acceptEdits', name: 'Accept Edits' },
-          { value: 'plan', name: 'Plan' },
-          { value: 'auto', name: 'Auto' },
-          { value: 'dontAsk', name: "Don't Ask" },
-          { value: 'bypassPermissions', name: 'Bypass Permissions' },
-          { value: 'delegate', name: 'Delegate' }
-        ]
-      },
-      i18n.t,
-      'codebuddy-code'
-    )
-    expect(codebuddy?.options.map((o) => o.canonicalMode)).toEqual([
+    expect(claude?.options.map(({ canonicalMode }) => canonicalMode)).toEqual([
       'plan',
       'default',
       'acceptEdits',
       'auto',
       'bypassPermissions'
     ])
+  })
+
+  it('keeps a native catalog with unmapped choices available in the native selector', () => {
+    const mode = {
+      id: 'mode',
+      currentValue: 'default',
+      options: [
+        { value: 'default', name: 'Default', permissionMode: 'default' as const },
+        { value: 'plan', name: 'Plan', permissionMode: 'plan' as const },
+        { value: 'delegate', name: 'Delegate' }
+      ]
+    }
+    expect(isUnifiedLocalPermissionMode(mode)).toBe(false)
+    expect(localAgentModeOptions(mode, i18n.t, 'codebuddy-code').map(({ value }) => value)).toContain('delegate')
   })
 
   it('keeps Pi thinking modes out of the permission selector', () => {
@@ -402,90 +330,33 @@ describe('installed agent translations', () => {
         { value: 'medium', name: 'Thinking: medium' }
       ]
     }
-    expect(isUnifiedLocalPermissionMode(piMode, 'pi-acp')).toBe(false)
-    expect(resolveUnifiedLocalPermissionModes(piMode, i18n.t, 'pi-acp')).toBeUndefined()
+    expect(isUnifiedLocalPermissionMode(piMode)).toBe(false)
+    expect(resolveUnifiedLocalPermissionModes(piMode)).toBeUndefined()
   })
 
-  it('reads permissions from native config options for MiniMax and Amp', () => {
-    const minimaxPerm = findLocalPermissionConfigOption(
-      [
-        {
-          id: 'permission_mode',
-          name: 'Permission mode',
-          type: 'select',
-          currentValue: 'auto',
-          options: [
-            { value: 'ask', name: 'Ask' },
-            { value: 'auto', name: 'Auto' },
-            { value: 'full_access', name: 'Full access' }
-          ]
-        }
-      ],
-      'minimax'
-    )
-    const minimaxUnified = resolveUnifiedLocalPermissionModes(minimaxPerm, i18n.t, 'minimax')
-    expect(minimaxUnified?.currentCanonicalMode).toBe('auto')
-    expect(minimaxUnified?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
-      ['default', 'ask'],
-      ['auto', 'auto'],
-      ['bypassPermissions', 'full_access']
+  it('reads permissions from an annotated native config option', () => {
+    const permissions = findLocalPermissionConfigOption([
+      {
+        id: 'permissions',
+        name: 'Permissions',
+        application: 'session',
+        type: 'select',
+        currentValue: 'bypass',
+        options: [
+          { value: 'default', name: 'Default', permissionMode: 'default' },
+          { value: 'bypass', name: 'Bypass', permissionMode: 'bypassPermissions' }
+        ]
+      }
     ])
-
-    const ampPerm = findLocalPermissionConfigOption(
-      [
-        {
-          id: 'permissions',
-          name: 'Permissions',
-          type: 'select',
-          currentValue: 'default',
-          options: [
-            { value: 'default', name: 'Default' },
-            { value: 'bypass', name: 'Bypass' }
-          ]
-        }
-      ],
-      'amp-acp'
-    )
-    const ampUnified = resolveUnifiedLocalPermissionModes(ampPerm, i18n.t, 'amp-acp')
-    expect(ampUnified?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
+    const unified = resolveUnifiedLocalPermissionModes(permissions)
+    expect(unified?.currentCanonicalMode).toBe('bypassPermissions')
+    expect(unified?.options.map((o) => [o.canonicalMode, o.value])).toEqual([
       ['default', 'default'],
       ['bypassPermissions', 'bypass']
     ])
   })
 
   it.each([
-    {
-      presetId: 'codex',
-      id: 'codex-mode',
-      currentValue: 'workspace',
-      options: [
-        ['readOnly', 'Read Only'],
-        ['workspace', 'Workspace'],
-        ['fullAccess', 'Full Access']
-      ],
-      expected: [
-        ['plan', 'readOnly'],
-        ['acceptEdits', 'workspace'],
-        ['bypassPermissions', 'fullAccess']
-      ],
-      currentCanonicalMode: 'acceptEdits'
-    },
-    {
-      presetId: 'deepseek-harness',
-      id: 'dsh-mode',
-      currentValue: 'workspace-write',
-      options: [
-        ['read-only', 'Read Only'],
-        ['workspace-write', 'Workspace'],
-        ['danger-full-access', 'Full Access']
-      ],
-      expected: [
-        ['plan', 'read-only'],
-        ['acceptEdits', 'workspace-write'],
-        ['bypassPermissions', 'danger-full-access']
-      ],
-      currentCanonicalMode: 'acceptEdits'
-    },
     {
       presetId: 'zcode',
       id: 'mode',
@@ -518,20 +389,6 @@ describe('installed agent translations', () => {
         ['plan', 'plan'],
         ['default', 'agent'],
         ['bypassPermissions', 'autopilot']
-      ]
-    },
-    {
-      presetId: 'cursor',
-      id: 'mode',
-      currentValue: 'agent',
-      options: [
-        ['agent', 'Agent'],
-        ['plan', 'Plan'],
-        ['ask', 'Ask']
-      ],
-      expected: [
-        ['plan', 'plan'],
-        ['acceptEdits', 'agent']
       ]
     },
     {
@@ -575,7 +432,7 @@ describe('installed agent translations', () => {
         ['auto-approve', 'auto-approve']
       ],
       expected: [
-        ['plan', 'ask'],
+        ['default', 'ask'],
         ['acceptEdits', 'accept-edits'],
         ['bypassPermissions', 'auto-approve']
       ]
@@ -614,9 +471,11 @@ describe('installed agent translations', () => {
     const mode = {
       id: scenario.id,
       currentValue: scenario.currentValue,
-      options: scenario.options.map(([value, name]) => ({ value, name }))
+      options: scenario.options.map(([value, name]) =>
+        acpPermissionChoice({ value, name }, 'mode', localCliPresetById.get(scenario.presetId)?.permissionMode)
+      )
     }
-    const result = resolveUnifiedLocalPermissionModes(mode, i18n.t, scenario.presetId)
+    const result = resolveUnifiedLocalPermissionModes(mode)
     expect(result?.options.map((option) => [option.canonicalMode, option.value])).toEqual(scenario.expected)
     if (scenario.currentCanonicalMode) expect(result?.currentCanonicalMode).toBe(scenario.currentCanonicalMode)
   })

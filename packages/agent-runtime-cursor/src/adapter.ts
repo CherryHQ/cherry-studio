@@ -8,7 +8,7 @@ import {
   type SendOptions
 } from '@cursor/sdk'
 
-import { cursorLoginMethod } from './cli'
+import { cursorLoginMethod, type CursorPermissionMode } from './cli'
 
 export type { Run, SDKAgent, SDKUserMessage } from '@cursor/sdk'
 
@@ -49,7 +49,7 @@ export function openCursorSession(input: {
 export function sendCursorTurn(
   agent: Pick<SDKAgent, 'send'>,
   prompt: SDKUserMessage,
-  mode: 'plan' | 'agent',
+  mode: CursorPermissionMode,
   host: {
     append(kind: 'text' | 'reasoning', text: string): void
     toolStarted(id: string, name: string, args: Record<string, unknown>): void
@@ -77,5 +77,5 @@ export function sendCursorTurn(
       )
     }
   }
-  return agent.send(prompt, { mode, onDelta })
+  return agent.send(prompt, { mode: mode === 'plan' ? 'plan' : 'agent', onDelta })
 }

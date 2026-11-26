@@ -8,15 +8,14 @@ import {
   type ClaudeControl,
   type ClaudeObservation
 } from '@cherrystudio/agent-runtime-claude-code'
+import { CLAUDE_PERMISSION_MODES } from '@cherrystudio/agent-runtime-claude-code/cli'
+import { selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
 import { agentService } from '@data/services/AgentService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import {
-  CLAUDE_LOCAL_MODE_ID,
-  CLAUDE_LOCAL_MODE_OPTIONS,
   CLAUDE_LOCAL_THOUGHT_LEVEL_ID,
   CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS,
-  getDefaultLocalAgentMode,
   getDefaultLocalAgentThoughtLevel,
   type LocalAgentConfiguration,
   type LocalAgentSessionInfo
@@ -27,11 +26,9 @@ import {
   acquireLocalAgentBrowserLease,
   isHostBrowserControlAllowed,
   LOCAL_AGENT_AUTOMATION_SERVER_NAME
-} from '../localAgent/browserBridge'
-import { bindLocalGatewayUsage } from '../localAgent/gatewayUsage'
-import { resolveClaudeLaunch } from '../localAgent/launch'
-import type { LocalAgentBrowserLease } from '../localAgent/LocalAgentMcpBridgeService'
-import { resolveLocalModelContextWindow } from '../localAgent/modelContextWindow'
+} from '../../mcp/localAgentBrowserBridge'
+import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeService'
+import { resolveLocalModelContextWindow } from '../modelContextWindow'
 import type {
   AgentRuntimeCommand,
   AgentRuntimeConnectInput,
@@ -41,6 +38,7 @@ import type {
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import { prepareClaudeBranch } from './claudeContext'
 import { ClaudeSdkConnection } from './ClaudeSdkConnection'
+import { resolveClaudeLaunch } from './localClaudeLaunch'
 
 const CLAUDE_DEFAULT_COMMANDS: AgentSessionSlashCommand[] = [
   { name: 'clear', description: 'Start a new conversation with empty context', argumentHint: '', builtin: true },
@@ -110,14 +108,16 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
     models: [],
     images: true,
     resume: true,
-    mode: getDefaultLocalAgentMode('claude'),
+    mode: { ...CLAUDE_PERMISSION_MODES, options: [...CLAUDE_PERMISSION_MODES.options] },
     thoughtLevel: getDefaultLocalAgentThoughtLevel('claude')
   }
-  private gatewayLease?: { dispose(): void }
+  get effectivePermissionMode() {
+    return this.permissionModeSource ? selectedPermissionMode(this.localSessionInfo.mode) : undefined
+  }
   private browserLease?: LocalAgentBrowserLease
   private readonly sessionAllowedTools = new Set<string>()
   private unattendedDenial = false
-  private modeSelected = false
+  private permissionModeSource?: 'native' | 'selection'
 
   constructor(
     input: AgentRuntimeConnectInput,
@@ -133,21 +133,15 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
   async start(cwd: string): Promise<this> {
     const { sessionId, agentId, headless = false, branchHead } = this.input
     const { signal } = this.abortController
-    const { configFiles, ...launch } = await resolveClaudeLaunch(
-      this.config,
-      cwd,
-      signal,
-      headless ? 'scheduled-chat' : 'chat'
-    )
+    const launch = await resolveClaudeLaunch(this.config, cwd, signal, headless ? 'scheduled-chat' : 'chat')
     signal.throwIfAborted()
-    this.gatewayLease = await bindLocalGatewayUsage(this.config, sessionId, launch.env, configFiles)
     this.browserLease = await acquireLocalAgentBrowserLease({
       sessionId,
       agentId,
       config: this.config,
       headless,
       signal,
-      isReadOnly: () => this.localSessionInfo.mode?.currentValue === 'plan'
+      isReadOnly: () => this.effectivePermissionMode === 'plan'
     })
     signal.throwIfAborted()
     this.processDiagnostics = createClaudeCodeProcessDiagnostics()
@@ -189,7 +183,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
             : { behavior: 'deny' as const, message: answer.reason ?? 'Denied by user' }
         }
 
-        const effectiveMode = this.localSessionInfo.mode?.currentValue
+        const effectiveMode = this.effectivePermissionMode
         if (effectiveMode === 'bypassPermissions' || this.sessionAllowedTools.has(name)) {
           return { behavior: 'allow' as const, updatedInput: input }
         }
@@ -313,13 +307,14 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
 
   async setMode(configId: string, value: string) {
     if (this.input.headless) throw new Error('Scheduled tasks use the agent configuration')
-    const selected = CLAUDE_LOCAL_MODE_OPTIONS.find((option) => option.value === value)
-    if (configId !== CLAUDE_LOCAL_MODE_ID || !selected) throw new Error('This session option is no longer available')
+    const selected = CLAUDE_PERMISSION_MODES.options.find((option) => option.value === value)
+    if (configId !== CLAUDE_PERMISSION_MODES.id || !selected)
+      throw new Error('This session option is no longer available')
     if (!this.handle || this.closing || this.handle.claude.state().active)
       throw new Error('Claude session is unavailable or busy')
     const result = await this.handle.claude.setPermissionMode(selected.value)
     if (result.status !== 'confirmed') throw new Error(result.error.message)
-    this.modeSelected = true
+    this.permissionModeSource = 'selection'
     this.updateSessionInfo({ mode: { ...this.localSessionInfo.mode!, currentValue: selected.value } })
     return this.localSessionInfo
   }
@@ -345,8 +340,9 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
     for (const item of batch.native) {
       if (item.source !== 'live') continue
       const message = item.message
-      if (!this.modeSelected && message.type === 'system' && message.subtype === 'init') {
-        const value = CLAUDE_LOCAL_MODE_OPTIONS.find((option) => option.value === message.permissionMode)?.value
+      if (this.permissionModeSource !== 'selection' && message.type === 'system' && message.subtype === 'init') {
+        const value = CLAUDE_PERMISSION_MODES.options.find((option) => option.value === message.permissionMode)?.value
+        this.permissionModeSource = value && !this.input.headless ? 'native' : undefined
         const mode = this.localSessionInfo.mode
         if (mode && value && value !== mode.currentValue)
           this.updateSessionInfo({ mode: { ...mode, currentValue: value } })
@@ -382,7 +378,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
           nativeSessionId: message.session_id,
           model,
           reportedAt: Date.now(),
-          correlation: this.gatewayLease ? 'gateway' : 'unknown',
+          correlation: 'unknown',
           usage: {
             inputTokens,
             outputTokens,
@@ -450,7 +446,6 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
 
   protected async disposeSettings() {
     this.abortController.abort()
-    this.gatewayLease?.dispose()
     await this.browserLease?.dispose()
   }
 }

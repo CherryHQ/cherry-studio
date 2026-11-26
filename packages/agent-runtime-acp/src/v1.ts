@@ -14,6 +14,8 @@ export {
 } from './host'
 export type { AcpHarnessAdapter, AcpHarnessSession } from './harness'
 export type { AcpLiveEvents, AcpLiveSession } from './live'
+export { acpPermissionChoice, acpPermissionControl } from './permissionMode'
+export { mapAcpPermissionOptions, type AcpPermissionOption, type AcpPermissionRequest } from './permissions'
 export { encodeAcpAttachment, type AcpAttachmentSource } from './prompt'
 export { createAcpRuntime } from './runtime'
 export { launchAcpStdio } from './stdioLauncher'

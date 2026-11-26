@@ -50,6 +50,32 @@
       }
     },
     {
+      "files": ["src/main/ai/runtime/{claudeCode,codex,cursor}/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@agentclientprotocol/sdk", "@agentclientprotocol/sdk/**"],
+                "message": "Use the runtime package for protocol operations."
+              },
+              {
+                "group": [
+                  "@main/ai/runtime/acp/**",
+                  "../acp/**",
+                  "../../acp/**",
+                  "@cherrystudio/agent-runtime-acp",
+                  "@cherrystudio/agent-runtime-acp/**"
+                ],
+                "message": "Use the runtime's own driver and shared desktop host operations."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": [
         "src/main/ai/agentSession/childTimelines.ts",
         "src/main/ai/agentSession/childArchive.ts",

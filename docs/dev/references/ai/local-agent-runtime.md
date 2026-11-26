@@ -3,21 +3,31 @@ description: Local CLI agent configuration, native model ownership, protocol dri
 sources:
   - src/shared/ai/localAgentUsage.ts
   - src/shared/ai/localAgent.ts
+  - src/shared/ai/agentPermissionMode.ts
   - src/shared/ai/agentSessionCost.ts
   - src/shared/ai/executionIdentity.ts
-  - src/main/ai/runtime/localAgent
+  - src/main/ai/runtime/LocalRuntimeDriver.ts
+  - src/main/ai/runtime/acp
+  - src/main/ai/runtime/cli
+  - src/main/ai/runtime/claudeCode/LocalClaudeConnection.ts
   - src/main/ai/runtime/codex
+  - src/main/ai/runtime/cursor
   - packages/agent-runtime-acp/src
   - packages/agent-runtime/src/cliLogin.ts
+  - packages/agent-runtime/src/permissionMode.ts
   - packages/agent-runtime-amp-acp/src
   - packages/agent-runtime-antigravity-acp/src
   - packages/agent-runtime-claude-code/src/localLaunch.ts
   - packages/agent-runtime-codebuddy-acp/src/cli.ts
   - packages/agent-runtime-codex/src
+  - packages/agent-runtime-cursor/src
+  - packages/agent-runtime-deepseek-harness-acp/src
   - packages/agent-runtime-kiro-acp/src
   - packages/agent-runtime-vibe-acp/src
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
-  - src/main/services/codeCli/CodeCliService.ts
+  - src/main/services/codeCli
+  - src/main/services/LocalAgentAuthService.ts
+  - src/main/ai/mcp/LocalAgentMcpBridgeService.ts
   - src/main/services/deepSeekHarness
   - src/main/services/OpenClawService.ts
   - src/main/features/apiGateway/proxyStream.ts
@@ -57,11 +67,16 @@ are preserved.
   transaction. Omitted fields retain their latest values and explicit `undefined`
   clears an optional field. Discovery, checks and session capability reads use IpcApi.
 - `AgentSessionRuntimeService` owns scheduling, approvals, persistence and disposal.
-  The local driver translates events from ACP, Cursor SDK, Claude Agent SDK and Codex App Server
-  into the shared runtime contract. Each turn establishes a source in its session
+  Session opening, connection checks and model discovery use the same adapter
+  table in `LocalRuntimeDriver`. The table loads the ACP, Cursor, Claude Code or
+  Codex adapter on demand. Each adapter publishes shared runtime events. Each turn
+  establishes a source in its session
   context before publishing addressed text, reasoning, plan and tool updates.
   Opening history reads known session capabilities. A command request or send can
   acquire a connection.
+- CLI-backed adapters share executable and environment resolution in `runtime/cli`.
+  The Code CLI service uses it for discovery and installation. Each adapter
+  supplies the launch policy for its own protocol.
 - ACP chat and Settings use separate entries in `@cherrystudio/agent-runtime-acp/v1`.
   Chat binds prompt, configuration, cancel and close to the native session ID. Checks
   and sign-in only perform the handshake and the requested authentication. Model
@@ -121,9 +136,11 @@ the Cherry model ID separately from the native ID and inject only Cherry gateway
 credentials. Switching back removes Cherry-owned configuration while preserving
 user settings and credentials.
 
-For a local launch, Main reads the files needed for startup and gateway attribution
-in one batch. The harness interprets the same file contents for both operations.
-Main verifies the model and gateway route before issuing a session-scoped credential.
+For a local launch, Main reads the files needed for startup and gateway binding
+in one batch. The harness interprets the same snapshot for both operations.
+When the launch can inject credentials, Main verifies the resolved route and
+obtains a session-scoped credential. Requests that use the public gateway key
+keep their provider usage records with no session association.
 
 For Grok Build, applying a Cherry model also binds the native `session_summary`
 and `prompt_suggestion` roles. User-pinned roles keep their own model. Gateway
@@ -135,7 +152,7 @@ New chats, terminal sessions and managed WebUIs use the native default. Model
 arguments, environment and project settings can override it. Open sessions keep
 their current model. Antigravity applies the saved ACP model when opening or
 resuming chat and retains a separate terminal default. Cline uses the active provider
-profile, including explicit overrides, for model selection and usage attribution.
+profile, including explicit overrides, for model selection.
 Presets without an applicable model control follow their CLI default.
 
 Presets with native files use the shared **CLI configuration files** editor,
@@ -169,7 +186,7 @@ the running service in a separate action. External services are open-only.
 ## Installation and connection
 
 The [preset catalog](../../../../src/shared/ai/localAgent.ts) and
-[installation recipes](../../../../src/main/ai/runtime/localAgent/installRecipe.ts)
+[installation recipes](../../../../src/main/services/codeCli/installRecipe.ts)
 own executable names, arguments and package sources.
 
 - Discovery favors system commands and user-directory entries over legacy mise
@@ -266,6 +283,11 @@ require confirmation. `Shift+Tab` switches between the active safe mode and the
 advertised plan or read-only mode. The renderer may display cached controls while
 reconnecting, with edits and attachment capability gated on live session data.
 
+The runtime maps its current permission setting to the shared Agent permission
+mode. Prompt suggestions stay disabled while either the Agent configuration or
+the live session requires Plan mode. The permission picker and Plan shortcut use
+the same native aliases when identifying full-access choices.
+
 ### Approval and content
 
 - Codex approval requests can inherit command, directory and file-change details
@@ -275,6 +297,21 @@ reconnecting, with edits and attachment capability gated on live session data.
 - ACP tools merge updates by native call ID. Standalone approval cards settle
   independently. Client file writes require approval. A delegated terminal creation
   needs its own approval or an explicit session grant under the default policy.
+- The Antigravity adapter interprets question requests, warning metadata and
+  session-scoped approval options. Main owns the approval lifecycle and records
+  Cherry grants. Selecting Cherry's session grant replies with the offered
+  native one-time approval ID.
+- Runtime packages declare permission choice semantics and application timing.
+  Claude and standard ACP controls update the live session. Codex and Cursor
+  apply their selection on the next turn. DeepSeek Harness applies it at launch,
+  so changing it closes the idle connection and the next open uses the saved
+  value.
+- The ACP adapter annotates the session's actual choices. The Composer uses
+  those annotations for its permission menu, risk confirmation and Plan
+  shortcut. Unmapped options remain available in the native configuration
+  menu. A label can trigger a risk confirmation but cannot authorize a host
+  operation. Option snapshots created before the annotation contract are
+  refreshed from the connection.
   Terminals are connection-owned and working directories provide no OS isolation.
   A command path with spaces runs directly when it resolves to an executable.
   A legacy command string without an argument array can run as approved shell input.

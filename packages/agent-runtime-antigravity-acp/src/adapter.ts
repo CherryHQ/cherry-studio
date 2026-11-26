@@ -2,8 +2,9 @@ import type { AcpCliInstaller, AcpEnv } from '@cherrystudio/agent-runtime-acp/pr
 import type { AcpHarnessAdapter } from '@cherrystudio/agent-runtime-acp/v1'
 
 import { antigravityCli } from './cli'
+import { antigravityPermissions } from './permissions'
 
-const antigravityAcpAdapter: AcpHarnessAdapter = { hostMutations: 'disabled' }
+const antigravityAcpAdapter = { ...antigravityPermissions, hostMutations: 'disabled' } satisfies AcpHarnessAdapter
 const antigravityFallback = {
   executable: antigravityCli.terminalCli.executable,
   args: ['acp'],

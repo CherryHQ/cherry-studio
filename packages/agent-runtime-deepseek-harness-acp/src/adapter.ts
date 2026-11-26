@@ -1,6 +1,6 @@
 import type { AcpLaunch, AcpModelSelection } from '@cherrystudio/agent-runtime-acp/profile'
 
-import { DSH_LOCAL_MODE_ID, dshCli, dshMode } from './cli'
+import { DSH_PERMISSION_MODES, dshCli, dshMode } from './cli'
 
 export function dshEnvironment(directory: string) {
   return { DSH_HOME: directory }
@@ -22,7 +22,8 @@ export async function prepareDshChat(
     | undefined
   >
 ) {
-  const selected = (saved?.configId === DSH_LOCAL_MODE_ID ? saved.value : undefined) ?? overrides.DSH_PERMISSION_MODE
+  const selected =
+    (saved?.configId === DSH_PERMISSION_MODES.id ? saved.value : undefined) ?? overrides.DSH_PERMISSION_MODE
   const mode = dshMode(selected)
   launch.env.DSH_PERMISSION_MODE = mode.currentValue
   if (overrides.DSH_HOME) return { mode }

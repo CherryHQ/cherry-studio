@@ -22,6 +22,16 @@ Desktop ACP adapters share the stdio process contract for chat and management. C
 
 Amp declares both installed components. Kiro and Vibe own their native installation recipes. Native account probes carry their command, output parser and exit policy together. Main executes the commands and routes login prompts. Each local launch reads the needed configuration files once. Harness packages interpret that configuration, and Main verifies the route and issues the scoped gateway credential.
 
+Use the Agent permission mode for product policy. A runtime can report its effective session mode through the connection. The scheduler checks that mode and the Agent's configured policy without interpreting native option labels or preset IDs. The native-control adapter maps those values to Agent semantics. A native shortcut and the settings menu use the same full-access classification.
+
+A runtime declares whether a mode choice applies on the live session, the next turn or after reconnecting. Main uses the applied mode where the runtime can confirm it. The Composer reads the same choice semantics. Unknown ACP choices remain native controls. Their labels can require confirmation but cannot grant host permissions.
+
+Main uses one adapter table for local connection checks, model discovery and session opening across ACP, Cursor, Codex and Claude. An adapter implements all three operations. A saved preset identifies its runtime by preset ID and takes its protocol from the preset declaration. A custom command uses ACP. CLI discovery and installation use the desktop Code CLI services. MCP leases belong to the desktop MCP bridge.
+
+CLI launch preparation resolves the gateway route from the same configuration snapshot as the process environment. A runtime that can install a session credential publishes the resolved route and its installer. The gateway verifies the route before issuing a scoped credential. Gateway requests using only the public credential retain provider-level usage without a session attachment.
+
+The harness adapter interprets native approval requests and options. The common ACP package translates standard option kinds. Main owns pending approvals, cancellation and Cherry-issued session grants. A selected response uses an option ID offered by the native request.
+
 ## Alternatives considered
 
 A provider-wide boolean cannot express read-only child access, a volatile queue or a model-specific writable option. A second desktop client for the installed Pi CLI would duplicate the bridge’s streaming, cancellation and restoration. A future native route needs a product operation or measured benefit that justifies maintaining it.
@@ -46,6 +56,12 @@ A provider-wide boolean cannot express read-only child access, a volatile queue 
 - AC16 — CodeBuddy and Claude use their package declarations for installation and launch. Installing the Antigravity CLI alone suffices when the same native ACP component is selected by discovery and launch. ACP management and chat join their owned process on exit. (verification: unit and Electron)
 - AC17 — Amp, Kiro and Vibe keep their native component and install behavior through package declarations. CLI account probes interpret success and signed-out exits using each harness's declared format. (verification: unit)
 - AC18 — Changing native configuration during launch cannot make the launcher and gateway attribution interpret different reads of the same file. (verification: unit)
+- AC19 — A connection in effective Plan mode suppresses prompt suggestions even if the saved Agent mode permits them. A native choice mapped to full access requires confirmation and cannot be selected by the Plan shortcut. (verification: unit and renderer)
+- AC20 — Antigravity questions resolve to the option ID supplied by the agent. Ambiguous answers cancel the request. The prompt displays Antigravity warnings and labels its native always-allow option as session-scoped. (verification: unit and Electron)
+- AC21 — Goose `auto` requires confirmation and Claude `auto` remains a reviewed mode. An unverified ACP `yolo` choice cannot authorize a host write or terminal operation. A DeepSeek Harness mode change closes the idle connection and applies at the next launch. (verification: unit and renderer)
+- AC22 — Codex, Cursor and Claude can launch, query models and resume their native conversations through their own Main adapters. Their session paths import neither the desktop ACP registry nor the ACP attachment encoder. (verification: import boundaries and Electron)
+- AC23 — Two CLI sessions using the same gateway model receive distinct credentials and each request belongs to its credential's session. Requests presenting only the public key cannot attach to either session. Launch preparation does not reread the config files to bind credentials. (verification: unit and Electron)
+- AC24 — A preset selects the same Main adapter for checking, model discovery and opening. The saved configuration contains the preset ID. A custom executable selects ACP. Adding a protocol requires providing all three operations to the Main table. (verification: schema and typecheck)
 
 ## Risks
 

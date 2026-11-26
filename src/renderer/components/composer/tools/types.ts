@@ -76,7 +76,6 @@ export interface ToolContext {
     localPermission?: {
       mode?: LocalAgentSelection
       kind?: 'mode' | 'config'
-      presetId?: string
       disabled?: boolean
     }
   }

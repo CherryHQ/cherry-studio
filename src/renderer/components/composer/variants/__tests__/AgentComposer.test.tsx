@@ -118,7 +118,7 @@ const mocks = vi.hoisted(() => ({
         model?: Model
         session?: {
           agentId?: string
-          localPermission?: { mode?: unknown; presetId?: string; disabled?: boolean }
+          localPermission?: { mode?: unknown; disabled?: boolean }
         }
       }
     | undefined,
@@ -1639,9 +1639,9 @@ describe('AgentComposer', () => {
         id: 'mode',
         currentValue: 'default',
         options: [
-          { value: 'default', name: 'Always Ask' },
-          { value: 'plan', name: 'Plan' },
-          { value: 'yolo', name: 'YOLO' }
+          { value: 'default', name: 'Always Ask', permissionMode: 'default' },
+          { value: 'plan', name: 'Plan', permissionMode: 'plan' },
+          { value: 'yolo', name: 'YOLO', permissionMode: 'bypassPermissions' }
         ]
       }
     }
@@ -1713,8 +1713,8 @@ describe('AgentComposer', () => {
           id: 'mode',
           currentValue: 'manual',
           options: [
-            { value: 'manual', name: 'Manual review' },
-            { value: 'edit', name: 'Review edits' }
+            { value: 'manual', name: 'Manual review', permissionMode: 'default' },
+            { value: 'edit', name: 'Review edits', permissionMode: 'acceptEdits' }
           ]
         }
       }
@@ -1780,12 +1780,13 @@ describe('AgentComposer', () => {
   it('promotes config-backed permissions and uncategorized reasoning options out of LocalAgentConfigControl', async () => {
     const permissionsOption = {
       id: 'permissions',
+      application: 'session',
       name: 'Permissions',
       type: 'select' as const,
       currentValue: 'default',
       options: [
-        { value: 'default', name: 'Default' },
-        { value: 'bypass', name: 'Bypass' }
+        { value: 'default', name: 'Default', permissionMode: 'default' },
+        { value: 'bypass', name: 'Bypass', permissionMode: 'bypassPermissions' }
       ]
     }
     const reasoningOption = {
@@ -1837,7 +1838,6 @@ describe('AgentComposer', () => {
     await waitFor(() =>
       expect(mocks.runtimeHostProps?.session?.localPermission).toMatchObject({
         kind: 'config',
-        presetId: 'amp-acp',
         mode: { id: 'permissions', currentValue: 'default' }
       })
     )

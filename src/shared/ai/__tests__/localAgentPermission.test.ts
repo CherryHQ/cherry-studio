@@ -1,115 +1,40 @@
 import { describe, expect, it } from 'vitest'
 
-import { isLocalPermissionConfigOption, isLocalPermissionConfigOptionId } from '../localAgent'
-import {
-  classifyNativePermissionMode,
-  isHighRiskLocalOption,
-  resolveEffectiveLocalPermissionMode
-} from '../localAgentPermission'
+import { acpPermissionChoice, acpPermissionControl } from '@cherrystudio/agent-runtime-acp/v1'
+import { gooseCli } from '@cherrystudio/agent-runtime-goose-acp/cli'
+import { requiresPermissionConfirmation } from '@cherrystudio/agent-runtime/cli'
 
-describe('localAgentPermission', () => {
-  it('classifies native modes across Antigravity, Codex, Claude, OpenCode, and DeepSeek aliases', () => {
-    expect(classifyNativePermissionMode({ value: 'bypassPermissions', name: 'Bypass' })?.canonicalMode).toBe(
-      'bypassPermissions'
-    )
-    expect(classifyNativePermissionMode({ value: 'yolo', name: 'YOLO' })?.canonicalMode).toBe('bypassPermissions')
-    expect(classifyNativePermissionMode({ value: 'fullAccess', name: 'Full Access' })?.canonicalMode).toBe(
-      'bypassPermissions'
-    )
-    expect(classifyNativePermissionMode({ value: 'accept-edits', name: 'Accept Edits' })?.canonicalMode).toBe(
-      'acceptEdits'
-    )
-    expect(classifyNativePermissionMode({ value: 'workspace-write', name: 'Workspace' })?.canonicalMode).toBe(
-      'acceptEdits'
-    )
-    expect(classifyNativePermissionMode({ value: 'auto', name: 'Auto' })?.canonicalMode).toBe('auto')
-    expect(classifyNativePermissionMode({ value: 'smart_approve', name: 'Smart Approve' })?.canonicalMode).toBe('auto')
-    expect(classifyNativePermissionMode({ value: 'read-only', name: 'Read Only' })?.canonicalMode).toBe('plan')
-    expect(classifyNativePermissionMode({ value: 'default', name: 'Default' })?.canonicalMode).toBe('default')
+import { getDefaultLocalAgentMode } from '../localAgent'
+
+describe('runtime permission declarations', () => {
+  it('keeps Goose auto approval distinct from Claude auto review', () => {
+    const raw = { value: 'auto', name: 'Auto' }
+    const goose = acpPermissionChoice(raw, 'mode', gooseCli.permissionMode)
+    const claude = getDefaultLocalAgentMode('claude')?.options.find(({ value }) => value === 'auto')
+
+    expect(goose.permissionMode).toBe('bypassPermissions')
+    expect(requiresPermissionConfirmation(goose)).toBe(true)
+    expect(claude?.permissionMode).toBe('auto')
+    expect(requiresPermissionConfirmation(claude)).toBe(false)
   })
 
-  it('resolves effective permission mode from allow_all overrides, session mode, and grouped config options', () => {
-    expect(
-      resolveEffectiveLocalPermissionMode({
-        mode: { id: 'mode', currentValue: 'default', options: [{ value: 'default', name: 'Default' }] },
-        configOptions: [{ id: 'allow_all', name: 'Allow All', type: 'boolean', currentValue: true }]
-      })
-    ).toBe('bypassPermissions')
+  it('warns about a custom ACP unrestricted option without granting host permissions', () => {
+    const unverified = acpPermissionChoice({ value: 'yolo', name: 'Full Access' }, 'mode')
+    expect(unverified.permissionMode).toBeUndefined()
+    expect(requiresPermissionConfirmation(unverified)).toBe(true)
 
-    expect(
-      resolveEffectiveLocalPermissionMode({
-        mode: {
-          id: 'mode',
-          currentValue: 'accept-edits',
-          options: [
-            { value: 'default', name: 'Default' },
-            { value: 'accept-edits', name: 'Accept Edits' }
-          ]
-        }
-      })
-    ).toBe('acceptEdits')
-
-    expect(
-      resolveEffectiveLocalPermissionMode({
-        configOptions: [
-          {
-            id: 'approval_mode',
-            name: 'Approval Mode',
-            type: 'select',
-            currentValue: 'yolo',
-            options: [{ group: 'Modes', name: 'Modes', options: [{ value: 'yolo', name: 'Full Access' }] }]
-          }
-        ]
-      })
-    ).toBe('bypassPermissions')
-
-    expect(
-      resolveEffectiveLocalPermissionMode({
-        configOptions: [
-          {
-            id: 'custom-opt',
-            name: 'Permissions',
-            type: 'select',
-            currentValue: 'auto',
-            options: [{ value: 'auto', name: 'Auto' }]
-          }
-        ]
-      })
-    ).toBe('auto')
+    const unrelated = acpPermissionChoice({ value: 'yolo', name: 'Full Access' }, undefined)
+    expect(requiresPermissionConfirmation(unrelated)).toBe(false)
   })
 
-  it('flags high-risk mode and config options while leaving restricted options unflagged', () => {
-    expect(isHighRiskLocalOption({ kind: 'mode', optionId: 'mode', value: 'yolo', name: 'YOLO' })).toBe(true)
-    expect(isHighRiskLocalOption({ kind: 'mode', optionId: 'mode', value: 'custom', name: 'Full Access' })).toBe(true)
-    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'allow_all', value: 'on' })).toBe(true)
-    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'sandbox', value: 'disabled' })).toBe(true)
-
-    expect(isHighRiskLocalOption({ kind: 'mode', optionId: 'mode', value: 'accept-edits', name: 'Accept Edits' })).toBe(
-      false
-    )
-    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'allow_all', value: false })).toBe(false)
-    expect(isHighRiskLocalOption({ kind: 'config', optionId: 'sandbox', value: 'workspace-write' })).toBe(false)
-  })
-
-  it('recognizes permission config option IDs and names for persistence', () => {
-    expect(isLocalPermissionConfigOptionId('permission_mode')).toBe(true)
-    expect(isLocalPermissionConfigOptionId('approval_mode')).toBe(true)
-    expect(isLocalPermissionConfigOptionId('permissions')).toBe(true)
-    expect(isLocalPermissionConfigOptionId('allow_all')).toBe(true)
-    expect(isLocalPermissionConfigOptionId('sandbox')).toBe(true)
-    expect(isLocalPermissionConfigOptionId('thinking_level')).toBe(false)
-
+  it('marks the option that disables isolation or enables unconditional approval', () => {
+    const sandbox = acpPermissionControl({ id: 'sandbox', name: 'Sandbox' })
+    const allowAll = acpPermissionControl({ id: 'allow_all', name: 'Allow All' })
     expect(
-      isLocalPermissionConfigOption({
-        id: 'custom_id',
-        category: 'mode'
-      })
+      requiresPermissionConfirmation(acpPermissionChoice({ value: 'false', name: 'Local Environment' }, sandbox))
     ).toBe(true)
-    expect(
-      isLocalPermissionConfigOption({
-        id: 'verbosity',
-        category: '_verbosity'
-      })
-    ).toBe(false)
+    expect(requiresPermissionConfirmation(acpPermissionChoice({ value: 'true', name: 'Sandbox' }, sandbox))).toBe(false)
+    expect(requiresPermissionConfirmation(acpPermissionChoice({ value: 'on', name: 'On' }, allowAll))).toBe(true)
+    expect(requiresPermissionConfirmation(acpPermissionChoice({ value: 'off', name: 'Off' }, allowAll))).toBe(false)
   })
 })

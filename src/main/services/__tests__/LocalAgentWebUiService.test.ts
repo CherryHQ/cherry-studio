@@ -16,8 +16,8 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
-vi.mock('@main/ai/runtime/localAgent/launch', () => ({
-  resolveLocalAgentLaunch: async (config: LocalAgentConfiguration) => ({
+vi.mock('@main/ai/runtime/acp/acpLaunch', () => ({
+  resolveAcpLaunch: async (config: LocalAgentConfiguration) => ({
     executable: process.execPath,
     env: { ...process.env, ...config.env }
   })

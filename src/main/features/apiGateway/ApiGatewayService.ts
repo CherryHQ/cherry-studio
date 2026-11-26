@@ -37,7 +37,6 @@ export type InternalCredentialScope = {
   path: string
   model: string
   agentSessionId?: string
-  allowPublicCorrelation?: boolean
 }
 
 function presentedToken(headers: Headers): string | undefined {
@@ -579,30 +578,19 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  /** Agent session id of an internal request or a unique active turn for a bound public-key CLI session. */
-  getAgentSessionId(headers: Headers, model?: string): string | undefined {
+  /** Agent session id carried by a trusted internal credential. */
+  getAgentSessionId(headers: Headers): string | undefined {
     const token = presentedToken(headers)
     if (!token) return undefined
     const scope = this.scopedCredentials.get(token)
     if (scope) return scope.agentSessionId
     if (isValidToken(token, this.internalApiKey)) return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
-    if (!model || headers.has(AGENT_USAGE_CAPTURE_HEADER) || headers.has(AGENT_SESSION_ID_HEADER)) return undefined
-    const currentApiKey = this.getCurrentConfig().apiKey
-    if (typeof currentApiKey !== 'string' || !currentApiKey || !isValidToken(token, currentApiKey)) return undefined
-    const runtime = application.get('AgentSessionRuntimeService')
-    const activeSessionIds = new Set<string>()
-    for (const candidate of this.scopedCredentials.values()) {
-      if (!candidate.allowPublicCorrelation || !candidate.agentSessionId || candidate.model !== model) continue
-      if (runtime.getActiveUsageContext(candidate.agentSessionId)?.assistantMessageId) {
-        activeSessionIds.add(candidate.agentSessionId)
-      }
-    }
-    return activeSessionIds.size === 1 ? [...activeSessionIds][0] : undefined
+    return undefined
   }
 
   /** Capture the reserved continuation or active turn of the requesting Agent session. */
-  resolveAgentSessionUsage(headers: Headers, responseId?: string, model?: string): InProcessUsageContext | undefined {
-    const sessionId = this.getAgentSessionId(headers, model)
+  resolveAgentSessionUsage(headers: Headers, responseId?: string): InProcessUsageContext | undefined {
+    const sessionId = this.getAgentSessionId(headers)
     if (!sessionId) return undefined
     const capture = headers.get(AGENT_USAGE_CAPTURE_HEADER)
     if (capture) {

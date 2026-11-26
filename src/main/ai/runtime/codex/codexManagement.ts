@@ -1,8 +1,8 @@
 import { withCodexAppServer, type CodexProbeClient } from '@cherrystudio/agent-runtime-codex/launcher'
 import type { LocalAgentConfiguration, LocalAgentModelCatalog } from '@shared/ai/localAgent'
 
-import { withConnectionTimeout } from '../localAgent/connectionTimeout'
-import { resolveCodexLaunch } from '../localAgent/launch'
+import { withConnectionTimeout } from '../connectionTimeout'
+import { resolveCodexLaunch } from './codexLaunch'
 import { codexProcessHost } from './processHost'
 
 export function checkCodex(config: LocalAgentConfiguration, cwd: string) {

@@ -53,3 +53,4 @@ export { partEdits, textPartUpdates } from './textPartUpdates'
 
 export { projectNestedTool, type NestedToolRecord } from './nestedTool'
 export { applyRuntimePartEdit } from './stagePartUpdate'
+export type { AgentPermissionMode, PermissionModeApplication, PermissionModeCatalog } from './permissionMode'

@@ -19,6 +19,7 @@ import {
   isUnifiedLocalPermissionMode,
   resolveUnifiedLocalPermissionModes
 } from '@renderer/utils/agent/localAgentLabels'
+import { isAgentFullAccessMode } from '@shared/ai/agentPermissionMode'
 
 type PermissionModeContext = ToolRenderContext<readonly [], readonly []>
 
@@ -32,9 +33,8 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const { updateAgent } = useUpdateAgent()
 
   const unifiedLocalMode = useMemo(
-    () =>
-      isLocal ? resolveUnifiedLocalPermissionModes(localPermission?.mode, t, localPermission?.presetId) : undefined,
-    [isLocal, localPermission?.mode, localPermission?.presetId, t]
+    () => (isLocal ? resolveUnifiedLocalPermissionModes(localPermission?.mode) : undefined),
+    [isLocal, localPermission?.mode]
   )
 
   // Permission mode lives on the agent for built-in runtimes and on the session for local agents.
@@ -98,7 +98,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   const handleSelectMode = useCallback(
     (nextMode: PermissionMode) => {
       if (isDisabled || nextMode === currentMode) return
-      if (nextMode === 'bypassPermissions') {
+      if (isAgentFullAccessMode(nextMode)) {
         setFullAccessPending(true)
         return
       }
@@ -236,9 +236,7 @@ const permissionModeTool = defineTool({
   availableWithoutModel: true,
   visibleInScopes: PERMISSION_MODE_TOOLBAR_MANIFEST.visibleInScopes,
   condition: ({ session }) =>
-    !!session &&
-    (session.agentType !== 'local' ||
-      isUnifiedLocalPermissionMode(session.localPermission?.mode, session.localPermission?.presetId)),
+    !!session && (session.agentType !== 'local' || isUnifiedLocalPermissionMode(session.localPermission?.mode)),
 
   composer: {
     runtime: ({ context }) => <PermissionModeComposerRuntime context={context} />

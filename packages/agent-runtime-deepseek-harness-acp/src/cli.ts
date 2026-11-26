@@ -1,21 +1,28 @@
-export const DSH_LOCAL_MODE_ID = 'dsh-mode'
-export const DSH_LOCAL_MODE_OPTIONS = [
-  { value: 'read-only', name: 'Read Only' },
-  { value: 'workspace-write', name: 'Workspace' },
-  { value: 'danger-full-access', name: 'Full Access' }
-] as const
+import type { PermissionModeCatalog } from '@cherrystudio/agent-runtime-acp/profile'
+
+export const DSH_PERMISSION_MODES = {
+  id: 'dsh-mode',
+  currentValue: 'workspace-write',
+  application: 'reconnect',
+  options: [
+    { value: 'read-only', name: 'Read Only', permissionMode: 'plan' },
+    { value: 'workspace-write', name: 'Workspace', permissionMode: 'acceptEdits' },
+    { value: 'danger-full-access', name: 'Full Access', permissionMode: 'bypassPermissions' }
+  ]
+} as const satisfies PermissionModeCatalog
 
 export function dshMode(selected?: string) {
   return {
-    id: DSH_LOCAL_MODE_ID,
-    currentValue: DSH_LOCAL_MODE_OPTIONS.find(({ value }) => value === selected)?.value ?? 'workspace-write',
-    options: DSH_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
+    ...DSH_PERMISSION_MODES,
+    currentValue:
+      DSH_PERMISSION_MODES.options.find(({ value }) => value === selected)?.value ?? DSH_PERMISSION_MODES.currentValue,
+    options: [...DSH_PERMISSION_MODES.options]
   }
 }
 
 export const dshCli = {
   id: 'deepseek-harness',
-  defaultMode: dshMode(),
+  defaultMode: DSH_PERMISSION_MODES,
   minimumAcpVersion: '0.1.2-alpha.2',
   name: 'DeepSeek Harness',
   protocol: 'acp',

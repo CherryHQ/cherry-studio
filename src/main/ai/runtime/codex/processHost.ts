@@ -1,7 +1,7 @@
 import type { CodexProcessHost } from '@cherrystudio/agent-runtime-codex/launcher'
 import { isSensitiveKey, redactLiteral, redactSecretText, redactSecretTokens } from '@shared/utils/redaction'
 
-import { spawnLocalAgentStdio } from '../localAgent/localAgentProcess'
+import { spawnLocalAgentStdio } from '../stdioProcess'
 
 export const codexProcessHost: CodexProcessHost = {
   spawnStdio: spawnLocalAgentStdio,

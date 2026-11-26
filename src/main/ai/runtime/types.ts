@@ -289,6 +289,8 @@ export interface AgentRuntimeConnection {
 
   predictPrompt?(signal: AbortSignal): Promise<string>
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  /** Permission mode currently in effect on this connection, when the runtime can identify it. */
+  readonly effectivePermissionMode?: AgentPermissionMode
   readonly sessionCostScope?: 'native-session'
   readonly localSessionInfo?: LocalAgentSessionInfo
   setConfigOption?(configId: string, value: string | boolean): Promise<LocalAgentSessionInfo>

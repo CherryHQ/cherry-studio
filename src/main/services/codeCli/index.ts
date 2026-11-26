@@ -1,2 +1,8 @@
+export { resolveCliAuthCommand } from './cliAuth'
+export type { CliAuthCommandSpec, CliAuthOptions } from './cliAuth'
 export { CodeCliService } from './CodeCliService'
 export { getHermesHome } from './hermesHome'
+export { getLocalAgentAuthStatus } from './localAgentAuthStatus'
+export { detectLocalAgents, openLocalAgentTerminal, resolveLocalAgentCli } from './localAgentCli'
+export { LocalAgentInstallService } from './LocalAgentInstallService'
+export { selectLocalAgentModel } from './selectModel'

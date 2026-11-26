@@ -1,15 +1,9 @@
 import type { TFunction } from 'i18next'
 
+import { requiresPermissionConfirmation, selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
-import {
-  classifyNativePermissionMode,
-  isHighRiskLocalOption,
-  type LocalCanonicalPermissionMode,
-  PERMISSION_CONFIG_OPTION_IDENTIFIERS
-} from '@shared/ai/localAgentPermission'
-
-export { classifyNativePermissionMode, isHighRiskLocalOption, type LocalCanonicalPermissionMode }
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 const modeNameKeys = new Map(
   Object.entries({
@@ -32,69 +26,13 @@ const modeNameKeys = new Map(
   })
 )
 
-export interface UnifiedLocalPermissionOption {
-  canonicalMode: LocalCanonicalPermissionMode
-  value: string
-  name: string
-  description: string
-  dangerous: boolean
-}
-
-export interface UnifiedLocalPermissionProjection {
-  id: string
-  currentValue: string
-  currentCanonicalMode?: LocalCanonicalPermissionMode
-  options: UnifiedLocalPermissionOption[]
-}
-
-const CANONICAL_PERMISSION_MODE_ORDER: readonly LocalCanonicalPermissionMode[] = [
+const CANONICAL_PERMISSION_MODE_ORDER: readonly AgentPermissionMode[] = [
   'plan',
   'default',
   'acceptEdits',
   'auto',
   'bypassPermissions'
 ]
-
-const CANONICAL_PERMISSION_MODE_SPECS: Record<
-  LocalCanonicalPermissionMode,
-  { titleKey: string; titleFallback: string; descriptionKey: string; descriptionFallback: string; dangerous: boolean }
-> = {
-  plan: {
-    titleKey: 'agent.settings.tooling.permissionMode.plan.title',
-    titleFallback: 'Plan Only',
-    descriptionKey: 'agent.settings.tooling.permissionMode.plan.description',
-    descriptionFallback: 'Plans without editing files. Only read-only or vetted commands run.',
-    dangerous: false
-  },
-  default: {
-    titleKey: 'agent.settings.tooling.permissionMode.default.title',
-    titleFallback: 'Ask Before Acting',
-    descriptionKey: 'agent.settings.tooling.permissionMode.default.description',
-    descriptionFallback: 'Asks before editing files or running commands.',
-    dangerous: false
-  },
-  acceptEdits: {
-    titleKey: 'agent.settings.tooling.permissionMode.acceptEdits.title',
-    titleFallback: 'Auto-accept Edits',
-    descriptionKey: 'agent.settings.tooling.permissionMode.acceptEdits.description',
-    descriptionFallback: 'Edits files freely. Asks before commands.',
-    dangerous: false
-  },
-  auto: {
-    titleKey: 'agent.settings.tooling.permissionMode.auto.title',
-    titleFallback: 'Approve for Me',
-    descriptionKey: 'agent.settings.tooling.permissionMode.auto.description',
-    descriptionFallback: 'Runs without routine prompts. A safety check blocks risky actions.',
-    dangerous: false
-  },
-  bypassPermissions: {
-    titleKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title',
-    titleFallback: 'Full Access',
-    descriptionKey: 'agent.settings.tooling.permissionMode.bypassPermissions.description',
-    descriptionFallback: 'Skips permission checks. Can delete files and use the network.',
-    dangerous: true
-  }
-}
 
 const THOUGHT_CONFIG_OPTION_IDENTIFIERS = new Set([
   'thought_level',
@@ -123,39 +61,29 @@ const THOUGHT_CHOICE_IDENTIFIERS = new Set([
   'default'
 ])
 
-export function isUnifiedLocalPermissionMode(mode?: LocalAgentSelection, presetId?: string): boolean {
-  if (!mode || mode.options.length < 2) return false
-  const categories = new Set<LocalCanonicalPermissionMode>()
-  for (const option of mode.options) {
-    const match = classifyNativePermissionMode(option, presetId)
-    if (match) categories.add(match.canonicalMode)
-    if (categories.size >= 2) return true
-  }
-  return false
+export function isUnifiedLocalPermissionMode(mode?: LocalAgentSelection): boolean {
+  return (
+    !!mode &&
+    mode.options.some(({ value }) => value === mode.currentValue) &&
+    mode.options.every((option) => option.permissionMode && !option.requiresConfirmation) &&
+    new Set(mode.options.map((option) => option.permissionMode)).size >= 2
+  )
 }
 
 export function findLocalPermissionConfigOption(
-  options: LocalAgentConfigOption[] | undefined,
-  presetId?: string
+  options: LocalAgentConfigOption[] | undefined
 ): LocalAgentSelection | undefined {
-  if (!options?.length) return undefined
-  for (const option of options) {
-    if (option.type !== 'select') continue
-    const id = option.id.trim().toLowerCase()
-    const name = option.name.trim().toLowerCase()
-    if (!PERMISSION_CONFIG_OPTION_IDENTIFIERS.has(id) && !PERMISSION_CONFIG_OPTION_IDENTIFIERS.has(name)) continue
+  for (const option of options ?? []) {
+    if (option.type !== 'select' || !option.application) continue
     const selection: LocalAgentSelection = {
       id: option.id,
-      currentValue: String(option.currentValue),
+      application: option.application,
+      currentValue: option.currentValue,
       options: option.options
         .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
-        .map((choice) => ({
-          value: choice.value,
-          name: choice.name,
-          description: choice.description ?? undefined
-        }))
+        .map((choice) => ({ ...choice, description: choice.description ?? undefined }))
     }
-    if (isUnifiedLocalPermissionMode(selection, presetId)) return selection
+    if (isUnifiedLocalPermissionMode(selection)) return selection
   }
   return undefined
 }
@@ -180,143 +108,33 @@ export function isLocalThoughtConfigOption(
   return recognized.length >= 2
 }
 
-export function resolveUnifiedLocalPermissionModes(
-  mode: LocalAgentSelection | undefined,
-  t: TFunction,
-  presetId?: string
-): UnifiedLocalPermissionProjection | undefined {
-  if (!mode || mode.options.length < 2) return undefined
-
-  const grouped = new Map<
-    LocalCanonicalPermissionMode,
-    Array<{ option: LocalAgentSelection['options'][number]; priority: number }>
-  >()
-
-  for (const option of mode.options) {
-    const match = classifyNativePermissionMode(option, presetId)
-    if (!match) continue
-    const list = grouped.get(match.canonicalMode)
-    if (list) list.push({ option, priority: match.priority })
-    else grouped.set(match.canonicalMode, [{ option, priority: match.priority }])
-  }
-
-  const options: UnifiedLocalPermissionOption[] = []
-  let currentCanonicalMode: LocalCanonicalPermissionMode | undefined
-
-  for (const canonicalMode of CANONICAL_PERMISSION_MODE_ORDER) {
-    const candidates = grouped.get(canonicalMode)
-    if (!candidates?.length) continue
-    const activeMatch = candidates.find((entry) => entry.option.value === mode.currentValue)
-    const chosen =
-      activeMatch ?? candidates.reduce((best, entry) => (entry.priority < best.priority ? entry : best), candidates[0])
-    if (chosen.option.value === mode.currentValue) currentCanonicalMode = canonicalMode
-    const spec = CANONICAL_PERMISSION_MODE_SPECS[canonicalMode]
-    options.push({
-      canonicalMode,
-      value: chosen.option.value,
-      name: t(spec.titleKey, spec.titleFallback),
-      description: t(spec.descriptionKey, spec.descriptionFallback),
-      dangerous: spec.dangerous
-    })
-  }
-
-  if (options.length < 2) return undefined
-
+export function resolveUnifiedLocalPermissionModes(mode?: LocalAgentSelection) {
+  if (!mode || !isUnifiedLocalPermissionMode(mode)) return undefined
   return {
     id: mode.id,
-    currentValue: mode.currentValue,
-    currentCanonicalMode,
-    options
+    currentCanonicalMode: selectedPermissionMode(mode),
+    options: CANONICAL_PERMISSION_MODE_ORDER.flatMap((canonicalMode) => {
+      const candidates = mode.options.filter((option) => option.permissionMode === canonicalMode)
+      const chosen = candidates.find((option) => option.value === mode.currentValue) ?? candidates[0]
+      return chosen ? [{ canonicalMode, value: chosen.value }] : []
+    })
   }
-}
-
-export type LocalPermissionRiskLevel = 'readonly' | 'ask' | 'auto_edit' | 'full_access'
-
-const READONLY_MODE_IDENTIFIERS = new Set(['plan', 'read only', 'readonly', 'read-only', 'ask'])
-const AUTO_EDIT_MODE_IDENTIFIERS = new Set([
-  'accept edits',
-  'auto-approve edits',
-  'acceptedits',
-  'accept_edits',
-  'accept-edits',
-  'auto edit',
-  'auto-edit',
-  'auto',
-  'code',
-  'build',
-  'agent',
-  'workspace',
-  'workspace_session',
-  'workspace-write'
-])
-const DEFAULT_NON_PLAN_IDENTIFIERS = [
-  'default',
-  'approve',
-  'workspace',
-  'workspace-write',
-  'always ask',
-  'guarded',
-  'edit',
-  'ask',
-  'agent',
-  'code',
-  'build'
-]
-
-export function getLocalOptionRiskLevel(params: {
-  kind: 'mode' | 'thought' | 'config'
-  optionId: string
-  value: string | boolean
-  name?: string
-}): LocalPermissionRiskLevel {
-  if (isHighRiskLocalOption(params)) return 'full_access'
-  if (params.kind === 'mode') {
-    const normalizedValue = String(params.value).trim().toLowerCase()
-    const normalizedName = params.name?.trim().toLowerCase()
-    if (
-      READONLY_MODE_IDENTIFIERS.has(normalizedValue) ||
-      (!!normalizedName && READONLY_MODE_IDENTIFIERS.has(normalizedName))
-    ) {
-      return 'readonly'
-    }
-    if (
-      AUTO_EDIT_MODE_IDENTIFIERS.has(normalizedValue) ||
-      (!!normalizedName && AUTO_EDIT_MODE_IDENTIFIERS.has(normalizedName))
-    ) {
-      return 'auto_edit'
-    }
-  }
-  return 'ask'
 }
 
 export function findLocalPlanModeOption(mode?: LocalAgentSelection) {
   if (!mode || mode.options.length < 2) return undefined
-  const exactPlan = mode.options.find((option) => {
-    const value = option.value.trim().toLowerCase()
-    const name = option.name.trim().toLowerCase()
-    return value === 'plan' || name === 'plan'
-  })
-  if (exactPlan) return exactPlan
-  return mode.options.find((option) => {
-    const value = option.value.trim().toLowerCase()
-    const name = option.name.trim().toLowerCase()
-    return ['readonly', 'read-only', 'read_only'].includes(value) || name === 'read only'
-  })
+  return mode.options.find((option) => option.permissionMode === 'plan' && !requiresPermissionConfirmation(option))
 }
 
 export function findLocalDefaultNonPlanOption(mode: LocalAgentSelection, planValue: string) {
   const candidates = mode.options.filter(
     (option) =>
       option.value !== planValue &&
-      !isHighRiskLocalOption({ kind: 'mode', optionId: mode.id, value: option.value, name: option.name })
+      option.permissionMode &&
+      option.permissionMode !== 'plan' &&
+      !requiresPermissionConfirmation(option)
   )
-  for (const preferred of DEFAULT_NON_PLAN_IDENTIFIERS) {
-    const match = candidates.find(
-      (option) => option.value.trim().toLowerCase() === preferred || option.name.trim().toLowerCase() === preferred
-    )
-    if (match) return match
-  }
-  return candidates[0]
+  return candidates.find((option) => option.permissionMode === 'default') ?? candidates[0]
 }
 
 // Translate recognized native descriptions exactly; custom permission semantics stay intact.

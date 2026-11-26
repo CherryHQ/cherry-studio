@@ -40,7 +40,7 @@ import { agentDataDirectoryPath, assertAgentStorageDirectory } from '@main/ai/ag
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { pauseHeartbeatSchedule } from '@main/ai/agents/heartbeatSchedule'
 import { frameScheduledTrigger } from '@main/ai/agents/scheduledTriggerFraming'
-import { LocalAgentSessionRestoreError } from '@main/ai/runtime/localAgent/LocalAgentSessionRestoreError'
+import { LocalAgentSessionRestoreError } from '@main/ai/runtime/LocalAgentSessionRestoreError'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'

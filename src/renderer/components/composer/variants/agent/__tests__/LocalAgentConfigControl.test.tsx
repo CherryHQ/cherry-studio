@@ -233,7 +233,7 @@ describe('LocalAgentConfigControl', () => {
           currentValue: 'ask',
           options: [
             { value: 'ask', name: 'Always Ask' },
-            { value: 'autopilot', name: 'Autopilot' }
+            { value: 'autopilot', name: 'Autopilot', requiresConfirmation: true }
           ]
         }}
         options={[
@@ -244,7 +244,7 @@ describe('LocalAgentConfigControl', () => {
             currentValue: 'true',
             options: [
               { value: 'true', name: 'Sandbox Environment' },
-              { value: 'false', name: 'Local Environment' }
+              { value: 'false', name: 'Local Environment', requiresConfirmation: true }
             ]
           }
         ]}

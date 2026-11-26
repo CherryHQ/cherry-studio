@@ -1,5 +1,10 @@
+import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const vibeCli = {
   id: 'mistral-vibe',
+  permissionMode: {
+    values: { ask: 'default', 'accept-edits': 'acceptEdits', 'auto-approve': 'bypassPermissions' }
+  } satisfies AcpPermissionModes,
   name: 'Mistral Vibe',
   protocol: 'acp',
   executable: 'vibe-acp',

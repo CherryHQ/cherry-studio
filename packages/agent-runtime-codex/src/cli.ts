@@ -1,4 +1,4 @@
-import type { CliAuthStatusProbe } from '@cherrystudio/agent-runtime/cli'
+import type { CliAuthStatusProbe, PermissionModeCatalog } from '@cherrystudio/agent-runtime/cli'
 
 export const codexCli = {
   id: 'codex',
@@ -39,33 +39,16 @@ export const codexCli = {
   modelConfig: { target: 'codex-config', field: 'model', overrides: ['CODEX_HOME'] }
 } as const
 
-export const codexGateway = {
-  format: 'toml',
-  related: { format: 'json', target: 'codex-auth' },
-  read(doc: Record<string, unknown>, _model: string, _env: unknown, auth: Record<string, unknown> | undefined) {
-    const providers = doc.model_providers
-    const provider: unknown =
-      providers && typeof providers === 'object' && typeof doc.model_provider === 'string'
-        ? Reflect.get(providers, doc.model_provider)
-        : undefined
-    return {
-      baseUrl: provider && typeof provider === 'object' && 'base_url' in provider ? provider.base_url : undefined,
-      apiKey: auth?.OPENAI_API_KEY,
-      model: doc.model,
-      path:
-        provider && typeof provider === 'object' && 'wire_api' in provider && provider.wire_api === 'chat'
-          ? '/v1/chat/completions'
-          : '/v1/responses'
-    }
-  }
-} as const
-
-export const CODEX_LOCAL_MODE_ID = 'codex-mode'
-export const CODEX_LOCAL_MODE_OPTIONS = [
-  { value: 'readOnly', name: 'Read Only' },
-  { value: 'workspace', name: 'Workspace' },
-  { value: 'fullAccess', name: 'Full Access' }
-] as const
+export const CODEX_PERMISSION_MODES = {
+  id: 'codex-mode',
+  currentValue: 'workspace',
+  application: 'next-turn',
+  options: [
+    { value: 'readOnly', name: 'Read Only', permissionMode: 'plan' },
+    { value: 'workspace', name: 'Workspace', permissionMode: 'acceptEdits' },
+    { value: 'fullAccess', name: 'Full Access', permissionMode: 'bypassPermissions' }
+  ]
+} as const satisfies PermissionModeCatalog
 
 export const CODEX_LOCAL_THOUGHT_LEVEL_ID = 'codex-effort'
 export const CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS = [

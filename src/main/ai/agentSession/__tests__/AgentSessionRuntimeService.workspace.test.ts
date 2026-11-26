@@ -12,7 +12,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { LocalRuntimeDriver } from '@main/ai/runtime/localAgent/LocalRuntimeDriver'
+import { LocalRuntimeDriver } from '@main/ai/runtime/LocalRuntimeDriver'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -26,7 +26,7 @@ vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
 }))
 
 const dbh = setupTestDatabase()
-const fixture = fileURLToPath(new URL('../../runtime/localAgent/__tests__/fixtures/localAgent.mjs', import.meta.url))
+const fixture = fileURLToPath(new URL('../../runtime/__tests__/fixtures/localAgent.mjs', import.meta.url))
 let directory: string
 let service: AgentSessionRuntimeService
 let connections: AgentRuntimeConnection[]

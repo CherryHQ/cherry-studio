@@ -37,6 +37,27 @@ beforeEach(() => {
 })
 
 describe('local agent session option cache', () => {
+  it('waits for confirmation metadata before displaying options from an older snapshot', () => {
+    cacheService.setPersist('local_agent.session_option_snapshots', {
+      legacy: {
+        mode: {
+          id: 'legacy-mode',
+          currentValue: 'default',
+          options: [
+            { value: 'default', name: 'Default' },
+            { value: 'yolo', name: 'Full Access' }
+          ]
+        }
+      }
+    })
+    vi.mocked(ipcApi.request).mockResolvedValue(null)
+    const { result } = renderHook(() => useLocalAgentSessionInfo('legacy', true, 'acp'))
+    expect(result.current.options?.mode).toBeUndefined()
+
+    act(() => publish({ sessionId: 'legacy', info: next }))
+    expect(result.current.options?.mode?.currentValue).toBe('plan')
+  })
+
   it('clears detached live capabilities and ignores an older pending read', async () => {
     let resolve!: (info: LocalAgentSessionInfo) => void
     vi.mocked(ipcApi.request).mockReturnValue(

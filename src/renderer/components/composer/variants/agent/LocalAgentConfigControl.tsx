@@ -2,6 +2,7 @@ import { ChevronDown, Settings2, ShieldAlert } from 'lucide-react'
 import { Fragment, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { requiresPermissionConfirmation } from '@cherrystudio/agent-runtime/cli'
 import {
   Button,
   DropdownMenu,
@@ -20,11 +21,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { FullAccessConfirmDialog } from '@renderer/components/PermissionModeOption'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import {
-  isHighRiskLocalOption,
-  localAgentConfigOptions,
-  localAgentModeOptions
-} from '@renderer/utils/agent/localAgentLabels'
+import { localAgentConfigOptions, localAgentModeOptions } from '@renderer/utils/agent/localAgentLabels'
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import type { LocalAgentConfigOption, LocalAgentSelection } from '@shared/ai/localAgent'
 
@@ -67,22 +64,6 @@ export function LocalAgentConfigControl({
   useEffect(() => {
     setPendingHighRisk(null)
   }, [currentValuesKey])
-
-  const findRawChoiceName = (
-    kind: 'mode' | 'thought' | 'config',
-    configId: string,
-    value: string | boolean
-  ): string | undefined => {
-    if (typeof value === 'boolean') return undefined
-    if (kind === 'mode' && mode?.id === configId) {
-      return mode.options.find((option) => option.value === value)?.name
-    }
-    const rawOption = nativeOptions.find((option) => option.id === configId)
-    if (!rawOption || rawOption.type !== 'select') return undefined
-    return rawOption.options
-      .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
-      .find((choice) => choice.value === value)?.name
-  }
 
   const modeOptions = mode ? localAgentModeOptions(mode, t, presetId) : []
   const currentMode = modeOptions.find((option) => option.value === mode?.currentValue)
@@ -154,22 +135,17 @@ export function LocalAgentConfigControl({
   ]
   if (!rows.length) return null
 
-  const riskyMode =
-    (!!mode &&
-      isHighRiskLocalOption({
-        kind: 'mode',
-        optionId: mode.id,
-        value: mode.currentValue,
-        name: findRawChoiceName('mode', mode.id, mode.currentValue)
-      })) ||
-    rows.some(({ kind, option }) =>
-      isHighRiskLocalOption({
-        kind,
-        optionId: option.id,
-        value: option.currentValue,
-        name: findRawChoiceName(kind, option.id, option.currentValue)
-      })
+  const requiresConfirmation = (option: LocalAgentConfigOption, value: string | boolean) => {
+    if (option.type === 'boolean') return option.confirmationValue === value
+    return requiresPermissionConfirmation(
+      option.options
+        .flatMap((choice) => ('group' in choice ? choice.options : [choice]))
+        .find((choice) => choice.value === value)
     )
+  }
+  const riskyMode =
+    requiresPermissionConfirmation(currentMode) ||
+    rows.some(({ option }) => requiresConfirmation(option, option.currentValue))
   const single = rows.length === 1
   const selectedName = (option: LocalAgentConfigOption) =>
     option.type === 'boolean'
@@ -203,8 +179,7 @@ export function LocalAgentConfigControl({
     nextValue: string | boolean
   ) => {
     if (disabled || saving || nextValue === option.currentValue) return
-    const rawName = findRawChoiceName(kind, option.id, nextValue)
-    if (isHighRiskLocalOption({ kind, optionId: option.id, value: nextValue, name: rawName })) {
+    if (requiresConfirmation(option, nextValue)) {
       setMenuOpen(false)
       setPendingHighRisk({ kind, configId: option.id, value: nextValue })
       return

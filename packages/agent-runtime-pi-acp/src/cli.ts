@@ -1,7 +1,6 @@
 export const piCli = {
   modelConfig: { target: 'pi-settings', overrides: ['PI_CODING_AGENT_DIR'] },
   id: 'pi-acp',
-  permissionMode: 'none',
   loginArgs: ['auth', 'login'],
   providerLogin: {
     id: 'pi-browser',

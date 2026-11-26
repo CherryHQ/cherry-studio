@@ -1,7 +1,11 @@
-import type { AcpLoginProfile } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpLoginProfile, AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const antigravityCli = {
   id: 'antigravity-acp',
+  permissionMode: {
+    values: { default: 'default', autoedit: 'acceptEdits', 'auto-edit': 'acceptEdits', yolo: 'bypassPermissions' },
+    labels: { default: 'default', 'auto edit': 'acceptEdits', yolo: 'bypassPermissions' }
+  } satisfies AcpPermissionModes,
   modelEndpoints: ['google-generate-content'],
   terminalArgs: [],
   sessionModel: true,

@@ -662,14 +662,20 @@ describe('AgentSessionRuntimeService', () => {
     }
   )
 
-  it.each(['disabled', 'headless', 'failure', 'plan', 'unfocused'] as const)(
+  it.each(['disabled', 'headless', 'failure', 'plan', 'live-plan', 'unfocused'] as const)(
     'does not generate a prediction for %s turns',
     async (reason) => {
       await defaultServiceInstances.PreferenceService.set('agent.input.suggestions.enabled', reason !== 'disabled')
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, agentType: 'pi', headless: reason === 'headless' })
       const predictPrompt = vi.fn(async () => 'run tests')
-      getEntry(service).connection = { close: vi.fn(), send: vi.fn(), events: [], predictPrompt }
+      getEntry(service).connection = {
+        close: vi.fn(),
+        send: vi.fn(),
+        events: [],
+        predictPrompt,
+        ...(reason === 'live-plan' && { effectivePermissionMode: 'plan' as const })
+      }
       if (reason === 'plan')
         mocks.getAgent.mockReturnValue({ id: 'agent-1', configuration: { permission_mode: 'plan' } })
       if (reason === 'unfocused') {
@@ -5131,7 +5137,15 @@ describe('AgentSessionRuntimeService', () => {
           { value: 'plan', name: 'Plan' }
         ]
       },
-      configOptions: [{ id: 'allow_all', name: 'Allow All', type: 'boolean' as const, currentValue: false }]
+      configOptions: [
+        {
+          id: 'allow_all',
+          name: 'Allow All',
+          type: 'boolean' as const,
+          currentValue: false,
+          application: 'session' as const
+        }
+      ]
     }
     const connection = {
       ...createAsyncQueue<any>(),
@@ -5194,6 +5208,7 @@ describe('AgentSessionRuntimeService', () => {
       configOptions: [
         {
           id: 'permission_mode',
+          application: 'session' as const,
           name: 'Permission Mode',
           type: 'select' as const,
           currentValue: 'default',
@@ -5204,6 +5219,7 @@ describe('AgentSessionRuntimeService', () => {
         },
         {
           id: 'approval_mode',
+          application: 'session' as const,
           name: 'Approval Mode',
           type: 'select' as const,
           currentValue: 'ask',
@@ -5214,6 +5230,7 @@ describe('AgentSessionRuntimeService', () => {
         },
         {
           id: 'permissions',
+          application: 'session' as const,
           name: 'Permissions',
           type: 'select' as const,
           currentValue: 'default',

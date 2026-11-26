@@ -10,7 +10,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionDeliveryService'
-import { LocalRuntimeDriver } from '@main/ai/runtime/localAgent/LocalRuntimeDriver'
+import { LocalRuntimeDriver } from '@main/ai/runtime/LocalRuntimeDriver'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 

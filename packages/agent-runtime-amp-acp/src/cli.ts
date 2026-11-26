@@ -1,5 +1,6 @@
 export const ampCli = {
   id: 'amp-acp',
+  permissionMode: { values: { default: 'default', bypass: 'bypassPermissions' } },
   terminalCli: { executable: 'amp', npmPackage: '@ampcode/cli', requiredForChat: true },
   terminalArgs: [],
   loginArgs: ['login'],

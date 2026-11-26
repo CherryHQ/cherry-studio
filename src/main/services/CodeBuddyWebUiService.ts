@@ -8,7 +8,7 @@ import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
 import { codeBuddyPreset, codeBuddyWebUi } from '@cherrystudio/agent-runtime-codebuddy-acp'
-import { resolveLocalAgentLaunch } from '@main/ai/runtime/localAgent/launch'
+import { resolveAcpLaunch } from '@main/ai/runtime/acp/acpLaunch'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
@@ -64,7 +64,7 @@ export class CodeBuddyWebUiService extends BaseService {
         abort.signal.throwIfAborted()
         if (existing) return this.publish({ status: 'running', owned: false, url: existing })
         this.publish({ status: 'starting', owned: true })
-        const launch = await resolveLocalAgentLaunch(config, abort.signal)
+        const launch = await resolveAcpLaunch(config, abort.signal)
         const port = await availablePort()
         abort.signal.throwIfAborted()
         const password = randomBytes(24).toString('base64url')

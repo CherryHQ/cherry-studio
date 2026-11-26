@@ -15,29 +15,25 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { LocalPermissionOptionsSchema, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 
-import { acquireLocalAgentBrowserLease } from '../../localAgent/browserBridge'
-import type * as BrowserBridgeModule from '../../localAgent/browserBridge'
-import { bindLocalGatewayUsage } from '../../localAgent/gatewayUsage'
-import { resolveClaudeLaunch } from '../../localAgent/launch'
+import { acquireLocalAgentBrowserLease } from '../../../mcp/localAgentBrowserBridge'
+import type * as BrowserBridgeModule from '../../../mcp/localAgentBrowserBridge'
 import type { AgentRuntimeEvent } from '../../types'
 import { LocalClaudeConnection } from '../LocalClaudeConnection'
+import { resolveClaudeLaunch } from '../localClaudeLaunch'
 
 vi.mock('@cherrystudio/agent-runtime-claude-code', async (load) => ({
   ...(await load<typeof import('@cherrystudio/agent-runtime-claude-code')>()),
   createClaudeCodeRuntime: vi.fn()
 }))
 
-vi.mock('../../localAgent/launch', () => ({
+vi.mock('../localClaudeLaunch', async (load) => ({
+  ...(await load<typeof import('../localClaudeLaunch')>()),
   resolveClaudeLaunch: vi.fn()
 }))
 
-vi.mock('../../localAgent/browserBridge', async (load) => ({
+vi.mock('../../../mcp/localAgentBrowserBridge', async (load) => ({
   ...(await load<typeof BrowserBridgeModule>()),
   acquireLocalAgentBrowserLease: vi.fn()
-}))
-
-vi.mock('../../localAgent/gatewayUsage', () => ({
-  bindLocalGatewayUsage: vi.fn()
 }))
 
 const db = setupTestDatabase()
@@ -50,7 +46,7 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 
-async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4.5', gateway = false) {
+async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4.5') {
   const workspaceId = randomUUID()
   const sessionId = randomUUID()
   const cwd = '/tmp/local-claude-test'
@@ -64,11 +60,9 @@ async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4
     installation: { componentId: 'claude', path: '/usr/local/bin/claude', source: 'system' },
     cwd,
     args: ['--verbose'],
-    env: {},
-    configFiles: {}
+    env: {}
   })
   vi.mocked(acquireLocalAgentBrowserLease).mockResolvedValue(undefined)
-  vi.mocked(bindLocalGatewayUsage).mockResolvedValue(gateway ? { dispose: vi.fn() } : undefined)
   MockApplicationUtils.setService('ClaudeCodeProcessManager', { spawn: vi.fn() })
 
   let observationSink: ClaudeObservationSink | undefined
@@ -229,7 +223,7 @@ describe('LocalClaudeConnection', () => {
   })
 
   it('emits local-turn-usage and confirmed context-usage on Turn 1 native result and ignores local commands', async () => {
-    const { events, emitObservation } = await startLocalClaude('cherryin:anthropic/claude-haiku-4.5', true)
+    const { events, emitObservation } = await startLocalClaude()
 
     await emitObservation({
       native: [
@@ -278,7 +272,7 @@ describe('LocalClaudeConnection', () => {
         summary: expect.objectContaining({
           nativeSessionId: 'claude-native-1',
           model: 'cherryin:anthropic/claude-haiku-4.5',
-          correlation: 'gateway',
+          correlation: 'unknown',
           usage: {
             inputTokens: 1203,
             outputTokens: 45,

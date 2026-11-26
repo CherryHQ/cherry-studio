@@ -1,7 +1,13 @@
+import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const copilotCli = {
   id: 'copilot',
   registryId: 'github-copilot-cli',
-  permissionMode: { labels: { agent: { canonicalMode: 'default', priority: 1 } } },
+  permissionMode: {
+    values: { agent: 'default', plan: 'plan', autopilot: 'bypassPermissions' },
+    labels: { agent: 'default' },
+    allowAll: 'allow_all'
+  } satisfies AcpPermissionModes,
   terminalArgs: [],
   name: 'GitHub Copilot',
   protocol: 'acp',

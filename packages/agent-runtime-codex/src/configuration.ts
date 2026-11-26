@@ -1,12 +1,7 @@
 import type * as z from 'zod'
 
 import { CodexRequestError, type CodexAppServerClient, type CodexRequestParams } from './appServerClient'
-import {
-  CODEX_LOCAL_MODE_ID,
-  CODEX_LOCAL_MODE_OPTIONS,
-  CODEX_LOCAL_THOUGHT_LEVEL_ID,
-  CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS
-} from './cli'
+import { CODEX_PERMISSION_MODES, CODEX_LOCAL_THOUGHT_LEVEL_ID, CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS } from './cli'
 import type { responses } from './responses'
 
 export type CodexThreadRestore = { threadId: string; kind: 'required' | 'empty-prewarm' }
@@ -19,7 +14,7 @@ export interface SessionOptions {
   signal: AbortSignal
   mcp?: { name: string; url: string; tokenEnv: string; approvedTools: readonly string[] }
 }
-export type CodexMode = (typeof CODEX_LOCAL_MODE_OPTIONS)[number]['value']
+export type CodexMode = (typeof CODEX_PERMISSION_MODES.options)[number]['value']
 
 export const CODEX_TURN_MODE_PARAMS = {
   readOnly: {
@@ -168,7 +163,7 @@ function describeThread(
       ? 'readOnly'
       : thread.sandbox?.type === 'dangerFullAccess' && thread.approvalPolicy === 'never'
         ? 'fullAccess'
-        : 'workspace'
+        : CODEX_PERMISSION_MODES.currentValue
   const efforts = buildCodexThoughtLevelOptions(selected?.supportedReasoningEfforts)
   const info = {
     resume: true,
@@ -176,9 +171,9 @@ function describeThread(
     models: models.map((m) => ({ id: m.model ?? m.id, name: m.displayName })),
     activeModel: thread.model ? { id: thread.model } : undefined,
     mode: {
-      id: CODEX_LOCAL_MODE_ID,
+      ...CODEX_PERMISSION_MODES,
       currentValue: initialMode,
-      options: CODEX_LOCAL_MODE_OPTIONS.filter((o) => !headless || o.value === 'readOnly')
+      options: CODEX_PERMISSION_MODES.options.filter((o) => !headless || o.value === 'readOnly')
     },
     thoughtLevel: {
       id: CODEX_LOCAL_THOUGHT_LEVEL_ID,

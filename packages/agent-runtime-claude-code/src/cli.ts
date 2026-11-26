@@ -1,4 +1,21 @@
-import { parseBooleanLoginStatus, type CliAuthStatusProbe } from '@cherrystudio/agent-runtime/cli'
+import {
+  parseBooleanLoginStatus,
+  type CliAuthStatusProbe,
+  type PermissionModeCatalog
+} from '@cherrystudio/agent-runtime/cli'
+
+export const CLAUDE_PERMISSION_MODES = {
+  id: 'claude-mode',
+  currentValue: 'default',
+  application: 'session',
+  options: [
+    { value: 'default', name: 'Default', permissionMode: 'default' },
+    { value: 'acceptEdits', name: 'Accept Edits', permissionMode: 'acceptEdits' },
+    { value: 'plan', name: 'Plan', permissionMode: 'plan' },
+    { value: 'auto', name: 'Auto', permissionMode: 'auto' },
+    { value: 'bypassPermissions', name: 'Bypass Permissions', permissionMode: 'bypassPermissions' }
+  ]
+} as const satisfies PermissionModeCatalog
 
 export const claudeCli = {
   modelConfig: { target: 'claude-settings', overrides: ['CLAUDE_CONFIG_DIR', 'ANTHROPIC_MODEL'] },
@@ -33,21 +50,6 @@ export const claudeCli = {
   npmPackage: '@anthropic-ai/claude-code',
   args: [],
   helpUrl: 'https://code.claude.com/docs/en/setup'
-} as const
-
-export const claudeGateway = {
-  format: 'json',
-  read(doc: Record<string, unknown>, model: string) {
-    const env = doc.env && typeof doc.env === 'object' ? doc.env : {}
-    return {
-      baseUrl: 'ANTHROPIC_BASE_URL' in env ? env.ANTHROPIC_BASE_URL : undefined,
-      apiKey:
-        ('ANTHROPIC_AUTH_TOKEN' in env ? env.ANTHROPIC_AUTH_TOKEN : undefined) ??
-        ('ANTHROPIC_API_KEY' in env ? env.ANTHROPIC_API_KEY : undefined),
-      model,
-      path: '/v1/messages'
-    }
-  }
 } as const
 
 export const claudeModelProfile = {

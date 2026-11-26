@@ -5,19 +5,19 @@ import {
   type CodexSessionEvent,
   type CodexThreadRestore
 } from '@cherrystudio/agent-runtime-codex'
+import { selectedPermissionMode } from '@cherrystudio/agent-runtime/cli'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
 import { NativeQuestionReplySchema } from '@shared/ai/nativeInteraction'
 
-import { acquireLocalAgentBrowserLease, LOCAL_AGENT_AUTOMATION_SERVER_NAME } from '../localAgent/browserBridge'
-import { bindLocalGatewayUsage } from '../localAgent/gatewayUsage'
-import { resolveCodexLaunch } from '../localAgent/launch'
-import type { LocalAgentBrowserLease } from '../localAgent/LocalAgentMcpBridgeService'
-import { LocalAgentSessionRestoreError } from '../localAgent/LocalAgentSessionRestoreError'
-import { LocalConnection, type LocalSource } from '../localAgent/LocalConnection'
-import { localContent } from '../localAgent/localContent'
-import { resolveLocalModelContextWindow } from '../localAgent/modelContextWindow'
+import { acquireLocalAgentBrowserLease, LOCAL_AGENT_AUTOMATION_SERVER_NAME } from '../../mcp/localAgentBrowserBridge'
+import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeService'
+import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
+import { LocalConnection, type LocalSource } from '../LocalConnection'
+import { localContent } from '../localContent'
+import { resolveLocalModelContextWindow } from '../modelContextWindow'
 import type { AgentRuntimeUserInput, AgentRuntimeCommand, AgentRuntimeConnectInput } from '../types'
+import { resolveCodexLaunch } from './codexLaunch'
 import { codexProcessHost } from './processHost'
 
 const browserTokenEnv = 'CHERRY_BROWSER_MCP_TOKEN'
@@ -31,7 +31,6 @@ export class CodexSessionHost extends LocalConnection {
   private branchHead?: string
   private planPart?: number
   private session?: CodexSession
-  private gateway?: { dispose(): void }
   private browser?: LocalAgentBrowserLease
 
   override get localSessionInfo() {
@@ -42,21 +41,16 @@ export class CodexSessionHost extends LocalConnection {
     this.branchHead = branchHead
     const signal = this.abort.signal
     try {
-      const { configFiles, ...launch } = await resolveCodexLaunch(this.config, cwd, signal)
+      const launch = await resolveCodexLaunch(this.config, cwd, signal)
+      signal.throwIfAborted()
       const env = { ...launch.env }
-      const gateway = await bindLocalGatewayUsage(this.config, this.sessionId, env, configFiles)
-      if (signal.aborted) {
-        gateway?.dispose()
-        signal.throwIfAborted()
-      }
-      this.gateway = gateway
       const browser = await acquireLocalAgentBrowserLease({
         sessionId: this.sessionId,
         agentId: this.agentId,
         config: this.config,
         headless: this.headless,
         signal,
-        isReadOnly: () => this.localSessionInfo.mode?.currentValue === 'readOnly'
+        isReadOnly: () => selectedPermissionMode(this.localSessionInfo.mode) === 'plan'
       })
       if (signal.aborted) {
         await browser?.dispose()
@@ -206,7 +200,7 @@ export class CodexSessionHost extends LocalConnection {
           model: model || null,
           usage: event.usage,
           reportedAt: Date.now(),
-          correlation: this.gateway ? 'gateway' : 'unknown'
+          correlation: 'unknown'
         })
         if (summary.success) this.events.push({ type: 'local-turn-usage', summary: summary.data })
         const { modelContextWindow, turnId, inputTokens } = event.lastRequest
@@ -332,8 +326,6 @@ export class CodexSessionHost extends LocalConnection {
   protected override dispose() {
     void this.browser?.dispose().catch(() => {})
     this.browser = undefined
-    this.gateway?.dispose()
-    this.gateway = undefined
     super.dispose()
   }
 }

@@ -2,6 +2,7 @@ import { LoaderCircle, ScanLine, Settings2, Terminal, ToolCase } from 'lucide-re
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { requiresPermissionConfirmation } from '@cherrystudio/agent-runtime/cli'
 import { Alert, Badge, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
@@ -71,11 +72,9 @@ import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import {
-  classifyNativePermissionMode,
   findLocalDefaultNonPlanOption,
   findLocalPermissionConfigOption,
   findLocalPlanModeOption,
-  isHighRiskLocalOption,
   isLocalThoughtConfigOption,
   isUnifiedLocalPermissionMode
 } from '@renderer/utils/agent/localAgentLabels'
@@ -721,20 +720,17 @@ const AgentComposerInner = ({
     )
   }, [localOptions?.configOptions, localOptions?.mode?.id])
   const localPermissionSource = useMemo<{ kind: 'mode' | 'config'; selection: LocalAgentSelection } | undefined>(() => {
-    if (isUnifiedLocalPermissionMode(localMode, localPresetId) && localMode) {
+    if (isUnifiedLocalPermissionMode(localMode) && localMode) {
       return { kind: 'mode', selection: localMode }
     }
     if (agent?.type !== 'local') return undefined
-    const configSelection = findLocalPermissionConfigOption(localExtraOptions, localPresetId)
+    const configSelection = findLocalPermissionConfigOption(localExtraOptions)
     return configSelection ? { kind: 'config', selection: configSelection } : undefined
-  }, [agent?.type, localExtraOptions, localMode, localPresetId])
+  }, [agent?.type, localExtraOptions, localMode])
   const hasUnifiedPermissionMode = Boolean(localPermissionSource)
   const hasUnifiedModePermission = localPermissionSource?.kind === 'mode'
   const localPermissionSelection = localPermissionSource?.selection
-  const localPlanOption = useMemo(
-    () => (localPermissionSelection ? findLocalPlanModeOption(localPermissionSelection) : undefined),
-    [localPermissionSelection]
-  )
+  const localPlanOption = useMemo(() => findLocalPlanModeOption(localPermissionSelection), [localPermissionSelection])
   const lastNonPlanLocalModeRef = useRef<{ sessionId: string; value: string } | null>(null)
   const localPlanSwitchInFlightRef = useRef(false)
   useEffect(() => {
@@ -784,13 +780,7 @@ const AgentComposerInner = ({
       if (
         rememberedOption &&
         rememberedOption.value !== localPlanOption.value &&
-        classifyNativePermissionMode(rememberedOption, localPresetId)?.canonicalMode !== 'bypassPermissions' &&
-        !isHighRiskLocalOption({
-          kind: localPermissionSource.kind,
-          optionId: activeSelection.id,
-          value: rememberedOption.value,
-          name: rememberedOption.name
-        })
+        !requiresPermissionConfirmation(rememberedOption)
       ) {
         targetValue = rememberedOption.value
       } else {
@@ -813,7 +803,7 @@ const AgentComposerInner = ({
       .finally(() => {
         localPlanSwitchInFlightRef.current = false
       })
-  }, [isStreaming, localPermissionSource, localPlanOption, localPresetId, sessionId])
+  }, [isStreaming, localPermissionSource, localPlanOption, sessionId])
   const rootPanelVisible =
     layerActive && Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const skillsPanelVisible =
@@ -1393,18 +1383,10 @@ const AgentComposerInner = ({
         ? {
             mode: localPermissionSelection,
             kind: localPermissionSource?.kind,
-            presetId: localPresetId,
             disabled: isStreaming
           }
         : undefined,
-    [
-      agent?.type,
-      isStreaming,
-      launchOptions?.editing,
-      localPermissionSelection,
-      localPermissionSource?.kind,
-      localPresetId
-    ]
+    [agent?.type, isStreaming, launchOptions?.editing, localPermissionSelection, localPermissionSource?.kind]
   )
   const toolsSession = useMemo(
     () => (sessionData && localPermission ? { ...sessionData, localPermission } : sessionData),

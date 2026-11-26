@@ -1,19 +1,19 @@
 import * as z from 'zod'
 
-import type { AcpLoginProfile } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpLoginProfile, AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
 import { ampCli } from '@cherrystudio/agent-runtime-amp-acp/cli'
 import { antigravityCli } from '@cherrystudio/agent-runtime-antigravity-acp/cli'
-import { claudeCli } from '@cherrystudio/agent-runtime-claude-code/cli'
+import { claudeCli, CLAUDE_PERMISSION_MODES } from '@cherrystudio/agent-runtime-claude-code/cli'
 import { clineCli } from '@cherrystudio/agent-runtime-cline-acp/cli'
 import { codeBuddyCli } from '@cherrystudio/agent-runtime-codebuddy-acp/cli'
 import {
   codexCli,
-  CODEX_LOCAL_MODE_ID,
-  CODEX_LOCAL_MODE_OPTIONS,
+  CODEX_PERMISSION_MODES,
   CODEX_LOCAL_THOUGHT_LEVEL_ID,
   CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS
 } from '@cherrystudio/agent-runtime-codex/cli'
 import { copilotCli } from '@cherrystudio/agent-runtime-copilot-acp/cli'
+import { CURSOR_PERMISSION_MODES } from '@cherrystudio/agent-runtime-cursor/cli'
 import { dshCli } from '@cherrystudio/agent-runtime-deepseek-harness-acp/cli'
 import { factoryCli } from '@cherrystudio/agent-runtime-factory-acp/cli'
 import { glmCli } from '@cherrystudio/agent-runtime-glm-acp/cli'
@@ -34,11 +34,14 @@ import { snowCli } from '@cherrystudio/agent-runtime-snow-acp/cli'
 import { traeCli } from '@cherrystudio/agent-runtime-trae-acp/cli'
 import { vibeCli } from '@cherrystudio/agent-runtime-vibe-acp/cli'
 import { zcodeCli } from '@cherrystudio/agent-runtime-zcode-acp/cli'
-import type { CliAuthStatusProbe } from '@cherrystudio/agent-runtime/cli'
-import type { CliComponent } from '@cherrystudio/agent-runtime/cli'
+import type {
+  CliAuthStatusProbe,
+  CliComponent,
+  PermissionModeApplication,
+  PermissionModeCatalog,
+  PermissionModeChoice
+} from '@cherrystudio/agent-runtime/cli'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
-
-import type { LocalCanonicalPermissionMode } from './localAgentPermission'
 
 export const LocalAgentBrowserControlModeSchema = z.enum(['inherit', 'readonly', 'disabled'])
 export type LocalAgentBrowserControlMode = z.infer<typeof LocalAgentBrowserControlModeSchema>
@@ -72,8 +75,6 @@ export const LocalAgentLaunchSettingsSchema = LocalAgentConfigurationSchema.pick
 })
 export type LocalAgentLaunchSettings = z.infer<typeof LocalAgentLaunchSettingsSchema>
 
-type PermissionAliases = Readonly<Record<string, { canonicalMode: LocalCanonicalPermissionMode; priority: number }>>
-
 export interface CliAuthOption {
   id: string
   nameKey: string
@@ -93,8 +94,8 @@ interface LocalAgentCliOptions extends CliComponent {
   minimumAcpVersion?: string
   registryId?: string
   placeholderTitle?: RegExp
-  permissionMode?: 'none' | { labels?: PermissionAliases; values?: PermissionAliases }
-  defaultMode?: LocalAgentSelection
+  permissionMode?: AcpPermissionModes
+  defaultMode?: PermissionModeCatalog
   terminalArgs?: readonly string[]
   aliases?: readonly string[]
   loginArgs?: readonly string[]
@@ -271,19 +272,9 @@ export type LocalAgentProtocolInfo = z.infer<typeof LocalAgentProtocolInfoSchema
 export interface LocalAgentSelection {
   id: string
   currentValue: string
-  options: Array<{ value: string; name: string; description?: string }>
+  application?: PermissionModeApplication
+  options: Array<PermissionModeChoice & { description?: string }>
 }
-
-export const CLAUDE_LOCAL_MODE_ID = 'claude-mode'
-export const CLAUDE_LOCAL_MODE_OPTIONS = [
-  { value: 'default', name: 'Default' },
-  { value: 'acceptEdits', name: 'Accept Edits' },
-  { value: 'plan', name: 'Plan' },
-  { value: 'auto', name: 'Auto' },
-  { value: 'bypassPermissions', name: 'Bypass Permissions' }
-] as const
-
-export { DSH_LOCAL_MODE_ID, DSH_LOCAL_MODE_OPTIONS } from '@cherrystudio/agent-runtime-deepseek-harness-acp/cli'
 
 export const CLAUDE_LOCAL_THOUGHT_LEVEL_ID = 'claude-effort'
 export const CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS = [
@@ -298,23 +289,17 @@ export function getDefaultLocalAgentMode(
   protocol: LocalAgentConfiguration['protocol'],
   presetId?: string
 ): LocalAgentSelection | undefined {
-  if (protocol === 'claude') {
-    return {
-      id: CLAUDE_LOCAL_MODE_ID,
-      currentValue: 'default',
-      options: CLAUDE_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
-    }
-  }
-  if (protocol === 'codex') {
-    return {
-      id: CODEX_LOCAL_MODE_ID,
-      currentValue: 'workspace',
-      options: CODEX_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
-    }
-  }
-  const mode = protocol === 'acp' && presetId ? localCliPresetById.get(presetId)?.defaultMode : undefined
-  if (mode) return { ...mode, options: mode.options.map((option) => ({ ...option })) }
-  return undefined
+  const catalog =
+    protocol === 'claude'
+      ? CLAUDE_PERMISSION_MODES
+      : protocol === 'codex'
+        ? CODEX_PERMISSION_MODES
+        : protocol === 'cursor'
+          ? CURSOR_PERMISSION_MODES
+          : presetId
+            ? localCliPresetById.get(presetId)?.defaultMode
+            : undefined
+  if (catalog) return { ...catalog, options: [...catalog.options] }
 }
 
 export function getDefaultLocalAgentThoughtLevel(
@@ -337,21 +322,6 @@ export function getDefaultLocalAgentThoughtLevel(
   return undefined
 }
 
-export const LOCAL_PERMISSION_CONFIG_OPTION_IDS = new Set([
-  'allow_all',
-  'sandbox',
-  'permission_mode',
-  'permission mode',
-  'permissionmode',
-  'permissions',
-  'approval_mode',
-  'approval mode'
-])
-
-export function isLocalPermissionConfigOptionId(configId: string): boolean {
-  return LOCAL_PERMISSION_CONFIG_OPTION_IDS.has(configId.trim().toLowerCase())
-}
-
 export interface LocalAgentSessionOverrides {
   mode?: { configId: string; value: string }
   thoughtLevel?: { configId: string; value: string }
@@ -365,6 +335,8 @@ export interface LocalAgentNotice {
   description?: string
 }
 
+export type LocalAgentConfigChoice = PermissionModeChoice & { description?: string | null }
+
 export type LocalAgentConfigOption = {
   /** The option is valid only while its native session is connected. */
   liveOnly?: true
@@ -373,23 +345,15 @@ export type LocalAgentConfigOption = {
   description?: string | null
   category?: string | null
   role?: 'mode' | 'reasoning'
+  application?: PermissionModeApplication
 } & (
-  | { type: 'boolean'; currentValue: boolean }
+  | { type: 'boolean'; currentValue: boolean; confirmationValue?: boolean }
   | {
       type: 'select'
       currentValue: string
-      options: Array<
-        | { value: string; name: string; description?: string | null }
-        | { group: string; name: string; options: Array<{ value: string; name: string; description?: string | null }> }
-      >
+      options: Array<LocalAgentConfigChoice | { group: string; name: string; options: LocalAgentConfigChoice[] }>
     }
 )
-
-export function isLocalPermissionConfigOption(
-  option: Pick<LocalAgentConfigOption, 'id' | 'category' | 'role'>
-): boolean {
-  return option.role === 'mode' || option.category === 'mode' || isLocalPermissionConfigOptionId(option.id)
-}
 
 export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
   configOptions?: LocalAgentConfigOption[]

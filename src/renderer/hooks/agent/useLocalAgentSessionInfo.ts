@@ -14,20 +14,20 @@ const logger = loggerService.withContext('useLocalAgentSessionInfo')
 
 type LocalOptionSnapshot = Pick<LocalAgentSessionInfo, 'mode' | 'thoughtLevel' | 'configOptions'>
 
-function upsertSnapshot(
-  previous: Record<string, LocalOptionSnapshot>,
+function upsertSnapshot<T extends LocalOptionSnapshot>(
+  previous: Record<string, T>,
   sessionId: string,
-  snapshot: LocalOptionSnapshot
-): Record<string, LocalOptionSnapshot> {
+  snapshot: T
+): Record<string, T> {
   return Object.fromEntries(
     [[sessionId, snapshot], ...Object.entries(previous).filter(([id]) => id !== sessionId)].slice(0, 100)
   )
 }
 
-function deleteSnapshot(
-  previous: Record<string, LocalOptionSnapshot>,
+function deleteSnapshot<T extends LocalOptionSnapshot>(
+  previous: Record<string, T>,
   sessionId: string
-): Record<string, LocalOptionSnapshot> {
+): Record<string, T> {
   if (!(sessionId in previous)) return previous
   const next = { ...previous }
   delete next[sessionId]
@@ -62,7 +62,8 @@ export function useLocalAgentSessionInfo(
       configOptions: info.configOptions?.filter((option) => !option.liveOnly)
     }
     setSnapshots((previous) => upsertSnapshot(previous, sessionId, snapshot))
-    setPersistedSnapshots((previous) => upsertSnapshot(previous, sessionId, snapshot))
+    const persisted = { ...snapshot, permissionCatalog: true as const }
+    setPersistedSnapshots((previous) => upsertSnapshot(previous, sessionId, persisted))
   })
 
   useEffect(() => {
@@ -89,7 +90,8 @@ export function useLocalAgentSessionInfo(
   }, [sessionId, enabled, scope])
 
   const info = enabled && live?.scope === scope ? live.info : null
-  const base = info ?? snapshots[sessionId] ?? persistedSnapshots[sessionId]
+  const persisted = persistedSnapshots[sessionId]
+  const base = info ?? snapshots[sessionId] ?? (persisted?.permissionCatalog ? persisted : undefined)
   const options = useMemo(() => {
     if (!enabled) return base
     const fallbackMode = protocol ? getDefaultLocalAgentMode(protocol, presetId) : undefined

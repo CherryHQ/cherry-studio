@@ -184,9 +184,9 @@ describe('permissionModeTool submenu', () => {
       id: 'codex-mode',
       currentValue: 'workspace',
       options: [
-        { value: 'readOnly', name: 'Read Only' },
-        { value: 'workspace', name: 'Workspace' },
-        { value: 'fullAccess', name: 'Full Access' }
+        { value: 'readOnly', name: 'Read Only', permissionMode: 'plan' },
+        { value: 'workspace', name: 'Workspace', permissionMode: 'acceptEdits' },
+        { value: 'fullAccess', name: 'Full Access', permissionMode: 'bypassPermissions' }
       ]
     }
     const piMode = {
@@ -211,7 +211,7 @@ describe('permissionModeTool submenu', () => {
           agentId: 'a2',
           sessionId: 's2',
           agentType: 'local',
-          localPermission: { mode: piMode, presetId: 'pi-acp' }
+          localPermission: { mode: piMode }
         }
       } as any)
     ).toBe(false)
@@ -231,11 +231,11 @@ describe('permissionModeTool submenu', () => {
       id: 'mode',
       currentValue: 'build',
       options: [
-        { value: 'plan', name: 'plan' },
-        { value: 'build', name: 'build' },
-        { value: 'edit', name: 'edit' },
-        { value: 'guarded', name: 'guarded' },
-        { value: 'yolo', name: 'yolo' }
+        { value: 'plan', name: 'plan', permissionMode: 'plan' },
+        { value: 'build', name: 'build', permissionMode: 'acceptEdits' },
+        { value: 'edit', name: 'edit', permissionMode: 'acceptEdits' },
+        { value: 'guarded', name: 'guarded', permissionMode: 'default' },
+        { value: 'yolo', name: 'yolo', permissionMode: 'bypassPermissions' }
       ]
     }
     const context = {
@@ -245,7 +245,7 @@ describe('permissionModeTool submenu', () => {
         agentId: 'agent-local',
         sessionId: 'session-zcode',
         agentType: 'local',
-        localPermission: { mode: zcodeMode, presetId: 'zcode', disabled: false }
+        localPermission: { mode: zcodeMode, disabled: false }
       }
     }
 
@@ -297,7 +297,7 @@ describe('permissionModeTool submenu', () => {
             ...context,
             session: {
               ...context.session,
-              localPermission: { mode: zcodeMode, presetId: 'zcode', disabled: true }
+              localPermission: { mode: zcodeMode, disabled: true }
             }
           } as any
         }
@@ -314,8 +314,8 @@ describe('permissionModeTool submenu', () => {
       id: 'permissions',
       currentValue: 'default',
       options: [
-        { value: 'default', name: 'Default' },
-        { value: 'bypass', name: 'Bypass' }
+        { value: 'default', name: 'Default', permissionMode: 'default' },
+        { value: 'bypass', name: 'Bypass', permissionMode: 'bypassPermissions' }
       ]
     }
     rerender(
@@ -327,7 +327,7 @@ describe('permissionModeTool submenu', () => {
               agentId: 'agent-amp',
               sessionId: 'session-amp',
               agentType: 'local',
-              localPermission: { mode: ampConfigPermission, kind: 'config', presetId: 'amp-acp', disabled: false }
+              localPermission: { mode: ampConfigPermission, kind: 'config', disabled: false }
             }
           } as any
         }

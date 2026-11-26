@@ -7,6 +7,7 @@
  */
 import * as z from 'zod'
 
+import { AGENT_PERMISSION_MODES } from '@cherrystudio/agent-runtime/cli'
 import { MAX_HEARTBEAT_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
 import { AgentPromptOverridesPatchSchema, AgentPromptOverridesSchema } from '@shared/ai/agentPromptSections'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
@@ -42,7 +43,7 @@ export const AgentSkillUpdateListSchema = z.array(AgentSkillUpdateSchema).transf
 })
 export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
-export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'])
+export const AgentPermissionModeSchema = z.enum(AGENT_PERMISSION_MODES)
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
 export const AGENT_TYPES = ['claude-code', 'pi', 'pi-durable', 'local'] as const
 export const AgentTypeSchema = z.enum(AGENT_TYPES)

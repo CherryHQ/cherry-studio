@@ -34,9 +34,7 @@ async function startMessage(config: MessageConfig, release?: () => void): Promis
   const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, adapterOptions)
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
   const usageContext = config.requestHeaders
-    ? application
-        .get('ApiGatewayService')
-        .resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId(), request.modelString)
+    ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders, adapter.getMessageId())
     : undefined
 
   const promptOptions = gatewayPromptOptions(request, usageContext)

@@ -1,6 +1,11 @@
+import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const gooseCli = {
   id: 'goose',
-  permissionMode: { labels: { auto: { canonicalMode: 'bypassPermissions', priority: 1 } } },
+  permissionMode: {
+    values: { auto: 'bypassPermissions', approve: 'default', smart_approve: 'auto' },
+    labels: { auto: 'bypassPermissions' }
+  } satisfies AcpPermissionModes,
   modelEndpoints: ['anthropic-messages', 'openai-responses', 'openai-chat-completions'],
   terminalArgs: ['session'],
   modelConfig: {

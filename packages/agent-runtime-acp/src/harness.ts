@@ -8,7 +8,14 @@ import type {
 
 import type { OperationResult, ThreadContextUsage } from '@cherrystudio/agent-runtime'
 
+import type { AcpPermissionOption, AcpPermissionOptionDetails, AcpPermissionRequest } from './permissions'
 import type { AcpTurnUsage } from './usage'
+
+interface AcpPermissionQuestion {
+  text: string
+  options: { label: string }[]
+  optionIdFor(answer: string): string | undefined
+}
 
 export interface AcpHarnessSession {
   readonly promptMeta?: PromptRequest['_meta']
@@ -21,6 +28,8 @@ export interface AcpHarnessSession {
 export interface AcpHarnessAdapter {
   readonly preferredRestore?: 'load'
   readonly hostMutations?: 'disabled'
+  permissionQuestion?(request: AcpPermissionRequest): AcpPermissionQuestion | undefined
+  describePermissionOption?(option: AcpPermissionOption): AcpPermissionOptionDetails
   registerRequests?(
     onRequest: <P, R>(
       method: string,

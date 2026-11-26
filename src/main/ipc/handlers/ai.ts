@@ -19,11 +19,14 @@ import { childTimelines } from '@main/ai/agentSession/childTimelines'
 import { readToolResult } from '@main/ai/messages/toolResultRead'
 import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
-import { getLocalAgentAuthStatus } from '@main/ai/runtime/localAgent/authStatus'
-import { detectLocalAgents, openLocalAgentTerminal } from '@main/ai/runtime/localAgent/launch'
-import { checkLocalAgent, listLocalAgentModels } from '@main/ai/runtime/localAgent/LocalRuntimeDriver'
-import { selectLocalAgentModel } from '@main/ai/runtime/localAgent/selectModel'
+import { checkLocalAgent, listLocalAgentModels } from '@main/ai/runtime/LocalRuntimeDriver'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
+import {
+  detectLocalAgents,
+  getLocalAgentAuthStatus,
+  openLocalAgentTerminal,
+  selectLocalAgentModel
+} from '@main/services/codeCli'
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'

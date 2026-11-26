@@ -69,17 +69,12 @@ import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import { getProviderModelId, type ExecutionId } from '@shared/ai/executionIdentity'
 import {
-  DSH_LOCAL_MODE_ID,
-  DSH_LOCAL_MODE_OPTIONS,
   getDefaultLocalAgentMode,
   getDefaultLocalAgentThoughtLevel,
-  isLocalPermissionConfigOption,
-  isLocalPermissionConfigOptionId,
   type LocalAgentConfiguration,
   type LocalAgentSessionInfo,
   type LocalAgentSessionOverrides
 } from '@shared/ai/localAgent'
-import { resolveEffectiveLocalPermissionMode } from '@shared/ai/localAgentPermission'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
@@ -99,7 +94,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { prepareAgentConfigApproval } from '../agents/agentConfigTool'
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
-import { LocalAgentSessionRestoreError } from '../runtime/localAgent/LocalAgentSessionRestoreError'
+import { LocalAgentSessionRestoreError } from '../runtime/LocalAgentSessionRestoreError'
 import { recoverDurableReplies } from '../runtime/piDurable/recoverDurableReplies'
 import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
@@ -752,10 +747,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (entry.agentType === 'local' && !localModelId) return
     const allowsSuggestions = () => {
       const config = agentService.getAgent(entry.agentId)?.configuration
-      return (
-        config?.permission_mode !== 'plan' &&
-        resolveEffectiveLocalPermissionMode(connection.localSessionInfo, config?.localRuntime?.presetId) !== 'plan'
-      )
+      return config?.permission_mode !== 'plan' && connection.effectivePermissionMode !== 'plan'
     }
     const eligible = () =>
       entry.modelId === modelId &&
@@ -4309,7 +4301,7 @@ export class AgentSessionRuntimeService extends BaseService {
   async setLocalConfigOption(sessionId: string, configId: string, value: string | boolean) {
     const info = await this.changeLocalOption(sessionId, (connection) => connection.setConfigOption?.(configId, value))
     const option = info.configOptions?.find((item) => item.id === configId)
-    if (isLocalPermissionConfigOptionId(configId) || (option && isLocalPermissionConfigOption(option))) {
+    if (option?.application === 'session') {
       this.saveLocalSessionOverride(sessionId, { configOption: { configId, value } })
     }
     return info
@@ -4354,12 +4346,10 @@ export class AgentSessionRuntimeService extends BaseService {
     const agent = session?.agentId ? agentService.getAgent(session.agentId) : undefined
     const isLocalAgent = agent?.type === 'local'
     const localConfig = isLocalAgent ? agent.configuration?.localRuntime : undefined
-    // DeepSeek Harness reads DSH_PERMISSION_MODE at launch, so idle sessions reconnect.
-    if (
-      localConfig?.presetId === 'deepseek-harness' &&
-      configId === DSH_LOCAL_MODE_ID &&
-      DSH_LOCAL_MODE_OPTIONS.some((option) => option.value === value)
-    ) {
+    const declaredMode = localConfig && getDefaultLocalAgentMode(localConfig.protocol, localConfig.presetId)
+    const isDeclaredValue =
+      declaredMode?.id === configId && declaredMode.options.some((option) => option.value === value)
+    if (localConfig && declaredMode?.application === 'reconnect' && isDeclaredValue) {
       const existingEntry = this.entries.get(sessionId)
       const existingConnection = existingEntry && this.currentConnection(existingEntry)
       const baseInfo = existingConnection?.localSessionInfo ? { ...existingConnection.localSessionInfo } : undefined
@@ -4390,8 +4380,7 @@ export class AgentSessionRuntimeService extends BaseService {
       return info
     }
     if (!connection && !this.isSessionBusy(sessionId) && localConfig) {
-      const defaultMode = getDefaultLocalAgentMode(localConfig.protocol, localConfig.presetId)
-      if (defaultMode && defaultMode.id === configId && defaultMode.options.some((option) => option.value === value)) {
+      if (isDeclaredValue) {
         this.saveLocalSessionOverride(sessionId, { mode: { configId, value } })
         const info = this.buildLocalFallbackSessionInfo(sessionId, localConfig.protocol, localConfig.presetId)
         application.get('IpcApiService').broadcast('ai.local_agents.session_updated', { sessionId, info })

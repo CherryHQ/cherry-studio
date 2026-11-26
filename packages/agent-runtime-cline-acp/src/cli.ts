@@ -1,8 +1,10 @@
+import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const clineCli = {
   modelConfig: { tool: 'cline', target: 'cline-providers', overrides: ['CLINE_DATA_DIR', 'CLINE_DIR'] },
   id: 'cline',
   terminalArgs: [],
-  permissionMode: { values: { act: { canonicalMode: 'default', priority: 1 } } },
+  permissionMode: { values: { act: 'default', plan: 'plan' } } satisfies AcpPermissionModes,
   name: 'Cline',
   protocol: 'acp',
   executable: 'cline',

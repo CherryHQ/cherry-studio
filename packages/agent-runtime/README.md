@@ -13,6 +13,11 @@ separate lifetime.
 Native CLI login uses the same stdio capability, forwards parsed login prompts and joins the
 child on cancellation.
 
+Runtime permission mode declarations carry the native choice value, its supported Agent permission
+semantics and when a selection applies. A selection can take effect on the current session, the
+next turn or across a reconnect. A catalog describes available choices. A live connection confirms
+the policy it has applied.
+
 `Thread` is the stable native context identity within a backend. `ThreadHandle` is a live access
 with observation and release operations. A writable handle exposes its supported operations under
 `input`. `submit` rejects busy work, `steer.submit` declares what happens when idle, and

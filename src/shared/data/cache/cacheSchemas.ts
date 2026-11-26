@@ -461,7 +461,7 @@ export type RendererPersistCacheSchema = {
   'local_agent.model_catalogs': Record<string, CacheValueTypes.LocalAgentModelCacheEntry>
   'local_agent.session_option_snapshots': Record<
     string,
-    Pick<LocalAgentSessionInfo, 'mode' | 'thoughtLevel' | 'configOptions'>
+    Pick<LocalAgentSessionInfo, 'mode' | 'thoughtLevel' | 'configOptions'> & { permissionCatalog?: true }
   >
   'ui.model_selector.presentation': 'popover' | 'dialog'
   'ui.model_selector.cherryai_pinned': boolean

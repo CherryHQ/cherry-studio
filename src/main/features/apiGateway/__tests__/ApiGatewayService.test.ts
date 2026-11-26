@@ -455,75 +455,32 @@ describe('ApiGatewayService internal gateway', () => {
     boundScoped.dispose()
   })
 
-  it('attributes public-key gateway requests for a bound session only when that session has the unique active turn for that model', async () => {
+  it('isolates sessions using the same model and leaves public-key requests unassociated', async () => {
     const service = new ApiGatewayService()
     await startInternalGateway(service)
-    const model = 'openai:gpt-5.4-mini'
-    const privateLease = await service.createScopedCredential({
-      ...CHAT_SCOPE,
-      model,
-      agentSessionId: 'private-session'
-    })
-    mockGetActiveUsageContext.mockImplementation((agentSessionId: string) => ({
-      agentSessionId,
-      assistantMessageId: 'private-reply',
-      source: null
-    }))
-    const publicHeaders = new Headers({ 'x-api-key': 'existing-key' })
-    expect(service.resolveAgentSessionUsage(publicHeaders, 'adapter-response-id', model)).toBeUndefined()
-    expect(service.resolveAgentSessionUsage(new Headers({ 'x-api-key': privateLease.apiKey }))).toMatchObject({
-      agentSessionId: 'private-session',
-      assistantMessageId: 'private-reply'
-    })
-
-    const firstLease = await service.createScopedCredential({
-      path: '/v1/messages',
-      model,
-      allowPublicCorrelation: true,
-      agentSessionId: 'session-1'
-    })
-    mockGetActiveUsageContext.mockImplementation((sessionId: string) =>
-      sessionId === 'session-1'
-        ? {
-            agentSessionId: 'session-1',
-            assistantMessageId: 'assistant-1',
-            source: { type: 'agent', id: 'agent-1', name: 'Grok Build', icon: null }
-          }
-        : undefined
-    )
-
-    expect(service.resolveAgentSessionUsage(publicHeaders, 'adapter-response-id', model)).toEqual({
-      agentSessionId: 'session-1',
-      assistantMessageId: 'assistant-1',
-      source: { type: 'agent', id: 'agent-1', name: 'Grok Build', icon: null }
-    })
-    expect(mockGetActiveUsageContext).toHaveBeenLastCalledWith('session-1', undefined)
-    expect(service.resolveAgentSessionUsage(publicHeaders, 'adapter-response-id', 'other:model')).toBeUndefined()
-    expect(
-      service.resolveAgentSessionUsage(new Headers({ 'x-api-key': 'wrong-key' }), 'adapter-response-id', model)
-    ).toBeUndefined()
-
-    const secondLease = await service.createScopedCredential({
-      path: '/v1/messages',
-      model,
-      allowPublicCorrelation: true,
-      agentSessionId: 'session-2'
-    })
+    const first = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-1' })
+    const second = await service.createScopedCredential({ ...CHAT_SCOPE, agentSessionId: 'session-2' })
     mockGetActiveUsageContext.mockImplementation((sessionId: string) => ({
       agentSessionId: sessionId,
-      assistantMessageId: sessionId === 'session-1' ? 'assistant-1' : 'assistant-2',
+      assistantMessageId: 'reply-for-' + sessionId,
       source: null
     }))
-    expect(service.resolveAgentSessionUsage(publicHeaders, 'adapter-response-id', model)).toBeUndefined()
 
-    secondLease.dispose()
-    mockGetActiveUsageContext.mockImplementation(() => ({
+    const usage = (apiKey: string) => service.resolveAgentSessionUsage(new Headers({ 'x-api-key': apiKey }))
+    expect(usage(first.apiKey)).toMatchObject({
       agentSessionId: 'session-1',
-      source: null
-    }))
-    expect(service.resolveAgentSessionUsage(publicHeaders, 'adapter-response-id', model)).toBeUndefined()
-    firstLease.dispose()
-    privateLease.dispose()
+      assistantMessageId: 'reply-for-session-1'
+    })
+    expect(usage(second.apiKey)).toMatchObject({
+      agentSessionId: 'session-2',
+      assistantMessageId: 'reply-for-session-2'
+    })
+    expect(usage('existing-key')).toBeUndefined()
+    first.dispose()
+    expect(usage(first.apiKey)).toBeUndefined()
+    expect(usage('existing-key')).toBeUndefined()
+    expect(usage(second.apiKey)).toMatchObject({ agentSessionId: 'session-2' })
+    second.dispose()
   })
 })
 

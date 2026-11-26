@@ -1,8 +1,13 @@
+import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+
 export const minimaxCli = {
   modelConfig: { target: 'minimax-config', overrides: [] },
   id: 'minimax',
   terminalArgs: [],
-  permissionMode: { labels: { ask: { canonicalMode: 'default', priority: 1 } } },
+  permissionMode: {
+    values: { ask: 'default', auto: 'auto', full_access: 'bypassPermissions' },
+    labels: { ask: 'default' }
+  } satisfies AcpPermissionModes,
   name: 'MiniMax Code',
   protocol: 'acp',
   executable: 'mcode',

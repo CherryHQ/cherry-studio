@@ -8,7 +8,7 @@ import { Mutex } from 'async-mutex'
 import { app, session } from 'electron'
 
 import { application } from '@application'
-import { resolveLocalAgentLaunch } from '@main/ai/runtime/localAgent/launch'
+import { resolveAcpLaunch } from '@main/ai/runtime/acp/acpLaunch'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getEnvironmentValue } from '@main/utils/env'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
@@ -86,7 +86,7 @@ export class LocalAgentWebUiService extends BaseService {
       this.publish(instance, { status: 'starting' })
       try {
         await this.stopChild(instance)
-        const launch = await resolveLocalAgentLaunch(config, abort.signal)
+        const launch = await resolveAcpLaunch(config, abort.signal)
         const port = await availablePort()
         abort.signal.throwIfAborted()
         const url = new URL(`http://127.0.0.1:${port}/`)
