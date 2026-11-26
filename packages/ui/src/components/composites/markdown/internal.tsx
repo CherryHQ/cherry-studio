@@ -44,6 +44,8 @@ import {
 } from './utils'
 import { rehypeNormalizeLinkScheme } from './utils/normalize-link-scheme'
 
+const STATIC_BLOCKS_CLASS = 'markdown-static-blocks'
+
 const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).map(([name, plugin]) => {
   if (name !== 'gfm' || !Array.isArray(plugin)) return plugin
 
@@ -139,6 +141,7 @@ export interface MarkdownCoreProps {
   preserveFileLinkHrefs?: boolean
   additionalLinkProtocols?: readonly string[]
   preserveRelativeImageSrcs?: boolean
+  onBlocksMounted?: (blocks: HTMLCollection) => void
 }
 
 export function MarkdownCore({
@@ -157,7 +160,8 @@ export function MarkdownCore({
   footnoteLabel = 'Footnotes',
   preserveFileLinkHrefs = false,
   additionalLinkProtocols,
-  preserveRelativeImageSrcs = false
+  preserveRelativeImageSrcs = false,
+  onBlocksMounted
 }: MarkdownCoreProps): ReactElement {
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
   const stableComponents = useStableReference(components, isSameComponents)
@@ -247,12 +251,26 @@ export function MarkdownCore({
   )
 
   const markdownCtx = useMemo(() => ({ content: children }), [children])
+  const reportBlocks = mode === 'static' ? onBlocksMounted : undefined
+  const attachMarkdownRoot = useCallback(
+    (element: HTMLDivElement | null) => {
+      const container = element?.firstElementChild
+      if (element?.childElementCount !== 1 || !container?.matches(`div.${STATIC_BLOCKS_CLASS}`)) return
+      if (!container.childElementCount) return
+      for (const node of container.childNodes) {
+        if (!(node instanceof Element) && (node.nodeType !== Node.TEXT_NODE || node.textContent?.trim())) return
+      }
+      reportBlocks?.(container.children)
+    },
+    [reportBlocks]
+  )
 
   return (
     <MarkdownBlockContext value={markdownCtx}>
-      <div className={['markdown', className].filter(Boolean).join(' ')}>
+      <div ref={reportBlocks && attachMarkdownRoot} className={['markdown', className].filter(Boolean).join(' ')}>
         <Streamdown
           BlockComponent={MarkdownBlock}
+          className={reportBlocks && STATIC_BLOCKS_CLASS}
           mode={mode}
           plugins={plugins}
           rehypePlugins={rehypePlugins}

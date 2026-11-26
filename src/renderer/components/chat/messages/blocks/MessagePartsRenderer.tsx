@@ -261,7 +261,7 @@ const AnimatedBlockWrapper: React.FC<{
 
   if (!hasEverAnimated) {
     return (
-      <div className={wrapperClassName} data-message-part-id={messagePartId}>
+      <div className={wrapperClassName} data-message-part-id={messagePartId} data-message-entrance-unit="">
         <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
       </div>
     )

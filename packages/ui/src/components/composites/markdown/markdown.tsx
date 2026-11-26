@@ -37,6 +37,8 @@ export interface MarkdownProps {
   additionalLinkProtocols?: readonly string[]
   /** Preserve relative image destinations for a custom image renderer. */
   preserveRelativeImageSrcs?: boolean
+  /** Receives the rendered top-level elements when the static document mounts. */
+  onBlocksMounted?: (blocks: HTMLCollection) => void
 }
 
 export function Markdown({
@@ -51,7 +53,8 @@ export function Markdown({
   footnoteLabel,
   preserveFileLinkHrefs,
   additionalLinkProtocols,
-  preserveRelativeImageSrcs
+  preserveRelativeImageSrcs,
+  onBlocksMounted
 }: MarkdownProps): ReactElement {
   return (
     <MarkdownCore
@@ -66,7 +69,8 @@ export function Markdown({
       footnoteLabel={footnoteLabel}
       preserveFileLinkHrefs={preserveFileLinkHrefs}
       additionalLinkProtocols={additionalLinkProtocols}
-      preserveRelativeImageSrcs={preserveRelativeImageSrcs}>
+      preserveRelativeImageSrcs={preserveRelativeImageSrcs}
+      onBlocksMounted={onBlocksMounted}>
       {children}
     </MarkdownCore>
   )

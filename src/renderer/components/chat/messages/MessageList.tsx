@@ -196,9 +196,10 @@ const MessageLayer = memo(MessageGroupLayer, (previous, next) => {
 interface MessageListProps {
   enableSearch?: boolean
   scrollPositionKey?: string
+  captureMode?: boolean
 }
 
-const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListProps) => {
+const MessageList = ({ enableSearch = false, scrollPositionKey, captureMode = false }: MessageListProps) => {
   const data = useMessageListData()
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
@@ -835,6 +836,7 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
             showScrollToBottomButton
             scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}
             topicId={scrollPositionKey ?? topic.id}
+            animateEntrance={!captureMode && scrollPositionKey === undefined && messages.length > 0}
             hasMoreTop={hasOlder}
             onScrollContainerReady={handleScrollContainerReady}
             onReachTop={loadMoreMessages}

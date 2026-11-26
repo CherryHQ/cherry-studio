@@ -109,6 +109,7 @@ export interface ScrollPositionMemoryInputs {
   enterFollowingAfterRestore: () => void
   enterReadingForRestore: () => void
   settleReadingRestore: () => void
+  onInitialScrollSettled?: () => void
   /** Whether a smooth-scroll animation is in flight (don't save mid-animation). */
   isAnimating: () => boolean
 }
@@ -128,6 +129,8 @@ export interface ScrollPositionMemory {
 
 const cacheKeyFor = (topicId: string) => `chat.scroll_anchor.${topicId}` as const
 const SAVE_THROTTLE_MS = 200
+const RESTORE_STABLE_FRAMES = 4
+const RESTORE_TIMEOUT_MS = 500
 
 export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): ScrollPositionMemory {
   // Keep the latest inputs addressable from the stable callbacks/effect.
@@ -162,16 +165,21 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
   const ready = inputs.itemCount > 0
   useEffect(() => {
     if (didRestoreRef.current || !ready) return
-    didRestoreRef.current = true
 
     const i = inputsRef.current
     const saved = i.topicId ? cacheService.get(cacheKeyFor(i.topicId)) : null
     const target = resolveRestoreTarget(saved, i.findDataIndexByKey, i.itemCount - 1, i.bottomPadding)
+    const settle = () => {
+      didRestoreRef.current = true
+      suppressSaveRef.current = false
+      i.onInitialScrollSettled?.()
+    }
 
     let settleRaf = 0
+    let settleTimeout = 0
     const raf = requestAnimationFrame(() => {
       if (!i.shouldRestore()) {
-        suppressSaveRef.current = false
+        settle()
         return
       }
       const el = i.scrollerRef.current
@@ -183,17 +191,31 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
       } else if (el && target.align === 'end') {
         el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight)
       }
-      // Let the programmatic scroll flush (virtua's scrollToIndex measures then
-      // re-positions) before re-enabling saves.
-      settleRaf = requestAnimationFrame(() => {
+      const finishRestore = () => {
+        cancelAnimationFrame(settleRaf)
+        window.clearTimeout(settleTimeout)
         if (target.align === 'start') i.settleReadingRestore()
-        suppressSaveRef.current = false
-      })
+        settle()
+      }
+
+      // Virtua can correct the offset again as it measures the restored rows.
+      let lastScrollTop = el?.scrollTop
+      let stableFrames = 0
+      const checkScroll = () => {
+        const scrollTop = el?.scrollTop
+        stableFrames = scrollTop === lastScrollTop ? stableFrames + 1 : 0
+        lastScrollTop = scrollTop
+        if (stableFrames >= RESTORE_STABLE_FRAMES) finishRestore()
+        else settleRaf = requestAnimationFrame(checkScroll)
+      }
+      settleRaf = requestAnimationFrame(checkScroll)
+      settleTimeout = window.setTimeout(finishRestore, RESTORE_TIMEOUT_MS)
     })
 
     return () => {
       cancelAnimationFrame(raf)
-      if (settleRaf) cancelAnimationFrame(settleRaf)
+      cancelAnimationFrame(settleRaf)
+      window.clearTimeout(settleTimeout)
     }
   }, [ready])
 

@@ -1,5 +1,5 @@
 import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import type { ComponentProps, MouseEvent, ReactElement, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -8,6 +8,8 @@ import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/com
 import { messageProjectionService } from '@renderer/services/aiTransport'
 import { exportService, getMessageTitle } from '@renderer/services/ExportService'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
+
+import { useMessageEntrance } from '../../list/useMessageEntrance'
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
 const readMessageAloud = vi.hoisted(() => vi.fn())
@@ -694,6 +696,14 @@ describe('messageMenuBarActions', () => {
 
   it('keeps copy-as-image source ownership through a queued capture', async () => {
     const currentElement = document.createElement('div')
+    const cancelEntrance = vi.fn()
+    const cancelOtherAnimation = vi.fn()
+    Object.defineProperty(currentElement, 'getAnimations', {
+      value: () => [
+        { id: 'chat-message-entrance', cancel: cancelEntrance },
+        { id: 'other-animation', cancel: cancelOtherAnimation }
+      ]
+    })
     const imageBlob = new Blob(['image'], { type: 'image/png' })
     const copyImage = vi.fn()
     const releaseLease = vi.fn()
@@ -706,6 +716,8 @@ describe('messageMenuBarActions', () => {
     const captureScrollableAsBlobMock = vi.mocked(exportService.captureScrollableAsBlob)
     captureScrollableAsBlobMock.mockImplementation(async (ref, callback) => {
       expect(ref.current).toBe(currentElement)
+      expect(cancelEntrance).toHaveBeenCalledOnce()
+      expect(cancelOtherAnimation).not.toHaveBeenCalled()
       callback(imageBlob)
     })
 
@@ -724,6 +736,76 @@ describe('messageMenuBarActions', () => {
     expect(acquireLease).toHaveBeenCalledWith(context.message.id)
     expect(copyImage).toHaveBeenCalledWith(imageBlob)
     expect(releaseLease).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps newly revealed blocks static during image capture and releases them when it finishes', async () => {
+    const view = render(
+      <div data-message-virtual-list-scroller="">
+        <div data-message-id="message">
+          <p data-message-entrance-unit="">Already animating</p>
+        </div>
+      </div>
+    )
+    const viewport = view.container.firstElementChild as HTMLDivElement
+    const message = viewport.firstElementChild as HTMLDivElement
+    const animate = vi.fn<Element['animate']>()
+    const originalAnimate = Object.getOwnPropertyDescriptor(Element.prototype, 'animate')
+    const bounds = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 100))
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0)
+    Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: animate })
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
+    const { unmount } = renderHook(() => useMessageEntrance(true, viewport, true))
+    const captureStarted = Promise.withResolvers<void>()
+    const assetsReady = Promise.withResolvers<void>()
+    const capture = vi.mocked(exportService.captureScrollableAsDataUrl)
+    capture.mockImplementationOnce(async (ref) => {
+      expect(ref.current).toBe(message)
+      captureStarted.resolve()
+      await assetsReady.promise
+      return 'data:image/png;base64,AAAA'
+    })
+    vi.mocked(getMessageTitle).mockResolvedValueOnce('Message')
+    const saveImage = vi.fn(async () => true)
+    const context = createActionContext({
+      messageContainerRef: { current: message },
+      actions: { saveImage },
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+    const animatedBlocks = () => (animate.mock.contexts as Element[]).map((block) => block.textContent)
+    const action = executeMessageMenuBarAction('export.image', context)
+    try {
+      await Promise.race([captureStarted.promise, action])
+      expect(animatedBlocks()).toEqual(['Already animating'])
+
+      const revealed = document.createElement('p')
+      revealed.setAttribute('data-message-entrance-unit', '')
+      revealed.textContent = 'Revealed while waiting for assets'
+      await act(async () => {
+        message.append(revealed)
+        await Promise.resolve()
+        vi.advanceTimersToNextFrame()
+      })
+      expect(animatedBlocks()).toEqual(['Already animating'])
+
+      assetsReady.resolve()
+      await expect(action).resolves.toBe(true)
+      expect(saveImage).toHaveBeenCalledWith('Message', 'data:image/png;base64,AAAA')
+      fireEvent.scroll(viewport)
+      vi.advanceTimersToNextFrame()
+      expect(animatedBlocks()).toEqual(['Already animating', 'Revealed while waiting for assets'])
+    } finally {
+      assetsReady.resolve()
+      await action
+      unmount()
+      vi.useRealTimers()
+      now.mockRestore()
+      bounds.mockRestore()
+      if (originalAnimate) Object.defineProperty(Element.prototype, 'animate', originalAnimate)
+      else Reflect.deleteProperty(Element.prototype, 'animate')
+    }
   })
 
   it('reports a queued copy-as-image failure when a topic switch removes its source', async () => {

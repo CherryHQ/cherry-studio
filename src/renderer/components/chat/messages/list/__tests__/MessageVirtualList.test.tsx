@@ -1,8 +1,13 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as LucideReact from 'lucide-react'
 import { Activity, type ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { CherryMessagePart } from '@shared/data/types/message'
+
+import MessageFrame from '../../frame/MessageFrame'
+import { MessageListProvider } from '../../MessageListProvider'
+import { DEFAULT_MESSAGE_LIST_CONFIG, defaultMessageRenderConfig, type MessageListItem } from '../../types'
 import { MessageVirtualList } from '../MessageVirtualList'
 import { useScrollRuntimeBoundary } from '../ScrollOwnershipContext'
 
@@ -20,11 +25,13 @@ const runtimeMockState = vi.hoisted(() => ({
   dismissAutoscroll: vi.fn(),
   onWheel: vi.fn(),
   shift: false,
+  scrollSettled: true,
   scrollerRef: { current: null as HTMLDivElement | null }
 }))
 
 const virtuaMockState = vi.hoisted(() => ({
-  scrollRefReadyAtMount: [] as boolean[]
+  scrollRefReadyAtMount: [] as boolean[],
+  mountedItems: undefined as string[] | undefined
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -63,9 +70,11 @@ vi.mock('virtua', () => {
       virtuaMockState.scrollRefReadyAtMount.push(Boolean(scrollRef.current))
       return (
         <div ref={ref} data-shift={String(shift)} data-start-margin={startMargin} data-testid="virtualizer">
-          {data.map((item: unknown, index: number) => (
-            <div key={index}>{children(item, index)}</div>
-          ))}
+          {data.map((item: string, index: number) =>
+            !virtuaMockState.mountedItems || virtuaMockState.mountedItems.includes(item) ? (
+              <div key={item}>{children(item, index)}</div>
+            ) : null
+          )}
         </div>
       )
     }
@@ -73,35 +82,41 @@ vi.mock('virtua', () => {
 })
 
 vi.mock('../chatVirtualizerRuntime', async () => {
-  const { createElement } = await import('react')
+  const { createElement, useEffect } = await import('react')
   return {
-    useChatVirtualizerRuntime: vi.fn(({ items, renderItem }) => ({
-      contentRef: { current: null },
-      freezeSpacerRef: { current: null },
-      keepMounted: [],
-      scrollerProps: {
-        onScroll: vi.fn(),
-        onScrollEnd: vi.fn(),
-        onWheel: runtimeMockState.onWheel
-      },
-      scrollerRef: runtimeMockState.scrollerRef,
-      vlistHandleRef: { current: null },
-      isScrollToBottomButtonVisible: runtimeMockState.isScrollToBottomButtonVisible,
-      takeUserControl: runtimeMockState.takeUserControl,
-      scrollToBottom: runtimeMockState.scrollToBottom,
-      notifyWheelIntent: runtimeMockState.notifyWheelIntent,
-      scrollByWheel: runtimeMockState.scrollByWheel,
-      markUserInput: runtimeMockState.markUserInput,
-      beginScrollbarDrag: runtimeMockState.beginScrollbarDrag,
-      endScrollbarDrag: runtimeMockState.endScrollbarDrag,
-      armAutoscrollCandidate: runtimeMockState.armAutoscrollCandidate,
-      confirmAutoscroll: runtimeMockState.confirmAutoscroll,
-      dismissAutoscroll: runtimeMockState.dismissAutoscroll,
-      shift: runtimeMockState.shift,
-      wrappedItems: items,
-      wrappedRenderItem: (item: unknown, index: number) =>
-        createElement('div', { 'data-testid': `item-${index}` }, renderItem(item, index))
-    }))
+    useChatVirtualizerRuntime: vi.fn(({ items, renderItem, onInitialScrollSettled }) => {
+      const scrollSettled = runtimeMockState.scrollSettled
+      useEffect(() => {
+        if (scrollSettled && items.length) onInitialScrollSettled()
+      }, [items.length, onInitialScrollSettled, scrollSettled])
+      return {
+        contentRef: { current: null },
+        freezeSpacerRef: { current: null },
+        keepMounted: [],
+        scrollerProps: {
+          onScroll: vi.fn(),
+          onScrollEnd: vi.fn(),
+          onWheel: runtimeMockState.onWheel
+        },
+        scrollerRef: runtimeMockState.scrollerRef,
+        vlistHandleRef: { current: null },
+        isScrollToBottomButtonVisible: runtimeMockState.isScrollToBottomButtonVisible,
+        takeUserControl: runtimeMockState.takeUserControl,
+        scrollToBottom: runtimeMockState.scrollToBottom,
+        notifyWheelIntent: runtimeMockState.notifyWheelIntent,
+        scrollByWheel: runtimeMockState.scrollByWheel,
+        markUserInput: runtimeMockState.markUserInput,
+        beginScrollbarDrag: runtimeMockState.beginScrollbarDrag,
+        endScrollbarDrag: runtimeMockState.endScrollbarDrag,
+        armAutoscrollCandidate: runtimeMockState.armAutoscrollCandidate,
+        confirmAutoscroll: runtimeMockState.confirmAutoscroll,
+        dismissAutoscroll: runtimeMockState.dismissAutoscroll,
+        shift: runtimeMockState.shift,
+        wrappedItems: items,
+        wrappedRenderItem: (item: unknown, index: number) =>
+          createElement('div', { 'data-testid': `item-${index}` }, renderItem(item, index))
+      }
+    })
   }
 })
 
@@ -123,6 +138,360 @@ function renderMessageList(renderItem: () => ReactNode = () => <span>message-1</
   render(<MessageVirtualList items={['message-1']} getItemKey={(item) => item} renderItem={renderItem} />)
   return document.querySelector('[data-message-virtual-list-scroller]') as HTMLElement
 }
+
+const historyMarkdown = Array.from({ length: 25 }, (_, index) => `History section ${index + 1}`).join('\n\n')
+
+function historyList(ids: string[], { live = false, enabled = ids.length > 0 } = {}) {
+  return (
+    <MessageVirtualList
+      animateEntrance={enabled}
+      items={ids}
+      getItemKey={(id) => id}
+      renderItem={(id) => {
+        const isLive = id === 'live' && live
+        const message: MessageListItem = {
+          id,
+          role: id === 'prompt' ? 'user' : 'assistant',
+          topicId: 'topic',
+          createdAt: '2026-01-01T00:00:00Z',
+          status: isLive ? 'pending' : 'success'
+        }
+        const parts: CherryMessagePart[] = [
+          {
+            type: 'text',
+            text: id === 'history' ? historyMarkdown : id === 'prompt' ? '**Literal prompt**' : id,
+            state: isLive ? 'streaming' : 'done'
+          }
+        ]
+        if (id === 'prompt') {
+          parts.push({ type: 'file', url: 'https://example.test/image.png', mediaType: 'image/png' })
+        }
+        if (id === 'tool' || id === 'mcp') {
+          parts.unshift({
+            type: 'dynamic-tool',
+            toolName: 'Test tool',
+            toolCallId: 'tool-call',
+            state: 'output-available',
+            input: {},
+            output:
+              id === 'mcp'
+                ? {
+                    metadata: {
+                      type: 'mcp',
+                      app: { serverId: 'server', serverKey: 'key', toolName: 'tool', resourceUri: 'ui://result' }
+                    }
+                  }
+                : 'Tool output'
+          })
+        }
+        return (
+          <MessageListProvider
+            value={{
+              state: {
+                ...DEFAULT_MESSAGE_LIST_CONFIG,
+                topic: {
+                  id: 'topic',
+                  name: 'History',
+                  assistantId: undefined,
+                  createdAt: '',
+                  updatedAt: '',
+                  lastActivityAt: '',
+                  messages: []
+                },
+                partsByMessageId: { [id]: parts },
+                messages: [message],
+                messageNavigation: 'none',
+                renderConfig: defaultMessageRenderConfig,
+                getMessageActivityState: () => ({
+                  isProcessing: isLive,
+                  isStreamTarget: isLive,
+                  isApprovalAnchor: false,
+                  isActiveTurnProcessing: isLive,
+                  isStreamLive: isLive
+                })
+              },
+              actions: id === 'mcp' ? { openMcpApp: () => new Promise(() => {}) } : {},
+              meta: { selectionLayer: false }
+            }}>
+            <div data-message-id={id}>
+              <MessageFrame message={message} hideMenuBar />
+            </div>
+          </MessageListProvider>
+        )
+      }}
+    />
+  )
+}
+
+function entranceList(blocks: string[], clipHeight?: number) {
+  return (
+    <MessageVirtualList
+      animateEntrance
+      items={['row']}
+      getItemKey={(id) => id}
+      renderItem={(id) => (
+        <div data-message-id={id}>
+          <div
+            data-clip-height={clipHeight}
+            style={clipHeight === undefined ? undefined : { overflowY: 'hidden', height: clipHeight }}
+            ref={(element) => {
+              if (element && clipHeight !== undefined) {
+                Object.defineProperty(element, 'clientHeight', { configurable: true, value: clipHeight })
+              }
+            }}>
+            {blocks.map((block) => (
+              <div data-message-entrance-unit="" key={block}>
+                {block}
+              </div>
+            ))}
+            {blocks.length === 0 && <span>Timeline marker</span>}
+          </div>
+        </div>
+      )}
+    />
+  )
+}
+
+describe('MessageVirtualList history entrance', () => {
+  const animate = vi.fn<Element['animate']>()
+  const motionPreference = Object.assign(new EventTarget(), { matches: false })
+  const nativeAnimateDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'animate')
+  const nativeMatchMediaDescriptor = Object.getOwnPropertyDescriptor(window, 'matchMedia')
+  const nativeObserverDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'IntersectionObserver')
+
+  const animatedText = () => (animate.mock.contexts as Element[]).map((element) => element.textContent)
+  const flushMount = async () => {
+    await act(async () => {
+      await Promise.resolve()
+      vi.advanceTimersToNextFrame()
+    })
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] })
+    vi.spyOn(performance, 'now').mockReturnValue(0)
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      if (this.hasAttribute('data-message-virtual-list-scroller')) return new DOMRect(0, 0, 200, 130)
+      if (this.hasAttribute('data-clip-height'))
+        return new DOMRect(0, 0, 100, Number(this.getAttribute('data-clip-height')))
+      if (this.matches('[data-clip-height] > [data-message-entrance-unit]') && this.textContent === 'Clipped') {
+        return new DOMRect(0, 70, 100, 10)
+      }
+      if (this.closest('[data-message-id="offscreen"]')) return new DOMRect(0, 140, 100, 10)
+      const section = this.matches('p') && this.textContent?.match(/^History section (\d+)$/)?.[1]
+      if (section) {
+        const offset = this.closest('[data-message-virtual-list-scroller]')?.scrollTop ?? 0
+        return new DOMRect(0, (Number(section) - 11) * 10 - 5 - offset, 100, 10)
+      }
+      return new DOMRect(0, 10, 100, 20)
+    })
+    animate.mockClear()
+    motionPreference.matches = false
+    runtimeMockState.scrollSettled = true
+    virtuaMockState.mountedItems = undefined
+    Object.defineProperty(window, 'matchMedia', { configurable: true, value: () => motionPreference })
+    Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: animate })
+  })
+
+  afterEach(() => {
+    if (nativeAnimateDescriptor) Object.defineProperty(Element.prototype, 'animate', nativeAnimateDescriptor)
+    else Reflect.deleteProperty(Element.prototype, 'animate')
+    if (nativeMatchMediaDescriptor) Object.defineProperty(window, 'matchMedia', nativeMatchMediaDescriptor)
+    else Reflect.deleteProperty(window, 'matchMedia')
+    vi.mocked(performance.now).mockRestore()
+    vi.mocked(Element.prototype.getBoundingClientRect).mockRestore()
+    if (nativeObserverDescriptor) Object.defineProperty(globalThis, 'IntersectionObserver', nativeObserverDescriptor)
+    else Reflect.deleteProperty(globalThis, 'IntersectionObserver')
+    vi.useRealTimers()
+    runtimeMockState.scrollSettled = true
+    virtuaMockState.mountedItems = undefined
+  })
+
+  it('staggers every visible block of a long reply even when its first ten blocks are above the viewport', async () => {
+    render(historyList(['history', 'offscreen']), { reactStrictMode: true })
+
+    expect(screen.getByText('History section 1').tagName).toBe('P')
+    expect(screen.getByText('History section 25').tagName).toBe('P')
+    expect(animatedText()).toEqual([
+      'History section 11',
+      'History section 12',
+      'History section 13',
+      'History section 14',
+      'History section 15',
+      'History section 16',
+      'History section 17',
+      'History section 18',
+      'History section 19',
+      'History section 20',
+      'History section 21',
+      'History section 22',
+      'History section 23',
+      'History section 24'
+    ])
+    const delays = animate.mock.calls.map(([, timing]) => (timing as KeyframeAnimationOptions).delay ?? 0)
+    expect(delays[0]).toBe(0)
+    expect(delays.every((delay, i) => i === 0 || delay > delays[i - 1])).toBe(true)
+    expect(delays.at(-1)).toBeLessThanOrEqual(270)
+
+    animate.mockClear()
+    const scroller = screen.getByRole('region', { name: 'Messages' })
+    scroller.scrollTop = 10
+    fireEvent.scroll(scroller)
+    await flushMount()
+    expect(animatedText()).toEqual(['History section 25'])
+  })
+
+  it('animates a plain-text prompt, its hoisted image, and the reply and tool units in the viewport', () => {
+    render(historyList(['prompt', 'tool', 'offscreen']))
+
+    const prompt = screen.getByText('**Literal prompt**')
+    const reply = screen.getByText('tool', { selector: 'p' })
+    const targets = animate.mock.contexts as Element[]
+    expect(prompt.tagName).toBe('P')
+    expect(targets.map((element) => element.closest('[data-message-id]')?.getAttribute('data-message-id'))).toEqual([
+      'prompt',
+      'prompt',
+      'tool',
+      'tool'
+    ])
+    expect(targets[0].querySelector('img')?.src).toBe('https://example.test/image.png')
+    expect(targets[1]).toContainElement(prompt)
+    expect(targets[2]).toBe(screen.getByTestId('completed-process-trigger'))
+    expect(targets[3]).toBe(reply)
+  })
+
+  it('staggers the MCP app result card with the tool summary and reply', async () => {
+    Object.defineProperty(globalThis, 'IntersectionObserver', {
+      configurable: true,
+      value: class {
+        constructor(private readonly callback: IntersectionObserverCallback) {}
+        observe(target: Element) {
+          this.callback(
+            [{ target, isIntersecting: true } as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver
+          )
+        }
+        disconnect() {}
+      }
+    })
+    render(historyList(['mcp']))
+    await flushMount()
+
+    const targets = animate.mock.contexts as Element[]
+    expect(targets).toHaveLength(3)
+    expect(targets[0]).toBe(screen.getByTestId('completed-process-trigger'))
+    expect(targets[1]).toBe(screen.getByText('mcp', { selector: 'p' }))
+    expect(targets[2]).toContainElement(screen.getByRole('status'))
+    const delays = animate.mock.calls.map(([, timing]) => (timing as KeyframeAnimationOptions).delay)
+    expect(delays).toEqual([0, 30, 60])
+  })
+
+  it('opens the entrance after an empty list is enabled and the target viewport has settled', async () => {
+    runtimeMockState.scrollSettled = false
+    const view = render(historyList([]))
+    vi.mocked(performance.now).mockReturnValue(1_000)
+    view.rerender(historyList(['before-scroll']))
+    await flushMount()
+    expect(screen.getByText('before-scroll')).toBeVisible()
+    expect(animatedText()).toEqual([])
+
+    runtimeMockState.scrollSettled = true
+    view.rerender(historyList(['offscreen']))
+    expect(animatedText()).toEqual([])
+
+    vi.mocked(performance.now).mockReturnValue(2_000)
+    view.rerender(historyList(['offscreen', 'arrived']))
+    await flushMount()
+    expect(animatedText()).toEqual(['arrived'])
+  })
+
+  it('does not replay a history row remounted by the virtualizer inside the entrance window', async () => {
+    const ids = ['initial', 'later']
+    virtuaMockState.mountedItems = ['initial']
+    const view = render(historyList(ids))
+    const original = screen.getByText('initial')
+    expect(animatedText()).toEqual(['initial'])
+
+    virtuaMockState.mountedItems = ['later']
+    view.rerender(historyList(ids))
+    await flushMount()
+    expect(original).not.toBeInTheDocument()
+    expect(animatedText()).toEqual(['initial', 'later'])
+
+    virtuaMockState.mountedItems = ids
+    view.rerender(historyList(ids))
+    await flushMount()
+    expect(screen.getByText('initial')).not.toBe(original)
+    expect(animatedText()).toEqual(['initial', 'later'])
+  })
+
+  it('animates only the newly inserted block between two already played blocks', async () => {
+    const view = render(entranceList(['X', 'Y']))
+    expect(animatedText()).toEqual(['X', 'Y'])
+    expect(animate.mock.calls.map(([, timing]) => (timing as KeyframeAnimationOptions).delay)).toEqual([0, 30])
+
+    view.rerender(entranceList(['X', 'Z', 'Y']))
+    await flushMount()
+    expect(animatedText()).toEqual(['X', 'Y', 'Z'])
+  })
+
+  it('animates a block clipped by an inner card only once the card reveals it', async () => {
+    const view = render(entranceList(['Visible', 'Clipped'], 40))
+    expect(animatedText()).toEqual(['Visible'])
+
+    view.rerender(entranceList(['Visible', 'Clipped'], 90))
+    await flushMount()
+    expect(animatedText()).toEqual(['Visible', 'Clipped'])
+  })
+
+  it('keeps messages static when they arrive after the initial viewport stayed marker-only', async () => {
+    const view = render(entranceList([]))
+    expect(screen.getByText('Timeline marker')).toBeVisible()
+    expect(animatedText()).toEqual([])
+
+    vi.mocked(performance.now).mockReturnValue(5 * 60_000)
+    view.rerender(entranceList(['Late reply']))
+    await flushMount()
+    expect(screen.getByText('Late reply')).toBeVisible()
+    expect(animatedText()).toEqual([])
+  })
+
+  it('keeps the visible history static with reduced motion enabled', () => {
+    motionPreference.matches = true
+    render(historyList(['visible', 'offscreen']))
+
+    expect(screen.getByText('visible')).toBeVisible()
+    expect(animatedText()).toEqual([])
+  })
+
+  it('keeps newly visible rows static after the 650 ms window expires', async () => {
+    const view = render(historyList(['initial']))
+    expect(animatedText()).toEqual(['initial'])
+
+    vi.mocked(performance.now).mockReturnValue(649)
+    view.rerender(historyList(['initial', 'in-window']))
+    await flushMount()
+    expect(animatedText()).toEqual(['initial', 'in-window'])
+
+    vi.mocked(performance.now).mockReturnValue(650)
+    view.rerender(historyList(['initial', 'in-window', 'late']))
+    await flushMount()
+    expect(screen.getByText('late')).toBeVisible()
+    expect(animatedText()).toEqual(['initial', 'in-window'])
+  })
+
+  it('keeps a live reply out of the entrance after it finishes and remounts as static Markdown', async () => {
+    const view = render(historyList(['initial', 'live'], { live: true }))
+    expect(animatedText()).toEqual(['initial'])
+
+    view.rerender(historyList(['initial']))
+    await flushMount()
+    view.rerender(historyList(['initial', 'live']))
+    await flushMount()
+    expect(screen.getByText('live', { selector: 'p' })).toBeVisible()
+    expect(animatedText()).toEqual(['initial'])
+  })
+})
 
 describe('MessageVirtualList', () => {
   beforeEach(() => {
