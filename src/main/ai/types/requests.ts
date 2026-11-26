@@ -109,6 +109,8 @@ export interface AiChatRequest extends AiRequest {
    * This field is intentionally absent from renderer IPC schemas.
    */
   contextOwner?: ContextOwner
+  /** Gateway-backed Claude Code supplies replay provenance while retaining history ownership. */
+  replayProviderState?: boolean
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
   /** In-process caller identity used only for targeted embedded MCP authorization. */

@@ -139,7 +139,7 @@ describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
     for (const file of files) {
       const abs = path.join(resourcesDir, platformKey, file)
       fs.mkdirSync(path.dirname(abs), { recursive: true })
-      fs.writeFileSync(abs, '', 'utf8')
+      fs.writeFileSync(abs, 'binary fixture', 'utf8')
     }
     return resourcesDir
   }
@@ -191,6 +191,21 @@ describe('verifyBundledBinaries – isWindowsOnly skip rule', () => {
     expect(() =>
       verifyBundledBinaries('win32', 'x64', { tools: [regularTool, windowsOnlyTool], resourcesDir })
     ).toThrow(/git[\\/]cmd[\\/]git\.exe/)
+  })
+
+  it.each(['empty file', 'directory'])('rejects an executable path containing a %s', (kind) => {
+    const resourcesDir = makeCompleteBundle('linux-x64', regularTool)
+    const binaryPath = path.join(resourcesDir, 'linux-x64', 'mise')
+    if (kind === 'directory') {
+      fs.unlinkSync(binaryPath)
+      fs.mkdirSync(binaryPath)
+    } else {
+      fs.truncateSync(binaryPath)
+    }
+
+    expect(() => verifyBundledBinaries('linux', 'x64', { tools: [regularTool], resourcesDir })).toThrow(
+      /mise.*non-empty regular file/
+    )
   })
 
   it('rejects a bundle whose version marker is missing, which the app would skip silently', () => {

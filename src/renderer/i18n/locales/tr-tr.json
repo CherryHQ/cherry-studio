@@ -2677,6 +2677,7 @@
   "message.backup.cleanup_failed": "Yedekleme tamamlandı ancak eski yedekler temizlenemedi.",
   "message.backup.failed": "Yedekleme başarısız oldu",
   "message.backup.success": "Yedekleme başarılı",
+  "message.chat.completion.interrupted": "Kesintiye uğradı",
   "message.chat.completion.paused": "Sohbet tamamlama duraklatıldı",
   "message.citation": "{{count}} atıf",
   "message.citation_source": "Atıf kaynağı {{number}}",

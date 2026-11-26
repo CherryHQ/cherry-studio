@@ -2677,6 +2677,7 @@
   "message.backup.cleanup_failed": "สำรองข้อมูลเสร็จแล้ว แต่ไม่สามารถล้างข้อมูลสำรองเก่าได้",
   "message.backup.failed": "สำรองข้อมูลไม่สำเร็จ",
   "message.backup.success": "สำรองข้อมูลสำเร็จ",
+  "message.chat.completion.interrupted": "ถูกขัดจังหวะ",
   "message.chat.completion.paused": "หยุดการสร้างแชทชั่วคราว",
   "message.citation": "การอ้างอิง {{count}} รายการ",
   "message.citation_source": "แหล่งอ้างอิง {{number}}",

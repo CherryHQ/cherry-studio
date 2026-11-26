@@ -1,18 +1,25 @@
 import { v4 as uuid } from 'uuid'
 
 import { application } from '@application'
+import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { ensureAgentSessionRootTx, getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 
-export function prepareClaudeBranch(sessionId: string, configDir: string, nativeId?: string, messageId?: string) {
+export function prepareClaudeBranch(
+  sessionId: string,
+  configDir: string,
+  nativeId?: string,
+  messageId?: string,
+  opening = false
+) {
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
     const anchor = messageId ?? getAgentSessionHead(tx, sessionId) ?? root
     const existing = contexts.branchTx(tx, sessionId, anchor)
-    if (existing && (!nativeId || existing.nativeThreadId === nativeId)) {
+    if (existing && (opening || !nativeId || existing.nativeThreadId === nativeId)) {
       const backend = contexts.backendTx(tx, existing.backendId)
       if (backend.locator.kind !== 'claude-code' || backend.locator.configDir !== configDir)
         throw new Error('The selected branch belongs to another runtime backend')
@@ -23,9 +30,16 @@ export function prepareClaudeBranch(sessionId: string, configDir: string, native
       sessionId,
       backendId: backend.id,
       nativeThreadId: nativeId ?? uuid(),
-      anchorMessageId: anchor
+      anchorMessageId: anchor,
+      checkpointMapping: opening && !nativeId ? { referenceHistory: true } : undefined
     })
   })
+}
+
+export function claudeBranchQueryIdentity(context: AgentSessionContextRow, requestedResume?: string) {
+  const nativeId = context.nativeThreadId!
+  const resume = context.bindingState === 'bound' || requestedResume === nativeId ? nativeId : undefined
+  return { resume, sessionId: resume ? undefined : context.nativeThreadId! }
 }
 
 export function reserveClaudeBranchTx(
