@@ -150,12 +150,15 @@ export function observeMemory(
   return file
 }
 
+export function canAttemptDreaming(file: DreamingFileState, now: number): boolean {
+  return file.attempts < 2 && file.retryAt <= now
+}
+
 export function needsDreaming(file: DreamingFileState | undefined, now: number): boolean {
   return (
     !!file &&
     file.pendingSince !== undefined &&
-    file.attempts < 2 &&
-    file.retryAt <= now &&
+    canAttemptDreaming(file, now) &&
     (file.changes >= 10 || now - file.pendingSince >= 7 * 24 * 60 * 60_000 || file.warning)
   )
 }

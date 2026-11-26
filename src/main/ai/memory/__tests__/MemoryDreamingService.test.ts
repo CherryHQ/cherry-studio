@@ -254,6 +254,28 @@ describe('memory organization lifecycle and commit fences', () => {
       })
   })
 
+  it('honors the required entry retry budget while other topics remain due', async () => {
+    dbh.db.update(userModelTable).set({ maxOutputTokens: 4096 }).run()
+    await save('Entry')
+    const topics = ['.memories/a.md', '.memories/b.md', '.memories/c.md']
+    for (const target of topics) await save('reason '.repeat(1000), target)
+    advanceToOrganizationDeadline()
+    const start = Date.now()
+    generate.mockRejectedValue(new Error('Model unavailable'))
+    await expect(dreaming.execute(job())).rejects.toThrow()
+    vi.mocked(Date.now).mockReturnValue(start + 60_000)
+    await dreaming.execute(job())
+    expect(generate).toHaveBeenCalledTimes(1)
+    vi.mocked(Date.now).mockReturnValue(start + 600_000)
+    await expect(dreaming.execute(job())).rejects.toThrow()
+    vi.mocked(Date.now).mockReturnValue(start + 1_200_000)
+    await dreaming.execute(job())
+    expect(generate).toHaveBeenCalledTimes(2)
+    const { files } = readDreamingState(scope)
+    expect(files['MEMORY.md'].attempts).toBe(2)
+    for (const target of topics) expect(files[target].pendingSince).toBeDefined()
+  })
+
   it('keeps an unfit required entry intact and blocks repeated preflight on unchanged content', async () => {
     dbh.db.update(userModelTable).set({ maxOutputTokens: 4096 }).run()
     const original = 'reason '.repeat(3000)
