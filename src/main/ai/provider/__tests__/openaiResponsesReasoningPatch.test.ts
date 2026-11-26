@@ -43,50 +43,54 @@ describe('patched @ai-sdk/openai Responses model capabilities', () => {
 // Without the patch, the SDK accepts the event as an unknown chunk and silently
 // drops the reasoning text before it reaches Cherry Studio's stream pipeline.
 describe('patched @ai-sdk/openai Responses reasoning parser', () => {
-  it('replays item-backed raw reasoning content when store is false', async () => {
-    let requestBody: any
-    const model = createOpenAI({
-      apiKey: 'sk-test',
-      baseURL: 'https://example.com/v1',
-      fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
-        requestBody = JSON.parse(init?.body as string)
-        return new Response(
-          JSON.stringify({
-            id: 'resp_1',
-            created_at: 0,
-            model: 'deepseek-v4-flash',
-            status: 'completed',
-            output: [],
-            usage: { input_tokens: 1, output_tokens: 1 }
-          }),
-          { headers: { 'content-type': 'application/json' } }
-        )
-      }
-    }).responses('deepseek-v4-flash')
+  it.each([{ itemId: 'reasoning-item' }, { reasoningEncryptedContent: 'opaque' }])(
+    'replays raw reasoning content when store is false (%j)',
+    async (metadata) => {
+      let requestBody: any
+      const model = createOpenAI({
+        apiKey: 'sk-test',
+        baseURL: 'https://example.com/v1',
+        fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+          requestBody = JSON.parse(init?.body as string)
+          return new Response(
+            JSON.stringify({
+              id: 'resp_1',
+              created_at: 0,
+              model: 'deepseek-v4-flash',
+              status: 'completed',
+              output: [],
+              usage: { input_tokens: 1, output_tokens: 1 }
+            }),
+            { headers: { 'content-type': 'application/json' } }
+          )
+        }
+      }).responses('deepseek-v4-flash')
 
-    await model.doGenerate({
-      prompt: [
-        {
-          role: 'assistant',
-          content: [
-            {
-              type: 'reasoning',
-              text: 'First step',
-              providerOptions: { openai: { itemId: 'reasoning-item', rawReasoningContent: true } }
-            }
-          ]
-        },
-        { role: 'user', content: [{ type: 'text', text: 'Continue.' }] }
-      ],
-      providerOptions: { openai: { store: false } }
-    })
+      await model.doGenerate({
+        prompt: [
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'reasoning',
+                text: 'First step',
+                providerOptions: { openai: { ...metadata, rawReasoningContent: true } }
+              }
+            ]
+          },
+          { role: 'user', content: [{ type: 'text', text: 'Continue.' }] }
+        ],
+        providerOptions: { openai: { store: false } }
+      })
 
-    expect(requestBody.input).toContainEqual({
-      type: 'reasoning',
-      summary: [],
-      content: [{ type: 'reasoning_text', text: 'First step' }]
-    })
-  })
+      expect(requestBody.input).toContainEqual({
+        type: 'reasoning',
+        summary: [],
+        content: [{ type: 'reasoning_text', text: 'First step' }],
+        ...(metadata.reasoningEncryptedContent && { encrypted_content: metadata.reasoningEncryptedContent })
+      })
+    }
+  )
 
   it('starts a reasoning part when response.reasoning_text.delta arrives without an item-added event', async () => {
     const events = [
@@ -142,11 +146,20 @@ describe('patched @ai-sdk/openai Responses reasoning parser', () => {
       }
     }
 
+    const id = reasoningChunks[0]?.id
+    expect(id).toBeTruthy()
     expect(reasoningChunks).toEqual([
-      { type: 'reasoning-start', id: 'reasoning-item:0' },
-      { type: 'reasoning-delta', id: 'reasoning-item:0', delta: 'First ' },
-      { type: 'reasoning-delta', id: 'reasoning-item:0', delta: 'step' },
-      { type: 'reasoning-end', id: 'reasoning-item:0' }
+      { type: 'reasoning-start', id },
+      { type: 'reasoning-delta', id, delta: 'First ' },
+      { type: 'reasoning-delta', id, delta: 'step' },
+      { type: 'reasoning-end', id }
     ])
+    expect(chunks).toContainEqual({
+      type: 'reasoning-end',
+      id,
+      providerMetadata: {
+        openai: { itemId: 'reasoning-item', reasoningEncryptedContent: null, rawReasoningContent: true }
+      }
+    })
   })
 })

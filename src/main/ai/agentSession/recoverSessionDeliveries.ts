@@ -1,22 +1,17 @@
-import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { agentSessionService } from '@data/services/AgentSessionService'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 
 import { finalizeInterruptedParts } from '../streamManager'
 
-/** A `pi-durable` delivery request that reached Durable; its record, not a host repair, settles the reply. */
-export function awaitsDurableOutcome(request: AgentSessionMessageEntity): boolean {
-  if (!agentSessionMessageService.inputBinding(request.sessionId, request.id)?.nativeInputId) return false
-  const agentId = agentSessionService.getById(request.sessionId).agentId
-  return (agentId ? agentService.getAgent(agentId)?.type : undefined) === 'pi-durable'
+/** The original Durable target whose submission state governs recovery of this delivery. */
+export function durableDeliveryTarget(request: AgentSessionMessageEntity) {
+  const target = agentSessionMessageService.inputTarget(request.sessionId, request.id)
+  return target?.kind === 'pi-durable' && target.anchor !== null && !target.locallyHandled ? target : undefined
 }
 
-/** `resumable` lists `pi-durable` sessions whose interrupted delivery turn resumes when reopened. */
-export function recoverSessionDeliveries(): { affected: Set<string>; resumable: Set<string> } {
+export function recoverSessionDeliveries(): Set<string> {
   const affectedSessionIds = new Set<string>()
-  const resumable = new Set<string>()
   for (const message of agentSessionMessageService.listRecoverableSessionDeliveries()) {
     if (message.delivery?.status !== 'delivering') continue
     const turnRef = message.delivery.turnRef
@@ -42,10 +37,7 @@ export function recoverSessionDeliveries(): { affected: Set<string>; resumable: 
       if (result) affectedSessionIds.add(result.sessionId)
       continue
     }
-    if (assistant.status === 'pending' && awaitsDurableOutcome(message)) {
-      resumable.add(message.sessionId)
-      continue
-    }
+    if (assistant.status === 'pending' && durableDeliveryTarget(message)) continue
     if (assistant.status === 'pending') {
       agentSessionMessageService.resolveCrashOrphanedMessages(
         [
@@ -73,5 +65,5 @@ export function recoverSessionDeliveries(): { affected: Set<string>; resumable: 
     })
     if (result) affectedSessionIds.add(result.sessionId)
   }
-  return { affected: affectedSessionIds, resumable }
+  return affectedSessionIds
 }

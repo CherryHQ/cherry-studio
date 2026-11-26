@@ -341,15 +341,18 @@ export function useChatVirtualizerRuntime<T>({
       if (bottomScrollAnimatingRef.current && behavior !== 'smooth') return
       smoothScroll.cancel()
       const target = getRealBottom(el, bottomFollowInsetRef.current)
-      if (Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX) {
+      const isAwayFromBottom = Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX
+      if (isAwayFromBottom) {
         suppressNextAutoscrollConfirm()
       }
       // Virtua must own the scroll so pending measurements cannot discard
       // historical rows as though the user had scrolled past them.
-      bottomScrollAnimatingRef.current =
-        behavior === 'smooth' && Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX
+      bottomScrollAnimatingRef.current = behavior === 'smooth' && isAwayFromBottom
       handle.scrollToIndex(itemsRef.current.length - 1, { align: 'end', smooth: bottomScrollAnimatingRef.current })
-      if (Math.abs(getDistanceToBottom(el, bottomFollowInsetRef.current)) <= FREEZE_REASSERT_TOLERANCE_PX) {
+      if (
+        bottomScrollAnimatingRef.current &&
+        Math.abs(getDistanceToBottom(el, bottomFollowInsetRef.current)) <= FREEZE_REASSERT_TOLERANCE_PX
+      ) {
         bottomScrollAnimatingRef.current = false
       }
       lastScrollOffsetRef.current = el.scrollTop
