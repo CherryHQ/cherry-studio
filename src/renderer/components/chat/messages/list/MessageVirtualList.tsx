@@ -20,6 +20,7 @@ import { Button, ScrollArea, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { type MessageVirtualListHandle, useChatVirtualizerRuntime } from './chatVirtualizerRuntime'
+import { MessageVirtualListContainer } from './MessageVirtualListContainer'
 import {
   canConsumeVerticalWheel,
   findNearestVerticalScrollContainer,
@@ -371,6 +372,7 @@ export function MessageVirtualList<T>({
             {/* Virtua reads the external scroll ref on mount, so wait for the viewport. */}
             {scrollerElement && (
               <Virtualizer
+                as={MessageVirtualListContainer}
                 ref={runtime.vlistHandleRef}
                 scrollRef={runtime.scrollerRef}
                 data={runtime.wrappedItems}

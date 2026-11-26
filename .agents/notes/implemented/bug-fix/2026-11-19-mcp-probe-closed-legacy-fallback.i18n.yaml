@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-19-mcp-probe-closed-legacy-fallback.md
+2026-11-19-mcp-probe-closed-legacy-fallback.md: 596c1d50f0bf29d592651c5615dc646dcfeb4981
+2026-11-19-mcp-probe-closed-legacy-fallback.zh.md: d05a5ad7c302c411b80998fbe005ec4bcab07b5a

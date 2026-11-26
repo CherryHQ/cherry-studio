@@ -39,6 +39,7 @@ export function useMessageListRenderConfig() {
       thoughtAutoCollapse,
       collapseCompletedToolHistory: true,
       expandToolSteps: false,
+      expandLiveToolSteps: false,
       keepIntermediateAssistantText,
       mathEnableSingleDollar,
       showMessageOutline,

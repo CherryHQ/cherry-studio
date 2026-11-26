@@ -19,6 +19,7 @@ export type DispatchDecision = {
 }
 
 type PendingApproval = {
+  contextId?: string
   approvalId: string
   sessionId: string
   toolCallId: string
@@ -30,7 +31,7 @@ type PendingApproval = {
   abortListener?: () => void
 }
 
-type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'toolCallId' | 'presentation'>
+type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'contextId' | 'toolCallId' | 'presentation'>
 type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'presentation'> & {
   presentation?: PendingApproval['presentation']
 }
@@ -89,12 +90,20 @@ class ToolApprovalRegistry {
     return true
   }
 
+  /** The pending call itself, so main can preview what approving it would do. */
+  peekCall(approvalId: string): Pick<PendingApproval, 'sessionId' | 'toolName' | 'originalInput'> | undefined {
+    const entry = this.pending.get(approvalId)
+    if (!entry) return undefined
+    return { sessionId: entry.sessionId, toolName: entry.toolName, originalInput: entry.originalInput }
+  }
+
   /** Returns `undefined` for unknown ids (already dispatched / session expired). */
   peek(approvalId: string): ApprovalRegistration | undefined {
     const entry = this.pending.get(approvalId)
     if (!entry) return undefined
     return {
       sessionId: entry.sessionId,
+      contextId: entry.contextId,
       toolCallId: entry.toolCallId,
       presentation: entry.presentation
     }
@@ -109,14 +118,15 @@ class ToolApprovalRegistry {
     entry.resolve(decision)
     return {
       sessionId: entry.sessionId,
+      contextId: entry.contextId,
       toolCallId: entry.toolCallId,
       presentation: entry.presentation
     }
   }
 
-  abort(sessionId: string, reason = 'session-aborted'): number {
+  abort(sessionId: string, reason = 'session-aborted', contextId?: string): number {
     const approvalIds = [...this.pending.values()]
-      .filter((entry) => entry.sessionId === sessionId)
+      .filter((entry) => entry.sessionId === sessionId && (contextId === undefined || entry.contextId === contextId))
       .map((entry) => entry.approvalId)
     const count = this.cancel(approvalIds, reason)
     if (count > 0) logger.info('Aborted pending approvals', { sessionId, count, reason })

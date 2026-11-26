@@ -22,6 +22,7 @@ import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,
   resolveDelegationApproval,
+  resolveMcpSkillToolAccess,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { type CommandCheck, checkCommand, type CommandDialect } from '@main/ai/toolApproval/commandPolicy'
@@ -42,6 +43,8 @@ export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
 export const GLOBAL_INSTALL_PLAN_DENIAL =
   'Plan mode is read-only: global package installation is not allowed. Exit plan mode before retrying.'
+export const FILE_WRITE_PLAN_DENIAL = 'Plan mode is read-only. Exit plan mode before editing files.'
+export const CLAUDE_FILE_WRITE_TOOLS: ReadonlySet<string> = new Set(['Edit', 'MultiEdit', 'NotebookEdit', 'Write'])
 export const GLOBAL_INSTALL_UNATTENDED_DENIAL =
   'Global package installation requires approval and cannot run without a responder. Retry interactively or use Full Access.'
 export const WORKSPACE_PATH_FIELDS = {
@@ -169,7 +172,7 @@ const bashRepeatWithoutProgress = (ctx: ToolGuardContext): GuardHit | null => {
 }
 
 const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' | 'enforce'): GuardHit | null => {
-  const policy = findBuiltinToolPolicy(ctx.toolName, ctx.mountedServers)
+  const policy = findBuiltinToolPolicy(ctx.toolName, ctx.mountedServers, ctx.input)
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
 }
 
@@ -230,7 +233,12 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     id: 'disabled-tool',
     bypassBehavior: 'enforce',
-    match: { when: (ctx) => (ctx.toolName && ctx.isDisabled(ctx.toolName) ? {} : null) },
+    match: {
+      when: (ctx) =>
+        ctx.isDisabled(ctx.toolName) || resolveMcpSkillToolAccess(ctx.toolName, ctx.input ?? {})?.enabled === false
+          ? {}
+          : null
+    },
     effect: 'deny',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool is disabled for this agent.`
   },
@@ -265,6 +273,13 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { tool: 'Bash', when: miseMutationCommand },
     effect: 'deny',
     reason: 'Blocked: direct mise mutation (use cli_search / cli_install).'
+  },
+  {
+    id: 'file-write-plan',
+    bypassBehavior: 'enforce',
+    match: { when: (ctx) => (ctx.permissionMode === 'plan' && CLAUDE_FILE_WRITE_TOOLS.has(ctx.toolName) ? {} : null) },
+    effect: 'deny',
+    reason: FILE_WRITE_PLAN_DENIAL
   },
   {
     id: 'global-install-plan',

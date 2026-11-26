@@ -69,6 +69,16 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     expect(validateToolGuardRules(CLAUDE_TOOL_GUARD_RULES)).toEqual([])
   })
 
+  it.each(['Edit', 'MultiEdit', 'NotebookEdit', 'Write'])(
+    'denies %s in Plan Only before approval',
+    async (toolName) => {
+      expect(await evaluate(makeCtx({ permissionMode: 'plan', toolName }))).toMatchObject({
+        effect: 'deny',
+        ruleId: 'file-write-plan'
+      })
+    }
+  )
+
   describe('disabled-tool', () => {
     it.each(['default', 'acceptEdits', 'bypassPermissions'] as const)(
       'denies a disabled tool under %s',

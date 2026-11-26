@@ -19,12 +19,12 @@ export interface TemporaryChatBackendOptions {
   messageSnapshot?: MessageSnapshot
 }
 
-export class TemporaryChatBackend implements PersistenceBackend {
+export class TemporaryChatBackend implements PersistenceBackend<'temp'> {
   readonly kind = 'temp'
 
   constructor(private readonly opts: TemporaryChatBackendOptions) {}
 
-  async persistAssistant(input: PersistAssistantInput): Promise<void> {
+  persistAssistant(input: PersistAssistantInput): undefined {
     const { finalMessage, status, runtimeStats } = input
     temporaryChatService.appendAssistantMessage(
       this.opts.topicId,

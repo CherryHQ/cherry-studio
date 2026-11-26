@@ -19,7 +19,8 @@ import type {
   ResourceType
 } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport, serializeAssistantsForExport } from '@renderer/utils/assistantTransfer'
-import { buildCreateAgentCommand, buildCreateAssistantDto } from '@renderer/utils/resourceCatalog'
+import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
+import { buildCreateAssistantDto } from '@shared/ai/assistantCreateDto'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import { ASSISTANTS_MAX_LIMIT } from '@shared/data/api/schemas/assistants'
@@ -327,25 +328,24 @@ export function useResourceCatalogController(
   )
 
   const handleSubmitCreateResource = useCallback(
-    async (values: ResourceCreateValues) => {
+    async (values: ResourceCreateValues): Promise<string> => {
       const kind = createDialogKind
-      if (!kind || creatingResource) return
+      if (!kind || creatingResource) throw new Error(t('library.config.dialogs.create.submit_failed'))
 
       setCreatingResource(true)
       try {
-        if (kind === 'assistant') {
-          await createAssistant(buildCreateAssistantDto(values))
-        } else {
-          await createAgent(buildCreateAgentCommand(values))
-        }
+        const created =
+          kind === 'assistant'
+            ? await createAssistant(buildCreateAssistantDto(values))
+            : await createAgent(buildCreateAgentCommand(values))
 
-        setCreateDialogOpen(false)
         refetch()
+        return created.id
       } finally {
         setCreatingResource(false)
       }
     },
-    [createAgent, createAssistant, createDialogKind, creatingResource, refetch]
+    [createAgent, createAssistant, createDialogKind, creatingResource, refetch, t]
   )
 
   const refreshProtectedAgentResources = useCallback(async () => {

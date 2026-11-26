@@ -10,6 +10,8 @@ Image-heavy parallel Durable work still reproduces main-process V8 OOM after the
 
 ## Decision
 
+Superseded by [object transport](../architecture/2026-11-18-agent-object-transport.md), which removed this allowance and its regressions together with internal native request serialization. Peak memory after the removal has not been measured. The constraints below against truncating history or downsampling images still apply; the rest of this note records the removed mechanism.
+
 The lifecycle-owned ApiGatewayService shares an abortable weighted allowance across native Pi model bindings. The existing async-mutex semaphore owns admission; the host does not schedule native steps. Estimate JSON escape overhead from the payload graph without serializing it, saturating the charge at 64 MiB. Requests charged at most 8 MiB bypass admission; larger requests share 64 one-MiB units. One oversized request can use the whole allowance without truncation.
 
 Acquire through the SDK's asynchronous onPayload hook before its request encoder. Preserve the caller's payload hook and its undefined-return semantics. Hold the allowance until the model stream settles, release the previous allowance before a provider payload rebuild, and release on failure as well as success. Aborted queued calls reject immediately; a later semaphore grant is returned rather than dispatched. Gateway shutdown cancels pending admission.
