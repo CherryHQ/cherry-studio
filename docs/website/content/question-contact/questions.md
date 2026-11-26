@@ -10,7 +10,7 @@ icon: circle-question
 
 <summary>Windows 7 可以运行 Cherry Studio 吗？</summary>
 
-不可以。Cherry Studio 需要 Windows 10 1809（内部版本 17763，64 位）或更高版本（含 Windows 11）。Windows 7、8、8.1 不受支持，通过第三方兼容层启动也不属于官方支持。版本过低时安装程序与应用都会直接提示并退出，不会更改任何文件。历史安装包仅可在 [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) 存档查看，不再提供支持与安全更新。
+不可以。Cherry Studio 需要 Windows 10 1809（内部版本 17763，64 位）或更高版本（含 Windows 11）。Windows 7、8、8.1 不受支持，通过第三方兼容层启动也不属于官方支持。版本过低时安装程序与应用都会直接提示并退出，不会安装任何应用文件（安装程序框架可能留下一个空的目标目录）。历史安装包仅可在 [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) 存档查看，不再提供支持与安全更新。
 
 </details>
 

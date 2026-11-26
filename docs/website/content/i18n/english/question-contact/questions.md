@@ -99,4 +99,4 @@ Specific model information can be found and reviewed with the corresponding serv
 
 ## Can Windows 7 run Cherry Studio?
 
-No. Cherry Studio requires Windows 10 1809 (build 17763, 64-bit) or later, including Windows 11. Windows 7, 8, and 8.1 are not supported, including launches through third-party compatibility layers. On an older system the installer and the app show a message and exit without changing any files. Past installers remain available on [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) for reference only and receive no support or security updates.
+No. Cherry Studio requires Windows 10 1809 (build 17763, 64-bit) or later, including Windows 11. Windows 7, 8, and 8.1 are not supported, including launches through third-party compatibility layers. On an older system the installer and the app show a message and exit without installing any application files (the installer framework may leave an empty destination directory behind). Past installers remain available on [GitHub Releases](https://github.com/CherryHQ/cherry-studio/releases) for reference only and receive no support or security updates.
