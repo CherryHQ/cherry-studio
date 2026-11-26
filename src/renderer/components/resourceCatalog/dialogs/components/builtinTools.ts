@@ -3,13 +3,15 @@ import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shar
 import { CLAUDE_KNOWLEDGE_TOOL_NAMES } from '@shared/ai/claudecode/toolRegistry'
 import type { AgentType } from '@shared/data/types/agent'
 
-/**
- * The runtime's built-in tools, without browser control and computer use. The kb_* tools are only
- * injected once a knowledge base is bound, so they are left out until then.
- */
+const knowledgeTools = AGENT_RUNTIME_CAPABILITIES['claude-code']
+  .builtinTools()
+  .filter((tool) => CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
+
+/** Settings catalog for the runtime and the agent's configured knowledge bindings. */
 export function getAgentBuiltinTools(agentType: AgentType, hasKnowledgeScope: boolean) {
   const caps: AgentRuntimeCapabilities = AGENT_RUNTIME_CAPABILITIES[agentType]
-  return caps
-    .builtinTools(platform)
-    .filter((tool) => !caps.knowledgeBases || hasKnowledgeScope || !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
+  const tools = caps.builtinTools(platform)
+  if (!caps.knowledgeBases) return tools
+  if (!hasKnowledgeScope) return tools.filter((tool) => !CLAUDE_KNOWLEDGE_TOOL_NAMES.has(tool.id))
+  return [...tools, ...knowledgeTools.filter(({ id }) => !tools.some((tool) => tool.id === id))]
 }
