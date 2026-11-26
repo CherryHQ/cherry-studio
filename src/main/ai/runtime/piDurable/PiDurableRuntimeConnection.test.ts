@@ -59,6 +59,7 @@ import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { lookupNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
+import { MemoryService } from '@main/ai/memory/MemoryService'
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
 import type { StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManager'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
@@ -268,6 +269,29 @@ describe('desktop Pi Durable connection', () => {
     for (const connection of connections.splice(0)) await connection.close()
     vi.restoreAllMocks()
   })
+  it('sends the first message in a fresh Durable conversation after shared memory is cleared', async () => {
+    const runtime = await import('@main/ai/memory/memoryRuntime')
+    const actual = await vi.importActual<typeof runtime>('@main/ai/memory/memoryRuntime')
+    vi.spyOn(runtime, 'openRuntimeMemoryGuard').mockImplementation(actual.openRuntimeMemoryGuard)
+    const memory = new MemoryService()
+    MockApplicationUtils.setService('MemoryService', memory)
+    const editor = memory.open({ scope: { kind: 'shared' }, assertAuthorized: () => undefined })
+    onTestFinished(async () => {
+      editor.dispose()
+      await memory._doStop()
+      MockApplicationUtils.resetServices()
+    })
+    writeFileSync(application.getPath('feature.memory.data', 'MEMORY.md'), 'Forgotten fact')
+    const clear = await editor.clear((await editor.previewClear()).token, async () => () => undefined)
+    expect(clear.files).toContainEqual(expect.objectContaining({ path: 'MEMORY.md', outcome: 'applied' }))
+
+    const first = message('Hello')
+    const { connection, events } = await connect()
+    await connection.send({ message: first })
+    await done(events, 10_000)
+    expect(text(events)).toBe('Hello world')
+  })
+
   it.each([10, 90])('honors Stop while the task context reading is pending (%i%% used)', async (used) => {
     snapshot.model.contextWindow = 100
     snapshot.compactionPercent = 60
