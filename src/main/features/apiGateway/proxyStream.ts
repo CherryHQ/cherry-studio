@@ -122,11 +122,10 @@ async function startMessage(config: MessageConfig, release?: () => void): Promis
           id: `gateway:${streamId}`,
           // Keep commit-before-transform for existing startup chunks such as finish(error).
           formatChunk: (chunk) => {
-            if (requiresSemanticFrames(chunk)) {
-              const scaffolding = adapter.transformChunk({ type: 'start' }).map((event) => formatter.formatEvent(event))
-              const frames = adapter.transformChunk(chunk).map((event) => formatter.formatEvent(event))
-              if (frames.length > 0) commit()
-              return [...scaffolding, ...frames]
+            if (startupState === 'pending' && requiresSemanticFrames(chunk)) {
+              const { opening, events } = adapter.transformChunkWithOpening(chunk)
+              if (events.length > 0) commit()
+              return [...opening, ...events].map((event) => formatter.formatEvent(event))
             }
             if (isStartupCommitChunk(chunk)) commit()
             return adapter.transformChunk(chunk).map((event) => formatter.formatEvent(event))

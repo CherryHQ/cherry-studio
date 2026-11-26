@@ -118,6 +118,19 @@ describe('createGatewayObjectTransports (tool-input-error & file startup commitm
       const beforeDone = await observed.received
       expect(beforeDone).toContain(expectedName)
       expect(beforeDone).toContain(expectedArgs)
+      if (transportKind === 'anthropic-messages') {
+        expect(beforeDone.indexOf('"type":"message_start"')).toBeGreaterThanOrEqual(0)
+        expect(beforeDone.indexOf('"type":"message_start"')).toBeLessThan(beforeDone.indexOf(expectedName))
+      } else if (transportKind === 'openai-completions') {
+        expect(beforeDone.indexOf('"role":"assistant"')).toBeGreaterThanOrEqual(0)
+        expect(beforeDone.indexOf('"role":"assistant"')).toBeLessThan(beforeDone.indexOf(expectedName))
+      } else if (transportKind === 'openai-responses') {
+        expect(beforeDone.indexOf('"type":"response.created"')).toBeGreaterThanOrEqual(0)
+        expect(beforeDone.indexOf('"type":"response.in_progress"')).toBeGreaterThan(
+          beforeDone.indexOf('"type":"response.created"')
+        )
+        expect(beforeDone.indexOf('"type":"response.in_progress"')).toBeLessThan(beforeDone.indexOf(expectedName))
+      }
 
       await listener.onDone({} as any)
       const events = await observed.all
@@ -150,19 +163,82 @@ describe('createGatewayObjectTransports (tool-input-error & file startup commitm
     expect(JSON.stringify(events)).toContain('"inlineData":{"mimeType":"image/png","data":"AAAA"}')
   })
 
-  it('preserves an object startup rejection after an ignored OpenAI file chunk', async () => {
-    const transports = createGatewayObjectTransports({ agentContext })
-    const pending = transports['openai-completions']({ model: 'openai:gpt-4', messages: [], stream: true }, {})
-    const error = new Error('Upstream failed')
-    const rejected = expect(pending).rejects.toThrow(error.message)
-    await vi.waitFor(() => expect(captured.listener).toBeDefined())
-    const listener = captured.listener!
+  it.each(['anthropic-messages', 'openai-completions', 'openai-responses'] as const)(
+    '%s preserves an object startup rejection after an ignored file chunk',
+    async (transportKind) => {
+      const transports = createGatewayObjectTransports({ agentContext })
+      const pending =
+        transportKind === 'anthropic-messages'
+          ? transports['anthropic-messages'](
+              { model: 'openai:gpt-4', max_tokens: 1024, messages: [], stream: true },
+              {}
+            )
+          : transportKind === 'openai-completions'
+            ? transports['openai-completions']({ model: 'openai:gpt-4', messages: [], stream: true }, {})
+            : transports['openai-responses']({ model: 'openai:gpt-4', input: [], stream: true }, {})
+      const error = new Error('Upstream failed')
+      const rejected = expect(pending).rejects.toThrow(error.message)
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listener = captured.listener!
 
-    listener.onChunk({ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' })
-    await listener.onError({ status: 'error', error: serializeError(error) }, error)
+      listener.onChunk({ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' })
+      await listener.onError({ status: 'error', error: serializeError(error) }, error)
 
-    await rejected
-  })
+      await rejected
+    }
+  )
+
+  it.each([
+    { transportKind: 'anthropic-messages', openingMarker: '"type":"message_start"' },
+    { transportKind: 'openai-completions', openingMarker: '"role":"assistant"' },
+    { transportKind: 'openai-responses', openingMarker: '"type":"response.created"' }
+  ] as const)(
+    '$transportKind emits ordered single opening scaffolding when an ignored file chunk precedes text-delta or onDone',
+    async ({ transportKind, openingMarker }) => {
+      const openTransport = (transports: ReturnType<typeof createGatewayObjectTransports>) =>
+        transportKind === 'anthropic-messages'
+          ? transports['anthropic-messages'](
+              { model: 'openai:gpt-4', max_tokens: 1024, messages: [], stream: true },
+              {}
+            )
+          : transportKind === 'openai-completions'
+            ? transports['openai-completions']({ model: 'openai:gpt-4', messages: [], stream: true }, {})
+            : transports['openai-responses']({ model: 'openai:gpt-4', input: [], stream: true }, {})
+
+      const transportsWithText = createGatewayObjectTransports({ agentContext })
+      const pendingWithText = openTransport(transportsWithText)
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listenerWithText = captured.listener!
+      let settledWithText = false
+      void pendingWithText.then(() => {
+        settledWithText = true
+      })
+
+      listenerWithText.onChunk({ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' })
+      await Promise.resolve()
+      expect(settledWithText).toBe(false)
+
+      listenerWithText.onChunk({ type: 'text-delta', id: 't1', delta: 'after ignored file' })
+      const responseWithText = await waitStartup(
+        pendingWithText as Promise<{ status: number; events: AsyncIterable<unknown> }>
+      )
+      await listenerWithText.onDone({} as any)
+      const eventsWithText = JSON.stringify(await collectEvents(responseWithText.events))
+      expect(eventsWithText.split(openingMarker).length - 1).toBe(1)
+      expect(eventsWithText.indexOf(openingMarker)).toBeLessThan(eventsWithText.indexOf('after ignored file'))
+
+      captured.listener = undefined
+      const transportsDone = createGatewayObjectTransports({ agentContext })
+      const pendingDone = openTransport(transportsDone)
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listenerDone = captured.listener!
+      listenerDone.onChunk({ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' })
+      await listenerDone.onDone({} as any)
+      const responseDone = await waitStartup(pendingDone as Promise<{ status: number; events: AsyncIterable<unknown> }>)
+      const eventsDone = JSON.stringify(await collectEvents(responseDone.events))
+      expect(eventsDone.split(openingMarker).length - 1).toBe(1)
+    }
+  )
 
   it.each([null, [], 'invalid-json', undefined])(
     'rejects malformed tool-input-error before startup when input is %j',

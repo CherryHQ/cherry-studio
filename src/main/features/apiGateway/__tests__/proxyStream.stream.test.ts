@@ -100,6 +100,10 @@ vi.mock('../adapters', () => ({
         if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
         return [chunk]
       },
+      transformChunkWithOpening: (chunk: UIMessageChunk) => {
+        if (chunk.type === 'tool-input-error') throw new Error(chunk.errorText)
+        return { opening: [], events: [chunk] }
+      },
       finalizeEvents: () => [],
       buildNonStreamingResponse: () => ({ done: true })
     })),
@@ -1428,6 +1432,19 @@ describe('processMessage (tool-input-error & file startup commitment)', () => {
       const beforeDone = await waitStartup(readUntil(res.body!, expectedName, expectedArgs))
       expect(beforeDone).toContain(expectedName)
       expect(beforeDone).toContain(expectedArgs)
+      if (format === 'openai') {
+        expect(beforeDone.indexOf('"role":"assistant"')).toBeGreaterThanOrEqual(0)
+        expect(beforeDone.indexOf('"role":"assistant"')).toBeLessThan(beforeDone.indexOf(expectedName))
+      } else if (format === 'anthropic') {
+        expect(beforeDone.indexOf('event: message_start')).toBeGreaterThanOrEqual(0)
+        expect(beforeDone.indexOf('event: message_start')).toBeLessThan(beforeDone.indexOf(expectedName))
+      } else if (format === 'openai-responses') {
+        expect(beforeDone.indexOf('event: response.created')).toBeGreaterThanOrEqual(0)
+        expect(beforeDone.indexOf('event: response.in_progress')).toBeGreaterThan(
+          beforeDone.indexOf('event: response.created')
+        )
+        expect(beforeDone.indexOf('event: response.in_progress')).toBeLessThan(beforeDone.indexOf(expectedName))
+      }
 
       await listener.onDone({} as any)
       const body = beforeDone + (await readAll(res.body))
@@ -1481,6 +1498,52 @@ describe('processMessage (tool-input-error & file startup commitment)', () => {
       await listener.onError({ status: 'error', error })
 
       await rejected
+    }
+  )
+
+  it.each([
+    { outputFormat: 'openai', openingMarker: '"role":"assistant"' },
+    { outputFormat: 'anthropic', openingMarker: 'event: message_start' },
+    { outputFormat: 'openai-responses', openingMarker: 'event: response.created' }
+  ] as const)(
+    '$outputFormat emits ordered single opening scaffolding when an ignored file chunk precedes text-delta or onDone',
+    async ({ outputFormat, openingMarker }) => {
+      const pendingWithText = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listenerWithText = captured.listener!
+      let settledWithText = false
+      void pendingWithText.then(() => {
+        settledWithText = true
+      })
+
+      listenerWithText.onChunk({ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' })
+      await Promise.resolve()
+      expect(settledWithText).toBe(false)
+
+      listenerWithText.onChunk({ type: 'text-delta', id: 't1', delta: 'after ignored file' })
+      const resWithText = await waitStartup(pendingWithText)
+      await listenerWithText.onDone({} as any)
+      const bodyWithText = await readAll(resWithText.body)
+      expect(bodyWithText.split(openingMarker).length - 1).toBe(1)
+      expect(bodyWithText.indexOf(openingMarker)).toBeLessThan(bodyWithText.indexOf('after ignored file'))
+
+      captured.listener = undefined
+      const pendingDone = processMessage({
+        params: { model: 'openai:gpt-4', stream: true, messages: [] },
+        inputFormat: 'openai',
+        outputFormat
+      })
+      await vi.waitFor(() => expect(captured.listener).toBeDefined())
+      const listenerDone = captured.listener!
+      listenerDone.onChunk({ type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' })
+      await listenerDone.onDone({} as any)
+      const resDone = await waitStartup(pendingDone)
+      const bodyDone = await readAll(resDone.body)
+      expect(bodyDone.split(openingMarker).length - 1).toBe(1)
     }
   )
 

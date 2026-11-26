@@ -267,12 +267,15 @@ async function openObjectMessage<T>(
           config.agentContext?.onRetryEvent?.(event)
           return
         }
-        const needsFrames = requiresSemanticFrames(chunk)
-        const scaffolding = needsFrames ? adapter.transformChunk({ type: 'start' }) : []
-        const events = adapter.transformChunk(chunk)
-        write(scaffolding)
-        write(events)
-        if (isStartupCommitChunk(chunk) || (needsFrames && events.length > 0)) commit()
+        if (!started && requiresSemanticFrames(chunk)) {
+          const { opening, events } = adapter.transformChunkWithOpening(chunk)
+          write(opening)
+          write(events)
+          if (events.length > 0) commit()
+        } else {
+          write(adapter.transformChunk(chunk))
+          if (isStartupCommitChunk(chunk)) commit()
+        }
       } catch (error) {
         fail(error)
         manager.abort(streamId, 'object model adapter failed')
