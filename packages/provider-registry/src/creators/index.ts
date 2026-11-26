@@ -42,8 +42,12 @@ import nvidia from './nvidia'
 import openai from './openai'
 import perplexity from './perplexity'
 import recraft from './recraft'
+import recursive from './recursive'
+import reflection from './reflection'
 import reka from './reka'
 import runway from './runway'
+import sakana from './sakana'
+import scaledown from './scaledown'
 import sensetime from './sensetime'
 import sentence_transformers from './sentence-transformers'
 import sourceful from './sourceful'
@@ -52,6 +56,7 @@ import stepfun from './stepfun'
 import streamlake from './streamlake'
 import suno from './suno'
 import tencent from './tencent'
+import thinkingmachines from './thinkingmachines'
 import type { Creator } from './types'
 import upstage from './upstage'
 import vercel from './vercel'
@@ -103,8 +108,12 @@ export const CREATORS: Creator[] = [
   openai,
   perplexity,
   recraft,
+  recursive,
+  reflection,
   reka,
   runway,
+  sakana,
+  scaledown,
   sensetime,
   sentence_transformers,
   stability,
@@ -113,6 +122,7 @@ export const CREATORS: Creator[] = [
   sourceful,
   suno,
   tencent,
+  thinkingmachines,
   upstage,
   vercel,
   vidu,
