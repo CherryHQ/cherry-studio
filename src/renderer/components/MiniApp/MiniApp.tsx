@@ -7,6 +7,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
+import { getMiniAppsLogoRef } from '@renderer/components/icons/miniAppsLogo'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { PendingPermissionsDialog } from '@renderer/components/MiniApp/PendingPermissionsDialog'
 import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDialog'
@@ -36,7 +37,7 @@ interface Props {
   isActive: boolean
   size?: number
   isLast?: boolean
-  variant?: 'default' | 'launchpad' | 'launchpad-compact'
+  variant?: 'default' | 'launchpad' | 'launchpad-compact' | 'launchpad-overlay'
   /** Renders the tile as unavailable: not activatable, not in the tab order. */
   disabled?: boolean
 }
@@ -113,6 +114,8 @@ const MiniApp: FC<Props> = ({
     e.preventDefault()
     handleClick()
   }
+  const hasBuiltinIcon = getMiniAppsLogoRef(app.logo || undefined) !== undefined
+  const overlay = variant === 'launchpad-overlay'
   const compact = variant === 'launchpad-compact'
   const isLaunchpad = variant !== 'default'
   const activationProps = isLaunchpad
@@ -276,9 +279,10 @@ const MiniApp: FC<Props> = ({
             'flex flex-col items-center justify-center overflow-hidden outline-none',
             disabled ? 'cursor-default' : 'cursor-pointer',
             isLaunchpad
-              ? 'bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent'
+              ? 'bg-transparent hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent'
               : 'min-h-[85px]',
-            isLaunchpad && (compact ? 'w-full min-w-0' : 'min-h-[104px] w-[92px]')
+            isLaunchpad && !overlay && 'pt-1',
+            isLaunchpad && (overlay ? 'w-[92px] gap-2' : compact ? 'w-full min-w-0' : 'min-h-[104px] w-[92px]')
           )}
           onClick={handleClick}
           {...activationProps}>
@@ -297,8 +301,9 @@ const MiniApp: FC<Props> = ({
               className={cn(
                 'mini-app-icon-frame relative flex items-center justify-center',
                 isLaunchpad &&
-                  'rounded-[14px] border border-border-subtle bg-transparent transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none',
-                isLaunchpad && (compact ? 'size-[46px] rounded-2xl' : 'size-[58px]')
+                  'rounded-2xl bg-transparent after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:border after:border-inherit transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none',
+                isLaunchpad && (hasBuiltinIcon ? 'border-transparent' : 'border-border-subtle'),
+                isLaunchpad && (overlay ? 'size-14' : compact ? 'size-[46px] rounded-2xl' : 'size-14')
               )}>
               {icon}
               {updating && (
@@ -353,11 +358,13 @@ const MiniApp: FC<Props> = ({
           <div
             className={cn(
               'w-full select-none text-center',
-              compact ? 'text-foreground' : 'text-muted-foreground',
+              compact || overlay ? 'text-foreground' : 'text-muted-foreground',
               isLaunchpad
-                ? compact
-                  ? 'mt-1 truncate text-xs'
-                  : 'mt-2 min-h-9 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
+                ? overlay
+                  ? 'truncate text-sm'
+                  : compact
+                    ? 'mt-1 truncate text-xs'
+                    : 'mt-2 min-h-9 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
                 : 'mt-[5px] max-w-20 text-xs leading-normal'
             )}>
             {isLaunchpad ? displayName : <MarqueeText>{displayName}</MarqueeText>}

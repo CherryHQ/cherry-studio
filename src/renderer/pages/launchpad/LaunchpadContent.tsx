@@ -1,8 +1,9 @@
 import { arrayMove } from '@dnd-kit/helpers'
+import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Sortable, ScrollArea } from '@cherrystudio/ui'
+import { Button, Input, Sortable } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import { LaunchpadAppIcon } from '@renderer/components/LaunchpadAppIcon'
@@ -19,15 +20,39 @@ import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 import { useLaunchpadCatalog } from './hooks/useLaunchpadCatalog'
 
-const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
-export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolean; onOpen: (url: string) => void }) {
-  const gridClassName = compact
-    ? 'grid grid-cols-[repeat(auto-fill,80px)] justify-between justify-items-center gap-x-2'
-    : LAUNCHPAD_GRID_CLASS
-  const itemClassName = compact ? 'w-full min-w-0' : LAUNCHPAD_ITEM_CLASS
+export function LaunchpadContent({
+  compact = false,
+  onOpen,
+  onDismiss
+}: {
+  compact?: boolean
+  onOpen: (url: string) => void
+  onDismiss?: () => void
+}) {
+  const itemClassName = LAUNCHPAD_ITEM_CLASS
+  const searchRef = useRef<HTMLInputElement>(null)
+  const isOverlay = !!onDismiss
+  useEffect(() => {
+    if (isOverlay) searchRef.current?.focus()
+  }, [isOverlay])
+  const [query, setQuery] = useState('')
+  const [page, setPage] = useState(0)
+  const [layout, setLayout] = useState({ columns: 7, rows: 3 })
+  const gridRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const grid = gridRef.current
+    if (!grid) return
+    const observer = new ResizeObserver(([entry]) => {
+      const columns = Math.max(1, Math.min(7, Math.floor(entry.contentRect.width / 120)))
+      const rows = Math.max(1, Math.min(4, Math.floor(entry.contentRect.height / 120)))
+      setLayout((previous) => (previous.columns === columns && previous.rows === rows ? previous : { columns, rows }))
+    })
+    observer.observe(grid)
+    return () => observer.disconnect()
+  }, [])
   const sidebarAvailable = useSidebarAvailable()
   const { t } = useTranslation()
   const {
@@ -147,25 +172,46 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
     setOrderedMiniApps((prev) => (sameMiniAppItems(prev, sortedMiniApps) ? prev : sortedMiniApps))
   }, [sortedMiniApps])
 
-  const launchpadMiniAppsVisible = orderedMiniApps.length > 0
+  const search = query.trim().toLocaleLowerCase()
+  const filteredApps = appMenuItems.filter((app) => app.label.toLocaleLowerCase().includes(search))
+  const filteredMiniApps = orderedMiniApps.filter((app) =>
+    (app.nameKey ? t(app.nameKey) : app.name).toLocaleLowerCase().includes(search)
+  )
+  const pageSize = layout.columns * layout.rows
+  const pageCount = Math.max(1, Math.ceil((filteredApps.length + filteredMiniApps.length) / pageSize))
+  const currentPage = Math.min(page, pageCount - 1)
+  const start = currentPage * pageSize
+  const visibleApps = filteredApps.slice(start, start + pageSize)
+  const visibleMiniApps = filteredMiniApps.slice(
+    Math.max(0, start - filteredApps.length),
+    Math.max(0, start + pageSize - filteredApps.length)
+  )
 
   const handleAppsSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      const nextItems = arrayMove(appMenuItems, oldIndex, newIndex)
+      const nextItems = arrayMove(
+        appMenuItems,
+        appMenuItems.findIndex((item) => item.id === visibleApps[oldIndex]?.id),
+        appMenuItems.findIndex((item) => item.id === visibleApps[newIndex]?.id)
+      )
       reorderApps(nextItems.map((item) => item.id))
     },
-    [appMenuItems, reorderApps]
+    [appMenuItems, reorderApps, visibleApps]
   )
 
   const handleMiniAppsSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      const nextItems = arrayMove(orderedMiniApps, oldIndex, newIndex)
+      const nextItems = arrayMove(
+        orderedMiniApps,
+        orderedMiniApps.findIndex((item) => item.appId === visibleMiniApps[oldIndex]?.appId),
+        orderedMiniApps.findIndex((item) => item.appId === visibleMiniApps[newIndex]?.appId)
+      )
       setOrderedMiniApps(nextItems)
       reorderMiniAppsByStatus('pinned', nextItems).catch(() => {
         toast.error(t('miniApp.reorder_failed'))
       })
     },
-    [orderedMiniApps, reorderMiniAppsByStatus, t]
+    [orderedMiniApps, reorderMiniAppsByStatus, t, visibleMiniApps]
   )
 
   const renderAppMenuItem = (item: (typeof appMenuItems)[number]) => (
@@ -173,14 +219,15 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
       <Button
         variant="ghost"
         type="button"
+        data-dnd-row-control
         onClick={() => {
           if (!shouldSuppressLaunchClick(item.id)) onOpen(item.url)
         }}
-        className={`${itemClassName} group flex h-auto cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 hover:bg-transparent focus-visible:scale-105 focus-visible:bg-transparent active:scale-95`}>
-        <span className={cn('relative flex items-center justify-center', compact ? 'size-[46px]' : 'size-14')}>
-          <LaunchpadAppIcon src={item.iconSrc} size={compact ? 40 : 50} className="relative overflow-hidden" />
+        className={`${itemClassName} group flex h-auto cursor-pointer flex-col items-center gap-2 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 motion-reduce:transition-none hover:scale-105 hover:bg-transparent focus-visible:scale-105 focus-visible:bg-transparent active:scale-95`}>
+        <span className="relative flex size-14 items-center justify-center">
+          <LaunchpadAppIcon src={item.iconSrc} size={56} className="relative overflow-hidden" />
         </span>
-        <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
+        <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm text-foreground">
           {item.label}
         </span>
       </Button>
@@ -190,11 +237,11 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
   const renderMiniAppItem = (app: MiniAppType) => (
     <div
       key={app.appId}
-      className={`${itemClassName} flex justify-center rounded-[8px] px-0 py-2 transition-transform duration-200 hover:scale-105 active:scale-95`}>
+      className={`${itemClassName} flex justify-center rounded-[8px] px-0 py-2 transition-transform duration-200 motion-reduce:transition-none hover:scale-105 active:scale-95`}>
       <App
         app={app}
-        size={compact ? 40 : 56}
-        variant={compact ? 'launchpad-compact' : 'launchpad'}
+        size={56}
+        variant="launchpad-overlay"
         onOpen={openMiniApp}
         onUpdateStatus={updateAppStatus}
         onHide={hideMiniApp}
@@ -209,71 +256,122 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
   )
 
   return (
-    <div className={cn('flex min-h-0 flex-col', !compact && 'h-full bg-background')}>
-      <ScrollArea className={compact ? 'max-h-[min(480px,60vh)]' : 'min-h-0 flex-1'}>
-        <div className={cn('mx-auto flex w-full flex-col', compact ? 'gap-3' : 'max-w-180 gap-5 py-12.5')}>
-          <section className="flex flex-col gap-2">
-            <h2
+    <div
+      className="flex h-full min-h-0 flex-col items-center px-6 pt-12 pb-6 text-foreground sm:px-12"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onDismiss?.()
+      }}>
+      <div className="relative mb-8 w-full max-w-72 shrink-0">
+        <Search
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          ref={searchRef}
+          type="search"
+          aria-label={t('common.search')}
+          placeholder={t('common.search')}
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value)
+            setPage(0)
+          }}
+          className="h-9 rounded-xl border-border/50 bg-background/35 pl-9 text-center shadow-none backdrop-blur-sm focus-visible:text-left"
+        />
+      </div>
+      <div
+        ref={gridRef}
+        className="mx-auto grid min-h-0 w-full max-w-[900px] flex-1 content-start justify-items-center gap-x-2 overflow-y-auto"
+        style={{ gridTemplateColumns: `repeat(${layout.columns}, minmax(0, 1fr))`, gridAutoRows: '120px' }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) onDismiss?.()
+        }}>
+        {!filteredApps.length && !filteredMiniApps.length ? (
+          <p role="status" className="col-span-full self-center text-muted-foreground">
+            {t('common.no_results')}
+          </p>
+        ) : null}
+        {search ? (
+          visibleApps.map(renderAppMenuItem)
+        ) : (
+          <Sortable
+            items={visibleApps}
+            itemKey="id"
+            layout="grid"
+            listStyle={SORTABLE_CONTENTS_STYLE}
+            onDragStart={handleSortableDragStart}
+            onDragEnd={handleSortableDragSettled}
+            onDragCancel={handleSortableDragSettled}
+            onSortEnd={handleAppsSortEnd}
+            renderItem={(item) => renderAppMenuItem(item)}
+          />
+        )}
+        {search ? (
+          visibleMiniApps.map(renderMiniAppItem)
+        ) : (
+          <Sortable
+            items={visibleMiniApps}
+            itemKey="appId"
+            layout="grid"
+            listStyle={SORTABLE_CONTENTS_STYLE}
+            onDragStart={handleSortableDragStart}
+            onDragEnd={handleSortableDragSettled}
+            onDragCancel={handleSortableDragSettled}
+            onSortEnd={handleMiniAppsSortEnd}
+            renderItem={(item) => renderMiniAppItem(item)}
+          />
+        )}
+      </div>
+      <nav aria-label={t('title.launchpad')} className="mt-4 flex shrink-0 items-center justify-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={t('common.previous')}
+          disabled={currentPage === 0}
+          onClick={() => setPage(currentPage - 1)}
+          className="size-8 rounded-full">
+          <ChevronLeft className="size-4" />
+        </Button>
+        {Array.from({ length: pageCount }, (_, index) => (
+          <Button
+            key={index}
+            type="button"
+            variant="ghost"
+            aria-label={`${index + 1} / ${pageCount}`}
+            aria-current={index === currentPage ? 'page' : undefined}
+            onClick={() => setPage(index)}
+            className="size-7 rounded-full p-0">
+            <span
               className={cn(
-                'm-0 py-0 font-semibold text-[14px] text-foreground opacity-80',
-                compact ? 'px-[17px]' : 'px-9'
-              )}>
-              {t('launchpad.apps')}
-            </h2>
-            <div className={gridClassName}>
-              {compact ? (
-                appMenuItems.map(renderAppMenuItem)
-              ) : (
-                <Sortable
-                  items={appMenuItems}
-                  itemKey="id"
-                  layout="grid"
-                  listStyle={SORTABLE_CONTENTS_STYLE}
-                  onDragStart={handleSortableDragStart}
-                  onDragEnd={handleSortableDragSettled}
-                  onDragCancel={handleSortableDragSettled}
-                  onSortEnd={handleAppsSortEnd}
-                  renderItem={(item) => renderAppMenuItem(item)}
-                />
+                'size-1.5 rounded-full transition-colors',
+                index === currentPage ? 'bg-foreground' : 'bg-foreground/30'
               )}
-            </div>
-          </section>
-
-          {launchpadMiniAppsVisible && (
-            <section className="flex flex-col gap-2">
-              <h2
-                className={cn(
-                  'm-0 py-0 font-semibold text-[14px] text-foreground opacity-80',
-                  compact ? 'px-[17px]' : 'px-9'
-                )}>
-                <Button
-                  variant="ghost"
-                  className="h-auto p-0 text-inherit [font:inherit]"
-                  onClick={() => onOpen('/app/mini-app')}>
-                  {t('launchpad.miniApps')}
-                </Button>
-              </h2>
-              <div className={gridClassName}>
-                {compact ? (
-                  orderedMiniApps.map(renderMiniAppItem)
-                ) : (
-                  <Sortable
-                    items={orderedMiniApps}
-                    itemKey="appId"
-                    layout="grid"
-                    listStyle={SORTABLE_CONTENTS_STYLE}
-                    onDragStart={handleSortableDragStart}
-                    onDragEnd={handleSortableDragSettled}
-                    onDragCancel={handleSortableDragSettled}
-                    onSortEnd={handleMiniAppsSortEnd}
-                    renderItem={(app) => renderMiniAppItem(app)}
-                  />
-                )}
-              </div>
-            </section>
-          )}
-        </div>
-      </ScrollArea>
+            />
+          </Button>
+        ))}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={t('common.next')}
+          disabled={currentPage === pageCount - 1}
+          onClick={() => setPage(currentPage + 1)}
+          className="size-8 rounded-full">
+          <ChevronRight className="size-4" />
+        </Button>
+      </nav>
+      {onDismiss && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={t('common.close')}
+          onClick={onDismiss}
+          className="absolute top-4 right-4 size-9 rounded-full">
+          <X className="size-5" />
+        </Button>
+      )}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,7 +30,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: MockCherrystudioUI.Button,
-  ScrollArea: MockCherrystudioUI.ScrollArea,
+  Input: MockCherrystudioUI.Input,
 
   Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
     mocks.sortableCalls.push({ items, itemKey, renderItem, ...props })
@@ -135,6 +135,10 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, string>) => {
       const label =
         {
+          'common.search': 'Search',
+          'common.next': 'Next',
+          'common.previous': 'Previous',
+          'common.no_results': 'No results',
           'agent.sidebar_title': 'Agent',
           'title.chat': 'Chat',
           'title.work': 'Agent',
@@ -172,7 +176,6 @@ const shortcut = (providerId: string, resourceId: string): SidebarShortcutItem =
   return { type: 'shortcut', id: createSidebarShortcutId(target), target }
 }
 const appFavorite = (id: SidebarAppId) => shortcut('core.app', id)
-const miniAppFavorite = (id: string) => shortcut('core.mini-app', id)
 const createMiniApp = (appId: string, overrides: Partial<SiteMiniApp> = {}): SiteMiniApp => ({
   appId,
   kind: 'site',
@@ -203,6 +206,35 @@ describe('LaunchpadPage', () => {
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
   })
 
+  it('searches across apps and mini apps without changing saved order', async () => {
+    mocks.pinnedMiniApps = [createMiniApp('calculator')]
+    render(<LaunchpadPage />)
+    const search = screen.getByRole('searchbox')
+    await userEvent.type(search, 'CALC')
+    expect(screen.getByRole('button', { name: 'Calculator' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Translate' })).not.toBeInTheDocument()
+    await userEvent.clear(search)
+    await userEvent.type(search, 'unknown-launchpad-app')
+    expect(screen.getByRole('status')).toHaveTextContent('No results')
+    expect(mocks.setAppOrder).not.toHaveBeenCalled()
+    expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
+  })
+
+  it('reaches later pages and returns to matching results when searching', async () => {
+    mocks.pinnedMiniApps = Array.from({ length: 35 }, (_, i) =>
+      createMiniApp(`tool${i}`, { orderKey: String(i).padStart(2, '0') })
+    )
+    render(<LaunchpadPage />)
+    expect(screen.queryByRole('button', { name: 'Tool34' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Tool34' }))
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/mini-app/tool34' })
+    await userEvent.type(screen.getByRole('searchbox'), 'translate')
+    expect(screen.getByRole('button', { name: 'Translate' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
+  })
+
   it('hides sidebar shortcuts when unavailable and restores them without a host override', () => {
     const { rerender } = render(
       <SidebarAvailableContext value={false}>
@@ -218,54 +250,10 @@ describe('LaunchpadPage', () => {
     expect(screen.getByRole('button', { name: 'Remove from Sidebar' })).toBeVisible()
   })
 
-  it('renders the launchpad page chrome and app grid', () => {
-    mocks.pinnedMiniApps = [createMiniApp('calculator')]
-
-    render(<LaunchpadPage />)
-
-    expect(screen.getByRole('heading', { name: 'Apps' })).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'Mini Apps' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Chat' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Calculator' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Knowledge' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
-  })
-
   it('opens the marketplace from its launchpad tile', async () => {
     render(<LaunchpadPage />)
     await userEvent.click(screen.getByRole('button', { name: 'Marketplace' }))
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/marketplace' })
-  })
-
-  it('orders app tiles by the configured launchpad order', () => {
-    // Launchpad app order is independent of the sidebar favorites order.
-    mocks.appOrder = ['translate', 'assistants', 'agents']
-    mocks.sidebarFavorites = [appFavorite('assistants')]
-
-    render(<LaunchpadPage />)
-
-    const appLabels = screen
-      .getAllByRole('button')
-      .map((button) => button.textContent)
-      .filter((label): label is string =>
-        [
-          'Translate',
-          'Chat',
-          'Agent',
-          'Scheduled Tasks',
-          'Paintings',
-          'Library',
-          'Mini Apps',
-          'Knowledge',
-          'Files',
-          'Code',
-          'Notes',
-          'OpenClaw'
-        ].includes(label ?? '')
-      )
-
-    expect(appLabels.slice(0, 3)).toEqual(['Translate', 'Chat', 'Agent'])
   })
 
   it('sorts every app tile and persists to the launchpad app order, not the sidebar favorites', () => {
@@ -330,18 +318,6 @@ describe('LaunchpadPage', () => {
 
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/chat' })
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/agents' })
-  })
-
-  it('opens the mini apps list from its section heading', async () => {
-    const user = userEvent.setup()
-    mocks.pinnedMiniApps = [createMiniApp('calculator')]
-
-    render(<LaunchpadPage />)
-
-    const heading = screen.getByRole('heading', { name: 'Mini Apps' })
-    await user.click(within(heading).getByRole('button', { name: 'Mini Apps' }))
-
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/mini-app' })
   })
 
   it('navigates concrete mini apps inside the current launchpad tab', async () => {
@@ -454,23 +430,6 @@ describe('LaunchpadPage', () => {
     expect(screen.queryByRole('button', { name: 'Calculator' })).not.toBeInTheDocument()
   })
 
-  it('makes every pinned mini app sortable regardless of sidebar favorites', () => {
-    const calculator = createMiniApp('calculator', { orderKey: 'a' })
-    const docs = createMiniApp('docs', { orderKey: 'b' })
-    // Only calculator is pinned to the sidebar; docs is launchpad-pinned only —
-    // both are still sortable in the launchpad.
-    mocks.pinnedMiniApps = [calculator, docs]
-    mocks.sidebarFavorites = [appFavorite('assistants'), miniAppFavorite('calculator')]
-
-    render(<LaunchpadPage />)
-
-    const miniAppSortable = mocks.sortableCalls.find((call) => call.itemKey === 'appId')
-
-    expect(miniAppSortable.items.map((app: { appId: string }) => app.appId)).toEqual(['calculator', 'docs'])
-    expect(screen.getByRole('button', { name: 'Calculator' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Docs' })).toBeInTheDocument()
-  })
-
   it('shows only launchpad-pinned mini apps, excluding opened-but-unpinned ones', () => {
     const calculator = createMiniApp('calculator', { orderKey: 'a' })
     const scratch = createMiniApp('scratch', { orderKey: 'b', status: 'enabled' })
@@ -483,17 +442,6 @@ describe('LaunchpadPage', () => {
 
     // Launchpad membership is driven by pinned status, not by what is merely opened.
     expect(screen.getByRole('button', { name: 'Calculator' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Scratch' })).not.toBeInTheDocument()
-  })
-
-  it('hides the mini apps section when only opened-but-unpinned apps exist', () => {
-    const scratch = createMiniApp('scratch', { orderKey: 'b', status: 'enabled' })
-    mocks.pinnedMiniApps = []
-    mocks.openedMiniApps = [scratch]
-
-    render(<LaunchpadPage />)
-
-    expect(screen.queryByRole('heading', { name: 'Mini Apps' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Scratch' })).not.toBeInTheDocument()
   })
 

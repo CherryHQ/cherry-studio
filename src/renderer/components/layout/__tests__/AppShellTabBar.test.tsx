@@ -1,8 +1,9 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -327,6 +328,33 @@ describe('AppShellTabBar', () => {
     renderTabBar({ tabs: [emojiTab], activeTabId: emojiTab.id })
 
     expect(screen.getByRole('button', { name: 'Emoji' })).toHaveAttribute('title', 'Emoji')
+  })
+
+  it('opens the host launcher without adding or selecting a tab', async () => {
+    const user = userEvent.setup()
+    MockUseCacheUtils.setPersistCacheValue('ui.tab.normal_tabs', [createTab('home'), createTab('a')])
+    MockUseCacheUtils.setPersistCacheValue('ui.tab.active_tab_id', 'a')
+    function TabBar() {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <AppShellTabBar {...useTabsContext()} onOpenLaunchpad={() => setOpen(true)} />
+          {open && <output>Launcher open</output>}
+        </>
+      )
+    }
+    const { result } = renderHook(useTabsContext, {
+      wrapper: ({ children }) => (
+        <TabsProvider>
+          {children}
+          <TabBar />
+        </TabsProvider>
+      )
+    })
+    await user.click(screen.getByRole('button', { name: 'Launchpad' }))
+    expect(screen.getByText('Launcher open')).toBeVisible()
+    expect(result.current.tabs.map((tab) => tab.id)).toEqual(['home', 'a'])
+    expect(result.current.activeTabId).toBe('a')
   })
 
   it('appends a fresh launchpad from the plus button while a middle tab is active', async () => {

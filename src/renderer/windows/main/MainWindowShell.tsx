@@ -1,5 +1,5 @@
 import { Search } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Separator, Tooltip } from '@cherrystudio/ui'
@@ -18,13 +18,20 @@ import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
 import { useMinimalNavigation } from './hooks/useMinimalNavigation'
+import { LaunchpadDialog } from './LaunchpadDialog'
 import { MiniLaunchpad } from './MiniLaunchpad'
 import { MinimalSidebarHeader, MinimalSidebarFooter, MinimalSidebarToggle } from './MinimalSidebar'
 
 export function MainWindowShell() {
   const navigation = useMinimalNavigation()
   const { t } = useTranslation()
-  const { activeTab } = useTabs()
+  const { activeTab, openTab } = useTabs()
+  const launchpadTrigger = useRef<HTMLElement | null>(null)
+  const showLaunchpad = () => {
+    launchpadTrigger.current = document.activeElement as HTMLElement
+    setLaunchpadOpen(true)
+  }
+  const [launchpadOpen, setLaunchpadOpen] = useState(false)
   const fullscreen = useNativeFullscreen()
   const sidebarToolbarActions = (
     <>
@@ -37,7 +44,7 @@ export function MainWindowShell() {
           <Search strokeWidth={1.7} />
         </NavbarIcon>
       </CommandTooltip>
-      <MiniLaunchpad onOpen={navigation.openFeature} />
+      <MiniLaunchpad onOpen={showLaunchpad} />
     </>
   )
   const renderToolbar = (sidebarOpen = false, topBar?: ReactNode, onDetach?: () => void) => (
@@ -98,6 +105,7 @@ export function MainWindowShell() {
       }}>
       <SidebarAvailableContext value={!navigation.enabled}>
         <AppShell
+          onOpenLaunchpad={showLaunchpad}
           minimalMode={navigation.enabled ? navigation : undefined}
           minimalToolbar={(detachTab) =>
             navigation.isHome
@@ -113,6 +121,16 @@ export function MainWindowShell() {
                     : undefined
                 )
           }
+        />
+        <LaunchpadDialog
+          returnFocusRef={launchpadTrigger}
+          open={launchpadOpen}
+          onOpenChange={setLaunchpadOpen}
+          minimal={navigation.enabled}
+          onOpen={(url) => {
+            if (navigation.enabled) navigation.openFeature(url)
+            else openTab(url)
+          }}
         />
       </SidebarAvailableContext>
     </MinimalModeContext>

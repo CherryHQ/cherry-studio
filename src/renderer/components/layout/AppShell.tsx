@@ -38,8 +38,10 @@ export const AppShell = (props: Parameters<typeof AppShellContent>[0]) => (
 
 const AppShellContent = ({
   minimalMode,
-  minimalToolbar
+  minimalToolbar,
+  onOpenLaunchpad
 }: {
+  onOpenLaunchpad?: () => void
   minimalMode?: { isHome: boolean; returnHome: () => void; homeTabIds?: { agent?: string; assistant?: string } }
   minimalToolbar?: (detachTab: (id: string) => void) => ReactNode
 }) => {
@@ -253,6 +255,7 @@ const AppShellContent = ({
       unpinTab={unpinTab}
       detachTab={handleDetachTab}
       openTab={openTab}
+      onOpenLaunchpad={onOpenLaunchpad}
     />
   )
 
