@@ -4,10 +4,10 @@ import path from 'node:path'
 import { app, dialog } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
-import { DatabaseSchemaTooNewError } from '@data/db/checkDatabaseVersion'
 import { loggerService } from '@logger'
 import {
   type Disposable,
+  FatalStartupError,
   LifecycleManager,
   Phase,
   type ServiceConstructor,
@@ -302,12 +302,12 @@ export class Application {
     // Ensure Electron dialog API is available (BeforeReady phase may fail before app is ready)
     await app.whenReady()
 
-    if (error.cause instanceof DatabaseSchemaTooNewError) {
+    if (error.cause instanceof FatalStartupError) {
       const language = resolveSystemLanguage(app.getLocale())
       await dialog.showMessageBox({
         type: 'error',
         title: app.getName(),
-        message: t('dialog.database_upgrade_required', undefined, language),
+        message: t(error.cause.messageKey, undefined, language),
         buttons: [t('appMenu.quit', undefined, language)]
       })
       this.forceExit(1)

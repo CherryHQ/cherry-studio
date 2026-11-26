@@ -87,6 +87,17 @@ export interface TeardownSummary {
  */
 export type ErrorStrategy = 'fail-fast' | 'graceful' | 'custom'
 
+/** A startup failure with localized user guidance for which restarting cannot help. */
+export class FatalStartupError extends Error {
+  constructor(
+    message: string,
+    public readonly messageKey: string
+  ) {
+    super(message)
+    this.name = 'FatalStartupError'
+  }
+}
+
 /**
  * Error thrown when a fail-fast service fails to initialize.
  * Carries the service name and original cause for structured handling by Application.
