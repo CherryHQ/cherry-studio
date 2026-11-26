@@ -12,6 +12,7 @@ import { APICallError, generateText, streamText, type UIMessageChunk } from 'ai'
 import { Elysia } from 'elysia'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { OllamaPromptExceedsContextError } from '@main/ai/messages/attachmentBudget'
 import { SseListener } from '@main/ai/streamManager/listeners/SseListener'
 import { pipeStreamLoop } from '@main/ai/streamManager/pipeStreamLoop'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -1017,4 +1018,27 @@ it('preserves trusted internal validation details while classifying the request 
     message: 'invalid google provider options',
     cause: { name: 'AI_TypeValidationError' }
   })
+})
+
+it('maps local Ollama capacity rejection to context-length HTTP and SSE errors', async () => {
+  const error = new OllamaPromptExceedsContextError(9_044, 3_000, 4_096, 32_768)
+  const serialized = serializeError(error)
+  expect(serialized.statusCode).toBe(400)
+  expect(serialized.providerErrorCategory).toBe('context_length')
+  const test: Case = {
+    id: 'local-ollama-capacity',
+    origin: 'local',
+    input: () => serialized,
+    status: 400,
+    message: error.message
+  }
+  for (const mode of ['non-streaming', 'before-commit'] as const) {
+    active = { test, format: 'openai', mode }
+    const response = await fetch(`${baseUrl}/v1/chat/completions?stream=${mode !== 'non-streaming'}`, {
+      signal: AbortSignal.timeout(5000)
+    })
+    expect(response.status).toBe(400)
+    expect(await response.text()).toContain('context_length_exceeded')
+  }
+  expect(buildStreamErrorFrame('openai', serialized)).toContain('context_length_exceeded')
 })

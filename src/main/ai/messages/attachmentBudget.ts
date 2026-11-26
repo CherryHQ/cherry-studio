@@ -367,6 +367,8 @@ export async function isFallbackCallWithinWindow(input: {
 /** The primary's final prompt plus output reservation cannot fit the memory-capped Ollama window. */
 export class OllamaPromptExceedsContextError extends Error {
   readonly name = 'OllamaPromptExceedsContextError'
+  readonly statusCode = 400
+  readonly providerErrorCategory = 'context_length' as const
   constructor(
     readonly estimatedInputTokens: number,
     readonly usableInputTokens: number,
