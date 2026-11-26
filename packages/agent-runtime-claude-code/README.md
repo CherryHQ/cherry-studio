@@ -18,6 +18,8 @@ before starting execution. Native permission mode defaults to `default`; explici
 modes and native hooks/callbacks pass through. `open(thread)` validates the backend
 and existing native storage. Opening and observing do not run a model. The first
 root submission starts or resumes its Query. Concurrent opens share that owner.
+Opening reports `native-storage-missing` when the archive is absent and
+`native-storage-unavailable` when its read fails.
 
 The host may supply a reserved `sessionId` to `create`. `claude.start()` initializes
 the connection without model input, optionally taking exclusive ownership of a

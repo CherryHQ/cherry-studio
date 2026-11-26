@@ -52,6 +52,7 @@ import {
   type AgentSessionEditDraft,
   type AgentSessionEditTarget
 } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_FOLLOWUPS_CACHE_KEY, type AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
@@ -139,7 +140,7 @@ import {
 import { AgentSessionUsageAttribution } from './AgentSessionUsageAttribution'
 import { childTimelines } from './childTimelines'
 import { validateEditedInput } from './editInput'
-import { markLocalInput, nativeOutcomeTerminal } from './nativeSubmission'
+import { markLocalInput, nativeOutcomeTerminal, releaseNativeInputBinding } from './nativeSubmission'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { relocateSystemWorkspaces } from './relocateSystemWorkspaces'
 import { RootMessageProjection } from './RootMessageProjection'
@@ -291,6 +292,16 @@ type AgentSessionConnectionTarget = AgentSessionRuntimeConnectionTarget & {
   permissionModeOverride?: AgentPermissionMode
 }
 
+type PendingNativeInput = {
+  input: AgentRuntimeUserInput
+  generation?: string
+  contextId?: string
+  turnOptions?: Pick<
+    PendingAgentSessionTurn,
+    'reasoningEffort' | 'serviceTier' | 'fastMode' | 'permissionModeOverride' | 'trustedNotifyChannels'
+  >
+}
+
 type RuntimeState = AgentSessionRuntimeState<AgentSessionTurn, PendingAgentSessionTurn>
 type RuntimeStateEvent = AgentSessionRuntimeStateEvent<AgentSessionTurn, PendingAgentSessionTurn>
 
@@ -315,6 +326,7 @@ type AgentSessionRuntimeEntry = {
   }
   /** Follow-up placements waiting for the current reply to open; each starts its own reply, in order. */
   deferredPlacements?: (readonly string[])[]
+  recoveryHeadless?: boolean
   /** Inputs whose reply a follow-up placement settled before Durable reported their outcome, mapped to that reply. */
   followedReplies?: Map<string, string>
   interactionWindowId?: string
@@ -333,14 +345,7 @@ type AgentSessionRuntimeEntry = {
   connectionLoop?: Promise<void>
   connectionGeneration?: string
   /** Pending product handoffs outlive the connection that attempted native admission. */
-  pendingInputs?: Map<
-    string,
-    {
-      input: AgentRuntimeUserInput
-      generation?: string
-      contextId?: string
-    }
-  >
+  pendingInputs?: Map<string, PendingNativeInput>
   lastResumeToken?: string
   branchHead?: string
   secondaryContextId?: string
@@ -466,7 +471,7 @@ export class AgentSessionRuntimeService extends BaseService {
   editSession<T>(
     sessionId: string,
     target: AgentSessionEditTarget,
-    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string, sourceBackendId?: string) => T
   ): Promise<T> {
     this.assertSessionEditable(sessionId)
     const editing = this.forks.edit(
@@ -537,11 +542,16 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly secondaryRoots = new Map<string, AgentSessionRuntimeEntry>()
 
   private recoveryDue = false
+  private readonly startupRecovery = Promise.withResolvers<void>()
   private readonly replyRecoveries = new Set<Promise<void>>()
 
   protected override onAllReady(): Promise<void> {
     this.recoveryDue = true
-    return this.resumeRecovery()
+    return this.resumeRecovery().finally(() => this.startupRecovery.resolve())
+  }
+
+  whenStartupRecoverySettles(): Promise<void> {
+    return this.startupRecovery.promise
   }
 
   private resumeRecovery(): Promise<void> {
@@ -784,6 +794,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const execution = entry.runtimeState.execution
     return (
       execution.kind === 'steer-transition' ||
+      (execution.kind === 'autonomous-turn' &&
+        !['open', 'awaiting-persistence', 'settled'].includes(execution.reply.delivery.kind)) ||
       (execution.kind === 'turn' &&
         (execution.reservation !== undefined ||
           !['open', 'awaiting-persistence'].includes(execution.reply.delivery.kind)))
@@ -1123,6 +1135,15 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  async changeFollowups(topicId: string, change: AgentSessionFollowupChange): Promise<boolean> {
+    if (!isAgentSessionTopic(topicId) || this.isWriteQuiesced || this.isShuttingDown) return false
+    const sessionId = extractAgentSessionId(topicId)
+    this.assertSessionWritable(sessionId)
+    const entry = this.entryForContext(sessionId, extractAgentContextId(topicId))
+    if (!entry || entry.topicId !== topicId || entry.closing || entry.stopping) return false
+    return (await this.currentConnection(entry)?.changeFollowups?.(change)) ?? false
+  }
+
   async listSessionCommands(sessionId: string): Promise<AgentSessionSlashCommand[]> {
     const session = agentSessionService.getById(sessionId)
     const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
@@ -1244,7 +1265,17 @@ export class AgentSessionRuntimeService extends BaseService {
           this.liveTurn(entry) !== undefined ||
           isAgentSessionRuntimeTransitioning(entry.runtimeState) ||
           hasAgentSessionRuntimeBackgroundWork(entry.runtimeState)
-        if (!hasLiveTurn) this.closeConnectionAsync(entry)
+        if (!hasLiveTurn) {
+          this.closeConnectionAsync(entry)
+          if (entry.pendingInputs?.size && !entry.closing && !this.isShuttingDown) {
+            void this.ensureConnection(entry).catch((error) =>
+              logger.warn('Failed to reconnect for pending inputs after rebuild', {
+                sessionId: entry.sessionId,
+                error
+              })
+            )
+          }
+        }
         return
       }
       case 'invalid':
@@ -1419,7 +1450,17 @@ export class AgentSessionRuntimeService extends BaseService {
       }
       const pending = (entry.pendingInputs ??= new Map())
       if (pending.has(message.id)) return true
-      pending.set(message.id, { input, generation: entry.connectionGeneration })
+      pending.set(message.id, {
+        input,
+        generation: entry.connectionGeneration,
+        turnOptions: {
+          reasoningEffort,
+          serviceTier,
+          fastMode,
+          ...(opts.permissionModeOverride ? { permissionModeOverride: opts.permissionModeOverride } : {}),
+          ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
+        }
+      })
       if (submit({ message: input.message, systemReminder: true })) return true
       pending.delete(message.id)
       return false
@@ -2082,6 +2123,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
+    this.startupRecovery.resolve()
     await Promise.allSettled([...this.replyRecoveries, this.recovery])
     await this.forks.cancel()
     this.disposeEditInputs()
@@ -2089,12 +2131,12 @@ export class AgentSessionRuntimeService extends BaseService {
     for (const entry of this.allEntries()) {
       if (this.liveTurn(entry)) streamManager.abort(entry.topicId, 'agent-session-runtime-stop')
     }
+    await this.closeAll()
     try {
       toolApprovalRegistry.clear('agent-session-runtime-stop')
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during stop', { error })
     }
-    await this.closeAll()
   }
 
   protected async onDestroy(): Promise<void> {
@@ -2180,10 +2222,19 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     if (foreground) this.entries.set(input.sessionId, entry)
     else this.secondaryRoots.set(context.id, entry)
+    entry.recoveryHeadless = input.headless
     const attemptId = uuidv7()
     entry.connectionGeneration = attemptId
     this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
     this.observeConnection(entry, connection, input.modelId, attemptId)
+    if (entry.pendingInputs?.size) {
+      void this.reconcilePendingInputs(entry, connection, attemptId).catch((error) =>
+        logger.warn('Failed to reconcile pending inputs on adopted connection', {
+          sessionId: entry.sessionId,
+          error
+        })
+      )
+    }
   }
 
   private isCurrentEntry(entry: AgentSessionRuntimeEntry): boolean {
@@ -2501,22 +2552,68 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private queueUndeliveredInputs(entry: AgentSessionRuntimeEntry, inputIds: readonly string[]): void {
-    for (const input of this.pendingInputValues(entry, inputIds, true)) {
-      const turn = this.currentTurn(entry)
-      this.applyRuntimeStateEvent(entry, {
-        type: 'queue-turn',
-        turn: {
-          message: input.message,
-          reasoningEffort: turn?.reasoningEffort ?? 'default',
-          serviceTier: turn?.serviceTier ?? 'standard',
-          knowledgeBaseIds: getKnowledgeBaseIdsFromParts(input.message.data.parts ?? []) ?? [],
-          fastMode: turn?.fastMode ?? false,
-          steer: true,
-          ...(input.headless ? { headless: true } : {}),
-          ...(input.messageSnapshot ? { messageSnapshot: input.messageSnapshot } : {})
-        }
+    for (const id of inputIds) {
+      const pending = entry.pendingInputs?.get(id)
+      if (!pending) continue
+      this.recoverPendingInput(entry, id, pending)
+    }
+  }
+
+  private recoverPendingInput(
+    entry: AgentSessionRuntimeEntry,
+    inputId: string,
+    pending: PendingNativeInput,
+    reason?: string
+  ): void {
+    entry.pendingInputs?.delete(inputId)
+    if (pending.contextId) {
+      releaseNativeInputBinding(entry.sessionId, pending.contextId, inputId)
+      // A still-present binding means DB already recorded native placement or local handling — avoid duplicating it.
+      if (agentSessionMessageService.inputBinding(entry.sessionId, inputId)) {
+        logger.info('Skipping queue recovery for already-bound native input', {
+          sessionId: entry.sessionId,
+          inputId,
+          contextId: pending.contextId,
+          reason
+        })
+        return
+      }
+    }
+    if (!agentSessionMessageService.hasSessionMessage(entry.sessionId, inputId)) {
+      logger.warn('Dropping unrecoverable pending native input whose message no longer exists', {
+        sessionId: entry.sessionId,
+        inputId,
+        reason
+      })
+      return
+    }
+    if (reason) {
+      logger.warn('Recovering unresolved pending native input as queued steer', {
+        sessionId: entry.sessionId,
+        inputId,
+        contextId: pending.contextId,
+        reason
       })
     }
+    const turn = this.currentTurn(entry)
+    const options = pending.turnOptions
+    this.applyRuntimeStateEvent(entry, {
+      type: 'queue-turn',
+      turn: {
+        message: pending.input.message,
+        reasoningEffort: options?.reasoningEffort ?? turn?.reasoningEffort ?? 'default',
+        serviceTier: options?.serviceTier ?? turn?.serviceTier ?? 'standard',
+        knowledgeBaseIds: getKnowledgeBaseIdsFromParts(pending.input.message.data.parts ?? []) ?? [],
+        fastMode: options?.fastMode ?? turn?.fastMode ?? false,
+        steer: true,
+        ...(pending.input.headless ? { headless: true } : {}),
+        ...(options?.permissionModeOverride ? { permissionModeOverride: options.permissionModeOverride } : {}),
+        ...(options?.trustedNotifyChannels !== undefined
+          ? { trustedNotifyChannels: options.trustedNotifyChannels }
+          : {}),
+        ...(pending.input.messageSnapshot ? { messageSnapshot: pending.input.messageSnapshot } : {})
+      }
+    })
   }
 
   private pendingInputValues(
@@ -2554,25 +2651,72 @@ export class AgentSessionRuntimeService extends BaseService {
     connection: AgentRuntimeConnection,
     generation: string
   ): Promise<void> {
-    if (!connection.lookupInput) return
-    for (const [inputId, pending] of entry.pendingInputs ?? []) {
-      if (pending.generation === generation || !pending.contextId) continue
+    for (const [inputId, pending] of [...(entry.pendingInputs ?? [])]) {
+      if (
+        !this.isCurrentGeneration(entry, generation) ||
+        this.currentConnection(entry) !== connection ||
+        entry.closing ||
+        this.isShuttingDown
+      )
+        return
+      if (pending.generation === generation) continue
+      if (entry.pendingInputs?.get(inputId) !== pending) continue
+      if (!pending.contextId || !connection.lookupInput) {
+        this.recoverPendingInput(entry, inputId, pending, !pending.contextId ? 'missing-context' : 'no-lookup')
+        continue
+      }
       let result: Awaited<ReturnType<NonNullable<AgentRuntimeConnection['lookupInput']>>>
       try {
         result = await connection.lookupInput(pending.contextId, inputId)
       } catch (error) {
         logger.warn('Pending native input lookup failed', { sessionId: entry.sessionId, inputId, error })
+        if (
+          !this.isCurrentGeneration(entry, generation) ||
+          this.currentConnection(entry) !== connection ||
+          entry.closing ||
+          this.isShuttingDown
+        )
+          return
+        if (entry.pendingInputs?.get(inputId) === pending) {
+          this.recoverPendingInput(entry, inputId, pending, 'lookup-failed')
+        }
         continue
       }
-      if (!this.isCurrentGeneration(entry, generation) || this.currentConnection(entry) !== connection) return
-      if (result.status === 'confirmed' && result.value.found)
-        this.resolvePendingInput(entry, pending.contextId, result.value.input)
-      else
-        logger.warn('Pending native input remains unresolved', {
-          sessionId: entry.sessionId,
-          inputId,
-          contextId: pending.contextId
-        })
+      if (
+        !this.isCurrentGeneration(entry, generation) ||
+        this.currentConnection(entry) !== connection ||
+        entry.closing ||
+        this.isShuttingDown
+      )
+        return
+      if (entry.pendingInputs?.get(inputId) !== pending) continue
+      if (result.status === 'confirmed' && result.value.found) {
+        const input = result.value.input
+        if (input.outcome || input.facts.includes('locally-handled')) {
+          this.resolvePendingInput(entry, pending.contextId, input)
+          continue
+        }
+        if (
+          entry.agentType === 'pi-durable' &&
+          connection.contextId === pending.contextId &&
+          (input.facts.includes('queued') || input.facts.includes('placed'))
+        ) {
+          pending.generation = generation
+          continue
+        }
+        if (input.facts.includes('placed')) {
+          entry.pendingInputs?.delete(inputId)
+          logger.warn('Clearing already-placed pending native input from prior generation', {
+            sessionId: entry.sessionId,
+            inputId,
+            contextId: pending.contextId
+          })
+          continue
+        }
+        this.recoverPendingInput(entry, inputId, pending, 'unplaced')
+        continue
+      }
+      this.recoverPendingInput(entry, inputId, pending, result.status === 'confirmed' ? 'not-found' : result.status)
     }
   }
 
@@ -2672,14 +2816,23 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'input-submission': {
         const pending = entry.pendingInputs?.get(event.result.inputId)
-        if (!pending || pending.generation !== entry.connectionGeneration || pending.contextId !== event.contextId)
-          break
+        if (!pending || pending.contextId !== event.contextId) break
+        if (pending.generation !== entry.connectionGeneration && connection !== this.currentConnection(entry)) break
         if (event.result.status === 'rejected' || event.result.status === 'unsupported')
           this.queueUndeliveredInputs(entry, [event.result.inputId])
         else if (event.result.status === 'acknowledged' && event.result.facts.includes('locally-handled'))
           entry.pendingInputs?.delete(event.result.inputId)
         break
       }
+      case 'followup-queue':
+        for (const { id, revision, parts } of event.queue) {
+          const pending = revision > 0 ? entry.pendingInputs?.get(id) : undefined
+          if (pending && pending.generation === entry.connectionGeneration) {
+            pending.input.message.data.parts = parts
+          }
+        }
+        application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), event.queue)
+        break
       case 'input-state':
         if (event.input.facts.includes('locally-handled'))
           markLocalInput(entry.sessionId, event.contextId, event.input.inputId)
@@ -2797,8 +2950,12 @@ export class AgentSessionRuntimeService extends BaseService {
           entry.runtimeState.execution.kind === 'autonomous-turn'
         )
           break
+        const recoveredInput = event.recoveredInputId
         const headless =
-          !!entry.secondaryContextId || this.getInteractionState(entry.sessionId).userResponse === 'unavailable'
+          !!entry.secondaryContextId ||
+          (recoveredInput
+            ? entry.recoveryHeadless !== false
+            : this.getInteractionState(entry.sessionId).userResponse === 'unavailable')
         const saved =
           assistantMessageId && assistantMessageId !== source?.assistantMessageId
             ? agentSessionMessageService.getSessionMessage(entry.sessionId, assistantMessageId)
@@ -2807,8 +2964,10 @@ export class AgentSessionRuntimeService extends BaseService {
         const turn = createSessionTurn({
           ...this.connectionTarget(entry),
           modelId: background ? modelId : entry.modelId,
-          taskIds: [],
-          userMessage: createSyntheticUserMessage(entry.sessionId),
+          taskIds: recoveredInput ? [recoveredInput] : [],
+          userMessage: recoveredInput
+            ? agentSessionMessageService.getSessionMessage(entry.sessionId, recoveredInput)
+            : createSyntheticUserMessage(entry.sessionId),
           parentId: entry.branchHead,
           messageSnapshot: background
             ? (saved?.messageSnapshot ?? source?.messageSnapshot ?? entry.messageSnapshot)
@@ -3313,6 +3472,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-finished' })
     }
     const cache = application.get('CacheService')
+    if (connection.changeFollowups) cache.setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), [])
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
   }
@@ -3849,7 +4009,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   getInteractionState(sessionId: string, contextId?: string): AgentSessionInteractionState {
-    const entry = this.entries.get(sessionId)
+    const entry = this.entryForContext(sessionId, contextId)
     if (!entry || (contextId && this.currentConnection(entry)?.contextId !== contextId))
       return { currentTurn: 'none', userResponse: 'unavailable' }
 

@@ -106,6 +106,7 @@ export function serializeError(error: unknown, context?: SerializeErrorContext):
       cause: e.cause != null ? String(e.cause) : null
     }
     if (e.reportingHandled === true) serialized.reportingHandled = true
+    if (e.errorSource === 'local') serialized.errorSource = 'local'
 
     if ('url' in e) serialized.url = String(e.url ?? '')
     if ('requestBodyValues' in e) serialized.requestBodyValues = toSerializable(e.requestBodyValues)

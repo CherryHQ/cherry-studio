@@ -824,24 +824,36 @@ describe('cherry-tools autonomy tools', () => {
       })
     })
 
-    it('should parse hour+minute durations', async () => {
+    it.each([
+      ['1h30m', 90 * 60_000],
+      ['1d', 24 * 60 * 60_000],
+      ['2d3h', 51 * 60 * 60_000],
+      ['1.5h', 90 * 60_000],
+      ['90s', 90_000],
+      ['1 h 15 M', 75 * 60_000]
+    ])('should parse every %j as %d ms', async (every, ms) => {
       mockCreateTask.mockReturnValue({ id: 'task_3' })
 
       const server = createServer('agent_test', WORKSPACE_PATH, null)
-      await callTool(server, {
-        action: 'add',
-        name: 'test',
-        message: 'test',
-        every: '1h30m'
-      })
+      const result = await callTool(server, { action: 'add', name: 'test', message: 'test', every })
 
+      expect(result.isError).not.toBe(true)
       expect(mockCreateTask).toHaveBeenCalledWith(
         'agent_test',
-        expect.objectContaining({
-          trigger: { kind: 'interval', ms: 90 * 60_000 }
-        })
+        expect.objectContaining({ trigger: { kind: 'interval', ms } })
       )
     })
+
+    it.each(['30s', '0m', '30', '1 month', '2ms', '1w', '1h foo', '.5h'])(
+      'should reject every %j instead of guessing an interval',
+      async (every) => {
+        const server = createServer()
+        const result = await callTool(server, { action: 'add', name: 'test', message: 'test', every })
+
+        expect(result.isError).toBe(true)
+        expect(mockCreateTask).not.toHaveBeenCalled()
+      }
+    )
 
     it('should create a one-time task with at', async () => {
       mockCreateTask.mockReturnValue({ id: 'task_4' })

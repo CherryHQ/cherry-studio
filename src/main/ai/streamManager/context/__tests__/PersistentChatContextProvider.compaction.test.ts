@@ -1192,6 +1192,7 @@ function inLoopScope(contextWindow: number): RequestScope {
     mcpToolIds: new Set(),
     capabilities: undefined,
     sdkConfig: { providerId: 'openai', providerOptionsKey: 'openai', providerSettings: {}, modelId: 'gpt-4o' },
+    replayRouteId: 'fixture-route',
     endpointType: 'openai-chat-completions',
     aiSdkProviderId: 'openai',
     reasoningProfile: { format: 'none', wire: { disabled: true } },

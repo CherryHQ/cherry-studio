@@ -162,16 +162,17 @@ async function resolveFallback(
   }
 
   const repairUsagePlugins: { current?: AiPlugin[] } = {}
-  const { sdkConfig, credentialReceipt, plugins, options, nativeFileSupport, hookParts } = await buildAgentParams({
-    request: args.request,
-    signal: args.signal,
-    provider,
-    model,
-    assistant: args.assistant,
-    extraFeatures: args.extraFeatures,
-    getRepairUsagePlugins: () => repairUsagePlugins.current ?? [],
-    frozenOllamaNumCtx: args.fallbackOllamaSnapshots?.get(uniqueModelId)
-  })
+  const { sdkConfig, replayRouteId, credentialReceipt, plugins, options, nativeFileSupport, hookParts } =
+    await buildAgentParams({
+      request: args.request,
+      signal: args.signal,
+      provider,
+      model,
+      assistant: args.assistant,
+      extraFeatures: args.extraFeatures,
+      getRepairUsagePlugins: () => repairUsagePlugins.current ?? [],
+      frozenOllamaNumCtx: args.fallbackOllamaSnapshots?.get(uniqueModelId)
+    })
   const required = args.requiredNativeFileSupport
   const unsupportedNativeType = (Object.keys(required) as Array<keyof NativeFileSupport>).find(
     (type) => required[type] && !nativeFileSupport[type]
@@ -223,6 +224,7 @@ async function resolveFallback(
   const fallbackHooks = composeHooks(hookParts)
   return {
     model: resolved,
+    replayRouteId,
     options: pickFallbackCallOptions(options),
     repairToolCall: options.repairToolCall,
     streamErrorSerialization: requestContext?.ollamaNumCtx ? { ollamaNumCtx: requestContext.ollamaNumCtx } : null,

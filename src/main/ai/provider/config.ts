@@ -76,6 +76,7 @@ interface BuilderContext {
   baseConfig: BaseConfig
   resolvedBaseUrl: string
   apiKeyOverride?: string
+  routeOnly?: boolean
   endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
@@ -87,6 +88,7 @@ type ApiKeyBuilderContext = BuilderContext & {
 
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
+  routeOnly?: boolean
   resolvedEndpoint?: ResolvedEndpoint
 }
 
@@ -171,6 +173,7 @@ type ConfigBuilderEntry = {
 }
 
 function selectApiKey(ctx: BuilderContext): ApiKeyBuilderContext {
+  if (ctx.routeOnly) return { ...ctx, apiKeySelection: { attribution: 'unknown' } }
   const resolved = providerService.resolveApiKey(ctx.actualProvider.id, ctx.apiKeyOverride)
   return {
     ...ctx,
@@ -235,6 +238,7 @@ export async function resolveProviderAiSdkConfig(
     // for a key they never serve with.
     baseConfig: { baseURL, apiKey: '' },
     apiKeyOverride: options?.apiKeyOverride,
+    routeOnly: options?.routeOnly,
     endpointType,
     endpoint,
     aiSdkProviderId
@@ -434,7 +438,7 @@ export async function resolveProviderAiSdkConfig(
 async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'github-copilot-openai-compatible'>> {
   const storedHeaders = {} // TODO: read from PreferenceService if copilot headers are persisted
   const headers = mergeHeaders(COPILOT_DEFAULT_HEADERS, storedHeaders)
-  const { token } = await copilotService.getToken(null as any, headers)
+  const token = ctx.routeOnly ? '' : (await copilotService.getToken(null as any, headers)).token
 
   return {
     providerId: 'github-copilot-openai-compatible',

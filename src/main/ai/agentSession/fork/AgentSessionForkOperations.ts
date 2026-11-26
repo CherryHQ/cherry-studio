@@ -10,7 +10,7 @@ import { agentSessionContextService } from '@data/services/AgentSessionContextSe
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError, agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import type { AgentSessionMessageRecord } from '@data/services/agentSessionMessageTree'
+import { type AgentSessionMessageRecord, getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
@@ -78,7 +78,7 @@ export class AgentSessionForkOperations {
     sessionId: string,
     target: AgentSessionEditTarget,
     closeSource: () => Promise<void>,
-    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string, sourceBackendId?: string) => T
   ): Promise<T> {
     if (this.edits.has(sessionId)) return Promise.reject(new AgentSessionEditError('busy'))
     const operationId = randomUUID()
@@ -96,7 +96,7 @@ export class AgentSessionForkOperations {
     operationId: string,
     signal: AbortSignal,
     closeSource: () => Promise<void>,
-    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string) => T
+    persist: (tx: DbOrTx, nativeSessionId: string, nativeContextId?: string, sourceBackendId?: string) => T
   ): Promise<T> {
     await ensureRetiredSessionHistory(sessionId)
     const database = application.get('DbService')
@@ -178,8 +178,13 @@ export class AgentSessionForkOperations {
           JSON.stringify(bindings)
         )
           throw new AgentSessionEditError('history_changed')
+        // The first Claude binding can be anchored to the reply being deleted below.
+        const sourceHead = agent?.type === 'claude-code' && prefix.length === 0 && getAgentSessionHead(tx, sessionId)
+        const sourceBackendId = sourceHead
+          ? agentSessionContextService.branchTx(tx, sessionId, sourceHead)?.backendId
+          : undefined
         agentSessionMessageService.replaceEditBranchTx(tx, sessionId, target)
-        const result = persist(tx, nativeSessionId, nativeContextId)
+        const result = persist(tx, nativeSessionId, nativeContextId, sourceBackendId)
         if (resources) {
           const checkpointMapping = Object.fromEntries(
             prefix.flatMap((row) => {

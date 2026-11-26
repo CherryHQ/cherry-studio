@@ -31,6 +31,7 @@ import { loggerService } from '@logger'
 import type { SerializeErrorContext } from '@main/ai/utils/serializeError'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
+import { getPendingReplayRoute, ToolContinuationRouteError } from '../../../provider/replayRoute'
 import type { AgentLoopHooks } from '../loop/types'
 import type { RetryPolicy } from './retryPolicy'
 
@@ -49,6 +50,7 @@ export interface RetryFallback {
   model: LanguageModelV3
   /** Checked on every actual retry dispatch, even when resolution was cached. */
   canDispatch?: (options: LanguageModelV3CallOptions) => Promise<boolean>
+  replayRouteId?: string
   options?: FallbackCallOptions
   repairToolCall?: ToolCallRepairFunction<ToolSet>
   /**
@@ -70,6 +72,7 @@ export interface RetryFallback {
 export type FallbackResolver = () => Promise<RetryFallback | null>
 
 export interface CreateRetryableWrapOptions {
+  primaryReplayRouteId?: string
   /** Same-provider, same-model alternatives using the remaining enabled API keys. */
   apiKeyFallbacks?: FallbackResolver[]
   /**
@@ -94,11 +97,13 @@ const RETRY_BASE_DELAY_MS = 1_000
 function lazyFallbackRetryable(
   resolveFallback: FallbackResolver,
   onFallbackActivated?: (fallback: RetryFallback) => void,
-  wrapFallbackModel?: WrapLanguageModel
+  wrapFallbackModel?: WrapLanguageModel,
+  crossRoute = false
 ): Retryable<LanguageModel> {
   let cached: Promise<RetryFallback | null> | undefined
   return async (context) => {
     if (!isErrorAttempt(context.current)) return undefined
+    if (crossRoute && getPendingReplayRoute(context.current.options.prompt)) return undefined
     cached ??= resolveFallback()
     const fallback = await cached
     if (!fallback) {
@@ -195,7 +200,22 @@ function describeAttempt(context: RetryContext<LanguageModelV3>): Extract<RetryP
  */
 export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLanguageModel | undefined {
   const apiKeyFallbacks = options.apiKeyFallbacks ?? []
-  if (!options.retryPolicy.enabled && apiKeyFallbacks.length === 0) return undefined
+  if (!options.primaryReplayRouteId && !options.retryPolicy.enabled && apiKeyFallbacks.length === 0) return undefined
+
+  const fallbackResolvers = options.fallbacks.map((resolve) => {
+    let result: Promise<RetryFallback | null> | undefined
+    return async () => {
+      result ??= resolve()
+      try {
+        const fallback = await result
+        if (!fallback) result = undefined
+        return fallback
+      } catch (error) {
+        result = undefined
+        throw error
+      }
+    }
+  })
 
   // `max_attempts` is the number of RETRIES (matches the "Max retry attempts"
   // setting and the embedding/rerank AI SDK `maxRetries`). ai-retry counts the
@@ -224,7 +244,9 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     // Error-only (like a plain-model fallback): ai-retry also evaluates function
     // retryables on *result* attempts (content-filter etc.), so guard on
     // `isErrorAttempt` to avoid resolving — and falsely retrying — on success.
-    ...options.fallbacks.map((fallback) => lazyFallbackRetryable(fallback, options.onFallbackActivated))
+    ...fallbackResolvers.map((fallback) =>
+      lazyFallbackRetryable(fallback, options.onFallbackActivated, undefined, true)
+    )
   ]
 
   return (base) => {
@@ -328,48 +350,78 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
           })
         : primary
 
-    if (!options.retryPolicy.enabled) return keyPoolModel
-
-    return createRetryableModel({
-      model: keyPoolModel,
-      retries,
-      onRetry: (context) => {
-        const event = describeAttempt(context)
-        const failedModelId = context.attempts.at(-1)?.model.modelId
-        if (failedModelId && failedModelId !== event.modelId) {
-          logger.warn('falling back to a different model', {
-            ...options.diagnosticContext,
-            failedModelId,
-            fallbackModelId: event.modelId,
-            attempt: event.attempt,
-            reason: event.reason
-          })
-        } else {
-          logger.info('retrying model call', { ...options.diagnosticContext, ...event })
-        }
-        retryActive = true
-        options.onRetryEvent?.(event)
-      },
-      onSuccess: settleRetryStatus,
-      onFailure: (context) => {
-        const failure = context.error instanceof Error ? context.error : new Error(String(context.error))
-        logger.error('model call failed after retries', failure, {
-          ...options.diagnosticContext,
-          attempts: context.attempts.length,
-          lastModelId: context.current.model.modelId,
-          attemptErrors: context.attempts.flatMap((attempt) =>
-            isErrorAttempt(attempt)
-              ? [
-                  {
-                    modelId: attempt.model.modelId,
-                    reason:
-                      attempt.error instanceof Error ? `${attempt.error.name}: ${attempt.error.message}` : 'unknown'
-                  }
-                ]
-              : []
-          )
+    const retryModel = options.retryPolicy.enabled
+      ? createRetryableModel({
+          model: keyPoolModel,
+          retries,
+          onRetry: (context) => {
+            const event = describeAttempt(context)
+            const failedModelId = context.attempts.at(-1)?.model.modelId
+            if (failedModelId && failedModelId !== event.modelId) {
+              logger.warn('falling back to a different model', {
+                ...options.diagnosticContext,
+                failedModelId,
+                fallbackModelId: event.modelId,
+                attempt: event.attempt,
+                reason: event.reason
+              })
+            } else {
+              logger.info('retrying model call', { ...options.diagnosticContext, ...event })
+            }
+            retryActive = true
+            options.onRetryEvent?.(event)
+          },
+          onSuccess: settleRetryStatus,
+          onFailure: (context) => {
+            const failure = context.error instanceof Error ? context.error : new Error(String(context.error))
+            logger.error('model call failed after retries', failure, {
+              ...options.diagnosticContext,
+              attempts: context.attempts.length,
+              lastModelId: context.current.model.modelId,
+              attemptErrors: context.attempts.flatMap((attempt) =>
+                isErrorAttempt(attempt)
+                  ? [
+                      {
+                        modelId: attempt.model.modelId,
+                        reason:
+                          attempt.error instanceof Error ? `${attempt.error.name}: ${attempt.error.message}` : 'unknown'
+                      }
+                    ]
+                  : []
+              )
+            })
+            settleRetryStatus()
+          }
         })
-        settleRetryStatus()
+      : keyPoolModel
+
+    if (!options.primaryReplayRouteId) return retryModel
+
+    const resolvePinned = async (params: LanguageModelV3CallOptions) => {
+      const route = getPendingReplayRoute(params.prompt)
+      if (!route || route === options.primaryReplayRouteId) return undefined
+      for (const resolve of fallbackResolvers) {
+        const fallback = await resolve()
+        if (fallback?.replayRouteId === route) {
+          options.onFallbackActivated?.(fallback)
+          return fallback
+        }
+      }
+      throw new ToolContinuationRouteError()
+    }
+
+    return wrapLanguageModel({
+      model: retryModel,
+      middleware: {
+        specificationVersion: 'v3',
+        wrapGenerate: async ({ params, doGenerate }) => {
+          const pinned = await resolvePinned(params)
+          return pinned ? pinned.model.doGenerate({ ...params, ...pinned.options }) : doGenerate()
+        },
+        wrapStream: async ({ params, doStream }) => {
+          const pinned = await resolvePinned(params)
+          return pinned ? pinned.model.doStream({ ...params, ...pinned.options }) : doStream()
+        }
       }
     })
   }
