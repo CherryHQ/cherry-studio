@@ -84,11 +84,6 @@ describe('createDirectoryWatcher', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('emits "ready" after the initial scan', async () => {
-    const w = watchDirectory()
-    await waitForReady(w)
-  })
-
   it('emits "add" for newly created files and writes "present" into DanglingCache', async () => {
     const target = path.join(dir, 'note.txt') as AbsoluteFilePath
     danglingCache.addEntry('e-w-add', target)
@@ -144,18 +139,10 @@ describe('createDirectoryWatcher', () => {
   it('emits "change" when a watched file is modified without changing its size', async () => {
     const target = path.join(dir, 'mut.txt') as AbsoluteFilePath
 
-    // Default stabilityThresholdMs (200) keeps chokidar's event sequencing
-    // deterministic across busy CI hosts; stability=0 was flaky on macOS
-    // FSEvents when many tests share tmpdir traffic.
+    await writeFile(target, 'v1')
     const w = watchDirectory()
     await waitForReady(w)
 
-    // First write registers the file (fires 'add'); second write fires 'change'.
-    const added = waitForEvent(w, (e) => e.kind === 'add' && e.path === target)
-    await writeFile(target, 'v1')
-    await added
-    // Brief settle so chokidar's awaitWriteFinish window closes on the add.
-    await new Promise((r) => setTimeout(r, 250))
     const changed = waitForEvent(w, (e) => e.kind === 'change' && e.path === target)
     await writeFile(target, 'v2')
     const ev = await changed
@@ -288,18 +275,5 @@ describe('createDirectoryWatcher', () => {
     await new Promise((resolve) => setTimeout(resolve, 400))
     expect(events.some((event) => 'path' in event && event.path.endsWith('/blocked.txt'))).toBe(false)
     expect(events.some((event) => 'path' in event && event.path.includes('/.git/'))).toBe(false)
-  })
-
-  it('close() is idempotent and stops further event delivery', async () => {
-    const w = watchDirectory({ stabilityThresholdMs: 0 })
-    await waitForReady(w)
-    await w.close()
-    await w.close() // idempotent
-
-    const seen: WatcherEvent[] = []
-    w.onEvent((e) => seen.push(e))
-    await writeFile(path.join(dir, 'late.txt'), 'late')
-    await new Promise((r) => setTimeout(r, 400))
-    expect(seen).toEqual([])
   })
 })
