@@ -13,6 +13,8 @@ import { useScrollAnchor } from './useScrollAnchor'
 
 interface BaseProps {
   children: (isExpanded: boolean) => React.ReactNode
+  groupId?: string | number
+  showElapsed?: boolean
   message: MessageListItem
   toolItems: ToolRenderItem[]
 }
@@ -33,6 +35,7 @@ type Props = BaseProps &
       }
   )
 
+const PROCESS_GROUP_SPACING_CLASS_NAME = 'mb-2 [.block-wrapper+&]:mt-2'
 const PROCESS_CONTENT_CLASS_NAME =
   'flex w-full flex-col gap-3 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!'
 
@@ -106,15 +109,16 @@ const ActiveProcessHeader = React.memo(function ActiveProcessHeader({
 
 /** The top-level process group across both active and completed message phases. */
 const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props) {
-  const { children, message, toolItems } = props
+  const { children, groupId, message, showElapsed = true, toolItems } = props
   const { t } = useTranslation()
+  const disclosureKey = groupId === undefined ? 'completed-process' : `completed-process:${groupId}`
   const [isExpanded, setIsExpanded] = useMessageDisclosureState(
-    'completed-process',
+    disclosureKey,
     props.phase === 'completed' && (props.defaultExpanded ?? false)
   )
   const syncTarget = props.phase === 'completed' ? props.syncExpanded : undefined
   const [previousSyncTarget, setPreviousSyncTarget] = useMessageDisclosureState(
-    syncTarget === undefined ? undefined : 'completed-process-preference',
+    syncTarget === undefined ? undefined : `${disclosureKey}-preference`,
     syncTarget ?? false
   )
 
@@ -142,16 +146,22 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
 
   if (props.phase === 'active') {
     return (
-      <div className="group/live-tool-group mb-2 w-full max-w-full pb-2" data-testid="live-tool-group">
+      <div
+        className={`group/live-tool-group w-full max-w-full ${PROCESS_GROUP_SPACING_CLASS_NAME}`}
+        data-testid="live-tool-group">
         <div
           data-testid="live-tool-group-header"
           className="flex min-h-7 w-full items-center py-0.5 text-left select-none">
           <div className="min-w-0 flex-1 overflow-hidden">
-            <ActiveProcessHeader
-              createdAt={message.createdAt}
-              startedAtMs={runtimeTiming?.startedAt}
-              toolItems={toolItems}
-            />
+            {showElapsed ? (
+              <ActiveProcessHeader
+                createdAt={message.createdAt}
+                startedAtMs={runtimeTiming?.startedAt}
+                toolItems={toolItems}
+              />
+            ) : (
+              <ToolBlockGroupHeaderContent items={toolItems} summary={t('message.tools.processed')} preferSummary />
+            )}
           </div>
         </div>
         <div data-testid="live-tool-group-content" className={`${PROCESS_CONTENT_CLASS_NAME} pt-2`}>
@@ -161,9 +171,10 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
     )
   }
 
-  const elapsedText = completedElapsedMs === undefined ? undefined : formatPlaceholderElapsed(completedElapsedMs, t)
+  const elapsedText =
+    !showElapsed || completedElapsedMs === undefined ? undefined : formatPlaceholderElapsed(completedElapsedMs, t)
   const summary =
-    props.outcome === 'error'
+    props.outcome === 'error' && message.status !== 'paused'
       ? t('message.tools.error')
       : toolItems.length > 0
         ? t('message.tools.groupHeader', { count: toolItems.length })
@@ -173,7 +184,9 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
   )
 
   return (
-    <div ref={anchorRef} className={`group/completed-tool-history mb-2 w-full max-w-full ${isExpanded ? 'pb-2' : ''}`}>
+    <div
+      ref={anchorRef}
+      className={`group/completed-tool-history w-full max-w-full ${PROCESS_GROUP_SPACING_CLASS_NAME}`}>
       <Accordion
         type="single"
         collapsible

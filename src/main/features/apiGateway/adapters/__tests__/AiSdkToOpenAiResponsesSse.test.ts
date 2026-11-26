@@ -160,9 +160,9 @@ describe('AiSdkToOpenAiResponsesSse', () => {
     const createReasoningDelta = (text: string): UIMessageChunk => ({ type: 'reasoning-delta', id: 'r_0', delta: text })
 
     // Catches duplicating one native reasoning item when the SDK streams multiple summary parts.
-    it('keeps one native identity and the final ciphertext across summary parts', async () => {
+    it.each(['openai', 'azure', 'xai'])('keeps %s ciphertext across summary parts', async (namespace) => {
       const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-5' })
-      const providerMetadata = { openai: { itemId: 'rs_native' } }
+      const providerMetadata = { [namespace]: { itemId: 'rs_native' } }
       const events = await collectEvents(
         adapter.transform(
           createMockStream([
@@ -174,7 +174,9 @@ describe('AiSdkToOpenAiResponsesSse', () => {
             {
               type: 'reasoning-end',
               id: 'rs_native:1',
-              providerMetadata: { openai: { itemId: 'rs_native', reasoningEncryptedContent: 'final-ciphertext' } }
+              providerMetadata: {
+                [namespace]: { itemId: 'rs_native', reasoningEncryptedContent: 'final-ciphertext' }
+              }
             },
             createTextDelta('answer'),
             createFinish()
@@ -188,7 +190,6 @@ describe('AiSdkToOpenAiResponsesSse', () => {
           id: 'rs_native',
           status: 'completed',
           summary: [{ type: 'summary_text', text: 'first second' }],
-          content: [{ type: 'reasoning_text', text: 'first second' }],
           encrypted_content: 'final-ciphertext'
         }
       ])

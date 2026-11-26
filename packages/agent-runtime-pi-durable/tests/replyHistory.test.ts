@@ -96,7 +96,8 @@ it.each(['compaction', 'next-input'] as const)(
       if (between === 'compaction')
         expect(reply).toMatchObject({
           messages: [{ role: 'assistant', parts: [{ type: 'text', text: 'committed answer' }] }],
-          outcome: { outcome: 'completed' }
+          outcome: { outcome: 'completed' },
+          placedInputIds: [inputId]
         })
       else expect(reply).toBeUndefined()
     } finally {
