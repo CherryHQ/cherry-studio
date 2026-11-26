@@ -583,6 +583,27 @@ describe('limits, access, and recovery', () => {
     expect(await readFile(path.join(root, '.memories/topic.md'), 'utf8')).toBe('Topic fact')
   })
 
+  it('allows a new controlled topic after clear while invalidating old receipts and hiding forgotten data', async () => {
+    const target = '.memories/new.md'
+    await save('MEMORY.md', 'Forgotten fact')
+    const stale = await store.modelRead(caller, target)
+    await store.clear(caller, (await store.previewClear(caller)).token, approve)
+    const write = (owner: MemoryAccess, receipt: string) =>
+      store.commit(owner, [{ kind: 'write', receipt, content: 'New fact' }], 'controlled', approve)
+    await expect(write(caller, stale.receipt)).rejects.toMatchObject({ code: 'invalid-receipt' })
+
+    const fresh = access()
+    const read = await store.modelRead(fresh, target)
+    expect(read.content).toBeNull()
+    expect((await store.modelRead(fresh, target, 'historical')).receipt).toBe('')
+    await expect(write(caller, read.receipt)).rejects.toMatchObject({ code: 'invalid-receipt' })
+    await expect(write(fresh, read.receipt)).resolves.toMatchObject({ files: [{ outcome: 'applied' }] })
+    expect((await store.modelRead(fresh, target)).content).toBe('New fact')
+    const history = await store.modelRead(fresh, 'MEMORY.md', 'historical')
+    expect(history.content).not.toContain('Forgotten fact')
+    expect(entriesIn(parseMemoryEntries((await store.read(fresh, 'MEMORY.md')).content!))[0].status).toBe('forgotten')
+  })
+
   it('refuses a model receipt for a casing alias on a case-insensitive volume', async () => {
     await save('.memories/Topic.md', 'Existing topic')
     const alias = await memoryFiles.readMemoryBytes(root, '.memories/topic.md')
