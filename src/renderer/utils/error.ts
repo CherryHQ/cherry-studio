@@ -15,7 +15,13 @@ import type {
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
-import { aiErrorDetail, aiStreamAdmissionReason, isAgentSessionArchiveBusyError } from '@shared/ipc/errors/ai'
+import {
+  aiErrorCodes,
+  aiErrorDetail,
+  aiStreamAdmissionReason,
+  isAgentSessionArchiveBusyError
+} from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { safeSerialize } from '@shared/utils/serialize'
 
 import { formatErrorDetails } from './errorDetails'
@@ -55,6 +61,8 @@ export function formatErrorMessageWithPrefix(error: unknown, prefix: string): st
 }
 
 function getActionableAiErrorMessage(error: unknown): string | undefined {
+  const workspaceMessage = workspaceInstallDirectoryErrorMessage(error)
+  if (workspaceMessage) return workspaceMessage
   if (isAgentSessionArchiveBusyError(error)) return t('recycle_bin.move.blocked_generation')
   switch (aiStreamAdmissionReason(error)) {
     case 'SINGLE_MODEL_REQUIRED':
@@ -72,6 +80,19 @@ function getActionableAiErrorMessage(error: unknown): string | undefined {
     default:
       return undefined
   }
+}
+
+export function isWorkspaceInstallDirectoryError(error: unknown): boolean {
+  return error instanceof IpcError && error.code === aiErrorCodes.AI_AGENT_WORKSPACE_INSTALL_DIRECTORY
+}
+
+export function workspaceInstallDirectoryErrorMessage(error: unknown): string | undefined {
+  if (!isWorkspaceInstallDirectoryError(error)) return undefined
+  const data = (error as IpcError).data
+  const directory = data && typeof data === 'object' && 'installDirectory' in data ? data.installDirectory : undefined
+  return t('agent.session.workspace_selector.install_directory_refused', {
+    directory: typeof directory === 'string' && directory ? ` (${directory})` : ''
+  })
 }
 
 export const isTimeoutError = (error: any): boolean => {

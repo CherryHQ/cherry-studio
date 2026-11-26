@@ -10,6 +10,7 @@ import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { loggerService } from '@logger'
 import { previewAgentConfigChange } from '@main/ai/agents/agentConfigTool'
 import { AgentSessionArchiveBusyError } from '@main/ai/agents/AgentLifecycleService'
+import { WorkspaceInstallDirectoryError } from '@main/ai/agents/agentWorkspaceInstallDirectory'
 import { agentWorkspaceStorageService } from '@main/ai/agents/AgentWorkspaceStorageService'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssistantSession'
@@ -284,8 +285,19 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
       throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
     }
   },
-  'ai.agent.workspace.register': async ({ path, name }) =>
-    agentWorkspaceStorageService.registerWorkspace(path, { name }),
+  'ai.agent.workspace.register': async ({ path, name }) => {
+    try {
+      return agentWorkspaceStorageService.registerWorkspace(path, { name })
+    } catch (error) {
+      if (error instanceof WorkspaceInstallDirectoryError) {
+        throw new IpcError(aiErrorCodes.AI_AGENT_WORKSPACE_INSTALL_DIRECTORY, error.message, {
+          workspacePath: error.workspacePath,
+          installDirectory: error.installDirectory
+        })
+      }
+      throw error
+    }
+  },
   'ai.agent.workspace.delete': ({ workspaceId }) =>
     application.get('AgentLifecycleService').deleteWorkspace(workspaceId),
 

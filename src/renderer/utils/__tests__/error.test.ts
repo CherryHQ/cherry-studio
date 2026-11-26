@@ -1,4 +1,5 @@
 import { APICallError, NoSuchToolError, RetryError } from 'ai'
+import { t } from 'i18next'
 import { describe, expect, it, vi } from 'vitest'
 
 import { isSerializedAiSdkErrorUnion } from '@renderer/types/error'
@@ -14,15 +15,55 @@ import {
   getErrorMessage,
   isAbortError,
   isTimeoutError,
+  isWorkspaceInstallDirectoryError,
   providerErrorText,
   serializeError,
-  serializeHealthCheckError
+  serializeHealthCheckError,
+  workspaceInstallDirectoryErrorMessage
 } from '../error'
 import { classifyError } from '../errorClassifier'
 
-vi.mock('i18next', () => ({ t: (key: string) => key }))
+vi.mock('i18next', () => ({ t: vi.fn((key: string) => key) }))
 
 describe('error', () => {
+  it('localizes installation-directory rejection for workspace and session creation', () => {
+    const error = new IpcError(aiErrorCodes.AI_AGENT_WORKSPACE_INSTALL_DIRECTORY, 'internal diagnostic', {
+      workspacePath: 'D:\\Cherry Studio\\work',
+      installDirectory: 'D:\\Cherry Studio'
+    })
+    const key = 'agent.session.workspace_selector.install_directory_refused'
+    expect(isWorkspaceInstallDirectoryError(error)).toBe(true)
+    expect(workspaceInstallDirectoryErrorMessage(error)).toBe(key)
+    expect(t).toHaveBeenLastCalledWith(key, { directory: ' (D:\\Cherry Studio)' })
+    expect(formatErrorMessageWithPrefix(error, 'Failed to create session')).toBe(key)
+  })
+
+  it.each([undefined, {}, { installDirectory: '' }, { installDirectory: 42 }])(
+    'omits parentheses when the installation path is unavailable: %s',
+    (data) => {
+      const error = new IpcError(aiErrorCodes.AI_AGENT_WORKSPACE_INSTALL_DIRECTORY, 'internal', data)
+      expect(workspaceInstallDirectoryErrorMessage(error)).toBe(
+        'agent.session.workspace_selector.install_directory_refused'
+      )
+      expect(t).toHaveBeenLastCalledWith('agent.session.workspace_selector.install_directory_refused', {
+        directory: ''
+      })
+    }
+  )
+
+  it.each([
+    new Error('unrelated'),
+    new IpcError('INTERNAL', 'unrelated'),
+    { code: aiErrorCodes.AI_AGENT_WORKSPACE_INSTALL_DIRECTORY }
+  ])('does not classify unrelated errors or plain code lookalikes: %s', (error) => {
+    expect(isWorkspaceInstallDirectoryError(error)).toBe(false)
+    expect(workspaceInstallDirectoryErrorMessage(error)).toBeUndefined()
+  })
+
+  it('keeps the generic prefix for unrelated errors', () => {
+    expect(formatErrorMessageWithPrefix(new Error('unrelated'), 'Failed')).toBe('Failed: unrelated')
+  })
+
   it.each(['responseBody', 'data'] as const)('preserves quota diagnosis after sanitizing %s', (field) => {
     for (const signal of [{ type: 'insufficient_quota' }, { code: 'billing_hard_limit_reached' }]) {
       const payload = { error: signal, prompt: 'private prompt' }
