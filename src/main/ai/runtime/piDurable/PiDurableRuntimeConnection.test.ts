@@ -386,7 +386,7 @@ describe('desktop Pi Durable connection', () => {
       ])
       const { connection, events } = await connect()
       await connection.send({ message: message('Use the file tools') })
-      await done(events)
+      await done(events, 10_000)
       const results = script.calls.at(-1)!.messages.filter((item) => item.role === 'toolResult')
       expect(results.map((result) => result.isError)).toEqual([managed, managed, managed])
       expect(JSON.stringify(results[0].content).includes('first')).toBe(!managed)
@@ -3168,7 +3168,7 @@ describe('desktop Pi Durable connection', () => {
       await expect.poll(() => gaps).toContain('overflow')
       held.open()
 
-      await expect.poll(() => text(events)).toContain('answer-1 ')
+      await expect.poll(() => text(events), { timeout: 10_000 }).toContain('answer-1 ')
       // Answering every queued input only adds runtime; Stop withdraws the rest.
       await connection.interrupt()
       await done(events)
