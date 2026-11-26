@@ -55,6 +55,8 @@ describe('transformed fallback capacity', () => {
       const shrink = vi.fn(contextMiddleware.transformParams)
       built.current = {
         sdkConfig: { providerId: 'ollama', providerSettings: {}, modelId: 'fallback', providerOptionsKey: 'ollama' },
+        replayRouteId: 'ollama::ollama-chat::fallback',
+        endpointType: 'ollama-chat',
         credentialReceipt: { attribution: 'unknown' },
         tools: undefined,
         system: undefined,
