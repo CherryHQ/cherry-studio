@@ -1,9 +1,17 @@
 import { arrayMove } from '@dnd-kit/helpers'
-import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { X } from 'lucide-react'
+import {
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input, Sortable } from '@cherrystudio/ui'
+import { Button, SearchInput, Sortable } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import { LaunchpadAppIcon } from '@renderer/components/LaunchpadAppIcon'
@@ -13,6 +21,7 @@ import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
+import { matchesSearchText } from '@renderer/utils/pinyin'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
@@ -21,6 +30,11 @@ import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useLaunchpadCatalog } from './hooks/useLaunchpadCatalog'
 
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
+const LAUNCHPAD_ROW_HEIGHT = 120
+const LAUNCHPAD_PAGINATION_HEIGHT = 44
+const POINTER_GESTURE_THRESHOLD = 48
+const WHEEL_GESTURE_THRESHOLD = 20
+const WHEEL_GESTURE_IDLE_MS = 140
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
 export function LaunchpadContent({
@@ -40,17 +54,32 @@ export function LaunchpadContent({
   }, [isOverlay])
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(0)
-  const [layout, setLayout] = useState({ columns: 7, rows: 3 })
-  const gridRef = useRef<HTMLDivElement>(null)
+  const updateQuery = (value: string) => {
+    setQuery(value)
+    setPage(0)
+  }
+  const [layout, setLayout] = useState({ columns: 7, rows: 3, pagedRows: 3 })
+  const gridAreaRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const grid = gridRef.current
-    if (!grid) return
-    const observer = new ResizeObserver(([entry]) => {
-      const columns = Math.max(1, Math.min(7, Math.floor(entry.contentRect.width / 120)))
-      const rows = Math.max(1, Math.min(4, Math.floor(entry.contentRect.height / 120)))
-      setLayout((previous) => (previous.columns === columns && previous.rows === rows ? previous : { columns, rows }))
-    })
-    observer.observe(grid)
+    const gridArea = gridAreaRef.current
+    if (!gridArea) return
+    const observer = new ResizeObserver(
+      ([
+        {
+          contentRect: { width, height }
+        }
+      ]) => {
+        const columns = Math.max(1, Math.min(7, Math.floor(width / 120)))
+        const rows = Math.max(1, Math.floor(height / LAUNCHPAD_ROW_HEIGHT))
+        const pagedRows = Math.max(1, Math.floor((height - LAUNCHPAD_PAGINATION_HEIGHT) / LAUNCHPAD_ROW_HEIGHT))
+        setLayout((previous) =>
+          previous.columns === columns && previous.rows === rows && previous.pagedRows === pagedRows
+            ? previous
+            : { columns, rows, pagedRows }
+        )
+      }
+    )
+    observer.observe(gridArea)
     return () => observer.disconnect()
   }, [])
   const sidebarAvailable = useSidebarAvailable()
@@ -69,6 +98,10 @@ export function LaunchpadContent({
   const { apps, miniApps: sortedMiniApps, reorderApps } = useLaunchpadCatalog(pinned)
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
+  const isSortingRef = useRef(false)
+  const wheelGestureRef = useRef({ delta: 0, lastEventAt: 0, lastPageDirection: 0 })
+  const gridDragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
+  const suppressGridClickRef = useRef(false)
 
   const miniAppFavoriteIdSet = useMemo(
     () =>
@@ -98,6 +131,7 @@ export function LaunchpadContent({
     [pinned, t, setPinned, miniAppFavoriteIdSet]
   )
   const handleSortableDragStart = useCallback((event: { activeId: string | number }) => {
+    isSortingRef.current = true
     draggedItemIdRef.current = String(event.activeId)
     suppressClickUntilRef.current = Date.now() + 500
   }, [])
@@ -105,6 +139,7 @@ export function LaunchpadContent({
   // The pointer sensor fires a synthetic click on the dragged element after drop;
   // refresh the window on settle so the click is still suppressed after long drags.
   const handleSortableDragSettled = useCallback(() => {
+    isSortingRef.current = false
     suppressClickUntilRef.current = Date.now() + 500
   }, [])
 
@@ -172,14 +207,79 @@ export function LaunchpadContent({
     setOrderedMiniApps((prev) => (sameMiniAppItems(prev, sortedMiniApps) ? prev : sortedMiniApps))
   }, [sortedMiniApps])
 
-  const search = query.trim().toLocaleLowerCase()
-  const filteredApps = appMenuItems.filter((app) => app.label.toLocaleLowerCase().includes(search))
+  const search = query.trim()
+  const filteredApps = appMenuItems.filter((app) => matchesSearchText(app.label, search))
   const filteredMiniApps = orderedMiniApps.filter((app) =>
-    (app.nameKey ? t(app.nameKey) : app.name).toLocaleLowerCase().includes(search)
+    matchesSearchText(app.nameKey ? t(app.nameKey) : app.name, search)
   )
-  const pageSize = layout.columns * layout.rows
-  const pageCount = Math.max(1, Math.ceil((filteredApps.length + filteredMiniApps.length) / pageSize))
+  const itemCount = filteredApps.length + filteredMiniApps.length
+  const needsPagination = itemCount > layout.columns * layout.rows
+  const pageSize = layout.columns * (needsPagination ? layout.pagedRows : layout.rows)
+  const pageCount = Math.max(1, Math.ceil(itemCount / pageSize))
   const currentPage = Math.min(page, pageCount - 1)
+  const turnPage = (direction: number) =>
+    setPage((previousPage) => {
+      const current = Math.min(previousPage, pageCount - 1)
+      return Math.max(0, Math.min(current + direction, pageCount - 1))
+    })
+
+  const onPageWheel = useEffectEvent((event: WheelEvent) => {
+    if (!needsPagination || isSortingRef.current || event.ctrlKey || event.defaultPrevented) return
+    const delta = event.shiftKey ? event.deltaX || event.deltaY : event.deltaX
+    if (!delta || (!event.shiftKey && Math.abs(delta) <= Math.abs(event.deltaY))) return
+    event.preventDefault()
+
+    const now = Date.now()
+    if (now - wheelGestureRef.current.lastEventAt > WHEEL_GESTURE_IDLE_MS) {
+      wheelGestureRef.current = { delta: 0, lastEventAt: now, lastPageDirection: 0 }
+    }
+    const gesture = wheelGestureRef.current
+    gesture.lastEventAt = now
+    if (Math.sign(delta) === gesture.lastPageDirection) {
+      gesture.delta = 0
+      return
+    }
+
+    const unit =
+      event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? gridAreaRef.current?.clientWidth || WHEEL_GESTURE_THRESHOLD
+          : 1
+    gesture.delta += delta * unit
+    if (Math.abs(gesture.delta) < WHEEL_GESTURE_THRESHOLD) return
+    gesture.lastPageDirection = Math.sign(gesture.delta)
+    gesture.delta = 0
+    turnPage(gesture.lastPageDirection)
+  })
+
+  useEffect(() => {
+    const gridArea = gridAreaRef.current
+    if (!gridArea) return
+    gridArea.addEventListener('wheel', onPageWheel, { passive: false })
+    return () => gridArea.removeEventListener('wheel', onPageWheel)
+  }, [])
+
+  const handleGridPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || event.pointerType !== 'mouse' || event.button !== 0) return
+    suppressGridClickRef.current = false
+    if (!needsPagination) return
+    gridDragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+    event.currentTarget.setPointerCapture(event.pointerId)
+    event.preventDefault()
+  }
+
+  const handleGridPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const start = gridDragRef.current
+    if (!start || start.pointerId !== event.pointerId) return
+    gridDragRef.current = null
+    const dx = event.clientX - start.x
+    const dy = event.clientY - start.y
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < POINTER_GESTURE_THRESHOLD) return
+    suppressGridClickRef.current = true
+    if (Math.abs(dx) > Math.abs(dy)) turnPage(-Math.sign(dx))
+  }
+
   const start = currentPage * pageSize
   const visibleApps = filteredApps.slice(start, start + pageSize)
   const visibleMiniApps = filteredMiniApps.slice(
@@ -259,108 +359,107 @@ export function LaunchpadContent({
     <div
       className="flex h-full min-h-0 flex-col items-center px-6 pt-12 pb-6 text-foreground sm:px-12"
       onClick={(event) => {
-        if (event.target === event.currentTarget) onDismiss?.()
+        if (event.target === event.currentTarget || event.target === gridAreaRef.current) onDismiss?.()
       }}>
-      <div className="relative mb-8 w-full max-w-72 shrink-0">
-        <Search
-          aria-hidden
-          className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
+      <div className="mb-8 w-full max-w-72 shrink-0">
+        <SearchInput
           ref={searchRef}
-          type="search"
           aria-label={t('common.search')}
           placeholder={t('common.search')}
           value={query}
-          onChange={(event) => {
-            setQuery(event.target.value)
-            setPage(0)
+          onChange={(event) => updateQuery(event.target.value)}
+          onClear={() => {
+            updateQuery('')
+            searchRef.current?.focus()
           }}
-          className="h-9 rounded-xl border-border/50 bg-background/35 pl-9 text-center shadow-none backdrop-blur-sm focus-visible:text-left"
+          clearLabel={t('globalSearch.clear')}
+          className="text-center focus-visible:text-left"
+          containerClassName="rounded-full border-border/50 bg-background/35 backdrop-blur-sm"
         />
       </div>
-      <div
-        ref={gridRef}
-        className="mx-auto grid min-h-0 w-full max-w-[900px] flex-1 content-start justify-items-center gap-x-2 overflow-y-auto"
-        style={{ gridTemplateColumns: `repeat(${layout.columns}, minmax(0, 1fr))`, gridAutoRows: '120px' }}
-        onClick={(event) => {
-          if (event.target === event.currentTarget) onDismiss?.()
-        }}>
-        {!filteredApps.length && !filteredMiniApps.length ? (
-          <p role="status" className="col-span-full self-center text-muted-foreground">
-            {t('common.no_results')}
-          </p>
-        ) : null}
-        {search ? (
-          visibleApps.map(renderAppMenuItem)
-        ) : (
-          <Sortable
-            items={visibleApps}
-            itemKey="id"
-            layout="grid"
-            listStyle={SORTABLE_CONTENTS_STYLE}
-            onDragStart={handleSortableDragStart}
-            onDragEnd={handleSortableDragSettled}
-            onDragCancel={handleSortableDragSettled}
-            onSortEnd={handleAppsSortEnd}
-            renderItem={(item) => renderAppMenuItem(item)}
-          />
-        )}
-        {search ? (
-          visibleMiniApps.map(renderMiniAppItem)
-        ) : (
-          <Sortable
-            items={visibleMiniApps}
-            itemKey="appId"
-            layout="grid"
-            listStyle={SORTABLE_CONTENTS_STYLE}
-            onDragStart={handleSortableDragStart}
-            onDragEnd={handleSortableDragSettled}
-            onDragCancel={handleSortableDragSettled}
-            onSortEnd={handleMiniAppsSortEnd}
-            renderItem={(item) => renderMiniAppItem(item)}
-          />
+      <div ref={gridAreaRef} className="flex min-h-0 w-full flex-1 flex-col items-center">
+        <div
+          role="region"
+          aria-label={t('launchpad.apps')}
+          className="grid min-h-0 w-full max-w-[900px] flex-1 content-start justify-items-center gap-x-2 overflow-y-auto"
+          style={{
+            gridTemplateColumns: `repeat(${layout.columns}, minmax(0, 1fr))`,
+            gridAutoRows: `${LAUNCHPAD_ROW_HEIGHT}px`
+          }}
+          onPointerDown={handleGridPointerDown}
+          onPointerUp={handleGridPointerUp}
+          onLostPointerCapture={(event) => {
+            if (gridDragRef.current?.pointerId === event.pointerId) gridDragRef.current = null
+          }}
+          onClick={(event) => {
+            if (event.target !== event.currentTarget) return
+            if (!suppressGridClickRef.current) onDismiss?.()
+            suppressGridClickRef.current = false
+          }}>
+          {!filteredApps.length && !filteredMiniApps.length ? (
+            <p role="status" className="col-span-full self-center text-muted-foreground">
+              {t('common.no_results')}
+            </p>
+          ) : null}
+          {search ? (
+            visibleApps.map(renderAppMenuItem)
+          ) : (
+            <Sortable
+              items={visibleApps}
+              itemKey="id"
+              layout="grid"
+              listStyle={SORTABLE_CONTENTS_STYLE}
+              onDragStart={handleSortableDragStart}
+              onDragEnd={handleSortableDragSettled}
+              onDragCancel={handleSortableDragSettled}
+              onSortEnd={handleAppsSortEnd}
+              renderItem={(item) => renderAppMenuItem(item)}
+            />
+          )}
+          {search ? (
+            visibleMiniApps.map(renderMiniAppItem)
+          ) : (
+            <Sortable
+              items={visibleMiniApps}
+              itemKey="appId"
+              layout="grid"
+              listStyle={SORTABLE_CONTENTS_STYLE}
+              onDragStart={handleSortableDragStart}
+              onDragEnd={handleSortableDragSettled}
+              onDragCancel={handleSortableDragSettled}
+              onSortEnd={handleMiniAppsSortEnd}
+              renderItem={(item) => renderMiniAppItem(item)}
+            />
+          )}
+        </div>
+        {needsPagination && (
+          <nav
+            aria-label={t('title.launchpad')}
+            className="flex shrink-0 items-center justify-center self-center pt-4"
+            style={{ height: LAUNCHPAD_PAGINATION_HEIGHT }}>
+            {Array.from({ length: pageCount }, (_, index) => (
+              <Button
+                key={index}
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`${index + 1} / ${pageCount}`}
+                aria-current={index === currentPage ? 'page' : undefined}
+                onClick={() => setPage(index)}
+                className="group w-6 rounded-full hover:bg-transparent focus-visible:bg-transparent">
+                <span
+                  className={cn(
+                    'size-1.5 rounded-full group-focus-visible:scale-125 group-focus-visible:bg-primary',
+                    index === currentPage
+                      ? 'bg-foreground'
+                      : 'bg-foreground/30 group-hover:scale-115 motion-safe:transition-transform'
+                  )}
+                />
+              </Button>
+            ))}
+          </nav>
         )}
       </div>
-      <nav aria-label={t('title.launchpad')} className="mt-4 flex shrink-0 items-center justify-center gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t('common.previous')}
-          disabled={currentPage === 0}
-          onClick={() => setPage(currentPage - 1)}
-          className="size-8 rounded-full">
-          <ChevronLeft className="size-4" />
-        </Button>
-        {Array.from({ length: pageCount }, (_, index) => (
-          <Button
-            key={index}
-            type="button"
-            variant="ghost"
-            aria-label={`${index + 1} / ${pageCount}`}
-            aria-current={index === currentPage ? 'page' : undefined}
-            onClick={() => setPage(index)}
-            className="size-7 rounded-full p-0">
-            <span
-              className={cn(
-                'size-1.5 rounded-full transition-colors',
-                index === currentPage ? 'bg-foreground' : 'bg-foreground/30'
-              )}
-            />
-          </Button>
-        ))}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t('common.next')}
-          disabled={currentPage === pageCount - 1}
-          onClick={() => setPage(currentPage + 1)}
-          className="size-8 rounded-full">
-          <ChevronRight className="size-4" />
-        </Button>
-      </nav>
       {onDismiss && (
         <Button
           type="button"
