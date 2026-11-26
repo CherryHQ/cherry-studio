@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-26-agent-reply-content-order.md
+2026-11-26-agent-reply-content-order.md: 001a5cf661bb103713b5984fb752a3e51578fb97
+2026-11-26-agent-reply-content-order.zh.md: 43c2c7c5268d21ecb00bc1f3f57798126becd253

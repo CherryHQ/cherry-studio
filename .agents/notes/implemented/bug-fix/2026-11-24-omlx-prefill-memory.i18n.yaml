@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-24-omlx-prefill-memory.md
+2026-11-24-omlx-prefill-memory.md: 7c419f6b5bc5003e6c6e5b6258fe710e87247763
+2026-11-24-omlx-prefill-memory.zh.md: fd4ced3cf8323ddc4c106bcb7b567f5456dbb15d

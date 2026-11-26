@@ -6,6 +6,7 @@ import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
+import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
@@ -31,6 +32,7 @@ import PermissionRequestComposer, {
   type PermissionRequestComposerProps
 } from '@renderer/components/composer/variants/PermissionRequestComposer'
 import { DoctorPopup } from '@renderer/components/doctor'
+import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
@@ -40,8 +42,9 @@ import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import { cn } from '@renderer/utils/style'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -58,7 +61,6 @@ import {
   AgentTaskProgressCapsule,
   useAgentRightPaneActions
 } from './components/AgentRightPane'
-import { AgentSessionNameControl } from './components/AgentSessionNameControl'
 import { locateAgentMessageInList, scrollAgentMessageListToEnd } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -72,6 +74,7 @@ function AgentPermissionRequestComposer(props: PermissionRequestComposerProps) {
   return (
     <PermissionRequestComposer
       {...props}
+      requiresAgentConfigPreview
       onOpenSource={
         canOpenAgentToolFlow
           ? (source) => openAgentToolFlow({ toolCallId: source.toolCallId, title: source.title })
@@ -101,24 +104,20 @@ function getNewSessionWorkspaceDefaults(
   return session.workspaceId ? { workspaceId: session.workspaceId } : {}
 }
 
-type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'> & {
-  session?: Pick<AgentSessionEntity, 'id' | 'name'>
-}
+type AgentTopBarControlsProps = Omit<AgentConversationControlsProps, 'iconOnly' | 'side'>
 
-function AgentTopBarControls({ session, ...props }: AgentTopBarControlsProps) {
+function AgentTopBarControls(props: AgentTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
+  const profilePane = useProfilePaneToggle()
 
   return (
-    <>
-      <AgentConversationControls {...props} side="bottom" iconOnly={iconOnly} />
-      {session && !iconOnly ? (
-        <AgentSessionNameControl
-          sessionId={session.id}
-          sessionName={session.name}
-          onCloseAutoFocus={props.onAgentDialogCloseAutoFocus}
-        />
-      ) : null}
-    </>
+    <AgentConversationControls
+      {...props}
+      side="bottom"
+      iconOnly={iconOnly}
+      onAvatarClick={profilePane?.toggle}
+      avatarActive={profilePane?.active}
+    />
   )
 }
 
@@ -162,6 +161,8 @@ interface AgentChatLayoutProps {
   activeAgent?: GetAgentResponse
   /** Active model — the right pane needs it for the context-usage denominator. */
   model?: Model
+  /** The same confirmed model switch as the top bar, for the profile pane. */
+  onModelChange?: (model: Model) => void
   center?: ReactNode
   centerClassName?: string
   centerSurface?: ConversationCenterSlot | null
@@ -177,7 +178,7 @@ interface AgentChatLayoutProps {
   paneManualToggle?: PaneManualToggleSignal
   paneOpen?: boolean
   panePosition?: ChatPanePosition
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   resourcePane?: ResourcePaneConfig | null
   resourcePaneRevealRequest?: ResourceListRevealRequest
   rightPanelDefaultOpen?: boolean
@@ -494,7 +495,6 @@ const AgentChat = ({
         conversationControls={
           activeAgent ? (
             <AgentTopBarControls
-              session={sessionSnapshot}
               agent={activeAgent}
               model={activeModel}
               workspace={sessionSnapshot.workspace}
@@ -557,6 +557,7 @@ const AgentChat = ({
   const layoutProps: AgentChatLayoutProps = {
     activeAgent,
     model: activeModel,
+    onModelChange: handleAgentModelChange,
     center,
     centerClassName,
     centerSurface,
@@ -589,6 +590,7 @@ const AgentChat = ({
   return (
     <>
       <AgentChatLayout {...layoutProps} />
+      <ResourceEditDialogEventHost />
       <ConfirmDialog
         open={modelSwitchConfirmOpen}
         onOpenChange={setModelSwitchConfirmOpen}
@@ -698,6 +700,7 @@ const AgentChatSessionCenter = ({
         editing={runtime.editing}
         cancelEditing={runtime.cancelEditing}
         resendEditedMessage={runtime.resendEditedMessage}
+        providerQuotaExhausted={runtime.providerQuotaExhausted}
       />
     </div>
   )
@@ -752,6 +755,7 @@ const AgentChatSessionCenter = ({
 function AgentChatLayout({
   activeAgent,
   model,
+  onModelChange,
   center,
   centerClassName,
   centerSurface,
@@ -781,6 +785,7 @@ function AgentChatLayout({
   return (
     <AgentRightPane.Scope
       model={model}
+      onModelChange={onModelChange}
       conversationState={conversationState}
       streamingLayers={streamingLayers}
       isMessageHistoryLoading={isMessageHistoryLoading}

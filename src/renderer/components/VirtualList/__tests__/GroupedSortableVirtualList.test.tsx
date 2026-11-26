@@ -1,6 +1,8 @@
+import { useDragDropManager } from '@dnd-kit/react'
 import { installDndDomStubs } from '@test-mocks/dndDomStubs'
 import { cancelRowDrag, dragRow, dropRow, hoverRow, startRowDrag } from '@test-mocks/dndDriver'
 import { act, render, screen } from '@testing-library/react'
+import { useEffect } from 'react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 const virtualMocks = vi.hoisted(() => ({
@@ -84,6 +86,14 @@ function getGroupRows(groupLabel: string, itemLabel: string, footerLabel: string
     screen.getByText(itemLabel).parentElement,
     screen.getByText(footerLabel).parentElement
   ]
+}
+
+function CaptureDragManager({ holder }: { holder: { current: ReturnType<typeof useDragDropManager> | null } }) {
+  const manager = useDragDropManager()
+  useEffect(() => {
+    holder.current = manager
+  }, [holder, manager])
+  return null
 }
 
 function expectRowsBlocked(rows: Array<HTMLElement | null>) {
@@ -179,6 +189,178 @@ describe('GroupedSortableVirtualList', () => {
         sourceGroupId: 'first',
         targetGroupId: 'second',
         targetIndex: 0,
+        type: 'item'
+      })
+    )
+  })
+
+  it('emits nothing and clears drop state when an item is released on its own group header', async () => {
+    const onDragEnd = renderList(vi.fn(), { dragCapabilities: { itemOwnGroupHeaderNoop: true } })
+
+    await dragRow({ source: 'item:a', target: 'group:first', side: 'before' })
+
+    expect(onDragEnd).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-drop-indicator]')).toBeNull()
+    expect(screen.getAllByText(/^Item /).map((row) => row.textContent)).toEqual([
+      'Item Alpha',
+      'Item Beta',
+      'Item Gamma'
+    ])
+    expect(document.querySelector('[data-dnd-overlay]')?.textContent ?? '').toBe('')
+  })
+
+  it('allows a valid drop after hovering an item over its own group header', async () => {
+    const onDragEnd = renderList(vi.fn(), { dragCapabilities: { itemOwnGroupHeaderNoop: true } })
+
+    await startRowDrag('item:a')
+    await hoverRow('group:first', 'before')
+
+    expect(document.querySelector('[data-drop-indicator]')).toBeNull()
+
+    await hoverRow('item:c', 'before')
+    expect(
+      screen.getByText('Item Gamma').parentElement?.querySelector('[data-drop-indicator="before"]')
+    ).toBeInTheDocument()
+    await dropRow()
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        activeId: 'a',
+        overId: 'c',
+        overType: 'item',
+        position: 'before',
+        sourceGroupId: 'first',
+        targetGroupId: 'second',
+        type: 'item'
+      })
+    )
+    expect(document.querySelector('[data-drop-indicator]')).toBeNull()
+  })
+
+  it('appends an item dropped on its own group header by default', async () => {
+    const onDragEnd = renderList()
+
+    await startRowDrag('item:a')
+    await hoverRow('group:first', 'before')
+
+    expect(
+      screen.getByText('Item Beta').parentElement?.querySelector('[data-drop-indicator="after"]')
+    ).toBeInTheDocument()
+    await dropRow()
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        activeId: 'a',
+        overId: 'b',
+        overType: 'item',
+        position: 'after',
+        sourceGroupId: 'first',
+        targetGroupId: 'first',
+        targetIndex: 1,
+        type: 'item'
+      })
+    )
+  })
+
+  it.each([false, true])(
+    'appends after the last visible item on its footer with immediate release=%s',
+    async (immediate) => {
+      const allItems = [...groups[0].items, { id: 'hidden', label: 'Hidden tail' }]
+      const managerHolder: { current: ReturnType<typeof useDragDropManager> | null } = { current: null }
+      const onDragEnd = renderList(vi.fn(), {
+        dragCapabilities: { itemOwnGroupHeaderNoop: true },
+        groups: [{ ...groups[0], items: allItems.slice(0, 2) }, groups[1]],
+        renderGroupFooter: (footer: unknown) => (
+          <div>
+            Footer {String(footer)}
+            <CaptureDragManager holder={managerHolder} />
+          </div>
+        )
+      })
+      expect(screen.queryByText('Item Hidden tail')).not.toBeInTheDocument()
+
+      await startRowDrag('item:a')
+      await hoverRow('group:first', 'before')
+      expect(document.querySelector('[data-drop-indicator]')).toBeNull()
+
+      await hoverRow('group-footer:first', 'before')
+      const indicators = document.querySelectorAll('[data-drop-indicator]')
+      expect(indicators).toHaveLength(1)
+      expect(indicators[0]).toHaveAttribute('data-drop-indicator', 'after')
+      expect(indicators[0].parentElement).toBe(screen.getByText('Item Beta').parentElement)
+      if (immediate) {
+        await hoverRow('group:first', 'before')
+        expect(document.querySelector('[data-drop-indicator]')).toBeNull()
+        await act(() => {
+          void managerHolder.current!.actions.setDropTarget('group-footer:first')
+          return dropRow()
+        })
+      } else {
+        await dropRow()
+      }
+
+      expect(onDragEnd).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          activeId: 'a',
+          overId: 'b',
+          overType: 'item',
+          position: 'after',
+          sourceGroupId: 'first',
+          targetGroupId: 'first',
+          targetIndex: 1,
+          type: 'item'
+        })
+      )
+    }
+  )
+
+  it('emits the group payload for a non-opted consumer when the hover state does not match the release target', async () => {
+    const managerHolder: { current: ReturnType<typeof useDragDropManager> | null } = { current: null }
+    const onDragEnd = renderList(vi.fn(), {
+      renderGroupFooter: (footer: unknown) => (
+        <div>
+          Footer {String(footer)}
+          <CaptureDragManager holder={managerHolder} />
+        </div>
+      )
+    })
+
+    await startRowDrag('item:a')
+    await hoverRow('group:first', 'before')
+    await act(() => {
+      void managerHolder.current!.actions.setDropTarget('group-footer:second')
+      return dropRow()
+    })
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        activeId: 'a',
+        overId: 'second',
+        overType: 'group',
+        position: 'before',
+        sourceGroupId: 'first',
+        targetGroupId: 'second',
+        type: 'item'
+      })
+    )
+  })
+
+  it('appends an item dropped on its own group footer after the last item', async () => {
+    const onDragEnd = renderList(vi.fn(), {
+      renderGroupFooter: (footer: unknown) => <div>Footer {String(footer)}</div>
+    })
+
+    await dragRow({ source: 'item:a', target: 'group-footer:first', side: 'before' })
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        activeId: 'a',
+        overId: 'b',
+        overType: 'item',
+        position: 'after',
+        sourceGroupId: 'first',
+        targetGroupId: 'first',
+        targetIndex: 1,
         type: 'item'
       })
     )
