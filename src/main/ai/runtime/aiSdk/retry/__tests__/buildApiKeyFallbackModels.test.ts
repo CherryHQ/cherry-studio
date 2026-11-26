@@ -45,6 +45,7 @@ describe('buildApiKeyFallbackModels', () => {
     const resolvedModel = { modelId: 'model' }
     resolveLanguageModel.mockResolvedValue(resolvedModel)
 
+    const wrapFetch = (fetch: typeof globalThis.fetch) => fetch
     const fallbacks = buildApiKeyFallbackModels({
       request: { uniqueModelId: 'provider::model' } as never,
       provider,
@@ -52,6 +53,7 @@ describe('buildApiKeyFallbackModels', () => {
       assistant: undefined,
       signal: undefined,
       extraFeatures: [],
+      wrapFetch,
       primaryCredentialReceipt: { attribution: 'explicit', id: 'key-2', masked: 'sk-2****2222' },
       createUsagePlugin
     })
@@ -61,7 +63,7 @@ describe('buildApiKeyFallbackModels', () => {
 
     await expect(fallbacks[0]()).resolves.toEqual({ model: resolvedModel, repairToolCall })
     expect(buildAgentParams).toHaveBeenCalledWith(
-      expect.objectContaining({ request: expect.objectContaining({ apiKeyOverride: 'sk-3' }) })
+      expect.objectContaining({ request: expect.objectContaining({ apiKeyOverride: 'sk-3' }), wrapFetch })
     )
     expect(createUsagePlugin).toHaveBeenCalledWith(fallbackReceipt)
     expect(resolveLanguageModel).toHaveBeenCalledWith('openai', { apiKey: 'sk-3' }, 'model', [

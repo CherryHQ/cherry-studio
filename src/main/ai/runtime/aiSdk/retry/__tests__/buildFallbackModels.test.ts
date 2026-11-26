@@ -92,9 +92,11 @@ describe('buildFallbackModels', () => {
     getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
     const { repairToolCall, credentialReceipt } = stubBuildAgentParams('claude-x')
 
+    const wrapFetch = (fetch: typeof globalThis.fetch) => fetch
     const [resolve] = buildFallbackModels({
       ...baseArgs,
       primaryUniqueModelId: 'openai::gpt-4',
+      wrapFetch,
       retryPolicy: policy(['anthropic::claude'])
     })
     const fallback = await resolve()
@@ -107,6 +109,7 @@ describe('buildFallbackModels', () => {
     })
 
     const buildOptions = buildAgentParams.mock.calls[0][0]
+    expect(buildOptions.wrapFetch).toBe(wrapFetch)
     expect(buildOptions.getRepairUsagePlugins()).toEqual([usagePlugin])
     // The fallback's own params are lifted as the per-fallback option override.
     expect(fallback?.options).toEqual({ temperature: 0.2, maxOutputTokens: 128 })

@@ -6,6 +6,9 @@ export const DEFAULT_TIMEOUT = 30 * 1000 * 60
  */
 export const CHAT_STREAM_IDLE_TIMEOUT_MS = 120 * 1000 * 60
 
+// A provider that never acknowledges cancellation must not block terminal persistence or Stop.
+export const STREAM_CLEANUP_TIMEOUT_MS = 10_000
+
 export const DEFAULT_MAX_TOKENS = 8192
 
 /**

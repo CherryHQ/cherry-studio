@@ -1495,6 +1495,7 @@ describe('native Pi through the production gateway', () => {
     let step = 0
     const upstream = vi.spyOn(mocks.ai!, 'streamText').mockImplementation(async () => ({
       kind: 'chunks',
+      cleanup: async () => {},
       stream: new ReadableStream<UIMessageChunk>({
         start(controller) {
           if (step++ === 0) {
@@ -1585,6 +1586,7 @@ describe('native Pi through the production gateway', () => {
       .run()
     vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
       kind: 'chunks',
+      cleanup: async () => {},
       stream: new ReadableStream<UIMessageChunk>({
         start(controller) {
           controller.enqueue({
@@ -1637,6 +1639,7 @@ describe('native Pi through the production gateway', () => {
       .run()
     vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
       kind: 'chunks',
+      cleanup: async () => {},
       stream: new ReadableStream<UIMessageChunk>({
         start(controller) {
           controller.enqueue({ type: 'tool-input-available', toolCallId: 'lookup_1', toolName: 'lookup', input: {} })
@@ -1992,6 +1995,7 @@ describe('native Pi through the production gateway', () => {
     let upstream!: ReadableStreamDefaultController<UIMessageChunk>
     vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
       kind: 'chunks',
+      cleanup: async () => {},
       stream: new ReadableStream<UIMessageChunk>({
         start(controller) {
           upstream = controller
@@ -2101,6 +2105,7 @@ describe('native Pi through the production gateway', () => {
     let cancelled = false
     vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
       kind: 'chunks',
+      cleanup: async () => {},
       stream: new ReadableStream<UIMessageChunk>({
         start(controller) {
           controller.enqueue({ type: 'start', messageId: 'hook-failure' })
@@ -2146,6 +2151,7 @@ describe('native Pi through the production gateway', () => {
     let nextCall = 0
     vi.spyOn(mocks.ai!, 'streamText').mockResolvedValue({
       kind: 'chunks',
+      cleanup: async () => {},
       stream: new ReadableStream<UIMessageChunk>({
         start(controller) {
           controller.enqueue({ type: 'start', messageId: 'tool-errors' })
