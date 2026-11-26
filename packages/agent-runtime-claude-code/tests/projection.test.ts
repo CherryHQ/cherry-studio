@@ -680,3 +680,62 @@ it('preserves a known child answer even if a producer omits its parent-tool link
       .map((p) => p.text)
   ).toEqual(['42'])
 })
+
+it.each([
+  ['42', false],
+  ['42', true],
+  ['The complete fallback answer is 42', false],
+  ['The complete fallback answer is 42', true]
+] as const)('preserves fallback %j after synthetic-user continuation (new stream: %s)', async (answer, newStream) => {
+  const sessionId = randomUUID()
+  const projection = new ClaudeProjection(claudeThread(runtimeId('backend'), sessionId), (error) => {
+    throw error
+  })
+  const partial = async (event: SDKPartialAssistantMessage['event']) =>
+    projection.publish(
+      await projection.partial({
+        type: 'stream_event',
+        event,
+        uuid: randomUUID(),
+        session_id: sessionId,
+        parent_tool_use_id: null
+      })
+    )
+  await partial({ type: 'message_start', message: assistantMessage(sessionId, []).message })
+  await partial({
+    type: 'content_block_start',
+    index: 0,
+    content_block: { type: 'thinking', thinking: 'Plan', signature: 'signed' }
+  })
+  await partial({ type: 'content_block_stop', index: 0 })
+  await partial({ type: 'content_block_start', index: 1, content_block: { type: 'text', text: '', citations: null } })
+  await partial({ type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'Let me ' } })
+  projection.publish(
+    projection.message({
+      type: 'user',
+      uuid: randomUUID(),
+      session_id: sessionId,
+      parent_tool_use_id: null,
+      message: { role: 'user', content: 'Continue from where you left off.' },
+      isSynthetic: true
+    })
+  )
+  const fallback = assistantMessage(sessionId, [{ type: 'text', text: answer, citations: null }])
+  fallback.message.id = 'fallback-api'
+  if (newStream) await partial({ type: 'message_start', message: fallback.message })
+  projection.publish(projection.message(fallback, { live: true }))
+  expect(
+    projection.feed.snapshot.messages
+      .flatMap((m) => m.parts)
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+  ).toContain(answer)
+  expect(
+    projection
+      .committed()
+      .content.flatMap((m) => m.parts)
+      .filter((p) => p.type === 'text')
+      .map((p) => p.text)
+  ).toContain(answer)
+  await projection.close()
+})
