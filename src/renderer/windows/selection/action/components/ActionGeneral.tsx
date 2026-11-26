@@ -21,6 +21,7 @@ import { SELECTION_BUILTIN_ACTION_ID, type SelectionAction } from '@shared/types
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
 import { ResultReadAloudButton } from './ResultReadAloudButton'
+import { ResultSaveToNotesButton } from './ResultSaveToNotesButton'
 import WindowFooter from './WindowFooter'
 
 // Lazy boundary (S6b): keeps the heavy message-content chain out of the action
@@ -211,7 +212,10 @@ const ActionGeneral: FC<Props> = React.memo(({ action, sourceEntityId, scrollToB
       <div className="min-h-3" />
       <WindowFooter loading={isStreaming} onPause={handlePause} onRegenerate={handleRegenerate} content={content}>
         {!isStreaming && !isPreparing && !error && content.trim() && (
-          <ResultReadAloudButton text={content} sourceEntityId={sourceEntityId} />
+          <>
+            <ResultReadAloudButton text={content} sourceEntityId={sourceEntityId} />
+            <ResultSaveToNotesButton selectedText={action.selectedText} resultText={content} />
+          </>
         )}
       </WindowFooter>
     </>
