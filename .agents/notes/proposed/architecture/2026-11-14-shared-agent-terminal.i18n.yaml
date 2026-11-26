@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-14-shared-agent-terminal.md
-2026-11-14-shared-agent-terminal.md: 4a33e05a0245e2a762e7f9c8b23b3cbccca70a6d
-2026-11-14-shared-agent-terminal.zh.md: 8224edce6b9d6a3de09a2ee9f5126fc66cc5064e
+2026-11-14-shared-agent-terminal.md: 1fc42466ee917ea5b9bd196927f32a700aa627eb
+2026-11-14-shared-agent-terminal.zh.md: 94b1fc8e11f998da98b268f3698db261bc077af5
