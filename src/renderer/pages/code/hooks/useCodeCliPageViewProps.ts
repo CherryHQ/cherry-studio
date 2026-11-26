@@ -64,6 +64,7 @@ export function useCodeCliPageViewProps(
     configs,
     selectedCliTool,
     currentToolState,
+    claudeScopedSettings,
     currentProviderId,
     currentProviderConfig,
     providerConfigs,
@@ -173,6 +174,7 @@ export function useCodeCliPageViewProps(
   } = useCurrentCliConfigConnection({
     enabledProvider,
     selectedCliTool,
+    claudeScopedSettings,
     currentProviderConfig: enabledProviderConfig,
     apiGatewayProvider: apiGatewayBundle
   })
@@ -255,22 +257,9 @@ export function useCodeCliPageViewProps(
     !currentProviderIsPending &&
     !defaultGatewayProvider
 
-  const configPanel = useConfigPanelController({
-    selectedCliTool,
-    toolName,
-    currentProviderId,
-    providerConfigs,
-    upsertProviderConfig,
-    deleteProviderConfig,
-    setCurrentProvider,
-    setCurrentCliConfigConnection,
-    makeModelFilter,
-    apiGatewayProvider: apiGatewayBundle,
-    gatewayModelsById,
-    isGatewayModelsLoading
-  })
   const launchDialog = useLaunchDialogController({
     selectedCliTool,
+    claudeScopedSettings,
     toolName,
     directory,
     enabledProvider,
@@ -285,6 +274,22 @@ export function useCodeCliPageViewProps(
     setCurrentProvider,
     setTerminal,
     selectFolder
+  })
+  const configPanel = useConfigPanelController({
+    selectedCliTool,
+    claudeScopedSettings,
+    toolName,
+    launching: launchDialog.launching,
+    currentProviderId,
+    providerConfigs,
+    upsertProviderConfig,
+    deleteProviderConfig,
+    setCurrentProvider,
+    setCurrentCliConfigConnection,
+    makeModelFilter,
+    apiGatewayProvider: apiGatewayBundle,
+    gatewayModelsById,
+    isGatewayModelsLoading
   })
   const openClawGateway = useOpenClawGatewayController({
     selectedCliTool,
@@ -316,17 +321,32 @@ export function useCodeCliPageViewProps(
       if (success && currentProviderId) {
         if (toolId !== CodeCli.DEEPSEEK_HARNESS) {
           try {
-            await clearCliConfig({ cliTool: toolId })
+            await clearCliConfig({
+              cliTool: toolId,
+              ...(toolId === CodeCli.CLAUDE_CODE && configs[toolId]?.claudeScopedSettings === true
+                ? { claudeScopedSettings: true }
+                : {})
+            })
           } catch (err) {
             logger.error('Failed to clear CLI config on tool removal:', err as Error)
             toast.error(t('code.clear_config_failed'))
+            return
           }
         }
         await setCurrentProvider(null)
         setCurrentCliConfigConnection(null)
       }
     },
-    [deepSeekHarness, hermesDashboard, remove, currentProviderId, setCurrentProvider, setCurrentCliConfigConnection, t]
+    [
+      deepSeekHarness,
+      hermesDashboard,
+      remove,
+      currentProviderId,
+      configs,
+      setCurrentProvider,
+      setCurrentCliConfigConnection,
+      t
+    ]
   )
   const removeDialog = useRemoveCliToolDialog({ toolName, remove: handleRemove })
 
@@ -352,6 +372,7 @@ export function useCodeCliPageViewProps(
             visible: true,
             canLaunch,
             launching:
+              (selectedCliTool === CodeCli.CLAUDE_CODE && configPanel.claudeScopeBusy) ||
               launchDialog.launching ||
               openClawGateway.launching ||
               openClawGateway.starting ||
@@ -362,6 +383,12 @@ export function useCodeCliPageViewProps(
             running: openClawGateway.running || deepSeekHarness.running || hermesDashboard.running,
             stopping: openClawGateway.stopping || deepSeekHarness.stopping || hermesDashboard.stopping,
             upgradeDisabled: providerActionsDisabled
+          },
+          claudeScopedSettings: {
+            checked: claudeScopedSettings === true,
+            busy: selectedCliTool === CodeCli.CLAUDE_CODE && (configPanel.claudeScopeBusy || launchDialog.launching),
+            disabled: selectedCliTool === CodeCli.CLAUDE_CODE && launchDialog.launching,
+            onToggle: configPanel.onToggleClaudeScopedSettings
           },
           installingTools: mergedInstallingTools,
           upgradingTools,

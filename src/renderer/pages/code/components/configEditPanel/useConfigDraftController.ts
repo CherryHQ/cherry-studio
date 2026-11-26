@@ -34,7 +34,7 @@ const logger = loggerService.withContext('useConfigDraftController')
 
 interface ConfigDraftControllerOptions extends Pick<
   ConfigEditPanelProps,
-  'cliTool' | 'provider' | 'providerConfig' | 'isCurrentProvider' | 'onSubmit'
+  'cliTool' | 'claudeScopedSettings' | 'provider' | 'providerConfig' | 'isCurrentProvider' | 'onSubmit'
 > {
   apiKeys?: Parameters<typeof cliConfigConnectionMatchesProvider>[3]
   onClose: () => void
@@ -63,6 +63,7 @@ interface ConfigDraftController {
 export function useConfigDraftController({
   onClose,
   cliTool,
+  claudeScopedSettings,
   provider,
   providerConfig,
   isCurrentProvider,
@@ -90,7 +91,7 @@ export function useConfigDraftController({
   const initialClaudeModelModeRef = useRef<ClaudeModelMode>(initialClaudeModelMode)
   const loadIdRef = useRef(0)
   const apiKeysRef = useRef<Parameters<typeof cliConfigConnectionMatchesProvider>[3]>(undefined)
-  const initialLoadHasRunRef = useRef(false)
+  const initialLoadHasRunRef = useRef<boolean | undefined>(undefined)
 
   if (initialDraftSnapshotRef.current === undefined) {
     initialDraftSnapshotRef.current = createDraftSnapshot(initialDraftSeed)
@@ -155,13 +156,14 @@ export function useConfigDraftController({
     ): Promise<ConfigDraft> =>
       createManagedConfigDraft({
         cliTool,
+        claudeScopedSettings,
         modelId: nextModelId,
         config: nextConfig,
         files,
         options,
         gateway
       }),
-    [cliTool, gateway]
+    [cliTool, gateway, claudeScopedSettings]
   )
 
   const loadManagedDraft = useCallback(
@@ -192,10 +194,11 @@ export function useConfigDraftController({
   })
 
   useEffect(() => {
-    if (initialLoadHasRunRef.current) return
+    if (initialLoadHasRunRef.current === (claudeScopedSettings === true)) return
     if (apiKeys === undefined) return // wait for the apiKeys query to resolve (even to an empty array) before judging managed/foreign
     if (isModelsLoading) return // likewise for the gateway model map: an in-flight query looks identical to "no routable model"
-    initialLoadHasRunRef.current = true
+    initialLoadHasRunRef.current = claudeScopedSettings === true
+    setIsDirty(false)
 
     const {
       isCurrentProvider,
@@ -216,6 +219,7 @@ export function useConfigDraftController({
     const loadId = ++loadIdRef.current
     void loadInitialConfigDraft({
       cliTool,
+      claudeScopedSettings,
       providerId,
       isCurrentProvider,
       initialModelId,
@@ -232,7 +236,7 @@ export function useConfigDraftController({
       commitLoadedDraft(nextDraft)
     })
     // Re-runs before the gates pass are free — `initialLoadHasRunRef` latches the one real load.
-  }, [apiKeys, isModelsLoading, connectionMatchesProvider, models])
+  }, [apiKeys, isModelsLoading, connectionMatchesProvider, models, claudeScopedSettings])
   /* oxlint-enable react-doctor/no-pass-data-to-parent */
 
   // A managed submit needs something to address the CLI file with — the primary model in common
@@ -243,7 +247,7 @@ export function useConfigDraftController({
   const canSubmit = isForeignDraft
     ? draft.files.length > 0 && !draft.error
     : !draft.error && !(isCurrentProvider && !managedSubmitModelId)
-  const canSave = canSubmit && isDirty
+  const canSave = canSubmit && isDirty && initialLoadHasRunRef.current === (claudeScopedSettings === true)
 
   const handleModelSelect = useCallback(
     (nextModelId: UniqueModelId | undefined) => {

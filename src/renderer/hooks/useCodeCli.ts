@@ -184,6 +184,8 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
     configs,
     selectedCliTool,
     currentToolState,
+    claudeScopedSettings: selectedCliTool === CodeCli.CLAUDE_CODE && currentToolState.claudeScopedSettings === true,
+    patchToolState,
     currentProviderId,
     currentProviderConfig,
     providerConfigs,

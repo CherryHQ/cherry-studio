@@ -66,12 +66,14 @@ describe('codeCliHandlers', () => {
       codeCliService.writeConfigFiles.mockResolvedValue(undefined)
       const input = {
         cliTool: CodeCli.CLAUDE_CODE as const,
-        files: [{ target: 'claude-settings' as const, content: '{}\n' }]
+        files: [{ target: 'claude-settings' as const, content: '{}\n' }],
+        claudeScopedSettings: true,
+        expectedClaudeProviderId: 'selected'
       }
 
       const result = await codeCliHandlers['code_cli.write_config'](input, ctx)
 
-      expect(codeCliService.writeConfigFiles).toHaveBeenCalledWith(input.cliTool, input.files)
+      expect(codeCliService.writeConfigFiles).toHaveBeenCalledWith(input.cliTool, input.files, true, 'selected')
       expect(result).toEqual({ success: true })
     })
 
@@ -87,6 +89,37 @@ describe('codeCliHandlers', () => {
         message: 'disk full'
       })
     })
+  })
+
+  it('rejects non-Claude mode changes and disallowed targets and deletions', () => {
+    const schema = codeCliRequestSchemas['code_cli.write_config'].input
+    expect(
+      schema.safeParse({
+        cliTool: CodeCli.OPENAI_CODEX,
+        files: [{ target: 'codex-auth', content: '{}' }],
+        claudeScopedSettings: false
+      }).success
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        cliTool: CodeCli.CLAUDE_CODE,
+        files: [{ target: 'claude-settings', content: '{}' }],
+        expectedClaudeProviderId: null
+      }).success
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        cliTool: CodeCli.OPENAI_CODEX,
+        files: [{ target: 'codex-auth', content: '{}' }],
+        expectedClaudeProviderId: 'p'
+      }).success
+    ).toBe(false)
+    expect(
+      schema.safeParse({ cliTool: CodeCli.CLAUDE_CODE, files: [{ target: '/etc/passwd', content: '{}' }] }).success
+    ).toBe(false)
+    expect(
+      schema.safeParse({ cliTool: CodeCli.CLAUDE_CODE, files: [{ target: 'claude-settings', delete: true }] }).success
+    ).toBe(false)
   })
 
   describe('code_cli.get_available_terminals', () => {

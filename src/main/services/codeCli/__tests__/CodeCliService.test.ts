@@ -28,16 +28,18 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn().mockImplementation((name: string) => {
-      if (name === 'BinaryManager') return binaryManagerMock
-      if (name === 'HermesDashboardService') return hermesDashboardMock
-      return {}
-    }),
-    getPath: vi.fn().mockReturnValue('/mock/binary-data')
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const getService = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'BinaryManager') return binaryManagerMock
+    if (name === 'HermesDashboardService') return hermesDashboardMock
+    return getService(name)
+  })
+  result.application.getPath.mockReturnValue('/mock/binary-data')
+  return result
+})
 
 vi.mock('../antigravity', () => ({
   prepareAntigravityLaunch: antigravityLaunchMock
@@ -127,7 +129,7 @@ vi.mock('semver', () => ({
 
 vi.mock('node:fs', () => ({
   default: {
-    promises: { access: vi.fn().mockResolvedValue(undefined) },
+    promises: { access: vi.fn().mockResolvedValue(undefined), stat: vi.fn(), readFile: vi.fn() },
     existsSync: vi.fn().mockReturnValue(false),
     readFileSync: vi.fn().mockReturnValue(''),
     writeFileSync: vi.fn(),
@@ -150,9 +152,12 @@ async function loadModules() {
 }
 
 describe('CodeCliService', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules()
     vi.clearAllMocks()
+    const { application } = await import('@application')
+    await application.get('PreferenceService').set('feature.code_cli.configs', {})
+    vi.mocked(application.getPath).mockReturnValue('/mock/binary-data')
     platformMock.isMac = true
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
@@ -706,6 +711,95 @@ describe('CodeCliService', () => {
 
     afterEach(() => {
       Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    it('uses the scoped path for normal and own-login, but not login-flow, and reads mode per launch', async () => {
+      const fs = (await import('node:fs')).default
+      const { application } = await import('@application')
+      const { spawn } = await import('child_process')
+      const scopedPath = "/tmp/Claude user's settings.json"
+      vi.mocked(application.getPath).mockReturnValue(scopedPath)
+      vi.mocked(fs.promises.stat).mockResolvedValue({ isFile: () => true } as never)
+      vi.mocked(fs.promises.readFile).mockResolvedValue('{}')
+      await application.get('PreferenceService').set('feature.code_cli.configs', {
+        [CodeCli.CLAUDE_CODE]: { providers: {}, current: null, claudeScopedSettings: true }
+      })
+      const { codeCliService } = await loadModules()
+      const normal = {
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project',
+        mode: 'normal',
+        providerId: 'p',
+        model: 'm'
+      } as const
+      for (const input of [
+        normal,
+        { cliTool: CodeCli.CLAUDE_CODE, directory: '/tmp/project', mode: 'own-login' } as const
+      ]) {
+        expect((await codeCliService.run(input)).success).toBe(true)
+        const args = (vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []).join(' ')
+        expect(args).toContain('--settings')
+        expect(args).toContain('settings.json')
+        expect(args).toContain('user')
+      }
+      expect(
+        (await codeCliService.run({ cliTool: CodeCli.CLAUDE_CODE, directory: '/tmp/project', mode: 'login-flow' }))
+          .success
+      ).toBe(true)
+      expect((vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []).join(' ')).not.toContain('--settings')
+      await application.get('PreferenceService').set('feature.code_cli.configs', {})
+      expect((await codeCliService.run(normal)).success).toBe(true)
+      expect((vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []).join(' ')).not.toContain('--settings')
+    })
+
+    it.each([
+      ['comment and trailing comma', '{ // comment\n "example": true,\n}', true],
+      ['empty', '', false],
+      ['whitespace', '  \n  ', false],
+      ['comment only', '// comment', false],
+      ['array', '[]', false],
+      ['syntax error', '{"example": }', false]
+    ])('validates scoped JSONC: %s', async (_label, content, success) => {
+      const fs = (await import('node:fs')).default
+      const { application } = await import('@application')
+      const { spawn } = await import('child_process')
+      await application.get('PreferenceService').set('feature.code_cli.configs', {
+        [CodeCli.CLAUDE_CODE]: { providers: {}, current: null, claudeScopedSettings: true }
+      })
+      vi.mocked(fs.promises.stat).mockResolvedValue({ isFile: () => true } as never)
+      vi.mocked(fs.promises.readFile).mockResolvedValue(content)
+      const { codeCliService } = await loadModules()
+      const result = await codeCliService.run({
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project',
+        mode: 'own-login'
+      })
+      expect(result.success).toBe(success)
+      if (success) expect(vi.mocked(spawn).mock.calls.at(-1)?.[1]?.join(' ')).toContain('--settings')
+      else expect(spawn).not.toHaveBeenCalled()
+    })
+
+    it.each(['missing', 'invalid', 'directory'])('refuses a %s scoped settings file without spawning', async (kind) => {
+      const fs = (await import('node:fs')).default
+      const { spawn } = await import('child_process')
+      const { application } = await import('@application')
+      await application.get('PreferenceService').set('feature.code_cli.configs', {
+        [CodeCli.CLAUDE_CODE]: { providers: {}, current: null, claudeScopedSettings: true }
+      })
+      vi.mocked(fs.promises.stat).mockImplementation(async () => {
+        if (kind === 'missing') throw new Error('missing')
+        return { isFile: () => kind !== 'directory' } as never
+      })
+      vi.mocked(fs.promises.readFile).mockResolvedValue('invalid')
+      const { codeCliService } = await loadModules()
+      const result = await codeCliService.run({
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project',
+        mode: 'own-login'
+      })
+      expect(result.success).toBe(false)
+      if (!result.success) expect(result.message).toContain('scoped mode is on')
+      expect(spawn).not.toHaveBeenCalled()
     })
 
     it('launches a system PATH binary without installing a managed copy', async () => {

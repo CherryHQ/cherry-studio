@@ -409,6 +409,7 @@ export interface CliProviderConfig {
 /** Per-CLI-tool state: per-provider configs (keyed by providerId) + the active one. */
 export interface CodeCliToolState {
   providers: Record<string, CliProviderConfig>
+  claudeScopedSettings?: boolean
   /** Currently enabled providerId (single-select). */
   current: string | null
   /** Terminal app — an id from `code_cli.get_available_terminals`. */

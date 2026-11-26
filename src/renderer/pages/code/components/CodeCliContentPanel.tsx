@@ -10,6 +10,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 
 import type { CodeToolMeta, VersionStatus } from '../types'
+import ClaudeScopedSettingsCard from './ClaudeScopedSettingsCard'
 import { ConfigList } from './ConfigList'
 import { VersionStatusCard } from './VersionStatusCard'
 
@@ -25,6 +26,7 @@ interface CodeCliContentPanelProps {
     stopping: boolean
     upgradeDisabled: boolean
   }
+  claudeScopedSettings?: { checked: boolean; disabled?: boolean; busy?: boolean; onToggle: (next: boolean) => void }
   installingTools: Set<string>
   upgradingTools: Set<string>
   /** Failure message of the last install attempt for the selected tool (from the main-process install-state map). */
@@ -69,6 +71,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   activeMeta,
   versionStatus,
   versionCard,
+  claudeScopedSettings,
   installingTools,
   upgradingTools,
   installError,
@@ -132,6 +135,10 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
                 : undefined
             }
           />
+        )}
+
+        {selectedCliTool === CodeCli.CLAUDE_CODE && claudeScopedSettings && (
+          <ClaudeScopedSettingsCard {...claudeScopedSettings} />
         )}
 
         <BinaryInstallErrorDialog

@@ -75,6 +75,30 @@ describe('useCodeCli', () => {
     MockUsePreferenceUtils.resetMocks()
   })
 
+  it('exposes scoped mode only for Claude and only when explicitly enabled', () => {
+    setupConfigsMock({})
+    const { result, unmount } = renderHook(() => useCodeCli())
+    expect(result.current.claudeScopedSettings).toBe(false)
+    unmount()
+
+    setupConfigsMock({
+      'claude-code': { ...state({}, null), claudeScopedSettings: false },
+      'openai-codex': { ...state({}, null), claudeScopedSettings: true }
+    })
+    const off = renderHook(() => useCodeCli())
+    expect(off.result.current.claudeScopedSettings).toBe(false)
+    off.unmount()
+
+    setupConfigsMock({
+      'claude-code': { ...state({}, null), claudeScopedSettings: true },
+      'openai-codex': { ...state({}, null), claudeScopedSettings: true }
+    })
+    const on = renderHook(() => useCodeCli())
+    expect(on.result.current.claudeScopedSettings).toBe(true)
+    act(() => on.result.current.selectTool(CodeCli.OPENAI_CODEX))
+    expect(on.result.current.claudeScopedSettings).toBe(false)
+  })
+
   describe('selectedCliTool', () => {
     it('selectTool should switch the selected tool (navigation state)', () => {
       setupConfigsMock({

@@ -10,6 +10,7 @@ import { CodeCli } from '@shared/types/codeCli'
 
 export const CLI_CONFIG_TARGET_IDS = [
   'claude-settings',
+  'claude-scoped-settings',
   'codex-config',
   'codex-auth',
   'opencode-config',
@@ -31,7 +32,7 @@ export type CliConfigLanguage = 'json' | 'toml' | 'dotenv' | 'yaml'
 /** One transactional file mutation sent over `code_cli.write_config`. */
 export type CliConfigWriteFile =
   | { target: CliConfigTarget; content: string; delete?: never }
-  | { target: 'codex-auth'; delete: true; content?: never }
+  | { target: 'codex-auth' | 'claude-scoped-settings'; delete: true; content?: never }
 
 export const CLAUDE_SETTINGS_PATH = '~/.claude/settings.json'
 export const CODEX_AUTH_PATH = '~/.codex/auth.json'
@@ -55,6 +56,11 @@ export const CLI_CONFIG_FILE_SPECS: Record<
   { label: string; path: string; language: CliConfigLanguage; pathBase?: 'hermes-home' }
 > = {
   'claude-settings': { label: 'Claude settings.json', path: CLAUDE_SETTINGS_PATH, language: 'json' },
+  'claude-scoped-settings': {
+    label: 'Claude scoped settings.json',
+    path: 'CodeCli/Claude/settings.json',
+    language: 'json'
+  },
   'codex-config': { label: 'Codex config.toml', path: CODEX_CONFIG_PATH, language: 'toml' },
   'codex-auth': { label: 'Codex auth.json', path: CODEX_AUTH_PATH, language: 'json' },
   'opencode-config': { label: 'OpenCode opencode.json', path: OPENCODE_CONFIG_PATH, language: 'json' },
@@ -96,7 +102,7 @@ export type FileConfiguredCli = (typeof FILE_CONFIGURED_CLI_TOOL_IDS)[number]
  * be kept in sync by hand.
  */
 const CLI_CONFIG_TARGETS: Record<FileConfiguredCli, readonly CliConfigTarget[]> = {
-  [CodeCli.CLAUDE_CODE]: ['claude-settings'],
+  [CodeCli.CLAUDE_CODE]: ['claude-settings', 'claude-scoped-settings'],
   [CodeCli.OPENAI_CODEX]: ['codex-config', 'codex-auth'],
   [CodeCli.OPEN_CODE]: ['opencode-config'],
   [CodeCli.GEMINI_CLI]: ['gemini-env', 'gemini-settings'],
@@ -116,4 +122,11 @@ export function isFileConfiguredCli(cliTool: string): cliTool is FileConfiguredC
 
 export function getCliConfigTargets(cliTool: string): readonly CliConfigTarget[] {
   return isFileConfiguredCli(cliTool) ? CLI_CONFIG_TARGETS[cliTool] : []
+}
+
+export function getActiveCliConfigTargets(cliTool: string, claudeScopedSettings = false): readonly CliConfigTarget[] {
+  if (cliTool === CodeCli.CLAUDE_CODE) {
+    return [claudeScopedSettings ? 'claude-scoped-settings' : 'claude-settings']
+  }
+  return getCliConfigTargets(cliTool)
 }

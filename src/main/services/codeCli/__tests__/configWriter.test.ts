@@ -44,9 +44,19 @@ import { application } from '@application'
 import type * as fsUtils from '@main/utils/file/fs'
 import { atomicWriteFile, read, remove } from '@main/utils/file/fs'
 
+import type { CodeCliService } from '../CodeCliService'
 import { readCliConfigFiles, writeCliConfigFiles } from '../configWriter'
 
 const isWin = process.platform === 'win32'
+let service: CodeCliService
+
+async function getService() {
+  if (!service) {
+    const { CodeCliService } = await import('../CodeCliService')
+    service = new CodeCliService()
+  }
+  return service
+}
 
 /** Pass-through to the real atomicWriteFile, for mockImplementationOnce chains. */
 async function actualWrite(...args: Parameters<typeof atomicWriteFile>) {
@@ -65,11 +75,13 @@ describe('writeCliConfigFiles', () => {
   const codexConfig = () => path.join(home, '.codex', 'config.toml')
   const codexAuth = () => path.join(home, '.codex', 'auth.json')
   const hermesHome = () => path.join(home, 'custom-hermes')
+  const scopedSettings = () => path.join(home, 'data', 'CodeCli', 'Claude', 'settings.json')
 
   beforeEach(async () => {
     home = await mkdtemp(path.join(tmpdir(), 'cherry-cli-config-'))
     vi.mocked(application.getPath).mockImplementation((key: string) => {
       if (key === 'sys.home') return home
+      if (key === 'feature.cli.claude.settings.file') return scopedSettings()
       throw new Error(`Unexpected getPath(${key})`)
     })
     hermesHomeMock.getHermesHome.mockImplementation(async () => hermesHome())
@@ -79,6 +91,141 @@ describe('writeCliConfigFiles', () => {
     vi.mocked(atomicWriteFile).mockClear()
     vi.mocked(remove).mockClear()
     await rm(home, { recursive: true, force: true })
+  })
+
+  it('restores files if preference persistence fails and rejects non-Claude mode before writing', async () => {
+    const preferences = application.get('PreferenceService')
+    const original = { [CodeCli.CLAUDE_CODE]: { providers: {}, current: null } }
+    await preferences.set('feature.code_cli.configs', original)
+    vi.mocked(preferences.set).mockImplementationOnce(async () => {
+      expect(await readFile(claudeSettings(), 'utf8')).toBe('{}')
+      expect(await readFile(scopedSettings(), 'utf8')).toBe('{}')
+      throw new Error('preference failed')
+    })
+    await mkdir(path.dirname(claudeSettings()), { recursive: true })
+    await writeFile(claudeSettings(), '{"old":true}')
+    const service = await getService()
+    await expect(
+      service.writeConfigFiles(
+        CodeCli.CLAUDE_CODE,
+        [
+          { target: 'claude-settings', content: '{}' },
+          { target: 'claude-scoped-settings', content: '{}' }
+        ],
+        true
+      )
+    ).rejects.toThrow('preference failed')
+    expect(await readFile(claudeSettings(), 'utf8')).toBe('{"old":true}')
+    await expect(stat(scopedSettings())).rejects.toThrow()
+    expect(preferences.get('feature.code_cli.configs')).toEqual(original)
+    await expect(
+      service.writeConfigFiles(CodeCli.OPENAI_CODEX, [{ target: 'codex-config', content: 'new' }], true)
+    ).rejects.toThrow('only valid for Claude Code')
+    await expect(stat(codexConfig())).rejects.toThrow()
+  })
+
+  it('rejects a transition prepared for a different selection and accepts a matching selection', async () => {
+    const preferences = application.get('PreferenceService')
+    const original = { [CodeCli.CLAUDE_CODE]: { providers: {}, current: 'selected' } }
+    await preferences.set('feature.code_cli.configs', original)
+    await mkdir(path.dirname(claudeSettings()), { recursive: true })
+    await writeFile(claudeSettings(), 'old')
+    const service = await getService()
+    const files = [
+      { target: 'claude-settings' as const, content: 'new' },
+      { target: 'claude-scoped-settings' as const, content: '{}' }
+    ]
+    await expect(service.writeConfigFiles(CodeCli.CLAUDE_CODE, files, true, 'stale')).rejects.toThrow(
+      'Claude selection changed; reload and retry'
+    )
+    expect(await readFile(claudeSettings(), 'utf8')).toBe('old')
+    await expect(stat(scopedSettings())).rejects.toThrow()
+    expect(preferences.get('feature.code_cli.configs')).toEqual(original)
+    await service.writeConfigFiles(CodeCli.CLAUDE_CODE, files, true, 'selected')
+    expect(await readFile(scopedSettings(), 'utf8')).toBe('{}')
+    expect(preferences.get('feature.code_cli.configs')[CodeCli.CLAUDE_CODE]?.claudeScopedSettings).toBe(true)
+  })
+
+  it('restores files and preference when persistence applies before rejecting', async () => {
+    const preferences = application.get('PreferenceService')
+    const original = { [CodeCli.CLAUDE_CODE]: { providers: {}, current: 'selected', claudeScopedSettings: false } }
+    await preferences.set('feature.code_cli.configs', original)
+    const set = vi.mocked(preferences.set).getMockImplementation()!
+    vi.mocked(preferences.set).mockImplementationOnce(async (key, value) => {
+      await set(key, { ...(value as typeof original) })
+      throw new Error('preference failed after mutation')
+    })
+    await mkdir(path.dirname(claudeSettings()), { recursive: true })
+    await writeFile(claudeSettings(), 'old')
+    await expect(
+      (await getService()).writeConfigFiles(
+        CodeCli.CLAUDE_CODE,
+        [
+          { target: 'claude-settings', content: 'new' },
+          { target: 'claude-scoped-settings', content: '{}' }
+        ],
+        true
+      )
+    ).rejects.toThrow('preference failed after mutation')
+    expect(await readFile(claudeSettings(), 'utf8')).toBe('old')
+    await expect(stat(scopedSettings())).rejects.toThrow()
+    expect(preferences.get('feature.code_cli.configs')).toEqual(original)
+  })
+
+  it('does not enter the Claude queue for a Codex write', async () => {
+    const service = await getService()
+    const enqueue = vi.spyOn(service as any, 'enqueue')
+    try {
+      await service.writeConfigFiles(CodeCli.OPENAI_CODEX, [{ target: 'codex-config', content: 'codex' }])
+      expect(await readFile(codexConfig(), 'utf8')).toBe('codex')
+      expect(enqueue).not.toHaveBeenCalled()
+    } finally {
+      enqueue.mockRestore()
+    }
+  })
+
+  it('ignores a duplicate transition without touching files or preference', async () => {
+    const preferences = application.get('PreferenceService')
+    await preferences.set('feature.code_cli.configs', {})
+    const service = await getService()
+    await service.writeConfigFiles(CodeCli.CLAUDE_CODE, [{ target: 'claude-scoped-settings', content: 'first' }], true)
+    const before = preferences.get('feature.code_cli.configs')
+    vi.mocked(preferences.set).mockClear()
+    await service.writeConfigFiles(
+      CodeCli.CLAUDE_CODE,
+      [
+        { target: 'claude-settings', content: 'stale' },
+        { target: 'claude-scoped-settings', content: 'stale' }
+      ],
+      true
+    )
+    expect(await readFile(scopedSettings(), 'utf8')).toBe('first')
+    await expect(stat(claudeSettings())).rejects.toThrow()
+    expect(preferences.get('feature.code_cli.configs')).toEqual(before)
+    expect(preferences.set).not.toHaveBeenCalled()
+  })
+
+  it('preserves the existing tool state when committing scoped mode', async () => {
+    const preferences = application.get('PreferenceService')
+    const state = { providers: {}, current: 'selected', terminal: 'terminal', directory: '/work' }
+    await preferences.set('feature.code_cli.configs', { [CodeCli.CLAUDE_CODE]: state })
+    await (
+      await getService()
+    ).writeConfigFiles(CodeCli.CLAUDE_CODE, [{ target: 'claude-scoped-settings', content: '{}' }], true)
+    expect(preferences.get('feature.code_cli.configs')[CodeCli.CLAUDE_CODE]).toEqual({
+      ...state,
+      claudeScopedSettings: true
+    })
+  })
+
+  it('rejects an ordinary draft for the previous Claude destination', async () => {
+    await application.get('PreferenceService').set('feature.code_cli.configs', {
+      [CodeCli.CLAUDE_CODE]: { providers: {}, current: null, claudeScopedSettings: true }
+    })
+    await expect(
+      (await getService()).writeConfigFiles(CodeCli.CLAUDE_CODE, [{ target: 'claude-settings', content: '{}' }])
+    ).rejects.toThrow('reload')
+    await expect(stat(claudeSettings())).rejects.toThrow()
   })
 
   it('writes each file 0600 under the resolved home path, creating parent dirs', async () => {
@@ -103,6 +250,21 @@ describe('writeCliConfigFiles', () => {
 
     expect(await readFile(path.join(hermesHome(), 'config.yaml'), 'utf-8')).toBe('model: {}\n')
     expect(await readFile(path.join(hermesHome(), '.env'), 'utf-8')).toBe('OPENAI_API_KEY=secret\n')
+  })
+
+  it('writes and deletes Claude scoped settings at the registered path', async () => {
+    await writeCliConfigFiles(CodeCli.CLAUDE_CODE, [{ target: 'claude-scoped-settings', content: '{"env":{}}' }])
+    expect(await readFile(scopedSettings(), 'utf-8')).toBe('{"env":{}}')
+    if (!isWin) expect((await stat(scopedSettings())).mode & 0o777).toBe(0o600)
+    await writeCliConfigFiles(CodeCli.CLAUDE_CODE, [{ target: 'claude-scoped-settings', delete: true }])
+    await expect(stat(scopedSettings())).rejects.toThrow()
+  })
+
+  it('rejects another tool writing the Claude scoped file', async () => {
+    await expect(
+      writeCliConfigFiles(CodeCli.OPENAI_CODEX, [{ target: 'claude-scoped-settings', content: '{}' }])
+    ).rejects.toThrow('claude-scoped-settings is not a config file of openai-codex')
+    await expect(stat(scopedSettings())).rejects.toThrow()
   })
 
   it('deletes a requested config file', async () => {

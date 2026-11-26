@@ -6,6 +6,8 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 const mocks = vi.hoisted(() => ({
+  enableScope: vi.fn(),
+  disableScope: vi.fn(),
   clearCliConfig: vi.fn(),
   writeCliConfigDraft: vi.fn(),
   writeOwnLoginCliConfigDraft: vi.fn(),
@@ -25,6 +27,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+vi.mock('../../cliConfig/scopeTransition', () => ({
+  enableClaudeScopedSettings: mocks.enableScope,
+  disableClaudeScopedSettings: mocks.disableScope
+}))
 vi.mock('../../cliConfig/clear', () => ({ clearCliConfig: mocks.clearCliConfig }))
 vi.mock('../../cliConfig/draft', () => ({
   writeCliConfigDraft: mocks.writeCliConfigDraft,
@@ -64,6 +70,77 @@ function baseOptions() {
 }
 
 describe('useConfigPanelController', () => {
+  it.each([true, false])('transitions the current selection to %s and reloads the editor', async (next) => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+    const options = {
+      ...baseOptions(),
+      claudeScopedSettings: !next,
+      providerConfigs: { p1: { modelId: 'p1::m1' as const, config: {} } }
+    }
+    const { result } = renderHook(() => useConfigPanelController(options))
+    act(() => result.current.openConfigurePanel({ id: 'inactive' } as Provider))
+    const oldKey = result.current.configPanelKey
+    await act(async () => {
+      result.current.onToggleClaudeScopedSettings(next)
+      await flushMicrotasks()
+    })
+    expect(next ? mocks.enableScope : mocks.disableScope).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentProviderId: 'p1',
+        selection: expect.objectContaining({ kind: 'provider', modelId: 'm1' })
+      })
+    )
+    expect(result.current.configPanelKey).not.toBe(oldKey)
+    expect(options.setCurrentCliConfigConnection).toHaveBeenCalledWith(null)
+    expect(options.setCurrentProvider).not.toHaveBeenCalled()
+    expect(options.upsertProviderConfig).not.toHaveBeenCalled()
+  })
+  it('resolves a fresh gateway context for the active selection', async () => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'gateway::model', writePrimaryModel: true })
+    const bundle = {
+      provider: { id: CLI_API_GATEWAY_PROVIDER_ID } as Provider,
+      apiKey: 'old',
+      ensureRunning: vi.fn(),
+      getApiKey: vi.fn().mockResolvedValue('fresh')
+    }
+    const options = { ...baseOptions(), currentProviderId: CLI_API_GATEWAY_PROVIDER_ID, apiGatewayProvider: bundle }
+    const { result } = renderHook(() => useConfigPanelController(options))
+    await act(async () => {
+      result.current.onToggleClaudeScopedSettings(true)
+      await flushMicrotasks()
+    })
+    expect(mocks.enableScope).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selection: expect.objectContaining({ gateway: { provider: bundle.provider, apiKey: 'fresh' } })
+      })
+    )
+    expect(bundle.ensureRunning).toHaveBeenCalled()
+    expect(options.setCurrentProvider).not.toHaveBeenCalled()
+  })
+
+  it('refuses a scope transition during launch', () => {
+    const { result } = renderHook(() => useConfigPanelController({ ...baseOptions(), launching: true }))
+    act(() => result.current.onToggleClaudeScopedSettings(true))
+    expect(toast.error).toHaveBeenCalledWith('code.claude_scope.busy')
+    expect(mocks.enableScope).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed transition without changing selection or invalidating the editor', async () => {
+    mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1' })
+    mocks.enableScope.mockRejectedValueOnce(new Error('disk failed'))
+    const options = baseOptions()
+    const { result } = renderHook(() => useConfigPanelController(options))
+    act(() => result.current.openConfigurePanel({ id: 'p1' } as Provider))
+    const oldKey = result.current.configPanelKey
+    await act(async () => {
+      result.current.onToggleClaudeScopedSettings(true)
+      await flushMicrotasks()
+    })
+    expect(toast.error).toHaveBeenCalledWith('disk failed')
+    expect(result.current.configPanelKey).toBe(oldKey)
+    expect(options.setCurrentProvider).not.toHaveBeenCalled()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     // Only Claude Code's own-login entry is configurable (writes tool params); the rest clear-on-select.
@@ -785,5 +862,76 @@ describe('useConfigPanelController', () => {
       expect(options.setCurrentProvider).not.toHaveBeenCalled()
       expect(toast.error).toHaveBeenCalledWith('code.apply_failed')
     })
+  })
+})
+
+describe('scoped Claude operations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.clearCliConfig.mockReset().mockResolvedValue(undefined)
+    mocks.writeCliConfigDraft.mockReset().mockResolvedValue(undefined)
+    mocks.writeOwnLoginCliConfigDraft.mockReset().mockResolvedValue(undefined)
+    mocks.isOwnLoginConfigurable.mockReturnValue(true)
+    mocks.sanitizeCliConfigBlob.mockImplementation((_tool, blob) => blob)
+    mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'anthropic::claude-4', writePrimaryModel: true })
+  })
+
+  it('routes provider enable, edit, raw save and disable to the active destination', async () => {
+    const options = { ...baseOptions(), currentProviderId: null as string | null, claudeScopedSettings: true }
+    const { result, rerender } = renderHook((props) => useConfigPanelController(props), { initialProps: options })
+    const provider = { id: 'p1' } as Provider
+    await act(async () => {
+      result.current.onToggleCurrent(provider)
+      await flushMicrotasks()
+    })
+    expect(mocks.writeCliConfigDraft).toHaveBeenLastCalledWith(expect.objectContaining({ claudeScopedSettings: true }))
+    rerender({ ...options, currentProviderId: 'p1' })
+    act(() => result.current.openConfigurePanel(provider))
+    await act(async () => {
+      await result.current.configPanelProps!.onSubmit({ modelId: 'anthropic::claude-4', config: {} })
+    })
+    expect(mocks.writeCliConfigDraft).toHaveBeenLastCalledWith(expect.objectContaining({ claudeScopedSettings: true }))
+    const files = [
+      {
+        target: 'claude-scoped-settings' as const,
+        label: 'settings',
+        path: 'settings',
+        language: 'json' as const,
+        content: '{}'
+      }
+    ]
+    await act(async () => {
+      await result.current.configPanelProps!.onSubmit({ cliConfigOnly: true, cliConfigFiles: files })
+    })
+    expect(mocks.writeCliConfigDraft).toHaveBeenLastCalledWith(
+      expect.objectContaining({ claudeScopedSettings: true, files })
+    )
+    await act(async () => {
+      result.current.onToggleCurrent(provider)
+      await flushMicrotasks()
+    })
+    expect(mocks.clearCliConfig).toHaveBeenLastCalledWith({ cliTool: CodeCli.CLAUDE_CODE, claudeScopedSettings: true })
+  })
+
+  it('routes own-login select and edit to the active destination', async () => {
+    const options = { ...baseOptions(), claudeScopedSettings: true }
+    const { result, rerender } = renderHook((props) => useConfigPanelController(props), { initialProps: options })
+    const provider = { id: CLI_OWN_LOGIN_PROVIDER_ID } as Provider
+    await act(async () => {
+      result.current.onToggleCurrent(provider)
+      await flushMicrotasks()
+    })
+    expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.CLAUDE_CODE, claudeScopedSettings: true })
+    expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ claudeScopedSettings: true })
+    )
+    rerender({ ...options, currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID })
+    act(() => result.current.openConfigurePanel(provider))
+    await act(async () => {
+      await result.current.ownLoginConfigPanelProps!.onSubmit({ config: {} })
+    })
+    expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenLastCalledWith(
+      expect.objectContaining({ claudeScopedSettings: true })
+    )
   })
 })

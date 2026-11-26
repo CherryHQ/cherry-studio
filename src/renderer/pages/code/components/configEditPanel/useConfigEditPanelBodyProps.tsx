@@ -20,6 +20,7 @@ export function useConfigEditPanelBodyProps({
   open = true,
   onClose,
   cliTool,
+  claudeScopedSettings,
   provider,
   providerConfig,
   isCurrentProvider,
@@ -61,6 +62,7 @@ export function useConfigEditPanelBodyProps({
   } = useConfigDraftController({
     onClose,
     cliTool,
+    claudeScopedSettings,
     provider,
     providerConfig,
     isCurrentProvider,

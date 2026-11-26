@@ -66,6 +66,18 @@ describe('clearCliConfig', () => {
     })
   })
 
+  it('claude scoped: clears only the scoped file and preserves unrelated values', async () => {
+    const scopedPath = resolvedSpecPath('claude-scoped-settings')
+    existing[scopedPath] = JSON.stringify({
+      permissions: { allow: ['Read'], defaultMode: 'plan' },
+      env: { ANTHROPIC_AUTH_TOKEN: 'secret', OTHER: 'keep' }
+    })
+    existing[resolvedSpecPath('claude-settings')] = '{"global":"untouched"}'
+    await clearCliConfig({ cliTool: CodeCli.CLAUDE_CODE, claudeScopedSettings: true })
+    expect(Object.keys(writes)).toEqual([scopedPath])
+    expect(JSON.parse(writes[scopedPath])).toEqual({ permissions: { allow: ['Read'] }, env: { OTHER: 'keep' } })
+  })
+
   it('codex: strips cherry provider + model + goals + auth key, keeps user entries', async () => {
     existing['/resolved~/.codex/config.toml'] = [
       'model = "gpt-5"',

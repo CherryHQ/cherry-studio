@@ -5,7 +5,12 @@ import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
 import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
-import { type CliConfigWriteFile, type FileConfiguredCli, getCliConfigTargets } from '@shared/utils/cliConfig'
+import {
+  type CliConfigWriteFile,
+  type FileConfiguredCli,
+  getActiveCliConfigTargets,
+  getCliConfigTargets
+} from '@shared/utils/cliConfig'
 
 import {
   buildClaudeConfig,
@@ -140,7 +145,11 @@ export interface CliConfigAdapter {
    * Build the "own login" tool-param file draft (no credentials/model). Absent for
    * tools that expose no own-login config panel (OpenCode); the dispatcher throws.
    */
-  buildOwnLoginDraft?(configBlob: Record<string, any>): Promise<CliConfigFileDraft[]>
+  buildOwnLoginDraft?(
+    configBlob: Record<string, any>,
+    claudeScopedSettings?: boolean,
+    files?: CliConfigFileDraft[]
+  ): Promise<CliConfigFileDraft[]>
   /** Re-render the draft files for an edited tool-param blob, keeping the existing connection. */
   updateDraftConfig(
     files: CliConfigFileDraft[],
@@ -152,7 +161,7 @@ export interface CliConfigAdapter {
    * config file(s), leaving user keys intact. Files with nothing to rewrite are
    * omitted; the caller persists the entries via `code_cli.write_config`.
    */
-  buildClearFiles(): Promise<CliConfigWriteFile[]>
+  buildClearFiles(claudeScopedSettings?: boolean): Promise<CliConfigWriteFile[]>
   /** Read the connection (baseUrl/apiKey/model) back out of the draft files. */
   extractConnection(files: CliConfigFileDraft[]): CliConfigConnection | null
   /** Read the persisted tool params back out of the draft files. */
@@ -288,18 +297,26 @@ function clearMinimaxConfig(content: string): string | null {
   return document.toString()
 }
 
+export function resolveClaudeTarget(claudeScopedSettings?: boolean, files?: CliConfigFileDraft[]): CliConfigTarget {
+  return (
+    files?.find((file) => file.target === 'claude-settings' || file.target === 'claude-scoped-settings')?.target ??
+    getActiveCliConfigTargets(CodeCli.CLAUDE_CODE, claudeScopedSettings === true)[0]
+  )
+}
+
 const claudeAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets(CodeCli.CLAUDE_CODE),
   providerBaseUrls: (provider) => [normalizeUrl(resolveClaudeBaseUrl(provider))].filter(Boolean),
   sanitize: sanitizeClaudeConfigBlob,
   async buildDraft(args, context) {
     const { provider, apiKey, model, configBlob } = context
-    const read = await readConfigFilesForDraft(this.targets, args.files)
-    const existing = readAndParseDraftFile('claude-settings', parseJsonOrThrow, args.files, read)
+    const target = resolveClaudeTarget(args.claudeScopedSettings, args.files)
+    const read = await readConfigFilesForDraft([target], args.files)
+    const existing = readAndParseDraftFile(target, parseJsonOrThrow, args.files, read)
     const baseUrl = resolveClaudeBaseUrl(provider)
     return [
       makeDraftFile(
-        'claude-settings',
+        target,
         renderJsonFile(
           buildClaudeConfig(existing, configBlob, {
             apiKey,
@@ -315,24 +332,34 @@ const claudeAdapter: CliConfigAdapter = {
   assertCredentials(context) {
     if (!context.apiKey) throw new Error('Claude Code config is missing the API key')
   },
-  async buildOwnLoginDraft(configBlob) {
-    const read = await readConfigFiles(['claude-settings'])
-    const existing = readAndParseDraftFile('claude-settings', parseJsonOrThrow, undefined, read)
+  async buildOwnLoginDraft(configBlob, claudeScopedSettings, files) {
+    const target = resolveClaudeTarget(claudeScopedSettings, files)
+    const read = await readConfigFilesForDraft([target], files)
+    const existing = readAndParseDraftFile(target, parseJsonOrThrow, files, read)
+    const env = { ...asRecord(configBlob.env) }
+    for (const key of CLAUDE_MANAGED_ENV_KEYS) {
+      if (key.startsWith('ANTHROPIC_') || key === 'CLAUDE_CODE_SUBAGENT_MODEL') delete env[key]
+    }
     return [
       makeDraftFile(
-        'claude-settings',
+        target,
         renderJsonFile(
-          buildClaudeConfig(existing, configBlob, { apiKey: '', baseUrl: '', model: '', writePrimaryModel: false })
+          buildClaudeConfig(
+            existing,
+            { ...configBlob, env },
+            { apiKey: '', baseUrl: '', model: '', writePrimaryModel: false }
+          )
         ),
         read
       )
     ]
   },
   updateDraftConfig(files, connection, configBlob) {
-    const settings = parseJsonOrThrow(getDraftFile(files, 'claude-settings')?.content ?? '')
+    const target = resolveClaudeTarget(undefined, files)
+    const settings = parseJsonOrThrow(getDraftFile(files, target)?.content ?? '')
     return replaceDraftContent(
       files,
-      'claude-settings',
+      target,
       renderJsonFile(
         buildClaudeConfig(settings, configBlob, {
           apiKey: connection.apiKey ?? '',
@@ -342,9 +369,12 @@ const claudeAdapter: CliConfigAdapter = {
       )
     )
   },
-  async buildClearFiles() {
-    const read = await readConfigFiles(this.targets)
-    const existing = readValidatedJsonOrNull('claude-settings', read, 'Claude Code settings')
+  async buildClearFiles(claudeScopedSettings) {
+    const target = resolveClaudeTarget(claudeScopedSettings)
+    const read = await readConfigFiles([target])
+    const content = requireReadFile(target, read).content
+    if (content !== null && content.trim() === '') return []
+    const existing = readValidatedJsonOrNull(target, read, 'Claude Code settings')
     if (!existing) return []
     const next: Record<string, any> = { ...existing }
     for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
@@ -359,10 +389,11 @@ const claudeAdapter: CliConfigAdapter = {
       for (const key of CLAUDE_MANAGED_ENV_KEYS) delete env[key]
       next.env = env
     }
-    return [{ target: 'claude-settings', content: renderJsonFile(next) }]
+    return [{ target, content: renderJsonFile(next) }]
   },
   extractConnection(files) {
-    const settings = parseJsonOrThrow(getDraftFile(files, 'claude-settings')?.content ?? '')
+    const target = resolveClaudeTarget(undefined, files)
+    const settings = parseJsonOrThrow(getDraftFile(files, target)?.content ?? '')
     const env = asRecord(settings.env)
     return {
       baseUrl: stringValue(env.ANTHROPIC_BASE_URL),
@@ -371,7 +402,8 @@ const claudeAdapter: CliConfigAdapter = {
     }
   },
   extractConfig(files) {
-    const settings = parseJsonOrThrow(getDraftFile(files, 'claude-settings')?.content ?? '')
+    const target = resolveClaudeTarget(undefined, files)
+    const settings = parseJsonOrThrow(getDraftFile(files, target)?.content ?? '')
     const out: Record<string, any> = {}
     for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) {
       if (key === 'effortLevel') {

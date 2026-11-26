@@ -32,6 +32,7 @@ export interface CliConfigGatewayContext {
 
 export interface CliConfigWriteArgs {
   cliTool: string
+  claudeScopedSettings?: boolean
   /** Unique model id ("providerId::modelId"). */
   modelId: UniqueModelId
   /** User-edited config blob (claude-code / codex / opencode consume it). */
