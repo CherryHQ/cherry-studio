@@ -5529,6 +5529,8 @@
   "settings.models.check.timeout_unit": "秒",
   "settings.models.check.title": "模型检测",
   "settings.models.check.toggle_key": "切换 {{name}} 的启用状态",
+  "settings.models.cherryai_pinned.description": "开启后，CherryAI 登录模型会优先显示在模型列表顶部；关闭后，按默认提供商顺序排列。",
+  "settings.models.cherryai_pinned.label": "置顶 CherryAI 模型",
   "settings.models.collapse_all": "全部折叠",
   "settings.models.context_management.compress_enabled": "自动压缩",
   "settings.models.context_management.compress_enabled_description": "接近上下文窗口上限时自动摘要较早的对话。助手可单独覆盖",

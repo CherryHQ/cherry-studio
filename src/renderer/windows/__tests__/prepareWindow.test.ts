@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
 import { preferenceService } from '@data/PreferenceService'
 
 import { prepareWindow } from '../prepareWindow'
@@ -72,5 +73,18 @@ describe('prepareWindow', () => {
     resolvePreload()
     await pending
     expect(settled).toBe(true)
+  })
+
+  it('migrates legacy unpinned CherryAI setting into preference once without overwriting', async () => {
+    vi.mocked(cacheService.consumeLegacyCherryAiUnpinned).mockReturnValueOnce(true)
+    vi.mocked(preferenceService.get).mockResolvedValueOnce(true)
+
+    await prepareWindow({ preference: 'all' })
+
+    expect(preferenceService.set).toHaveBeenCalledExactlyOnceWith('ui.model_selector.cherryai_pinned', false)
+
+    vi.mocked(preferenceService.set).mockClear()
+    await prepareWindow({ preference: 'all' })
+    expect(preferenceService.set).not.toHaveBeenCalled()
   })
 })

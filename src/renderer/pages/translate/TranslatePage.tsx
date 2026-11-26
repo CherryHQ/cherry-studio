@@ -71,7 +71,7 @@ import { useTranslateReasoningEffort } from './useTranslateReasoningEffort'
 const PdfTranslationView = lazy(() => import('./pdf/PdfTranslationView'))
 
 const logger = loggerService.withContext('TranslatePage')
-const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
+const PRIORITIZED_PROVIDER_IDS = ['openai', 'anthropic', 'google', 'gemini', 'openrouter']
 const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
 const useBabelDoc = (enabled: boolean) => {
   const { t } = useTranslation()

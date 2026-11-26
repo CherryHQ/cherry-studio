@@ -331,6 +331,26 @@ describe('ModelSettings', () => {
   })
 
   it('renders off-router (onboarding compact) without calling useSearch', () => {
-    expect(() => render(<ModelSettings compact showPaintingModel={false} showSettingsButton={false} />)).not.toThrow()
+    const { container } = render(<ModelSettings compact showPaintingModel={false} showSettingsButton={false} />)
+    expect(container.querySelector('#setting-model-cherryai-pinned')).not.toBeInTheDocument()
+  })
+
+  it('toggles CherryAI model list pinning preference in full settings view', () => {
+    const { container, rerender } = render(<ModelSettings />)
+    const row = container.querySelector<HTMLElement>('#setting-model-cherryai-pinned')
+    expect(row).toBeInTheDocument()
+
+    const toggle = screen.getByRole('button', { name: 'settings.models.cherryai_pinned.label' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(toggle)
+    expect(harness.preferenceSetters['ui.model_selector.cherryai_pinned']).toHaveBeenCalledWith(false)
+
+    harness.preferenceValues['ui.model_selector.cherryai_pinned'] = false
+    rerender(<ModelSettings />)
+    expect(screen.getByRole('button', { name: 'settings.models.cherryai_pinned.label' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
   })
 })

@@ -5529,6 +5529,8 @@
   "settings.models.check.timeout_unit": "วินาที",
   "settings.models.check.title": "ตรวจสอบโมเดล",
   "settings.models.check.toggle_key": "สลับสถานะเปิดใช้ของ {{name}}",
+  "settings.models.cherryai_pinned.description": "เมื่อเปิดใช้งาน โมเดล CherryAI ที่ลงชื่อเข้าใช้จะแสดงอยู่ด้านบนสุดของรายการโมเดล เมื่อปิดใช้งาน จะเรียงตามลำดับผู้ให้บริการปกติ",
+  "settings.models.cherryai_pinned.label": "ปักหมุดโมเดล CherryAI ไว้ด้านบน",
   "settings.models.collapse_all": "ยุบทั้งหมด",
   "settings.models.context_management.compress_enabled": "บีบอัดอัตโนมัติ",
   "settings.models.context_management.compress_enabled_description": "สรุปการสนทนาที่เก่ากว่าโดยอัตโนมัติเมื่อใกล้เต็มหน้าต่างคอนเท็กซ์ ผู้ช่วยสามารถแทนที่ค่านี้ได้",

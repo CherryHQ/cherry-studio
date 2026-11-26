@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo } from 'react'
 import useSWR from 'swr'
 
 import { usePersistCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
 import {
   useModelSelectorData,
   type ModelSelectorFilter,
@@ -11,7 +12,6 @@ import {
 import { getModelDisplayTags, MODEL_DISPLAY_CAPABILITY_TAGS } from '@renderer/components/tags/Model'
 import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useCherryCloudPlans } from '@renderer/hooks/useCherryCloudPlans'
-import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
@@ -40,16 +40,15 @@ export function useCherryCloudModelSelectorPolicy({
   prioritizedProviderIds
 }: Pick<UseModelSelectorDataOptions, 'enabled' | 'includeAgentOnlyModels' | 'filter' | 'prioritizedProviderIds'>) {
   const availability = useCherryCloudModelAvailability(enabled)
-  const [isCherryAIPinned, setCherryAIPinned] = usePersistCache('ui.model_selector.cherryai_pinned')
-  const { providers } = useProviders({ enabled: true }, { enabled })
-  const orderedProviderIds = useMemo(() => {
-    if (isCherryAIPinned) return [...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS, ...(prioritizedProviderIds ?? [])]
-
-    const otherProviderIds = [...(prioritizedProviderIds ?? []), ...providers.map(({ id }) => id)].filter(
-      (id) => !CHERRY_CLOUD_SELECTOR_PROVIDER_IDS.some((cloudId) => cloudId === id)
-    )
-    return [...otherProviderIds, ...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS]
-  }, [isCherryAIPinned, prioritizedProviderIds, providers])
+  const [cherryAIPinned, setCherryAIPinned] = usePreference('ui.model_selector.cherryai_pinned')
+  const isCherryAIPinned = cherryAIPinned !== false
+  const orderedProviderIds = useMemo(
+    () =>
+      isCherryAIPinned
+        ? [...CHERRY_CLOUD_SELECTOR_PROVIDER_IDS, ...(prioritizedProviderIds ?? [])]
+        : (prioritizedProviderIds ?? []),
+    [isCherryAIPinned, prioritizedProviderIds]
+  )
   const { isModelHidden, isModelFree, getModelDescription, isModelUnavailable } = availability
   const modelFilter = useCallback<ModelSelectorFilter>(
     (model, provider) => !isModelHidden(model, includeAgentOnlyModels) && (filter?.(model, provider) ?? true),

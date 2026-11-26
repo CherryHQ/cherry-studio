@@ -1464,6 +1464,96 @@ describe('CherryCloudService', () => {
     ])
   })
 
+  it('falls back to registry capabilities when the Cloud catalog sends an empty array and backfills empty stored rows', async () => {
+    const service = await createSignedInService()
+    resolveRegistryModels.mockReturnValue([
+      {
+        id: 'cherryai-subscription::deepseek-r1',
+        providerId: 'cherryai-subscription',
+        apiModelId: 'deepseek-r1',
+        presetModelId: 'deepseek-r1',
+        name: 'DeepSeek R1',
+        capabilities: ['reasoning', 'image-recognition'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      } satisfies Model,
+      {
+        id: 'cherryai-subscription::unknown-cloud-model',
+        providerId: 'cherryai-subscription',
+        apiModelId: 'unknown-cloud-model',
+        presetModelId: null,
+        name: 'Unknown Cloud Model',
+        capabilities: ['reasoning'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      } satisfies Model
+    ])
+    mocks.modelList.mockReturnValue([
+      {
+        id: 'cherryai-subscription::deepseek-r1',
+        providerId: 'cherryai-subscription',
+        apiModelId: 'deepseek-r1',
+        name: 'DeepSeek R1',
+        group: 'Cherry Cloud',
+        endpointTypes: ['anthropic-messages'],
+        contextWindow: 128_000,
+        maxOutputTokens: 8_192,
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true
+      }
+    ])
+    mockModelSync(
+      {
+        ...accountSnapshot,
+        entitlements: [
+          {
+            ...accountSnapshot.entitlements[0],
+            model_ids: ['deepseek-r1', 'unknown-cloud-model']
+          }
+        ]
+      },
+      {
+        data: [
+          {
+            ...cloudModelCatalog.data[0],
+            id: 'deepseek-r1',
+            display_name: 'DeepSeek R1',
+            capabilities: []
+          },
+          {
+            ...cloudModelCatalog.data[0],
+            id: 'unknown-cloud-model',
+            display_name: 'Unknown Cloud Model',
+            capabilities: []
+          }
+        ]
+      }
+    )
+
+    await service['syncEntitledModels']()
+
+    expect(mocks.modelBulkUpdate).toHaveBeenCalledWith([
+      {
+        providerId: 'cherryai-subscription',
+        modelId: 'deepseek-r1',
+        patch: expect.objectContaining({
+          capabilities: ['reasoning', 'image-recognition']
+        })
+      }
+    ])
+    expect(mocks.modelCreate).toHaveBeenCalledWith([
+      {
+        dto: expect.objectContaining({
+          modelId: 'unknown-cloud-model',
+          capabilities: []
+        })
+      }
+    ])
+  })
+
   it.each([
     {
       failure: 'does not recognize the Cloud SKU',

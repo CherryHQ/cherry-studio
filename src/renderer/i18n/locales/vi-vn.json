@@ -5529,6 +5529,8 @@
   "settings.models.check.timeout_unit": "giây",
   "settings.models.check.title": "Kiểm tra mô hình",
   "settings.models.check.toggle_key": "Bật hoặc tắt {{name}}",
+  "settings.models.cherryai_pinned.description": "Khi bật, các mô hình CherryAI đã đăng nhập sẽ hiển thị ở đầu danh sách mô hình. Khi tắt, chúng được sắp xếp theo thứ tự nhà cung cấp mặc định.",
+  "settings.models.cherryai_pinned.label": "Ghim mô hình CherryAI lên đầu",
   "settings.models.collapse_all": "Thu gọn tất cả",
   "settings.models.context_management.compress_enabled": "Tự động nén",
   "settings.models.context_management.compress_enabled_description": "Tự động tóm tắt các lượt cũ khi gần chạm giới hạn cửa sổ ngữ cảnh. Trợ lý có thể ghi đè cài đặt này",

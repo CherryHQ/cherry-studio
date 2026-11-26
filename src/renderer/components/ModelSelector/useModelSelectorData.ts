@@ -291,6 +291,7 @@ export function useModelSelectorData({
       const modelsWithProvider = providerModels.map((model) => ({ model, provider }))
 
       if (group) {
+        if (provider.id === groupId) group.provider = provider
         group.models.push(...modelsWithProvider)
       } else {
         displayGroupsById.set(groupId, { id: groupId, provider, models: modelsWithProvider, actions: [] })

@@ -5529,6 +5529,8 @@
   "settings.models.check.timeout_unit": "s",
   "settings.models.check.title": "Modellprüfung",
   "settings.models.check.toggle_key": "Aktivierungsstatus von {{name}} umschalten",
+  "settings.models.cherryai_pinned.description": "Wenn aktiviert, erscheinen angemeldete CherryAI-Modelle ganz oben in den Modelllisten. Wenn deaktiviert, folgen sie der regulären Anbieter-Reihenfolge.",
+  "settings.models.cherryai_pinned.label": "CherryAI-Modelle oben anheften",
   "settings.models.collapse_all": "Alle einklappen",
   "settings.models.context_management.compress_enabled": "Automatisch komprimieren",
   "settings.models.context_management.compress_enabled_description": "Ältere Gesprächsrunden automatisch zusammenfassen, wenn das Kontextfenster fast erreicht ist. Assistenten können dies überschreiben",

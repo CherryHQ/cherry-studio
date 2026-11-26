@@ -5533,6 +5533,8 @@
   "settings.models.check.timeout_unit": "s",
   "settings.models.check.title": "Verificare model",
   "settings.models.check.toggle_key": "Comută starea de activare pentru {{name}}",
+  "settings.models.cherryai_pinned.description": "Când este activată, modelele CherryAI conectate apar în partea de sus a listelor de modele. Când este dezactivată, respectă ordinea obișnuită a furnizorilor.",
+  "settings.models.cherryai_pinned.label": "Fixează modelele CherryAI în partea de sus",
   "settings.models.collapse_all": "Restrânge tot",
   "settings.models.context_management.compress_enabled": "Comprimare automată",
   "settings.models.context_management.compress_enabled_description": "Rezumă automat schimburile mai vechi când se apropie limita ferestrei de context. Asistenții pot suprascrie această setare",

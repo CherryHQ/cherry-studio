@@ -5533,6 +5533,8 @@
   "settings.models.check.timeout_unit": "s",
   "settings.models.check.title": "Kontrola modelu",
   "settings.models.check.toggle_key": "Přepnout stav povolení pro {{name}}",
+  "settings.models.cherryai_pinned.description": "Pokud je zapnuto, přihlášené modely CherryAI se zobrazují na začátku seznamů modelů. Pokud je vypnuto, řídí se běžným pořadím poskytovatelů.",
+  "settings.models.cherryai_pinned.label": "Připnout modely CherryAI nahoru",
   "settings.models.collapse_all": "Sbalit vše",
   "settings.models.context_management.compress_enabled": "Automatická komprese",
   "settings.models.context_management.compress_enabled_description": "Při blížícím se limitu kontextového okna automaticky shrnout starší části konverzace. Asistenti mohou toto nastavení přepsat",

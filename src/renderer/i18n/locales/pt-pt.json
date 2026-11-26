@@ -5529,6 +5529,8 @@
   "settings.models.check.timeout_unit": "s",
   "settings.models.check.title": "Verificação de modelos",
   "settings.models.check.toggle_key": "Ativar ou desativar {{name}}",
+  "settings.models.cherryai_pinned.description": "Quando ativado, os modelos CherryAI com sessão iniciada aparecem no topo das listas de modelos. Quando desativado, seguem a ordem padrão de cada fornecedor.",
+  "settings.models.cherryai_pinned.label": "Fixar modelos CherryAI no topo",
   "settings.models.collapse_all": "Recolher tudo",
   "settings.models.context_management.compress_enabled": "Compressão automática",
   "settings.models.context_management.compress_enabled_description": "Resume automaticamente os turnos mais antigos ao aproximar-se do limite da janela de contexto. Os assistentes podem substituir esta definição",

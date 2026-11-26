@@ -5529,6 +5529,8 @@
   "settings.models.check.timeout_unit": "s",
   "settings.models.check.title": "Vérification des modèles",
   "settings.models.check.toggle_key": "Changer l’état d’activation de {{name}}",
+  "settings.models.cherryai_pinned.description": "Une fois activé, les modèles CherryAI connectés s'affichent en haut des listes de modèles. Une fois désactivé, ils suivent l'ordre habituel par fournisseur.",
+  "settings.models.cherryai_pinned.label": "Épingler les modèles CherryAI en haut",
   "settings.models.collapse_all": "Tout réduire",
   "settings.models.context_management.compress_enabled": "Compression automatique",
   "settings.models.context_management.compress_enabled_description": "Résume automatiquement les tours plus anciens à l’approche de la limite de la fenêtre de contexte. Les assistants peuvent le remplacer",

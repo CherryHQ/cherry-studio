@@ -93,6 +93,7 @@ export default function AddModelFormPanel({
   const [classification, setClassification] = useState(() => getInitialModelClassification())
   const [modelIdTouched, setModelIdTouched] = useState(false)
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
+  const [capabilitiesTouched, setCapabilitiesTouched] = useState(false)
   const [inputModalitiesTouched, setInputModalitiesTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -112,6 +113,7 @@ export default function AddModelFormPanel({
     setClassification(getInitialModelClassification(prefill?.model))
     setModelIdTouched(false)
     setEndpointTypeTouched(false)
+    setCapabilitiesTouched(false)
     setInputModalitiesTouched(false)
     setShowMoreSettings(false)
     setSubmitError(null)
@@ -167,6 +169,9 @@ export default function AddModelFormPanel({
               }
             )
           : null
+      const submittedCapabilities = submittedPurposeFields?.capabilities ?? classifiedCapabilities
+      const shouldSubmitCapabilities =
+        capabilitiesTouched || prefill?.model?.capabilities !== undefined || submittedCapabilities.length > 0
       const submittedInputModalities = submittedPurposeFields?.inputModalities ?? classifiedInputModalities
       const shouldSubmitInputModalities =
         inputModalitiesTouched ||
@@ -184,7 +189,7 @@ export default function AddModelFormPanel({
             : mode === 'endpoint-types' && values.endpointTypes?.length
               ? [...values.endpointTypes]
               : undefined,
-        capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
+        ...(shouldSubmitCapabilities ? { capabilities: submittedCapabilities } : {}),
         ...(shouldSubmitInputModalities ? { inputModalities: submittedInputModalities } : {}),
         outputModalities: submittedPurposeFields?.outputModalities,
         ...(values.contextWindow !== null ? { contextWindow: values.contextWindow } : {}),
@@ -195,6 +200,7 @@ export default function AddModelFormPanel({
       return createUniqueModelId(providerId, modelId)
     },
     [
+      capabilitiesTouched,
       chatEndpointType,
       classification,
       createModel,
@@ -272,10 +278,12 @@ export default function AddModelFormPanel({
   }, [addSingleModel, formState, mode, onSuccess, t])
 
   const handlePrimaryTypeChange = useCallback((primaryType: ModelPrimaryType) => {
+    setCapabilitiesTouched(true)
     setClassification((current) => ({ ...current, primaryType }))
   }, [])
 
   const handleCapabilityToggle = useCallback((capability: ModelCapabilityToggle) => {
+    setCapabilitiesTouched(true)
     setClassification((current) => {
       const capabilities = new Set(current.capabilities)
       if (capabilities.has(capability)) {
@@ -379,6 +387,7 @@ export default function AddModelFormPanel({
               chatEndpointType={chatEndpointType}
               chatEndpointTypes={providerChatEndpointTypes}
               onPurposeChange={(nextPurpose) => {
+                setCapabilitiesTouched(true)
                 setClassification((current) => ({
                   ...current,
                   primaryType:

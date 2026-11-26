@@ -5609,6 +5609,8 @@
   "settings.models.check.timeout_unit": "s",
   "settings.models.check.title": "Sprawdzanie modeli",
   "settings.models.check.toggle_key": "Przełącz stan włączenia {{name}}",
+  "settings.models.cherryai_pinned.description": "Po włączeniu zalogowane modele CherryAI pojawiają się na górze list modeli. Po wyłączeniu są wyświetlane w standardowej kolejności według dostawcy.",
+  "settings.models.cherryai_pinned.label": "Przypnij modele CherryAI na górze",
   "settings.models.collapse_all": "Zwiń wszystko",
   "settings.models.context_management.compress_enabled": "Automatyczna kompresja",
   "settings.models.context_management.compress_enabled_description": "Automatycznie podsumowuj starsze tury w miarę zbliżania się do okna kontekstu. Asystenci mogą to nadpisać",

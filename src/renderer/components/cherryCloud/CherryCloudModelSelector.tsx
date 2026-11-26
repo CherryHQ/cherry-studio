@@ -247,7 +247,7 @@ export function CherryCloudModelSelector(props: CherryCloudModelSelectorProps) {
               aria-label={pinLabel}
               aria-pressed={isCherryAIPinned}
               className="size-4 shrink-0 p-0 text-muted-foreground opacity-0 transition hover:opacity-100! focus-visible:opacity-100! group-hover:opacity-60 [&>svg]:translate-y-[1.5px]"
-              onClick={() => setCherryAIPinned((pinned) => !pinned)}>
+              onClick={() => void setCherryAIPinned(!isCherryAIPinned)}>
               <Pin className={cn('block size-3', isCherryAIPinned && '-rotate-45')} />
             </Button>
           </Tooltip>

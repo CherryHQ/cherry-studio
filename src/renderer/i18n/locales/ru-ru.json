@@ -5609,6 +5609,8 @@
   "settings.models.check.timeout_unit": "с",
   "settings.models.check.title": "Проверка моделей",
   "settings.models.check.toggle_key": "Переключить состояние активации {{name}}",
+  "settings.models.cherryai_pinned.description": "Если включено, модели CherryAI после входа отображаются в начале списков моделей. Если выключено, используется обычный порядок провайдеров.",
+  "settings.models.cherryai_pinned.label": "Закреплять модели CherryAI вверху",
   "settings.models.collapse_all": "Свернуть все",
   "settings.models.context_management.compress_enabled": "Автоматическое сжатие",
   "settings.models.context_management.compress_enabled_description": "Автоматически резюмирует ранние реплики при приближении к пределу контекстного окна. Ассистенты могут переопределить эту настройку",
