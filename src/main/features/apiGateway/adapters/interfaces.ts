@@ -7,6 +7,7 @@
  * - SSE formatters: Format events for Server-Sent Events
  */
 
+import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { ProviderMetadata, ToolSet, UIMessageChunk } from 'ai'
 
@@ -14,6 +15,8 @@ import type { CallOverrides } from '@main/ai/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+
+import type { ClaudeCodeReplayBlock } from '../claudeCodeReplay'
 
 /**
  * Token usage carried on `message-metadata` UIMessageChunks emitted by main's
@@ -119,6 +122,7 @@ export interface StreamAdapterOptions {
   inputTokens?: number
   /** Restore a provider-safe tool name to the identity expected by the API client. */
   toClientToolName?: (toolName: string) => string
+  captureReplay?: (blocks: readonly ClaudeCodeReplayBlock[]) => void
 }
 
 /**
@@ -199,6 +203,7 @@ export interface ContentBlockState {
   toolInput?: string
   // For thinking blocks — captured from reasoning chunk providerMetadata
   signature?: string
+  providerMetadata?: SharedV3ProviderMetadata
 }
 
 /**
