@@ -135,7 +135,7 @@ export function getLocalModelResolutionFailure(
     return null
   }
 
-  const providerIdMatch = /^Provider with id '([^']+)' not found$/.exec(message)
+  const providerIdMatch = /^Provider with id '(.+)' not found$/.exec(message)
   if (providerIdMatch) return { providerId: providerIdMatch[1] }
 
   // Format 4: "Model with id 'provider/model' not found" (DataApiErrorFactory.notFound)
