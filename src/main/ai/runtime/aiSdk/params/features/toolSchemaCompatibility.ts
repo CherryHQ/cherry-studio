@@ -190,17 +190,20 @@ function uniformEnumType(values: unknown[]): 'integer' | 'number' | 'boolean' | 
  * Gemini's Schema proto types `enum` as a string list — a numeric or boolean
  * `enum`/`const` 400s the whole request (`Invalid value at '…enum[0]'
  * (TYPE_STRING)`, e.g. zod `z.union([z.literal(1), z.literal(2)])`). Replaces
- * it with the bare type; the original zod schema still validates locally.
+ * it with the bare type (nullable when an untyped enum also lists `null`);
+ * the original zod schema still validates locally.
  */
 function stripNonStringEnums(node: JSONSchema7): JSONSchema7 {
   const values = node.enum !== undefined ? node.enum : node.const !== undefined ? [node.const] : undefined
-  const kind = Array.isArray(values) ? uniformEnumType(values) : undefined
+  if (!Array.isArray(values)) return node
+  const nullable = node.type === undefined && values.includes(null)
+  const kind = uniformEnumType(nullable ? values.filter((value) => value !== null) : values)
   if (kind === undefined) return node
 
   const replacement: JSONSchema7 = { ...node }
   delete replacement.enum
   delete replacement.const
-  if (replacement.type === undefined) replacement.type = kind
+  if (replacement.type === undefined) replacement.type = nullable ? [kind, 'null'] : kind
   return replacement
 }
 

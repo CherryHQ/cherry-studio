@@ -1292,6 +1292,8 @@ describe('toolSchemaCompatibilityFeature', () => {
                 scope: { type: ['string', 'null'], const: null },
                 filter: { const: { kind: 'all' }, description: 'Filter.' },
                 status: { type: 'string', enum: ['ready', 'busy'] },
+                level: { enum: [1, 2, null] },
+                flag: { enum: [true, null] },
                 optional: {
                   anyOf: [
                     { type: 'string', enum: ['a'] },
@@ -1312,6 +1314,8 @@ describe('toolSchemaCompatibilityFeature', () => {
       scope: { type: 'string', description: 'Required value (JSON): null.', nullable: true },
       filter: { type: 'string', description: 'Filter. Required value (JSON): {"kind":"all"}.' },
       status: { type: 'string', enum: ['ready', 'busy'] },
+      level: { type: 'integer', nullable: true },
+      flag: { type: 'boolean', nullable: true },
       optional: { type: 'string', enum: ['a'], nullable: true }
     })
   })
