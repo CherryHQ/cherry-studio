@@ -530,6 +530,7 @@ describe('AgentSessionForkOperations recovery', () => {
   })
 
   it('rejects a missing checkpoint before creating fork artifacts or rebuilding history', async () => {
+    const messageId = randomUUID()
     mocks.getAgent.mockReturnValueOnce({ id: 'fork-agent', type: 'pi' })
     runtimeDriverRegistry.register({
       type: 'pi',
@@ -544,10 +545,10 @@ describe('AgentSessionForkOperations recovery', () => {
     })
     forkRecoveryMocks.read.mockReturnValue({
       agent: { id: 'fork-agent' },
-      messages: [{ role: 'assistant', status: 'success', data: {} }]
+      messages: [{ id: messageId, role: 'assistant', status: 'success', data: {} }]
     })
 
-    await expect(new AgentSessionForkOperations().fork(randomUUID(), randomUUID())).rejects.toMatchObject({
+    await expect(new AgentSessionForkOperations().fork(randomUUID(), messageId)).rejects.toMatchObject({
       name: 'AgentSessionForkError',
       reason: 'legacy_history'
     })
@@ -769,7 +770,7 @@ describe('AgentSessionRuntimeService', () => {
     })
     forkRecoveryMocks.read.mockReturnValueOnce({
       agent: { id: 'fork-agent' },
-      messages: [{ role: 'assistant', status: 'success', data: {} }]
+      messages: [{ id: 'assistant-1', role: 'assistant', status: 'success', data: {} }]
     })
     const fork = service.forkSession('session-1', 'assistant-1')
     const settled = expect(fork).rejects.toMatchObject({ reason: 'legacy_history' })

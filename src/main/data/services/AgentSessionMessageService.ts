@@ -1231,10 +1231,11 @@ export class AgentSessionMessageService {
 
   readEditSnapshotTx(tx: DbOrTx, sessionId: string, messageId: string) {
     const { index, ...snapshot } = this.readEditVersionTx(tx, sessionId, messageId)
-    return {
-      ...snapshot,
-      prefix: this.applyForkCheckpointsTx(tx, sessionId, messageId, snapshot.rows.slice(0, index))
-    }
+    const prefix = this.applyForkCheckpointsTx(tx, sessionId, messageId, snapshot.rows.slice(0, index))
+    const last = prefix.at(-1)
+    const boundary =
+      last?.role === 'user' && last.replyId ? (prefix.find((row) => row.id === last.replyId) ?? last) : last
+    return { ...snapshot, prefix, boundary }
   }
 
   private readEditVersionTx(tx: DbOrTx, sessionId: string, messageId: string) {
@@ -1371,7 +1372,7 @@ export class AgentSessionMessageService {
   ): SessionMessage[] | undefined {
     let rows = readAgentSessionPath(tx, sessionId, messageId, true)
     const lastInput = tx
-      .select({ id: sessionMessagesTable.id })
+      .select({ id: sessionMessagesTable.id, pos: sessionMessagesTable.pos })
       .from(sessionMessagesTable)
       .where(
         and(
@@ -1395,7 +1396,11 @@ export class AgentSessionMessageService {
       tx,
       sessionId,
       messageId,
-      rows.filter((row) => !excluded.has(row.id))
+      rows.filter(
+        (row) =>
+          !excluded.has(row.id) &&
+          (row.role !== 'user' || lastInput?.pos == null || row.pos == null || row.pos <= lastInput.pos)
+      )
     )
   }
 

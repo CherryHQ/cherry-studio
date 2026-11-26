@@ -127,7 +127,7 @@ export class AgentSessionForkOperations {
     let resources: AgentSessionForkResources | undefined
     try {
       if (prefix.length) {
-        const row = prefix.at(-1)!
+        const row = source.boundary!
         const boundary = resolveForkBoundary(driver, { ...row, anchor: row.data.runtimeAnchor })
         if (boundary.reason) throw new AgentSessionEditError('checkpoint_unsupported')
         const { anchor } = boundary

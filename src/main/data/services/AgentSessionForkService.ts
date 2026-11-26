@@ -58,6 +58,7 @@ export class AgentSessionForkService {
   readHistoryBoundaries(sessionId: string, messageIds: readonly string[]) {
     if (!messageIds.length) return []
     const parent = alias(agentSessionMessageTable, 'parent')
+    const parentRun = alias(agentSessionMessageTable, 'parent_run')
     const anchor = (data: AnySQLiteColumn) =>
       sql<unknown>`json_quote(json_extract(${data}, '$.runtimeAnchor'))`.mapWith((value: string): unknown =>
         JSON.parse(value)
@@ -72,12 +73,23 @@ export class AgentSessionForkService {
         status: agentSessionMessageTable.status,
         delivery: agentSessionMessageTable.delivery,
         anchor: anchor(agentSessionMessageTable.data),
-        parent: { id: parent.id, role: parent.role, status: parent.status, anchor: anchor(parent.data) }
+        parent: { id: parent.id, role: parent.role, status: parent.status, anchor: anchor(parent.data) },
+        parentRun: { id: parentRun.id, role: parentRun.role, status: parentRun.status, anchor: anchor(parentRun.data) }
       })
       .from(agentSessionMessageTable)
       .leftJoin(parent, and(eq(parent.sessionId, sessionId), eq(parent.id, agentSessionMessageTable.parentId)))
+      .leftJoin(
+        parentRun,
+        and(
+          eq(parentRun.sessionId, sessionId),
+          eq(parent.role, 'user'),
+          eq(parentRun.id, parent.replyId),
+          eq(parentRun.role, 'assistant')
+        )
+      )
       .where(and(eq(agentSessionMessageTable.sessionId, sessionId), inArray(agentSessionMessageTable.id, messageIds)))
       .all()
+      .map(({ parentRun, ...row }) => ({ ...row, parent: parentRun ?? row.parent }))
   }
 
   private readTx(tx: DbOrTx, sourceSessionId: string, messageId: string, excludedIds: readonly string[]) {

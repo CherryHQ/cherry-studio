@@ -265,3 +265,16 @@ it('rejects editing an input that joined the Run represented by its parent check
   expect(readHistoryActions(sessionId, [steer.id]).get(steer.id)?.edit).toBe('checkpoint_unsupported')
   await expect(runtime.getEditTarget(sessionId, steer.id)).rejects.toMatchObject({ reason: 'checkpoint_unsupported' })
 })
+
+it('allows editing an ordinary input after a steered Run but refuses editing its steer', async () => {
+  user('Initial')
+  const run = answer({ runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' })
+  const steer = user('Steered input')
+  messages.linkReply(sessionId, [steer.id], run.id)
+  const next = user('Ordinary input')
+  answer({ runtime: 'pi', runtimeSessionId: 'native', leafId: 'next-leaf' })
+  const actions = readHistoryActions(sessionId, [steer.id, next.id])
+  expect(actions.get(steer.id)?.edit).toBe('checkpoint_unsupported')
+  expect(actions.get(next.id)?.edit).toBeNull()
+  await expect(runtime.getEditTarget(sessionId, next.id)).resolves.toMatchObject({ messageId: next.id })
+})

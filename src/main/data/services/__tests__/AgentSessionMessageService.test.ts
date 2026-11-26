@@ -663,6 +663,47 @@ describe('AgentSessionMessageService', () => {
       }
     )
 
+    it('excludes later queued inputs beyond a queued native cutoff and reconnects the copied prefix', async () => {
+      const save = (role: 'user' | 'assistant', text: string) =>
+        agentSessionMessageService.saveMessage({
+          sessionId: SESSION_ID,
+          message: { role, status: 'success', data: { parts: [{ type: 'text', text }] } }
+        })
+      const a = save('user', 'A')
+      const b = save('user', 'B')
+      const c = save('user', 'C')
+      const first = save('assistant', 'A answer')
+      const selected = save('assistant', 'B answer')
+      const later = save('assistant', 'C answer')
+      for (const [index, input] of [a, b, c].entries()) {
+        agentSessionMessageService.linkReply(SESSION_ID, [input.id], [first, selected, later][index].id)
+        dbh.db
+          .update(agentSessionMessageTable)
+          .set({ pos: index + 1 })
+          .where(eq(agentSessionMessageTable.id, input.id))
+          .run()
+      }
+      const prefix = agentSessionMessageService.readForkPrefixTx(dbh.db, SESSION_ID, selected.id)!
+      expect(prefix.map((row) => row.id)).toEqual([a.id, b.id, first.id, selected.id])
+      await seedSession({ id: 'queued-fork-child', name: 'Child', orderKey: 'a1' })
+      const copied = prefix.map((row) => ({
+        ...row,
+        id: `copied-${row.id}`,
+        partIds: row.partIds?.map((id) => `copied-${id}`),
+        replyId: row.replyId ? `copied-${row.replyId}` : null
+      }))
+      agentSessionMessageService.insertForkMessagesTx(dbh.db, 'queued-fork-child', copied)
+      const restored = agentSessionMessageService.readForkPrefixTx(
+        dbh.db,
+        'queued-fork-child',
+        `copied-${selected.id}`
+      )!
+      expect(restored.map((row) => row.data.parts?.[0])).toEqual(
+        ['A', 'B', 'A answer', 'B answer'].map((text) => ({ type: 'text', text }))
+      )
+      expect(restored.at(-1)?.parentId).toBe(`copied-${first.id}`)
+    })
+
     it('forks a whole Run with its steered inputs and preserves display positions under new IDs', async () => {
       await seedAgent('steered-fork-agent', 'Steered fork')
       dbh.db
