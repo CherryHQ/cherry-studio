@@ -25,7 +25,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { getLastRuntimeResumeToken: () => undefined }
 }))
 vi.mock('@data/services/AgentSessionContextService', () => ({
-  agentSessionContextService: { children: () => [] }
+  agentSessionContextService: { children: () => [], rebuildFileBranch: (context: unknown) => context }
 }))
 vi.mock('@main/ai/agentSession/nativeSubmission', () => ({
   prepareNativeSubmission: () => ({ inputId: 'input' }),

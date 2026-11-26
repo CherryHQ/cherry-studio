@@ -1172,7 +1172,7 @@ it.each(['before', 'after'] as const)(
     }
     if (order === 'before') await f.emit({ ...notice, inputId: followup.id })
     expect(f.views.at(-1)?.parts).not.toContainEqual(notice)
-    await f.emit({ type: 'steer-boundary', inputIds: [followup.id] })
+    await f.emit({ type: 'run-started', inputIds: [followup.id] })
     if (order === 'after') await f.emit({ ...notice, inputId: followup.id })
     const first = await f.done
     await f.project([text('second', 'Continuation before handoff')])
