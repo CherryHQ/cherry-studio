@@ -6,6 +6,7 @@ import * as z from 'zod'
 import type * as AiCore from '@cherrystudio/ai-core'
 import { getSentryLogContext } from '@shared/utils/sentry'
 
+import { STREAM_CLEANUP_TIMEOUT_MS } from '../../../../constants'
 import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
 import { createToolCallLimitStopCondition } from '../toolLoopTermination'
 import type { AgentLoopParams } from '../types'
@@ -58,6 +59,125 @@ describe('Agent', () => {
     vi.clearAllMocks()
   })
 
+  it('preserves a provider failure while cleanup waits for the transport', async () => {
+    const failure = new Error('provider failure')
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const transport = { signal: new AbortController().signal, close: () => gate }
+    mockCreateAgent.mockResolvedValue({
+      stream: async () => ({
+        toUIMessageStream: ({ onError }: { onError: (error: unknown) => string }) =>
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: 'error', errorText: onError(failure) })
+            }
+          })
+      })
+    })
+    const source = (await makeAgent()).stream([], new AbortController().signal, transport)
+    await expect(source.stream.getReader().read()).rejects.toBe(failure)
+    const cleanup = source.cleanup()
+    expect(source.cleanup()).toBe(cleanup)
+    let settled = false
+    void cleanup.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    release()
+    await cleanup
+  })
+
+  it('closes the output and aborts transport when the producer never settles', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const entered = Promise.withResolvers<AbortSignal>()
+      mockCreateAgent.mockResolvedValue({
+        stream: ({ abortSignal }: { abortSignal: AbortSignal }) => {
+          entered.resolve(abortSignal)
+          return new Promise(() => {})
+        }
+      })
+      const source = (await makeAgent()).stream([], new AbortController().signal)
+      const read = source.stream.getReader().read()
+      const signal = await entered.promise
+      const reason = new Error('Stopped')
+      const cleanup = source.cleanup(reason)
+      const cleanupResult = cleanup.catch((error: unknown) => error)
+      expect(source.cleanup()).toBe(cleanup)
+      await expect(read).resolves.toMatchObject({ done: true })
+      expect(signal.reason).toBe(reason)
+      await vi.advanceTimersByTimeAsync(STREAM_CLEANUP_TIMEOUT_MS)
+      expect(await cleanupResult).toMatchObject({
+        name: 'TimeoutError',
+        message: expect.stringContaining(`Stream producer cleanup exceeded ${STREAM_CLEANUP_TIMEOUT_MS} ms`)
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  }, 2000)
+
+  it('publishes a provider error when the SDK reader never acknowledges cancellation', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const failure = new Error('provider failure')
+      const cancelled = Promise.withResolvers<unknown>()
+      mockCreateAgent.mockResolvedValue({
+        stream: async () => ({
+          toUIMessageStream: ({ onError }: { onError: (error: unknown) => string }) =>
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue({ type: 'error', errorText: onError(failure) })
+              },
+              cancel(reason) {
+                cancelled.resolve(reason)
+                return new Promise<void>(() => {})
+              }
+            })
+        })
+      })
+      const source = (await makeAgent()).stream([], new AbortController().signal)
+      const read = source.stream.getReader().read()
+      await expect(cancelled.promise).resolves.toBe(failure)
+      await expect(read).rejects.toBe(failure)
+      const cleanupResult = source.cleanup().catch((error: unknown) => error)
+      await vi.advanceTimersByTimeAsync(STREAM_CLEANUP_TIMEOUT_MS)
+      expect(await cleanupResult).toMatchObject({ name: 'TimeoutError' })
+    } finally {
+      vi.useRealTimers()
+    }
+  }, 2000)
+
+  it('terminates a producer blocked on an output write when its consumer cancels', async () => {
+    const controller = new AbortController()
+    let closed = 0
+    const transport = {
+      signal: controller.signal,
+      close: async () => {
+        closed++
+        controller.abort()
+      }
+    }
+    mockCreateAgent.mockResolvedValue({
+      stream: async () => ({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(output) {
+              output.enqueue({ type: 'start' })
+            }
+          })
+      })
+    })
+    const source = (await makeAgent()).stream([], new AbortController().signal, transport)
+    const reader = source.stream.getReader()
+    await Promise.resolve()
+    await reader.cancel('consumer left')
+    await source.cleanup('consumer left')
+    expect(closed).toBeGreaterThan(0)
+  })
+
   it('forwards provider-native URL sources to the UI stream', async () => {
     const source = {
       type: 'source-url' as const,
@@ -79,7 +199,7 @@ describe('Agent', () => {
     })
 
     const agent = await makeAgent()
-    const reader = agent.stream([], new AbortController().signal).getReader()
+    const reader = agent.stream([], new AbortController().signal).stream.getReader()
 
     await expect(reader.read()).resolves.toEqual({ value: source, done: false })
     await expect(reader.read()).resolves.toEqual({ value: undefined, done: true })
@@ -106,7 +226,7 @@ describe('Agent', () => {
         const result =
           mode === 'generate'
             ? agent.generate({ prompt: 'hello' })
-            : agent.stream([], new AbortController().signal).getReader().read()
+            : agent.stream([], new AbortController().signal).stream.getReader().read()
         await expect(result).rejects.toBe(error)
         const entries = mockMainLoggerService.error.mock.calls.map(([, entry]) => entry)
         const reports = entries.map((entry) => getSentryLogContext({ ...entry, level: 'error' })).filter(Boolean)
@@ -281,7 +401,7 @@ describe('Agent', () => {
     })
 
     const agent = await makeAgent()
-    const reader = agent.stream([], new AbortController().signal).getReader()
+    const reader = agent.stream([], new AbortController().signal).stream.getReader()
 
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'tool-input-error' }, done: false })
     await expect(reader.read()).rejects.toBe(apiError)
@@ -318,7 +438,7 @@ describe('Agent', () => {
     const onError = vi.fn()
     const agent = await makeAgent({ hookParts: [{ onAbort, onError }] })
 
-    await expect(agent.stream([], controller.signal).getReader().read()).rejects.toBe(providerError)
+    await expect(agent.stream([], controller.signal).stream.getReader().read()).rejects.toBe(providerError)
     expect(onError).toHaveBeenCalledWith({ error: providerError })
     expect(onAbort).not.toHaveBeenCalled()
   })
@@ -348,7 +468,7 @@ describe('Agent', () => {
     )
 
     const agent = await makeAgent()
-    const reader = agent.stream([], new AbortController().signal).getReader()
+    const reader = agent.stream([], new AbortController().signal).stream.getReader()
 
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'tool-output-available' }, done: false })
     await expect(reader.read()).rejects.toMatchObject({
@@ -370,7 +490,7 @@ describe('Agent', () => {
 
     const agent = await makeAgent({ options: { stopWhen } })
 
-    await expect(agent.stream([], new AbortController().signal).getReader().read()).rejects.toMatchObject({
+    await expect(agent.stream([], new AbortController().signal).stream.getReader().read()).rejects.toMatchObject({
       name: 'ToolLoopTerminalError',
       i18nKey: 'tool_call_limit_reached'
     })
@@ -383,7 +503,7 @@ describe('Agent', () => {
     mockStream([{ type: 'finish', finishReason: 'tool-calls' }], { steps, finishReason: 'tool-calls' })
 
     const agent = await makeAgent({ options: { stopWhen } })
-    const reader = agent.stream([], new AbortController().signal).getReader()
+    const reader = agent.stream([], new AbortController().signal).stream.getReader()
 
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'finish' }, done: false })
     await expect(reader.read()).resolves.toEqual({ value: undefined, done: true })
@@ -436,7 +556,7 @@ describe('Agent', () => {
           }
         ]
       })
-      const stream = agent.stream([], new AbortController().signal)
+      const stream = agent.stream([], new AbortController().signal).stream
 
       // The stream still aborts with the original error; the hook's throw
       // should be swallowed inside `invokeOnError`.
@@ -498,7 +618,7 @@ describe('Agent', () => {
 
     const agent = await makeAgent()
 
-    const stream = agent.stream([], new AbortController().signal)
+    const stream = agent.stream([], new AbortController().signal).stream
     const reader = stream.getReader()
     const collectedMetadata: Array<Record<string, unknown>> = []
     while (true) {
@@ -563,7 +683,7 @@ describe('Agent', () => {
 
     const agent = await makeAgent()
 
-    const stream = agent.stream([], new AbortController().signal)
+    const stream = agent.stream([], new AbortController().signal).stream
     const reader = stream.getReader()
     const collectedMetadata: Array<Record<string, unknown>> = []
     while (true) {
@@ -635,7 +755,7 @@ describe('Agent', () => {
         ],
         new AbortController().signal
       )
-      .getReader()
+      .stream.getReader()
     while (!(await reader.read()).done) {
       /* drain to completion */
     }
@@ -654,7 +774,7 @@ describe('Agent', () => {
       mediaCapabilities: { image: true, video: false, audio: false },
       toolResultMediaCapabilities: { image: false, video: false, audio: false }
     })
-    const reader = agent.stream([], new AbortController().signal).getReader()
+    const reader = agent.stream([], new AbortController().signal).stream.getReader()
     while (!(await reader.read()).done) {
       /* drain to completion */
     }
@@ -707,7 +827,7 @@ describe('Agent', () => {
     const onError = vi.fn()
     const controller = new AbortController()
     const agent = await makeAgent({ hookParts: [{ onAbort, onError }] })
-    const reader = agent.stream([], controller.signal).getReader()
+    const reader = agent.stream([], controller.signal).stream.getReader()
 
     // First chunk forwards normally.
     const chunk1 = { type: 'text-delta', id: 't1', delta: 'hello' }
@@ -748,7 +868,7 @@ describe('Agent', () => {
     const writeSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'write')
     try {
       const agent = await makeAgent({ hookParts: [{ onAbort, onError, onFinish }] })
-      const stream = agent.stream([], controller.signal)
+      const stream = agent.stream([], controller.signal).stream
 
       // Do not read yet: the TransformStream's readable high-water mark is
       // zero, so the final finish write remains suspended by backpressure.
@@ -796,7 +916,7 @@ describe('Agent', () => {
     const onError = vi.fn()
     const controller = new AbortController()
     const agent = await makeAgent({ hookParts: [{ onAbort, onError }] })
-    const reader = agent.stream([], controller.signal).getReader()
+    const reader = agent.stream([], controller.signal).stream.getReader()
     const read = reader.read()
 
     await didAccessMetadata
@@ -837,7 +957,7 @@ describe('Agent', () => {
     const onError = vi.fn()
     const controller = new AbortController()
     const agent = await makeAgent({ hookParts: [{ onError }] })
-    const read = agent.stream([], controller.signal).getReader().read()
+    const read = agent.stream([], controller.signal).stream.getReader().read()
 
     await didAccessMetadata
     controller.abort(new Error('cancelled'))
@@ -864,7 +984,7 @@ describe('Agent', () => {
     const abortSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'abort')
     try {
       const agent = await makeAgent()
-      const reader = agent.stream([], new AbortController().signal).getReader()
+      const reader = agent.stream([], new AbortController().signal).stream.getReader()
       while (!(await reader.read()).done) {
         /* drain to completion */
       }
@@ -895,7 +1015,7 @@ describe('Agent', () => {
     const abortSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'abort')
     try {
       const agent = await makeAgent({ hookParts: [{ onError }] })
-      const reader = agent.stream([], new AbortController().signal).getReader()
+      const reader = agent.stream([], new AbortController().signal).stream.getReader()
 
       await expect(reader.read()).rejects.toBe(err)
       // Let the IIFE's catch (invokeOnError + settleWriter) run.
@@ -930,7 +1050,7 @@ describe('Agent', () => {
 
     const onError = vi.fn().mockReturnValue('abort')
     const agent = await makeAgent({ hookParts: [{ onError }] })
-    const reader = agent.stream([], new AbortController().signal).getReader()
+    const reader = agent.stream([], new AbortController().signal).stream.getReader()
 
     await expect(reader.read()).rejects.toBe(structuredError)
     await new Promise((resolve) => setImmediate(resolve))
@@ -966,7 +1086,7 @@ describe('Agent', () => {
     try {
       const agent = await makeAgent()
 
-      await expect(agent.stream([], new AbortController().signal).getReader().read()).rejects.toBeUndefined()
+      await expect(agent.stream([], new AbortController().signal).stream.getReader().read()).rejects.toBeUndefined()
       await new Promise((resolve) => setImmediate(resolve))
 
       expect(abortSpy).toHaveBeenCalledWith(undefined)
@@ -992,7 +1112,7 @@ describe('Agent', () => {
 
     const onError = vi.fn().mockReturnValue('retry')
     const agent = await makeAgent({ hookParts: [{ onError }] })
-    const reader = agent.stream([], new AbortController().signal).getReader()
+    const reader = agent.stream([], new AbortController().signal).stream.getReader()
 
     await expect(reader.read()).rejects.toBe(err)
     // Let the IIFE's catch (invokeOnError → 'retry' branch + settleWriter) run.
@@ -1021,7 +1141,7 @@ describe('Agent', () => {
 
     const onError = vi.fn().mockReturnValue('retry')
     const agent = await makeAgent({ hookParts: [{ onError }] })
-    const reader = agent.stream([], new AbortController().signal).getReader()
+    const reader = agent.stream([], new AbortController().signal).stream.getReader()
 
     await expect(reader.read()).rejects.toBe(structuredError)
     await new Promise((resolve) => setImmediate(resolve))

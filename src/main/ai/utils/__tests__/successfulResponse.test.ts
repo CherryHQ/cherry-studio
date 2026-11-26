@@ -243,7 +243,7 @@ async function runAgent(
   const signal = new AbortController().signal
   const chunks: UIMessageChunk[] = []
   const result = await pipeStreamLoop(
-    agent.stream([{ id: 'user-fixture', role: 'user', parts: [{ type: 'text', text: SENTINEL }] }], signal),
+    agent.stream([{ id: 'user-fixture', role: 'user', parts: [{ type: 'text', text: SENTINEL }] }], signal).stream,
     signal,
     {
       onChunk(chunk) {
@@ -531,7 +531,9 @@ describe('entry routing and preserved terminal semantics', () => {
       }
     })
     const agent = new Agent({ providerId: 'openai', providerSettings: {}, modelId: 'fixture-model' })
-    const result = await pipeStreamLoop(agent.stream([], controller.signal), controller.signal, { onChunk: () => {} })
+    const result = await pipeStreamLoop(agent.stream([], controller.signal).stream, controller.signal, {
+      onChunk: () => {}
+    })
     expect(result.threw).toBeUndefined()
     expect(result.finalMessage).toBeUndefined()
   })

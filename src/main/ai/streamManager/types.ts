@@ -116,8 +116,10 @@ export interface AgentMessageStreamSource {
   readParts(): readonly ExecutionPart[]
 }
 
-/** One content producer per execution: either SDK chunks or an Agent owner. */
-export type AiStreamSource = { kind: 'chunks'; stream: ReadableStream<UIMessageChunk> } | AgentMessageStreamSource
+/** SDK chunk sources require cleanup to settle the producer and transport before terminal dispatch. */
+export type AiStreamSource =
+  | { kind: 'chunks'; stream: ReadableStream<UIMessageChunk>; cleanup(reason?: unknown): Promise<void> }
+  | AgentMessageStreamSource
 
 export interface StreamListener {
   /** A durable caller (scheduled job) publishes its own final result. */
@@ -171,6 +173,8 @@ export interface StreamExecution {
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
+  terminalPending?: boolean
+  cleanupOutcome?: 'unconfirmed'
   /** Per-execution history ring; delta entries are capped by `maxDeltaBytes`. Ordinary overflow drops oldest and bumps `droppedChunks`; eviction pauses while an approval is pending. */
   buffer: StreamChunkPayload[]
   sequence: number

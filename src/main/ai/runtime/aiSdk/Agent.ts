@@ -18,6 +18,7 @@ import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { isAbortError } from '@main/utils/error'
 
+import { STREAM_CLEANUP_TIMEOUT_MS } from '../../constants'
 import { usesAnthropicMessagesSdk } from '../../messages/anthropicThinking'
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
@@ -29,6 +30,7 @@ import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
+import { createRequestStreamTransport, type RequestStreamTransport } from './requestStreamTransport'
 
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
@@ -278,7 +280,14 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     }
   }
 
-  stream(initialMessages: UIMessage[], signal: AbortSignal): ReadableStream<UIMessageChunk> {
+  stream(
+    initialMessages: UIMessage[],
+    signal: AbortSignal,
+    transport: RequestStreamTransport = createRequestStreamTransport()
+  ): {
+    stream: ReadableStream<UIMessageChunk>
+    cleanup: (reason?: unknown) => Promise<void>
+  } {
     const params = this.params
     let outputController!: TransformStreamDefaultController<UIMessageChunk>
     let terminalOutcome: 'running' | 'success' | 'abort' = 'running'
@@ -304,10 +313,13 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     this.currentWriter = writer
     const hooks = this.composedHooks()
 
+    let producerDone = false
+    let sdkCancellation: Promise<void> | undefined
     let writerSettled = false
     const settleWriter = async (failure?: { error: unknown }): Promise<void> => {
       if (writerSettled) return
       writerSettled = true
+      producerDone = true
       this.currentWriter = undefined
       try {
         if (failure) {
@@ -368,7 +380,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       }
     }
 
-    ;(async () => {
+    const producer = (async () => {
       await safeCall('onStart', hooks.onStart)
 
       const execution = await this.buildExecution(hooks)
@@ -385,9 +397,14 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       )
       let hasUsedProvidedMessageId = false
 
+      const abortSignal = AbortSignal.any([signal, transport.signal])
+      if (abortSignal.aborted) {
+        await safeCall('onAbort', hooks.onAbort)
+        return
+      }
       const result = await execution.stream({
         messages: modelMessages,
-        abortSignal: signal
+        abortSignal
       })
 
       // AI SDK converts errors to lossy UI chunks. Keep the originals in the
@@ -431,7 +448,8 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
               ? capturedUiErrors.shift()
               : undefined
           if (value.type === 'error' && capturedError) {
-            await reader.cancel(capturedError.error).catch(() => {})
+            void transport.close(capturedError.error).catch(() => {})
+            sdkCancellation = reader.cancel(capturedError.error).catch(() => {})
             throw capturedError.error
           }
           if (signal.aborted) break
@@ -488,6 +506,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     })()
       .then(() => settleWriter())
       .catch(async (err) => {
+        void transport.close(err).catch(() => {})
         const isCancellation = signal.aborted && (err === signal.reason || isAbortError(err))
         if (isCancellation) {
           await safeCall('onAbort', hooks.onAbort)
@@ -519,7 +538,41 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         }
         await settleWriter({ error: streamError })
       })
+      .finally(() => {
+        producerDone = true
+      })
 
-    return readable
+    let cleanupPromise: Promise<void> | undefined
+    const cleanup = (reason?: unknown): Promise<void> => {
+      if (!cleanupPromise) {
+        const closeReason = reason ?? (producerDone ? undefined : new Error('Stream cleanup'))
+        const transportCleanup = Promise.resolve().then(() => transport.close(closeReason))
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const deadline = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            reject(new DOMException(`Stream producer cleanup exceeded ${STREAM_CLEANUP_TIMEOUT_MS} ms`, 'TimeoutError'))
+          }, STREAM_CLEANUP_TIMEOUT_MS)
+        })
+        const producerCleanup = Promise.race([producer.then(() => sdkCancellation), deadline]).finally(() =>
+          clearTimeout(timer)
+        )
+        cleanupPromise = Promise.allSettled([producerCleanup, transportCleanup]).then((results) => {
+          const failures = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+          if (failures.length === 1) throw failures[0]
+          if (failures.length > 1) {
+            throw new AggregateError(
+              failures.flatMap((failure) => (failure instanceof AggregateError ? failure.errors : [failure])),
+              'AI SDK stream cleanup failed'
+            )
+          }
+        })
+        try {
+          outputController.terminate()
+        } catch {}
+      }
+      return cleanupPromise
+    }
+    void writer.closed.catch((error) => cleanup(error).catch(() => {}))
+    return { stream: readable, cleanup }
   }
 }

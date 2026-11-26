@@ -99,21 +99,25 @@ function fixture(contextOwner: AgentLoopParams['contextOwner'], invalidInput = f
 }
 
 async function stream(agent: Agent, signal = new AbortController().signal): Promise<UIMessageChunk[]> {
-  const reader = agent
-    .stream(
-      [
-        { id: 'system', role: 'system', parts: [{ type: 'text', text: 'Client skill catalog' }] },
-        { id: 'first', role: 'user', parts: [{ type: 'text', text: 'Which skills?' }] },
-        { id: 'second', role: 'user', parts: [{ type: 'text', text: 'List them.' }] }
-      ],
-      signal
-    )
-    .getReader()
+  const source = agent.stream(
+    [
+      { id: 'system', role: 'system', parts: [{ type: 'text', text: 'Client skill catalog' }] },
+      { id: 'first', role: 'user', parts: [{ type: 'text', text: 'Which skills?' }] },
+      { id: 'second', role: 'user', parts: [{ type: 'text', text: 'List them.' }] }
+    ],
+    signal
+  )
+  const reader = source.stream.getReader()
   const chunks: UIMessageChunk[] = []
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) return chunks
-    chunks.push(value)
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) return chunks
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+    await source.cleanup()
   }
 }
 

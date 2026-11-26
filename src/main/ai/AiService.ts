@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 
+import type { FetchFunction } from '@ai-sdk/provider-utils'
 import type { CreateMessageRequestParamsBase, CreateMessageResult } from '@modelcontextprotocol/client'
 import {
   type EmbeddingModelUsage,
@@ -89,6 +90,7 @@ import {
   buildAgentParams,
   buildApiKeyFallbackModels,
   buildFallbackModels,
+  createRequestStreamTransport,
   createRetryableWrap,
   readRetryPolicy
 } from './runtime/aiSdk'
@@ -656,6 +658,7 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.conversation.topicId} requires an agent-session runtime request`)
     }
 
+    const transport = createRequestStreamTransport()
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
     const {
       sdkConfig,
@@ -670,7 +673,13 @@ export class AiService extends BaseService {
       hookParts,
       nativeFileSupport,
       fileAttachments
-    } = await this.buildAgentParamsFor(request, signal, extraFeatures, () => repairUsagePlugins.current ?? [])
+    } = await this.buildAgentParamsFor(
+      request,
+      signal,
+      extraFeatures,
+      () => repairUsagePlugins.current ?? [],
+      transport.wrapFetch
+    )
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -741,6 +750,7 @@ export class AiService extends BaseService {
         assistant,
         signal,
         extraFeatures,
+        wrapFetch: transport.wrapFetch,
         primaryCredentialReceipt: credentialReceipt,
         createUsagePlugin: (fallbackReceipt) =>
           createAiUsagePlugin(
@@ -769,6 +779,7 @@ export class AiService extends BaseService {
           primaryHasTools: !!tools && Object.keys(tools).length > 0,
           requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
           extraFeatures,
+          wrapFetch: transport.wrapFetch,
           retryPolicy,
           createUsagePlugin: ({ provider, model, sdkModelId, credentialReceipt }) =>
             createAiUsagePlugin(
@@ -828,7 +839,7 @@ export class AiService extends BaseService {
     })
     agentRef.current = agent
 
-    return { kind: 'chunks', stream: agent.stream(preparedMessages, signal) }
+    return { kind: 'chunks', ...agent.stream(preparedMessages, signal, transport) }
   }
 
   private async withRuntimeActivity<T>(reason: string, operation: () => Promise<T>): Promise<T> {
@@ -1740,7 +1751,8 @@ export class AiService extends BaseService {
       Pick<AiGenerateRequest, 'system'>,
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = [],
-    getRepairUsagePlugins?: () => AiPlugin[]
+    getRepairUsagePlugins?: () => AiPlugin[],
+    wrapFetch?: (fetch: FetchFunction) => FetchFunction
   ) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({
@@ -1752,6 +1764,7 @@ export class AiService extends BaseService {
       assistant,
       extraFeatures,
       getRepairUsagePlugins,
+      wrapFetch,
       compactionSink: request.compactionSink
     })
     return { ...built, provider, model, assistant }
