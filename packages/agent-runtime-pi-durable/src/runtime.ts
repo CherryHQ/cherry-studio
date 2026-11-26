@@ -96,7 +96,10 @@ export type PiDurableSessionOptions = ConversationCreateOptions
 export interface PiDurableThreadHandle extends ThreadHandle {
   readonly input: ThreadInput
   readonly durable: {
-    observe(sink: (batch: DurableObservation) => void | Promise<void>): Promise<OperationResult<Observation>>
+    observe(
+      sink: (batch: DurableObservation) => void | Promise<void>,
+      knownSources?: readonly string[]
+    ): Promise<OperationResult<Observation>>
     relation(): Promise<Subagent | undefined>
     openChild(
       toolCallId: string,
@@ -753,7 +756,7 @@ export async function createPiDurableRuntime(
         }
       },
       durable: {
-        observe: (sink) => observeCaptured(() => entry.projection.observe(sink)),
+        observe: (sink, knownSources) => observeCaptured(() => entry.projection.observe(sink, knownSources)),
         relation: () =>
           track(
             native.commit(async (tx) => {
