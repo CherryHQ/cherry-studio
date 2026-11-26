@@ -1,6 +1,7 @@
+import type { ChildProcess } from 'node:child_process'
 import { mkdir, rm } from 'node:fs/promises'
 
-import { _electron as electron, type ElectronApplication, type Page, type TestInfo } from '@playwright/test'
+import { type ElectronApplication, type Page, type TestInfo } from '@playwright/test'
 
 import en from '../../../src/renderer/i18n/locales/en-us.json'
 import type { CreateMessageDto } from '../../../src/shared/data/api/schemas/messages'
@@ -8,7 +9,7 @@ import type { DataRequest, DataResponse } from '../../../src/shared/data/api/typ
 import type { Message, TreeResponse } from '../../../src/shared/data/types/message'
 import type { Topic } from '../../../src/shared/data/types/topic'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { closeElectronApp, expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 
 const ASSISTANT = 'Branch deletion smoke assistant'
 const TOPIC = 'Delete one exclusive conversation branch'
@@ -16,7 +17,7 @@ const TOPIC = 'Delete one exclusive conversation branch'
 function launch(profile: string) {
   const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
   delete env.ELECTRON_RENDERER_URL
-  return electron.launch({
+  return launchSmokeElectron({
     args: ['.'],
     env: Object.fromEntries(Object.entries(env).filter((pair): pair is [string, string] => pair[1] !== undefined)),
     timeout: 60_000
@@ -27,14 +28,15 @@ const test = base.extend({
   electronApp: async ({}, provideApp, testInfo) => {
     const profile = testInfo.outputPath('profile')
     await mkdir(profile, { recursive: true })
-    const app = await launch(profile)
+    let app: ElectronApplication | undefined
+    let child: ChildProcess | undefined
     try {
+      app = await launch(profile)
+      child = app.process()
       await provideApp(app)
     } finally {
       try {
-        if (app.process()?.exitCode === null) await app.close()
-      } catch {
-        // The test owns both app lifetimes and may already have closed this one.
+        if (app && child?.exitCode === null && child.signalCode === null) await closeElectronApp(app)
       } finally {
         await rm(profile, { recursive: true, force: true })
       }
@@ -48,7 +50,7 @@ async function mainWindow(app: ElectronApplication) {
     .poll(
       async () => {
         for (const window of app.windows()) {
-          if ((await window.title()) === 'Cherry Studio') {
+          if (/\/windows\/main\/index\.html(?:[?#]|$)/.test(window.url())) {
             page = window
             return true
           }
@@ -70,7 +72,7 @@ async function ready(page: Page) {
     await window.api.preference.set('app.language', 'en-US')
   }, LATEST_PRIVACY_POLICY_VERSION)
   await page.reload()
-  await expect(page.locator('[data-ui~="app.shell"]').first()).toBeVisible({ timeout: 60_000 })
+  await expect(page.locator('[data-ui~="app.content"]').first()).toBeVisible({ timeout: 60_000 })
   await expect(
     page.getByRole('dialog', { name: en['privacy_policy_update.title'], exact: true }),
     'Setup failure: privacy policy modal reopened after setting the current policy version'
@@ -95,19 +97,8 @@ async function openTopic(page: Page, seeded: { assistantId: string; topicId: str
       })
     )
   }, seeded)
-  // The resource list can mount the same row twice, so pin the locator to the first visible match.
-  const topicRow = page
-    .getByTestId('topic-list-row')
-    .filter({ has: page.getByText(TOPIC, { exact: true }) })
-    .first()
-  const assistantButton = page.getByRole('button', { name: ASSISTANT, exact: true }).first()
-  await expect(assistantButton).toBeVisible({ timeout: 30_000 })
-  for (let attempt = 0; attempt < 4 && !(await topicRow.isVisible()); attempt += 1) {
-    await assistantButton.click()
-    await page.waitForTimeout(500)
-  }
-  await expect(topicRow).toBeVisible({ timeout: 30_000 })
-  await topicRow.click()
+  const activeTab = page.locator('[data-ui~="app.tab-bar"] [data-active="true"]').filter({ hasText: TOPIC })
+  await expect(activeTab).toBeVisible()
 }
 
 async function prepareFlowCanvas(page: Page) {
@@ -285,7 +276,7 @@ test('deletes only a branch suffix after confirmation and keeps survivors across
   await assertSurvivors(page)
   await expect(leaf).toHaveCount(0)
   await screenshot(page, testInfo, 'branch-delete-survivors.png')
-  await electronApp.close()
+  await closeElectronApp(electronApp)
   const restarted = await launch(testInfo.outputPath('profile'))
   try {
     const restartedPage = await mainWindow(restarted)
@@ -301,6 +292,6 @@ test('deletes only a branch suffix after confirmation and keeps survivors across
     }
     await screenshot(restartedPage, testInfo, 'branch-delete-after-restart.png')
   } finally {
-    if (restarted.process()?.exitCode === null) await restarted.close()
+    await closeElectronApp(restarted)
   }
 })

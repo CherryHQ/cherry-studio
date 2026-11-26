@@ -1,6 +1,7 @@
 import { render } from '@testing-library/react'
 import type { InlineMath, Math, Nodes, Root } from 'mdast'
 import { createElement } from 'react'
+import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
@@ -13,8 +14,9 @@ import { createLatexMarkdownBlockParser } from '../parseLatexMarkdownBlocks'
 
 vi.unmock('@cherrystudio/ui')
 
-function parse(source: string): Root {
+function parse(source: string, gfm = false): Root {
   const processor = unified().use(remarkParse).use(remarkLatexMath)
+  if (gfm) processor.use(remarkGfm)
   const math = withMath({ singleDollar: true })
   if (!math) throw new Error('Expected the Streamdown math plugin')
   processor.use({ plugins: [math.remarkPlugin] })
@@ -144,6 +146,234 @@ describe('remarkLatexMath', () => {
 
     expect(mathNodes(source)).toMatchObject([{ type: 'math', value: `\\begin{${name}}\nx=1\n\\end{${name}}` }])
     expect(textValue(tree)).toContain('，')
+  })
+
+  it.each(['=', '---'])('keeps an environment with a lone %s line as one block', (line) => {
+    const source = `\\begin{align}\na\n${line}\nb\n\\end{align}`
+
+    expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
+  })
+
+  it.each(['.', ' trailing prose'])('does not scan past the first closer with%s', (suffix) => {
+    const first = `\\begin{align}\na\n=\nb\n\\end{align}${suffix}`
+    const second = '\\begin{align}\nc=d\n\\end{align}'
+    const source = `${first}\n\n# Keep heading\n\n[Keep link](https://example.com)\n\n${second}`
+    const tree = parse(source)
+    expect(tree.children.some((child) => child.type === 'heading' && textValue(child).includes('Keep heading'))).toBe(
+      true
+    )
+    expect(textValue(tree)).toContain('Keep link')
+    expect(mathNodes(source).some((node) => node.value.includes('Keep heading'))).toBe(false)
+    expect(mathNodes(source).some((node) => node.value === second)).toBe(true)
+  })
+
+  it('waits for the outer same-name closer across a sibling boundary', () => {
+    const source = '\\begin{aligned}\na\n=\nb\n\\begin{aligned}\nc=d\n\\end{aligned}\n\nouter tail\n\\end{aligned}'
+    expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
+  })
+
+  it('leaves many unclosed setext environments unchanged without searching later siblings', () => {
+    const source = Array.from({ length: 4000 }, () => '\\begin{align}\na\n=\nb').join('\n\n')
+    const tree = parse(source)
+    expect(tree.children.some((node) => node.type === 'math')).toBe(false)
+    expect(textValue(tree)).toContain('b')
+  })
+
+  it('leaves blockquote setext environments unrepaired rather than adding quote operators', () => {
+    const source = '> \\begin{align}\n> a\n> =\n> b\n> \\end{align}'
+    expect(mathNodes(source)).toEqual([])
+    expect(parse(source).children[0].type).toBe('blockquote')
+  })
+
+  it.each(['- ', '1. '])('preserves clean environment repair in %s list items', (prefix) => {
+    const indent = ' '.repeat(prefix.length)
+    const source = `${prefix}item\n\n${indent}\\begin{align}\n${indent}a\n${indent}=\n${indent}b\n${indent}\\end{align}`
+    expect(mathNodes(source)).toHaveLength(1)
+    expect(mathNodes(source)[0].value).toContain('\\begin{align}')
+  })
+
+  it('preserves clean repair inside nested list items', () => {
+    const source = '- outer\n  - inner\n\n    \\begin{align}\n    a\n    =\n    b\n    \\end{align}'
+    expect(mathNodes(source)).toHaveLength(1)
+  })
+
+  it.each([
+    '- item\n\n  > \\begin{align}\n  > a\n  > =\n  > b\n  > \\end{align}',
+    '> - item\n>\n>   \\begin{align}\n>   a\n>   =\n>   b\n>   \\end{align}'
+  ])('refuses quote prefixes through list or quote ancestors', (source) => {
+    expect(mathNodes(source)).toEqual([])
+  })
+
+  it.each([
+    ['indented code', '    \\end{align}'],
+    ['fenced code', '```tex\n\\end{align}\n```'],
+    ['inline code', '`\\end{align}`']
+  ])('does not close an unmatched setext environment inside %s', (_label, code) => {
+    const source = `\\begin{align}\na\n=\nb\n\n## Explanation\n\n[Reference](https://example.com)\n\n${code}`
+    const tree = parse(source)
+    expect(mathNodes(source)).toEqual([])
+    expect(tree.children.some((node) => node.type === 'heading' && textValue(node) === 'Explanation')).toBe(true)
+    const links: Nodes[] = []
+    visit(tree, 'link', (node) => {
+      links.push(node)
+    })
+    expect(links).toHaveLength(1)
+    expect(textValue(tree)).toContain('\\end{align}')
+  })
+
+  it.each([
+    ['quotation', '> A quotation\n> \\end{align}'],
+    ['nested quotation', '> outer\n>> \\end{align}'],
+    ['quotation in list', '- item\n\n  > A quotation\n  > \\end{align}']
+  ])('does not close an outer setext environment inside a %s', (_label, quote) => {
+    const source = `\\begin{align}\na\n=\nb\n\n## Explanation\n\n[Reference](https://example.com)\n\n${quote}`
+    const tree = parse(source)
+    expect(mathNodes(source)).toEqual([])
+    expect(tree.children.some((node) => node.type === 'heading' && textValue(node) === 'Explanation')).toBe(true)
+    const links: Nodes[] = []
+    const quotes: Nodes[] = []
+    visit(tree, 'link', (node) => {
+      links.push(node)
+    })
+    visit(tree, 'blockquote', (node) => {
+      quotes.push(node)
+    })
+    expect(links).toHaveLength(1)
+    expect(quotes.length).toBeGreaterThan(0)
+    expect(textValue(tree)).toContain('\\end{align}')
+  })
+
+  it.each([
+    '\\begin{align}\na\n=\nb\n\n- item\n\n  \\end{align}',
+    '- item\n\n  \\begin{align}\n  a\n  =\n  b\n\n\\end{align}',
+    '- first\n\n  \\begin{align}\n  a\n  =\n  b\n\n- second\n\n  \\end{align}',
+    '- outer\n\n  \\begin{align}\n  a\n  =\n  b\n\n  - inner\n\n    \\end{align}'
+  ])('does not pair markers across list item ownership', (source) => {
+    expect(mathNodes(source)).toEqual([])
+    expect(textValue(parse(source))).toContain('\\end{align}')
+  })
+
+  it.each([
+    ['footnote', '[^note]: The closing token is \\end{align}'],
+    ['link definition', '[note]: https://example.com "\\end{align}"'],
+    ['raw HTML', '<div>\n\\end{align}\n</div>']
+  ])('does not close a body setext environment in %s', (_label, tail) => {
+    const source = `See note[^note].\n\n\\begin{align}\na\n=\nb\n\n## Explanation\n\n[Reference](https://example.com)\n\n${tail}`
+    const tree = parse(source, true)
+    const math: Nodes[] = []
+    const links: Nodes[] = []
+    visit(tree, (node) => {
+      if (node.type === 'math' || node.type === 'inlineMath') math.push(node)
+      if (node.type === 'link') links.push(node)
+    })
+    expect(math).toEqual([])
+    expect(tree.children.some((node) => node.type === 'heading' && textValue(node) === 'Explanation')).toBe(true)
+    expect(links).toHaveLength(1)
+    expect(tree.children.some((node) => ['footnoteDefinition', 'definition', 'html'].includes(node.type))).toBe(true)
+  })
+
+  it('repairs a clean environment wholly inside a footnote', () => {
+    const source = 'See note[^n].\n\n[^n]: \\begin{align}\n    a\n    =\n    b\n    \\end{align}'
+    const tree = parse(source, true)
+    const math: Nodes[] = []
+    visit(tree, 'math', (node) => {
+      math.push(node)
+    })
+    expect(math).toHaveLength(1)
+    expect(tree.children.at(-1)?.type).toBe('footnoteDefinition')
+  })
+
+  it.each([
+    'Command | Meaning\n--- | ---\nclose | \\end{align}',
+    '| Command | Meaning |\n| --- | --- |\n| close | \\end{align} |',
+    '- item\n\n  Command | Meaning\n  --- | ---\n  close | \\end{align}'
+  ])('does not close a body setext environment inside a GFM table', (table) => {
+    const source = `\\begin{align}\na\n=\nb\n\n## Explanation\n\n[Reference](https://example.com)\n\n${table}`
+    const tree = parse(source, true)
+    const math: Nodes[] = []
+    const tables: Nodes[] = []
+    const links: Nodes[] = []
+    visit(tree, (node) => {
+      if (node.type === 'math' || node.type === 'inlineMath') math.push(node)
+      if (node.type === 'table') tables.push(node)
+      if (node.type === 'link') links.push(node)
+    })
+    expect(math).toEqual([])
+    expect(tables).toHaveLength(1)
+    expect(links).toHaveLength(1)
+    expect(tree.children.some((node) => node.type === 'heading' && textValue(node) === 'Explanation')).toBe(true)
+  })
+
+  it.each([
+    ['description', 'Term\n: The closing token is \\end{align}'],
+    ['term', 'The closing token is \\end{align}\n: description'],
+    ['streaming description', 'Term\n: The closing token is \\end{align}']
+  ])('preserves unrelated definition %s through the production Markdown pipeline', (_label, tail) => {
+    const source = `\\begin{align}\na\n=\nb\n\n## Explanation\n\n[Reference](https://example.com)\n\n${tail}`
+    const { container, getByRole } = render(
+      createElement(_label.startsWith('streaming') ? StreamingMarkdown : Markdown, {
+        id: `definition-${_label}`,
+        plugins: { ...defaultMarkdownPlugins, math: withMath({ singleDollar: true }) },
+        remarkPlugins: [remarkLatexMath],
+        children: source
+      })
+    )
+    expect(getByRole('heading', { name: 'Explanation' })).toBeTruthy()
+    expect(container.querySelector('[data-streamdown="link"]')?.textContent).toBe('Reference')
+    expect(container.querySelector('dl')).toBeTruthy()
+    expect(container.querySelector('.katex-error')).toBeNull()
+  })
+
+  it.each([Markdown, StreamingMarkdown])(
+    'preserves later prose that merely describes an environment closer',
+    (Renderer) => {
+      const source =
+        '\\begin{align}\na\n=\nb\n\n## Explanation\n\n[Reference](https://example.com)\n\nTo close this environment, write \\end{align}'
+      const { container, getByRole } = render(
+        createElement(Renderer, {
+          id: 'prose-closer',
+          plugins: { ...defaultMarkdownPlugins, math: withMath({ singleDollar: true }) },
+          remarkPlugins: [remarkLatexMath],
+          children: source
+        })
+      )
+      expect(getByRole('heading', { name: 'Explanation' })).toBeTruthy()
+      expect(container.querySelector('[data-streamdown="link"]')?.textContent).toBe('Reference')
+      expect(container.textContent).toContain('To close this environment, write')
+      expect(container.querySelector('.katex-error')).toBeNull()
+    }
+  )
+
+  it('preserves recovery of a blank-line formula with an inline tail closer', () => {
+    const source = '\\begin{align}\na\n=\nb\n\nc=d\\end{align}'
+    expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
+  })
+
+  it.each([
+    ['heading', '## Close using \\end{align}', 'heading'],
+    ['link', '[Reference](https://example.com) then \\end{align}', 'link'],
+    ['image', '![diagram](https://example.com/diagram.png) then \\end{align}', 'image']
+  ])('preserves a structured %s sibling that contains the closer', (_label, tail, kind) => {
+    const source = `\\begin{align}\na\n=\nb\n\n${tail}`
+    const tree = parse(source)
+    const math: Nodes[] = []
+    const kept: Nodes[] = []
+    visit(tree, (node) => {
+      if (node.type === 'math' || node.type === 'inlineMath') math.push(node)
+      if (node.type === kind) kept.push(node)
+    })
+    expect(math).toEqual([])
+    expect(kept.length).toBeGreaterThan(0)
+  })
+
+  it('ignores a closer inside a TeX percent comment', () => {
+    const source = '\\begin{align}\na\n=\nb\n% \\end{align}\n\nc=d\n\\end{align}'
+    expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
+  })
+
+  it('does not treat an escaped percent sign as a comment', () => {
+    const source = '\\begin{align}\na\n=\nb\n\\% \\end{align}'
+    expect(parse(source).children).toMatchObject([{ type: 'math', value: source }])
   })
 
   it('balances nested environments with the same name', () => {

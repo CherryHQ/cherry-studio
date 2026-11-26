@@ -8,7 +8,7 @@ import type { Topic } from '@renderer/types/topic'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
 import type { AddNewTopicPayload } from '../types'
-import { Topics } from './components/Topics'
+import { Topics } from './components/topics'
 
 interface Props {
   activeTopic?: Topic
@@ -21,6 +21,7 @@ interface Props {
   clearActiveTopic: () => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   onManageAssistants?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   panePosition?: TopicTabPosition
@@ -40,6 +41,7 @@ const HomeTabs: FC<Props> = ({
   clearActiveTopic,
   onNewTopic,
   onOpenHistoryRecords,
+  onLocalPermanentDeletePendingChange,
   onManageAssistants,
   onSetPanePosition,
   panePosition,
@@ -65,6 +67,7 @@ const HomeTabs: FC<Props> = ({
         setActiveTopic={setActiveTopic}
         onNewTopic={onNewTopic}
         onOpenHistoryRecords={onOpenHistoryRecords}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
         onManageAssistants={onManageAssistants}
         onSetPanePosition={onSetPanePosition}
         panePosition={panePosition}

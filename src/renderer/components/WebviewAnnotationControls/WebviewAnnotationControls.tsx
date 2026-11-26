@@ -284,10 +284,7 @@ function AnnotationCommentEditor({
 }: AnnotationCommentEditorProps) {
   // Captured once: the parent remounts this component per editor request.
   const [initialContent] = useState(() => createComposerDraftContent({ text: initialComment, tokens: [] }))
-  const extensions = useMemo(
-    () => createComposerEditorPreset({ placeholder: ({ editor }) => (editor.isEmpty ? placeholder : '') }),
-    [placeholder]
-  )
+  const extensions = useMemo(() => createComposerEditorPreset({ placeholder }), [placeholder])
   const editor = useRichTextEditorKernel({
     extensions,
     content: initialContent,

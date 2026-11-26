@@ -110,11 +110,14 @@ export const allHandlers: ApiImplementation = {
 For example, active conversation removal uses `trash.topic.archive` or
 `trash.topic.delete_permanently` IPC. `TrashService` holds dispatch admission and
 rejects unsettled generation before calling the DB-only `TopicService` mutation.
-Archive retains the conversation for restore; confirmed permanent deletion removes
-it and its messages atomically. The existing DataApi permanent-delete endpoint
-accepts only archived conversations, so stale Recycle Bin views cannot delete
-already-restored conversations. UI archive and permanent-delete actions use
-separate labels, busy hints, and confirmation policies.
+Archive retains the conversation for restore. Direct permanent deletion removes
+the topic and its messages in one write transaction, after reading pin membership
+and before any delete. A pinned topic rejects the whole batch, so messages, pins,
+and targets remain. An explicit assistant cascade still deletes active and archived
+pinned child topics. Recycle Bin purge still accepts only archived topics and does
+not apply that pin rejection, so a stale Recycle Bin view cannot delete an
+already-restored topic. UI archive and permanent-delete actions use separate
+labels, busy hints, and confirmation policies.
 
 ### Cross-Service Table Access
 
@@ -300,6 +303,12 @@ Some `rowToEntity` functions do too much to benefit from spread. Keep them hand-
 For function signature details and design-decision history (e.g. why shallow-not-recursive, why not `dnull`), see [services/utils/README.md](../../../../src/main/data/services/utils/README.md).
 
 **Cursor (keyset) pagination.** List endpoints that page by a `(sortKey, id)` tuple use the shared codec + ordering helper in `services/utils/keysetCursor.ts` — `decodeListCursor` / `encodeCursor` for the `<key>:<id>` wire format, and `keysetOrdering(keyCol, idCol, { major, tie })` which returns both the strict-tuple WHERE predicate (`.where(cursor)`) and its matching `orderBy`, derived from one direction spec. Do NOT hand-write cursor encode/decode, the keyset WHERE tuple, or the `ORDER BY` in a service. See [services/utils/README.md](../../../../src/main/data/services/utils/README.md) for the list-vs-search decode policy split and boundaries, and the [Pagination Guide](./data-pagination-guide.md) for the end-to-end pagination model (offset + cursor).
+
+Conversation Name sorting uses `main/utils/listOrdering.ts` for metadata selection:
+it applies the shared locale comparator to matching name/id metadata before
+hydrating a bounded page. Its cursor still carries the name/id boundary; SQL
+binary comparison cannot reproduce linguistic collation. See
+[Conversation list sorting](../chat/README.md#conversation-list-sorting).
 
 ### Service with Transaction
 

@@ -78,6 +78,15 @@ function isSameOrWithin(targetPath: string, rootPath: string, platform: NodeJS.P
   return relative !== '' && !escapesRoot(relative, pathApi)
 }
 
+/**
+ * The inverse of {@link isSameOrWithin}: the target is the protected root itself or an ancestor of
+ * it. A workspace may be selected anywhere — including `~/Library` — so trashing `Application
+ * Support` from there would otherwise take the protected data below it out from under the app.
+ */
+function containsProtectedRoot(targetPath: string, rootPath: string, platform: NodeJS.Platform): boolean {
+  return isSameOrWithin(rootPath, targetPath, platform)
+}
+
 function isDirectChild(targetPath: string, rootPath: string, depth: number, platform: NodeJS.Platform): boolean {
   const pathApi = platform === 'win32' ? path.win32 : path.posix
   const relative = pathApi.relative(
@@ -120,17 +129,39 @@ export function getProtectedTrashTargetReason(
     ? ['.ssh', '.gnupg', '.aws', '.azure', '.kube', '.docker'].map((directory) => pathApi.join(home, directory))
     : []
   if (
-    [...sensitiveUserDirectories, ...(context.protectedDirectories ?? [])].some((directory) =>
-      isSameOrWithin(target, directory, platform)
+    [...sensitiveUserDirectories, ...(context.protectedDirectories ?? [])].some(
+      (directory) => isSameOrWithin(target, directory, platform) || containsProtectedRoot(target, directory, platform)
     )
   ) {
     return 'a credential, configuration, or application-data directory'
   }
 
+  // A blanket `~/Library` also covers user-chosen workspaces stored below
+  // `Application Support`, so only the sensitive Library children are containers.
   const applicationDataDirectories = home
     ? [
-        ...(platform === 'win32' ? ['AppData'] : ['.config', '.local/share']),
-        ...(platform === 'darwin' ? ['Library'] : [])
+        ...(platform === 'win32'
+          ? ['AppData']
+          : [
+              '.config',
+              '.local/share',
+              ...(platform === 'darwin'
+                ? [
+                    'Library/Accounts',
+                    'Library/Application Support/CherryStudio',
+                    'Library/CloudStorage',
+                    'Library/Cookies',
+                    'Library/Keychains',
+                    'Library/LaunchAgents',
+                    'Library/LaunchDaemons',
+                    'Library/Mail',
+                    'Library/Messages',
+                    'Library/Mobile Documents',
+                    'Library/Preferences',
+                    'Library/Safari'
+                  ]
+                : [])
+            ])
       ].map((directory) => pathApi.join(home, directory))
     : []
   if (context.applicationDataDirectory) applicationDataDirectories.push(context.applicationDataDirectory)
@@ -139,7 +170,9 @@ export function getProtectedTrashTargetReason(
     context.workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM && isStrictWorkspaceChild(targetPath, workspacePath, platform)
   if (
     !isManagedWorkspaceContent &&
-    applicationDataDirectories.some((directory) => isSameOrWithin(target, directory, platform))
+    applicationDataDirectories.some(
+      (directory) => isSameOrWithin(target, directory, platform) || containsProtectedRoot(target, directory, platform)
+    )
   ) {
     return 'a credential, configuration, or application-data directory'
   }

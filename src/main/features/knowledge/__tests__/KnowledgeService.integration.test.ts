@@ -86,6 +86,7 @@ const SOURCE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SOURCE_GROUP_ID = '22222222-2222-4222-8222-222222222222'
 const SOURCE_ROOT_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const SOURCE_CHILD_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
+const SOURCE_URL_ITEM_ID = '0198f3f2-7d1c-7abc-8def-123456789abc'
 
 describe('KnowledgeService integration', () => {
   const dbh = setupTestDatabase()
@@ -236,6 +237,47 @@ describe('KnowledgeService integration', () => {
     expect(ungroupedRestoredItems.some((item) => item.baseId === restoredBase.id)).toBe(true)
   })
 
+  it('restores a base carrying a previously saved URL record that predates strict URL validation', async () => {
+    // The persisted URL item schema (UrlItemDataSchema) allows any non-empty string,
+    // so a base saved before add-time URL strictness can hold a value like this.
+    // Restore must carry it verbatim - one malformed record must not abort
+    // restoring the whole base, healthy sources included.
+    await dbh.db.insert(knowledgeItemTable).values({
+      id: SOURCE_URL_ITEM_ID,
+      baseId: SOURCE_BASE_ID,
+      groupId: null,
+      type: 'url',
+      data: { source: 'legacy-url', url: 'not a valid URL' },
+      status: 'processing',
+      error: null
+    })
+
+    const service = new KnowledgeService()
+
+    const { base: restoredBase, skippedMissingSourceCount } = await service.restoreBase({
+      sourceBaseId: SOURCE_BASE_ID,
+      name: 'Legacy KB_bak',
+      embeddingModelId,
+      dimensions: 1536
+    })
+
+    expect(skippedMissingSourceCount).toBe(0)
+    const restoredItems = await dbh.db
+      .select()
+      .from(knowledgeItemTable)
+      .where(eq(knowledgeItemTable.baseId, restoredBase.id))
+    // The healthy note restores alongside the pre-existing malformed URL record.
+    expect(restoredItems.map((item) => item.type).sort()).toEqual(['note', 'url'])
+    const restoredUrl = restoredItems.find((item) => item.type === 'url')
+    expect(restoredUrl).toMatchObject({
+      baseId: restoredBase.id,
+      groupId: null,
+      data: { source: 'legacy-url', url: 'not a valid URL' },
+      status: 'processing',
+      error: null
+    })
+  })
+
   it.each([
     { scenario: 'disabling embeddings', targetModelId: null, dimensions: null },
     {
@@ -354,6 +396,32 @@ describe('KnowledgeService integration', () => {
 
     const baseRows = () =>
       dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.baseId, COMPLETED_BASE_ID))
+
+    it('adds ten URLs as distinct processing rows in one batch', async () => {
+      await seedCompletedBaseWithNote()
+      dbh.db.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, EXISTING_NOTE_ID)).run()
+      const urls = Array.from({ length: 10 }, (_, i) => `https://example.com/source-${i}`)
+      const service = new KnowledgeService()
+
+      const result = await service.addItems(
+        COMPLETED_BASE_ID,
+        urls.map((url) => ({ type: 'url' as const, data: { source: url, url } })),
+        'detect'
+      )
+
+      expect(result).toEqual({ status: 'added' })
+      const rows = await baseRows()
+      expect(rows).toHaveLength(10)
+      expect(new Set(rows.map((row) => row.id)).size).toBe(10)
+      expect(rows.map((row) => (row.data as { url: string }).url).sort()).toEqual([...urls].sort())
+      expect(rows.map((row) => row.data).sort((a, b) => a.source.localeCompare(b.source))).toEqual(
+        urls.map((url) => ({ source: url, url })).sort((a, b) => a.source.localeCompare(b.source))
+      )
+      for (const row of rows) {
+        expect(row.type).toBe('url')
+        expect(row.status).toBe('processing')
+      }
+    })
 
     it('detect reports a same-name conflict and adds nothing', async () => {
       await seedCompletedBaseWithNote()

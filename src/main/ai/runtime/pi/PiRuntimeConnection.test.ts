@@ -1,11 +1,16 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import type { AssistantMessage } from '@earendil-works/pi-ai'
-import { createAssistantMessageEventStream, Type } from '@earendil-works/pi-ai'
+import { createAssistantMessageEventStream } from '@earendil-works/pi-ai'
+import { obj } from '@earendil-works/pi-schema'
+import { childTimeline } from '@test-helpers/childTimeline'
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { eq } from 'drizzle-orm'
 import { v7 as uuid } from 'uuid'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
@@ -14,14 +19,21 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { savedChildView } from '@main/ai/agentSession/childArchive'
+import { childTimelines } from '@main/ai/agentSession/childTimelines'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
+import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { ToolGuardInteractionState } from '@main/ai/toolApproval/toolGuards'
+import type { AgentChildUpdate } from '@shared/ai/agentChildProjection'
 import { ModelSchema } from '@shared/data/types/model'
 import { ProviderSchema } from '@shared/data/types/provider'
+import type { RetryPartData } from '@shared/data/types/uiParts'
+import { getSentryLogContext } from '@shared/utils/sentry'
 
 import {
   assistantReply,
@@ -33,12 +45,16 @@ import {
 } from '../../../../../packages/agent-runtime-pi/tests/sessionSupport'
 import { gate, subagentCall, toolCallPart } from '../../../../../packages/agent-runtime-pi/tests/subagentSupport'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
+import * as piBehaviorHost from './piBehaviorHost'
 import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
-import { buildPiLoginPathPrefix, PiRuntimeConnection } from './PiRuntimeConnection'
+import { PiRuntimeConnection } from './PiRuntimeConnection'
+import { buildPiLoginPathPrefix } from './piShell'
 
 const modelId = 'test::test-model'
+/** An approval crosses the runtime boundary and starts a native tool, so the one-second default is a race on CI. */
+const APPROVAL_WAIT = { timeout: 10_000 } as const
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -52,7 +68,10 @@ vi.mock('@application', async () => {
   const overrides = {
     DbService: defaultServiceInstances.DbService,
     ApiGatewayService: {
-      ensureInternalGateway: async () => ({ baseUrl: 'http://gateway.invalid', apiKey: 'fixture' }),
+      captureAgentSessionUsage: () => ({ headers: {}, release: () => {} }),
+      ensureInternalGateway: async () => {
+        throw new Error('Pi must start without an internal HTTP listener')
+      },
       getAgentSessionUsageHeaders: () => ({})
     },
     McpCatalogService: { listTools: () => [] },
@@ -65,7 +84,7 @@ vi.mock('./piConnectionSignature', () => ({
   PiInvalidConnectionSnapshotError: class extends Error {}
 }))
 vi.mock('./gatewayModelBinding', () => ({ createPiGatewayModelBinding: mocks.binding }))
-vi.mock('@main/ai/runtime/agentPrompt', () => ({ buildAgentRuntimePrompt: mocks.prompt }))
+vi.mock('@main/ai/agents/prompt/buildAgentPrompt', () => ({ buildAgentPrompt: mocks.prompt }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({
   warmAgentMcpToolCatalogs: async () => {},
   buildAgentMcpServers: () => ({})
@@ -78,7 +97,7 @@ vi.mock('./piMcpExtension', async (original) => ({
         name: buildPiMcpToolName('cherry-tools', name),
         label: name,
         description: name,
-        parameters: Type.Object({}),
+        parameters: obj({}),
         execute: async () => {
           mocks.delegated()
           return { content: [{ type: 'text', text: 'delegated' }] }
@@ -87,6 +106,9 @@ vi.mock('./piMcpExtension', async (original) => ({
   }
 }))
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({}), getPathFromEnvironment: () => undefined }))
+
+// Load the grammars before tests redirect application paths.
+beforeAll(() => checkCommand({ command: 'true', dialect: 'bash', permissionMode: 'default' }))
 
 // Real Runtime, native Pi and SQLite; only provider/environment configuration is substituted.
 describe('desktop Pi root connection', () => {
@@ -216,17 +238,167 @@ describe('desktop Pi root connection', () => {
     })()
     return { connection, events, consuming, nativeInputs }
   }
-  async function done(events: AgentRuntimeEvent[]) {
-    await expect.poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error')).toBe(true)
+  async function done(events: AgentRuntimeEvent[], timeout?: number) {
+    await expect
+      .poll(() => events.some((event) => event.type === 'turn-complete' || event.type === 'error'), { timeout })
+      .toBe(true)
+  }
+  function projected(events: AgentRuntimeEvent[]) {
+    const messages = new Map<
+      string,
+      Extract<AgentRuntimeEvent, { type: 'message-projection' }>['projection']['messages'][number]
+    >()
+    for (const event of events) {
+      if (event.type !== 'message-projection') continue
+      for (const old of [...Object.keys(event.projection.replaces), ...event.projection.removed]) messages.delete(old)
+      for (const message of event.projection.messages)
+        if (event.projection.live.includes(message.id)) messages.set(message.id, message)
+    }
+    return [...messages.values()]
   }
   const text = (events: AgentRuntimeEvent[]) =>
-    events
-      .flatMap((event) => (event.type === 'chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []))
+    projected(events)
+      .filter((message) => message.role === 'assistant')
+      .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
   function nativeFiles() {
     const directory = application.getPath('feature.agents.pi.sessions')
     return existsSync(directory) ? readdirSync(directory) : []
   }
+
+  it.each([false, true])('limits PowerShell exposure to Windows and honors disabledTools (%s)', async (disabled) => {
+    snapshot.agent.disabledTools = disabled ? ['PowerShell'] : []
+    const { connection, events } = await connect()
+    await connection.send({ message: message('List available tools') })
+    await done(events)
+    const names = script.calls[0].tools.map((tool) => tool.name)
+    if (process.platform === 'win32' && !disabled) expect(names).toContain('powershell')
+    else expect(names).not.toContain('powershell')
+  })
+
+  it.runIf(process.platform === 'win32')(
+    'runs PowerShell file commands with Unicode and space-containing paths',
+    async () => {
+      setScript([
+        assistantReply(
+          [
+            {
+              type: 'toolCall',
+              id: 'powershell-file',
+              name: 'powershell',
+              arguments: {
+                command:
+                  "Set-Content -LiteralPath './报告 with spaces.txt' -Value 'PowerShell 正常' -Encoding utf8; Get-Content -LiteralPath './报告 with spaces.txt'"
+              }
+            }
+          ],
+          'toolUse'
+        ),
+        assistantReply('PowerShell finished')
+      ])
+      const { connection, events } = await connect()
+      await connection.send({ message: message('Write and read the PowerShell fixture') })
+      await done(events, 10_000)
+      expect(
+        readFileSync(join(directory, '报告 with spaces.txt'), 'utf8')
+          .replace(/^\uFEFF/, '')
+          .trim()
+      ).toBe('PowerShell 正常')
+      const output = projected(events)
+        .flatMap((entry) => entry.parts)
+        .find((part) => part.type === 'dynamic-tool' && part.toolCallId === 'powershell-file')
+      expect(output).toMatchObject({ state: 'output-available' })
+      expect(JSON.stringify(output)).toContain('PowerShell 正常')
+    }
+  )
+
+  // Catches a child's incidental bypass mode overriding the root's installation policy.
+  it.each([
+    { mode: 'default', approved: true },
+    { mode: 'default', approved: false },
+    { mode: 'auto', approved: true },
+    { mode: 'auto', approved: false },
+    { mode: 'plan', approved: false },
+    { mode: 'bypassPermissions', approved: true }
+  ] as const)('uses root $mode for child installs (approved=$approved)', async ({ mode, approved }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: mode }
+    const marker = join(directory, 'child-install.txt')
+    const prefixMarker = join(directory, 'before-install.txt')
+    // A shell function records execution without installing a real package.
+    const command = `echo started > "${prefixMarker}"\nnpm() { echo installed > "${marker}"; }\nnpm install -g left-pad`
+    let root = ''
+    let childResult = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        const result = call.messages.find(
+          (entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-install'
+        )
+        if (!result) return assistantReply([toolCallPart('child-install', 'bash', { command })], 'toolUse')
+        childResult = JSON.stringify(result)
+        return assistantReply('child done')
+      }
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'install', prompt: 'install tool', fork: false })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    if (mode === 'default' || mode === 'auto') {
+      await expect
+        .poll(() => events.filter((event) => event.type === 'tool-approval-request').length, { timeout: 15_000 })
+        .toBe(1)
+      expect(existsSync(marker)).toBe(false)
+      expect(existsSync(prefixMarker)).toBe(false)
+      const event = events.find((event) => event.type === 'tool-approval-request')!
+      if (event.type !== 'tool-approval-request') throw new Error('Missing installation approval')
+      expect(event.request.input).toEqual({ command })
+      toolApprovalRegistry.dispatch(event.request.approvalId, { approved })
+    }
+    await done(events, 15_000)
+    expect(existsSync(marker)).toBe(approved)
+    expect(existsSync(prefixMarker)).toBe(approved)
+    if (mode === 'plan') expect(childResult).toContain('Plan mode is read-only')
+    else if (!approved) expect(childResult).toContain('rejected')
+    if (mode === 'plan' || mode === 'bypassPermissions')
+      expect(events.filter((event) => event.type === 'tool-approval-request')).toEqual([])
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
+
+  it('requires approval for subagent writes when the root uses default permissions', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        if (!call.messages.some((entry) => entry.role === 'toolResult' && entry.toolCallId === 'child-write'))
+          return assistantReply(
+            [toolCallPart('child-write', 'write', { path: 'child-result.txt', content: 'child completed' })],
+            'toolUse'
+          )
+        return assistantReply('child done')
+      }
+      if (!call.messages.some((entry) => entry.role === 'toolResult'))
+        return assistantReply(
+          [toolCallPart('spawn', 'subagent', { description: 'write', prompt: 'write result', fork: false })],
+          'toolUse'
+        )
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('delegate') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+    expect(approvals()[0].request).toMatchObject({ toolCallId: 'child-write', toolName: 'write' })
+    expect(existsSync(join(directory, 'child-result.txt'))).toBe(false)
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: true })
+    await done(events)
+    expect(readFileSync(join(directory, 'child-result.txt'), 'utf8')).toBe('child completed')
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+  })
 
   it.each(['auto', 'bypassPermissions'] as const)(
     'preserves live delegation approval in %s mode after connecting through the Runtime',
@@ -258,7 +430,9 @@ describe('desktop Pi root connection', () => {
       snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'default' }
       expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
       await connection.send({ message: message('ask') })
-      await expect.poll(() => events.find((event) => event.type === 'tool-approval-request')).toBeDefined()
+      await expect
+        .poll(() => events.find((event) => event.type === 'tool-approval-request'), APPROVAL_WAIT)
+        .toBeDefined()
       const request = events.find((event) => event.type === 'tool-approval-request')!
       if (request.type !== 'tool-approval-request') throw new Error('No approval')
       expect(request.request.toolCallId).toBe('ask')
@@ -302,14 +476,14 @@ describe('desktop Pi root connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('write and ask') })
     const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
-    await expect.poll(() => approvals().length).toBe(1)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
     expect(existsSync(join(directory, 'original.txt'))).toBe(false)
     expect(approvals()[0].request.toolCallId).toBe('write')
     toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
       approved: true,
       updatedInput: { path: 'approved.txt', content: 'approved' }
     })
-    await expect.poll(() => approvals().length).toBe(2)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(2)
     expect(approvals()[1].request).toMatchObject({ toolCallId: 'ask', toolName: 'AskUserQuestion' })
     toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, {
       approved: true,
@@ -321,6 +495,104 @@ describe('desktop Pi root connection', () => {
     expect(existsSync(join(directory, 'original.txt'))).toBe(false)
     expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('Redis')
     expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  // Catches ordinary auto commands being gated, or a previous approval authorizing later destructive calls.
+  it('runs ordinary shell automatically and asks for each destructive call in auto mode', async () => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'auto' }
+    const first = join(directory, 'root-proof-1.txt')
+    const second = join(directory, 'root-proof-2.txt')
+    const third = join(directory, 'root-proof-3.txt')
+    setScript([
+      assistantReply([toolCallPart('root-1', 'bash', { command: 'printf first > root-proof-1.txt' })], 'toolUse'),
+      assistantReply(
+        [toolCallPart('root-2', 'bash', { command: 'rm -f root-proof-1.txt; printf second > root-proof-2.txt' })],
+        'toolUse'
+      ),
+      assistantReply(
+        [toolCallPart('root-3', 'bash', { command: 'rm -f root-proof-2.txt; printf third > root-proof-3.txt' })],
+        'toolUse'
+      ),
+      assistantReply('finished')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('hi') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+    expect(approvals()[0].request).toMatchObject({
+      toolCallId: 'root-2',
+      toolName: 'bash',
+      input: { command: 'rm -f root-proof-1.txt; printf second > root-proof-2.txt' }
+    })
+    expect(readFileSync(first, 'utf8')).toBe('first')
+    expect(existsSync(second)).toBe(false)
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: true })
+
+    await expect.poll(() => existsSync(second), APPROVAL_WAIT).toBe(true)
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(2)
+    expect(approvals().map((event) => event.request.toolCallId)).toEqual(['root-2', 'root-3'])
+    expect(existsSync(third)).toBe(false)
+    toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
+
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(existsSync(first)).toBe(false)
+    expect(existsSync(second)).toBe(false)
+    expect(readFileSync(third, 'utf8')).toBe('third')
+    expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  // Catches a mid-turn mode switch that only reaches the next turn: the running turn's next tool call
+  // would still be approved (or skipped) under the mode the user just left.
+  it.each([
+    { from: 'bypassPermissions', to: 'default', asksForWrite: true },
+    { from: 'default', to: 'bypassPermissions', asksForWrite: false }
+  ] as const)('applies a $from → $to switch to the running turn', async ({ from, to, asksForWrite }) => {
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: from }
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('ask', 'AskUserQuestion', {
+            questions: [
+              {
+                question: 'Continue?',
+                header: 'Continue',
+                options: [
+                  { label: 'Yes', description: 'Go on' },
+                  { label: 'No', description: 'Stop' }
+                ]
+              }
+            ]
+          })
+        ],
+        'toolUse'
+      ),
+      assistantReply([toolCallPart('write', 'write', { path: 'after-switch.txt', content: 'written' })], 'toolUse'),
+      assistantReply('finished')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('ask then write') })
+    const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+    await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+
+    snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: to }
+    expect(await connection.reconcile({ modelId: input.modelId })).toBe('patched')
+    toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, {
+      approved: true,
+      updatedInput: { answers: { 'Continue?': 'Yes' } }
+    })
+
+    if (asksForWrite) {
+      await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(2)
+      expect(approvals()[1].request).toMatchObject({ toolCallId: 'write' })
+      expect(existsSync(join(directory, 'after-switch.txt'))).toBe(false)
+      toolApprovalRegistry.dispatch(approvals()[1].request.approvalId, { approved: true })
+    }
+    await done(events)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(approvals()).toHaveLength(asksForWrite ? 2 : 1)
+    expect(readFileSync(join(directory, 'after-switch.txt'), 'utf8')).toBe('written')
   })
 
   // Catches shutdown waiting indefinitely for an unanswered desktop question.
@@ -346,12 +618,97 @@ describe('desktop Pi root connection', () => {
     ])
     const { connection, events, consuming } = await connect()
     await connection.send({ message: message('ask') })
-    await expect.poll(() => events.some((event) => event.type === 'tool-approval-request')).toBe(true)
+    await expect.poll(() => events.some((event) => event.type === 'tool-approval-request'), APPROVAL_WAIT).toBe(true)
     await connection.close()
     await consuming
     expect(toolApprovalRegistry.size()).toBe(0)
     expect(script.calls).toHaveLength(1)
   })
+
+  // Catches delegated tools bypassing root approval, including tools called from code mode.
+  it.each(
+    ['bash', 'codemode'].flatMap((tool) =>
+      [false, true].flatMap((background) =>
+        (['default', 'auto'] as const).flatMap((mode) =>
+          ['approved', 'denied', 'unavailable'].map((answer) => ({ tool, background, mode, answer }))
+        )
+      )
+    )
+  )(
+    'applies root $mode to child $tool effects with background=$background and answer=$answer',
+    async ({ tool, background, mode, answer }) => {
+      snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: mode }
+      if (tool === 'codemode') {
+        const createHost = piBehaviorHost.createPiBehaviorHost
+        vi.spyOn(piBehaviorHost, 'createPiBehaviorHost').mockImplementation(async (options) => {
+          const host = await createHost(options)
+          return {
+            ...host,
+            configureChild: async (child) => ({
+              ...(await host.configureChild(child)),
+              // Pi registers codemode inactive; exercise its gate with the native tool enabled.
+              builtinTools: ['bash', 'read', 'write', 'edit', 'codemode']
+            })
+          }
+        })
+      }
+      if (answer === 'unavailable')
+        mocks.interaction.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+      let root = ''
+      let childCalled = false
+      const proof = join(directory, 'child-proof.txt')
+      const command =
+        mode === 'auto'
+          ? 'rm -f child-proof.txt; printf executed > child-proof.txt'
+          : 'printf executed > child-proof.txt'
+      const args: Record<string, string> =
+        tool === 'bash' ? { command } : { code: `await tools.bash(${JSON.stringify({ command })})` }
+      script = respondingModel((call) => {
+        root ||= call.sessionId!
+        if (call.sessionId !== root) {
+          if (call.messages.at(-1)?.role === 'user') {
+            childCalled = true
+            return assistantReply([toolCallPart('child-exec', tool, args)], 'toolUse')
+          }
+          return assistantReply('child finished')
+        }
+        if (call.messages.at(-1)?.role === 'user')
+          return assistantReply(
+            [subagentCall('spawn', { description: 'run command', prompt: 'execute the task', background })],
+            'toolUse'
+          )
+        return assistantReply('parent finished')
+      })
+      const { connection, events } = await connect()
+      await connection.send({ message: message('delegate code execution') })
+      if (answer !== 'unavailable') {
+        const approvals = () => events.filter((event) => event.type === 'tool-approval-request')
+        await expect.poll(() => approvals().length, APPROVAL_WAIT).toBe(1)
+        expect(approvals()[0].request).toMatchObject({
+          toolName: 'bash',
+          input: { command },
+          providerMetadata: { cherry: { parentToolCallId: 'spawn' } }
+        })
+        if (tool === 'bash') expect(approvals()[0].request.toolCallId).toBe('child-exec')
+        expect(existsSync(proof)).toBe(false)
+        toolApprovalRegistry.dispatch(approvals()[0].request.approvalId, { approved: answer === 'approved' })
+      }
+      await done(events, APPROVAL_WAIT.timeout)
+      await connection.drainChildWrites()
+      expect(childCalled).toBe(true)
+      expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(
+        answer === 'unavailable' ? 0 : 1
+      )
+      expect(events.filter((event) => event.type === 'error')).toEqual([])
+      if (answer === 'approved') expect(readFileSync(proof, 'utf8')).toBe('executed')
+      else {
+        expect(existsSync(proof)).toBe(false)
+        const results = script.calls.flatMap((call) => call.messages.filter((message) => message.role === 'toolResult'))
+        expect(JSON.stringify(results)).toContain(answer === 'denied' ? 'tool use was rejected' : 'unattended')
+      }
+      expect(toolApprovalRegistry.size()).toBe(0)
+    }
+  )
 
   // Catches a child stream being dropped or attributed to the root's text, and a continuation creating a new child.
   it('streams a foreground child and continues the same child in the desktop connection', async () => {
@@ -362,7 +719,10 @@ describe('desktop Pi root connection', () => {
       if (call.sessionId !== root) {
         child = call.sessionId!
         childRuns++
-        return assistantReply(childRuns === 1 ? 'child first answer' : 'child continued answer')
+        return {
+          ...assistantReply(childRuns === 1 ? 'child first answer' : 'child continued answer'),
+          responseId: `child-response-${childRuns}`
+        }
       }
       const last = JSON.stringify(call.messages.at(-1))
       if (last.includes('delegate now'))
@@ -381,34 +741,43 @@ describe('desktop Pi root connection', () => {
     childRuns = 0
     events.length = 0
     await connection.send({ message: message('delegate now') })
-    await done(events)
+    await done(events, 15_000)
     const firstChild = child
     expect(events.filter((event) => event.type === 'error')).toEqual([])
+    const access = childTimeline(input.sessionId, 'spawn')
+    expect(access).toBeDefined()
+    expect(access!.snapshot().canSubmit).toBe(true)
     const childText = () =>
-      events
-        .flatMap((event) =>
-          event.type === 'background-flow-chunk' && event.chunk.type === 'text-delta' ? [event.chunk.delta] : []
+      access!
+        .snapshot()
+        .messages.flatMap((message) =>
+          message.role === 'assistant' ? message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])) : []
         )
         .join('')
-    expect(childText()).toBe('child first answer')
+    await expect.poll(childText).toBe('child first answer')
     expect(text(events)).toBe('parent finished')
-    expect(events.filter((event) => event.type === 'background-task-event').at(-1)).toMatchObject({
-      data: { taskId: child, toolUseId: 'spawn', title: 'scan', status: 'completed', isBackgrounded: false }
-    })
-    expect(events).toContainEqual(
-      expect.objectContaining({
-        type: 'background-flow-chunk',
-        rootToolCallId: 'spawn',
-        chunk: expect.objectContaining({
-          type: 'text-start',
-          providerMetadata: { cherry: { parentToolCallId: 'spawn' } }
-        })
-      })
-    )
+    const before = access!.snapshot()
+    const subscriberA: unknown[] = []
+    const subscriberB: unknown[] = []
+    const detach = access!.subscribe((update) => subscriberA.push(update))
+    access!.subscribe((update) => subscriberB.push(update))
+    detach()
     events.length = 0
     await connection.send({ message: message('continue child') })
-    await done(events)
+    await done(events, 15_000)
     await expect.poll(() => childText()).toContain('child continued answer')
+    const childMessage = access!
+      .snapshot()
+      .messages.find((message) =>
+        message.parts.some((part) => part.type === 'text' && part.text === 'child continued answer')
+      )!
+    await expect
+      .poll(() => events.filter((event) => event.type === 'response-start' && event.responseId === 'child-response-2'))
+      .toContainEqual({
+        type: 'response-start',
+        responseId: 'child-response-2',
+        messageId: childMessage.id
+      })
     expect(child).toBe(firstChild)
     expect(nativeFiles()).toHaveLength(2)
     await expect
@@ -419,6 +788,229 @@ describe('desktop Pi root connection', () => {
       )
       .toBe(true)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(subscriberA).toEqual([])
+    expect(subscriberB.length).toBeGreaterThan(0)
+    expect(
+      access!
+        .snapshot()
+        .messages.slice(0, before.messages.length)
+        .map((value) => value.id),
+      JSON.stringify({ before: before.messages, after: access!.snapshot().messages }, null, 2)
+    ).toEqual(before.messages.map((value) => value.id))
+    const archived = access!.snapshot()
+    await connection.close()
+    const requests = script.calls.length
+    const reopened = (await connect()).connection
+    const recovered = childTimeline(input.sessionId, 'spawn')
+    expect(recovered).toBeDefined()
+    await expect
+      .poll(() => recovered!.snapshot().messages.map((value) => value.id))
+      .toEqual(archived.messages.map((value) => value.id))
+    expect(script.calls.length).toBe(requests)
+    expect(contexts.childArchive(input.sessionId, 'spawn')?.sessionId).toBe(archived.sessionId)
+    expect(() => preparePiBranch(archived.sessionId)).toThrow('native owner')
+    await expect(reopened.messageChild(archived.contextId, 'continue after restart')).rejects.toThrow(
+      'turn was stopped'
+    )
+    await reopened.send({ message: message('new parent turn') })
+    await expect.poll(() => script.calls.length).toBeGreaterThan(requests)
+    await reopened.messageChild(archived.contextId, 'continue after new turn')
+    await expect.poll(() => childRuns).toBe(3)
+    expect(child).toBe(firstChild)
+  })
+
+  // Catches a recovered root being rebuilt forever after one historical child reports a startup error.
+  it('keeps a reopened parent usable and its child archive readable when child configuration fails', async () => {
+    let root = ''
+    script = respondingModel((call) => {
+      if (call.sessionId !== root) return assistantReply('saved child answer')
+      if (JSON.stringify(call.messages.at(-1)).includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan files' })], 'toolUse')
+      return assistantReply('parent answer')
+    })
+    const first = await connect()
+    await first.connection.send({ message: message('initialize') })
+    await done(first.events)
+    root = script.calls[0].sessionId!
+    first.events.length = 0
+    await first.connection.send({ message: message('delegate now') })
+    await done(first.events)
+    const child = childTimeline(input.sessionId, 'spawn')
+    expect(child).toBeDefined()
+    await expect
+      .poll(() => child!.snapshot().messages.at(-1))
+      .toMatchObject({
+        metadata: { status: 'success' },
+        parts: [{ type: 'text', text: 'saved child answer' }]
+      })
+    const archive = child!.snapshot()
+    await first.connection.close()
+    const createHost = piBehaviorHost.createPiBehaviorHost
+    vi.spyOn(piBehaviorHost, 'createPiBehaviorHost').mockImplementation(async (options) => ({
+      ...(await createHost(options)),
+      configureChild: async () => {
+        throw new Error('Historical child model is unavailable')
+      }
+    }))
+    const before = script.calls.length
+    const reopened = await connect()
+    expect(script.calls).toHaveLength(before)
+    expect(await reopened.connection.reconcile(input)).toBe('current')
+    expect(childTimeline(input.sessionId, 'spawn')?.snapshot().messages).toEqual(archive.messages)
+    const saved = savedChildView(contexts.context(archive.contextId))
+    expect(saved.available).toBe(false)
+    expect(saved.messages).toEqual(archive.messages)
+    await expect(reopened.connection.messageChild(archive.contextId, 'continue child')).rejects.toThrow('unavailable')
+    await reopened.connection.send({ message: message('continue parent') })
+    await done(reopened.events)
+    expect(reopened.events.filter((event) => event.type === 'error')).toEqual([])
+    expect(text(reopened.events)).toBe('parent answer')
+  })
+
+  // Catches a backup finishing on the input receipt while native continuation/archive writes are still pending.
+  it.each(['complete', 'close'] as const)('drains an acknowledged child continuation through %s', async (outcome) => {
+    const answering = gate()
+    let root = ''
+    let childRuns = 0
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        childRuns++
+        return childRuns === 1 ? assistantReply('First answer') : answering.wait(assistantReply('Final answer'))
+      }
+      if (JSON.stringify(call.messages.at(-1)).includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan files' })], 'toolUse')
+      return assistantReply('Parent finished')
+    })
+    const { connection, events } = await connect()
+    try {
+      await connection.send({ message: message('delegate now') })
+      await done(events)
+      const access = childTimeline(input.sessionId, 'spawn')!
+      await connection.messageChild(access.snapshot().contextId, 'continue')
+      await answering.reached
+      let drained = false
+      const draining = connection.drainChildWrites().then(() => {
+        drained = true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(drained).toBe(false)
+      if (outcome === 'close') await connection.close()
+      else answering.open()
+      await draining
+      const context = contexts.context(access.snapshot().contextId)
+      if (outcome === 'complete') {
+        expect(savedChildView(context).messages.flatMap((message) => message.parts)).toContainEqual(
+          expect.objectContaining({ text: 'Final answer' })
+        )
+      }
+      const changes = dbh.sqlite.prepare('SELECT total_changes() AS count').get()
+      await new Promise((resolve) => setTimeout(resolve, 160))
+      expect(dbh.sqlite.prepare('SELECT total_changes() AS count').get()).toEqual(changes)
+    } finally {
+      answering.open()
+    }
+  })
+
+  // Catches a panel opened during child configuration missing its only chance to subscribe.
+  it('waits for child configuration and streams updates through the original attachment', async () => {
+    const configuring = gate()
+    const answering = gate()
+    const createHost = piBehaviorHost.createPiBehaviorHost
+    vi.spyOn(piBehaviorHost, 'createPiBehaviorHost').mockImplementation(async (options) => {
+      const host = await createHost(options)
+      return {
+        ...host,
+        configureChild: async (child) => {
+          await configuring.wait(undefined)
+          return host.configureChild(child)
+        }
+      }
+    })
+    let root = ''
+    const answer = 'Incremental child output. '.repeat(8)
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) return answering.wait(assistantReply(answer))
+      if (JSON.stringify(call.messages.at(-1)).includes('delegate now'))
+        return assistantReply([subagentCall('spawn', { description: 'stream', prompt: 'write text' })], 'toolUse')
+      return assistantReply('done')
+    }, 20)
+    const { connection, events } = await connect()
+    try {
+      await connection.send({ message: message('delegate now') })
+      await configuring.reached
+      expect(childTimelines.source(input.sessionId, 'spawn').snapshot()).toBeNull()
+      configuring.open()
+      await expect.poll(() => !!childTimeline(input.sessionId, 'spawn')).toBe(true)
+      const access = childTimeline(input.sessionId, 'spawn')
+      const updates: AgentChildUpdate[] = []
+      access!.subscribe((update) => updates.push(update))
+      answering.open()
+      await expect
+        .poll(
+          () =>
+            access!.snapshot().active &&
+            updates.some(
+              (update) => update.type === 'parts' && update.patches.some((patch) => patch.type === 'part-append')
+            )
+        )
+        .toBe(true)
+      const partial = access!.snapshot()
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
+      const frozen = structuredClone(partial)
+      await expect.poll(() => events.some((event) => event.type === 'turn-complete'), { timeout: 15_000 }).toBe(true)
+      await expect.poll(() => access!.snapshot().active).toBe(false)
+      expect(partial).toEqual(frozen)
+      expect(
+        access!
+          .snapshot()
+          .messages.flatMap((entry) => entry.parts)
+          .filter((part) => part.type === 'text')
+      ).toContainEqual(expect.objectContaining({ text: answer }))
+    } finally {
+      configuring.open()
+      answering.open()
+    }
+  })
+
+  // Catches a pending panel request hanging after child creation fails or its owner closes.
+  it.each(['failed', 'closed'] as const)('releases child attachment when initialization is %s', async (outcome) => {
+    const configuring = gate()
+    const createHost = piBehaviorHost.createPiBehaviorHost
+    vi.spyOn(piBehaviorHost, 'createPiBehaviorHost').mockImplementation(async (options) => {
+      const host = await createHost(options)
+      return {
+        ...host,
+        configureChild: async (child) => {
+          await configuring.wait(undefined)
+          if (outcome === 'failed') throw new Error('Child model is unavailable')
+          return host.configureChild(child)
+        }
+      }
+    })
+    let root = ''
+    script = respondingModel((call) => {
+      root ||= call.sessionId!
+      return JSON.stringify(call.messages.at(-1)).includes('delegate now')
+        ? assistantReply([subagentCall('spawn', { description: 'scan', prompt: 'scan files' })], 'toolUse')
+        : assistantReply('done')
+    })
+    const { connection, events } = await connect()
+    let closing: Promise<void> | undefined
+    try {
+      await connection.send({ message: message('delegate now') })
+      await configuring.reached
+      expect(childTimelines.source(input.sessionId, 'spawn').snapshot()).toBeNull()
+      if (outcome === 'closed') closing = connection.close()
+      else configuring.open()
+      if (!closing) await done(events)
+      expect(contexts.childArchive(input.sessionId, 'spawn')).toBeUndefined()
+      expect(script.calls.every((call) => call.sessionId === root)).toBe(true)
+    } finally {
+      configuring.open()
+      await closing
+    }
   })
 
   // Catches a background stop missing the child and a late stop cancelling its parent's later turn.
@@ -436,6 +1028,9 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: message('delegate now') })
     await held.reached
     await done(events)
+    expect(events.filter((event) => event.type === 'background-work-state').at(-1)).toMatchObject({
+      active: true
+    })
     const tasks = events.find((event) => event.type === 'background-tasks' && event.tasks.length > 0)
     if (tasks?.type !== 'background-tasks') throw new Error('No child task')
     expect(events.filter((event) => event.type === 'background-task-event').at(-1)).toMatchObject({
@@ -485,6 +1080,7 @@ describe('desktop Pi root connection', () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('/goal check the files') })
     await done(events)
+    expect(text(events)).toBe('Goal created.')
     expect(script.calls).toHaveLength(0)
     events.length = 0
     snapshot.agent.configuration = { ...snapshot.agent.configuration, permission_mode: 'auto' }
@@ -492,12 +1088,50 @@ describe('desktop Pi root connection', () => {
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     const started = events.findIndex((event) => event.type === 'autonomous-turn-state' && event.state === 'started')
-    const firstChunk = events.findIndex((event) => event.type === 'chunk')
+    const firstChunk = events.findIndex(
+      (event) => event.type === 'message-projection' && event.projection.live.length > 0
+    )
     expect(started).toBeGreaterThanOrEqual(0)
     expect(started).toBeLessThan(firstChunk)
-    expect(events.at(-1)).toMatchObject({ type: 'autonomous-turn-state', state: 'finished' })
+    expect(events.filter((event) => event.type === 'autonomous-turn-state').at(-1)).toMatchObject({ state: 'finished' })
     expect(script.calls).toHaveLength(4)
     expect(events[started]).toMatchObject({ origin: { kind: 'goal-round', round: 1 } })
+  })
+
+  // Catches a verdict rejected as unverified only because the model wrapped its JSON in prose or a code fence.
+  it.each([
+    ['a markdown code fence', '```json\n{"verdict":"met","reason":"checked"}\n```'],
+    ['a prose preamble', 'Here is the verdict:\n{"verdict":"met","reason":"checked"}']
+  ])('completes a goal when the verifier wraps its verdict in %s', async (_shape, verdict) => {
+    script = respondingModel((call) => {
+      if (call.systemPrompt?.includes('Evaluate whether the objective')) return assistantReply(verdict)
+      const last = call.messages.at(-1)
+      if (last?.role === 'toolResult' && last.toolName === 'get_goal') {
+        const content = last.content.find((part) => part.type === 'text')
+        if (content?.type !== 'text') throw new Error('No goal view')
+        const { goal } = JSON.parse(content.text)
+        return assistantReply(
+          [
+            toolCallPart('complete', 'update_goal', {
+              goal_id: goal.id,
+              revision: goal.revision,
+              action: 'complete',
+              evidence: 'checked files'
+            })
+          ],
+          'toolUse'
+        )
+      }
+      if (last?.role === 'toolResult') return assistantReply('completed')
+      return assistantReply([toolCallPart('get', 'get_goal')], 'toolUse')
+    })
+    const { connection, events } = await connect()
+    await connection.send({ message: message('/goal check the files') })
+    await expect.poll(() => text(events)).toContain('completed')
+    const completion = projected(events)
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === 'dynamic-tool' && part.toolName === 'update_goal')
+    expect(completion).toMatchObject({ state: 'output-available' })
   })
 
   it('streams through the Runtime, keeps native identity without mirroring completion, and saves a native checkpoint', async () => {
@@ -508,7 +1142,9 @@ describe('desktop Pi root connection', () => {
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     expect(text(events)).toBe('Hello world')
-    expect(messages.inputBinding(input.sessionId, user.id)).toMatchObject({ nativeInputId: expect.any(String) })
+    expect(await connection.lookupInput(connection.contextId!, user.id)).toMatchObject({
+      value: { found: true, input: { inputId: user.id, outcome: 'completed' } }
+    })
     const completion = events.find((event) => event.type === 'turn-complete')
     expect(completion).toMatchObject({ forkAnchor: { checkpoint: { runtime: 'pi', leafId: expect.any(String) } } })
     expect(nativeFiles()).toHaveLength(1)
@@ -576,6 +1212,30 @@ describe('desktop Pi root connection', () => {
     }
   )
 
+  it.each(['trashed', 'deleted'] as const)('releases a settled runtime after its session is %s', async (state) => {
+    const { connection, events, consuming } = await connect()
+    const user = message('finish before deletion')
+    await connection.send({ message: user })
+    await done(events)
+    const row = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, input.sessionId)).get()!
+    if (state === 'deleted') dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, input.sessionId)).run()
+    else
+      dbh.db
+        .update(agentSessionTable)
+        .set({ deletedAt: Date.now() })
+        .where(eq(agentSessionTable.id, input.sessionId))
+        .run()
+    try {
+      await expect(connection.close()).resolves.toBeUndefined()
+      await consuming
+      await expect(connection.send({ message: user })).rejects.toThrow('unavailable')
+    } finally {
+      if (state === 'deleted') dbh.db.insert(agentSessionTable).values(row).run()
+      else
+        dbh.db.update(agentSessionTable).set({ deletedAt: null }).where(eq(agentSessionTable.id, input.sessionId)).run()
+    }
+  })
+
   it('reopens the native history without replaying archived content into the live product stream', async () => {
     const first = await connect()
     await first.connection.send({ message: message('first question') })
@@ -601,7 +1261,9 @@ describe('desktop Pi root connection', () => {
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     expect(text(events)).toBe('Read successfully')
-    const results = events.filter((event) => event.type === 'chunk' && event.chunk.type === 'tool-output-available')
+    const results = projected(events).flatMap((message) =>
+      message.parts.filter((part) => part.type === 'dynamic-tool' && part.state === 'output-available')
+    )
     expect(results).toHaveLength(1)
     expect(JSON.stringify(results)).toContain('native tool result')
     expect(script.calls).toHaveLength(2)
@@ -655,6 +1317,31 @@ describe('desktop Pi root connection', () => {
     )
   })
 
+  it.each([
+    { stop: 'error', message: 'insufficient balance', eligible: false },
+    { stop: 'length', message: 'Output limit reached', eligible: false },
+    { stop: 'aborted', message: 'Cancelled', eligible: false },
+    { stop: 'error', message: 'Unexpected native runtime failure', eligible: true }
+  ] as const)(
+    'classifies the native $stop outcome before forwarding it',
+    async ({ stop, message: errorMessage, eligible }) => {
+      setScript([{ ...assistantReply([], stop), errorMessage }])
+      const { connection, events } = await connect()
+      mockMainLoggerService.error.mockClear()
+      await connection.send({ message: message('question') })
+      await done(events)
+      const failures = events.filter((event) => event.type === 'error')
+      expect(failures).toHaveLength(1)
+      expect(failures[0]).toMatchObject({ error: { reportingHandled: true } })
+      expect(events.filter((event) => event.type === 'turn-complete')).toEqual([])
+      const records = mockMainLoggerService.error.mock.calls
+        .map((call) => call[1])
+        .filter((entry) => entry?.operation === 'agent.pi.prompt' && !entry.reportingHandled)
+      expect(records).toHaveLength(1)
+      expect(getSentryLogContext({ ...records[0], level: 'error' }) !== undefined).toBe(eligible)
+    }
+  )
+
   it('seals admission during stop, saves the aborted input, and reopens for a new message', async () => {
     holdResponse('partial')
     const first = await connect()
@@ -673,33 +1360,20 @@ describe('desktop Pi root connection', () => {
     expect(text(next.events)).toBe('resumed')
   })
 
-  it.each(['high', 'low', 'none'] as const)(
-    'retains explicit %s reasoning in the native session',
+  it.each(['default', 'auto'] as const)(
+    'rebuilds when the gateway reasoning selection changes from %s',
     async (reasoningEffort) => {
       input.reasoningEffort = reasoningEffort
-      const { connection, events } = await connect()
-      await connection.send({ message: message('question') })
-      await done(events)
-      expect(events.filter((event) => event.type === 'error')).toEqual([])
-      const entries = readFileSync(join(application.getPath('feature.agents.pi.sessions'), nativeFiles()[0]), 'utf8')
-        .trim()
-        .split('\n')
-        .map((line) => JSON.parse(line))
-      expect(entries).toContainEqual(
-        expect.objectContaining({
-          type: 'thinking_level_change',
-          thinkingLevel: reasoningEffort === 'none' ? 'off' : reasoningEffort
+      const { connection } = await connect()
+      expect(await connection.reconcile({ modelId: input.modelId, reasoningEffort })).toBe('current')
+      expect(
+        await connection.reconcile({
+          modelId: input.modelId,
+          reasoningEffort: reasoningEffort === 'auto' ? 'default' : 'auto'
         })
-      )
+      ).toBe('rebuild')
     }
   )
-
-  it('keeps equivalent automatic reasoning selections on the same connection', async () => {
-    input.reasoningEffort = 'auto'
-    const { connection } = await connect()
-    expect(await connection.reconcile({ modelId: input.modelId, reasoningEffort: 'default' })).toBe('current')
-    expect(await connection.reconcile({ modelId: input.modelId })).toBe('current')
-  })
 
   it('rebuilds for changed per-turn settings and rejects startup configuration drift', async () => {
     const { connection } = await connect()
@@ -736,11 +1410,10 @@ describe('desktop Pi root connection', () => {
     expect(text(events.slice(0, boundary))).toBe('before steer')
     expect(text(events.slice(boundary))).toBe('Hello world')
     const responses = [
-      ...new Map(nativeInputs.filter((state) => state.response).map((state) => [state.inputId, state])).values()
+      ...new Map(nativeInputs.filter((state) => state.outcome).map((state) => [state.inputId, state])).values()
     ]
     expect(responses.map((response) => response.inputId).sort()).toEqual([first.id, followup.id].sort())
     expect(responses.map((response) => response.outcome)).toEqual(['completed', 'completed'])
-    expect(new Set(responses.map((response) => response.response?.id)).size).toBe(2)
   })
 
   it('cancels queued input on stop without automatically sending it in the next owner', async () => {
@@ -782,11 +1455,58 @@ describe('desktop Pi root connection', () => {
     expect(text(events.slice(before))).toBe('')
     expect(messages.inputBinding(input.sessionId, compact.id)).toBeUndefined()
     expect(events.slice(before).some((event) => event.type === 'compaction-complete')).toBe(true)
-    expect(script.calls.at(-1)!.systemPrompt).toContain('Summarize the conversation')
+    expect(JSON.stringify(script.calls.at(-1)!.messages)).toContain('keep the important facts')
     expect(script.calls.at(-1)!.tools).toEqual([])
   })
 
+  it.each(['cancelled', 'provider', 'unknown'] as const)(
+    'reports one native manual compaction failure for $0',
+    async (failure) => {
+      const summary = gate()
+      script = respondingModel((_call, index) => {
+        if (index < 3) return assistantReply('A fact to retain')
+        if (failure === 'cancelled') return summary.wait(assistantReply('summary'))
+        return {
+          ...assistantReply([], 'error'),
+          errorMessage: failure === 'provider' ? 'insufficient balance' : 'Unexpected native summary failure'
+        }
+      })
+      mocks.binding.mockImplementation(async () => ({
+        ...(await createTestBinding({ model: MODEL, stream: script.model })),
+        compaction: { reserveTokens: 16_384, keepRecentTokens: 1 }
+      }))
+      const { connection, events } = await connect()
+      await connection.send({ message: message('history to summarize') })
+      await done(events)
+      await connection.send({ message: message('another fact') })
+      await expect.poll(() => events.filter((event) => event.type === 'turn-complete')).toHaveLength(2)
+      mockMainLoggerService.error.mockClear()
+      const before = events.length
+      const compacting = connection.send({ message: message('/compact') })
+      try {
+        if (failure === 'cancelled') {
+          await expect.poll(() => script.calls.length).toBe(3)
+          await connection.close()
+          expect(script.calls[2].signal?.aborted).toBe(true)
+        }
+        await compacting
+        await expect
+          .poll(() => events.slice(before).filter((event) => event.type === 'error'))
+          .toHaveLength(failure === 'cancelled' ? 0 : 1)
+        expect(events.slice(before).filter((event) => event.type === 'turn-complete')).toEqual([])
+        const reports = mockMainLoggerService.error.mock.calls
+          .map((call) => getSentryLogContext({ ...call[1], level: 'error' }))
+          .filter(Boolean)
+        expect(reports).toHaveLength(failure === 'unknown' ? 1 : 0)
+      } finally {
+        summary.open()
+        await compacting
+      }
+    }
+  )
+
   it('forwards attachment paths through the input boundary while keeping input identities private', async () => {
+    const attachmentPath = join(directory, 'note.txt')
     const user = messages.saveMessage({
       sessionId: input.sessionId,
       message: {
@@ -795,7 +1515,7 @@ describe('desktop Pi root connection', () => {
         data: {
           parts: [
             { type: 'text', text: 'read the attachment' },
-            { type: 'file', filename: 'note.txt', mediaType: 'text/plain', url: 'file:///tmp/note.txt' }
+            { type: 'file', filename: 'note.txt', mediaType: 'text/plain', url: pathToFileURL(attachmentPath).href }
           ]
         }
       }
@@ -804,8 +1524,8 @@ describe('desktop Pi root connection', () => {
     await connection.send({ message: user })
     await done(events)
     expect(events.filter((event) => event.type === 'error')).toEqual([])
-    expect(JSON.stringify(script.calls[0].messages)).toContain('/tmp/note.txt')
-    expect(messages.inputBinding(input.sessionId, user.id)?.nativeInputId).toBeDefined()
+    expect(JSON.stringify(script.calls[0].messages)).toContain(JSON.stringify(attachmentPath).slice(1, -1))
+    expect(messages.inputBinding(input.sessionId, user.id)?.contextId).toBe(connection.contextId)
     const saved = messages.getSessionMessage(input.sessionId, user.id)
     expect(saved).not.toHaveProperty('inputContextId')
     expect(saved).not.toHaveProperty('nativeInputId')
@@ -853,5 +1573,78 @@ describe('desktop Pi root connection', () => {
       "export PATH=\"$PATH\":'/opt/homebrew/bin:/Users/o'\"'\"'connor/bin'"
     )
     expect(buildPiLoginPathPrefix('C:\\tools', 'win32')).toBeUndefined()
+  })
+  // Catches a child retry appearing on the root or another child, including before native content exists.
+  it('routes model retry status to the root and its independent children', async () => {
+    let retry: ((event: RetryPartData, sessionId: string) => void) | undefined
+    mocks.binding.mockImplementation(async (_input, _provider, _model, _usage, _shared, onRetry) => {
+      retry = onRetry
+      return createTestBinding({ model: MODEL, stream: script.model })
+    })
+    const held = gate()
+    const childSessions = new Map<string, string>()
+    let root = ''
+    script = respondingModel(async (call) => {
+      root ||= call.sessionId!
+      if (call.sessionId !== root) {
+        const modelId = `child-${childSessions.size + 1}`
+        childSessions.set(call.sessionId!, modelId)
+        retry?.({ state: 'retrying', modelId, attempt: 2, reason: 'http 429' }, call.sessionId!)
+        await held.wait(undefined)
+        retry?.({ state: 'settled' }, call.sessionId!)
+        return assistantReply(`${modelId} recovered`)
+      }
+      if (!call.messages.some((entry) => entry.role === 'toolResult')) {
+        retry?.({ state: 'retrying', modelId: 'root-model', attempt: 2, reason: 'http 429' }, root)
+        retry?.({ state: 'settled' }, root)
+        return assistantReply(
+          [
+            subagentCall('retry-A', { description: 'retry-A', prompt: 'work-A', background: true, fork: false }),
+            subagentCall('retry-B', { description: 'retry-B', prompt: 'work-B', background: true, fork: false })
+          ],
+          'toolUse'
+        )
+      }
+      return assistantReply('parent done')
+    })
+    const { connection, events } = await connect()
+    try {
+      await connection.send({ message: message('delegate retry work') })
+      await expect.poll(() => childSessions.size, { timeout: 10000 }).toBe(2)
+      const first = childTimeline(input.sessionId, 'retry-A')
+      const second = childTimeline(input.sessionId, 'retry-B')
+      expect(first).toBeDefined()
+      expect(second).toBeDefined()
+      const detachFirst = first!.subscribe(() => {})
+      const detachSecond = second!.subscribe(() => {})
+      try {
+        const statuses = (view: NonNullable<typeof first>) =>
+          view
+            .snapshot()
+            .messages.flatMap((m) => m.parts)
+            .flatMap((part) => (part.type === 'data-retry' ? [part.data] : []))
+        await expect.poll(() => statuses(first!), { timeout: 10000 }).toHaveLength(1)
+        await expect.poll(() => statuses(second!), { timeout: 10000 }).toHaveLength(1)
+        expect(statuses(first!)[0]).not.toEqual(statuses(second!)[0])
+        expect(events.flatMap((event) => (event.type === 'data-retry' ? [event.data] : []))).toEqual([
+          { state: 'retrying', modelId: 'root-model', attempt: 2, reason: 'http 429' },
+          { state: 'settled' }
+        ])
+        held.open()
+        await expect.poll(() => statuses(first!), { timeout: 10000 }).toEqual([])
+        await expect.poll(() => statuses(second!), { timeout: 10000 }).toEqual([])
+        await connection.drainChildWrites()
+        for (const view of [first!, second!]) {
+          const saved = savedChildView(contexts.context(view.snapshot().contextId))
+          expect(JSON.stringify(saved.messages)).toContain('recovered')
+          expect(JSON.stringify(saved.messages)).not.toContain('data-retry')
+        }
+      } finally {
+        detachFirst()
+        detachSecond()
+      }
+    } finally {
+      held.open()
+    }
   })
 })

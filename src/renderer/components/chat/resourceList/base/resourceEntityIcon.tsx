@@ -3,6 +3,7 @@ import { Bot, Check } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { EmojiIcon } from '@cherrystudio/ui'
+import { AssistantAvatarImage } from '@renderer/components/Avatar/AssistantAvatarImage'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { ActionDescriptor, ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
@@ -52,7 +53,7 @@ function renderFallbackAssistantIcon(emoji: string | null | undefined, size: num
  */
 export function renderAssistantEntityIcon(
   iconType: AssistantIconType,
-  assistant: { emoji?: string | null; modelId?: string | null; modelName?: string | null },
+  assistant: { emoji?: string | null; avatarSrc?: string; modelId?: string | null; modelName?: string | null },
   fallbackModelId?: string | null,
   size: number = RESOURCE_ICON_SIZE,
   fallbackGlyphSize: number = RESOURCE_GLYPH_SIZE
@@ -64,7 +65,15 @@ export function renderAssistantEntityIcon(
     return <ModelAvatar model={modelAvatarModel} size={size} className="border border-border-subtle" />
   }
 
-  return renderFallbackAssistantIcon(assistant.emoji, size, fallbackGlyphSize)
+  return (
+    <AssistantAvatarImage
+      src={assistant.avatarSrc}
+      alt=""
+      size={size}
+      className="rounded-full object-cover"
+      fallback={renderFallbackAssistantIcon(assistant.emoji, size, fallbackGlyphSize)}
+    />
+  )
 }
 
 /**
@@ -72,7 +81,9 @@ export function renderAssistantEntityIcon(
  */
 export function renderAgentEntityIcon(
   iconType: AssistantIconType,
-  agent: { configuration?: AgentConfiguration; model?: string | null; modelName?: string | null } | undefined,
+  agent:
+    | { avatarSrc?: string; configuration?: AgentConfiguration; model?: string | null; modelName?: string | null }
+    | undefined,
   fallbackModelId?: string | null,
   size: number = RESOURCE_ICON_SIZE
 ) {
@@ -82,7 +93,18 @@ export function renderAgentEntityIcon(
   if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={size} />
 
   return (
-    <EmojiIcon emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI} size={size} />
+    <AssistantAvatarImage
+      src={agent?.avatarSrc}
+      alt=""
+      size={size}
+      className="rounded-full object-cover"
+      fallback={
+        <EmojiIcon
+          emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI}
+          size={size}
+        />
+      }
+    />
   )
 }
 

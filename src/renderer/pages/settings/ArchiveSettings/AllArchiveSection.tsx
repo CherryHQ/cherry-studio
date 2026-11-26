@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import { formatErrorMessage } from '@renderer/utils/error'
-import type { ArchiveDomain } from '@shared/data/api/schemas/archives'
+import { ARCHIVE_DOMAINS, type ArchiveDomain } from '@shared/data/api/schemas/archives'
 
 import type { ArchiveBatchOutcome, ArchiveItem } from './archive'
 import type { ArchiveDomainSectionProps } from './ArchiveDomainSections'
@@ -146,7 +146,12 @@ export default function AllArchiveSection(props: ArchiveDomainSectionProps) {
           const entry = entriesById.get(item.id)!
           return entry.domain === 'files' ? [entry.entityId] : []
         })
-        props.onRequestDelete({ ...request, fileEntryIds: fileEntryIds.length > 0 ? fileEntryIds : undefined })
+        const domains = new Set(request.items.map((item) => entriesById.get(item.id)!.domain))
+        props.onRequestDelete({
+          ...request,
+          domains: ARCHIVE_DOMAINS.filter((domain) => domains.has(domain)),
+          fileEntryIds: fileEntryIds.length > 0 ? fileEntryIds : undefined
+        })
       }}
     />
   )

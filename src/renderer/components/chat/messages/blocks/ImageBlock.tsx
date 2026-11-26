@@ -1,5 +1,8 @@
+import { ImagePlus } from 'lucide-react'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 
+import { Button } from '@cherrystudio/ui'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { cn } from '@renderer/utils/style'
 
@@ -10,9 +13,19 @@ interface Props {
   /** Sent attachments read as references, not content: cap them well below the inline size. */
   thumbnail?: boolean
   className?: string
+  onUseAsReference?: (index: number) => void | Promise<void>
 }
 
-const ImageBlock: React.FC<Props> = ({ images, isPending = false, isSingle = false, thumbnail = false, className }) => {
+const ImageBlock: React.FC<Props> = ({
+  images,
+  isPending = false,
+  isSingle = false,
+  thumbnail = false,
+  className,
+  onUseAsReference
+}) => {
+  const { t } = useTranslation()
+
   if (isPending) {
     return <div className="h-50 w-50 animate-pulse rounded-lg bg-muted" />
   }
@@ -30,14 +43,25 @@ const ImageBlock: React.FC<Props> = ({ images, isPending = false, isSingle = fal
 
   return (
     <div className={cn(isSingle && !thumbnail ? undefined : 'flex max-w-full flex-wrap gap-2.5', className)}>
-      {previewItems.map((item) => (
-        <ImageViewer
-          src={item.src}
-          key={item.id}
-          className="-outline-offset-1 outline outline-1 outline-black/10 dark:outline-white/10"
-          preview={{ items: previewItems }}
-          style={style}
-        />
+      {previewItems.map((item, index) => (
+        <div className={onUseAsReference ? 'flex flex-col items-start gap-1' : undefined} key={item.id}>
+          <ImageViewer
+            src={item.src}
+            className="-outline-offset-1 outline outline-1 outline-black/10 dark:outline-white/10"
+            preview={{ items: previewItems }}
+            style={style}
+          />
+          {onUseAsReference && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void onUseAsReference(index)}
+              aria-label={t('chat.input.use_as_reference')}>
+              <ImagePlus />
+              {t('chat.input.use_as_reference')}
+            </Button>
+          )}
+        </div>
       ))}
     </div>
   )

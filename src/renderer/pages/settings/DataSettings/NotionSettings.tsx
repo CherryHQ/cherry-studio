@@ -2,18 +2,18 @@ import { Client } from '@notionhq/client'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
+import { Button, Input, RowFlex, Switch, HelpTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { settingsControlClasses } from '@renderer/pages/settings/settingsStyles'
 import { toast } from '@renderer/services/toast'
 import { openExternalWebsite } from '@renderer/services/website'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -26,7 +26,7 @@ const NotionSettings: FC = () => {
   const [notionPageNameKey, setNotionPageNameKey] = usePreference('data.integration.notion.page_name_key')
   const [notionExportReasoning, setNotionExportReasoning] = usePreference('data.integration.notion.export_reasoning')
 
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { theme } = useTheme()
 
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,14 +73,16 @@ const NotionSettings: FC = () => {
   }
 
   const handleNotionTitleClick = () => {
-    void openExternalWebsite('https://docs.cherry-ai.com/advanced-basic/notion')
+    void openExternalWebsite(
+      `${i18n.language.startsWith('zh') ? 'https://cherryai.com.cn/docs/zh-cn' : 'https://cherryai.com/docs/en'}/pre-basic/data-settings/notion/`
+    )
   }
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }}>
+      <SettingTitle className="justify-start gap-1.5">
         {t('settings.data.notion.title')}
-        <InfoTooltip
+        <HelpTooltip
           content={t('settings.data.notion.help')}
           placement="right"
           iconProps={{ className: 'text-text-2 cursor-pointer' }}
@@ -90,7 +92,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow id="setting-data-notion-database-id" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
-        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
+        <RowFlex className={`${settingsControlClasses.text} items-center gap-2`}>
           <Input
             type="text"
             value={notionDatabaseID || ''}
@@ -103,7 +105,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.page_name_key')}</SettingRowTitle>
-        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
+        <RowFlex className={`${settingsControlClasses.text} items-center gap-2`}>
           <Input
             type="text"
             value={notionPageNameKey || ''}
@@ -116,8 +118,8 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow id="setting-data-notion-api-key" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
-        <RowFlex className="w-78.75 max-w-full min-w-0 items-center gap-1.25">
-          <RowFlex className="w-full min-w-0 items-center gap-1.25">
+        <RowFlex className={`${settingsControlClasses.text} items-center gap-2`}>
+          <RowFlex className="w-full min-w-0 items-center gap-2">
             <Input
               type="password"
               value={notionApiKey || ''}
@@ -134,11 +136,11 @@ const NotionSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.notion.export_reasoning.title')}</SettingRowTitle>
+        <SettingRowTitle className="flex items-center gap-1.5">
+          {t('settings.data.notion.export_reasoning.title')}{' '}
+          <HelpTooltip content={t('settings.data.notion.export_reasoning.help')} />
+        </SettingRowTitle>
         <Switch checked={notionExportReasoning} onCheckedChange={handleNotionExportReasoningChange} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.notion.export_reasoning.help')}</SettingHelpText>
       </SettingRow>
     </SettingGroup>
   )

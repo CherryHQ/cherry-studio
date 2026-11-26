@@ -3,6 +3,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { getAppEdition } from '@main/utils/appEdition'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
+import { isManagedCherryAiProviderId, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
@@ -93,6 +94,14 @@ export const providerModel = defineDoctorCheck({
   fixes: {}
 })
 
+async function isCherryAccountSignedIn(): Promise<boolean> {
+  const cloud = application.get('CherryCloudService')
+  if (!cloud.isReady) throw new Error('Cherry account service is not ready')
+  const status = await cloud.getStatus()
+  if (status.phase === 'authorizing') throw new Error('Cherry account authorization is still in progress')
+  return status.phase === 'signed-in'
+}
+
 export const providerApiKey = defineDoctorCheck({
   id: 'provider-api-key-present',
   async run(ctx) {
@@ -112,7 +121,25 @@ export const providerApiKey = defineDoctorCheck({
       }
     }
 
-    if (isLoginBasedProvider(provider) || provider.authOptional || provider.apiKeys.some((key) => key.isEnabled)) {
+    // Cherry Cloud authenticates with the signed-in account session instead of a key.
+    if (isManagedCherryCloudModel(provider.id)) {
+      if (await isCherryAccountSignedIn()) return { status: 'pass' }
+      return {
+        status: 'fail',
+        attribution: 'user-fixable',
+        detail: { variant: 'signed_out' },
+        actions: [],
+        devMessage: 'Cherry Cloud models need a signed-in Cherry account; sign in from the sidebar profile popup'
+      }
+    }
+
+    // CherryAI authenticates with an app-issued key, never a user key.
+    if (
+      isManagedCherryAiProviderId(provider.id) ||
+      isLoginBasedProvider(provider) ||
+      provider.authOptional ||
+      provider.apiKeys.some((key) => key.isEnabled)
+    ) {
       return { status: 'pass' }
     }
 
@@ -132,11 +159,7 @@ export const cherryAccount = defineDoctorCheck({
   id: 'provider-cherry-account',
   async run() {
     if (getAppEdition() !== 'cn') return { status: 'pass' }
-    const cloud = application.get('CherryCloudService')
-    if (!cloud.isReady) throw new Error('Cherry account service is not ready')
-    const status = await cloud.getStatus()
-    if (status.phase === 'signed-in') return { status: 'pass' }
-    if (status.phase === 'authorizing') throw new Error('Cherry account authorization is still in progress')
+    if (await isCherryAccountSignedIn()) return { status: 'pass' }
 
     return {
       status: 'warn',

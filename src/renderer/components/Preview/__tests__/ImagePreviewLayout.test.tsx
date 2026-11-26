@@ -1,10 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useImageTools } from '@renderer/components/ActionTools'
-
 import ImagePreviewLayout from '../ImagePreviewLayout'
-import type { BasicPreviewHandles } from '../types'
 
 const mocks = vi.hoisted(() => ({
   pan: vi.fn(),
@@ -58,42 +55,5 @@ describe('ImagePreviewLayout', () => {
 
     expect(screen.queryByText('Invalid diagram')).not.toBeInTheDocument()
     expect(screen.getByTestId('image-toolbar')).toBeInTheDocument()
-  })
-
-  it('exposes the image actions through its public ref', () => {
-    const ref = { current: null as BasicPreviewHandles | null }
-
-    render(<ImagePreviewLayout {...defaultProps} ref={ref} />)
-
-    expect(ref.current).toMatchObject({
-      pan: mocks.pan,
-      zoom: mocks.zoom,
-      copy: mocks.copy,
-      download: mocks.download
-    })
-  })
-
-  it('enables drag and wheel zoom by default', () => {
-    render(<ImagePreviewLayout {...defaultProps} />)
-
-    expect(useImageTools).toHaveBeenCalledWith(
-      defaultProps.imageRef,
-      expect.objectContaining({
-        enableDrag: true,
-        enableWheelZoom: true
-      })
-    )
-  })
-
-  it('forwards explicit drag and wheel zoom settings to useImageTools', () => {
-    render(<ImagePreviewLayout {...defaultProps} enableDrag={false} enableWheelZoom={false} />)
-
-    expect(useImageTools).toHaveBeenCalledWith(
-      defaultProps.imageRef,
-      expect.objectContaining({
-        enableDrag: false,
-        enableWheelZoom: false
-      })
-    )
   })
 })

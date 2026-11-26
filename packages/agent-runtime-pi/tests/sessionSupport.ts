@@ -19,12 +19,10 @@ import {
 import { type AgentSession, ModelRuntime, type SessionEntry, SessionManager } from '@earendil-works/pi-coding-agent'
 import { onTestFinished } from 'vitest'
 
-import {
-  type AgentRuntimeEvent,
-  type AgentRuntimeModel,
-  type AgentRuntimeSessionOptions,
-  createAgentRuntimeSession
-} from '../src'
+import { createScriptedHost } from '@cherrystudio/agent-behavior'
+
+import { type AgentRuntimeEvent } from '../src'
+import { type AgentRuntimeModel, type AgentRuntimeSessionOptions, createAgentRuntimeSession } from '../src/session'
 
 export type ModelCall = TranscriptContext &
   SimpleStreamOptions & { model: AgentRuntimeModel; tools: Tool[]; systemPrompt: string }
@@ -71,6 +69,7 @@ export function respondingModel(
   const model: TestStream = (model, context, options) => {
     const stream = createAssistantMessageEventStream()
     const call = {
+      // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
       ...structuredClone(context),
       ...options,
       model,
@@ -88,6 +87,7 @@ export function respondingModel(
     void (async () => {
       try {
         options?.signal?.throwIfAborted()
+        // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
         message = structuredClone(await Promise.race([respond(call, calls.length), aborted]))
         Object.assign(message, { api: model.api, provider: model.provider, model: model.id })
         calculateCost(model, message.usage)
@@ -168,8 +168,9 @@ export function tempDir(label: string): string {
 }
 
 type Defaulted = 'cwd' | 'agentDir' | 'model' | 'modelRuntime' | 'systemPrompt'
-export type TestSessionOptions = Omit<AgentRuntimeSessionOptions, Defaulted> &
+export type TestSessionOptions = Omit<AgentRuntimeSessionOptions, Defaulted | 'onEvent'> &
   Partial<Pick<AgentRuntimeSessionOptions, 'cwd' | 'agentDir' | 'systemPrompt'>> & {
+    onEvent?: (event: AgentRuntimeEvent, manager: SessionManager) => void
     entries?: SessionEntry[]
     sessionId?: string
     history?: Message[]
@@ -179,7 +180,7 @@ export type TestSessionOptions = Omit<AgentRuntimeSessionOptions, Defaulted> &
   }
 
 export async function createTestSession(options: TestSessionOptions) {
-  const { stream, model, history, entries, sessionId, signal, ...sessionOptions } = options
+  const { stream, model, history, entries, sessionId, signal, onEvent, ...sessionOptions } = options
   const binding = await createTestBinding({ stream, model, signal })
   const cwd = options.cwd ?? tempDir('cwd')
   const sessionManager = options.sessionManager ?? SessionManager.inMemory(cwd, { id: sessionId }, entries)
@@ -190,16 +191,9 @@ export async function createTestSession(options: TestSessionOptions) {
     agentDir: options.agentDir ?? tempDir('agent'),
     systemPrompt: 'You are Cherry.',
     ...sessionOptions,
+    onEvent: onEvent && ((event) => onEvent(event, sessionManager)),
     settings: { retry: { enabled: false }, ...sessionOptions.settings },
-    ...binding,
-    subagents: options.subagents && {
-      ...options.subagents,
-      async configure(child, configureSignal) {
-        const configured = await options.subagents!.configure(child, configureSignal)
-        if (!configured.model || child.fork || configured.modelRuntime) return configured
-        return { ...configured, ...(await createTestBinding({ stream, model: configured.model, signal })) }
-      }
-    }
+    ...binding
   })
   onTestFinished(() => runtime.dispose())
   return runtime
@@ -221,9 +215,27 @@ export const messageText = (message: Message) =>
 export function hostStore() {
   const entries: SessionEntry[] = []
   const events: AgentRuntimeEvent[] = []
-  const onEvent = (event: AgentRuntimeEvent) => {
+  const onEvent = (event: AgentRuntimeEvent, manager: SessionManager) => {
     events.push(event)
-    if (event.type === 'session-append') entries.push(...plain(event.entries))
+    if (event.type === 'session-append') entries.push(...plain(event.entries.map(({ id }) => manager.getEntry(id)!)))
   }
   return { entries, events, onEvent }
+}
+
+export function createTestBehavior(model: Pick<AgentRuntimeModel, 'provider' | 'id'> = MODEL) {
+  const modelKey = `${model.provider}/${model.id}`
+  return {
+    host: createScriptedHost({
+      settings: {
+        goalDefaults: { maxGoalRounds: 3, maxGoalRoundsCeiling: 50, blockedAfter: 3 },
+        autonomy: 'auto',
+        permissionMode: 'auto',
+        attendance: 'stream',
+        maxBackground: 4,
+        offloadThreshold: 20_000
+      },
+      modelKeys: { parentModelKey: modelKey, defaultChildModelKey: modelKey }
+    }),
+    configureChild: () => ({})
+  }
 }

@@ -4,6 +4,8 @@ Status: proposed
 
 [English](2026-10-14-agent-runtime-background-subagent.md) | 中文
 
+旧 Pi 执行器的源码／测试链接固定在收缩前的 `46d76e4`，仅保留历史证据。现行实现及测试归属见[运行时边界收缩方案](../simplification/2026-11-05-agent-runtime-boundary-ownership.md)第 11 节；这些旧入口已退出生产路径。
+
 ## Problem
 
 前台子智能体通过阻塞的工具调用返回报告。独立任务还需要跨越父会话当前轮次继续运行、无需轮询即可汇报，并接收后续指令。如果只把这类工作当作普通工具结果，调用返回后就失去了生命周期控制；如果把每条子会话回复都当作父会话输入，又会造成重复投递、意外唤醒和错误的 goal 计量。
@@ -87,9 +89,9 @@ Status: proposed
 
 ### 审批与 goal 协作
 
-宿主通过 `configure` 安装审批处理，并用子会话真实的 session 与 tool-call ID 标识请求。待审批时子会话标为 `awaiting_approval`，审批结束或调用完成后恢复 `running`。应提供 `ToolApprovalEvent.sessionId`，因为不同会话的调用 ID 可能冲突。父会话审批 UI 必须在父会话空闲时仍可用，把反馈路由到请求子会话，并在父轮次结束后保留后台子会话的请求。拒绝只影响该工具调用；无人值守时使用宿主的 unavailable/拒绝路径。批准委派不等于批准子会话的所有工具。
+宿主通过 `configure` 安装审批处理，并用子会话真实的 session 与 tool-call ID 标识请求。待审批时子会话仍为 `running`：父会话不读取子会话调用的任何信息（[从历史读取审批答复](../../implemented/bug-fix/2026-11-18-behavior-approval-history.md)）。应提供 `ToolApprovalEvent.sessionId`，因为不同会话的调用 ID 可能冲突。父会话审批 UI 必须在父会话空闲时仍可用，把反馈路由到请求子会话，并在父轮次结束后保留后台子会话的请求。拒绝只影响该工具调用；无人值守时使用宿主的 unavailable/拒绝路径。批准委派不等于批准子会话的所有工具。
 
-后台子会话的审批交给用户，这是其他产品试过别的做法之后都落到的方案（见 Alternatives considered）。请求显示在父会话中，标明是哪个子会话在请求，该子会话同时等待；每条请求对应一个子会话、逐条确认，不提供一次批准多条。拒绝只拒那一次调用，子会话收到原因后继续。父会话必须看得到 `awaiting_approval`：否则它分不清卡在审批上的子会话和仍在工作的子会话，无人值守的运行会整晚停在那里。goal 运行期间，子会话的审批照常等用户处理；goal 不会自动拒绝或放行它。
+后台子会话的审批交给用户，这是其他产品试过别的做法之后都落到的方案（见 Alternatives considered）。请求显示在父会话中，标明是哪个子会话在请求，该子会话同时等待；每条请求对应一个子会话、逐条确认，不提供一次批准多条。拒绝只拒那一次调用，子会话收到原因后继续。父模型看不到子会话正在等审批；人会在父会话里看到请求，无人值守的运行会直接拦下调用而不是等待。goal 运行期间，子会话的审批照常等用户处理；goal 不会自动拒绝或放行它。
 
 [goal 文档](2026-10-11-agent-runtime-goal.md)维护 goal 状态机。没有更高优先级的停止条件时，active 且已武装的 goal 等待后台工作，不变成 blocked，也不写停止快照；进展仍可落盘。投递先于 goal 的 settle 决定执行；该 settle 已选中通知时，不再添加竞争的 goal 轮次提示。
 
@@ -149,7 +151,7 @@ active 且已武装的 goal 用完预算后，拒绝新的后台派出和续接�
 
 ## Current evidence
 
-[包 README](../../../../packages/agent-runtime-pi/README.md)说明当前入口。[子智能体控制](../../../../packages/agent-runtime-pi/src/subagent.ts)、[原生子存储](../../../../packages/agent-runtime-pi/src/subagentSession.ts)、[运行执行](../../../../packages/agent-runtime-pi/src/subagentRun.ts)、[注册表/恢复](../../../../packages/agent-runtime-pi/src/subagentRegistry.ts)和[投递](../../../../packages/agent-runtime-pi/src/subagentDelivery.ts)实现上述 Pi 专属行为。[Goal 状态](../../../../packages/agent-runtime-pi/src/goalState.ts)和[goal 执行](../../../../packages/agent-runtime-pi/src/goalExtension.ts)拥有计量与预算转换。
+[包 README](../../../../packages/agent-runtime-pi/README.md)说明当前入口。[子智能体控制](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagent.ts)、[原生子存储](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagentSession.ts)、[运行执行](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagentRun.ts)、[注册表/恢复](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagentRegistry.ts)和[投递](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/subagentDelivery.ts)实现上述 Pi 专属行为。[Goal 状态](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/goalState.ts)和[goal 执行](https://github.com/CherryHQ/cherry-studio/blob/46d76e46c03d1d1f19da4ccf03cea27e24c11180/packages/agent-runtime-pi/src/goalExtension.ts)拥有计量与预算转换。
 
 列出的 `gateway*.test.ts` 位于 `src/main/ai/runtime/pi/`，包测试位于 `packages/agent-runtime-pi/tests/`。这些测试通过测试提供商和受控时序覆盖原生 Pi 与 Cherry 模型 binding。[接入 README](../../../../src/main/ai/runtime/pi/README.md)明确说明桌面连接仍使用原有路径。源码覆盖、真实提供商验收、Electron 行为和打包加载属于不同证据层级，见 [harness 证据](../testing/2026-10-17-agent-harness-evidence.md)。本次文档迁移未重跑这些执行测试。
 

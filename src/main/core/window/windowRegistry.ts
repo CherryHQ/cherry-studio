@@ -61,8 +61,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     // Persist & restore position/size across launches (maximize re-applied by the service).
     rememberBounds: true,
     windowOptions: {
-      width: MIN_WINDOW_WIDTH,
-      height: MIN_WINDOW_HEIGHT,
+      width: 1440,
+      height: 900,
       minWidth: MIN_WINDOW_WIDTH,
       minHeight: MIN_WINDOW_HEIGHT,
       autoHideMenuBar: true,
@@ -679,8 +679,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        // Required by every window on the shared preload: that bundle is code-split, and a
-        // sandboxed preload cannot require its chunks — it dies with "module not found".
+        // Keep the trusted shared-preload environment consistent with the other application windows.
         sandbox: false,
         devTools: true,
         // Declared on WebPreferences, NOT at the constructor-options root. Off because a red

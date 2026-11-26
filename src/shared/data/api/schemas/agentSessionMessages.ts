@@ -5,7 +5,10 @@
 import * as z from 'zod'
 
 import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
+import { agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_FORK_FAILURE_REASONS } from '@shared/ai/agentSessionFork'
 import {
+  type CherryUIMessage,
   ContentMessageRoleSchema,
   MessageDataSchema,
   MessageSnapshotSchema,
@@ -33,6 +36,8 @@ export const AgentSessionMessagesListQuerySchema = z.strictObject({
   deferToolOutputs: z.boolean().optional()
 })
 export type AgentSessionMessagesListQuery = z.infer<typeof AgentSessionMessagesListQuerySchema>
+export const AgentSessionMessageReadQuerySchema = AgentSessionMessagesListQuerySchema.pick({ deferToolOutputs: true })
+export type AgentSessionMessageReadQuery = z.infer<typeof AgentSessionMessageReadQuerySchema>
 
 // ============================================================================
 // Entity & DTOs (Rule C: derive DTOs via .pick())
@@ -49,12 +54,21 @@ const AgentSessionMessageBaseSchema = z.strictObject({
   delivery: AgentSessionDeliverySchema.nullable().optional()
 })
 
+const AgentSessionHistoryActionsSchema = z.strictObject({
+  /** Main permits the action with null; otherwise the value explains why it is unavailable. */
+  fork: z.enum(AGENT_SESSION_FORK_FAILURE_REASONS).nullable(),
+  edit: z.enum(agentSessionEditFailureReasons).nullable()
+})
+export type AgentSessionHistoryActions = z.infer<typeof AgentSessionHistoryActionsSchema>
+
 export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.extend({
   /** Message ID (UUIDv7) */
   id: z.string(),
   /** Session ID this message belongs to */
   sessionId: z.string(),
+  partIds: z.array(z.string()).optional(),
   siblings: z.array(z.string()).optional(),
+  historyActions: AgentSessionHistoryActionsSchema.optional(),
   searchableText: z.string(),
   runtimeResumeToken: z.string().nullable(),
   createdAt: z.iso.datetime(),
@@ -92,6 +106,13 @@ export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMess
 export const SelectAgentSessionBranchSchema = z.strictObject({ messageId: z.string().min(1) })
 
 export type AgentSessionMessageSchemas = {
+  '/agent-sessions/:sessionId/children/:toolCallId/history': {
+    GET: {
+      params: { sessionId: string; toolCallId: string }
+      query: { before: string; cursor?: string; limit?: number }
+      response: CursorPaginationResponse<CherryUIMessage>
+    }
+  }
   '/agent-sessions/:sessionId/branch': {
     PUT: {
       params: { sessionId: string }
@@ -110,6 +131,7 @@ export type AgentSessionMessageSchemas = {
   '/agent-sessions/:sessionId/messages/:messageId': {
     GET: {
       params: { sessionId: string; messageId: string }
+      query?: AgentSessionMessageReadQuery
       response: AgentSessionMessageEntity
     }
     PATCH: {

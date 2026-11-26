@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-06-mistral-tool-call-id-tolerance.md
+2026-11-06-mistral-tool-call-id-tolerance.md: 1400a26c74ef584878ab8372a59e46d39268ee8a
+2026-11-06-mistral-tool-call-id-tolerance.zh.md: 4d3a3f739779ebfe2a5640edf48468f05a6250b0

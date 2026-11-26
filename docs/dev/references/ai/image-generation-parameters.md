@@ -1,7 +1,10 @@
 ---
 description: Data-driven image-generation params — registry supports to form fields, canonical bag to vendor wire via WireProfile
 sources:
+  - packages/provider-registry/src/creators/bytedance.ts
   - packages/provider-registry/src/schemas/imageParamCatalog.ts
+  - src/shared/ai/seedreamImageContract.ts
+  - src/main/ai/AiService.ts
   - src/renderer/pages/paintings
   - src/main/ai/provider/custom/wire/wireProfile.ts
   - src/main/ai/provider/custom/tasks/imageGenerationJobHandler.ts
@@ -185,6 +188,20 @@ Form edits write into **`painting.params`** — a flat canonical-keyed bag. Defa
 are committed when the model is selected by `computeModelFieldReset`
 ([`.../utils/computeModelFieldReset.ts`](../../../../src/renderer/pages/paintings/utils/computeModelFieldReset.ts)).
 
+For models declaring `frameCount`, GIF output shows frame count and frame duration
+instead of the static-image size control. `canonicalGenerate` submits `size: 'auto'`
+for that painting workflow so the API can fit the animation sheet within its pixel
+budget. Static outputs keep their selected size. Timing values are forwarded only
+when the output format is GIF.
+
+The current composer image attachments select generation versus editing; submit
+uses the materialized image files for the same decision. Explicit remix, upscale
+and merge modes retain their meaning. Controls come from the resulting mode's
+support, so generation-only animation settings disappear when reference images
+select an edit mode without them. Submit drops stale GIF format and timing for such a static-only edit mode.
+
+The public catalog retains API capabilities. Main projects support through each selected endpoint adapter before returning it to Desktop consumers: OpenAI 3.0.137 allows GIF generation with 20–2000 ms timing but rejects GIF edits. This projection never mutates the catalog or narrows other adapters. GIF export preserves original bytes even after display-only preview rotation or flipping.
+
 ---
 
 ## Write half — `paramValues` → vendor request
@@ -228,6 +245,11 @@ typed call options (`imageParams`).
 The SDK image model is one of: a custom `ImageModelV3` (e.g.
 [`silicon/SiliconImageModel.ts`](../../../../src/main/ai/provider/custom/silicon/SiliconImageModel.ts), [`aihubmix/aihubmixImageModel.ts`](../../../../src/main/ai/provider/custom/aihubmix/aihubmixImageModel.ts)), `@ai-sdk/openai-compatible`, or `@ai-sdk/google`. It **reads** the wire body — it does not re-rename it.
 
+The native OpenAI SDK reads camelCase image options. Its profile therefore maps
+`outputFormat`, `frameCount` and `frameDurationMs` to those SDK option names;
+`@ai-sdk/openai` owns their final HTTP spelling (`output_format`, `frame_count`,
+`frame_duration_ms`). Plain wire bodies still use the catalog's `wireName`.
+
 ### 4. Transport delivery (async / bespoke wire shape)
 
 When `resolveImageTransport(provider, model, settings)` ([`.../custom/imageTransportRegistry.ts`](../../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / OVMS / DMXAPI-custom families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`), which owns the submit/poll loop, queueing and cancellation.
@@ -255,6 +277,50 @@ and builds the descriptor, threading it as a **typed field** on the job payload 
 registry is the source of `vendorTransport`, and main already hosts it (the
 renderer's support fetch is an IPC round-trip to the same service), so the
 descriptor is a pure derivation, not a param.
+
+---
+
+## Seedream 5.x — model-scoped assembly and validation
+
+The 5.x contract currently targets **only** `doubao-seedream-5-5`, by exact
+membership in `SEEDREAM_5X_TARGET_IDS`. It does not cover 5.0 Lite, which retains
+its grouping parameters. Assembly follows the existing pipeline with a shared
+cross-field contract at the renderer and main boundaries:
+
+1. **Registry → form.** The ByteDance creator declares generate/edit, at most ten
+   reference images in either mode, `imageResolution` tiers `1K`/`1.5K`/`2K`
+   (default `1K`), and `customSize` paired with `imageResolution`. Watermark
+   defaults to `true`, background to `auto`, and output format to `jpeg`
+   (`jpeg`/`png`). The renderer's transparent-asset preset atomically sets and
+   locks `background=transparent` plus `outputFormat=png`; other setting edits
+   preserve both. Disabling it restores `auto`, keeps PNG and unlocks the
+   individual controls. It uses the existing generate/edit modes.
+2. **Renderer validation → canonical bag → IPC.**
+   `usePaintingGenerationSubmit` invokes the shared contract before the submit
+   guard and input materialization; `canonicalGenerate` checks again before
+   generic validation. Tiers and explicit positive integer `WxH` dimensions are
+   mutually exclusive. Dimensions require 921600–4624220 pixels inclusive and
+   a long-to-short-side ratio at most 16:1; transparent output requires PNG.
+   After catalog validation, custom dimensions project through the effective
+   mode's `pairedEnumKey` into canonical `size`; the paired sentinel and width/
+   height companions are removed. `sanitizeSeedreamImageParams` removes stale
+   grouping/search/stream controls and supplies missing defaults before IPC.
+   Renderer failures use localized messages through `REMOTE_ERROR`.
+3. **Resolved model/provider → main gate → partition → delivery.**
+   `AiService.generateImage` identifies the model using
+   `model.presetModelId ?? parseUniqueModelId(model.id).modelId`. Before
+   `splitParamValues`, image normalization and either delivery branch, it
+   rejects `(provider.presetProviderId ?? provider.id) === 'dmxapi'` for the
+   target: the 5.5 protocol is unverified, including for user-created preset
+   instances. `canonicalGenerate` also rejects that preset before dispatch.
+   Main validates incoming size/background combinations, then sanitizes the
+   bag, removing `numImages`, `sequentialImageGeneration`, `maxImages`,
+   `webSearch`, `stream` and `tools`. Missing values become `1K` (unless explicit
+   dimensions are supplied), `jpeg`, `auto` and watermark `true`; watermark
+   `false` survives. Both SDK and job delivery consume this sanitized bag and
+   default to one image. Main failures reuse `REMOTE_ERROR` with actionable
+   messages. Neither the global `buildParamsSchema` nor the DMXAPI transport
+   implements this model-specific gate.
 
 ---
 

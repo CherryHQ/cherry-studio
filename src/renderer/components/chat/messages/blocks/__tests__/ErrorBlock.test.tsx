@@ -1,20 +1,34 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
 import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import type { SerializedError } from '@renderer/types/error'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 
+import { useMessageErrorActions } from '../../hooks/useMessageErrorActions'
 import type { MessageListActions, MessageListItem } from '../../types'
 
 const mocks = vi.hoisted(() => ({
   actions: {} as MessageListActions,
   i18nKeys: new Set<string>(),
+  request: vi.fn(),
   language: 'en',
   translations: new Map<string, string>()
 }))
 
 const GO_TO_SETTINGS_LABEL = enUS['error.diagnosis.go_to_settings']
+const AI_DIAGNOSIS_LABEL = enUS['error.diagnosis.ai_button']
+const AI_DIAGNOSIS_UNAVAILABLE = enUS['error.diagnosis.default_model_unavailable']
+const unknownError = { name: 'UnknownError', message: 'unmapped provider failure', stack: null }
+const defaultModelId = 'custom-provider::custom-model'
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+vi.mock('@renderer/i18n/resolver', () => ({ default: { t: (key: keyof typeof enUS) => enUS[key] } }))
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
@@ -97,9 +111,91 @@ describe('ErrorBlock', () => {
     mocks.language = 'en'
     mocks.translations.clear()
     mocks.translations.set('error.diagnosis.go_to_settings', GO_TO_SETTINGS_LABEL)
+    mocks.translations.set('error.diagnosis.ai_button', AI_DIAGNOSIS_LABEL)
     mocks.translations.set('HTTP 413', 'Request body too large')
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
     vi.clearAllMocks()
   })
+
+  it.each([false, true])('gates model requests on privacy and a user click (data collection: %s)', async (enabled) => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', enabled)
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', defaultModelId)
+    const error = { ...unknownError, message: `${unknownError.message} (${enabled})` }
+    const data = {
+      [`/models/${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`]: { id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID },
+      [`/models/${defaultModelId}`]: { id: defaultModelId, providerId: 'custom-provider', isEnabled: true },
+      '/providers/custom-provider': { isEnabled: true }
+    }
+    const get = vi.spyOn(dataApiService, 'get').mockImplementation(async (path) => data[path as keyof typeof data])
+    mocks.request.mockResolvedValue({ text: 'Provider returned an incomplete response' })
+    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
+    mocks.actions = { diagnoseMessageError: result.current.diagnoseMessageError }
+
+    try {
+      render(<ErrorBlock partId="part-1" error={error} message={{ ...message, status: 'error' }} />)
+      await act(() => vi.dynamicImportSettled())
+
+      expect(mocks.request).not.toHaveBeenCalled()
+      expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+      if (!enabled) {
+        expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
+        return
+      }
+
+      await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+      expect(await screen.findByText('Provider returned an incomplete response')).toBeInTheDocument()
+      expect(mocks.request).toHaveBeenCalledExactlyOnceWith(
+        'ai.text.generate',
+        expect.objectContaining({
+          uniqueModelId: defaultModelId,
+          prompt: `Error: UnknownError: ${error.message}`,
+          requestOptions: { maxRetries: 0 }
+        })
+      )
+    } finally {
+      get.mockRestore()
+    }
+  })
+
+  it('shows default-model recovery guidance after clicking AI diagnosis without a default model', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', null)
+    const { result } = renderHook(() => useMessageErrorActions({ getDoctorSubject: () => undefined }))
+    mocks.actions = { diagnoseMessageError: result.current.diagnoseMessageError }
+
+    render(<ErrorBlock partId="part-1" error={unknownError} message={{ ...message, status: 'error' }} />)
+    await userEvent.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(AI_DIAGNOSIS_UNAVAILABLE)
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { language: 'en-US', detail: '' },
+    { language: 'en-US', detail: 'Provider unavailable' },
+    { language: 'zh-CN', detail: '' },
+    { language: 'zh-CN', detail: 'Provider unavailable' }
+  ] as const)(
+    'shows localized response interruption for a persisted stream failure ($language, $detail)',
+    ({ language, detail }) => {
+      const catalog = language === 'en-US' ? enUS : zhCN
+      mocks.language = language
+      mocks.translations = new Map(Object.entries(catalog))
+
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{ name: 'StreamError', message: detail, stack: null, streamStage: 'response-stream' }}
+          message={message}
+        />
+      )
+
+      expect(screen.getAllByText(catalog['error.diagnosis.stream'], { exact: true })).toHaveLength(1)
+      expect(screen.queryByText(catalog['error.diagnosis.unknown'], { exact: true })).not.toBeInTheDocument()
+      if (detail) expect(screen.getByText(detail, { exact: true })).toBeInTheDocument()
+    }
+  )
 
   it('renders Groq entitlement copy and opens its provider settings', async () => {
     const user = userEvent.setup()
@@ -155,6 +251,31 @@ required service tier.`
     expect(diagnostic).toHaveTextContent(copy.recovery)
   })
 
+  it.each([enUS, zhCN])('explains output truncation without blaming the network', (catalog) => {
+    mocks.translations = new Map(Object.entries(catalog))
+    mocks.i18nKeys.add('error.output_token_limit_reached')
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'Error',
+          message: 'Durable response ended: length',
+          stack: null,
+          streamStage: 'response-stream',
+          reason: 'output-truncated',
+          finishReason: 'length',
+          i18nKey: 'output_token_limit_reached'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(catalog['error.output_token_limit_reached'])).toBeInTheDocument()
+    expect(screen.queryByText(catalog['error.diagnosis.stream'])).not.toBeInTheDocument()
+    expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).not.toBeInTheDocument()
+  })
+
   it('renders a known app-owned i18nKey without AI diagnosis', () => {
     const i18nKey = 'tool_call_limit_reached'
     const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
@@ -168,6 +289,7 @@ required service tier.`
           name: 'ToolLoopTerminalError',
           message: 'fallback message',
           stack: null,
+          streamStage: 'response-stream',
           i18nKey
         }}
         message={message}
@@ -175,6 +297,32 @@ required service tier.`
     )
 
     expect(screen.getByText(`error.${i18nKey}`)).toBeInTheDocument()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
+  it('renders actionable Claude Code session-bus guidance without AI diagnosis', () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { diagnoseMessageError }
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.i18nKeys.add('error.claude_code_session_bus_missing')
+    mocks.i18nKeys.add('error.claude_code_session_bus_missing_detail')
+
+    const { container } = render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeSessionBusUnavailableError',
+          message: 'Claude Code requires an active Linux session bus',
+          stack: null,
+          i18nKey: 'claude_code_session_bus_missing',
+          detailI18nKey: 'claude_code_session_bus_missing_detail'
+        }}
+        message={message}
+      />
+    )
+
+    expect(container).toHaveTextContent(enUS['error.claude_code_session_bus_missing'])
+    expect(container).toHaveTextContent(enUS['error.claude_code_session_bus_missing_detail'])
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
@@ -221,6 +369,187 @@ required service tier.`
     expect(screen.queryByRole('button', { name: 'openai' })).toBeNull()
   })
 
+  const planText = '套餐「Cherry Plus」额度已耗尽或不足以完成本次请求，建议 30天8小时59分钟57秒后重试。'
+  it.each([
+    ['its JSON body', JSON.stringify({ message: planText, type: 'rate_limit_error', code: 'rate_limit_exceeded' })],
+    ['the agent runtime status prefix', `API Error: Request rejected (429) · ${planText}`],
+    ['the last attempt of a retried request', 'Failed after 3 attempts. Last error: Too Many Requests'],
+    ['the Pi agent status prefix', `429: ${JSON.stringify({ message: planText, type: 'rate_limit_error' })}`]
+  ])('shows only the Cherry AI plan wording from %s, without a settings shortcut', (_case, body) => {
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { navigateErrorTarget }
+    const cloudMessage = {
+      ...message,
+      model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={
+          body.startsWith('Failed after')
+            ? {
+                name: 'AI_RetryError',
+                message: body,
+                stack: null,
+                cause: null,
+                reason: 'maxRetriesExceeded',
+                lastError: {
+                  name: 'AI_APICallError',
+                  statusCode: 429,
+                  providerErrorCategory: 'quota',
+                  responseBody: JSON.stringify({ error: { message: planText, type: 'rate_limit_error' } })
+                },
+                errors: []
+              }
+            : { name: 'AI_APICallError', message: body, stack: null, statusCode: 429, providerErrorCategory: 'quota' }
+        }
+        message={cloudMessage}
+      />
+    )
+
+    expect(screen.getByText('models.detail.quota_insufficient_for_request')).toBeInTheDocument()
+    expect(screen.getByText(planText)).toBeInTheDocument()
+    expect(screen.queryByText(/API Error|HTTP 429/)).toBeNull()
+    expect(screen.queryByText(GO_TO_SETTINGS_LABEL)).toBeNull()
+  })
+
+  it('keeps an unspecified Cloud HTTP 429 as a rate limit', () => {
+    const cloudMessage = {
+      ...message,
+      model: { id: 'qwen3.8-flash', name: 'Qwen 3.8 Flash', provider: 'cherryai-subscription' }
+    }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: '', stack: null, statusCode: 429 }}
+        message={cloudMessage}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
+    expect(screen.queryByText('models.detail.quota_insufficient_for_request')).toBeNull()
+    expect(screen.getByText(/HTTP 429/)).toBeInTheDocument()
+  })
+
+  it('keeps the settings shortcut for another provider rate limit', () => {
+    mocks.actions = { navigateErrorTarget: vi.fn() }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'AI_APICallError', message: 'Too Many Requests', stack: null, statusCode: 429 }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
+    expect(screen.getByText(GO_TO_SETTINGS_LABEL)).toBeInTheDocument()
+  })
+
+  const lowCreditText =
+    'Your credit balance is running low for account organization, please recharge immediately to avoid service disruption.'
+
+  it.each<[string, SerializedError]>([
+    [
+      'normalized quota',
+      {
+        name: 'AI_APICallError',
+        message: lowCreditText,
+        stack: null,
+        statusCode: 429,
+        providerErrorCategory: 'quota',
+        responseBody: null,
+        data: null
+      }
+    ],
+    [
+      'legacy JSON body',
+      {
+        name: 'AI_APICallError',
+        message: 'Too Many Requests',
+        stack: null,
+        statusCode: 429,
+        responseBody: JSON.stringify({ error: { message: lowCreditText } })
+      }
+    ]
+  ])('omits app-authored 429 wait advice for %s after each send', (_case, error) => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.translations.set('HTTP 429', enUS['error.http.429'])
+    const blocks = [1, 2].map((send) => (
+      <ErrorBlock
+        key={send}
+        partId={`message-${send}-part-0`}
+        error={error}
+        message={{ ...message, id: `message-${send}` }}
+      />
+    ))
+    const { rerender } = render(<>{blocks.slice(0, 1)}</>)
+
+    for (const send of [1, 2]) {
+      if (send === 2) rerender(<>{blocks}</>)
+      const headings = screen.getAllByText(enUS['error.diagnosis.quota'], { exact: true })
+      expect(headings).toHaveLength(send)
+      headings.forEach((heading) => expect(heading).toBeVisible())
+      const descriptions = screen.getAllByText(lowCreditText, { exact: false })
+      expect(descriptions).toHaveLength(send)
+      descriptions.forEach((description) => expect(description).toBeVisible())
+      expect.soft(screen.queryAllByText(enUS['error.http.429'], { exact: false })).toHaveLength(0)
+    }
+  })
+
+  it('keeps the ordinary 429 heading and HTTP wait description after each send', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.translations.set('HTTP 429', enUS['error.http.429'])
+    const providerMessage = 'Request throughput exceeded. Try again later.'
+    const error = { name: 'AI_APICallError', message: providerMessage, stack: null, statusCode: 429 }
+    const blocks = [1, 2].map((send) => (
+      <ErrorBlock
+        key={send}
+        partId={`message-${send}-part-0`}
+        error={error}
+        message={{ ...message, id: `message-${send}` }}
+      />
+    ))
+    const { rerender } = render(<>{blocks.slice(0, 1)}</>)
+
+    for (const send of [1, 2]) {
+      if (send === 2) rerender(<>{blocks}</>)
+      const headings = screen.getAllByText(enUS['error.diagnosis.rate_limit'], { exact: true })
+      expect(headings).toHaveLength(send)
+      headings.forEach((heading) => expect(heading).toBeVisible())
+      const descriptions = screen.getAllByText(enUS['error.http.429'], { exact: false })
+      expect(descriptions).toHaveLength(send)
+      descriptions.forEach((description) => {
+        expect(description).toBeVisible()
+        expect(description).toHaveTextContent(providerMessage)
+      })
+    }
+  })
+
+  it('keeps HTTP 402 payment guidance for a numeric quota error', () => {
+    mocks.translations = new Map(Object.entries(enUS))
+    mocks.translations.set('HTTP 402', enUS['error.http.402'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: lowCreditText,
+          stack: null,
+          statusCode: 402,
+          providerErrorCategory: 'quota'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.diagnosis.quota'], { exact: true })).toBeVisible()
+    expect(screen.getByText(enUS['error.http.402'], { exact: false })).toBeVisible()
+  })
+
   it('offers provider settings recovery when Claude Code reports that the session is not logged in', () => {
     const navigateErrorTarget = vi.fn()
     mocks.actions = { navigateErrorTarget }
@@ -261,6 +590,20 @@ required service tier.`
 
     expect(screen.getByText('error.diagnosis.quota')).toBeInTheDocument()
     expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
+  })
+
+  it('shows size guidance and the original status-less request buffer error', () => {
+    const providerMessage = '413 Failed to buffer the request body: length limit exceeded'
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{ name: 'Error', message: providerMessage, stack: null }}
+        message={message}
+      />
+    )
+    expect(screen.getByText('error.diagnosis.payload')).toBeInTheDocument()
+    expect(screen.getByText(providerMessage)).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
   })
 
   it('shows a useful status when a proxy returns an HTML 413 response', () => {
@@ -329,7 +672,8 @@ required service tier.`
     )
 
     expect(screen.queryByText('error.claude_code_exit.start')).toBeNull()
-    await waitFor(() => expect(diagnoseMessageError).toHaveBeenCalledOnce())
+    await userEvent.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+    expect(await screen.findByText('diagnosed')).toBeInTheDocument()
   })
 
   it('does not promise a diagnostic reference the payload never carried', () => {
@@ -450,6 +794,33 @@ required service tier.`
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
   })
 
+  it('shows a content rejection with the provider explanation and no settings recovery', () => {
+    mocks.actions = { navigateErrorTarget: vi.fn() }
+    mocks.translations.set('error.diagnosis.content', enUS['error.diagnosis.content'])
+    mocks.translations.set('error.diagnosis.bad_request', enUS['error.diagnosis.bad_request'])
+    mocks.translations.set('error.diagnosis.go_to_settings', enUS['error.diagnosis.go_to_settings'])
+    const providerMessage = 'This request was blocked by our content filtering policy. Please revise your message.'
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'AI_APICallError',
+          message: providerMessage,
+          stack: null,
+          statusCode: 400,
+          providerId: 'openai'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.diagnosis.content'], { exact: true })).toBeVisible()
+    expect(screen.queryByText('Provider request failed (HTTP 400)', { exact: true })).not.toBeInTheDocument()
+    expect(screen.getByText(providerMessage, { exact: false })).toBeVisible()
+    expect(screen.queryByRole('button', { name: GO_TO_SETTINGS_LABEL })).not.toBeInTheDocument()
+  })
+
   it('shows a Claude SDK request failure with its original error and provider settings', async () => {
     const user = userEvent.setup()
     const navigateErrorTarget = vi.fn()
@@ -477,36 +848,8 @@ required service tier.`
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
-  it('uses injected diagnosis capability for unknown errors', async () => {
-    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
-    mocks.actions = {
-      diagnoseMessageError
-    }
-
-    render(
-      <ErrorBlock
-        partId="message-1-part-0"
-        error={{
-          name: 'UnknownError',
-          message: 'unmapped provider failure',
-          stack: null,
-          i18nKey: 'missing_app_error'
-        }}
-        message={message}
-      />
-    )
-
-    expect(await screen.findByText('AI summary')).toBeInTheDocument()
-    expect(diagnoseMessageError).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message,
-        partId: 'message-1-part-0',
-        language: 'en'
-      })
-    )
-  })
-
-  it('refreshes an AI summary when the app language changes', async () => {
+  it('requires another click to diagnose in a changed app language', async () => {
+    const user = userEvent.setup()
     const diagnoseMessageError = vi.fn().mockResolvedValueOnce('English summary').mockResolvedValueOnce('中文摘要')
     mocks.actions = { diagnoseMessageError }
     const error = {
@@ -517,13 +860,56 @@ required service tier.`
     }
 
     const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+    await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
     expect(await screen.findByText('English summary')).toBeInTheDocument()
 
     mocks.language = 'zh-CN'
     rerender(<ErrorBlock partId="message-1-part-0" error={{ ...error }} message={message} />)
 
+    expect(diagnoseMessageError).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
     expect(await screen.findByText('中文摘要')).toBeInTheDocument()
     expect(diagnoseMessageError).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'zh-CN' }))
+  })
+
+  it('hides the AI summary and the button when data collection is turned off after a diagnosis', async () => {
+    const user = userEvent.setup()
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { diagnoseMessageError }
+
+    const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={unknownError} message={message} />)
+    await user.click(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL }))
+    expect(await screen.findByText('AI summary')).toBeInTheDocument()
+
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
+    // The mocked preference hook has no subscription, so a new prop identity re-renders the memoized block.
+    rerender(<ErrorBlock partId="message-1-part-0" error={{ ...unknownError }} message={message} />)
+
+    expect(screen.queryByText('AI summary')).toBeNull()
+    expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
+    expect(diagnoseMessageError).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends a single diagnosis request for a double click', async () => {
+    const user = userEvent.setup()
+    let release!: (summary: string) => void
+    const diagnoseMessageError = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          release = resolve
+        })
+    )
+    mocks.actions = { diagnoseMessageError }
+
+    render(<ErrorBlock partId="message-1-part-0" error={unknownError} message={message} />)
+    const button = screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL })
+    await user.click(button)
+    expect(button).toBeDisabled()
+    await user.click(button)
+    release('AI summary')
+
+    expect(await screen.findByText('AI summary')).toBeInTheDocument()
+    expect(diagnoseMessageError).toHaveBeenCalledTimes(1)
   })
 
   it('offers network settings for a client-certificate authentication failure', async () => {

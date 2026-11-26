@@ -231,6 +231,111 @@
       "when": 1793700436233,
       "tag": "0032_agent_message_tree",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1793743411274,
+      "tag": "0033_child_context_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1793870902260,
+      "tag": "0034_big_johnny_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1794176949635,
+      "tag": "0035_agent_session_task_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1794385320323,
+      "tag": "0036_assistant_avatar",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1794385698412,
+      "tag": "0037_agent_avatar",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1794411221036,
+      "tag": "0038_clammy_jigsaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1794662249449,
+      "tag": "0039_agent_session_tree_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1794662254214,
+      "tag": "0040_agent_session_tree_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1795002061126,
+      "tag": "0041_agent_session_reply_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1795244965364,
+      "tag": "0042_wise_luckman",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1795485564466,
+      "tag": "0043_artifact",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1795637435057,
+      "tag": "0044_agent_session_tool_output",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1795638183812,
+      "tag": "0045_agent_session_message_part",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "6",
+      "when": 1795638654838,
+      "tag": "0046_agent_session_timeline_positions",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1795638657659,
+      "tag": "0047_agent_session_reply_and_recovery",
+      "breakpoints": true
     }
   ],
   "version": "7"

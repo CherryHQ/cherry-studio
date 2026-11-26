@@ -43,7 +43,7 @@ export async function estimateAnthropicRequestTokens(
   try {
     return await estimateConvertedRequest(body, signal, internal)
   } catch (error) {
-    // The body is only loosely validated (`content: z.unknown()`, `tools` untyped), so
+    // Block elements are only loosely validated (`z.unknown()`, `tools` untyped), so
     // conversion can throw on malformed blocks — degrade instead of surfacing a 500.
     logger.warn('conversion-based estimate failed, using bounded raw-body estimate', error as Error)
     return boundedBodyTokens(body, tokenxTokenizer)

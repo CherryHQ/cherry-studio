@@ -193,6 +193,12 @@ class ComfyuiTransport implements ImageGenerationTransport {
       logger.warn(`workflow ${input.modelId} holds no prompt; running it as it was saved`)
     }
 
+    const loadImageNodes = Object.values(graph).filter((node) => node.class_type === 'LoadImage')
+    for (const [index, file] of (input.files ?? []).entries()) {
+      const image = await this.uploadImage(file, input.signal)
+      if (loadImageNodes[index]) loadImageNodes[index].inputs.image = image
+    }
+
     // The submit and its body share one deadline, and we name the prompt: a lost
     // response still leaves the id ours to cancel. ComfyUI v0.37+ rejects a
     // `prompt_id` that is not a canonical UUID before it queues anything.
@@ -237,6 +243,52 @@ class ComfyuiTransport implements ImageGenerationTransport {
       throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.no_prompt_id') })
     }
     return { taskId: promptId }
+  }
+
+  private async uploadImage(
+    file: NonNullable<ImageGenerationSubmitInput['files']>[number],
+    signal?: AbortSignal
+  ): Promise<string> {
+    if (file.type === 'url') {
+      throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.request_failed') })
+    }
+
+    const mediaType = file.mediaType || 'image/png'
+    const extension = mediaType === 'image/jpeg' ? 'jpg' : mediaType.split('/')[1]?.replace(/[^a-z0-9]/gi, '') || 'png'
+    const data = typeof file.data === 'string' ? Buffer.from(file.data, 'base64') : Buffer.from(file.data)
+    const formData = new FormData()
+    formData.append('image', new Blob([data], { type: mediaType }), `cherry-studio-${randomUUID()}.${extension}`)
+    formData.append('type', 'input')
+    formData.append('overwrite', 'true')
+
+    return this.withDeadline(
+      signal,
+      SUBMIT_TIMEOUT_MS,
+      t('paintings.comfyui.request_timeout', { seconds: SUBMIT_TIMEOUT_MS / 1000 }),
+      async (deadlineSignal) => {
+        const headers = Object.fromEntries(
+          Object.entries(this.headers).filter(([name]) => name.toLowerCase() !== 'content-type')
+        )
+        const response = await this.doFetch(`${this.baseURL}/upload/image`, {
+          method: 'POST',
+          headers,
+          body: formData,
+          signal: deadlineSignal
+        })
+        if (!response.ok) {
+          throw createPaintingGenerateError('REMOTE_ERROR', {
+            message: await readErrorMessage(response, t('paintings.comfyui.request_failed'))
+          })
+        }
+        const result = (await response.json()) as { name?: unknown; subfolder?: unknown }
+        if (typeof result.name !== 'string' || result.name.length === 0) {
+          throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.comfyui.request_failed') })
+        }
+        return typeof result.subfolder === 'string' && result.subfolder.length > 0
+          ? `${result.subfolder}/${result.name}`
+          : result.name
+      }
+    )
   }
 
   async poll(

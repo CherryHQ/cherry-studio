@@ -10,7 +10,7 @@ LM Studio 是一款流行的 **本地大模型 GUI**，支持下载、量化并�
 
 ## 在 Cherry Studio 配置
 
-* 打开 `设置 → 模型服务`，找到 **LM Studio** Provider 进入详情页
+* 打开 `设置 → 模型服务`，找到 **LM Studio** 服务商进入详情页
 * **API 地址** 默认 `http://localhost:1234`，如改过 LM Studio 端口请同步修改
 * **API 密钥** 可留空（本地推理无需鉴权），或在 LM Studio 中开启鉴权后填入
 * 点击 **获取模型列表**，Cherry Studio 会自动拉取 LM Studio 已加载的模型

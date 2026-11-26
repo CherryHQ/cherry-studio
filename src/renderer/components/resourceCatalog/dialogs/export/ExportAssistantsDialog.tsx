@@ -11,7 +11,7 @@ import {
   DialogTitle,
   EmptyState,
   Input,
-  Scrollbar
+  ScrollArea
 } from '@cherrystudio/ui'
 import type { Assistant } from '@shared/data/types/assistant'
 
@@ -81,13 +81,13 @@ export function ExportAssistantsDialog({
             {t('common.selectedItems', { count: selected.size })}
           </span>
         </div>
-        <Scrollbar className="h-80">
+        <ScrollArea className="h-80">
           {loading ? (
             <p role="status" className="p-4 text-sm text-muted-foreground">
               {t('common.loading')}
             </p>
           ) : visible.length === 0 ? (
-            <EmptyState preset="no-result" title={t('common.no_results')} />
+            <EmptyState title={t('common.no_results')} />
           ) : (
             visible.map((assistant) => (
               <label
@@ -115,7 +115,7 @@ export function ExportAssistantsDialog({
               </label>
             ))
           )}
-        </Scrollbar>
+        </ScrollArea>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}

@@ -1,121 +1,84 @@
 ---
-description: IpcChatTransport bridging useChat to Main over ai.stream.* IpcApi routes, with dispatch ack coordination and detach vs abort
+description: Desktop AI commands and shared root/child message projection subscriptions over IpcApi
 sources:
-  - src/renderer/services/aiTransport/IpcChatTransport.ts
+  - src/renderer/hooks/useStreamCommands.ts
   - src/renderer/services/aiTransport/StreamDispatchService.ts
-  - src/renderer/services/aiTransport/TopicStreamSubscription.ts
+  - src/renderer/services/aiTransport/MessageProjectionService.ts
+  - src/renderer/services/aiTransport/ToolResultService.ts
+  - src/renderer/hooks/useToolResult.ts
+  - src/main/ai/messages/toolResultRead.ts
+  - src/shared/ai/transport/stream.ts
+  - src/shared/ipc/schemas/ai.ts
+  - src/main/ipc/handlers/ai.ts
 ---
 
 # IPC Transport
 
-## What it is
+## DeepSeek import commands
 
-`IpcChatTransport`
-(`src/renderer/services/aiTransport/IpcChatTransport.ts`) implements AI SDK's
-`ChatTransport<CherryUIMessage>` over Electron IPC. The renderer feeds
-it into `useChat({ id: topicId, transport: ... })`. The `ChatTransport`
-interface has only two methods — `sendMessages` / `reconnectToStream`;
-the transport relays each through `ipcApi.request('ai.stream.*', ...)` to
-Main's IpcApi handler and `AiStreamManager`. `cancel` is **not** a transport method: it is the
-`cancel` callback of the `ReadableStream` that `sendMessages` returns
-(AI SDK invokes it on unmount/disposal), and abort is driven by the
-request's `abortSignal`.
+`ai.agent.import.prepare` opens the native ZIP picker and returns validated preview counts without requiring an existing Agent. `status` restores the source importer's latest operation; `start` creates a DeepSeek Agent with ordinary Pi Durable defaults and imports its sessions, while `cancel` stops unfinished work. Retries reuse the operation and Agent. `ai.agent.import.progress` broadcasts revisioned snapshots. `AgentImportService` owns execution independently of the dialog lifetime. Imported conversations use normal Agent session reads and navigation after publication.
 
-```
-useChat({ id: topicId, transport: new IpcChatTransport(defaultBody) })
-   │  transport methods
-   ├─ sendMessages         → ai.stream.open
-   ├─ reconnectToStream    → ai.stream.attach
-   │  returned-stream / signal callbacks
-   ├─ stream cancel()      → ai.stream.detach
-   └─ request abort signal → ai.stream.abort
-```
+## Commands and observation
 
-**Detach ≠ abort.** `cancel()` (e.g. unmount/disposal) requests
-`ai.stream.detach`: it drops *this* subscriber while Main keeps generating and
-persists the result. Stopping generation is a separate path — the request's
-`abortSignal` requests `ai.stream.abort`. Conflating the two would resurrect the v1
-"unmount → cancel → upstream abort → lost reply" bug class.
+Desktop consumers send commands through `useStreamCommands` or the existing conversation turn controller. They observe assistant output through the shared message projection store. Input admission and observation have separate lifetimes.
 
-## User Stop
+| Operation | Route | Owner |
+|---|---|---|
+| Submit or regenerate | `ai.stream.open` | `AiStreamManager.dispatchCommand` and the selected context provider |
+| Stop and await teardown | `ai.stream.abort` | `AiStreamManager.abortAndDrain` |
+| Attach a topic or child view | `ai.projection.attach` | Topic manager or child runtime owner |
+| Release one observation lease | `ai.projection.detach` | Window-scoped projection subscriptions |
+| Deliver a message update | `ai.projection.changed` | Directed IpcApi event to the subscribed window |
+| Read deferred tool details | `ai.tool.get_result` | Latest accepted live result or persisted message output |
+| Resolve approval | `ai.tool.respond_approval` | Existing tool approval owner |
+| Send input to a child | `ai.agent.child.message` | Native child owner, if available |
 
-`useChatWithHistory.stop()` starts `ai.stream.abort` before calling AI SDK's
-`stop()`, then awaits both. This establishes Main's topic admission barrier
-before local stream consumption ends and the UI can retry. The transport's
-request `abortSignal` covers a stream opened
-by `sendMessages`, but its abort callback sends IPC without exposing Main's
-completion to the hook; a stream returned by `reconnectToStream()` has no
-original request signal at all. The explicit idempotent IPC therefore covers
-both paths and makes the hook's Stop promise resolve only after Main has crossed
-the topic teardown barrier: terminal persistence is settled and, for an Agent
-session, its runtime generation — including a pending connection attempt — is
-closed before a retry is admitted.
+The attach/detach requests carry a discriminated target (`topicId`, or parent `sessionId` plus child lookup `toolCallId`) and an ephemeral subscription ID. Snapshots and patches use `CherryUIMessage`; owner state carries activity/availability or per-execution terminal facts. See [Execution Overlay](./execution-overlay.md) for revision recovery and baseline scope.
 
-Per-topic chunks arrive through `ipcApi.on('ai.stream.chunk', ...)`, filtered
-by `topicId`.
+Detach only removes a delivery lease. It never aborts a model or releases a native child. Stop is an explicit command whose promise resolves after Main drains the execution and terminal persistence, including the Agent runtime teardown needed before retry.
 
-## Triggers
+## Input and dispatch results
 
-`sendMessages` distinguishes two triggers:
+`submit-message` carries `userMessageParts` and the selected parent/model/request controls. `regenerate-message` carries the existing parent anchor instead of creating another user message. Approval-driven continuation is a Main command triggered by `ai.tool.respond_approval`, not inferred from renderer message content.
 
-| Trigger | What it does |
-|---|---|
-| `submit-message` | Includes `userMessageParts` (the latest message) so Main persists it |
-| `regenerate-message` | Sends `parentAnchorId` only; Main re-runs from the existing parent |
+`streamDispatchService` returns and broadcasts the admission result, including reserved messages, active executions and branch-preservation facts. Existing optimistic-message consumers keep this result path. Blocked admission uses the existing localized toast; request failures reach the command caller. The service does not serialize submissions: Main arbitrates concurrent input, chat steering and Agent follow-ups.
 
-Cherry's transport never derives `continue-conversation` from
-message-state introspection. Approval-driven resumption goes through the
-explicit `ai.tool.respond_approval` IpcApi route handled by
-[`useToolApprovalBridge`](./tool-approval.md).
+Quick Assistant keeps submitted inputs in its temporary conversation. Home and Agent Chat read inputs from their history queries. `useStreamCommands` sends commands, fences late failures after a topic switch, and reports runtime errors from the shared projection.
 
-## Dispatch coordinator
+## Tool result reads
 
-`streamDispatchService` (`src/renderer/services/aiTransport/StreamDispatchService.ts`)
-sits between the transport and the IPC call so the `ai.stream.open` ack
-(`reservedMessages`, `activeExecutions`, and `preserveActiveNode`) is
-observable to callers that need to seed optimistic UI bubbles, rather than
-being thrown away by AI SDK's transport interface.
+A deferred result is addressed by `{ topicId, messageId, toolCallId }`. The reference identifies the latest value; it carries no content revision and cannot retrieve an older result. `ai.tool.get_result` requires an explicit `purpose`:
 
-It does **not** serialize sends — there is no single-in-flight guard in the
-coordinator. Concurrency for a topic is arbitrated on the Main side: a chat
-resubmit to a live topic is persisted and queued as a steer
-(`AiStreamManager.enqueuePendingSteer`) — the running turn yields and a
-continuation answers it — while an agent-session follow-up attaches to the
-running stream.
+| Purpose | Ready response | Limit |
+|---|---|---|
+| `preview` | Structured `output` plus `truncated` | At most 32 KiB for the serialized UTF-8 response; fields and collections may be shortened |
+| `text-range` | Serialized JSON text or legacy envelope text plus optional `nextCursor` | At most 256 KiB of UTF-8 text per read; `cursor` is a byte offset, defaulting to zero |
+| `full` | Complete `output` | Explicit full-value consumers such as copy and export; no preview truncation |
 
-## Per-execution demux
+`status: 'ready'` carries the requested purpose. The current handler returns `unavailable` when neither the live owner nor persisted output can resolve the identity. The protocol also permits `pending`; consumers retry it on relevant invalidation or reattachment. Neither availability status changes the tool execution state, and `unavailable` is not an execution failure.
 
-The chunk stream from Main is keyed by `(topicId, executionId)`.
-`TopicStreamSubscription`
-(`src/renderer/services/aiTransport/TopicStreamSubscription.ts`) owns the
-topic-level `ai.stream.attach` / `ai.stream.detach` requests with ref-counted lifecycle
-and demuxes chunks into per-execution branch `ReadableStream`s, so
-multi-model parallel responses render as separate AI SDK messages on
-the same topic. `useExecutionOverlay` consumes each branch through
-`readUIMessageStream` — the same accumulator Main runs in
-`pipeStreamLoop`, so the renderer overlay and the persisted message
-are structurally identical.
+Ordinary deferred cards fetch details when opened. Generic readers page serialized text and load bounded media previews; specialized cards use bounded previews. Legacy entity ranges retain the skeleton and inline values, followed by blob bodies labeled with their field paths. Copy and export request `full` explicitly, including meta-tool cards that display bounded previews. A replacement invalidates the current reader and restarts pagination from byte zero; cursors do not pin historical values.
 
-See [Execution Overlay](./execution-overlay.md) for the merge-function
-symmetry, seed rule, cancellation layering, and lifecycle.
+Each renderer shares a latest-value LRU bounded to 16 MiB of serialized UTF-8 responses. It deduplicates active reads and fences obsolete completions locally, without an immutable SWR cache or content-version keys. A full response larger than that budget reaches its explicit mounted consumer but is not retained in the shared cache. Closing the last conversation observer releases that topic's cached and in-flight ownership while preserving other observers. Projection replacement, reattachment and relevant persisted-message changes invalidate retained details; ordered delivery is described in [Execution Overlay](./execution-overlay.md).
 
-## Topic-level subscription
+## Status and other transports
 
-`useTopicStreamStatus(topicId)` reads
-`topic.stream.statuses.<topicId>` from the shared cache. The cache is
-the cross-window source of truth for:
+`useTopicStreamStatus(topicId)` still reads `topic.stream.statuses.<topicId>` from shared cache. Sidebar status, read receipts and approval anchors remain cross-window mirrors; message bodies travel through directed projection delivery.
 
-- `pending` / `streaming` / `awaiting-approval` / `done` / `error` / `aborted`
-- broadcast-completion anchor ids
+The low-level `ai.stream.attach/detach` and chunk events remain available for existing raw-stream consumers. SSE, channel and one-shot prompt listeners keep their stream-specific contracts. Desktop root/child views no longer use chunk replay or `IpcChatTransport`.
 
-`classifyTurn(status)` decodes the status into the `TurnStateFlags`
-predicates the UI consumes (`isStreamLive`, `isTurnActive`,
-`isAwaitingApproval`, `isTerminal`).
+## One-shot text generation
 
-## Where to read more
+`ai.text.generate` accepts `disableTools: true` for text-only background work,
+including the fallback for runtimes without native next-prompt prediction.
+Claude Code, Pi and Pi Durable use `ai.agent.session.predict_prompt` and
+`ai.agent.session.abort_prediction`; see [Agent Session Runtime](./agent-session-runtime.md#next-prompt-suggestions).
+The flag suppresses tool registration
+without creating or changing an Agent execution. An optional `requestId` pairs
+the request with `ai.text.abort`; callers must still ignore stale results.
 
-- Code: `src/renderer/services/aiTransport/`
-- Hook glue: `src/renderer/hooks/useChatWithHistory.ts`
-- Per-execution overlay (renderer assembler): [Execution Overlay](./execution-overlay.md)
-- Approval bridge: [Tool Approval](./tool-approval.md)
-- Main side: [Stream Manager](./stream-manager.md)
+## Related references
+
+- [Execution Overlay](./execution-overlay.md) — projection publication and recovery.
+- [Tool Approval](./tool-approval.md) — approval ownership and persistent decisions.
+- [Stream Manager](./stream-manager.md) — Main execution and persistence.

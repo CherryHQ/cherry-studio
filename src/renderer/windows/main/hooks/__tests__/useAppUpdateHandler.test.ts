@@ -104,25 +104,19 @@ describe('useAppUpdateHandler', () => {
     mocks.ipcRequest.mockResolvedValue(undefined)
   })
 
-  it('maps available and progress events to the update state and notification', () => {
+  it('updates download state without duplicating the main-owned version notification', () => {
     renderHook(() => useAppUpdateHandler())
 
     emit('app.updater.available', releaseInfo)
     emit('app.updater.download_progress', progress)
 
-    expect(mocks.notificationSend).toHaveBeenCalledWith({
-      id: 'notification-id',
-      type: 'info',
-      title: 'button.update_available',
-      message: 'button.update_available:2.1.0',
-      timestamp: expect.any(Number),
-      source: 'update'
-    })
+    expect(mocks.notificationSend).not.toHaveBeenCalled()
     expect(mocks.updateAppUpdateState).toHaveBeenNthCalledWith(1, {
       checking: false,
       downloading: true,
       info: releaseInfo,
-      available: true
+      available: true,
+      lastErrorKey: null
     })
     expect(mocks.updateAppUpdateState).toHaveBeenNthCalledWith(2, {
       downloading: false,
@@ -150,7 +144,8 @@ describe('useAppUpdateHandler', () => {
     expect(mocks.updateAppUpdateState).toHaveBeenCalledWith({
       downloading: false,
       info: releaseInfo,
-      downloaded: true
+      downloaded: true,
+      lastErrorKey: null
     })
   })
 
@@ -195,7 +190,7 @@ describe('useAppUpdateHandler', () => {
 
     expect(mocks.toastSuccess).not.toHaveBeenCalled()
     expect(mocks.popupConfirm).not.toHaveBeenCalled()
-    expect(mocks.updateAppUpdateState).toHaveBeenCalledWith({ checking: false, manualCheck: false })
+    expect(mocks.updateAppUpdateState).toHaveBeenCalledWith({ checking: false, manualCheck: false, lastErrorKey: null })
   })
 
   it('fails closed to the up-to-date toast on a version-skewed void payload', () => {
@@ -213,6 +208,11 @@ describe('useAppUpdateHandler', () => {
 
     emit('app.updater.error', new Error('background failure'))
     expect(mocks.popupInfo).not.toHaveBeenCalled()
+    expect(mocks.updateAppUpdateState).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        lastErrorKey: 'settings.about.updateError'
+      })
+    )
 
     mocks.appUpdateState.manualCheck = true
     rerender()
@@ -222,7 +222,8 @@ describe('useAppUpdateHandler', () => {
       checking: false,
       downloading: false,
       downloadProgress: 0,
-      manualCheck: false
+      manualCheck: false,
+      lastErrorKey: 'settings.about.updateError'
     })
     expect(mocks.popupInfo).toHaveBeenCalledExactlyOnceWith({
       title: 'settings.about.updateError',

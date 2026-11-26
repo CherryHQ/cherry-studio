@@ -44,6 +44,7 @@ Page-only UI should stay in the page directory. If a component is only a Home or
 
 `MessageContentProvider` owns the internal parts context. Pages and adapters should pass
 `state.partsByMessageId` into the message-list provider value; they should not wrap `PartsProvider` manually.
+Read one row with `messagePartsAt(rows, messageId)`. Home and Agent supply sparse live replies over the history index. Use `messagePartEntries(rows)` for operations that need the whole conversation. An addressed live row with zero parts clears the displayed body until history takes ownership.
 
 Directory names stay lowercase. React component files stay PascalCase.
 

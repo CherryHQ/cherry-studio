@@ -118,20 +118,29 @@ export async function knowledgeSourceOperations(app: RegressionApp, page: Page, 
     const preview = panel.getByRole('region', { name: basename(paths[0]), exact: true })
     await expect(preview).toContainText(firstMarker)
     await expect(preview).toContainText('Cherry Studio knowledge source operations preserve document provenance.')
-    await preview.hover()
-    await page.mouse.wheel(0, 1_000_000)
-    await expect(preview).toContainText(lastMarker)
+    // The virtualized editor renders its lines in a shadow root; Playwright text locators pierce it.
+    const previewScroll = preview.locator('[data-radix-scroll-area-viewport]')
+    await expect(async () => {
+      await previewScroll.evaluate((element) => {
+        element.scrollTop = element.scrollHeight
+      })
+      await expect(preview.getByText(lastMarker, { exact: true })).toBeVisible({ timeout: 500 })
+    }).toPass({ timeout: 30_000 })
     await screenshot('MP-65 original document preview')
     await panel.getByRole('button', { name: 'Back', exact: true }).click()
 
     const previousUpdatedAt = firstItem!.updatedAt
     await action('Reindex')
-    await expect(firstRow).toContainText(/Waiting|Reading|Processing|Chunking|Embedding/, { timeout: 15_000 })
-    await screenshot('MP-65 reindex processing')
+    await expect
+      .poll(
+        async () => {
+          const reindexed = (await readItems()).items.find(({ id }) => id === firstItem!.id)
+          return { status: reindexed?.status, updated: reindexed?.updatedAt !== previousUpdatedAt }
+        },
+        { timeout: 120_000 }
+      )
+      .toEqual({ status: 'completed', updated: true })
     await expect(firstRow.getByText('Ready', { exact: true })).toBeVisible({ timeout: 120_000 })
-    const reindexed = (await readItems()).items.find(({ id }) => id === firstItem!.id)
-    expect(reindexed?.status).toBe('completed')
-    expect(reindexed?.updatedAt).not.toBe(previousUpdatedAt)
     await screenshot('MP-65 reindex ready')
 
     await firstRow.getByRole('checkbox', { name: 'Select row', exact: true }).check()

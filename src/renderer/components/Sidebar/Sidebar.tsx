@@ -262,7 +262,7 @@ export function Sidebar({
               startResizing(event)
             }}
             className="group/handle h-full w-full cursor-col-resize">
-            <div className="ml-0.5 h-full w-0.5 rounded-full bg-primary/30 opacity-0 transition-opacity group-hover/handle:opacity-100" />
+            <div className="ml-0.5 h-full w-0.5 rounded-full bg-border-strong opacity-0 transition-opacity group-hover/handle:opacity-100" />
           </div>
         </div>
       </div>
@@ -330,7 +330,7 @@ export function Sidebar({
       <div
         onMouseDown={startResizing}
         className="group/handle absolute top-0 right-0 bottom-0 z-50 w-0.75 cursor-col-resize [-webkit-app-region:no-drag]">
-        <div className="h-full w-full bg-primary/20 opacity-0 transition-opacity group-hover/handle:opacity-100" />
+        <div className="h-full w-full bg-border opacity-0 transition-opacity group-hover/handle:opacity-100" />
       </div>
     </div>
   )

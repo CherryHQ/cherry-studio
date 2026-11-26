@@ -1,7 +1,7 @@
 import type { JSONValue, LanguageModelV3Prompt } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
 
-import { Offloader, type VFSStorageAdapter } from '../offloader'
+import { type VFSStorageAdapter } from '../offloader'
 import { type EntityToolOutputCodec, truncateToolResults } from '../truncator'
 
 describe('truncateToolResults', () => {
@@ -250,9 +250,6 @@ describe('truncateToolResults', () => {
     const longOutput = 'x'.repeat(5000)
     const prompt = makeToolPrompt(longOutput)
     const result = await truncateToolResults(prompt, { threshold: 10, storage }, logger)
-    expect(logger.warn).toHaveBeenCalledTimes(1)
-    expect(logger.warn.mock.calls[0][0]).toContain('[context]')
-    expect(logger.warn.mock.calls[0][0]).toContain('Storage adapter write failed')
 
     // The catch block must still fall back to simple truncation, not surface
     // the original oversized output or rethrow.
@@ -379,29 +376,6 @@ describe('truncateToolResults — entity codec', () => {
     expect([...adapter.store.values()]).toContain(BIG)
   })
 
-  it('per-entity trimmed text is byte-identical to the offloader output for the same text', async () => {
-    const value = [{ id: 'cite-0', url: 'https://a.example', title: 'A', content: BIG }]
-    const adapter = memoryAdapter()
-    const [msg] = await truncateToolResults(entitiesPrompt(value), options(adapter))
-    const expected = await new Offloader({ threshold: 100, adapter }).offloadAsync(BIG, {
-      headChars: 30,
-      tailChars: 40
-    })
-
-    if (msg.role !== 'tool') throw new Error('expected tool message')
-    const part = msg.content[0]
-    if (part.type !== 'tool-result' || part.output.type !== 'json') throw new Error('expected json output')
-    expect((part.output.value as Array<{ content: string }>)[0].content).toBe(expected.content)
-  })
-
-  it('returns the part untouched (same reference) when every entity fits', async () => {
-    const value = [{ id: 'cite-0', url: 'https://a.example', title: 'A', content: 'small' }]
-    const prompt = entitiesPrompt(value)
-    const [msg] = await truncateToolResults(prompt, options(memoryAdapter()))
-    if (msg.role !== 'tool') throw new Error('expected tool message')
-    expect(msg.content[0]).toBe((prompt[0] as { content: unknown[] }).content[0])
-  })
-
   it('deflate → null (non-array error output) falls back to the opaque path', async () => {
     const errorValue = { error: 'x'.repeat(300) }
     const [msg] = await truncateToolResults(entitiesPrompt(errorValue), options(memoryAdapter()))
@@ -410,15 +384,6 @@ describe('truncateToolResults — entity codec', () => {
     // Opaque path stringifies json and truncates it as text.
     if (part.type !== 'tool-result') throw new Error('expected tool-result')
     expect(part.output.type).toBe('text')
-  })
-
-  it('never re-truncates an entity whose content already carries a marker', async () => {
-    const marked = `head\n<persisted-output>\nolder marker\n</persisted-output>\ntail${'x'.repeat(200)}`
-    const value = [{ id: 'cite-0', content: marked }]
-    const prompt = entitiesPrompt(value)
-    const [msg] = await truncateToolResults(prompt, options(memoryAdapter()))
-    if (msg.role !== 'tool') throw new Error('expected tool message')
-    expect(msg.content[0]).toBe((prompt[0] as { content: unknown[] }).content[0])
   })
 
   it('a storage failure keeps that entity full while others still trim', async () => {

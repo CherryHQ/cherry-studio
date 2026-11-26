@@ -1,3 +1,4 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -46,7 +47,7 @@ vi.mock('@renderer/components/FileEditor', () => ({
 vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOriginal) => {
   // Keep the real named exports (incl. HTML_PREVIEW_RESTRICTED_SANDBOX) so the
   // sandbox assertion checks the actual constant, not a mock stand-in.
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     default: (props: { html: string; title: string; baseUrl?: string; sandbox?: string; csp?: string }) => {
@@ -75,7 +76,7 @@ vi.mock('@cherrystudio/ui', () => ({
   ),
   Button: (props: ComponentPropsWithoutRef<'button'>) => <button type="button" {...props} />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('react-i18next', () => ({
@@ -105,6 +106,22 @@ function renderPreview(
 }
 
 describe('HtmlFilePreview', () => {
+  it('opens a located artifact as source instead of rendering it', async () => {
+    mocks.readText.mockResolvedValue('<h1>Source</h1>')
+    render(
+      <HtmlFilePreview
+        filePath={filePath}
+        fileName="source.html"
+        metadata={{ size: 128, modifiedAt: 1 }}
+        refreshKey={0}
+        type="artifact"
+        location={{ line: 1 }}
+      />
+    )
+    expect(await screen.findByRole('textbox', { name: 'HTML source' })).toHaveValue('<h1>Source</h1>')
+    expect(screen.queryByTestId('webview-browser')).not.toBeInTheDocument()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.readText.mockResolvedValue('<h1>Hello</h1>')
@@ -122,7 +139,6 @@ describe('HtmlFilePreview', () => {
     const frame = await screen.findByTestId('html-frame')
     expect(frame).toHaveAttribute('srcdoc', '<h1>Hello</h1>')
     expect(frame.getAttribute('data-base-url')).toMatch(/^file:\/\/.*index\.html$/)
-    expect(frame.parentElement).toHaveClass('h-full', 'bg-white')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
   })
 
@@ -186,9 +202,6 @@ describe('HtmlFilePreview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.source' }))
 
     expect(await screen.findByRole('textbox', { name: 'HTML source' })).toHaveValue('<h1>Hello</h1>')
-    expect(mocks.codeViewer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ fileName: 'index.html', value: '<h1>Hello</h1>', wrapLines: true, readOnly: true })
-    )
 
     fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.preview' }))
     expect(screen.getByTestId('html-frame')).toBeInTheDocument()

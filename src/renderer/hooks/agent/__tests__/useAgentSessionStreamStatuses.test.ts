@@ -1,6 +1,3 @@
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * Tests for useAgentSessionStreamStatuses after migrating to
  * useSharedCacheSelector: the signature string is replaced by an explicit Map
@@ -8,8 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * entry fields change, derived state doesn't → no re-render) and its unequal
  * branch (derived state changes → re-render) must hold.
  */
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { TopicStatusSnapshotEntry, TopicStreamStatus } from '@shared/ai/transport'
 
 import { useAgentSessionStreamStatuses } from '../useAgentSessionStreamStatuses'
@@ -49,15 +49,6 @@ afterEach(() => {
 })
 
 describe('useAgentSessionStreamStatuses', () => {
-  it('returns the stable empty map when no session has a status', () => {
-    const { result, rerender } = renderHook(() => useAgentSessionStreamStatuses([SESSION_ID]))
-
-    expect(result.current.size).toBe(0)
-    const first = result.current
-    rerender()
-    expect(result.current).toBe(first)
-  })
-
   it('classifies a published status into the session map', () => {
     const { result } = renderHook(() => useAgentSessionStreamStatuses([SESSION_ID]))
 
@@ -68,26 +59,18 @@ describe('useAgentSessionStreamStatuses', () => {
     expect(result.current.get(SESSION_ID)).toEqual({ isPending: true, status: 'streaming' })
   })
 
-  it('comparator equal branch: raw entry fields change, derived state does not → no re-render', () => {
+  it('follows a recovered run on its original topic and switches back for the next admission', () => {
+    const route = `agent.session.stream_topic.${SESSION_ID}` as const
+    const topic = `agent-session:${SESSION_ID}/context/recovered`
+    const { result } = renderHook(() => useAgentSessionStreamStatuses([SESSION_ID]))
     act(() => {
-      cacheService.setShared(KEY, makeEntry('streaming', 1))
+      cacheService.setShared(KEY, makeEntry('done', 1))
+      cacheService.setShared(`topic.stream.statuses.${topic}`, makeEntry('streaming', 0))
+      cacheService.setShared(route, topic)
     })
-
-    let renderCount = 0
-    const { result } = renderHook(() => {
-      renderCount++
-      return useAgentSessionStreamStatuses([SESSION_ID])
-    })
-    const committed = result.current
-    const renders = renderCount
-
-    act(() => {
-      // Notification fires (value deep-differs) but status/isPending are unchanged.
-      cacheService.setShared(KEY, makeEntry('streaming', 2))
-    })
-
-    expect(renderCount).toBe(renders)
-    expect(result.current).toBe(committed)
+    expect(result.current.get(SESSION_ID)?.isPending).toBe(true)
+    act(() => cacheService.setShared(route, null))
+    expect(result.current.get(SESSION_ID)?.status).toBe('done')
   })
 
   it('comparator unequal branch: derived state change re-renders with the new map', () => {

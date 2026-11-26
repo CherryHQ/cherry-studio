@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import * as htmlToImage from 'html-to-image'
 import type { ReactNode, RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -140,6 +141,57 @@ function firstVisibleLine(container: HTMLElement, offset: number) {
 }
 
 describe('CodeViewer', () => {
+  it('folds JSON objects and arrays independently and copies the original source across a fold', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const value = JSON.stringify(
+      { messages: [{ text: 'brackets in a string } ]' }], status: 'visible sibling' },
+      null,
+      4
+    )
+    const { getAllByRole, getByRole, getByText, queryByText } = render(
+      <CodeViewer value={value} language="JSON" expanded={false} height={300} />
+    )
+
+    await waitFor(() => expect(getAllByRole('button', { expanded: true })).toHaveLength(3))
+    await user.click(getAllByRole('button', { expanded: true })[2])
+    expect(queryByText(/brackets in a string/)).not.toBeInTheDocument()
+    await user.click(getByRole('button', { expanded: false }))
+    expect(getByText(/brackets in a string/)).toBeInTheDocument()
+
+    await user.click(getAllByRole('button', { expanded: true })[1])
+    expect(queryByText(/brackets in a string/)).not.toBeInTheDocument()
+    const start = getByText('"messages": [').firstChild!
+    const end = getByText(/visible sibling/).firstChild!
+    const selection = window.getSelection()!
+    fireEvent.pointerDown(start.parentElement!, { button: 0 })
+    selection.setBaseAndExtent(start, 0, end, end.textContent!.length)
+    fireEvent.pointerUp(end.parentElement!, { button: 0 })
+    const writeText = vi.fn()
+    const event = new Event('copy', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', { value: { setData: writeText } })
+    fireEvent(start.parentElement!, event)
+    expect(writeText).toHaveBeenCalledWith('text/plain', value.split('\n').slice(1, -1).join('\n'))
+    selection.removeAllRanges()
+  })
+
+  it('shows short code immediately when a continuing scroll returns it to the viewport', () => {
+    prefixHeight = 600
+    const scrollContainerRef: RefObject<HTMLDivElement | null> = { current: null }
+    const { container } = render(
+      <ScrollOwner scrollContainerRef={scrollContainerRef}>
+        <CodeViewer value="const answer = 42" language="typescript" expanded />
+      </ScrollOwner>
+    )
+    const outer = scrollContainerRef.current!
+    outer.scrollTop = 1200
+    fireEvent.scroll(outer)
+    expect(container.querySelector('.line-content')).toBeNull()
+
+    outer.scrollTop = 600
+    fireEvent.scroll(outer)
+    expect(container.querySelector('.line-content')?.textContent).toBe('const answer = 42')
+  })
+
   it.each([0, 1650])('observes a fresh managed attachment at offset %i without another scroll event', (offset) => {
     prefixHeight = offset === 0 ? 0 : 600
     const scrollContainerRef: RefObject<HTMLDivElement | null> = { current: null }

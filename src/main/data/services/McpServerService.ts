@@ -7,15 +7,23 @@
  */
 
 import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
 
 import { application } from '@application'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
+import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type {
+  CreateMcpServerDto,
+  InstallMcpServerPresetDto,
+  ListMcpServersQuery,
+  UpdateMcpServerDto
+} from '@shared/data/api/schemas/mcpServers'
+import { FEATURED_MCP_PRESETS, PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -36,6 +44,9 @@ function rowToMcpServer(row: typeof mcpServerTable.$inferSelect): McpServer {
 }
 
 export class McpServerService {
+  private readonly _onChanged = new Emitter<string>()
+  readonly onChanged = this._onChanged.event
+
   private get db() {
     return application.get('DbService').getDb()
   }
@@ -84,12 +95,52 @@ export class McpServerService {
     }
   }
 
+  findByConfig(
+    config: Pick<
+      CreateMcpServerDto,
+      'name' | 'type' | 'command' | 'args' | 'env' | 'baseUrl' | 'headers' | 'registryUrl' | 'dxtPath'
+    >
+  ): McpServer | undefined {
+    const type = config.type ?? (config.baseUrl ? 'sse' : 'stdio')
+    const pathValue = (env: Record<string, string> | undefined) =>
+      Object.entries(env ?? {})
+        .filter(([key]) => key.toLowerCase() === 'path')
+        .at(-1)?.[1]
+    return this.db
+      .select()
+      .from(mcpServerTable)
+      .where(eq(mcpServerTable.name, config.name))
+      .orderBy(asc(mcpServerTable.createdAt), asc(mcpServerTable.id))
+      .all()
+      .map(rowToMcpServer)
+      .find((server) => {
+        if (server.installSource === 'builtin' || server.type === 'inMemory') return false
+        if (
+          (server.type ?? (server.baseUrl ? 'sse' : 'stdio')) !== type ||
+          (server.baseUrl ?? '') !== (config.baseUrl ?? '')
+        )
+          return false
+        if (type !== 'stdio')
+          return isEqual(
+            mergeHeaders(defaultAppHeaders(), server.headers),
+            mergeHeaders(defaultAppHeaders(), config.headers)
+          )
+        return (
+          (server.command ?? '').trim() === (config.command ?? '').trim() &&
+          isEqual(server.args ?? [], config.args ?? []) &&
+          isEqual(server.env ?? {}, config.env ?? {}) &&
+          (process.platform !== 'win32' || pathValue(server.env) === pathValue(config.env)) &&
+          (server.registryUrl ?? '') === (config.registryUrl ?? '') &&
+          (server.dxtPath ?? '') === (config.dxtPath ?? '')
+        )
+      })
+  }
+
   /**
    * Create a new MCP server
    */
   create(dto: CreateMcpServerDto): McpServer {
     this.validateName(dto.name)
-    this.validateQVerisConfiguration({ name: dto.name, env: dto.env, isActive: dto.isActive ?? false })
 
     const { sortOrder, isActive, ...rest } = dto
 
@@ -108,12 +159,44 @@ export class McpServerService {
     return rowToMcpServer(row)
   }
 
+  installPreset({ name, activate }: InstallMcpServerPresetDto): McpServer {
+    const preset = PRESET_MCP_SERVERS.find((item) => item.name === name)
+    if (!preset) throw DataApiErrorFactory.notFound('McpServerPreset', name)
+    if (activate && !FEATURED_MCP_PRESETS.includes(preset)) {
+      throw DataApiErrorFactory.invalidOperation('Install MCP server preset', 'The preset requires manual setup')
+    }
+
+    const row = application.get('DbService').withWriteTx((tx) => {
+      const existing = tx
+        .select()
+        .from(mcpServerTable)
+        .where(and(eq(mcpServerTable.name, preset.name), eq(mcpServerTable.installSource, 'builtin')))
+        .orderBy(asc(mcpServerTable.createdAt), asc(mcpServerTable.id))
+        .get()
+      if (existing) {
+        if (!activate || existing.isActive) return existing
+        return tx
+          .update(mcpServerTable)
+          .set({ isActive: true })
+          .where(eq(mcpServerTable.id, existing.id))
+          .returning()
+          .all()[0]
+      }
+
+      return tx
+        .insert(mcpServerTable)
+        .values({ ...preset, isActive: activate || preset.isActive })
+        .returning()
+        .all()[0]
+    })
+    return rowToMcpServer(row)
+  }
+
   createMany(dtos: CreateMcpServerDto[]): McpServer[] {
     const created = application.get('DbService').withWriteTx((tx) => {
       const names = new Set<string>()
       for (const dto of dtos) {
         this.validateName(dto.name)
-        this.validateQVerisConfiguration({ name: dto.name, env: dto.env, isActive: dto.isActive ?? false })
         if (names.has(dto.name)) {
           throw DataApiErrorFactory.conflict(`MCP server '${dto.name}' already exists`, 'McpServer')
         }
@@ -158,12 +241,7 @@ export class McpServerService {
       }
 
       const existing = rowToMcpServer(existingRow)
-      const name = dto.name ?? existing.name
-      const env = dto.env ?? existing.env
-      const isActive = dto.isActive ?? existing.isActive
-
-      this.validateName(name)
-      this.validateQVerisConfiguration({ name, env, isActive })
+      this.validateName(dto.name ?? existing.name)
 
       const updates = Object.fromEntries(Object.entries(dto).filter(([, v]) => v !== undefined)) as Partial<
         typeof mcpServerTable.$inferInsert
@@ -172,6 +250,7 @@ export class McpServerService {
       return rowToMcpServer(row)
     })
 
+    this._onChanged.fire(id)
     logger.info('Updated MCP server', { id, changes: Object.keys(dto) })
 
     return result
@@ -218,6 +297,7 @@ export class McpServerService {
       })
     }
 
+    this._onChanged.fire(id)
     logger.info('Deleted MCP server', { id })
   }
 
@@ -237,12 +317,6 @@ export class McpServerService {
   private validateName(name: string): void {
     if (!name?.trim()) {
       throw DataApiErrorFactory.validation({ name: ['Name is required'] })
-    }
-  }
-
-  private validateQVerisConfiguration(server: Pick<McpServer, 'name' | 'env' | 'isActive'>): void {
-    if (server.name === BuiltinMcpServerNames.qveris && server.isActive && !server.env?.QVERIS_API_KEY?.trim()) {
-      throw DataApiErrorFactory.validation({ env: ['QVERIS_API_KEY is required when QVeris is enabled'] })
     }
   }
 }

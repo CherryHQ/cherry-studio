@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next'
 
 import {
   Button,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
   Tooltip,
   DropdownMenu,
   DropdownMenuTrigger,
@@ -16,7 +19,7 @@ import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell
 import { AppUpdateButton } from '@renderer/components/layout/AppUpdateButton'
 import { HelpMenu } from '@renderer/components/layout/HelpMenu'
 import { UserAvatar } from '@renderer/components/Sidebar'
-import UserPopup from '@renderer/components/UserPopup'
+import { UserAccountPanel } from '@renderer/components/UserAccountPanel'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
@@ -111,6 +114,7 @@ export function MinimalSidebarHeader() {
 
 export function MinimalSidebarFooter() {
   const minimalMode = useMinimalMode()
+  const [userOpen, setUserOpen] = useState(false)
   const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const { t } = useTranslation()
@@ -121,14 +125,20 @@ export function MinimalSidebarFooter() {
     <>
       {minimalMode?.enabled && (
         <div className="flex shrink-0 items-center gap-0.5 border-t-[0.5px] border-border px-2 py-1.5">
-          <Button
-            variant="ghost"
-            className="h-[30px] min-w-0 flex-1 justify-start gap-2 px-1 text-muted-foreground! hover:text-foreground! focus-visible:text-foreground!"
-            aria-label={name}
-            onClick={() => UserPopup.show()}>
-            <UserAvatar user={{ name, avatar }} className="size-6 shrink-0" />
-            <span className="truncate text-sm">{name}</span>
-          </Button>
+          <Popover open={userOpen} onOpenChange={setUserOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                className="h-[30px] min-w-0 flex-1 justify-start gap-2 px-1 text-muted-foreground! hover:text-foreground! focus-visible:text-foreground!"
+                aria-label={name}>
+                <UserAvatar user={{ name, avatar }} className="size-6 shrink-0" />
+                <span className="truncate text-sm">{name}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent side="top" align="start">
+              <UserAccountPanel onRequestClose={() => setUserOpen(false)} />
+            </PopoverContent>
+          </Popover>
           <AppUpdateButton className="size-[30px] rounded-md [&_svg]:size-4" placement="top" />
           <Tooltip content={t('settings.title')} placement="top" delay={800}>
             <Button

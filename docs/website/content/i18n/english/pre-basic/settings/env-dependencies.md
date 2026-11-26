@@ -27,7 +27,7 @@ Overview of common tools:
 | **ripgrep (rg)** | Fast text search tool, a replacement for `grep` |
 | **RTK** | CLI proxy tool that compresses terminal output to reduce LLM token consumption |
 
-The page also lists tools such as `gh` (GitHub CLI), `ntn` (Notion CLI), and `pi` in cards, which can be installed with one click as needed. (Coding CLIs like Claude Code / Codex are managed on the [Code Mate](../../cherrystudio/preview/code-cli.md) page, not here.)
+The page also lists tools such as `gh` (GitHub CLI), `ntn` (Notion CLI), and `pi` in cards, which can be installed with one click as needed. (Coding CLIs like Claude Code / Codex are managed on the [Code Mate](../../advanced-basic/developer-tools/code-cli.md) page, not here.)
 
 ### Add Tool
 

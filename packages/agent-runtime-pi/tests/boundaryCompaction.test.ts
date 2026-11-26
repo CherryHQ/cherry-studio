@@ -9,6 +9,7 @@ import { expect, it, onTestFinished } from 'vitest'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime } from '../src'
+import { createTestBehavior } from './sessionSupport'
 
 function confirmed<T>(result: OperationResult<T>): T {
   expect(result.status).toBe('confirmed')
@@ -37,6 +38,7 @@ it.each(['turn_end', 'agent_before_settle'] as const)(
     let send!: () => void
     const handle = confirmed(
       await runtime.create({
+        behavior: createTestBehavior(),
         cwd,
         agentDir: cwd,
         modelRuntime,
@@ -89,7 +91,7 @@ it.each(['turn_end', 'agent_before_settle'] as const)(
     expect(replacements.at(-1)?.messages.filter((message) => message.role !== 'system')).toMatchObject(expected)
     expect(
       events
-        .flatMap((event) => (event.type === 'message.upsert' ? [event.message] : []))
+        .flatMap((event) => (event.type === 'message.reconcile' ? [event.message] : []))
         .some((message) => message.parts.some((part) => part.type === 'text' && part.text === 'Removed notice'))
     ).toBe(false)
     const snapshots: ObservationPayload[] = []
@@ -109,6 +111,7 @@ it.each(['turn_end', 'agent_before_settle'] as const)(
     })
     const fresh = confirmed(
       await freshRuntime.create({
+        behavior: createTestBehavior(),
         cwd,
         agentDir: cwd,
         modelRuntime,

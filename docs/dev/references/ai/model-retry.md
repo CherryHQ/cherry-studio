@@ -133,6 +133,12 @@ with both failed and fallback ids; terminal logs preserve the original error
 and per-attempt diagnostics. All logging goes through
 `loggerService.withContext('ModelRetry')`.
 
+Streaming caller requests emit the same status. Internal object transports forward it
+through a typed callback, outside native protocol events. Pi and Pi Durable identify
+the native call owner and update the root stream or the matching child's live view.
+Cancellation clears an active status even if no further model chunk arrives. Child
+retry status is applied after archive reconciliation and never written to SQLite.
+
 ### Embeddings & Rerank — no ai-retry
 
 Neither uses the ai-retry model wrapper. There is no cross-model fallback for
@@ -155,6 +161,15 @@ per-batch retry handles residual 429s. The degrade-to-vector-results fallback in
 `knowledge/utils/indexing/rerank.ts` is unchanged.
 
 ## Interaction with other retry knobs
+
+Pi and Pi Durable internal object requests reuse `createRetryableWrap` through the
+caller-owned single-step path. `RuntimeExecutor.streamText` / `generateText` apply the
+wrapper after provider middleware. An explicit request count enables three retries,
+independently of the chat retry toggle and count; backoff uses `chat.retry.backoff_enabled`.
+Native and AI SDK built-in retries remain disabled. These requests do not rotate API keys
+or fall back to another model, and retry only before the first content chunk is forwarded.
+An explicit zero keeps HTTP gateway requests outside the wrapper. See the
+[Pi model request contract](../../../../src/main/ai/runtime/pi/README.md#model-requests).
 
 - **AI SDK `maxRetries`** is forced to `0` whenever the chat wrapper is active,
   so ai-retry alone owns retries and attempts cannot multiply. With the global

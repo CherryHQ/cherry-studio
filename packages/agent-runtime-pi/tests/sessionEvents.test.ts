@@ -3,7 +3,31 @@ import { describe, expect, it } from 'vitest'
 
 import { type AgentRuntimeEvent, SessionEvents } from '../src/sessionEvents'
 
-it('retains the committed compaction identity across intermediate entry flushes and resets it per attempt', () => {
+it('reports new entry identities in order without reading their bodies', () => {
+  const manager = SessionManager.inMemory()
+  const events: AgentRuntimeEvent[] = []
+  const observer = new SessionEvents(manager, (event) => events.push(event))
+  const message = manager.appendMessage({ role: 'user', content: 'private message body', timestamp: 1 })
+  const custom = manager.appendCustomEntry('opaque', {
+    get payload() {
+      throw new Error('Append notifications must not read entry bodies')
+    }
+  })
+
+  observer.flush()
+  observer.flush()
+  expect(events).toEqual([
+    {
+      type: 'session-append',
+      entries: [
+        { id: message, type: 'message', role: 'user' },
+        { id: custom, type: 'custom' }
+      ]
+    }
+  ])
+})
+
+it('delivers committed compaction entries before completion and preserves a later failure', () => {
   const manager = SessionManager.inMemory('/tmp/runtime-events')
   const events: AgentRuntimeEvent[] = []
   const observer = new SessionEvents(manager, (event) => events.push(event))
@@ -29,8 +53,13 @@ it('retains the committed compaction identity across intermediate entry flushes 
     result: undefined,
     errorMessage: 'summary unavailable'
   })
+  const appended = events.findIndex(
+    (event) => event.type === 'session-append' && event.entries.some((entry) => entry.id === id)
+  )
+  expect(appended).toBeGreaterThanOrEqual(0)
+  expect(appended).toBeLessThan(events.findIndex((event) => event.type === 'compaction-end'))
   expect(events.filter((event) => event.type === 'compaction-end')).toEqual([
-    { type: 'compaction-end', reason: 'manual', entryId: id, aborted: false },
+    { type: 'compaction-end', reason: 'manual', aborted: false },
     { type: 'compaction-end', reason: 'threshold', error: 'summary unavailable', aborted: false }
   ])
 })

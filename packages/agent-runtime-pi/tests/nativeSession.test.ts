@@ -5,13 +5,13 @@ import path from 'node:path'
 import {
   type AssistantMessage,
   createAssistantMessageEventStream,
-  InMemoryCredentialStore,
-  Type
+  InMemoryCredentialStore
 } from '@earendil-works/pi-ai'
 import { defineTool, ModelRuntime } from '@earendil-works/pi-coding-agent'
+import { obj } from '@earendil-works/pi-schema'
 import { expect, it, onTestFinished } from 'vitest'
 
-import { createAgentRuntimeSession } from '../src'
+import { createAgentRuntimeSession } from '../src/session'
 
 it('runs native providers and tools without an AI SDK bridge and preserves the borrowed runtime on close', async () => {
   const cwd = mkdtempSync(path.join(tmpdir(), 'native-pi-'))
@@ -79,7 +79,7 @@ it('runs native providers and tools without an AI SDK bridge and preserves the b
         name: 'city',
         label: 'City',
         description: 'Get the city',
-        parameters: Type.Object({}),
+        parameters: obj({}),
         execute: async () => {
           executions++
           return { content: [{ type: 'text' as const, text: 'Paris' }], details: {} }

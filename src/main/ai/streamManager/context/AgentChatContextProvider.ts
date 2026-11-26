@@ -15,17 +15,22 @@ import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { reserveClaudeBranchTx } from '@main/ai/runtime/claudeCode'
 import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
+import { reserveDurableBranchTx } from '@main/ai/runtime/piDurable/durableContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type ServiceTierSelection, type UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { validateEditedInput } from '../../agentSession/editInput'
-import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'
@@ -57,11 +62,14 @@ export type ValidatedAgentDispatch = {
   agentUpdatedAt: string
   agentType: string
   agentName: string
+  /** Parent agent default model — used for optimistic concurrency, not turn routing. */
+  agentDefaultModel: UniqueModelId | null
   uniqueModelId: UniqueModelId
   reasoningEffort: ReasoningEffortOption
   serviceTier: ServiceTierSelection
   fastMode?: boolean
   headless: boolean
+  permissionModeOverride?: AgentPermissionMode
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
   trustedNotifyChannels?: readonly NotifyChannel[]
   messageSnapshot: MessageSnapshot
@@ -80,6 +88,7 @@ export type PersistedAgentDispatch = {
 }
 
 export interface AgentSessionTurnAuthority {
+  permissionModeOverride?: AgentPermissionMode
   /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
   trustedNotifyChannels?: readonly NotifyChannel[]
 }
@@ -122,8 +131,37 @@ export class AgentChatContextProvider implements ChatContextProvider {
     if (!agent) {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent not found for Session ${sessionId}`)
     }
-    if (!agent.model) {
-      throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Agent ${agent.id} has no model configured`)
+
+    const isHeadless = req.headless === true
+    const permissionModeOverride = isHeadless ? authority.permissionModeOverride : undefined
+    if (
+      permissionModeOverride &&
+      !AGENT_RUNTIME_CAPABILITIES[agent.type].permissionModes.some((mode) => mode === permissionModeOverride)
+    ) {
+      throw DataApiErrorFactory.invalidOperation(
+        'run channel turn',
+        'permission mode is not supported by the agent runtime'
+      )
+    }
+    // Interactive turns prefer the per-session override; headless runs keep the
+    // agent default so background tasks stay independent of sibling sessions.
+    const candidate = !isHeadless && session.model ? session.model : agent.model
+    let uniqueModelId: UniqueModelId | null = null
+    if (candidate) {
+      try {
+        parseUniqueModelId(candidate)
+        uniqueModelId = candidate
+      } catch {
+        uniqueModelId = null
+      }
+    }
+    if (!uniqueModelId) {
+      throw new AgentSessionDeliveryRoutingError(
+        'TARGET_UNAVAILABLE',
+        isHeadless && session.model
+          ? `Agent ${agent.id} has no model configured (scheduled runs use the agent default)`
+          : `Agent ${agent.id} has no model configured`
+      )
     }
 
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
@@ -131,7 +169,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', `Unsupported agent runtime type: ${agent.type}`)
     }
     const parentMessageId = agentSessionMessageService.captureHead(sessionId)
-    await driver.validateSession(session)
+    await driver.validateSession(session, { headless: isHeadless })
 
     const deliveryMessage = req.agentDeliveryMessage
     if (
@@ -141,8 +179,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
       throw new Error('Invalid durable agent delivery message')
     }
 
-    const uniqueModelId = agent.model
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
+    const modelName =
+      uniqueModelId === agent.model
+        ? (agent.modelName ?? rawModelId)
+        : (modelService
+            .getNamesByUniqueIdsTx(application.get('DbService').getDb(), [uniqueModelId])
+            .get(uniqueModelId) ?? rawModelId)
     const shouldAutoNameInitialTurn = deliveryMessage
       ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
       : !agentSessionMessageService.hasSessionMessages(sessionId)
@@ -154,11 +197,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentUpdatedAt: agent.updatedAt,
       agentType: agent.type,
       agentName: agent.name,
+      agentDefaultModel: agent.model,
       uniqueModelId,
       reasoningEffort: req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default',
       serviceTier: req.serviceTier ?? agent.configuration?.service_tier ?? 'standard',
       fastMode: req.fastMode,
-      headless: req.headless === true,
+      headless: isHeadless,
+      ...(permissionModeOverride ? { permissionModeOverride } : {}),
       ...(authority.trustedNotifyChannels !== undefined
         ? { trustedNotifyChannels: authority.trustedNotifyChannels }
         : {}),
@@ -167,7 +212,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
         name: agent.name,
         // Normalized effective avatar (mirrors renderer `getAgentAvatar`).
         emoji: agent.configuration?.avatar?.trim() || '🤖',
-        model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+        ...(agent.avatarFileId ? { avatarFileId: agent.avatarFileId } : {}),
+        model: { id: rawModelId, name: modelName, provider: providerId }
       },
       userMessageId: deliveryMessage?.id ?? uuidv7(),
       userMessageParts: deliveryMessage?.data.parts ?? req.userMessageParts ?? [],
@@ -179,7 +225,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
   persistDispatchTx(
     tx: DbOrTx,
     validated: ValidatedAgentDispatch,
-    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string },
+    expectedAgent?: string | { id: string; updatedAt: string; model: string | null; type: string },
     intent: 'append' | 'edit' = 'append'
   ): PersistedAgentDispatch {
     if (intent === 'append') this.assertAppendable(validated, tx)
@@ -271,6 +317,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         assistantMessageId,
         userMessage,
         headless: validated.headless,
+        ...(validated.permissionModeOverride ? { permissionModeOverride: validated.permissionModeOverride } : {}),
         trustedNotifyChannels: validated.trustedNotifyChannels,
         traceId,
         messageSnapshot: validated.messageSnapshot,
@@ -333,31 +380,39 @@ export class AgentChatContextProvider implements ChatContextProvider {
       runtime.assertSessionEditable(validated.sessionId)
       await validateEditedInput(validated.userMessageParts)
       validated.shouldAutoNameInitialTurn = false
-      const persisted = await runtime.editSession(validated.sessionId, req.editTarget, (tx, nativeSessionId) => {
-        validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
-        const result = this.persistDispatchTx(
-          tx,
-          validated,
-          {
-            id: validated.agentId,
-            updatedAt: validated.agentUpdatedAt,
-            model: validated.uniqueModelId,
-            type: validated.agentType
-          },
-          'edit'
-        )
-        if (validated.agentType === 'pi')
-          reservePiBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
-        agentSessionMessageService.setEditRuntimeTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
-        return result
-      })
-      notifyDataApiDataChange([
-        {
-          endpoint: '/agent-sessions/:sessionId/messages',
-          kind: 'projection',
-          routeParams: { sessionId: validated.sessionId }
+      const persisted = await runtime.editSession(
+        validated.sessionId,
+        req.editTarget,
+        (tx, nativeSessionId, nativeContextId, sourceBackendId) => {
+          validated.parentMessageId = getAgentSessionHead(tx, validated.sessionId)!
+          const result = this.persistDispatchTx(
+            tx,
+            validated,
+            {
+              id: validated.agentId,
+              updatedAt: validated.agentUpdatedAt,
+              model: validated.agentDefaultModel,
+              type: validated.agentType
+            },
+            'edit'
+          )
+          if (validated.agentType === 'pi')
+            reservePiBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId)
+          else if (validated.agentType === 'claude-code')
+            reserveClaudeBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId, sourceBackendId)
+          else if (validated.agentType === 'pi-durable')
+            reserveDurableBranchTx(tx, validated.sessionId, validated.userMessageId, nativeSessionId, nativeContextId)
+          if (validated.agentType !== 'pi-durable' || nativeContextId)
+            agentSessionMessageService.setEditRuntimeTx(
+              tx,
+              validated.sessionId,
+              validated.userMessageId,
+              nativeSessionId
+            )
+          return result
         }
-      ])
+      )
+      this.notifyReservedMessages(persisted)
       return this.activateDispatch(persisted, subscriber)
     }
 
@@ -370,24 +425,29 @@ export class AgentChatContextProvider implements ChatContextProvider {
         throw DataApiErrorFactory.resourceLocked('Agent session', validated.sessionId, 'an active turn')
       }
       this.assertAppendable(validated)
-      const savedUserMessage = agentSessionMessageService.saveMessage({
-        sessionId: validated.sessionId,
-        parentId: validated.parentMessageId,
-        message: {
-          id: validated.userMessageId,
-          role: 'user',
-          status: 'success',
-          data: { parts: validated.userMessageParts }
-        }
-      })
+      const savedUserMessage = agentSessionMessageService.saveMessage(
+        {
+          sessionId: validated.sessionId,
+          parentId: validated.parentMessageId,
+          message: {
+            id: validated.userMessageId,
+            role: 'user',
+            status: 'success',
+            data: { parts: validated.userMessageParts }
+          }
+        },
+        { publishDataChange: true }
+      )
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(validated.sessionId, savedUserMessage, {
         headless: validated.headless,
+        ...(validated.permissionModeOverride ? { permissionModeOverride: validated.permissionModeOverride } : {}),
         trustedNotifyChannels: validated.trustedNotifyChannels,
         messageSnapshot: validated.messageSnapshot,
         reasoningEffort: validated.reasoningEffort,
         serviceTier: validated.serviceTier,
-        fastMode: validated.fastMode
+        fastMode: validated.fastMode,
+        followUp: req.trigger === 'submit-message' ? req.followUp : undefined
       })
 
       return {
@@ -404,7 +464,19 @@ export class AgentChatContextProvider implements ChatContextProvider {
       onPersist?.(tx, { assistantMessageId: reserved.assistantMessageId, userMessageId: reserved.userMessage.id })
       return reserved
     })
+    this.notifyReservedMessages(persisted)
     return this.activateDispatch(persisted, subscriber)
+  }
+
+  private notifyReservedMessages({ validated, savedMessages }: PersistedAgentDispatch): void {
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'membership',
+        routeParams: { sessionId: validated.sessionId },
+        entityIds: savedMessages.map(({ id }) => id)
+      }
+    ])
   }
 }
 

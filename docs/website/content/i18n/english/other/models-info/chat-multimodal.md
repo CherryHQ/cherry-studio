@@ -4,7 +4,7 @@ Data comes from the model catalog bundled with Cherry Studio ([provider-registry
 
 Context length and max output are abbreviated with K / M and rounded (1K is roughly 1,000–1,024 tokens, 1M roughly one million), e.g. 131,072 and 128,000 both read 128K. Hover a value to see the exact number; confirm limits with the model provider.
 
-> **Data updated**: 2026-10-27 14:14:54 UTC / 2026-10-27 22:14:54 CST (Beijing time)
+> **Data updated**: 2026-11-03 16:01:16 UTC / 2026-11-04 00:01:16 CST (Beijing time)
 
 <div data-models-table="num:2,3;sort:1;search:0,1;cap:4:Function calling,Reasoning,Image recognition,Speech recognition,Video understanding,Structured output,File input,Computer use,File search;in:5:Text input=Text,Image input=Image,Audio input=Audio,Video input=Video">
 
@@ -142,6 +142,7 @@ Context length and max output are abbreviated with K / M and rounded (1K is roug
 | Google Gemma 3 27B Instruct<br><code>gemma-3-27b-it</code> | google | <span title="202,752">198K</span> | <span title="8,192">8K</span> | Function calling, Image recognition, Structured output, File input | Text, Image | Text |
 | Google: Gemini 2.5 Pro Preview 05-06<br><code>gemini-2-5-pro-preview-05-06</code> | google | <span title="1,048,576">1.05M</span> | - | Function calling, Reasoning, Image recognition, Speech recognition, Video understanding, Structured output, File input | Text, Image, Audio, Video | Text |
 | Google: Gemini 2.5 Pro Preview 06-05<br><code>gemini-2-5-pro-preview</code> | google | <span title="1,048,576">1.05M</span> | - | Function calling, Reasoning, Image recognition, Speech recognition, Structured output, File input | Text, Image, Audio | Text |
+| LongCat-2.5<br><code>longcat-2-5</code> | meituan | <span title="1,048,576">1.05M</span> | <span title="262,144">256K</span> | Function calling, Reasoning, Image recognition, Video understanding | Text, Image, Video | Text |
 | Llama 3.2 11b Vision Instruct<br><code>llama-3-2-11b-vision-instruct</code> | meta | <span title="128,000">128K</span> | <span title="4,096">4K</span> | Function calling, Image recognition, Structured output, File input | Text, Image | Text |
 | Llama 4 Maverick 17b 128e Instruct<br><code>llama-4-maverick-17b-128e-instruct</code> | meta | <span title="128,000">128K</span> | <span title="4,096">4K</span> | Function calling, Image recognition, Structured output, File input | Text, Image | Text |
 | Llama 4 Maverick 17B 128E Instruct<br><code>llama-4-maverick-17b-128e-instruct-maas</code> | meta | <span title="524,288">512K</span> | <span title="8,192">8K</span> | Function calling, Image recognition, Structured output, File input | Text, Image | Text |

@@ -7,7 +7,7 @@ import { useAssistantMutationsById, useImportAssistantMutation } from '../assist
 
 const { importTriggerMock, invalidateMock, ipcRequestMock, useMutationMock } = vi.hoisted(() => ({
   importTriggerMock: vi.fn(),
-  invalidateMock: vi.fn(),
+  invalidateMock: vi.fn().mockResolvedValue(undefined),
   ipcRequestMock: vi.fn(),
   useMutationMock: vi.fn()
 }))
@@ -139,6 +139,6 @@ describe('useAssistantMutationsById', () => {
       await result.current.deleteAssistant()
     })
 
-    expect(invalidateMock).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/pins'])
+    expect(invalidateMock).toHaveBeenCalledWith(['/assistants', '/assistants/*', '/pins', '/topics'])
   })
 })

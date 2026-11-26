@@ -155,7 +155,7 @@ export const childCases: readonly ContractCase[] = [
       'helpers.stop',
       'turns.stop'
     ],
-    needs: [],
+    needs: ['foreground-continuation'],
     async run(open) {
       const hold = holds()
       let child!: ThreadId

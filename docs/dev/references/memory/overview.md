@@ -1,7 +1,7 @@
 ---
 description: Comparison of the three memory mechanisms in Cherry Studio — Agent File Memory, Knowledge Base, and MCP Memory — plus the status of the v1 Global Memory feature
 sources:
-  - src/main/ai/agents/prompt.ts
+  - src/main/ai/agents/prompt/promptContext.ts
   - src/main/ai/mcp/servers/agentMemory.ts
   - src/main/ai/mcp/servers/memory.ts
   - src/main/features/knowledge
@@ -28,6 +28,18 @@ If you relied on Global Memory in v1:
 - For Agents, use **Agent File Memory** — it serves the same remember-about-the-user role via `USER.md`, scoped per agent.
 - For Assistants, put durable facts into the assistant's prompt, or curate them in a **Knowledge Base** until a successor feature lands.
 
+## Viewing and editing memory in the app
+
+Open the **Memory** tab in the Agent configuration dialog to view the four files
+that belong to the current agent:
+
+- `SOUL.md`, `USER.md`, and `memory/FACT.md` are rendered as Markdown; `memory/JOURNAL.jsonl` is shown as raw JSONL.
+- The three Markdown files can be edited in place with explicit **Save** and **Cancel**, independently of configuration autosave. Switching files, leaving the Memory tab, or closing the dialog asks for confirmation before discarding unsaved changes. `JOURNAL.jsonl` is append-only and read-only in the app. Saves are validated against the agent data root, written atomically, and limited to 1 MB of text.
+- **Open folder** reveals the agent data directory for external tools.
+
+This is a read/write view over the three editable Markdown files the runtime loads —
+there is still no app-wide Global Memory setting.
+
 ## Details
 
 ### Agent File Memory (Agent only)
@@ -38,7 +50,7 @@ If you relied on Global Memory in v1:
   - `memory/FACT.md` — durable knowledge and decisions (6+ months)
   - `memory/JOURNAL.jsonl` — append-only event log
 - Loaded into the system prompt at session start; updated by the agent autonomously via `mcp__agent-memory__memory` (FACT/JOURNAL) and Read/Edit tools (SOUL/USER).
-- Scoped to a single agent. See `src/main/ai/agents/prompt.ts` and `src/main/ai/mcp/servers/agentMemory.ts`.
+- Scoped to a single agent. See `src/main/ai/agents/prompt/promptContext.ts` and `src/main/ai/mcp/servers/agentMemory.ts`.
 
 ### Knowledge Base (Assistant + Agent)
 

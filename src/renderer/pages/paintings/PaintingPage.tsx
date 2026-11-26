@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useCache } from '@data/hooks/useCache'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import { useIsActiveTab, useTabInputFocus } from '@renderer/hooks/tab'
 
 import Artboard from './components/Artboard'
 import PaintingComposer from './components/PaintingComposer'
@@ -26,6 +27,7 @@ import { paintingClasses } from './paintingPrimitives'
 
 const PaintingPage: FC = () => {
   const { t } = useTranslation()
+  const isActiveTab = useIsActiveTab()
   const { templates: promptPresets } = usePaintingTemplateCatalog()
   const providerOptions = usePaintingProviderOptions()
   const draftDefaults = usePaintingDraftDefaults(providerOptions)
@@ -34,6 +36,10 @@ const PaintingPage: FC = () => {
   // After generate, collapse the prompt dock so the artboard keeps the space
   // long prompts used to steal (#20739). Blank drafts stay expanded for typing.
   const [promptDockCollapsed, setPromptDockCollapsed] = useState(false)
+  const [focusPrompt, setFocusPrompt] = useState<() => boolean>()
+  const handlePromptFocusTargetChange = useCallback((focus: (() => boolean) | undefined) => {
+    setFocusPrompt(() => focus)
+  }, [])
 
   const patchPainting = useCallback((updates: Partial<PaintingData>) => {
     setCurrentPainting((current) => ({ ...current, ...updates }))
@@ -62,17 +68,23 @@ const PaintingPage: FC = () => {
     painting: currentPainting
   })
 
-  // Historical model-less rows and drafts without a valid configured default
-  // still need a usable view fallback. New drafts receive the configured model
-  // as stored in-memory state before reaching this path.
+  // Restored receipts need cached terminal states to stop the artboard waiting.
+  // Model-less receipts and drafts still use the first enabled catalog model.
   const composerPainting = useMemo<PaintingData>(() => {
-    if (currentPainting.model) return currentPainting
+    const painting = cachedGeneration ? { ...currentPainting, ...liveGenerationState } : currentPainting
+    if (painting.model) return painting
     const fallback = modelCatalog.currentModelOptions.find((option) => option.isEnabled !== false)?.value
-    return fallback ? { ...currentPainting, model: String(fallback) } : currentPainting
-  }, [currentPainting, modelCatalog.currentModelOptions])
+    return fallback ? { ...painting, model: String(fallback) } : painting
+  }, [cachedGeneration, currentPainting, liveGenerationState, modelCatalog.currentModelOptions])
+
+  const outputModel = useMemo(() => {
+    if (currentPainting.files.length === 0) return undefined
+    const receipt = history.items.find((item) => item.id === currentPainting.id) ?? currentPainting
+    return receipt.model ? { providerId: receipt.providerId, model: receipt.model } : undefined
+  }, [currentPainting, history.items])
 
   const {
-    generating: liveGenerating,
+    generating,
     submitting,
     preparing,
     submit,
@@ -83,11 +95,6 @@ const PaintingPage: FC = () => {
     ensureCurrentCatalog: modelCatalog.ensureCurrentCatalog
   })
 
-  // After a page switch the local `liveGenerating` boots false because
-  // `usePaintingGeneration` reads from `painting.generationStatus` — the
-  // painting record is a frozen receipt with no status. The cache fills the
-  // gap: if its `status === 'running'` for this painting, keep the spinner.
-  const generating = liveGenerating || liveGenerationState.generationStatus === 'running'
   const showTemplateShowcase =
     !currentPainting.persistedAt &&
     currentPainting.files.length === 0 &&
@@ -137,6 +144,11 @@ const PaintingPage: FC = () => {
     setPromptDockCollapsed(true)
   }, [composerPainting.id, generating, hasGeneratedImages, showTemplateShowcase])
 
+  useEffect(() => {
+    if (isActiveTab) setPromptDockCollapsed(false)
+  }, [isActiveTab])
+  useTabInputFocus(focusPrompt)
+
   return (
     <div data-ui="paintings.view" className={paintingClasses.page}>
       <div className={paintingClasses.content} inert={busy} aria-busy={busy}>
@@ -157,7 +169,9 @@ const PaintingPage: FC = () => {
 
               <div className={paintingClasses.centerPane} data-composer-stage="">
                 <div className={paintingClasses.centerStage}>
-                  {!showTemplateShowcase && <Artboard painting={composerPainting} isLoading={generating} />}
+                  {!showTemplateShowcase && (
+                    <Artboard painting={composerPainting} isLoading={generating} outputModel={outputModel} />
+                  )}
                 </div>
                 {showTemplateShowcase && (
                   <section
@@ -177,10 +191,10 @@ const PaintingPage: FC = () => {
                             onSelect={(prompt) => patchPainting({ prompt })}
                           />
                         ) : (
-                          <Artboard painting={composerPainting} isLoading={false} />
+                          <Artboard painting={composerPainting} isLoading={false} outputModel={outputModel} />
                         )}
 
-                        <p className="mt-[clamp(4px,2cqh,10px)] max-w-lg shrink-0 px-4 pb-1 text-center text-xs leading-5 text-muted-foreground">
+                        <p className="text-muted-foreground mt-[clamp(4px,2cqh,10px)] max-w-lg shrink-0 px-4 pb-1 text-center text-xs leading-5">
                           {t('paintings.showcase.caption')}
                         </p>
                       </div>
@@ -221,6 +235,8 @@ const PaintingPage: FC = () => {
                       <QuickPanelProvider>
                         <PaintingComposer
                           painting={composerPainting}
+                          disabled={busy}
+                          onFocusTargetChange={handlePromptFocusTargetChange}
                           generating={generating}
                           submitting={submitting}
                           onPromptChange={(prompt) => patchPainting({ prompt })}

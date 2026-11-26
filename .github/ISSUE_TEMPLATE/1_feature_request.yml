@@ -8,7 +8,7 @@ body:
     attributes:
       value: |
         Thank you for taking the time to submit a feature request!
-        Before submitting this issue, please make sure you have reviewed the [Project Roadmap](https://docs.cherry-ai.com/cherrystudio/planning) and the [Feature Overview](https://docs.cherry-ai.com/cherrystudio/preview).
+        Before submitting this issue, please make sure you have reviewed the [Project Roadmap](https://cherryai.com/docs/en/advanced-basic/capability-map/) and the [Feature Overview](https://cherryai.com/docs/en/cherrystudio/preview/).
 
   - type: checkboxes
     id: checklist

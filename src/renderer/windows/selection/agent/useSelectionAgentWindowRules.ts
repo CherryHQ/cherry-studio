@@ -48,5 +48,5 @@ export function useSelectionAgentWindowRules(rules: SelectionAgentWindowRules | 
       window.removeEventListener('blur', onBlur)
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [enabled, handleBlur, handleKeyDown])
+  }, [enabled])
 }

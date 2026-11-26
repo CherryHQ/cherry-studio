@@ -1,7 +1,8 @@
 {
   "name": "@cherrystudio/remote-transport",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Cherry Studio encrypted remote access transport using Noise XX and JSON-RPC.",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/CherryHQ/cherry-studio.git",
@@ -25,7 +26,7 @@
     "build": "tsdown",
     "prepublishOnly": "pnpm build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/remote-transport/tsconfig.json"
   },
   "dependencies": {
     "@cherrystudio/remote-protocol": "workspace:*",

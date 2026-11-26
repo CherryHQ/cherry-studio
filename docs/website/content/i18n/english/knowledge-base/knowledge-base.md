@@ -2,6 +2,8 @@
 icon: compass
 ---
 
+<a id="building-knowledge-bases-and-recall-testing"></a>
+
 # Getting Started with Knowledge Bases
 
 A knowledge base turns files, notes, folders or web pages into a collection of material you can search again and again. First use a recall test to confirm the system finds the right passages, then hand the knowledge base to a chat or an Agent.
@@ -40,10 +42,14 @@ Start here for the complete workflow. For a specific task, go to [Create a knowl
 You can use a knowledge base without an embedding model; it then relies mainly on BM25 keyword search. For your first try, you can leave it **Disabled** and get the create → import → recall flow working first.
 {% endhint %}
 
+<a id="creating-and-importing-materials"></a>
+
 ## Your First Knowledge Base in 5 Minutes
 
 {% stepper %}
 {% step %}
+<a id="1-open-knowledge-base--new-knowledge-base"></a>
+
 ### 1. Create a knowledge base with a clear scope
 
 Open **Knowledge Base** in the left navigation → click **+ New Knowledge Base** at the top of the knowledge base list. Name it "subject + purpose", for example **Employee Travel Policy**.
@@ -56,6 +62,8 @@ For your first try, leave **Embedding Model** set to **Disabled**. Configure an 
 {% endstep %}
 
 {% step %}
+<a id="2-select-data-sources"></a>
+
 ### 3. Add material
 
 Open the knowledge base, click **Add Data Source**, and choose **File**, **Note**, **Folder** or **URL**.
@@ -64,6 +72,8 @@ Open the knowledge base, click **Add Data Source**, and choose **File**, **Note*
 {% endstep %}
 
 {% step %}
+<a id="3-wait-for-processing-to-complete"></a>
+
 ### 4. Wait until the material is ready
 
 Once processing finishes, the material appears in the list. Spot-check the text and Chunks to make sure there's no garbled text, missing pages or obvious misordering.
@@ -72,6 +82,8 @@ Once processing finishes, the material appears in the list. Spot-check the text 
 {% endstep %}
 
 {% step %}
+<a id="4-perform-recall-testing"></a>
+
 ### 5. Run a recall test
 
 Open **Recall Test**, enter a real question you already know the answer to, and check that the correct source appears among the top results.
@@ -84,6 +96,8 @@ Once recall is stable, select the knowledge base in the chat input area; for lon
 {% endstep %}
 {% endstepper %}
 
+<a id="understanding-rag-settings"></a>
+
 ## Recommended Starting Point
 
 | Setting | Product default | Suggested start | Purpose | When it applies | Caveats |
@@ -93,11 +107,15 @@ Once recall is stable, select the knowledge base in the chat input area; for lon
 | Test questions | — | 3–5 real questions | Establishes a long-term regression baseline | After every material or settings update | Don't test only with document titles and exact sentences |
 | Going live | — | Material, Chunks and recall all pass | Keeps parsing or retrieval problems out of chats | Every knowledge base | The chat model can't make up for key information that wasn't recalled |
 
+<a id="validate-recall-results-with-real-questions"></a>
+
 ## How to Tell It's Ready
 
 * All the material you need shows as available, with nothing stuck in processing or error for long.
 * Open one or two items at random: the text and Chunks have no garbled text, missing pages or obvious misordering.
 * A recall test with fixed questions consistently brings the correct source into the top results.
+
+<a id="use-case-building-an-internal-policy-qa-library"></a>
 
 ## Example
 

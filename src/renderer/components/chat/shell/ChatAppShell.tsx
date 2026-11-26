@@ -338,7 +338,7 @@ export function ChatAppShell({
                 data-ui="part:conversation-main"
                 data-chat-app-shell-center
                 id={centerId}
-                layout
+                layout={!listResizing}
                 transition={centerTransition}
                 className={cn(
                   'relative flex min-w-0 flex-1 flex-col overflow-hidden bg-chat-message-well',

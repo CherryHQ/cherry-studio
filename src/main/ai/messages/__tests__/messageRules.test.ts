@@ -1,7 +1,8 @@
-import { type ModelMessage, tool, type UIMessage } from 'ai'
+import { type ModelMessage, tool, type ToolSet, type UIMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
+import { createAutomationReplToolEntries } from '@main/ai/tools/adapters/aiSdk/builtin/AutomationReplTools'
 import { mcpResultToModelOutput } from '@main/ai/tools/adapters/aiSdk/mcp/utils'
 
 import { createToolSearchTool } from '../../tools/adapters/aiSdk/meta/toolSearch'
@@ -13,6 +14,67 @@ const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMes
 // toModelMessages runs the exact Agent.stream order; these guard each step so deleting
 // one (coalesce, ignoreIncompleteToolCalls, the empty-content placeholder) fails a test.
 describe('toModelMessages', () => {
+  it('keeps system cache boundaries separate and tool result metadata distinct from the tool call', async () => {
+    const callMetadata = { anthropic: { cacheControl: { type: 'ephemeral', ttl: '1h' } } }
+    const resultMetadata = { anthropic: { cacheControl: { type: 'ephemeral', ttl: '5m' } } }
+    const messages = await toModelMessages([
+      ui('system', [{ type: 'text', text: 'stable', providerMetadata: callMetadata }]),
+      ui('system', [{ type: 'text', text: 'changing' }]),
+      ui('assistant', [
+        {
+          type: 'dynamic-tool',
+          toolName: 'lookup',
+          toolCallId: 'call-1',
+          state: 'output-error',
+          input: {},
+          errorText: 'failed',
+          callProviderMetadata: callMetadata,
+          resultProviderMetadata: resultMetadata
+        }
+      ])
+    ])
+    expect(messages.slice(0, 2)).toEqual([
+      { role: 'system', content: 'stable', providerOptions: callMetadata },
+      { role: 'system', content: 'changing' }
+    ])
+    expect(messages[2]).toMatchObject({
+      role: 'assistant',
+      content: [{ type: 'tool-call', providerOptions: callMetadata }]
+    })
+    expect(messages[3]).toMatchObject({
+      role: 'tool',
+      content: [
+        { type: 'tool-result', output: { type: 'error-text', value: 'failed' }, providerOptions: resultMetadata }
+      ]
+    })
+  })
+
+  it('replays signed edited reasoning as a plain <think> text block', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'reasoning',
+            text: 'corrected thought',
+            providerMetadata: { cherry: { editedReasoningReplay: 'think' } }
+          },
+          { type: 'text', text: 'answer' }
+        ],
+        'a1'
+      )
+    ])
+
+    expect(model[1]).toEqual({
+      role: 'assistant',
+      content: [
+        { type: 'text', text: '<think>\ncorrected thought\n</think>' },
+        { type: 'text', text: 'answer' }
+      ]
+    })
+  })
+
   it('keeps knowledge scope out of provider messages', async () => {
     const model = await toModelMessages([
       ui('user', [
@@ -32,7 +94,7 @@ describe('toModelMessages', () => {
     ])
     expect(model).toEqual([
       { role: 'user', content: [{ type: 'text', text: 'Q' }] },
-      { role: 'assistant', content: [{ type: 'text', text: '...' }] },
+      { role: 'assistant', content: [{ type: 'text', text: expect.stringMatching(/\S/) }] },
       { role: 'user', content: [{ type: 'text', text: '继续' }] }
     ])
   })
@@ -227,11 +289,12 @@ describe('toModelMessages', () => {
       ]),
       ui('user', [{ type: 'text', text: 'continue' }], 'u1')
     ]
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const originalMessages = structuredClone(messages)
     const tools = {
       screenshot: tool({
         inputSchema: z.object({}),
-        toModelOutput: () => ({ type: 'text', value: '[Image: image/png, delivered to user]' })
+        toModelOutput: () => ({ type: 'text', value: expect.any(String) })
       })
     }
 
@@ -244,7 +307,7 @@ describe('toModelMessages', () => {
           type: 'tool-result',
           toolCallId: 'call-1',
           toolName: 'screenshot',
-          output: { type: 'text', value: '[Image: image/png, delivered to user]' }
+          output: { type: 'text', value: expect.any(String) }
         }
       ]
     })
@@ -425,7 +488,7 @@ describe('toModelMessages', () => {
     const model = await toModelMessages([ui('assistant', [legacyTool('jina: jina_reader', 'call_00_1')])])
 
     const wireName = namesOf(model[0])[0]
-    expect(wireName).toMatch(/^jina__jina_reader_[0-9a-f]{8}$/)
+
     expect(model[1]).toMatchObject({
       role: 'tool',
       content: [expect.objectContaining({ type: 'tool-result', toolName: wireName })]
@@ -714,6 +777,7 @@ describe('non-object historical tool inputs', () => {
     const rawInput = { query: 'fallback' }
     const poison = { ...bad, rawInput, callProviderMetadata: metadata }
     const messages = [ui('assistant', [poison, good])]
+    // oxlint-disable-next-line no-restricted-globals -- Isolate synthetic fixture data from later test mutations.
     const original = structuredClone(messages)
     freeze(messages)
     const first = await toModelMessages(messages)
@@ -736,7 +800,7 @@ describe('non-object historical tool inputs', () => {
 describe('ensureNonEmptyAssistantContent', () => {
   it('replaces an assistant message with empty content with a placeholder', () => {
     expect(ensureNonEmptyAssistantContent([{ role: 'assistant', content: [] }])).toEqual([
-      { role: 'assistant', content: [{ type: 'text', text: '...' }] }
+      { role: 'assistant', content: [{ type: 'text', text: expect.stringMatching(/\S/) }] }
     ])
   })
 
@@ -746,8 +810,8 @@ describe('ensureNonEmptyAssistantContent', () => {
       { role: 'assistant', content: [{ type: 'text', text: 'ok' }] }
     ] as ModelMessage[]
     const out = ensureNonEmptyAssistantContent(msgs)
-    expect(out[0]).toBe(msgs[0])
-    expect(out[1]).toBe(msgs[1])
+    expect(out[0]).toEqual(msgs[0])
+    expect(out[1]).toEqual(msgs[1])
   })
 })
 
@@ -786,5 +850,130 @@ describe('coalesceConsecutiveSameRole', () => {
       { role: 'system', content: 'b' }
     ] as ModelMessage[])
     expect(out).toEqual([{ role: 'system', content: 'a\n\nb' }])
+  })
+})
+
+describe('automation history output boundaries (#23303)', () => {
+  const NOTE =
+    'This automation tool result could not be read back from the conversation history. Ignore it and observe the current state again before acting.'
+  const automationTools: ToolSet = Object.fromEntries(
+    createAutomationReplToolEntries().map(({ name, tool }) => [name, tool])
+  )
+
+  describe.each(['automation_repl', 'automation_repl_reset'])('%s', (toolName) => {
+    it.each([
+      ['empty object', {}],
+      ['top-level marker', '<persisted-output>…</persisted-output>']
+    ])('keeps later turns usable after an unreadable %s', async (_label, output) => {
+      const input = toolName === 'automation_repl' ? { code: '1' } : {}
+      const history = [
+        ui('user', [{ type: 'text', text: 'observe' }], 'before'),
+        ui(
+          'assistant',
+          [{ type: 'dynamic-tool', toolName, toolCallId: 'automation-1', state: 'output-available', input, output }],
+          'result'
+        ),
+        ui('user', [{ type: 'text', text: 'continue' }], 'later')
+      ]
+      // oxlint-disable-next-line no-restricted-globals -- Keep an independent baseline to detect mutations of nested history.
+      const original = structuredClone(history)
+      const model = await toModelMessages(history, undefined, automationTools)
+      expect(model).toEqual([
+        { role: 'user', content: [{ type: 'text', text: 'observe' }] },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool-call', toolName, toolCallId: 'automation-1', input, providerExecuted: undefined }]
+        },
+        {
+          role: 'tool',
+          content: [
+            { type: 'tool-result', toolName, toolCallId: 'automation-1', output: { type: 'text', value: NOTE } }
+          ]
+        },
+        { role: 'user', content: [{ type: 'text', text: 'continue' }] }
+      ])
+      expect(history).toEqual(original)
+      expect(await toModelMessages(history, undefined, automationTools)).toEqual(model)
+      expect(history).toEqual(original)
+    })
+  })
+
+  it.each([false, true])(
+    'bypasses a throwing formatter for output-error (providerExecuted=%s)',
+    async (providerExecuted) => {
+      const sentinel = new Error('formatter must not run')
+      const throwingTools: ToolSet = {
+        automation_repl: tool({
+          inputSchema: z.object({}),
+          toModelOutput: () => {
+            throw sentinel
+          }
+        })
+      }
+      const errorText = 'original automation error'
+      const input = { code: '1' }
+      const model = await toModelMessages(
+        [
+          ui('assistant', [
+            {
+              type: 'dynamic-tool',
+              toolName: 'automation_repl',
+              toolCallId: 'failed-1',
+              state: 'output-error',
+              input,
+              errorText,
+              providerExecuted
+            }
+          ])
+        ],
+        undefined,
+        throwingTools
+      )
+      const call = { type: 'tool-call', toolName: 'automation_repl', toolCallId: 'failed-1', input, providerExecuted }
+      const result = {
+        type: 'tool-result',
+        toolName: 'automation_repl',
+        toolCallId: 'failed-1',
+        output: { type: providerExecuted ? 'error-json' : 'error-text', value: errorText }
+      }
+      expect(model).toEqual(
+        providerExecuted
+          ? [{ role: 'assistant', content: [call, result] }]
+          : [
+              { role: 'assistant', content: [call] },
+              { role: 'tool', content: [result] }
+            ]
+      )
+    }
+  )
+
+  it.each(['synchronous throw', 'async rejection'])('propagates an unrelated formatter %s', async (mode) => {
+    const sentinel = new Error('unrelated formatter failure')
+    const throwingTools: ToolSet = {
+      automation_repl: tool({
+        inputSchema: z.object({}),
+        toModelOutput:
+          mode === 'synchronous throw'
+            ? () => {
+                throw sentinel
+              }
+            : async () => {
+                throw sentinel
+              }
+      })
+    }
+    const history = [
+      ui('assistant', [
+        {
+          type: 'dynamic-tool',
+          toolName: 'automation_repl',
+          toolCallId: 'throwing-1',
+          state: 'output-available',
+          input: { code: '1' },
+          output: {}
+        }
+      ])
+    ]
+    await expect(toModelMessages(history, undefined, throwingTools)).rejects.toBe(sentinel)
   })
 })

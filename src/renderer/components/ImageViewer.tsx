@@ -1,4 +1,5 @@
 import { CopyIcon, SaveIcon } from 'lucide-react'
+import mime from 'mime'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -143,12 +144,23 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     async (item: ImagePreviewItem, context: ImagePreviewActionContext) => {
       try {
         const blob = await getImageBlobFromSource(item.src)
+        const extension = blob.type.startsWith('image/') ? mime.getExtension(blob.type) : null
         const { flipX, flipY, rotation } = context.transform
-        const pngBlob =
-          rotation % 360 !== 0 || flipX || flipY
-            ? await transformImageToPng(blob, { flipX, flipY, rotation })
-            : await convertImageToPng(blob)
-        const saved = await window.api.file.saveImage(getImageSaveName(item), await blobToDataUrl(pngBlob))
+        const outputBlob =
+          blob.type === 'image/gif'
+            ? blob
+            : rotation % 360 !== 0 || flipX || flipY
+              ? await transformImageToPng(blob, { flipX, flipY, rotation })
+              : extension
+                ? blob
+                : await convertImageToPng(blob)
+        const name = getImageSaveName(item)
+        const saved =
+          extension && outputBlob.type !== 'image/png'
+            ? await window.api.file.save(`${name}.${extension}`, new Uint8Array(await outputBlob.arrayBuffer()), {
+                filters: [{ name: extension === 'jpg' ? 'JPEG' : extension.toUpperCase(), extensions: [extension] }]
+              })
+            : await window.api.file.saveImage(name, await blobToDataUrl(outputBlob))
         if (saved) {
           toast.success(t('common.saved'))
         }

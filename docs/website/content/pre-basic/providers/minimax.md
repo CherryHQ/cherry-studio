@@ -9,7 +9,7 @@ MiniMax 是国内大模型厂商之一，特点是有比较出色的 **多模态
 
 ## 在 Cherry Studio 配置
 
-* 打开 `设置 → 模型服务`，找到 **MiniMax** Provider 进入详情页
+* 打开 `设置 → 模型服务`，找到 **MiniMax** 服务商进入详情页
 * 填入 API 密钥
 * API 地址保持默认即可
 * 点击 **获取模型列表**
@@ -23,7 +23,7 @@ MiniMax 是国内大模型厂商之一，特点是有比较出色的 **多模态
 
 {% hint style="info" %}
 * MiniMax 国内访问方便，新用户有一定免费额度
-* 海外用户请走 **MiniMax Global**（Cherry Studio Provider 列表中是另一个独立条目）
+* 海外用户请走 **MiniMax Global**（Cherry Studio 服务商列表中是另一个独立条目）
 {% endhint %}
 
 ***

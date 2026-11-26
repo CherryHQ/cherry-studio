@@ -268,7 +268,13 @@ const collectIndexTs = (dir, out = []) => {
   }
   return out
 }
-const RUNTIME_PACKAGES = ['agent-runtime', 'agent-behavior', 'agent-runtime-pi', 'agent-runtime-pi-durable']
+const RUNTIME_PACKAGES = [
+  'agent-runtime',
+  'agent-behavior',
+  'agent-runtime-pi',
+  'agent-runtime-pi-durable',
+  'agent-runtime-claude-code'
+]
 const RUNTIME_SOURCE_DIRS = RUNTIME_PACKAGES.map((name) => path.join(RENDERER_DIRNAME, 'packages', name, 'src'))
 const BARREL_DIRS = new Set()
 for (const idx of [SRC_DIR, ...RUNTIME_SOURCE_DIRS].flatMap((dir) => collectIndexTs(dir))) {
@@ -633,7 +639,14 @@ export default defineConfig([
   eslint.configs.recommended,
   tseslint.configs.recommended,
   eslintReact.configs['recommended-typescript'],
-  reactHooks.configs['recommended-latest'],
+  // The v7 presets also enable React Compiler rules; this app does not use the compiler.
+  {
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn'
+    }
+  },
   {
     plugins: {
       'unused-imports': unusedImports,
@@ -685,6 +698,7 @@ export default defineConfig([
       'src/renderer/ui/**',
       'src/renderer/routeTree.gen.ts',
       'packages/**/dist',
+      'native/system-speech/dist',
       'packages/**/storybook-static/**',
       'scripts/data-classify/**'
     ]
@@ -1154,7 +1168,13 @@ export default defineConfig([
   },
   {
     // Workspace packages and repository scripts follow the same MCP v1 ban as src/.
-    files: ['packages/**/*.{ts,tsx}', 'scripts/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}', 'v2-refactor-temp/**/*.{ts,tsx}'],
+    files: [
+      'packages/**/*.{ts,tsx}',
+      'native/system-speech/**/*.{ts,tsx}',
+      'scripts/**/*.{ts,tsx}',
+      'tests/**/*.{ts,tsx}',
+      'v2-refactor-temp/**/*.{ts,tsx}'
+    ],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
         'error',
@@ -1380,6 +1400,12 @@ export default defineConfig([
               message: 'Shared buckets must not import pages/windows (reverse layer edge). architecture/renderer.md §7.'
             },
             {
+              target: ['src/renderer/hooks', 'src/renderer/services'],
+              from: 'src/renderer/components',
+              message:
+                'hooks/ and services/ sit below components/ and must not import them (reverse layer edge); move the module into components/ or push the shared piece down. architecture/renderer.md §3.'
+            },
+            {
               target: 'src/renderer/utils',
               from: ['src/renderer/components', 'src/renderer/hooks'],
               message:
@@ -1461,7 +1487,7 @@ export default defineConfig([
     }
   },
   {
-    files: ['packages/*/src/**/*.{ts,tsx}'],
+    files: ['packages/*/src/**/*.{ts,tsx}', 'native/system-speech/src/**/*.{ts,tsx}'],
     ignores: [...RUNTIME_PACKAGES.map((name) => `packages/${name}/**`), '**/*.test.*', '**/__tests__/**'],
     plugins: { barrel: barrelPlugin },
     rules: { 'barrel/closed': 'error' }

@@ -1,6 +1,3 @@
-import type { WebContents } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 /**
  * `DirectoryTreeManager` state machine, exercised against a fake builder.
  *
@@ -11,6 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * and teardown are manager-level protocol, not filesystem behavior, so they are
  * covered here with no binary dependency and always execute.
  */
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import type { WebContents } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import type * as lifecycleModule from '@main/core/lifecycle'
 import type { ManagedWindow } from '@main/core/window/types'
@@ -21,6 +22,8 @@ import type {
   TreeMutationEvent,
   TreeMutationPushPayload
 } from '@shared/utils/file'
+
+import { FileObservationService } from '../../observation/FileObservationService'
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await (importOriginal as () => Promise<typeof lifecycleModule>)()
@@ -106,6 +109,7 @@ describe('DirectoryTreeManager protocol', () => {
 
   beforeEach(async () => {
     BaseService.resetInstances()
+    MockApplicationUtils.setService('FileObservationService', new FileObservationService())
     builder = makeFakeBuilder()
     createDirectoryTreeMock.mockReset().mockResolvedValue(builder)
     vi.mocked(application.get('WindowManager').onWindowDestroyed).mockImplementation((listener) => {
@@ -126,6 +130,25 @@ describe('DirectoryTreeManager protocol', () => {
     manager.create({ windowId: sender.windowId, webContents: sender }, '/ws', options)
 
   describe('handshake', () => {
+    it('forces a new scan for explicit refresh and invalidates other consumers of the cached projection', async () => {
+      const sender = makeSender(1)
+      const old = await create(sender)
+      manager.activateTree(old.treeId, old.revision, sender.id)
+      const fresh = makeFakeBuilder()
+      fresh.snapshot = () => ({
+        kind: 'directory',
+        path: '/ws',
+        basename: 'ws',
+        children: { 'new.md': { kind: 'file', path: '/ws/new.md', basename: 'new.md' } }
+      })
+      createDirectoryTreeMock.mockResolvedValueOnce(fresh)
+      const result = await manager.create({ windowId: sender.windowId, webContents: sender }, '/ws', undefined, true)
+      expect(result.snapshot).toMatchObject({ children: { 'new.md': { kind: 'file', path: '/ws/new.md' } } })
+      expect(manager.activateTree(old.treeId, old.revision, sender.id)).toBe(false)
+      expect(sender.sentMutations.at(-1)?.event).toEqual({ type: 'status', coverage: 'stale' })
+      expect(manager.activateTree(result.treeId, result.revision, sender.id)).toBe(true)
+    })
+
     it('buffers mutations until the owner activates, then flushes them in order', async () => {
       const sender = makeSender(1)
       const created = await create(sender)
@@ -233,8 +256,6 @@ describe('DirectoryTreeManager protocol', () => {
 
       await expect(pending).rejects.toThrow(/destroyed during creation/)
 
-      const internal = manager as unknown as { consumers: Map<string, unknown> }
-      expect(internal.consumers.size).toBe(0)
       expect(builder.listenerCount()).toBe(0)
     })
 

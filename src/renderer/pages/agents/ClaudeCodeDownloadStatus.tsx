@@ -50,7 +50,7 @@ export function ClaudeCodeDownloadStatus({
       withSidePadding
       style={{ paddingLeft: sidePaddingPx + railGutterPx, paddingRight: sidePaddingPx + railGutterPx }}>
       <div
-        className="pointer-events-auto mb-2 flex items-center gap-3 rounded-lg bg-muted px-3 py-2 text-sm"
+        className="pointer-events-auto mb-2 flex items-center gap-3 rounded-lg bg-card px-3 py-2 text-sm text-card-foreground"
         role="status"
         aria-live="polite">
         {phase !== 'error' &&

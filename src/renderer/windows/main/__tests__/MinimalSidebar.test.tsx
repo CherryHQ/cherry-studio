@@ -5,14 +5,14 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { MinimalModeContext } from '@renderer/hooks/useMinimalMode'
-import { DefaultUseCache } from '@shared/data/cache/cacheSchemas'
+import { DefaultSharedCache } from '@shared/data/cache/cacheSchemas'
 
 import { MinimalSidebarFooter } from '../MinimalSidebar'
 
 vi.unmock('@cherrystudio/ui')
 
 vi.mock('@renderer/components/Sidebar', () => ({ UserAvatar: () => null }))
-vi.mock('@renderer/components/UserPopup', () => ({ default: { show: vi.fn() } }))
+vi.mock('@renderer/components/UserAccountPanel', () => ({ UserAccountPanel: () => null }))
 vi.mock('@renderer/hooks/useAvatar', () => ({ default: () => '' }))
 vi.mock('@renderer/components/layout/HelpMenu', () => ({ HelpMenu: () => null }))
 vi.mock('@renderer/components/UpdateDialogPopup', () => ({ default: { show: vi.fn() } }))
@@ -41,8 +41,8 @@ it('offers a downloaded update in the minimal footer and opens its release dialo
       <MinimalSidebarFooter />
     </MinimalModeContext>
   )
-  MockUseCacheUtils.setCacheValue('app.dist.update_state', {
-    ...DefaultUseCache['app.dist.update_state'],
+  MockUseCacheUtils.setSharedCacheValue('app.dist.update_status', {
+    ...DefaultSharedCache['app.dist.update_status'],
     available: true,
     downloaded: false,
     info: releaseInfo
@@ -50,8 +50,8 @@ it('offers a downloaded update in the minimal footer and opens its release dialo
   const view = render(footer)
   expect(screen.queryByRole('button', { name: /2\.0\.0/ })).not.toBeInTheDocument()
 
-  MockUseCacheUtils.setCacheValue('app.dist.update_state', {
-    ...DefaultUseCache['app.dist.update_state'],
+  MockUseCacheUtils.setSharedCacheValue('app.dist.update_status', {
+    ...DefaultSharedCache['app.dist.update_status'],
     available: true,
     downloaded: true,
     info: releaseInfo

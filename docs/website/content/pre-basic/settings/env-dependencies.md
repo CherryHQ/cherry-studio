@@ -29,7 +29,7 @@ icon: terminal
 | **RTK** | 压缩终端输出、减少 LLM token 消耗的 CLI 代理工具 |
 | **Lark CLI** | 飞书官方 CLI，覆盖消息 / 文档 / 多维表格 / 日历等 200+ 命令 |
 
-页面还以卡片列出 `gh`（GitHub CLI）、`ntn`（Notion CLI）、`pi` 等工具，可按需一键安装。（编程类 CLI 如 Claude Code / Codex 在 [编码搭档](../../cherrystudio/preview/code-cli.md) 页管理，不在此页。）
+页面还以卡片列出 `gh`（GitHub CLI）、`ntn`（Notion CLI）、`pi` 等工具，可按需一键安装。（编程类 CLI 如 Claude Code / Codex 在 [编码搭档](../../advanced-basic/developer-tools/code-cli.md) 页管理，不在此页。）
 
 ### 添加工具
 

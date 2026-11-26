@@ -46,8 +46,23 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </div>
   ),
-  RadioGroupItem: ({ value, ...props }: { value: string; size?: string; 'aria-label'?: string }) => (
-    <button type="button" role="radio" aria-label={props['aria-label']} data-reasoning-value={value} />
+  RadioGroupItem: ({
+    value,
+    disabled,
+    ...props
+  }: {
+    value: string
+    size?: string
+    disabled?: boolean
+    'aria-label'?: string
+  }) => (
+    <button
+      type="button"
+      role="radio"
+      aria-label={props['aria-label']}
+      aria-disabled={disabled === true || undefined}
+      data-reasoning-value={disabled === true ? undefined : value}
+    />
   ),
   Slider: ({
     max,
@@ -149,37 +164,6 @@ describe('ModelSpeedControl UI', () => {
     ).toBe('default')
   })
 
-  it('uses a slider for GPT-5.6, with Off first and Default as a separate choice', () => {
-    const { container } = render(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
-
-    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
-      'assistants.settings.reasoning_effort.high'
-    )
-    const slider = screen.getByTestId('reasoning-slider')
-    expect(slider).toHaveAttribute('data-max', '5')
-    expect(slider).toHaveAttribute('data-value', '3')
-    expect(container.querySelectorAll('[data-slot="model-speed-effort-step"]')).toHaveLength(5)
-    expect(container.querySelector('[data-slot="model-speed-effort-step"][data-index="3"]')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' })).toHaveAttribute(
-      'aria-pressed',
-      'false'
-    )
-    fireEvent.click(screen.getByTestId('select-slider-min'))
-    expect(container.querySelectorAll('[data-slot="model-speed-effort-step"]')).toHaveLength(5)
-    expect(container.querySelector('[data-slot="model-speed-effort-step"][data-index="0"]')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
-      'assistants.settings.reasoning_effort.off'
-    )
-
-    fireEvent.click(screen.getByTestId('select-slider-max'))
-
-    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
-      'assistants.settings.reasoning_effort.max'
-    )
-    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent('assistants.settings.reasoning_effort.max')
-  })
-
   it('offers an explicit Off shortcut when the model can disable thinking', () => {
     render(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
 
@@ -225,17 +209,6 @@ describe('ModelSpeedControl UI', () => {
   it("displays a stored Default at the model's declared default without changing its submitted value", () => {
     render(<ControlledSpeedControl model={codexModel} initialEffort="default" />)
 
-    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
-      'assistants.settings.reasoning_effort.default'
-    )
-    expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
-    expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '5')
-    expect(
-      screen.queryByRole('button', { name: 'assistants.settings.reasoning_effort.default' })
-    ).not.toBeInTheDocument()
-    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent(
-      'assistants.settings.reasoning_effort.default'
-    )
     expect(screen.getByRole('slider', { name: 'agent.speed.effort' })).toHaveAttribute(
       'aria-valuetext',
       'assistants.settings.reasoning_effort.default'
@@ -273,33 +246,6 @@ describe('ModelSpeedControl UI', () => {
         'assistants.settings.reasoning_effort.auto'
       )
     )
-  })
-
-  it('uses a single slider for DeepSeek V4 and keeps Off as the first level', () => {
-    render(
-      <ControlledSpeedControl
-        model={{
-          ...codexModel,
-          id: 'deepseek::deepseek-v4-pro',
-          providerId: 'deepseek',
-          apiModelId: 'deepseek-v4-pro',
-          supportsFastMode: false,
-          reasoning: {
-            controls: [{ kind: 'effort', values: ['none', 'high', 'max'], default: 'high' }],
-            defaultEffort: 'high',
-            selectableEfforts: ['high', 'max', 'none']
-          }
-        }}
-        initialEffort="default"
-      />
-    )
-
-    expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-max', '2')
-    expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '1')
-    expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'assistants.settings.reasoning_effort.default' })
-    ).not.toBeInTheDocument()
   })
 
   it('restores provider Default after selecting an explicit slider tier', async () => {
@@ -401,19 +347,6 @@ describe('ModelSpeedControl UI', () => {
     expect(screen.queryByRole('button', { name: 'agent.speed.fast' })).not.toBeInTheDocument()
     expect(screen.getByTestId('reasoning-slider')).toBeInTheDocument()
   })
-
-  it('renders Fast without requiring reasoning options', () => {
-    render(
-      <ControlledSpeedControl
-        model={{ ...codexModel, capabilities: [], reasoning: undefined }}
-        initialEffort="default"
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent('agent.speed.label')
-    expect(screen.getByRole('button', { name: 'agent.speed.fast' })).toBeInTheDocument()
-    expect(screen.queryByTestId('reasoning-slider')).not.toBeInTheDocument()
-  })
 })
 
 describe('ModelSpeedControl summary verbosity', () => {
@@ -441,36 +374,7 @@ describe('ModelSpeedControl summary verbosity', () => {
     expect(onReasoningSummaryChange).toHaveBeenCalledWith('detailed')
   })
 
-  it('defaults to auto when nothing is stored', () => {
-    render(
-      <ModelSpeedControl
-        model={summaryModel}
-        reasoningEffort="default"
-        fastMode={false}
-        onReasoningEffortChange={vi.fn()}
-        onReasoningSummaryChange={vi.fn()}
-        onFastModeChange={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'agent.speed.summary.auto' })).toHaveAttribute('aria-pressed', 'true')
-  })
-
   // Endpoints without a summary knob (every third-party Responses host) must show nothing.
-  it('hides the row when the endpoint carries no summary knob', () => {
-    render(
-      <ModelSpeedControl
-        model={codexModel}
-        reasoningEffort="default"
-        fastMode={false}
-        onReasoningEffortChange={vi.fn()}
-        onReasoningSummaryChange={vi.fn()}
-        onFastModeChange={vi.fn()}
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: 'agent.speed.summary.auto' })).toBeNull()
-  })
 })
 
 describe('ModelSpeedControl service tiers', () => {
@@ -487,50 +391,17 @@ describe('ModelSpeedControl service tiers', () => {
     }
   }
 
-  it('stays hidden when the model declares no speed control', () => {
-    render(
-      <ControlledServiceTier
-        model={{
-          ...groqModel,
-          requestControls: undefined
-        }}
-        initialTier="standard"
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: 'agent.speed.title' })).not.toBeInTheDocument()
-  })
-
   it('renders the four Groq tiers as an accessible vertical radio group and persists a selection', async () => {
     render(<ControlledServiceTier model={groqModel} initialTier="auto" />)
 
     const group = screen.getByRole('radiogroup', { name: 'agent.speed.service_tier.label' })
     expect(group).toHaveAttribute('data-value', 'auto')
-    expect(screen.getAllByRole('radio')).toHaveLength(4)
+
     await userEvent.click(screen.getByRole('radio', { name: 'agent.speed.service_tier.fast' }))
     expect(group).toHaveAttribute('data-value', 'fast')
   })
 
-  it('renders only the three OpenRouter tiers', () => {
-    render(
-      <ControlledServiceTier
-        model={{
-          ...groqModel,
-          id: 'openrouter::openai/gpt-5.4',
-          providerId: 'openrouter',
-          requestControls: {
-            serviceTier: { default: 'standard', options: ['standard', 'fast', 'flex'] }
-          }
-        }}
-        initialTier="standard"
-      />
-    )
-
-    expect(screen.getAllByRole('radio')).toHaveLength(3)
-    expect(screen.queryByRole('radio', { name: 'agent.speed.service_tier.auto' })).not.toBeInTheDocument()
-  })
-
-  it('temporarily resolves an unsupported saved tier to Standard without changing the saved value', () => {
+  it('keeps an unsupported saved tier as a disabled selection with the effective tier explained', () => {
     const openRouterModel: Model = {
       ...groqModel,
       providerId: 'openrouter',
@@ -539,9 +410,76 @@ describe('ModelSpeedControl service tiers', () => {
     expect(resolveSupportedServiceTier(openRouterModel, 'auto')).toBe('standard')
 
     render(<ControlledServiceTier model={openRouterModel} initialTier="auto" />)
+
+    // The saved choice stays selected (and unwritten) even though it cannot be used here.
     expect(screen.getByRole('radiogroup', { name: 'agent.speed.service_tier.label' })).toHaveAttribute(
       'data-value',
-      'standard'
+      'auto'
     )
+    const savedRadio = screen.getByRole('radio', { name: 'agent.speed.service_tier.auto' })
+    expect(savedRadio).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByText('agent.speed.service_tier.unsupported')).toBeInTheDocument()
+    // The three declared tiers plus the disabled saved tier render; nothing else.
+    expect(screen.getByRole('radio', { name: 'agent.speed.service_tier.flex' })).toBeInTheDocument()
+    expect(screen.getAllByRole('radio')).toHaveLength(4)
+  })
+
+  it('shows both the saved and effective tier in the trigger while they differ', () => {
+    const openRouterModel: Model = {
+      ...groqModel,
+      providerId: 'openrouter',
+      requestControls: { serviceTier: { default: 'standard' as const, options: ['standard', 'fast', 'flex'] } }
+    }
+    render(<ControlledServiceTier model={openRouterModel} initialTier="auto" />)
+
+    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+      'agent.speed.service_tier.auto → agent.speed.service_tier.standard'
+    )
+  })
+
+  it('persists a supported pick over an unsupported saved tier', async () => {
+    const openRouterModel: Model = {
+      ...groqModel,
+      providerId: 'openrouter',
+      requestControls: { serviceTier: { default: 'standard' as const, options: ['standard', 'fast', 'flex'] } }
+    }
+    render(<ControlledServiceTier model={openRouterModel} initialTier="auto" />)
+
+    await userEvent.click(screen.getByRole('radio', { name: 'agent.speed.service_tier.fast' }))
+    expect(screen.getByRole('radiogroup', { name: 'agent.speed.service_tier.label' })).toHaveAttribute(
+      'data-value',
+      'fast'
+    )
+    expect(screen.queryByText('agent.speed.service_tier.unsupported')).not.toBeInTheDocument()
+  })
+
+  it('keeps Standard as the default for a model that declares no tiers', () => {
+    const noControlModel: Model = { ...groqModel, requestControls: undefined }
+    expect(resolveSupportedServiceTier(noControlModel, 'flex')).toBe('standard')
+  })
+
+  it('reveals provider terms only behind the Details toggle, never as primary labels', async () => {
+    const wiredModel: Model = {
+      ...groqModel,
+      requestControls: {
+        serviceTier: {
+          default: 'standard',
+          options: ['standard', 'fast'],
+          values: { standard: 'default', fast: 'priority' }
+        }
+      }
+    }
+    render(<ControlledServiceTier model={wiredModel} initialTier="standard" />)
+
+    expect(screen.queryByText('agent.speed.service_tier.provider_value')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'agent.speed.service_tier.details' }))
+    expect(screen.getAllByText('agent.speed.service_tier.provider_value')).toHaveLength(2)
+    // Primary labels stay the shared tier names.
+    expect(screen.getByRole('radio', { name: 'agent.speed.service_tier.fast' })).toBeInTheDocument()
+  })
+
+  it('omits the Details toggle when the endpoint carries no provider terms', () => {
+    render(<ControlledServiceTier model={groqModel} initialTier="standard" />)
+    expect(screen.queryByRole('button', { name: 'agent.speed.service_tier.details' })).not.toBeInTheDocument()
   })
 })

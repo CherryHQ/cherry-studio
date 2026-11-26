@@ -15,6 +15,7 @@ import {
   ListAgentsQuerySchema,
   type ListQuery,
   ListQuerySchema,
+  ListTasksQuerySchema,
   UpdateAgentSchema
 } from '@shared/data/api/schemas/agents'
 import type { HandlersFor } from '@shared/data/api/types'
@@ -35,8 +36,14 @@ function parseListQuery(query: unknown): ListQuery {
 export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agent-tasks': {
     GET: async ({ query }) => {
-      const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
-      const { tasks, total } = taskService.listAllTasks({ limit, offset })
+      const parsed = ListTasksQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      const { page, limit, offset } = paginationFromQuery(parsed.data)
+      const { tasks, total } = taskService.listAllTasks({
+        limit,
+        offset,
+        ...('status' in parsed.data ? { status: parsed.data.status } : {})
+      })
       return { items: tasks, total, page }
     }
   },
@@ -57,6 +64,14 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const offset = (page - 1) * limit
       const { agents, total } = agentService.listAgents({ ids, builtinRole, limit, offset, search, inTrash })
       return { items: agents, total, page }
+    }
+  },
+
+  '/agents/:agentId/stats': {
+    GET: async ({ params }) => {
+      const stats = agentService.getStats(params.agentId)
+      if (!stats) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      return stats
     }
   },
 
@@ -88,8 +103,8 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents/:agentId/tasks': {
     GET: async ({ params, query }) => {
       const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
-      const { tasks, total } = taskService.listTasks(params.agentId, { limit, offset })
-      return { items: tasks, total, page }
+      const { tasks, total, activeTotal } = taskService.listTasks(params.agentId, { limit, offset })
+      return { items: tasks, total, activeTotal, page }
     }
   },
 

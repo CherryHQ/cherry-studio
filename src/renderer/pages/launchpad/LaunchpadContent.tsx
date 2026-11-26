@@ -1,13 +1,12 @@
-import { arrayMove } from '@dnd-kit/sortable'
+import { arrayMove } from '@dnd-kit/helpers'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Sortable } from '@cherrystudio/ui'
+import { Button, Sortable, ScrollArea } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import { LaunchpadAppIcon } from '@renderer/components/LaunchpadAppIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
@@ -211,7 +210,7 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
 
   return (
     <div className={cn('flex min-h-0 flex-col', !compact && 'h-full bg-background')}>
-      <Scrollbar className={compact ? 'max-h-[min(480px,60vh)]' : 'min-h-0 flex-1'}>
+      <ScrollArea className={compact ? 'max-h-[min(480px,60vh)]' : 'min-h-0 flex-1'}>
         <div className={cn('mx-auto flex w-full flex-col', compact ? 'gap-3' : 'max-w-180 gap-5 py-12.5')}>
           <section className="flex flex-col gap-2">
             <h2
@@ -247,7 +246,12 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
                   'm-0 py-0 font-semibold text-[14px] text-foreground opacity-80',
                   compact ? 'px-[17px]' : 'px-9'
                 )}>
-                {t('launchpad.miniApps')}
+                <Button
+                  variant="ghost"
+                  className="h-auto p-0 text-inherit [font:inherit]"
+                  onClick={() => onOpen('/app/mini-app')}>
+                  {t('launchpad.miniApps')}
+                </Button>
               </h2>
               <div className={gridClassName}>
                 {compact ? (
@@ -269,7 +273,7 @@ export function LaunchpadContent({ compact = false, onOpen }: { compact?: boolea
             </section>
           )}
         </div>
-      </Scrollbar>
+      </ScrollArea>
     </div>
   )
 }

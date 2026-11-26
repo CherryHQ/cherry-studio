@@ -1,5 +1,6 @@
-import type { ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
+import { type ExtensionFactory, SessionManager } from '@earendil-works/pi-coding-agent'
 
+import { decodeEntry, subagentResults, type SubagentResults } from '@cherrystudio/agent-behavior'
 import type {
   BoundPorts,
   CallRef,
@@ -9,11 +10,17 @@ import type {
   LifecycleHandlers,
   SubagentOrigin
 } from '@cherrystudio/agent-behavior'
-import { type InputId, type JsonValue, runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
+import {
+  type InputId,
+  type JsonValue,
+  type OperationResult,
+  runtimeId,
+  type ThreadId
+} from '@cherrystudio/agent-runtime'
 
-import type { CompactionSummarizer } from '../compaction'
 import type { AgentRuntimeSession } from '../session'
-import { compactionSummarizer, conversationExtension, meterRequests } from './extension'
+import { conversationExtension, meterRequests } from './extension'
+import { historyOf } from './history'
 import { commit, modelContext, readFacts } from './ledger'
 import {
   awaitAnswer,
@@ -45,12 +52,6 @@ export type BehaviorSessionRequest = {
   /** The adapter's extension; the session must install it. */
   readonly extension: ExtensionFactory
   /**
-   * The session's compaction summarizer: pass it as `compaction.summarize`, so every compaction asks `onCompacting`
-   * (H12) and a decline's reason becomes the `compaction-end` error. A compaction that does not go through it is
-   * cancelled and reported to `onError`.
-   */
-  readonly summarize: CompactionSummarizer
-  /**
    * For a child: give it the model `origin.modelKey` names. The adapter's extension already leaves out the package's
    * `'parent-only'` tools; host-owned tools follow the host's own child configuration.
    */
@@ -63,11 +64,10 @@ export interface PiBehaviorOptions {
   /** Builds the native session of a conversation the adapter opens (`createAgentRuntimeSession`, Pi's retry off). */
   readonly openSession: (request: BehaviorSessionRequest) => Promise<AgentRuntimeSession>
   /**
-   * Errors no caller awaits: a job that threw, a run that failed to start, an automatic compaction's `onCompacting` or
-   * `onCompacted`, what a handler Pi calls threw, a quiet input that failed to write, a run the adapter did not start,
-   * a compaction cancelled because it bypassed `BehaviorSessionRequest.summarize`.
+   * Errors no caller awaits: a job, run, lifecycle handler, native callback, or quiet input that fails.
    */
   readonly onError?: (error: unknown) => void
+  readonly onResults?: (thread: ThreadId, result: OperationResult<SubagentResults>) => void
 }
 
 /** The agent-behavior harness ports on native coding-agent sessions (README "Behavior ports"). */
@@ -91,7 +91,7 @@ export interface PiBehavior {
     options?: Parameters<AgentRuntimeSession['prompt']>[1],
     signal?: AbortSignal
   ): Promise<void>
-  /** Compacts now; resolves once `onCompacted` has run, or once `onCompacting` declined and nothing was compacted. */
+  /** Compacts now; resolves once `onCompacted` has run. */
   compact(thread: ThreadId, instructions?: string): Promise<void>
   /** Resolves once no run is active and no job is live; inputs a failed run left do not count. */
   settled(): Promise<void>
@@ -171,6 +171,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
               },
               scope.owner
             )
+            adapter.results(thread)
             if (scope.opening) scope.opening.push(...applied.jobs)
             const launched = await Promise.allSettled(
               applied.children.map((child) =>
@@ -323,6 +324,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
   async function openRoot(conv: Conversation): Promise<void> {
     try {
       await openNative(conv)
+      if (conv.reopened) await restoreChildren(conv)
     } catch (error) {
       // Never opened: the host may open it again.
       conversations.delete(conv.thread)
@@ -343,14 +345,54 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       }
     }
   }
+  async function restoreChildren(parent: Conversation): Promise<void> {
+    if (!parent.manager.isPersisted()) return
+    const history = historyOf(parent.manager.getBranch(), parent.thread)
+    for (const item of history)
+      if (item.kind === 'assistant') for (const call of item.toolCalls) parent.callIds.set(call.callKey, call.callId)
+    const ids = new Set(
+      history.flatMap((item) =>
+        item.kind === 'record' && item.record.type === 'subagent-run' ? [item.record.value.sessionId] : []
+      )
+    )
+    if (!ids.size) return
+    const files = await SessionManager.list(parent.manager.getCwd(), parent.manager.getSessionDir())
+    for (const id of ids) {
+      const candidates = files.filter(
+        (file) => file.id === id && file.parentSessionPath === parent.manager.getSessionFile()
+      )
+      if (candidates.length !== 1) continue
+      const manager = SessionManager.openExisting(candidates[0].path, id)
+      const origin = historyOf(manager.getBranch(), id).findLast(
+        (item) => item.kind === 'record' && item.record.type === 'subagent-origin'
+      )
+      if (origin?.kind !== 'record' || origin.record.type !== 'subagent-origin') continue
+      const child = newConversation(
+        id,
+        manager,
+        { kind: 'subagent', parent: parent.thread, origin: origin.record.value },
+        undefined,
+        true
+      )
+      conversations.set(id, child)
+      try {
+        await openNative(child)
+      } catch (error) {
+        conversations.delete(id)
+        await child.native?.dispose().catch(report)
+        accepting()
+        report(error)
+        continue
+      }
+      await restoreChildren(child)
+    }
+  }
   async function openNative(conv: Conversation): Promise<void> {
     const child =
       conv.lineage.kind === 'subagent' ? { parent: conv.lineage.parent, origin: conv.lineage.origin } : undefined
-    conv.summarize = compactionSummarizer(adapter, conv)
     const native = await options.openSession({
       sessionManager: conv.manager,
       extension: conversationExtension(adapter, conv),
-      summarize: conv.summarize,
       ...(child && { child })
     })
     if (closing) {
@@ -363,6 +405,7 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     native.session.subscribe((event) => {
       if (event.type !== 'compaction_end') return
       const compacted = event.result !== undefined
+      conv.summary = undefined
       const awaited = conv.hostCompacts > 0
       // Outside Pi's dispatch, with Pi idle again: onCompacted's quiet inputs need an idle conversation.
       conv.compacted = track(
@@ -391,6 +434,34 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     conversation,
     track,
     report,
+    results(thread) {
+      const conv = conversation(thread)
+      const input = conv.active && conv.submissions.get(conv.active.key)?.input
+      const marker =
+        input && typeof input !== 'string'
+          ? decodeEntry({ id: runtimeId(conv.active!.key), kind: input.kind, data: input.data })
+          : undefined
+      const notification =
+        marker?.kind === 'marker' && marker.marker.type === 'subagent-notification'
+          ? marker.marker.runs
+          : conv.active
+            ? []
+            : undefined
+      const results = subagentResults(readFacts(adapter, thread).history, conv.active !== undefined, notification)
+      options.onResults?.(
+        thread,
+        results
+          ? { status: 'confirmed', value: results }
+          : {
+              status: 'unknown',
+              error: {
+                operation: 'backgroundResults',
+                code: 'missing-result-origin',
+                message: 'A Pi background result has no recorded triggering call'
+              }
+            }
+      )
+    },
     withScope,
     lifecycle
   }
@@ -458,7 +529,6 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
     async submitUser(thread, text) {
       accepting()
       users += 1
-      // A person's submissions get adapter-local keys; rules never see them.
       submit(adapter, conversation(thread), `user:${users}`, text)
     },
     prompt(thread, text, promptOptions, signal) {
@@ -471,15 +541,9 @@ export function createPiBehavior(options: PiBehaviorOptions): PiBehavior {
       const conv = conversation(thread)
       if (!conv.native) throw new Error(`Conversation ${thread} has no session`)
       conv.hostCompacts += 1
-      conv.declined = false
       // In flight until `onCompacted` has returned too (H5).
       try {
-        try {
-          await conv.native.compact(instructions)
-        } catch (error) {
-          // A decline compacts nothing and is no failure of the call; its reason is the `compaction-end` error.
-          if (!conv.declined) throw error
-        }
+        await conv.native.compact(instructions)
         await conv.compacted
       } finally {
         conv.hostCompacts -= 1

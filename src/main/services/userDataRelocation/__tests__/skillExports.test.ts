@@ -9,6 +9,7 @@ import { application } from '@application'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { SkillService } from '@main/ai/skills/SkillService'
+import { isWin } from '@main/core/platform'
 
 import { retargetSkillExports } from '../skillExports'
 
@@ -41,6 +42,7 @@ describe('skill export ownership after userData relocation', () => {
   })
 
   it('can disable and re-enable exports from the copied profile while the source profile remains', async () => {
+    await application.get('PreferenceService').set('agent.skills.external_export.enabled', true)
     const id = '11111111-1111-4111-8111-111111111111'
     await dbh.db.insert(agentGlobalSkillTable).values({
       id,
@@ -67,5 +69,57 @@ describe('skill export ownership after userData relocation', () => {
     await expect(service.setMirrorEnabled(id, true)).resolves.toMatchObject({ mirrorEnabled: true })
     await expect(fs.readFile(path.join(exports, 'owned', 'SKILL.md'), 'utf8')).resolves.toBe('# copied instructions')
     expect(agentGlobalSkillService.getById(id)?.mirrorEnabled).toBe(true)
+  })
+  it('removes a retargeted runtime-only builtin on reconcile while retaining profile and user entries', async () => {
+    await application.get('PreferenceService').set('agent.skills.external_export.enabled', true)
+    const service = new SkillService()
+    const libraryRoot = application.getPath('feature.agents.skills')
+    for (const name of ['cherry-browser', 'find-skills']) {
+      const library = path.join(libraryRoot, name)
+      await fs.mkdir(library, { recursive: true })
+      await fs.writeFile(path.join(library, 'SKILL.md'), '# trusted builtin')
+      agentGlobalSkillService.insert({
+        name,
+        folderName: name,
+        source: 'builtin',
+        mirrorEnabled: true,
+        contentHash: await service['computeBuiltinDirectoryHash'](library)
+      })
+      await service.linkMirror(name)
+    }
+    await fs.symlink(
+      path.join(application.getPath('feature.agents.claude.skills'), 'cherry-browser'),
+      path.join(exports, 'cherry-browser'),
+      isWin ? 'junction' : 'dir'
+    )
+    await fs.writeFile(path.join(exports, 'user-file'), 'keep file')
+    await fs.mkdir(path.join(exports, 'user-directory'))
+    await fs.writeFile(path.join(exports, 'user-directory', 'keep'), 'keep directory')
+    await fs.symlink(root, path.join(exports, 'user-link'), isWin ? 'junction' : 'dir')
+    const original = profile
+    const copied = path.join(root, 'target')
+    await fs.cp(original, copied, { recursive: true, dereference: true })
+    await retargetSkillExports(original, copied)
+    profile = copied
+    expect(path.resolve(await fs.readlink(path.join(exports, 'cherry-browser')))).toBe(
+      path.resolve(application.getPath('feature.agents.claude.skills'), 'cherry-browser')
+    )
+    await service.reconcileSkills()
+    await expect(fs.lstat(path.join(exports, 'cherry-browser'))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(
+      await fs.readFile(
+        path.join(application.getPath('feature.agents.claude.skills'), 'cherry-browser', 'SKILL.md'),
+        'utf8'
+      )
+    ).toBe('# trusted builtin')
+    const general = agentGlobalSkillService.getByFolderName('find-skills')!
+    await service.setMirrorEnabled(general.id, false)
+    await expect(fs.lstat(path.join(exports, 'find-skills'))).rejects.toMatchObject({ code: 'ENOENT' })
+    await service.setMirrorEnabled(general.id, true)
+    expect(await fs.readFile(path.join(exports, 'find-skills', 'SKILL.md'), 'utf8')).toBe('# trusted builtin')
+    expect(await fs.readFile(path.join(libraryRoot, 'cherry-browser', 'SKILL.md'), 'utf8')).toBe('# trusted builtin')
+    expect(await fs.readFile(path.join(exports, 'user-file'), 'utf8')).toBe('keep file')
+    expect(await fs.readFile(path.join(exports, 'user-directory', 'keep'), 'utf8')).toBe('keep directory')
+    expect(path.resolve(await fs.readlink(path.join(exports, 'user-link')))).toBe(path.resolve(root))
   })
 })

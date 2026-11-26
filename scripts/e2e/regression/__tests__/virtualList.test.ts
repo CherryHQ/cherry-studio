@@ -1,7 +1,23 @@
 import type { Locator, Page } from '@playwright/test'
+import type * as Playwright from '@playwright/test'
 import { afterEach, beforeEach, vi } from 'vitest'
 
 import { collectVirtualizedText, revealVirtualized } from '../../../../tests/e2e/regression/helpers/virtualList'
+
+// Keep Playwright's retry loop; these fixtures model DOM geometry without a browser connection.
+vi.mock('@playwright/test', async (importOriginal) => {
+  const actual = await importOriginal<typeof Playwright>()
+  return {
+    ...actual,
+    expect: Object.assign(
+      (received: Locator | (() => Promise<void>)) =>
+        typeof received === 'function'
+          ? actual.expect(received)
+          : { toBeVisible: async () => expect(await received.isVisible()).toBe(true) },
+      actual.expect
+    )
+  }
+})
 
 // Model the browser's clamped scroll position; unbounded bottom polling used to exhaust the wait budget.
 function listFixture(scrollHeight = 450) {

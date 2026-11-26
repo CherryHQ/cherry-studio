@@ -1,5 +1,3 @@
-import { isToolUIPart } from 'ai'
-
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
@@ -46,12 +44,18 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
   return {
     id: message.id,
     role: message.role,
+    partIds: message.partIds,
     assistantId: ctx.assistantId,
     topicId: ctx.topicId,
     parentId: metadata.parentId ?? null,
     isContextBoundary: hasClearContextPart(message.parts) || undefined,
     createdAt: metadata.createdAt ?? '',
-    status: message.role === 'assistant' ? (metadata.status ?? 'pending') : 'success',
+    status:
+      message.role === 'assistant'
+        ? (metadata.status ?? 'pending')
+        : metadata.status === 'paused'
+          ? 'paused'
+          : 'success',
     modelId,
     model,
     messageSnapshot,
@@ -61,6 +65,10 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     delivery: metadata.delivery,
     turnOrigin: metadata.turnOrigin
   }
+}
+
+export function getMessageListPartId(message: Pick<MessageListItem, 'id' | 'partIds'>, index: number): string {
+  return message.partIds?.[index] ?? `${message.id}-part-${index}`
 }
 
 export function getMessageListItemModel(message: MessageListItem): Model | undefined {
@@ -161,11 +169,6 @@ export function getMessageListItemModelName(message: MessageListItem): string {
 
 export function isMessageListItemProcessing(message: Pick<MessageListItem, 'status'>): boolean {
   return message.status === 'pending'
-}
-
-export function isMessageListItemAwaitingApproval(message: MessageListItem, parts: CherryMessagePart[]): boolean {
-  if (message.status !== 'paused') return false
-  return parts.some((part) => isToolUIPart(part) && part.state === 'approval-requested')
 }
 
 export function createMessageExportView(

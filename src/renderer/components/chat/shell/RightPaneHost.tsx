@@ -330,7 +330,11 @@ function RightPaneContents({
       {/* Mouse events over an iframe (e.g. the HTML preview tab) never reach this
           document's mousemove/mouseup listeners. Disable pointer events on pane
           content while dragging so the document-level resize listeners keep working. */}
-      <div className="h-full min-h-0 group-data-[resizing=true]/right-pane:pointer-events-none">
+      <div
+        className={cn(
+          'h-full min-h-0 group-data-[resizing=true]/right-pane:pointer-events-none',
+          resizeHandleVisible && 'pl-2'
+        )}>
         <ErrorBoundary>{children}</ErrorBoundary>
       </div>
       {resizeHandleVisible && (
@@ -345,8 +349,8 @@ function RightPaneContents({
             onResize: setPaneWidth,
             invert: true
           })}
-          className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-30 w-2 cursor-col-resize focus-visible:bg-primary/40 focus-visible:outline-none">
-          <div className="absolute top-0 left-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/right-pane-resize-handle:opacity-100 group-data-[resizing=true]/right-pane:bg-primary/35 group-data-[resizing=true]/right-pane:opacity-100" />
+          className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-30 w-2 cursor-col-resize focus-visible:bg-border-strong focus-visible:outline-none">
+          <div className="absolute top-0 left-0 h-full w-0.5 bg-border opacity-0 transition-opacity group-hover/right-pane-resize-handle:opacity-100 group-data-[resizing=true]/right-pane:bg-border-strong group-data-[resizing=true]/right-pane:opacity-100" />
         </div>
       )}
     </>
@@ -440,6 +444,12 @@ export function PersistentRightPaneHost({
     width: targetMode === 'maximized' ? RIGHT_PANE_WIDTH_FULL : dockedWidthExpression
   }))
   const onLayoutAnimationCompleteRef = useRef(onLayoutAnimationComplete)
+  // Switching to a pane of another width preset travels to its width instead of snapping.
+  const [settledCacheKey, setSettledCacheKey] = useState(cacheKey)
+  const presetTravelActive = settledCacheKey !== cacheKey && phase === 'docked' && !reduceMotion
+  if (settledCacheKey !== cacheKey && !presetTravelActive) setSettledCacheKey(cacheKey)
+  const settledDockedWidthRef = useRef<number | null>(null)
+  const presetTravelStartedRef = useRef(false)
 
   const setVisualState = useCallback((nextState: PersistentRightPaneVisualState) => {
     visualStateRef.current = nextState
@@ -479,9 +489,6 @@ export function PersistentRightPaneHost({
     }
 
     return invalidateActiveTransition
-    // `reconcileAfterEffectsReconnect` is an Effect Event that reads the latest
-    // target and visual state without turning normal renders into reconnects.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invalidateActiveTransition])
 
   useLayoutEffect(() => {
@@ -551,8 +558,21 @@ export function PersistentRightPaneHost({
     const plan = planPersistentRightPaneReconnect(phase, targetMode, dockedWidthExpression)
     if (plan.completedMode) return
 
+    const from = settledDockedWidthRef.current
+    if (presetTravelActive && from !== null) {
+      // Motion cannot interpolate the docked width expression, so the box travels between the
+      // resolved pixel widths and takes the new preset's expression once it arrives.
+      if (!presetTravelStartedRef.current) animationControls.set({ width: from })
+      presetTravelStartedRef.current = true
+      void animationControls
+        .start({ width: effectiveWidth, transition: CHAT_SHELL_TRANSITION })
+        .then(() => setSettledCacheKey(cacheKey))
+      return
+    }
+    presetTravelStartedRef.current = false
+    settledDockedWidthRef.current = effectiveWidth
     animationControls.set(plan.motionState)
-  }, [animationControls, dockedWidthExpression, phase, targetMode])
+  }, [animationControls, cacheKey, dockedWidthExpression, effectiveWidth, phase, presetTravelActive, targetMode])
 
   const isDocked = phase === 'docked' && targetMode === 'docked'
   const fullWidthLayout = isFullWidthRightPanePhase(phase)
@@ -564,7 +584,7 @@ export function PersistentRightPaneHost({
   const spacerWidth = mainRegionWidth === null || typeof resolvedWidth !== 'number' ? resolvedWidth : effectiveWidth
   // Settled phases track the region through re-measurement, which must land instantly; only a
   // phase change travels, and then on the same transition as the box it reserves space for.
-  const spacerTravels = !isResizing && !reduceMotion && getSettledRightPaneMode(phase) === null
+  const spacerTravels = !isResizing && !reduceMotion && (getSettledRightPaneMode(phase) === null || presetTravelActive)
   const spacerTransition = spacerTravels ? getRightPanePhaseTransition(phase) : { duration: 0 }
 
   const onFullWidthPhaseChangeRef = useRef(onFullWidthPhaseChange)
@@ -588,7 +608,8 @@ export function PersistentRightPaneHost({
         animate={{ width: reservesDockedSpace ? spacerWidth : 0 }}
         transition={spacerTransition}
         className="h-full min-h-0 shrink-0"
-        style={{ maxWidth: dockedWidthExpression }}
+        // The new preset's cap would cut a shrinking spacer short of its travel.
+        style={{ maxWidth: presetTravelActive ? undefined : dockedWidthExpression }}
       />
       <motion.div
         ref={paneRef}

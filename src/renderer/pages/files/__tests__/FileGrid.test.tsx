@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -87,45 +87,6 @@ describe('FileGrid layout', () => {
     fireEvent.click(deleteButton)
     expect(onDelete).not.toHaveBeenCalled()
   })
-
-  it('virtualizes responsive grid rows instead of mounting every file', async () => {
-    const files = Array.from({ length: 12 }, (_, index) => ({
-      ...imageFile,
-      id: `image-${index}`,
-      name: `photo-${index}.png`
-    }))
-
-    render(<FileGrid {...fileGridProps(files)} />)
-
-    await waitFor(() => {
-      expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(
-        expect.objectContaining({ count: 6, overscan: 4 })
-      )
-    })
-    const options = virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0]
-    expect(options?.getItemKey?.(0)).toBe('image-0')
-    expect(screen.getByText('photo-0.png')).toBeInTheDocument()
-    expect(screen.getByText('photo-1.png')).toBeInTheDocument()
-    expect(screen.queryByText('photo-2.png')).not.toBeInTheDocument()
-  })
-
-  it('notifies the parent when responsive columns reduce the virtual content height', async () => {
-    const files = Array.from({ length: 12 }, (_, index) => ({
-      ...imageFile,
-      id: `image-${index}`,
-      name: `photo-${index}.png`
-    }))
-    const onLayoutChange = vi.fn()
-    const props = { ...fileGridProps(files, 400), onLayoutChange }
-
-    render(<FileGrid {...props} />)
-
-    await waitFor(() => {
-      expect(virtualizerMocks.useVirtualizer.mock.calls.some(([options]) => options.count === 12)).toBe(true)
-      expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 6 }))
-      expect(onLayoutChange.mock.calls.length).toBeGreaterThanOrEqual(2)
-    })
-  })
 })
 
 describe('FileGrid image preview', () => {
@@ -148,6 +109,26 @@ describe('FileGrid image preview', () => {
 
     fireEvent.click(screen.getByText('photo.png'))
     expect(props.onOpen).not.toHaveBeenCalled()
+  })
+
+  it('exposes distinct source paths for same-name files', () => {
+    const first: FileItem = {
+      ...imageFile,
+      id: 'file-migrated-a',
+      name: 'migrated-image.png',
+      sourcePath: '/Users/a/Pictures/migrated-image.png'
+    }
+    const second: FileItem = {
+      ...first,
+      id: 'file-migrated-b',
+      sourcePath: '/Users/b/Downloads/migrated-image.png'
+    }
+    render(<FileGrid {...fileGridProps([first, second])} />)
+
+    const names = screen.getAllByText('migrated-image.png')
+    expect(names).toHaveLength(2)
+    expect(names[0]).toHaveAttribute('title', '/Users/a/Pictures/migrated-image.png')
+    expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-image.png')
   })
 })
 

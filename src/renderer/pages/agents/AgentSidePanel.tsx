@@ -5,7 +5,7 @@ import { useMinimalMode } from '@renderer/hooks/useMinimalMode'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
-import Sessions from './components/Sessions'
+import { Sessions } from './components/sessions'
 import type { CreateAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {
@@ -24,6 +24,7 @@ interface AgentSidePanelProps {
   ) => AgentSessionEntity | null | void | Promise<AgentSessionEntity | null | void>
   onShowMissingAgentSelection?: () => void | Promise<void>
   panePosition?: TopicTabPosition
+  onLocalPermanentDeletePendingChange?: (id: string | null) => void
   revealRequest?: ResourceListRevealRequest
   setActiveSessionId: (id: string | null, session?: AgentSessionEntity | null) => void
 }
@@ -41,6 +42,7 @@ const AgentSidePanel = ({
   onSetPanePosition,
   onCreateSession,
   onShowMissingAgentSelection,
+  onLocalPermanentDeletePendingChange,
   panePosition,
   revealRequest,
   setActiveSessionId
@@ -65,6 +67,7 @@ const AgentSidePanel = ({
         onSetPanePosition={onSetPanePosition}
         panePosition={panePosition}
         revealRequest={revealRequest}
+        onLocalPermanentDeletePendingChange={onLocalPermanentDeletePendingChange}
         onCreateSession={onCreateSession}
         onShowMissingAgentSelection={onShowMissingAgentSelection}
       />

@@ -3,8 +3,13 @@ import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import chardet from 'chardet'
+import iconv from 'iconv-lite'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { decodeTextWithAutoEncoding as decodeTextBuffer } from '@main/utils/textEncoding'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { FileType } from '@shared/types/file'
 import { FILE_TYPE } from '@shared/types/file'
@@ -24,9 +29,6 @@ import {
 // SoT lives in `@shared/utils/file` (filename topic); callers migrate to the
 // shared path opportunistically.
 export { sanitizeFilename, validateFileName } from '@shared/utils/file'
-import chardet from 'chardet'
-import iconv from 'iconv-lite'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('Utils:File')
 
@@ -87,14 +89,6 @@ export function getFileType(ext: string): FileType {
   return fileTypeMap.get(ext) || FILE_TYPE.OTHER
 }
 
-export function getFileDir(filePath: string) {
-  return path.dirname(filePath)
-}
-
-export function getFileName(filePath: string) {
-  return path.basename(filePath)
-}
-
 export function getFileExt(filePath: string) {
   return path.extname(filePath)
 }
@@ -147,21 +141,7 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileMetadata[] = []):
  * filesystem path.
  */
 export function decodeTextWithAutoEncoding(data: Buffer): string {
-  const sample = data.length > MB ? data.subarray(0, MB) : data
-  const detected = chardet.detect(sample) || 'UTF-8'
-
-  for (const encoding of [detected, 'UTF-8']) {
-    try {
-      const content = iconv.decode(data, encoding)
-      if (!content.includes('�')) return content
-      logger.warn(`Auto-detected ${encoding} but content has invalid characters; trying other encodings`)
-    } catch (error) {
-      logger.error(`Failed to decode buffer with encoding ${encoding}: ${error}`)
-    }
-  }
-
-  logger.error('Failed to decode buffer with all candidate encodings; falling back to UTF-8')
-  return iconv.decode(data, 'UTF-8')
+  return decodeTextBuffer(data, logger)
 }
 
 /**

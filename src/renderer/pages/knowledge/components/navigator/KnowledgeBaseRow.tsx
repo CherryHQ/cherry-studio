@@ -8,7 +8,7 @@ import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/
 import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import { useSidebarAvailable } from '@renderer/hooks/useSidebarAvailable'
 import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
-import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
+import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/utils/knowledgeGroup'
 
 import type { KnowledgeBaseRowProps } from './types'
 

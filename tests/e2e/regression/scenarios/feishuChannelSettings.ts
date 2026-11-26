@@ -45,8 +45,17 @@ export async function feishuChannelSettings(app: RegressionApp, initialPage: Pag
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
   const openChannels = async () => {
-    if (!(await page.locator('[data-ui~="settings.view"]').isVisible())) {
-      await expect(page.getByRole('button', { name: '设置', exact: true }).first()).toBeVisible()
+    // After a restart the window paints before the settings shell mounts, so a bare
+    // isVisible() reports "not in settings" and then clicks a sidebar entry that is
+    // rendered as a shortcut, not a button. Wait for the shell first, navigate only
+    // when it really is not there.
+    const settingsRoot = page.locator('[data-ui~="settings.navigation"]')
+    if (!(await settingsRoot.isVisible())) {
+      await expect(settingsRoot)
+        .toBeVisible({ timeout: 15_000 })
+        .catch(() => undefined)
+    }
+    if (!(await settingsRoot.isVisible())) {
       await selectSidebarApp(page, '设置')
     }
     await expect(
@@ -71,7 +80,9 @@ export async function feishuChannelSettings(app: RegressionApp, initialPage: Pag
   const reopen = async (channel: AgentChannelEntity) => {
     await closeDialog()
     await row(channel.name).getByRole('button', { name: '编辑', exact: true }).click()
-    await expect(dialog().getByRole('heading', { name: channel.name, exact: true })).toBeVisible()
+    // The dialog heading is the channel type ([飞书] / [QQ]); the channel name lives in its first
+    // text field, so assert that instead of a heading that never carries the name.
+    await expect(dialog().getByRole('textbox').first()).toHaveValue(channel.name)
   }
   const readConfig = async (channel: AgentChannelEntity) => {
     const saved = (await listChannels()).find(({ id }) => id === channel.id)

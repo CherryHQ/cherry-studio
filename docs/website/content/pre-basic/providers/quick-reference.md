@@ -2,15 +2,17 @@
 icon: list
 ---
 
-# 全部 Provider 快速参考
+<a id="quan-bu-provider-kuai-su-can-kao"></a>
 
-Cherry Studio 内置 **60+ 家 Provider**，本页提供总览表，找到目标 Provider 后 **按指引填写密钥即可使用**。已有专题文档的 Provider 提供跳转链接，其余按通用步骤（[Provider 总览](README.md)）配置。
+# 全部服务商快速参考
+
+Cherry Studio 内置 **60+ 家服务商**，本页提供总览表，找到目标服务商后 **按指引填写密钥即可使用**。已有专题文档的服务商提供跳转链接，其余按通用步骤（[服务商总览](README.md)）配置。
 
 ## 使用步骤
 
-1. **查找目标 Provider**（可用 Ctrl/⌘+F 快速搜索）
+1. **查找目标服务商**（可用 Ctrl/⌘+F 快速搜索）
 2. 点击 **官网** 注册账号并获取 API Key
-3. 在 Cherry Studio `设置 → 模型服务` 中找到对应 Provider，填写密钥后点击"获取模型列表"
+3. 在 Cherry Studio `设置 → 模型服务` 中找到对应服务商，填写密钥后点击"获取模型列表"
 4. 完成配置
 
 ## 一句话决策
@@ -29,7 +31,7 @@ Cherry Studio 内置 **60+ 家 Provider**，本页提供总览表，找到目标
 
 无需翻墙、有中文优势、价格相对便宜。
 
-| Provider | 一句话特点 | 官网 | 专题文档 |
+| 服务商 | 一句话特点 | 官网 | 专题文档 |
 |---|---|---|---|
 | **DeepSeek** | 编程与推理性价比之王 | [deepseek.com](https://platform.deepseek.com/) | [→](deepseek.md) |
 | **Moonshot AI (Kimi)** | 超长上下文（最长 200 万字） | [moonshot.cn](https://platform.moonshot.cn/) | [→](moonshot.md) |
@@ -47,7 +49,7 @@ Cherry Studio 内置 **60+ 家 Provider**，本页提供总览表，找到目标
 
 效果第一梯队，国内访问通常需要代理。
 
-| Provider | 一句话特点 | 官网 | 专题文档 |
+| 服务商 | 一句话特点 | 官网 | 专题文档 |
 |---|---|---|---|
 | **OpenAI** | GPT 系列 | [openai.com](https://platform.openai.com/) | [→](openai.md) |
 | **Anthropic** | Claude 系列，智能体首选 | [anthropic.com](https://console.anthropic.com/) | [→](anthropic.md) |
@@ -63,7 +65,7 @@ Cherry Studio 内置 **60+ 家 Provider**，本页提供总览表，找到目标
 
 一个 key 接入多家模型，账号集中管理。
 
-| Provider | 一句话特点 | 官网 | 专题文档 |
+| 服务商 | 一句话特点 | 官网 | 专题文档 |
 |---|---|---|---|
 | **CherryAI** | Cherry 官方免费体验 | — | [→](cherryai/) |
 | **CherryIN** | Cherry 官方付费网关，双端点（OpenAI + Anthropic）| [open.cherryin.cc](https://open.cherryin.cc/) | [→](cherryin-1.md) |
@@ -84,7 +86,7 @@ Cherry Studio 内置 **60+ 家 Provider**，本页提供总览表，找到目标
 
 适合需要"速度感"的场景（IM 机器人、实时翻译等）。
 
-| Provider | 一句话特点 | 官网 | 专题文档 |
+| 服务商 | 一句话特点 | 官网 | 专题文档 |
 |---|---|---|---|
 | **Groq** | LPU 硬件，毫秒级响应 | [groq.com](https://console.groq.com/) | [→](groq.md) |
 | **Cerebras AI** | 自研芯片，超大上下文 | [cerebras.ai](https://cerebras.ai/) | — |
@@ -93,7 +95,7 @@ Cherry Studio 内置 **60+ 家 Provider**，本页提供总览表，找到目标
 
 ## 国产云 + 算力服务
 
-| Provider | 一句话特点 | 官网 | 专题文档 |
+| 服务商 | 一句话特点 | 官网 | 专题文档 |
 |---|---|---|---|
 | **Silicon (硅基流动)** | 国内最大开源模型托管 | [siliconflow.cn](https://cloud.siliconflow.cn/) | [→](siliconcloud.md) |
 | **ModelScope (魔搭)** | 阿里旗下开源模型平台 | [modelscope.cn](https://modelscope.cn/) | [→](modelscope.md) |
@@ -106,7 +108,7 @@ Cherry Studio 内置 **60+ 家 Provider**，本页提供总览表，找到目标
 
 只用于做嵌入或重排，配合知识库 / 全局记忆使用。
 
-| Provider | 一句话特点 | 官网 | 专题文档 |
+| 服务商 | 一句话特点 | 官网 | 专题文档 |
 |---|---|---|---|
 | **Jina** | 嵌入、重排、CLIP，免费额度大 | [jina.ai](https://jina.ai/) | — |
 | **VoyageAI** | 嵌入 / 重排专家 | [voyageai.com](https://www.voyageai.com/) | — |
@@ -115,7 +117,7 @@ Cherry Studio 内置 **60+ 家 Provider**，本页提供总览表，找到目标
 
 完全离线，保护隐私。
 
-| Provider | 一句话特点 | 官网 | 专题文档 |
+| 服务商 | 一句话特点 | 官网 | 专题文档 |
 |---|---|---|---|
 | **Ollama** | 命令行本地推理，最流行 | [ollama.com](https://ollama.com/) | [→](ollama.md) |
 | **LM Studio** | GUI 本地推理，Apple Silicon 友好 | [lmstudio.ai](https://lmstudio.ai/) | [→](lm-studio.md) |
@@ -124,7 +126,7 @@ Cherry Studio 内置 **60+ 家 Provider**，本页提供总览表，找到目标
 
 ## 模型平台 / 其他
 
-| Provider | 一句话特点 | 官网 | 专题文档 |
+| 服务商 | 一句话特点 | 官网 | 专题文档 |
 |---|---|---|---|
 | **Hugging Face** | 全球最大开源模型社区 | [huggingface.co](https://huggingface.co/) | — |
 | **GitHub Copilot** | 微软 GitHub 编程助手 | [github.com/features/copilot](https://github.com/features/copilot) | [→](github-copilot.md) |

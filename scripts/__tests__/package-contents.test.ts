@@ -22,20 +22,9 @@ function includesFile(filename: string, patterns = config.files): boolean {
 }
 
 describe('packaged dependency contents', () => {
-  it('keeps the Computer Use SDK while its native helpers are installed outside ASAR', () => {
-    expect(includesFile('node_modules/@cherrystudio/computer-use/dist/index.cjs')).toBe(true)
-    for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
-      for (const platform of ['darwin', 'linux', 'win32']) {
-        for (const arch of ['arm64', 'x64']) {
-          expect(includesFile(`${modules}/@cherrystudio/computer-use-${platform}-${arch}/runtime/helper`)).toBe(false)
-        }
-      }
-    }
-  })
-
-  it('keeps the SDK but excludes every native Claude payload, including nested packages', () => {
-    for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
-      expect(includesFile(`${modules}/@anthropic-ai/claude-agent-sdk/sdk.mjs`)).toBe(true)
+  it.each(['node_modules', 'node_modules/consumer/node_modules'])(
+    'excludes on-demand Claude binaries under %s while preserving the SDK',
+    (modules) => {
       for (const target of [
         'darwin-arm64',
         'darwin-x64',
@@ -46,59 +35,33 @@ describe('packaged dependency contents', () => {
         'win32-arm64',
         'win32-x64'
       ]) {
-        for (const file of ['claude', 'claude.exe', 'package.json']) {
-          expect(includesFile(`${modules}/@anthropic-ai/claude-agent-sdk-${target}/${file}`)).toBe(false)
+        const root = `${modules}/@anthropic-ai/claude-agent-sdk-${target}`
+        for (const file of ['package.json', target.startsWith('win32') ? 'claude.exe' : 'claude']) {
+          expect(includesFile(`${root}/${file}`), `${root}/${file}`).toBe(false)
         }
       }
+      for (const file of ['package.json', 'sdk.mjs']) {
+        const sdkFile = `${modules}/@anthropic-ai/claude-agent-sdk/${file}`
+        expect(includesFile(sdkFile), sdkFile).toBe(true)
+      }
     }
-  })
+  )
+
   it.each([
-    ['darwin', 'arm64', 'darwin-arm64'],
-    ['darwin', 'x64', 'darwin-x64'],
-    ['linux', 'arm64', 'linux-arm64-gnu'],
-    ['linux', 'x64', 'linux-x64-gnu'],
-    ['win32', 'arm64', 'win32-arm64-msvc'],
-    ['win32', 'x64', 'win32-x64-msvc']
-  ])('keeps only %s %s native payloads, including nested dependencies', (platform, arch, nativeBindingTarget) => {
+    ['darwin', 'arm64'],
+    ['darwin', 'x64'],
+    ['linux', 'arm64'],
+    ['linux', 'x64'],
+    ['win32', 'arm64'],
+    ['win32', 'x64']
+  ])('keeps only %s %s native payloads, including nested dependencies', (platform, arch) => {
     const patterns = [...config.files, ...getNativeModuleFilters(platform, arch)]
     for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
       for (const targetPlatform of ['darwin', 'linux', 'win32']) {
         for (const targetArch of ['arm64', 'x64']) {
-          const target = `${targetPlatform}-${targetArch}`
-          const keep = targetPlatform === platform && targetArch === arch
-          for (const file of [
-            `@koromix/koffi-${target}/koffi.node`,
-            `node-pty/prebuilds/${target}/pty.node`,
-            `selection-hook/prebuilds/${target}/selection.node`
-          ]) {
-            expect(includesFile(`${modules}/${file}`, patterns), file).toBe(keep)
-          }
+          const file = `${modules}/selection-hook/prebuilds/${targetPlatform}-${targetArch}/selection.node`
+          expect(includesFile(file, patterns), file).toBe(targetPlatform === platform && targetArch === arch)
         }
-      }
-      for (const target of [
-        'darwin-arm64',
-        'darwin-x64',
-        'darwin-universal',
-        'linux-arm64-gnu',
-        'linux-x64-gnu',
-        'linux-x64-musl',
-        'win32-arm64-msvc',
-        'win32-x64-msvc'
-      ]) {
-        const file = `${modules}/@mariozechner/clipboard-${target}/clipboard.node`
-        expect(includesFile(file, patterns), file).toBe(target === nativeBindingTarget)
-      }
-      for (const target of [
-        'darwin-arm64',
-        'darwin-x64',
-        'linux-arm64-gnu',
-        'linux-x64-gnu',
-        'win32-arm64-msvc',
-        'win32-ia32-msvc',
-        'win32-x64-msvc'
-      ]) {
-        const file = `${modules}/node-addon-require-builtin-${target}/package.json`
-        expect(includesFile(file, patterns), file).toBe(target === nativeBindingTarget)
       }
     }
   })
@@ -110,16 +73,45 @@ describe('packaged dependency contents', () => {
       for (const file of [
         'deps/sqlite3/sqlite3.c',
         'build/Release/obj/gen/sqlite3/sqlite3.c',
+        'build/Release/better_sqlite3.node',
         'bin/darwin-x64-149/better-sqlite3.node',
         'src/better_sqlite3.cpp'
       ]) {
         expect(includesFile(`${root}/${file}`), file).toBe(false)
       }
-      for (const file of ['package.json', 'lib/database.js', 'build/Release/better_sqlite3.node']) {
+      for (const file of ['package.json', 'lib/database.js']) {
         expect(includesFile(`${root}/${file}`), file).toBe(true)
       }
     }
   )
+
+  it.each([
+    ['darwin', 'arm64'],
+    ['darwin', 'x64'],
+    ['linux', 'arm64'],
+    ['linux', 'x64'],
+    ['win32', 'arm64'],
+    ['win32', 'x64']
+  ])('ships only the %s %s SQLite prebuild', (platform, arch) => {
+    const patterns = [...config.files, ...getNativeModuleFilters(platform, arch)]
+    for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
+      for (const targetPlatform of ['darwin', 'linux', 'linuxmusl', 'win32']) {
+        for (const targetArch of ['arm64', 'x64']) {
+          const file = `${modules}/better-sqlite3/prebuilds/${targetPlatform}-${targetArch}.node`
+          expect(includesFile(file, patterns), file).toBe(targetPlatform === platform && targetArch === arch)
+        }
+      }
+    }
+  })
+
+  it('excludes the inline Tesseract WASM copy while preserving the Node core and external WASM', () => {
+    for (const modules of ['node_modules', 'node_modules/consumer/node_modules']) {
+      const root = `${modules}/tesseract.js-core/tesseract-core-simd-lstm`
+      expect(includesFile(`${root}.wasm.js`)).toBe(false)
+      expect(includesFile(`${root}.js`)).toBe(true)
+      expect(includesFile(`${root}.wasm`)).toBe(true)
+    }
+  })
 
   it('excludes dependency documentation images without removing runtime assets or source JS', () => {
     for (const file of [
@@ -128,10 +120,21 @@ describe('packaged dependency contents', () => {
     ]) {
       expect(includesFile(file), file).toBe(false)
     }
+    for (const file of ['resources/builtin-agents/icon.png']) {
+      expect(includesFile(file), file).toBe(true)
+    }
+  })
+
+  it('keeps the files each trimmed package loads at runtime', () => {
     for (const file of [
-      'node_modules/koffi/src/koffi/index.cjs',
-      'node_modules/pdfjs-dist/cmaps/Adobe-GB1-UCS2.bcmap',
-      'resources/builtin-agents/icon.png'
+      'node_modules/mammoth/lib/index.js',
+      'node_modules/selection-hook/index.js',
+      'node_modules/@earendil-works/pi-coding-agent/dist/index.js',
+      'node_modules/onnxruntime-node/dist/index.js',
+      'node_modules/sherpa-onnx-node/sherpa-onnx.js',
+      // tesseract.js defaults to the LSTM_ONLY OEM and picks the SIMD build wherever wasm SIMD exists.
+      'node_modules/tesseract.js-core/tesseract-core-simd-lstm.js',
+      'node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm'
     ]) {
       expect(includesFile(file), file).toBe(true)
     }

@@ -1,47 +1,7 @@
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
+import { expect, test } from './fixtures/electron.fixture'
+import { openSettings } from './utils/navigation'
 
-import { _electron as electron } from '@playwright/test'
-
-import { expect, test as base } from './fixtures/electron.fixture'
-
-const test = base.extend<{ isolatedProfile: string }>({
-  isolatedProfile: async ({}, use) => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-e2e-crawl4ai-'))
-    const previousProfile = process.env.CS_DEV_PROFILE_ROOT
-    process.env.CS_DEV_PROFILE_ROOT = dir
-    try {
-      await use(dir)
-    } finally {
-      if (previousProfile === undefined) {
-        delete process.env.CS_DEV_PROFILE_ROOT
-      } else {
-        process.env.CS_DEV_PROFILE_ROOT = previousProfile
-      }
-      fs.rmSync(dir, { recursive: true, force: true })
-    }
-  },
-  electronApp: async ({ isolatedProfile }, use) => {
-    // Pass the isolated profile at launch so provider settings cannot affect an existing profile.
-    const electronApp = await electron.launch({
-      args: ['.'],
-      env: {
-        ...process.env,
-        CS_DEV_PROFILE_ROOT: isolatedProfile,
-        NODE_ENV: 'development'
-      },
-      timeout: 60000
-    })
-    try {
-      await use(electronApp)
-    } finally {
-      await electronApp.close()
-    }
-  }
-})
-
-test('Crawl4AI defaults to Cloud and keeps its setup description visible', async ({ mainWindow: page }, testInfo) => {
+test('Crawl4AI defaults to Cloud and exposes setup help', async ({ mainWindow: page }, testInfo) => {
   test.setTimeout(300_000)
   const languageSelect = page.locator('[data-onboarding-language-select]')
   await expect(page.locator('[data-ui="app.content"]').first().or(languageSelect).first()).toBeVisible({
@@ -66,11 +26,15 @@ test('Crawl4AI defaults to Cloud and keeps its setup description visible', async
   ).toBeVisible({
     timeout: 60_000
   })
-  await page.getByRole('button', { name: 'Settings', exact: true }).first().click({ timeout: 60_000 })
+  await openSettings(page)
   await expect(page.locator('[data-ui="settings.view"]')).toBeVisible({ timeout: 60_000 })
   await page
-    .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')
-    .filter({ hasText: 'Web Search' })
+    .locator('[data-ui="settings.navigation"]')
+    .getByRole('button', { name: 'Built-in Tools', exact: true })
+    .click()
+  await page
+    .getByRole('navigation', { name: 'Built-in Tools', exact: true })
+    .getByRole('button', { name: 'Web Search', exact: true })
     .click()
   const section = page.locator('section[aria-labelledby="web-search-fetchUrls-title"]')
   await expect(section).toBeVisible({ timeout: 60_000 })
@@ -78,16 +42,17 @@ test('Crawl4AI defaults to Cloud and keeps its setup description visible', async
   await page.getByRole('option', { name: /Crawl4AI/ }).click()
 
   const apiHost = section.getByPlaceholder('API Host')
-  const description = section.getByText(/Crawl4AI Cloud with an API key/i)
+  const help = section.getByRole('img', { name: /Crawl4AI Cloud with an API key/i })
+  const description = page.getByRole('tooltip')
   await expect(apiHost).toHaveValue('https://api.crawl4ai.com')
-  await expect(description).toBeVisible()
-  await expect(description).toContainText(/self-hosted/i)
+  await help.hover()
+  await expect(description).toContainText(/Crawl4AI Cloud with an API key.*self-hosted/i)
   await expect(section.locator('a[href="https://crawl4ai.com"]')).toBeVisible()
 
   await page.setViewportSize({ width: 960, height: 600 })
   await section.getByPlaceholder('API Key').fill('dummy-key-for-layout')
-  await expect(description).toBeVisible()
-  expect(await description.evaluate((element) => element.scrollHeight <= element.clientHeight)).toBe(true)
+  await help.focus()
+  await expect(description).toContainText(/self-hosted/i)
   const screenshotPath = testInfo.outputPath('crawl4ai-preset.png')
   await page.screenshot({ path: screenshotPath })
   await testInfo.attach('Crawl4AI preset', { path: screenshotPath, contentType: 'image/png' })

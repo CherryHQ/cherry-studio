@@ -2,9 +2,11 @@
 
 [File associations](external-app/README.md) use a cross-platform Node-API addon.
 
+[System speech](system-speech/README.md) provides the macOS and Windows voice helpers.
+
 ## Selection Assistant native panel
 
-`darwin/selectionPanel.mm` is a macOS Node-API addon for the action result window and
+`selection-panel/selectionPanel.mm` is a macOS Node-API addon for the action result window and
 the selection agent window. The toolbar and other panels keep Electron's default
 behavior. `SelectionService` and `SelectionAgentWindowService` configure each of
 their windows through `onWindowCreatedByType`, including pool warmup, and move it
@@ -52,8 +54,8 @@ Output: `resources/binaries/darwin-<arch>/selection-panel.node`. The existing
 resource unpacking and per-target binary filters include only the target addon.
 
 ```sh
-node native/darwin/build.js arm64
-node native/darwin/build.js x64
+node native/selection-panel/build.js arm64
+node native/selection-panel/build.js x64
 ```
 
 Manually verify action windows over Cherry and another app's fullscreen Space,

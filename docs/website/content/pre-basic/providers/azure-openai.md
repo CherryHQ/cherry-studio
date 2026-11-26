@@ -15,7 +15,7 @@ Azure OpenAI 是微软在 Azure 上托管的 OpenAI 模型服务，适合需要�
 
 ## 在 Cherry Studio 配置
 
-* 打开 `设置 → 模型服务`，找到 **Azure OpenAI** Provider 进入详情页
+* 打开 `设置 → 模型服务`，找到 **Azure OpenAI** 服务商进入详情页
 * **API 密钥**：填入复制的 KEY
 * **API 地址**：填入资源的 Endpoint（无需带末尾路径）
 * **API Version**：在专属字段填入你的部署的 API 版本（例如 `2024-08-01-preview`）

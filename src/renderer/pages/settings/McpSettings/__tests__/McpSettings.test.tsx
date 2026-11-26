@@ -73,7 +73,7 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light' }) }))
 
 vi.mock('@renderer/components/CollapsibleSearchBar', () => ({ default: () => null }))
-vi.mock('@renderer/components/Scrollbar', () => ({ default: ({ children }: { children: ReactNode }) => children }))
+
 vi.mock('@renderer/components/SettingsPrimitives', () => ({
   SettingContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SettingDivider: () => <hr />,
@@ -84,7 +84,7 @@ vi.mock('../McpPrompt', () => ({ default: () => null }))
 vi.mock('../McpResource', () => ({ default: () => null }))
 vi.mock('../McpTool', () => ({ default: () => null }))
 
-vi.mock('../McpServerFields', async (importOriginal) => {
+vi.mock('@renderer/components/mcp/McpServerFields', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,

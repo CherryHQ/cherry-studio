@@ -1,4 +1,4 @@
-import type { UIMessage } from 'ai'
+import type { DynamicToolUIPart, UIMessage } from 'ai'
 
 declare const identity: unique symbol
 export type RuntimeId<K extends string> = string & { readonly [identity]: K }
@@ -56,55 +56,148 @@ export type InputState = (
 ) & {
   readonly facts: readonly InputFact[]
   readonly outcome?: 'completed' | 'failed' | 'aborted' | 'unanswered'
-  /** Evidenced terminal response, which may be shared by several inputs or contain a failure. */
-  readonly response?: ItemRef
   readonly error?: RuntimeError
 }
-export type InputQuery =
-  | { readonly by: 'native-ref'; readonly ref: NativeInputRef }
-  | { readonly by: 'deduplication-key'; readonly key: string }
-export type InputLookup = { readonly found: false } | { readonly found: true; readonly input: InputState }
-export interface RetractionReceipt {
-  readonly effect: 'withdrawn' | 'already-placed' | 'already-settled'
+export type ProductInputState = Extract<InputState, { readonly inputId: InputId }>
+export function hasProductInputId(input: InputState): input is ProductInputState {
+  return input.inputId !== undefined
 }
-export interface InterruptReceipt {
-  readonly effect: 'requested' | 'native-scope-idle'
-}
-export interface ResumeReceipt {
-  readonly scope: 'runtime'
-  readonly effect: 'scheduling-enabled'
-}
-export interface ShutdownReceipt {
-  readonly effect: 'closed'
-}
+export type LookupInput = (
+  thread: Thread,
+  inputId: InputId,
+  legacyId?: NativeInputId
+) => Promise<ProductInputState | undefined>
+export type InputLookup = { readonly found: false } | { readonly found: true; readonly input: ProductInputState }
 export type JsonValue = null | boolean | number | string | readonly JsonValue[] | { readonly [key: string]: JsonValue }
 export type Completeness = 'partial' | 'complete' | 'unknown'
 /** One native conversation message; tools and their results remain in its ordered parts. */
+/** Observation result payloads are immutable snapshots; delivery containers are isolated per observer. */
 export type RuntimeMessage = UIMessage<{
   completeness: Completeness
   inputId?: InputId
+  error?: RuntimeError
 }>
 export interface Subagent {
   /** Stable within the parent's observed relationships, across child inputs and runs. */
   readonly id: SubagentId
   readonly parent: Thread
   readonly child?: Thread
+  /** Evidenced creation call, scoped to parent; continuation does not replace it. */
+  readonly origin?: { readonly toolCallId: string; readonly description?: string }
 }
 export interface Activity {
-  readonly scope: 'foreground'
   readonly state: 'active' | 'idle' | 'unknown'
+}
+export type ContextCategoryKey =
+  | 'messages'
+  | 'system-prompt'
+  | 'system-tools'
+  | 'mcp-tools'
+  | 'mcp-instructions'
+  | 'memory-files'
+  | 'skills'
+  | 'agents'
+  | 'other'
+export interface ContextTokenCount {
+  readonly tokens: number
+  readonly precision: 'reported' | 'estimated'
+}
+export interface ContextCategory extends ContextTokenCount {
+  readonly id: string
+  readonly key: ContextCategoryKey
+  readonly label?: string
+  readonly occupancy: 'included' | 'deferred'
+}
+export interface ContextResource {
+  readonly id: string
+  readonly category: ContextCategoryKey
+  readonly name: string
+  readonly source?: string
+  readonly count?: ContextTokenCount
+  readonly state?: 'loaded' | 'deferred'
+}
+export interface ThreadContextUsage {
+  readonly model: string
+  readonly revision: string
+  readonly contextWindow: number
+  readonly used?: ContextTokenCount
+  readonly basis: 'current-context' | 'last-request'
+  readonly reserved?: ContextTokenCount
+  readonly free?: ContextTokenCount
+  readonly breakdown?: { readonly coverage: 'partial' | 'complete'; readonly categories: readonly ContextCategory[] }
+  readonly resources?: readonly ContextResource[]
 }
 export interface ThreadSnapshot {
   readonly type: 'snapshot'
-  readonly coverage: 'live-only' | 'current-view' | 'retained-view'
+  readonly contextUsage?: OperationResult<ThreadContextUsage>
   readonly messages: readonly RuntimeMessage[]
   readonly inputs: readonly InputState[]
   readonly subagents?: readonly Subagent[]
   readonly activity: Activity
 }
+
+export type NativePartUpdate = {
+  readonly ref: ItemRef
+  readonly part: number
+  readonly message?: never
+  readonly parts?: never
+  readonly value?: never
+} & (
+  | {
+      readonly type: 'message.text-open'
+      readonly kind: 'text' | 'reasoning'
+      readonly providerMetadata?: RuntimeText['providerMetadata']
+      readonly text?: never
+      readonly tool?: never
+    }
+  | { readonly type: 'message.text-append'; readonly text: string; readonly tool?: never }
+  | {
+      readonly type: 'message.text-finish'
+      readonly providerMetadata?: RuntimeText['providerMetadata']
+      readonly text?: never
+      readonly tool?: never
+    }
+  | {
+      readonly type: 'message.tool-output'
+      readonly text?: never
+      readonly tool: Extract<DynamicToolUIPart, { state: 'output-available' | 'output-error' }>
+    }
+)
+
+export type RuntimePart = RuntimeMessage['parts'][number]
+type RuntimeText = Extract<RuntimePart, { type: 'text' | 'reasoning' }>
+
+export type RuntimePartEdit = { readonly part: number } & (
+  | {
+      readonly type: 'open'
+      readonly kind: RuntimeText['type']
+      readonly providerMetadata?: RuntimeText['providerMetadata']
+      readonly text?: never
+      readonly value?: never
+    }
+  | { readonly type: 'append'; readonly text: string; readonly value?: never }
+  | {
+      readonly type: 'finish'
+      readonly providerMetadata?: RuntimeText['providerMetadata']
+      readonly text?: never
+      readonly value?: never
+    }
+  | ({ readonly type: 'correct'; readonly value?: never; readonly kind: RuntimeText['type'] } & Pick<
+      RuntimeText,
+      'text' | 'state' | 'providerMetadata'
+    >)
+  | { readonly type: 'put'; readonly value: Exclude<RuntimePart, RuntimeText>; readonly text?: never }
+)
+
+export type MessageObservation =
+  | { readonly type: 'message.parts'; readonly ref: ItemRef; readonly changes: readonly RuntimePartEdit[] }
+  | { readonly type: 'message.reconcile'; readonly message: RuntimeMessage; readonly replaces?: readonly ItemRef[] }
+
 export type ObservationPayload =
   | ThreadSnapshot
-  | { readonly type: 'message.upsert'; readonly message: RuntimeMessage; readonly replaces?: readonly ItemRef[] }
+  | { readonly type: 'context.changed'; readonly result: OperationResult<ThreadContextUsage> }
+  | MessageObservation
+  | NativePartUpdate
   | { readonly type: 'message.remove'; readonly ref: ItemRef }
   | { readonly type: 'input.changed'; readonly input: InputState }
   | { readonly type: 'activity.changed'; readonly activity: Activity }
@@ -113,21 +206,34 @@ export type ObservationPayload =
   | { readonly type: 'gap'; readonly reason: 'overflow' | 'disconnected' | 'mapping-reset' }
   | { readonly type: 'closed'; readonly reason: 'stopped' | 'released' | 'shutdown' | 'source-lost' | 'consumer-error' }
 export type ObservationSink = (event: ObservationPayload) => void | Promise<void>
+/** A live part batch preserves operation order. A reconciliation batch can install or retire sources. */
+export type LivePartInput = NativePartUpdate | Extract<MessageObservation, { type: 'message.parts' }>
+export type ProjectionEvents = readonly LivePartInput[] | readonly Exclude<ObservationPayload, LivePartInput>[]
+
+export function isLivePartInput(event: ObservationPayload): event is LivePartInput {
+  return 'part' in event || event.type === 'message.parts'
+}
+
+export function isPartBatch(events: ProjectionEvents): events is readonly LivePartInput[] {
+  return events.length > 0 && isLivePartInput(events[0])
+}
 export interface Observation {
+  /** Join callbacks through facts published before this call; rejects if delivery was discarded. */
+  drain(): Promise<void>
   stop(): Promise<void>
 }
 export interface ThreadInput {
-  readonly policies: readonly BusyPolicy[]
   submit(input: InputDraft): Promise<SubmitResult>
 }
 export interface ThreadHandle {
   readonly thread: Thread
+  contextUsage(): Promise<OperationResult<ThreadContextUsage>>
   readonly input?: ThreadInput
   observe(sink: ObservationSink): Promise<OperationResult<Observation>>
-  interrupt?: () => Promise<OperationResult<InterruptReceipt>>
+  interrupt?: () => Promise<OperationResult<void>>
   release(): Promise<void>
 }
 export interface AgentRuntime {
   open(ref: Thread): Promise<OperationResult<ThreadHandle>>
-  shutdown(): Promise<OperationResult<ShutdownReceipt>>
+  shutdown(): Promise<OperationResult<void>>
 }

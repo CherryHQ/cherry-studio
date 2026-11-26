@@ -7,6 +7,7 @@ import {
   type CreateKnowledgeBaseDto,
   type KnowledgeAddItemInput,
   KnowledgeAddItemInputSchema,
+  KnowledgeRestoreUrlItemInputSchema,
   type KnowledgeBase,
   type KnowledgeItem,
   type RestoreKnowledgeBaseDto,
@@ -221,7 +222,10 @@ export class KnowledgeBaseAdminService {
       }
 
       if (item.type === 'url') {
-        return KnowledgeAddItemInputSchema.parse({
+        // Restore carries previously saved records verbatim: the persisted URL
+        // schema allows any non-empty string, so the strict add-time URL rule must
+        // not reject them here (one malformed record would abort the whole base).
+        return KnowledgeRestoreUrlItemInputSchema.parse({
           type: 'url',
           data: {
             source: item.data.source,

@@ -1,284 +1,109 @@
 ---
-description: Renderer stream overlay — TopicStreamSubscription demux by execution and anchor feeding readUIMessageStream snapshots
+description: Shared root and child message projections, bounded attachment recovery, and root overlay handoff
 sources:
-  - src/renderer/services/aiTransport/TopicStreamSubscription.ts
-  - src/renderer/hooks/useExecutionOverlay.ts
+  - src/shared/ai/messageProjection.ts
+  - src/main/ai/messages/MessageProjection.ts
+  - src/main/ai/messages/AcceptedToolResults.ts
+  - src/main/ai/messages/ProjectionSubscriptions.ts
+  - src/main/ai/streamManager/TopicMessageProjection.ts
+  - src/main/ai/agentSession/ChildThreadProjection.ts
+  - src/renderer/services/aiTransport/MessageProjectionService.ts
+  - src/renderer/hooks/useStreamCommands.ts
+  - src/renderer/hooks/useHistoryReplies.ts
+  - src/renderer/hooks/useTopicSpeech.ts
+  - src/renderer/hooks/useTopicCompletion.ts
+  - src/renderer/hooks/agent/useAgentChildProjection.ts
 ---
 
 # Execution Overlay
 
-The renderer-side counterpart of Main's `pipeStreamLoop`. Both sides
-use the **same pure assembler** —
-[AI SDK's `readUIMessageStream`](https://ai-sdk.dev/docs/reference/ai-sdk-ui/read-ui-message-stream) —
-to turn the chunk stream into a `CherryUIMessage`. Main writes the
-result to disk; the renderer paints it onto the chat surface as an
-overlay above the SWR-backed history.
+## Ownership and message model
 
-## Why the same merge function on both sides
+Chunk streams use `readUIMessageStream` in `pipeStreamLoop`. For Agent roots, `RootMessageProjection` applies content changes and holds live part values. `pipeMessageStream` reads execution controls and forwards accepted changes. `TopicMessageProjection` reads a message-shaped view from the root owner on attach and keeps the revision and pending patches between reads. Children use their native observation, local part updates and archive composition. Both paths send `CherryUIMessage` baselines and patches to the renderer.
 
-`UIMessageChunk` assembly is non-trivial: text deltas merge by `id`,
-reasoning blocks have their own start/delta/end, tool calls go through
-`tool-input-start` / `tool-input-delta` / `tool-input-available` /
-`tool-output-available`, dynamic data parts merge by key, multi-step
-turns carry step boundaries. Re-implementing any of this on the
-renderer would mean a second source of truth that *had* to track AI SDK
-upstream, with two ways to disagree about partial state.
+For Agent content, `onPart` supplies an accepted change and `onMessageReconciled` supplies the affected source for recovery. Root and child publishers send a `type: 'parts'` frame with the target kind, revision and addressed patches. Run state travels in its own ordered update. The renderer commits all valid edits in a revision before notifying part subscribers. A revision gap or an invalid placement triggers a new attachment.
 
-Running the same `readUIMessageStream` on the same `UIMessageChunk`
-stream — once on Main (writing to `exec.finalMessage`), once on the
-renderer (driving the overlay) — guarantees structural agreement.
-What persists is exactly what the user saw streaming.
-
-```
-Main: pipeStreamLoop(stream)
-   tee()
-   ├─ branch A → broadcast to listeners      → WebContentsListener → IPC chunks
-   └─ branch B → readUIMessageStream          → exec.finalMessage (writes to DB)
-                                                                 ▲
-                                                                 │ (DB write)
-                                                                 │
-Renderer: TopicStreamSubscription          ┌──── readUIMessageStream → snapshot
-            │     │                        │              ▲
-            │     ▼                        │              │
-            │  routes chunks by            │       fed by branch stream
-            │  executionId + anchor        │
-            │  into stream branches ───────┘
-            ▼
-       branch ReadableStream  →  useExecutionOverlay (per execution)
+```text
+Root message source → TopicMessageProjection ──┐
+Child native observer → ChildThreadProjection ─┤
+                                              ↓
+                              MessageProjection / ProjectionSubscriptions
+                                              ↓ ai.projection.*
+                                   MessageProjectionService
+                                    ↙                   ↘
+                       useStreamCommands      useAgentChildProjection
 ```
 
-## TopicStreamSubscription
+A root baseline covers the current live overlay, not the topic's saved history. It includes execution, attempt and message-anchor identities, so parallel models and a retry using the same model/anchor stay distinct. The child baseline covers its own archive and current content; it excludes parent and sibling content. `toolCallId` resolves a child through its owner and is not the child's durable identity.
 
-`src/renderer/services/aiTransport/TopicStreamSubscription.ts`. A renderer
-class that owns:
+Concrete runtime observations capture body, aliases, retractions and live/history provenance
+together. Main consumes that complete value instead of reconstructing delivery history or reading
+mutable adapter metadata later. Each runtime connection discovers its children and owns their relationship, access and projection.
+A relation-only observation leaves the child message view and its archive refresh schedule untouched. Closing joins native production and observation callbacks
+before the final archive flush, then detaches and releases; backup holds that boundary until resume.
 
-- **One IPC attach per topic.** `attach` is ref-counted — every
-  execution that calls `register(executionId, anchorMessageId)`
-  increments the count;
-  the last `unregister` triggers `detach` (deferred one microtask so a
-  transient `activeExecutions` flicker doesn't detach-then-reattach).
-- **Execution + anchor demux.** Each `register(executionId,
-  anchorMessageId)` returns a `ReadableStream<UIMessageChunk>` for that
-  model writing to that assistant row. Multi-model parallel responses
-  get separate branches by `executionId`; same-model steer
-  continuations get separate branches by `anchorMessageId`.
-- **Anchor is part of stream identity.** `executionId` names the model,
-  not the assistant row. During a steer continuation, Main can close
-  A1a and immediately open A2 with the same model id. Chunks for A2 can
-  arrive before React registers A2's reader, so the transport must
-  buffer them under `executionId + anchorMessageId` instead of routing
-  them to the closed A1a branch.
-- **Synchronous controller creation.** The branch's
-  `ReadableStreamDefaultController` is created during the
-  `new ReadableStream({ start })` call (synchronous), so chunks that
-  arrived between `register` and the reader's first `read()` are
-  already buffered in the stream's internal queue — late readers never
-  miss replayed chunks.
-- **Attach selects covered output once.** Incoming chunks and terminal events
-  wait in arrival order. If queued live delivery covers the entire retained
-  `replayFrom`–`replayThrough` interval, consume it instead of replay; otherwise
-  apply replay and skip covered live chunks. This preserves a queued prefix
-  that Main's ring already evicted. Identical text beyond the cutoff remains
-  valid output. Terminal attach responses and request failures drain queued
-  output before settling; a queued terminal is not reported twice.
-- **Terminal demux.** `ai.stream.done` / `ai.stream.error` close the
-  matching branch and fan out an `ExecutionTerminal` (`{ isAbort,
-  isError }`) to listeners; if the payload carries `isTopicDone` or no
-  `executionId`, every branch terminates together. An explicit
-  `isTopicDone=false` keeps the topic attachment alive across the empty
-  continuation gap before the next branch produces its first chunk.
+Native queues, child lifetime and persistence destinations remain owner-specific. Observing or detaching a view does not submit input, stop a task, or transfer native ownership. Parent completion does not finish a background child's projection. Native owner closure makes the child unavailable while retaining its readable archive.
 
-### Cancellation layering — do not conflate
+Archive reconciliation can await a native read. It preserves submitted product user text
+when behavior wraps the corresponding native input, and retains saved source mappings
+when a later snapshot uses committed rather than live preview identities.
+Explicit removals persist with the checkpoint and hide those sources after reopen;
+absence from a compacted native view alone does not remove saved product history.
 
-| Layer | Owner | Action |
-|---|---|---|
-| Renderer-local subscription | `TopicStreamSubscription.unregister` / `dispose` | Closes the branch reader, drops listener ref count; Main keeps generating |
-| Generation abort | Main (via `useChatWithHistory.stop` → `ai.stream.abort`) | Stops the LLM |
+Child model-response errors become `data-error` parts alongside any received content. Each attempt's error
+survives archive writes, later retries and reopening, including failures with no text. These message-local errors
+do not determine the child's task status, which follows the native run outcome.
 
-`TopicStreamSubscription` NEVER aborts the LLM. Closing all branches
-is the renderer equivalent of `streamDetach` — Main keeps streaming,
-other windows keep observing.
+## Publication
 
-### Defensive routing
+`MessageProjection` coordinates subscriber delivery. Chat and child archive updates can supply a view for structural diffing. Agent roots send accepted part patches directly and publish a message replacement for structural reconciliation. `order` carries message membership or order changes. Unchanged messages and parts keep stable references in the renderer.
 
-A chunk without `executionId` is unexpected — Main always tags chat
-chunks. As a defensive fallback, if exactly one branch is registered
-the chunk routes there; otherwise it's dropped with a warning.
+Claude Code, Pi and Pi Durable deliver addressed edits for root and child replies. `part-open` creates text or reasoning, `part-append` delivers a suffix, `part-finish` seals the block, and `part-correct` replaces its text or reasoning after a native correction. `part-add` creates a tool or data block. `part-put` updates an existing non-text block.
 
-## useExecutionOverlay
+In a root reply, Main assigns a stable `partId` and the next archive `pos` to each new part. Native parts and host events such as compaction use the same allocator. After text A and compaction marker C, opening B appends it to give `[A, C, B]`. A late suffix for A updates A in place. The renderer appends newly admitted root parts to the row. Root checkpoints record each native source's part IDs so a reopened reply retains the same ownership and order even when C separates two blocks from one source. Existing checkpoints with offsets and counts remain readable.
 
-`src/renderer/hooks/useExecutionOverlay.ts`. The per-execution
-overlay, built on `ExecutionStreamOverlayService` +
-`TopicStreamSubscription`.
+Child projections currently compose native fragments using `afterPartId`. The child event names its predecessor, or opens the row when the predecessor is absent. The IPC event type binds these placement rules to the projection target.
 
-```ts
-const { overlay, liveAssistants, disposeOverlay, reset, clear } = useExecutionOverlay(
-  topicId,
-  activeExecutions,      // ActiveExecution[] from useTopicStreamStatus
-  uiMessages,            // current DB snapshot
-  { onUpdate, onFinish, onLeave }
-)
-```
+One revision may carry several ordered edits. The renderer routes parts frames directly to its part store. Its structural reducer accepts only structural frames. Each path validates the whole revision before publishing its values. Text, reasoning and tool rows subscribe by projection target and part ID. A suffix wakes the affected row. Structural frames carry membership changes and detail invalidations. Main projects tool results with their archive message ID and stable part ID. Both the published value and its invalidation use that address. A merged child reply can therefore display a result whose archive row belongs to a different source.
 
-The hook is a thin React binding for the window-level
-`ExecutionStreamOverlayService`, which owns readers, snapshots and
-rAF batching keyed by `topicId`. The hook only acquires/releases a
-refcounted view and reads it via `useSyncExternalStore` — unmounting
-(route/tab/conversation switch) does **not** tear the stream down,
-and remounting restores the live overlay synchronously.
+Root recovery loads source mappings, part identities and approval facts. Reading a reply resolves its live and committed entries together. A successful part save releases its live payload, and a failed write leaves the payload available for terminal persistence. A completed root overlay reads the stored reply on demand. Child archive reconciliation carries the published part ID across native preview and committed identities. A successful write releases the matching preview output, including a retracted result. A newer live update to that part survives the older write.
 
-`onUpdate(executionId, { attemptId, message })` receives each assembled live snapshot,
-including typed text/reasoning/tool parts. Consumers select their eligible attempt and
-body parts; the transport does not depend on voice services. `onFinish` supplies the
-terminal snapshot once. `onLeave` runs when this view releases its topic subscription;
-view-owned work such as automatic reading stops while the retained overlay and Main
-chat generation continue. Callback updates do not reattach the stream.
+Owners capture mutable native parts at acceptance and retain untouched accepted parts. A tool update captures its latest output and compact renderer part once; subsequent text batches reuse that accepted part instead of cloning, serializing or hashing the result again. A replacement supersedes the previous accepted result rather than retaining a value history.
 
-### One reader per turn, zero cross-turn state
+Tool replacements publish a `tool-result` patch with the stable result reference. Part-aware references invalidate the corresponding detail cache by part ID. Covered revisions do not repeat invalidation. A gap requires reattachment and topic-detail invalidation. See [IPC Transport](./ipc-transport.md#tool-result-reads) for detail-read purposes and cache limits.
 
-Each execution gets a **one-shot `readUIMessageStream` reader** per
-turn, not a stateful AI SDK `Chat`. A `Chat` carries
-`state.messages` across turns; reusing it made a new turn resume from
-the previous turn's finished assistant ("previous answer + new
-stream"). A fresh reader per turn structurally cannot pollute.
+Consecutive Agent root appends to the same part coalesce over 80 ms. An attach flushes pending operations before reading the owner's current values and revision. Child reconciliation batches native updates and writes its archive before publishing a structural view. Closing flushes pending delivery before disposal. Revisions count published batches.
 
-### The seed rule (continue-safe)
+A root terminal is published in the notification phase, after terminal persistence. The final view includes accepted content, the final execution state and its owning `userMessageId` in the same revision. That identity correlates a queued submit's user-only acknowledgement with its later assistant attempt and recovery completion. Persistence failure publishes an `unresolved` execution with readable content and an error; it does not signal a successful DB handoff. Host-resolved approvals are folded into Main's snapshots so a later SDK snapshot cannot restore a dismissed approval card.
 
-```ts
-function pickSeed(uiMessages, anchorMessageId): CherryUIMessage | undefined {
-  if (!anchorMessageId) return undefined
-  const found = uiMessages.find((m) => m.id === anchorMessageId)
-  if (!found) return { id: anchorMessageId, role: 'assistant', parts: [] }
-  // `readUIMessageStream` mutates `message.parts` in place, and `found` is the live
-  // SWR-derived row — clone the parts so the reader only ever writes to a throwaway.
-  return { ...found, parts: structuredClone(found.parts ?? []) }
-}
-```
+## Attachment and recovery
 
-The reader is seeded with the message whose id is the execution's
-`anchorMessageId`, taken from the **current DB truth** at reader-start
-time. Two cases:
+When Durable reopens during an unfinished placed input, its unique logical user-input boundary identifies committed output for the existing reply, including a tool-wait interval with no generation preview. A compaction summary inside the same Run keeps that input boundary open for its answer. Earlier answers and queued or ambiguous inputs remain historical. Recovery does not resend the input.
 
-- **Fresh placeholder** — the SQLite row has empty parts; the seed is
-  effectively empty and the reader builds the message from scratch.
-- **Tool-approval / continue-conversation** — the row already carries
-  the prior assistant parts (including the unresolved `tool-input` part
-  the approval was on). A streamed `tool-output` chunk then merges
-  cleanly onto its matching `tool-input` because they share the same
-  `toolCallId`.
+The root and child projection readers preserve stored tool-result references when loading their SQLite baselines. A tool detail request carries the stable `partId` through the renderer hook to the live or archived result reader. The reader allocates the live result's UTF-8 range buffer when requested.
 
-The seed is re-derived from DB on every reader start; it never carries
-across turns, and its `parts` are cloned so the reader's in-place mutation
-never touches the SWR row. Combined with the fresh reader, this is the
-**structural** anti-pollution guarantee — not "force empty parts" or "diff
-against last frame".
+`ai.projection.attach` accepts a topic or child target and a window-owned subscription ID. Main resolves the owner, registers delivery and captures a baseline without an asynchronous gap between registration and snapshot. A cancelled or replaced asynchronous attachment cannot install a listener. Window destruction removes its delivery leases.
 
-### Lifecycle (light cache, DB is the source of truth)
+The renderer listens before attaching and buffers up to 100 early updates. It installs the baseline, ignores covered revisions and applies only the next consecutive revision. A gap, invalid patch or buffer overflow starts a new attachment with a new subscription ID. Late responses and events from old subscriptions are ignored. This recovers the current view; it is not a durable event journal or a TCP-style retransmission protocol.
 
-The overlay is a **temporary stash of in-flight streamed content**;
-SQLite is authoritative. Losing the stash costs at most one DB
-refresh on the next mount, which bounds how much machinery it earns.
+The store shares one transport subscription among consumers of the same target in a window. The last consumer detaches it. No renderer subscription controls the lifetime of native work. A remount reads the current baseline.
 
-1. **`activeExecutions` change** — diff against the current reader
-   map: cancel + unregister executions no longer in the active list;
-   for newly-active executions, register a branch, clear any retained
-   prior snapshot, kick a new reader.
-2. **Terminal** — the branch is closed by `TopicStreamSubscription`;
-   the reader's `for await` exits. The `onFinish(executionId, event)`
-   callback fires with the final snapshot + `{ isAbort, isError }`.
-3. **Unmount / tab switch** — the view is released (refcount), but
-   running readers keep assembling in the service.
+## Root rendering and DB handoff
 
-Destruction policy:
+Root pages read the topic projection through `useStreamCommands`. Mounted part readers receive addressed changes directly. Home and Agent Chat derive live rows for the selected branch. Quick Assistant keeps finished replies in its temporary conversation, and Selection reads the latest assistant reply.
 
-| Situation | What happens |
-|---|---|
-| Stream running | Entry retained regardless of mounts |
-| Stream ends, view mounted | Terminal status edge → `refresh()` DB → `reset()` drops the settled snapshots |
-| Stream ends, no view | That execution's overlay is dropped immediately (the persisted DB row owns it); the entry drops once its last reader ends and Main confirms the topic is done. `isTopicDone=false` keeps only the topic attachment across the continuation gap; queued continuation chunks then pin it until they are read or their round terminates |
-| Leak backstop | `MAX_ENTRIES` LRU eviction of refCount-0 entries (readers cancelled first) |
+A speech subscriber receives a baseline when it starts listening. A new text block carries its preceding text ID, even when the display anchor is a reasoning or tool block. A correction replaces the addressed text. Subsequent text appends carry the message ID, part ID, suffix, starting UTF-16 offset and turn origin. The offset lets the speech service recognize a duplicate from a second mounted consumer. Speech keeps only visible text for an eligible attempt.
 
-Four guards keep the lifecycle race-free without any turn-identity
-machinery:
+- Update routing retains the execution attempt and anchor. A stale active-execution cache cannot overwrite a newer attempt.
+- Finish callbacks occur once per observed attempt, including failure completion for `unresolved` attempts. Failed persistence settles recovery requests and reports errors while retaining readable output. Replayed or duplicate revisions do not repeat completion.
+- Home and Agent Chat receive the stored message ID after a durable write. On completion or attachment, they read that row and replace its slot on the loaded branch page. History takes over when the current attempt has a readable terminal row. A pending placeholder, an outstanding approval, a page miss or a failed read keeps live content visible. Explicit exclusion by the selected branch hides the reply. A late read for a previous selection cannot complete the handoff.
+- Quick Assistant clears its local replies on reset. Late frames from a cleared attempt stay hidden.
+- Topic status and approval indicators still use the existing shared-cache status entries. Those entries do not contain the streamed body.
 
-- **`reset()` / `disposeOverlay()` never touch an execution whose
-  reader is live.** A delayed DB handoff for a finished turn must not
-  freeze a newer turn already streaming on the same topic; the
-  "reader still running" check is the whole identity test. The
-  destructive full drop is a separate `clear()` (quick-assistant).
-- **A failed `ai.stream.attach` error-terminates its branches** so
-  readers finish instead of hanging forever; the next mount re-attaches
-  through a fresh subscription.
-- **`isTopicDone=false` retains the topic attachment across continuation
-  gaps.** An execution terminal is not permission to detach when Main has
-  explicitly kept the topic alive and has not scheduled the next branch yet.
-- **A finished execution key is tombstoned** (`settledKeys`), so a
-  remount whose Activity-preserved consumer state still lists it cannot
-  restart it into a zombie reader. The tombstone yields only to fresh
-  transport evidence — an open branch already queueing a new turn's
-  chunks — which the restarted reader then replays losslessly.
+Home Chat, Agent Chat, Quick Assistant and Selection all consume this projection path. Their command hooks send input and stop requests separately; child input still goes through the owning runtime's child-message command.
 
-### Overlay teardown is monotonic
+## Related references
 
-`disposeOverlay(messageId)` drops exactly one snapshot entry. The chat
-shell wires this so the overlay is released **only after** the DB
-refresh promise resolves (see `.finally(() => disposeOverlay(...))` in
-`V2ChatContent`). That ordering eliminates the visible flash between
-"streaming overlay" and "persisted parts": the SWR cache holds the
-authoritative row before the overlay disappears.
-
-The renderer never writes streamed parts to SWR — writing them would
-race the DB-authoritative refresh and cause flicker.
-
-### Why retained snapshots after terminal
-
-The service keeps the final snapshot in `snapshots` until one of:
-
-- the same execution restarts (next turn clears it),
-- the caller calls `disposeOverlay(messageId)` (post-persist handoff),
-- the caller calls `reset()` (whole-turn post-persist handoff) or
-  `clear()` (destructive, quick-assistant),
-- the entry is dropped (last reader ended at refCount 0, or eviction).
-
-That retention lets consumers read the final frame for the brief window
-between stream-end and DB-refresh-complete without going through SWR.
-
-## Code map
-
-```
-src/renderer/services/aiTransport/TopicStreamSubscription.ts       ← IPC attach + branch demux (one per retained topic)
-src/renderer/services/aiTransport/ExecutionStreamOverlayService.ts ← window-level readers/snapshots/rAF, keyed by topicId
-src/renderer/hooks/useExecutionOverlay.ts                          ← React binding (refcounted view lease)
-src/renderer/pages/home/useChatRuntimeState.ts                     ← consumer + dispose-after-refresh
-```
-
-## Invariants reviewers should check
-
-1. **Same merge function on both sides.** Any code that re-implements
-   chunk → message assembly on the renderer (instead of feeding
-   `readUIMessageStream`) is wrong — that's where Main and renderer
-   will diverge first.
-2. **One reader per branch identity.** No reader should be reused
-   across `activeExecutions` transitions where either `executionId` or
-   `anchorMessageId` changes. Reusing one is what the v1 `Chat` bug
-   was; keying only by model id reintroduces the same problem for
-   same-model steer continuations.
-3. **Seed from current DB.** `pickSeed` reads `uiMessagesRef.current`
-   at reader-start time. Stashing the seed on first mount and reusing
-   it across turns would defeat the continue-conversation case.
-4. **Overlay disposed after DB refresh.** Any
-   `disposeOverlay(messageId)` call that runs **before** the DB
-   revalidation promise resolves is a flicker bug.
-5. **`TopicStreamSubscription` never aborts.** It only detaches.
-   Anything in this layer that calls `ai.stream.abort` is in the
-   wrong place — abort belongs to `useChatWithHistory.stop`.
-6. **Ref-counted attach.** A new attach must NOT fire when another
-   execution is already registered for the same topic. A new detach
-   must NOT fire while any execution still has a branch.
-
-## Where to read more
-
-- Main-side accumulator: [Stream Manager — `pipeStreamLoop`](./stream-manager.md#execution-loop--runexecutionloop--pipestreamloop)
-- IPC envelope: [IPC Transport](./ipc-transport.md)
-- Topic status / approval-anchor surfacing: [Tool Approval](./tool-approval.md)
-- AI SDK upstream: [`readUIMessageStream` reference](https://ai-sdk.dev/docs/reference/ai-sdk-ui/read-ui-message-stream)
+- [IPC Transport](./ipc-transport.md) — command and observation routes.
+- [Stream Manager](./stream-manager.md) — execution, SDK accumulation and terminal persistence.
+- [Agent Session Runtime](./agent-session-runtime.md) — session and child ownership.

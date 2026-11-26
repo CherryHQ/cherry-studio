@@ -3,13 +3,17 @@ import assistantsIcon from '@renderer/assets/images/apps/launchpad-assistants.sv
 import codeToolsIcon from '@renderer/assets/images/apps/launchpad-code-tools.svg'
 import filesIcon from '@renderer/assets/images/apps/launchpad-files.svg'
 import knowledgeIcon from '@renderer/assets/images/apps/launchpad-knowledge.svg'
+import marketplaceIcon from '@renderer/assets/images/apps/launchpad-marketplace.svg'
 import miniAppIcon from '@renderer/assets/images/apps/launchpad-mini-app.svg'
 import notesIcon from '@renderer/assets/images/apps/launchpad-notes.svg'
 import paintingsIcon from '@renderer/assets/images/apps/launchpad-paintings.svg'
+import scheduledTasksIcon from '@renderer/assets/images/apps/launchpad-scheduled-tasks.svg'
 import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 
 export const LAUNCHPAD_APP_ICONS: Record<SidebarAppId, string> = {
+  marketplace: marketplaceIcon,
+  scheduled_tasks: scheduledTasksIcon,
   assistants: assistantsIcon,
   agents: agentsIcon,
   paintings: paintingsIcon,

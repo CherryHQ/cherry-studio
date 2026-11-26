@@ -6,6 +6,8 @@ import type { WebviewTag } from 'electron'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CherrystudioUI from '@cherrystudio/ui'
+import type * as Platform from '@renderer/utils/platform'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MinimalToolbar from '../MinimalToolbar'
@@ -16,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherrystudioUI>()),
   Button: ({ children, type = 'button', ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button type={type} {...props}>
       {children}
@@ -38,7 +41,10 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, url: string) => mocks.openWebsite(url) }
 }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: mocks.toastError } }))
-vi.mock('@renderer/utils/platform', () => ({ isDev: false }))
+vi.mock('@renderer/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof Platform>()),
+  isDev: false
+}))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -92,6 +98,7 @@ function renderToolbar(webview: WebviewTag | null, currentUrl: string | null = a
         currentUrl={currentUrl}
         isWebviewReady
         onReload={vi.fn()}
+        onRestart={vi.fn()}
         onOpenDevTools={vi.fn()}
         splitMode="open"
         onSplit={vi.fn()}
@@ -164,6 +171,19 @@ describe('MinimalToolbar address bar', () => {
     await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('https://example.com:8080/path'))
   })
 
+  it('loads a bare IPv6 loopback address instead of rejecting it', async () => {
+    const { webview } = createWebview()
+    const user = userEvent.setup()
+    renderToolbar(webview)
+
+    const address = screen.getByRole('textbox', { name: 'URL' })
+    await user.clear(address)
+    await user.type(address, '::1/status{Enter}')
+
+    await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('http://[::1]/status'))
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
   it('normalizes a local hostname with an explicit port as HTTP', async () => {
     const { webview } = createWebview()
     const user = userEvent.setup()
@@ -215,6 +235,7 @@ describe('MinimalToolbar address bar', () => {
         currentUrl={null}
         isWebviewReady
         onReload={vi.fn()}
+        onRestart={vi.fn()}
         onOpenDevTools={vi.fn()}
         splitMode="open"
         onSplit={vi.fn()}
@@ -255,6 +276,7 @@ describe('MinimalToolbar address bar', () => {
         currentUrl={null}
         isWebviewReady
         onReload={vi.fn()}
+        onRestart={vi.fn()}
         onOpenDevTools={vi.fn()}
         splitMode="open"
         onSplit={vi.fn()}

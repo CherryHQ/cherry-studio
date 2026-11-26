@@ -1,5 +1,5 @@
 import { once } from 'node:events'
-import { mkdir, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 
 import { expect, type Page, type TestInfo } from '@playwright/test'
@@ -150,9 +150,17 @@ export async function knowledgeNotes(app: RegressionApp, page: Page, testInfo: T
       expect(JSON.stringify(results)).toContain(note.content)
     }
     await screenshot('MP-63 both note sources indexed and ready')
-    expect
-      .soft(await readdir(notesPath), 'New note must create a Notes file before indexing')
-      .toContain(`${newTitle}.md`)
+    // "New note" submits the drafted text as a knowledge item; it never writes into the
+    // Notes feature, so assert the indexed item's own source rather than a file on disk.
+    const items = (await page.evaluate(
+      (baseId) =>
+        window.api.dataApi.request({ id: 'mp63-items', method: 'GET', path: `/knowledge-bases/${baseId}/items` }),
+      base.id
+    )) as { status: number; data: { items: Array<{ type: string; data: { source: string } }> } }
+    expect(items.status).toBe(200)
+    expect(items.data.items.map((item) => `${item.type}:${item.data.source}`).sort()).toEqual(
+      [`note:${existingTitle}`, `note:${newTitle}`].sort()
+    )
 
     const seeded = await page.evaluate(
       async ({ providerId, baseUrl, baseId, assistantName }) => {

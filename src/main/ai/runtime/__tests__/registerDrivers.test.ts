@@ -18,9 +18,7 @@ describe('registerRuntimeDrivers', () => {
     const result: RuntimeForkResult = { resumeToken: 'child-native', checkpoints: [], publish: [] }
     const implementation = {
       type: 'claude-code',
-      capabilities: ['agent-session'] as const,
       validateSession: vi.fn(),
-      listAvailableTools: vi.fn(),
       connect: vi.fn(),
       fork: vi.fn().mockResolvedValue(result)
     }

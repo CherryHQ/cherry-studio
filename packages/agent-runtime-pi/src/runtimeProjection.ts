@@ -1,38 +1,73 @@
 import { randomUUID } from 'node:crypto'
 
-import type { AgentSession, AgentSessionEvent } from '@earendil-works/pi-coding-agent'
-
-import { ENTRY_KINDS } from '@cherrystudio/agent-behavior'
+import { copyJson, isJsonValue } from '@earendil-works/chord/json'
+import type { ToolResultMessage } from '@earendil-works/pi-ai'
 import {
+  sessionEntryToContextMessages,
+  type AgentSession,
+  type AgentSessionEvent
+} from '@earendil-works/pi-coding-agent'
+import { parsePartialJson } from 'ai'
+
+import { ENTRY_KINDS, type SubagentResults } from '@cherrystudio/agent-behavior'
+import {
+  immutable,
+  messageObservation,
+  projectNestedTool,
   runtimeId,
   ThreadFeed,
-  RuntimeMessageStream,
+  textEdits,
   type RuntimeMessage,
   type InputId,
   type InputState,
+  type ProductInputState,
   type ItemRef,
+  type Observation,
+  type OperationResult,
+  type ProjectionEvents,
   type Thread
 } from '@cherrystudio/agent-runtime'
 
+import { readContextUsage } from './contextUsage'
+
+function providerResult(value: unknown) {
+  return isJsonValue(value) ? value : copyJson(value, { omitUndefinedProperties: true })
+}
+
 type PiMessage = AgentSession['messages'][number]
 type PiContext = { message: PiMessage; id: string }[]
+type NativeDelta = Extract<
+  Extract<AgentSessionEvent, { type: 'message_update' }>['assistantMessageEvent'],
+  { contentIndex: number }
+>
+type CapturedDelta<T = NativeDelta> = T extends NativeDelta
+  ? Omit<T, 'partial'> & { part: NativeDelta['partial']['content'][number] | undefined }
+  : never
+
+export interface PiObservation {
+  readonly backgroundResults?: OperationResult<SubagentResults>
+  readonly events: ProjectionEvents
+  readonly aliases: Readonly<Record<string, string>>
+  readonly live: readonly string[]
+  readonly settled: boolean
+  readonly outcomes: readonly InputState[]
+  readonly children: readonly { thread: Thread; outcome: string }[]
+}
 
 export class PiProjection {
   readonly feed: ThreadFeed
   private ids = new WeakMap<object, string>()
   private originals = new WeakMap<object, PiMessage>()
+  private readonly aliases: Record<string, string> = {}
+  private readonly inputStates = new Map<InputId, ProductInputState>()
   private inputIds = new WeakMap<object, InputId>()
   private active = new Map<string, string>()
-  private calls = new Map<string, string>()
-  private snapshotMessages: RuntimeMessage[] | undefined
-  private readonly readers = new Map<
-    string,
-    {
-      reader: RuntimeMessageStream
-      texts: Map<number, { index: number; text: string }>
-    }
-  >()
+  private calls = new Map<string, { id: string; index: number }>()
+  private snapshotMessages?: Map<string, RuntimeMessage>
+  private readonly partialArguments = new Map<string, string>()
   private pending = Promise.resolve()
+  private backgroundResults?: OperationResult<SubagentResults>
+  private settled = false
   private generation = 0
   private unsubscribe: () => void = () => {}
 
@@ -45,23 +80,115 @@ export class PiProjection {
     this.feed = new ThreadFeed(
       {
         type: 'snapshot',
-        coverage: 'current-view',
         messages: [],
         inputs: [],
         ...(children ? { subagents: [] } : {}),
-        activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
+        activity: { state: session.isIdle ? 'idle' : 'active' }
       },
       report
     )
     this.bind(session)
-    for (const message of this.currentMessages()) this.write(message, this.id(message), 'complete')
+    this.feed.publish({ type: 'context.changed', result: readContextUsage(session) })
+    this.restoreContext(this.captureContext())
+  }
+
+  observe(sink: (batch: PiObservation) => void | Promise<void>): Observation {
+    const historical = new Set(this.feed.messageIds)
+    let children: { thread: Thread; outcome: string }[] = []
+    let outcomes: readonly InputState[] = []
+    const completedCalls = new Set<string>()
+    return this.feed.observeProjection<Omit<PiObservation, 'events'>>(sink, (event, delivery) => {
+      const replaced = event.type === 'message.reconcile' ? this.aliases[event.message.id] : undefined
+      const aliases =
+        event.type === 'snapshot'
+          ? this.aliases
+          : event.type === 'message.reconcile' && replaced
+            ? { [event.message.id]: replaced }
+            : {}
+      for (const [committed, preview] of Object.entries(aliases)) if (historical.has(preview)) historical.add(committed)
+      const ids =
+        event.type === 'snapshot'
+          ? event.messages.map((message) => message.id)
+          : event.type === 'message.reconcile'
+            ? [event.message.id]
+            : event.type === 'message.parts' || 'part' in event
+              ? [event.ref.id]
+              : []
+      if (delivery !== 'recovery') {
+        children = []
+        outcomes = event.type === 'input.changed' && event.input.outcome ? [event.input] : []
+      }
+      const changed =
+        delivery !== 'update'
+          ? []
+          : event.type === 'message.reconcile'
+            ? event.message.parts
+            : event.type === 'message.parts'
+              ? event.changes.flatMap((edit) => (edit.type === 'put' ? [edit.value] : []))
+              : event.type === 'message.tool-output'
+                ? [event.tool]
+                : []
+      for (const part of changed) {
+        if (part.type !== 'dynamic-tool' || part.toolName !== 'subagent' || completedCalls.has(part.toolCallId))
+          continue
+        const output =
+          part.state === 'output-error'
+            ? part.resultProviderMetadata?.pi?.result
+            : part.state === 'output-available' && !part.preliminary
+              ? part.output
+              : undefined
+        if (!output || typeof output !== 'object' || Array.isArray(output) || !('details' in output)) continue
+        const details = output.details
+        if (!details || typeof details !== 'object' || Array.isArray(details)) continue
+        if (
+          'background' in details &&
+          details.background === false &&
+          'sessionId' in details &&
+          typeof details.sessionId === 'string' &&
+          'outcome' in details &&
+          typeof details.outcome === 'string'
+        ) {
+          children.push({
+            thread: { backendId: this.ref.backendId, id: runtimeId(details.sessionId) },
+            outcome: details.outcome
+          })
+          completedCalls.add(part.toolCallId)
+        }
+      }
+      const settled = delivery !== 'baseline' && this.settled
+      return {
+        value: {
+          backgroundResults: this.backgroundResults,
+          aliases,
+          live: delivery === 'baseline' ? [] : ids.filter((id) => !historical.has(id)),
+          settled,
+          children,
+          outcomes
+        },
+        retain: settled || children.length > 0 || outcomes.length > 0
+      }
+    })
+  }
+
+  results(result: OperationResult<SubagentResults>): void {
+    // Capture one completed tool result before asynchronous projection can outlive native mutation.
+    const captured = immutable(result)
+    this.pending = this.pending
+      .then(() => {
+        this.backgroundResults = captured
+        const current = this.feed.snapshot
+        this.feed.publish({
+          ...current,
+          messages: current.messages.map((message) => ({ ...message, parts: message.parts.slice() }))
+        })
+      })
+      .catch((error) => this.report(error))
   }
 
   rebind(session: AgentSession): void {
     this.unsubscribe()
     this.generation++
-    for (const { reader } of this.readers.values()) void reader.close()
-    this.readers.clear()
+    this.partialArguments.clear()
     this.reset(session)
     this.bind(session)
   }
@@ -73,14 +200,8 @@ export class PiProjection {
     this.active.clear()
     this.calls.clear()
     this.feed.publish({ type: 'gap', reason: 'mapping-reset' })
-    this.snapshotMessages = []
-    for (const { message, id } of context ?? this.captureContext()) this.write(message, id, 'complete')
-    this.feed.publish({
-      ...this.feed.snapshot,
-      messages: this.snapshotMessages,
-      activity: { scope: 'foreground', state: session.isIdle ? 'idle' : 'active' }
-    })
-    this.snapshotMessages = undefined
+    this.restoreContext(context ?? this.captureContext())
+    this.feed.publish({ type: 'context.changed', result: readContextUsage(session) })
   }
 
   private captureContext(): PiContext {
@@ -89,13 +210,27 @@ export class PiProjection {
       .buildSessionProjection()
       .entries.filter(({ sourceEntry }) => !own || own.has(sourceEntry.id))
       .flatMap(({ sourceEntry, messages }) =>
-        messages.map((message) => ({ message: structuredClone(message), id: sourceEntry.id }))
+        // Capture selected context entries at compaction/edit boundaries; strings such as image data are shared.
+        messages.map((message) => ({ message: immutable(message), id: sourceEntry.id }))
       )
   }
 
-  private currentMessages(): PiMessage[] {
-    const own = this.ownEntryIds()
-    return own ? this.session.messages.filter((message) => own.has(this.entryId(message) ?? '')) : this.session.messages
+  private restoreContext(context: PiContext): void {
+    this.snapshotMessages = new Map()
+    try {
+      for (const entry of context) this.restoreCommitted(entry)
+      this.feed.publish({
+        ...this.feed.state,
+        messages: [...this.snapshotMessages.values()],
+        activity: { state: this.session.isIdle ? 'idle' : 'active' }
+      })
+    } finally {
+      this.snapshotMessages = undefined
+    }
+  }
+
+  private restoreCommitted({ message, id }: PiContext[number]): void {
+    this.write(message, id, 'complete')
   }
 
   private ownEntryIds(): Set<string> | undefined {
@@ -106,9 +241,80 @@ export class PiProjection {
     return origin < 0 ? undefined : new Set(branch.slice(origin + 1).map((entry) => entry.id))
   }
 
+  /** Committed native entries and their proven live identities; copied parent context is excluded. */
+  archive(): {
+    messages: RuntimeMessage[]
+    responseIds: Record<string, string>
+    aliases: Record<string, string>
+    legacy: Record<string, { messageId: string; parts: number[] }>
+  } {
+    const branch = this.session.sessionManager.getBranch()
+    const start = branch.findLastIndex(
+      (entry) => entry.type === 'custom' && entry.customType === ENTRY_KINDS.subagentOrigin
+    )
+    const calls = this.calls
+    this.calls = new Map()
+    this.snapshotMessages = new Map()
+    const aliases: Record<string, string> = {}
+    const responseIds: Record<string, string> = {}
+    try {
+      for (const entry of branch.slice(start + 1)) {
+        if (entry.type !== 'message' && entry.type !== 'custom_message') continue
+        const message = sessionEntryToContextMessages(entry)[0]
+        if (message.role === 'assistant' && message.responseId) responseIds[message.responseId] = entry.id
+        this.restoreCommitted({ message, id: entry.id })
+        const live = this.ids.get(message)
+        if (live && this.snapshotMessages.has(entry.id)) aliases[entry.id] = live
+      }
+      const legacy: Record<string, { messageId: string; parts: number[] }> = {}
+      for (const message of this.snapshotMessages.values()) {
+        const parts: number[] = []
+        message.parts.forEach((part, index) => {
+          if (part.type === 'dynamic-tool')
+            legacy[`${message.id}:call:${part.toolCallId}`] = { messageId: message.id, parts: [index] }
+          else parts.push(index)
+        })
+        legacy[message.id] = { messageId: message.id, parts }
+      }
+      return {
+        messages: [...this.snapshotMessages.values()],
+        responseIds,
+        aliases: { ...aliases, ...this.aliases },
+        legacy
+      }
+    } finally {
+      this.snapshotMessages = undefined
+      this.calls = calls
+    }
+  }
+
   private bind(session: AgentSession): void {
     this.unsubscribe = session.subscribe((native) => {
-      const event = structuredClone(native)
+      if (native.type === 'message_update') {
+        const id = this.active.get(native.message.role) ?? this.id(native.message)
+        this.ids.set(native.message, id)
+        const event = native.assistantMessageEvent
+        if (!('contentIndex' in event)) return
+        const { partial, ...delta } = event
+        const part = partial.content[event.contentIndex]
+        const captured = {
+          ...delta,
+          part:
+            part?.type === 'toolCall'
+              ? {
+                  type: part.type,
+                  id: part.id,
+                  name: part.name,
+                  // Capture only completed tool arguments; partial text updates never copy the native message graph.
+                  arguments: event.type === 'toolcall_end' ? immutable(part.arguments) : {}
+                }
+              : part && { ...part }
+        }
+        this.enqueue(() => this.delta(captured, id))
+        return
+      }
+      // Capture non-delta native facts before queueing without copying image data; published parts reuse the frozen values.
+      const event = immutable(native)
       if ('message' in native && 'message' in event) {
         const message = native.message
         const slot = message.role === 'toolResult' ? `tool:${message.toolCallId}` : message.role
@@ -131,53 +337,50 @@ export class PiProjection {
           event.entry.type === 'compaction')
           ? this.captureContext()
           : undefined
-      const generation = this.generation
-      this.pending = this.pending
-        .then(async () => {
-          if (generation === this.generation) await this.event(event, context)
-        })
-        .catch((error) => {
-          this.report(error)
-          this.feed.publish({ type: 'gap', reason: 'disconnected' })
-        })
+      this.enqueue(() => this.event(event, context))
     })
+  }
+
+  private enqueue(work: () => Promise<void>): void {
+    const generation = this.generation
+    this.pending = this.pending
+      .then(async () => {
+        if (generation === this.generation) await work()
+      })
+      .catch((error) => {
+        this.report(error)
+        this.feed.publish({ type: 'gap', reason: 'disconnected' })
+      })
   }
 
   async close(): Promise<void> {
     this.unsubscribe()
     await this.pending
-    for (const { reader } of this.readers.values()) await reader.close()
-    this.readers.clear()
+    this.partialArguments.clear()
     this.feed.close('shutdown')
   }
 
-  recordInput(input: InputState & { readonly inputId: InputId }): void {
-    const previous = this.feed.snapshot.inputs.find((known) => known.inputId === input.inputId)
-    this.feed.publish({
-      type: 'input.changed',
-      input: { ...previous, ...input, facts: [...new Set([...(previous?.facts ?? []), ...input.facts])] }
+  lookupInput(id: InputId): ProductInputState | undefined {
+    return this.inputStates.get(id)
+  }
+
+  recordInput(input: ProductInputState): void {
+    const previous = this.inputStates.get(input.inputId)
+    const state = immutable({
+      ...previous,
+      ...input,
+      facts: [...new Set([...(previous?.facts ?? []), ...input.facts])]
     })
+    this.inputStates.set(input.inputId, state)
+    this.feed.publish({ type: 'input.changed', input: state })
   }
 
   private id(message: PiMessage): string {
     const known = this.ids.get(message)
     if (known) return known
-    const id = this.entryId(message) ?? `live:${randomUUID()}`
+    const id = this.session.getCommittedEntryId(message) ?? `live:${randomUUID()}`
     this.ids.set(message, id)
     return id
-  }
-
-  private entryId(message: PiMessage): string | undefined {
-    const entry = this.session.sessionManager
-      .getBranch()
-      .find((entry) => entry.type === 'message' && entry.message === message)
-    if (entry) return entry.id
-    const index = this.session.messages.indexOf(message)
-    if (index < 0) return undefined
-    // Pi rebuilds custom/context-edited messages from this ordered native projection.
-    return this.session.sessionManager
-      .buildSessionProjection()
-      .entries.flatMap((entry) => entry.messages.map(() => entry.sourceEntry.id))[index]
   }
 
   private itemRef(id: string): ItemRef {
@@ -186,47 +389,97 @@ export class PiProjection {
 
   private publish(message: RuntimeMessage, replaces?: readonly ItemRef[]): void {
     if (this.snapshotMessages) {
-      const index = this.snapshotMessages.findIndex((item) => item.id === message.id)
-      if (index < 0) this.snapshotMessages.push(message)
-      else this.snapshotMessages[index] = message
-    } else this.feed.publish({ type: 'message.upsert', message, replaces })
+      this.snapshotMessages.set(message.id, message)
+      return
+    }
+    const event = messageObservation(this.itemRef(message.id), this.feed.message(message.id), message, replaces)
+    if (event.type === 'message.parts') this.feed.publishPart(event)
+    else this.feed.publish(event)
   }
 
-  private result(callId: string, output: unknown, isError: boolean, preliminary = false): void {
-    const id = this.calls.get(callId)
-    const message = (this.snapshotMessages ?? this.feed.snapshot.messages).find((message) => message.id === id)
-    if (!message) return
-    this.publish({
-      ...message,
-      parts: message.parts.map((part) => {
-        if (part.type !== 'dynamic-tool' || part.toolCallId !== callId) return part
-        const base = {
-          type: 'dynamic-tool' as const,
-          toolName: part.toolName,
-          toolCallId: part.toolCallId,
-          input: part.input,
-          callProviderMetadata: part.callProviderMetadata
-        }
-        if (!isError) return { ...base, state: 'output-available', output, preliminary }
-        const content = (output as { content?: { type: string; text?: string }[] }).content
-        return {
-          ...base,
-          state: 'output-error',
-          errorText:
-            content
-              ?.filter((part) => part.type === 'text')
-              .map((part) => part.text)
-              .join('\n') ?? String(output),
-          resultProviderMetadata: { pi: { result: JSON.parse(JSON.stringify(output)) } }
-        }
+  private nested(parentCallId: string, part: RuntimeMessage['parts'][number]): void {
+    if (part.type !== 'dynamic-tool') return
+    const id = this.calls.get(parentCallId)?.id
+    if (!id) return
+    const historical = this.snapshotMessages?.get(id)
+    const length = this.snapshotMessages ? historical?.parts.length : this.feed.partCount(id)
+    if (length === undefined) return
+    const index = this.calls.get(part.toolCallId)?.index ?? length
+    this.calls.set(part.toolCallId, { id, index })
+    if (historical) historical.parts[index] = part
+    else
+      this.feed.publishPart({
+        type: 'message.parts',
+        ref: this.itemRef(id),
+        changes: [{ type: 'put', part: index, value: part }]
       })
-    })
   }
 
-  private write(message: PiMessage, id: string, completeness: 'partial' | 'complete'): void {
+  private result(update: ToolResultMessage | { toolCallId: string; partialResult: unknown }): void {
+    const callId = update.toolCallId
+    const address = this.calls.get(callId)
+    if (!address) return
+    const { id, index } = address
+    const historical = this.snapshotMessages?.get(id)
+    if (this.snapshotMessages && !historical) return
+    const part = historical ? historical.parts[index] : this.feed.part(id, index)
+    if (part?.type !== 'dynamic-tool' || part.toolCallId !== callId) return
+    const base = {
+      type: 'dynamic-tool' as const,
+      toolCallId: callId,
+      toolName: part.toolName,
+      input: part.input,
+      callProviderMetadata: part.callProviderMetadata
+    }
+    let tool: Extract<RuntimeMessage['parts'][number], { type: 'dynamic-tool' }>
+    if ('partialResult' in update) {
+      tool = { ...base, state: 'output-available', output: update.partialResult, preliminary: true }
+    } else {
+      const output = {
+        content: update.content,
+        ...(update.details !== undefined && { details: update.details }),
+        ...(update.structuredContent !== undefined && { structuredContent: update.structuredContent }),
+        ...(update.nestedCalls !== undefined && { nestedCalls: update.nestedCalls })
+      }
+      tool = update.isError
+        ? {
+            ...base,
+            state: 'output-error',
+            errorText: update.content
+              .filter((block) => block.type === 'text')
+              .map((block) => block.text)
+              .join('\n'),
+            resultProviderMetadata: { pi: { result: providerResult(output) } }
+          }
+        : { ...base, state: 'output-available', output, preliminary: false }
+    }
+    if (historical) historical.parts[index] = tool
+    else this.feed.publishPart({ type: 'message.tool-output', ref: this.itemRef(id), part: index, tool })
+  }
+
+  private finish(message: PiMessage, liveId: string, committedId: string | undefined): void {
+    const id = committedId ?? liveId
+    if (id !== liveId) {
+      this.aliases[id] = liveId
+      this.ids.set(message, id)
+      const original = this.originals.get(message)
+      if (original) this.ids.set(original, id)
+    }
+    this.write(message, id, 'complete', id === liveId ? undefined : [this.itemRef(liveId)])
+  }
+
+  private write(
+    message: PiMessage,
+    id: string,
+    completeness: 'partial' | 'complete',
+    replaces?: readonly ItemRef[]
+  ): void {
     if (!('content' in message)) return
     if (message.role === 'toolResult') {
-      this.result(message.toolCallId, { content: message.content, details: message.details }, message.isError)
+      for (const record of message.nestedCalls?.calls ?? []) {
+        this.nested(message.toolCallId, projectNestedTool(record, providerResult))
+      }
+      this.result(message)
       return
     }
     if (
@@ -236,24 +489,13 @@ export class PiProjection {
       !(message.role === 'custom' && (message.display || message.customType === ENTRY_KINDS.subagentMessage))
     )
       return
-    const liveId = id
-    if (completeness === 'complete' && !this.snapshotMessages) {
-      const original = this.originals.get(message) ?? message
-      const entryId = this.entryId(original)
-      if (entryId) {
-        id = entryId
-        this.ids.set(message, id)
-        this.ids.set(original, id)
-      }
-    }
     const value: RuntimeMessage = {
       id,
       role: message.role === 'custom' ? 'user' : message.role,
       parts: [],
       metadata: {
         completeness,
-        inputId:
-          this.inputIds.get(message) ?? this.feed.snapshot.messages.find((known) => known.id === id)?.metadata?.inputId
+        inputId: this.inputIds.get(message) ?? this.feed.messageInputId(id)
       }
     }
     const state = completeness === 'complete' ? 'done' : 'streaming'
@@ -278,7 +520,7 @@ export class PiProjection {
         if (part.type === 'image')
           value.parts.push({ type: 'file', mediaType: part.mimeType, url: `data:${part.mimeType};base64,${part.data}` })
         if (part.type === 'toolCall') {
-          this.calls.set(part.id, id)
+          this.calls.set(part.id, { id, index: value.parts.length })
           value.parts.push({
             type: 'dynamic-tool',
             toolCallId: part.id,
@@ -288,59 +530,70 @@ export class PiProjection {
           })
         }
       }
-    this.publish(value, id === liveId ? undefined : [this.itemRef(liveId)])
+    this.publish(value, replaces)
   }
 
-  private async delta(event: Extract<AgentSessionEvent, { type: 'message_update' }>, id: string): Promise<void> {
-    const native = event.assistantMessageEvent
-    const stream = this.readers.get(id)
-    if (!stream || !('contentIndex' in native)) return
-    const part = native.partial.content[native.contentIndex]
-    const key = String(native.contentIndex)
-    type Chunk = Parameters<RuntimeMessageStream['append']>[0][number]
-    const chunks: Chunk[] = []
-    if (native.type === 'text_start') chunks.push({ type: 'text-start', id: key })
-    if (native.type === 'text_delta') chunks.push({ type: 'text-delta', id: key, delta: native.delta })
-    if (native.type === 'text_end') chunks.push({ type: 'text-end', id: key })
-    if (native.type === 'thinking_start') chunks.push({ type: 'reasoning-start', id: key })
-    if (native.type === 'thinking_delta') chunks.push({ type: 'reasoning-delta', id: key, delta: native.delta })
-    if (native.type === 'thinking_end') chunks.push({ type: 'reasoning-end', id: key })
-    if (part?.type === 'toolCall') {
-      this.calls.set(part.id, id)
-      if (native.type === 'toolcall_start')
-        chunks.push({ type: 'tool-input-start', toolCallId: part.id, toolName: part.name, dynamic: true })
-      if (native.type === 'toolcall_delta')
-        chunks.push({ type: 'tool-input-delta', toolCallId: part.id, inputTextDelta: native.delta })
-      if (native.type === 'toolcall_end')
-        chunks.push({
-          type: 'tool-input-available',
-          toolCallId: part.id,
-          toolName: part.name,
-          input: part.arguments,
-          dynamic: true
-        })
-    }
-    if (chunks.length) {
-      const message = await stream.reader.append(chunks, 'partial')
-      if (native.type === 'text_start' || native.type === 'thinking_start')
-        stream.texts.set(native.contentIndex, { index: message.parts.length - 1, text: '' })
-      const text = stream.texts.get(native.contentIndex)
-      if (text) {
-        // Native partials can run ahead of delta delivery; block-end content may also revise them.
-        if (native.type === 'text_end' || native.type === 'thinking_end') text.text = native.content
-        else if (part?.type === 'text') text.text = part.text
-        else if (part?.type === 'thinking') text.text = part.thinking
+  private async delta(native: CapturedDelta, id: string): Promise<void> {
+    const { part, contentIndex: index } = native
+    const ref = this.itemRef(id)
+    const old = this.feed.part(id, index)
+    if (part?.type === 'text' || part?.type === 'thinking') {
+      const end = native.type === 'text_end' || native.type === 'thinking_end'
+      const text = end ? native.content : part.type === 'text' ? part.text : part.thinking
+      if (
+        (native.type === 'text_delta' || native.type === 'thinking_delta') &&
+        old?.type === (part.type === 'text' ? 'text' : 'reasoning') &&
+        old.state === 'streaming' &&
+        text.length === old.text.length + native.delta.length
+      ) {
+        this.feed.publishPart({ type: 'message.text-append', ref, part: index, text: native.delta })
+        return
       }
-      const parts = message.parts.slice()
-      for (const { index, text } of stream.texts.values()) {
-        const part = parts[index]
-        if (part.type === 'text' || part.type === 'reasoning') parts[index] = { ...part, text }
-      }
-      if (this.readers.get(id) === stream) this.publish({ ...message, parts })
+      const changes = textEdits(index, old, {
+        type: part.type === 'text' ? 'text' : 'reasoning',
+        text,
+        state: end ? 'done' : 'streaming',
+        ...((old?.type === 'text' || old?.type === 'reasoning') &&
+          old.providerMetadata && { providerMetadata: old.providerMetadata })
+      })
+      if (changes.length) this.feed.publishPart({ type: 'message.parts', ref, changes })
+      return
     }
+    if (part?.type !== 'toolCall') return
+    this.calls.set(part.id, { id, index })
+    let input: unknown = part.arguments
+    if (native.type === 'toolcall_delta') {
+      const json = (this.partialArguments.get(part.id) ?? '') + native.delta
+      this.partialArguments.set(part.id, json)
+      input = (await parsePartialJson(json)).value
+    } else if (native.type === 'toolcall_end') this.partialArguments.delete(part.id)
+    this.feed.publishPart({
+      type: 'message.parts',
+      ref,
+      changes: [
+        {
+          type: 'put',
+          part: index,
+          value: {
+            type: 'dynamic-tool',
+            toolCallId: part.id,
+            toolName: part.name,
+            input,
+            state: native.type === 'toolcall_end' ? 'input-available' : 'input-streaming'
+          }
+        }
+      ]
+    })
   }
 
   private async event(event: AgentSessionEvent, context?: PiContext): Promise<void> {
+    if (
+      event.type === 'message_end' ||
+      event.type === 'compaction_end' ||
+      event.type === 'agent_settled' ||
+      event.type === 'model_select'
+    )
+      this.feed.publish({ type: 'context.changed', result: readContextUsage(this.session) })
     if (event.type === 'input_settled') {
       const reason = event.aborted ? 'aborted' : event.message.stopReason
       const completed = reason === 'stop' && !event.message.content.some((part) => part.type === 'toolCall')
@@ -348,7 +601,6 @@ export class PiProjection {
         this.recordInput({
           inputId: runtimeId(inputId),
           facts: [],
-          response: this.itemRef(event.entryId),
           outcome: completed
             ? 'completed'
             : reason === 'aborted'
@@ -376,8 +628,8 @@ export class PiProjection {
     if (event.type === 'input_placed') {
       const inputId = runtimeId<'input'>(event.inputId)
       this.inputIds.set(event.message, inputId)
-      this.write(event.message, this.id(event.message), 'complete')
-      this.recordInput({ inputId, facts: ['placed'] })
+      this.finish(event.message, this.id(event.message), event.entryId)
+      this.recordInput({ inputId, nativeInput: { session: this.ref, id: runtimeId(event.entryId) }, facts: ['placed'] })
     }
     if (event.type === 'input_handled') {
       this.recordInput({
@@ -397,26 +649,56 @@ export class PiProjection {
     )
       this.reset(this.session, context)
     if (event.type === 'entry_appended' && event.entry.type === 'custom_message') {
-      for (const { message, id } of context ?? []) if (id === event.entry.id) this.write(message, id, 'complete')
+      for (const source of context ?? []) if (source.id === event.entry.id) this.restoreCommitted(source)
     }
-    if (event.type === 'message_start' || event.type === 'message_update' || event.type === 'message_end') {
+    if (event.type === 'message_start' || event.type === 'message_end') {
       const message = event.message
       const id = this.id(message)
-      if (event.type === 'message_start' && message.role === 'assistant')
-        this.readers.set(id, { reader: new RuntimeMessageStream(id), texts: new Map() })
-      if (event.type === 'message_update') await this.delta(event, id)
-      else this.write(message, id, event.type === 'message_end' ? 'complete' : 'partial')
-      if (event.type === 'message_end') {
-        await this.readers.get(id)?.reader.close()
-        this.readers.delete(id)
-      }
+      if (event.type === 'message_end')
+        this.finish(message, id, this.session.getCommittedEntryId(this.originals.get(message) ?? message))
+      else this.write(message, id, 'partial')
+      if (event.type === 'message_end' && message.role === 'assistant')
+        for (const part of message.content) if (part.type === 'toolCall') this.partialArguments.delete(part.id)
     }
-    if (event.type === 'tool_execution_update') this.result(event.toolCallId, event.partialResult, false, true)
+    if (event.type === 'tool_execution_start' && 'parentToolCallId' in event && event.parentToolCallId) {
+      this.nested(event.parentToolCallId, {
+        type: 'dynamic-tool',
+        toolName: event.toolName,
+        toolCallId: event.toolCallId,
+        state: 'input-available',
+        input: event.args,
+        callProviderMetadata: { pi: { parentToolCallId: event.parentToolCallId, nested: true } }
+      })
+    }
+    if (event.type === 'tool_execution_end' && 'parentToolCallId' in event && event.parentToolCallId)
+      this.nested(
+        event.parentToolCallId,
+        projectNestedTool(
+          {
+            id: event.toolCallId,
+            name: event.toolName,
+            parentToolCallId: event.parentToolCallId,
+            arguments: event.args,
+            result: event.result,
+            status: event.isError ? 'error' : 'ok',
+            error: event.isError
+              ? event.result.content
+                  ?.filter((part: { type: string }) => part.type === 'text')
+                  .map((part: { text: string }) => part.text)
+                  .join('\n')
+              : undefined
+          },
+          providerResult
+        )
+      )
+    if (event.type === 'tool_execution_update') this.result(event)
     if (event.type === 'agent_start' || event.type === 'agent_settled') {
+      this.settled = event.type === 'agent_settled'
       this.feed.publish({
         type: 'activity.changed',
-        activity: { scope: 'foreground', state: event.type === 'agent_start' ? 'active' : 'idle' }
+        activity: { state: event.type === 'agent_start' ? 'active' : 'idle' }
       })
+      this.settled = false
     }
   }
 }

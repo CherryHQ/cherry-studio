@@ -2,7 +2,6 @@ import { ChevronRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
-import Scrollbar from '@renderer/components/Scrollbar'
 
 /**
  * 水平滚动容器
@@ -115,8 +114,9 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
         classNames?.container
       )}
       onClick={expandable ? handleContainerClick : undefined}>
-      <Scrollbar
+      <div
         ref={scrollRef}
+        data-horizontal-scroll-viewport=""
         className={cn('relative z-0 flex min-w-0 flex-1 overflow-y-hidden', classNames?.content)}
         style={{
           gap,
@@ -126,7 +126,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
           scrollbarWidth: 'none'
         }}>
         {children}
-      </Scrollbar>
+      </div>
       {canScroll && !isExpanded && !isScrolledToEnd && (
         <div
           onClick={handleScrollRight}

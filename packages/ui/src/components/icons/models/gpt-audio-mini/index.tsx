@@ -9,7 +9,7 @@ const GptAudioMini = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const GptAudioMiniIcon: CompoundIcon = /*#__PURE__*/ Object.assign(GptAudioMini, {
   Avatar: GptAudioMiniAvatar,
-  colorPrimary: '#000000'
+  colorPrimary: '#e47c8c'
 })
 
 export default GptAudioMiniIcon

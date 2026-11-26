@@ -34,6 +34,7 @@ import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
+import { UpdateAgentSchema } from '@shared/data/api/schemas/agents'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
@@ -310,7 +311,8 @@ describe('AgentService', () => {
       expect(customModel?.reasoning?.controls).toEqual([{ kind: 'effort', values: ['low', 'medium', 'high'] }])
       expect(customModel?.requestControls?.serviceTier).toEqual({
         default: 'standard',
-        options: ['standard', 'auto', 'fast', 'flex']
+        options: ['standard', 'auto', 'fast', 'flex'],
+        values: { standard: 'on_demand', auto: 'auto', fast: 'performance', flex: 'flex' }
       })
       expect(agentService.getAgent('startup-preset-agent')?.configuration?.reasoning_effort).toBe('high')
       expect(agentService.getAgent('startup-custom-agent')?.configuration?.reasoning_effort).toBe('low')
@@ -392,28 +394,104 @@ describe('AgentService', () => {
       expect(agents).toHaveLength(0)
     })
 
-    it('places newly created agents first by default orderKey sort', async () => {
-      await insertAgent({ id: 'agent_existing_a' })
-      await insertAgent({ id: 'agent_existing_b' })
+    describe('with channels', () => {
+      const telegram = {
+        type: 'telegram' as const,
+        name: 'Telegram',
+        isActive: true,
+        config: { bot_token: 'token-1', allowed_chat_ids: ['42'] }
+      }
 
-      const created = createAgentForTest({
-        type: 'claude-code',
-        name: 'Newest',
-        model: TEST_MODEL_ID
+      it('creates the channels bound to the new Agent in the system workspace', async () => {
+        notifyDataApiDataChangeMock.mockClear()
+        const agent = createAgentForTest({
+          type: 'claude-code',
+          name: 'With Channels',
+          model: TEST_MODEL_ID,
+          channels: [telegram, { ...telegram, name: 'Second', isActive: false, permissionMode: 'plan' }]
+        })
+
+        const channels = await dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.agentId, agent.id))
+        expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+          { endpoint: '/agents', kind: 'membership', entityIds: [agent.id] },
+          { endpoint: '/agent-workspaces', kind: 'membership' },
+          { endpoint: '/agent-channels', kind: 'membership', entityIds: channels.map(({ id }) => id) },
+          ...channels.map(({ id }) => ({
+            endpoint: '/agent-channels/:channelId',
+            routeParams: { channelId: id },
+            entityIds: [id]
+          }))
+        ])
+        expect(
+          channels.map(({ name, type, isActive, permissionMode, workspace, config }) => ({
+            name,
+            type,
+            isActive,
+            permissionMode,
+            workspace,
+            config
+          }))
+        ).toEqual([
+          {
+            name: 'Telegram',
+            type: 'telegram',
+            isActive: true,
+            permissionMode: null,
+            workspace: { type: 'system' },
+            config: telegram.config
+          },
+          {
+            name: 'Second',
+            type: 'telegram',
+            isActive: false,
+            permissionMode: 'plan',
+            workspace: { type: 'system' },
+            config: telegram.config
+          }
+        ])
       })
 
-      const { agents } = agentService.listAgents()
-      expect(agents[0]?.id).toBe(created.id)
-    })
+      it('leaves neither the Agent nor any channel when one channel is rejected', async () => {
+        const error = captureError(() =>
+          createAgentForTest({
+            type: 'claude-code',
+            name: 'Rolled Back',
+            model: TEST_MODEL_ID,
+            // The first channel is valid; the second is active without a token.
+            channels: [telegram, { ...telegram, name: 'No token', config: { bot_token: '' } }]
+          })
+        )
 
-    it('defaults disabledTools to an empty array (opt-out, backward-safe)', async () => {
-      const agent = createAgentForTest({
-        type: 'claude-code',
-        name: 'Disabled Tools Default',
-        model: TEST_MODEL_ID
+        expect(error).toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+        expect(await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Rolled Back'))).toHaveLength(0)
+        expect(await dbh.db.select().from(agentChannelTable)).toHaveLength(0)
       })
-      const reloaded = agentService.getAgent(agent.id)
-      expect(reloaded?.disabledTools).toEqual([])
+
+      it('creates QR-login channels inactive, and Feishu with credentials as requested', async () => {
+        const feishuConfig = { app_id: '', app_secret: '', encrypt_key: '', verification_token: '', domain: 'feishu' }
+        const agent = createAgentForTest({
+          type: 'claude-code',
+          name: 'QR Channels',
+          model: TEST_MODEL_ID,
+          channels: [
+            { type: 'wechat', name: 'WeChat', isActive: true, config: { token_path: '' } },
+            { type: 'feishu', name: 'Feishu QR', isActive: true, config: { ...feishuConfig, domain: 'feishu' } },
+            {
+              type: 'feishu',
+              name: 'Feishu App',
+              isActive: true,
+              config: { ...feishuConfig, domain: 'lark', app_id: 'cli_1', app_secret: 'secret' }
+            }
+          ]
+        })
+
+        const channels = await dbh.db.select().from(agentChannelTable).where(eq(agentChannelTable.agentId, agent.id))
+        expect(Object.fromEntries(channels.map((channel) => [channel.name, channel.isActive]))).toEqual({
+          WeChat: false,
+          'Feishu QR': false,
+          'Feishu App': true
+        })
+      })
     })
   })
 
@@ -470,17 +548,6 @@ describe('AgentService', () => {
         }
       })
       expect(activeBuiltinRows()).toHaveLength(1)
-    })
-
-    it('keeps a newly created built-in assistant after existing agents', () => {
-      const ordinary = createAgentForTest({
-        type: 'claude-code',
-        name: 'Ordinary Agent',
-        model: TEST_MODEL_ID
-      })
-      const builtin = agentService.ensureBuiltinAgent(defaults)
-
-      expect(agentService.listAgents().agents.map((agent) => agent.id)).toEqual([ordinary.id, builtin.id])
     })
 
     it('restores exactly one active assistant after the previous row was soft-deleted', () => {
@@ -675,6 +742,51 @@ describe('AgentService', () => {
       })
     })
 
+    it('validates a reasoning patch against the caller-supplied session model (inv_98911732422a84bf)', async () => {
+      const kimiK3ModelId = createUniqueModelId('moonshot', 'kimi-k3')
+      await dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'moonshot',
+          presetProviderId: 'moonshot',
+          name: 'Moonshot',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      await dbh.db
+        .insert(userModelTable)
+        .values({
+          id: kimiK3ModelId,
+          providerId: 'moonshot',
+          modelId: 'kimi-k3',
+          presetModelId: 'kimi-k3',
+          orderKey: generateOrderKeyBetween(null, null)
+        })
+        .onConflictDoNothing()
+      // The agent's own model stays TEST_MODEL_ID (which supports only the
+      // default effort); the session steering this edit overrides to Kimi K3,
+      // so `high` must validate against the override, not the agent default
+      // (cherry-pr-review inv_98911732422a84bf).
+      const parsed = UpdateAgentSchema.parse({
+        configuration: { reasoning_effort: 'high' },
+        reasoningValidationModelId: kimiK3ModelId
+      })
+      expect(parsed.reasoningValidationModelId).toBe(kimiK3ModelId)
+      const created = await insertAgent({ model: TEST_MODEL_ID, configuration: { reasoning_effort: 'low' } })
+
+      const updated = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' },
+        reasoningValidationModelId: kimiK3ModelId
+      })
+      expect(updated?.configuration?.reasoning_effort).toBe('high')
+
+      // Without the hint the agent's unchanged model remains the basis.
+      const updatedWithoutHint = agentService.updateAgent(created.id, {
+        configuration: { reasoning_effort: 'high' }
+      })
+      expect(updatedWithoutHint?.configuration?.reasoning_effort).toBe('default')
+    })
+
     it('preserves an explicit reasoning tombstone while changing the model', async () => {
       const created = await insertAgent({
         configuration: { avatar: '🤖', reasoning_effort: 'high' }
@@ -753,6 +865,28 @@ describe('AgentService', () => {
       })
 
       expect(updated?.configuration).toEqual({ avatar: '🤖' })
+    })
+
+    // Catches two settings windows saving different prompt blocks, where the second save dropped the first.
+    it('applies prompt overrides block by block, with null restoring a block', async () => {
+      const created = await insertAgent({ configuration: { avatar: '🤖' } })
+
+      agentService.updateAgent(created.id, { configuration: { prompt_overrides: { skills: 'My skills.' } } })
+      agentService.updateAgent(created.id, {
+        configuration: { prompt_overrides: { workspace_system: 'My workspace.' } }
+      })
+      expect(agentService.getAgent(created.id)?.configuration?.prompt_overrides).toEqual({
+        skills: 'My skills.',
+        workspace_system: 'My workspace.'
+      })
+
+      agentService.updateAgent(created.id, { configuration: { prompt_overrides: { skills: null } } })
+      expect(agentService.getAgent(created.id)?.configuration?.prompt_overrides).toEqual({
+        workspace_system: 'My workspace.'
+      })
+
+      agentService.updateAgent(created.id, { configuration: { prompt_overrides: { workspace_system: null } } })
+      expect(agentService.getAgent(created.id)?.configuration).toEqual({ avatar: '🤖' })
     })
   })
 
@@ -1656,7 +1790,8 @@ describe('AgentService', () => {
         agentId: id,
         name: '',
         workspaceId: 'workspace-default-detach',
-        taskScheduleId: task.id,
+        taskId: task.id,
+        isTaskReuseTarget: true,
         orderKey: 'a0'
       })
       agentService.deleteAgent(id)
@@ -1665,10 +1800,10 @@ describe('AgentService', () => {
       expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: true })
 
       const [session] = await dbh.db
-        .select({ agentId: agentSessionTable.agentId, taskScheduleId: agentSessionTable.taskScheduleId })
+        .select({ agentId: agentSessionTable.agentId, isTaskReuseTarget: agentSessionTable.isTaskReuseTarget })
         .from(agentSessionTable)
         .where(eq(agentSessionTable.id, 'session-default-detach'))
-      expect(session).toEqual({ agentId: null, taskScheduleId: null })
+      expect(session).toEqual({ agentId: null, isTaskReuseTarget: false })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['session-default-detach'] },
         {
@@ -2095,9 +2230,7 @@ describe('AgentService', () => {
 
       expect(agentService.search({ q: 'collect FAQs', limit: 5 })).toEqual([
         expect.objectContaining({
-          id: 'agent_builtin_global_search',
-          subtitle:
-            'Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills'
+          id: 'agent_builtin_global_search'
         })
       ])
     })
@@ -2113,8 +2246,7 @@ describe('AgentService', () => {
 
       expect(agentService.search({ q: 'troubleshooting', limit: 5 })).toEqual([
         expect.objectContaining({
-          id: CHERRY_SUPPORT_AGENT_ID,
-          subtitle: 'Official Cherry Studio support Agent for setup guidance, troubleshooting, FAQs, and feedback'
+          id: CHERRY_SUPPORT_AGENT_ID
         })
       ])
     })

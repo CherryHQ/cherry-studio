@@ -1,14 +1,15 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
-import { readUIMessageStream } from 'ai'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { preparePiBranch, reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeEvent } from '@main/ai/runtime/types'
 import type { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
@@ -49,33 +50,47 @@ describe('durable delivery native branch admission', () => {
       send: (input: Parameters<AiStreamManager['send']>[0]) => {
         const request = input.models[0].request.runtime!
         if (request.kind !== 'agent-session') throw new Error('Expected an agent session')
-        const stream = runtime.openTurnStream({ ...request, signal: new AbortController().signal })
+        const source = runtime.openTurnStream({ ...request, signal: new AbortController().signal })
+        if (source.kind !== 'messages') throw new Error('Expected message projections')
         completion = (async () => {
-          let text = ''
-          for await (const message of readUIMessageStream({ stream }))
-            text = message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+          for await (const event of source.stream) {
+            if (event.type === 'error') throw event.error
+          }
+          const entries = source.readParts()
           runtime.markTurnTerminal(request.sessionId, 'success')
-          return text
+          return entries.flatMap(({ payload: part }) => (part.type === 'text' ? [part.text] : [])).join('')
         })()
       }
     })
     runtimeDriverRegistry.register({
       type: 'pi',
-      capabilities: ['agent-session'],
       validateSession: async () => {},
-      listAvailableTools: async () => [],
-      connect: async ({ resumeToken }) => {
+      connect: async ({ sessionId, branchHead, resumeToken }) => {
         const branch = resumeToken ?? 'missing-history'
+        const context = preparePiBranch(sessionId, branchHead, resumeToken)
         const events = new AsyncEventQueue<AgentRuntimeEvent>()
         return {
           events,
+          contextId: context.id,
           reconcile: async () => 'current' as const,
           send: () => {
             consumed.push(branch)
-            events.push({ type: 'chunk', chunk: { type: 'text-start', id: 'reply' } })
-            events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'reply', delta: `history:${branch}` } })
-            events.push({ type: 'chunk', chunk: { type: 'text-end', id: 'reply' } })
-            events.push({ type: 'chunk', chunk: { type: 'finish', finishReason: 'stop' } })
+            events.push({
+              type: 'message-projection',
+              projection: {
+                contextId: context.id,
+                messages: [
+                  {
+                    id: 'reply',
+                    role: 'assistant',
+                    parts: [{ type: 'text', text: `history:${branch}`, state: 'done' }]
+                  }
+                ],
+                live: ['reply'],
+                removed: [],
+                replaces: {}
+              }
+            })
             events.push({ type: 'turn-complete' })
           },
           close: async () => {
@@ -130,7 +145,8 @@ describe('durable delivery native branch admission', () => {
       runtimeResumeToken: 'native-A',
       message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'A history' }] } }
     })
-    await runtime.primeConnection('target')
+    application.get('DbService').withWriteTx((tx) => reservePiBranchTx(tx, 'target', a.id, 'native-A'))
+    await runtime['commandConnection']('target')
     expect(runtime.getExecutionHead('target')).toBe(a.id)
     const b = messages.saveMessage({
       sessionId: 'target',
@@ -138,6 +154,7 @@ describe('durable delivery native branch admission', () => {
       runtimeResumeToken: 'native-B',
       message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'B history' }] } }
     })
+    application.get('DbService').withWriteTx((tx) => reservePiBranchTx(tx, 'target', b.id, 'native-B'))
     messages.selectBranch('target', b.id)
     const delivery = messages.acceptSessionDelivery({
       senderAgentId: 'agent',
@@ -183,7 +200,7 @@ describe('durable delivery native branch admission', () => {
     expect(completion).toBeUndefined()
   })
 
-  it('keeps B history when a warm lease recreates A while its old connection closes', async () => {
+  it('keeps B history when a concurrent command requests the closing branch A while its old connection closes', async () => {
     const { delivery, b } = await prepare()
     const closing = Promise.withResolvers<void>()
     const release = Promise.withResolvers<void>()
@@ -194,7 +211,7 @@ describe('durable delivery native branch admission', () => {
     const service = new AgentSessionDeliveryService()
     service.kick('target')
     await closing.promise
-    runtime.acquireWarmLease('target', undefined)
+    await expect(runtime['commandConnection']('target')).rejects.toThrow('busy')
     release.resolve()
     await service.drainSessionQueues(['target'])
 

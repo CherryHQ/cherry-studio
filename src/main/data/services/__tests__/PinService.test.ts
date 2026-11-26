@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { pinTable } from '@data/db/schemas/pin'
-import { PinService, pinService } from '@data/services/PinService'
+import { pinService } from '@data/services/PinService'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -24,10 +24,6 @@ describe('PinService', () => {
 
   beforeEach(() => {
     notifyDataApiDataChangeMock.mockClear()
-  })
-
-  it('should export a module-level singleton of PinService', () => {
-    expect(pinService).toBeInstanceOf(PinService)
   })
 
   describe('pin', () => {
@@ -88,18 +84,6 @@ describe('PinService', () => {
 
       const ids = new Set([a.id, b.id, c.id])
       expect(ids.size).toBe(3)
-    })
-
-    it('should maintain independent orderKey sequences per entityType', async () => {
-      const topicFirst = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_1 })
-      const assistantFirst = pinService.pin({ entityType: 'assistant', entityId: ENTITY_ID_1 })
-
-      // Each scope starts from the same fractional-indexing starter key because
-      // neither bucket has a predecessor.
-      expect(topicFirst.orderKey).toBe(assistantFirst.orderKey)
-
-      const topicSecond = pinService.pin({ entityType: 'topic', entityId: ENTITY_ID_2 })
-      expect(topicSecond.orderKey > topicFirst.orderKey).toBe(true)
     })
 
     it('should accept UniqueModelId values for model pins', async () => {

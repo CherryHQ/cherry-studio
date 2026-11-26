@@ -85,6 +85,24 @@ describe('useCompactComposerPresentation', () => {
     await waitFor(() => expect(result.current.isCompact).toBe(false))
   })
 
+  it('expands wrapped text when the compact scroll viewport clips the editor', () => {
+    const { frame } = buildComposerFrame()
+    const viewport = document.createElement('div')
+    viewport.dataset.slot = 'scroll-area-viewport'
+    Object.defineProperties(viewport, {
+      clientHeight: { value: 20 },
+      scrollHeight: { value: 60 }
+    })
+    frame.appendChild(viewport)
+    appendEditorElement(viewport, { clientHeight: 60, scrollHeight: 60 })
+
+    const { result } = renderHook(() =>
+      useCompactComposerPresentation({ enabled: true, frameRef: { current: frame }, isComposing: () => false })
+    )
+
+    expect(result.current.isCompact).toBe(false)
+  })
+
   it('remeasures when the editor width changes, across repeated focus/blur transitions', async () => {
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
     const { frame } = buildComposerFrame()

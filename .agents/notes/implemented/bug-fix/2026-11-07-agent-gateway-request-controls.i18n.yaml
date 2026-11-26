@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-07-agent-gateway-request-controls.md
+2026-11-07-agent-gateway-request-controls.md: 287e7be033581c9bbeb70c018cc43edd34eda32a
+2026-11-07-agent-gateway-request-controls.zh.md: c08e9912cdd3b08859232daa1c852fd52a72ab27

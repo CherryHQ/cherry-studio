@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-09-ci-stale-run-cancellation.md
+2026-11-09-ci-stale-run-cancellation.md: 4227eaae2612ffe4010d24b6338ab0268f93cd89
+2026-11-09-ci-stale-run-cancellation.zh.md: b27c164fd0de12d5e3c01633f82e7fadc16dddb0

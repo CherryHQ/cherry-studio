@@ -1,7 +1,8 @@
+import { MockCherrystudioUI } from '@test-mocks/renderer/CherrystudioUI'
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentPropsWithoutRef, ComponentType } from 'react'
+import type { ComponentType } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { safeOpen } from '@renderer/utils/file/safeOpen'
@@ -44,7 +45,7 @@ vi.mock('@cherrystudio/ui', () => ({
       ) : null}
     </div>
   ),
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
+  ScrollArea: MockCherrystudioUI.ScrollArea
 }))
 
 vi.mock('@renderer/utils/file/safeOpen', () => ({
@@ -229,4 +230,9 @@ describe('FilePreview', () => {
 
     expect(onSelectionReference).toHaveBeenCalledWith(SELECTION_REFERENCE_FIXTURE)
   })
+})
+
+vi.mock('@renderer/services/fileObservation', async () => {
+  const { mockFileObservationService } = await import('@test-mocks/renderer/FileObservationService')
+  return { fileObservationService: mockFileObservationService }
 })

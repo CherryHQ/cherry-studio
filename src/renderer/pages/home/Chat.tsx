@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import {
   ResourcePaneCountButton,
   type ResourcePaneCountButtonProps,
@@ -53,8 +54,17 @@ type ChatTopBarControlsProps = Omit<ChatConversationControlsProps, 'iconOnly' | 
 
 function ChatTopBarControls(props: ChatTopBarControlsProps) {
   const { iconOnly } = useConversationTopBarPortalLayout()
+  const profilePane = useProfilePaneToggle()
 
-  return <ChatConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+  return (
+    <ChatConversationControls
+      {...props}
+      side="bottom"
+      iconOnly={iconOnly}
+      onAvatarClick={profilePane?.toggle}
+      avatarActive={profilePane?.active}
+    />
+  )
 }
 
 interface Props {
@@ -71,6 +81,7 @@ interface Props {
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
   locateMessageId?: string
+  locateToEnd?: boolean
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
@@ -130,6 +141,7 @@ const Chat: FC<Props> = (props) => {
           activeConversationControlsSnapshot.lockedMentionedModels.length > 0)))
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
+  const locateToEnd = props.locateToEnd
   const locateMessageIdProp = props.locateMessageId
   const onLocateMessageHandledProp = props.onLocateMessageHandled
 
@@ -191,7 +203,7 @@ const Chat: FC<Props> = (props) => {
   const openCitationInBrowser = useCallback(
     (url: string) => {
       if (!activeTopicId) return
-      topicBrowserRuntimeService.ensure(activeTopicId, url)
+      topicBrowserRuntimeService.openPage(activeTopicId, url)
       rightPanelActions.tryOpen('browser', { userInitiated: true })
       setCitationPanelState(null)
     },
@@ -225,13 +237,13 @@ const Chat: FC<Props> = (props) => {
     },
     [activeTopicId, setTopicBranchLiveState]
   )
-  const locateMessageId = locateMessageIdProp ?? branchLocateMessageId
+  const locateMessageId = locateToEnd ? undefined : (locateMessageIdProp ?? branchLocateMessageId)
   const handleLocateMessageHandled = useCallback(() => {
     setBranchLocateMessageId(undefined)
-    if (locateMessageIdProp) {
+    if (locateMessageIdProp || locateToEnd) {
       onLocateMessageHandledProp?.()
     }
-  }, [locateMessageIdProp, onLocateMessageHandledProp])
+  }, [locateMessageIdProp, locateToEnd, onLocateMessageHandledProp])
   const centerContent =
     centerSurface?.content ??
     (activeTopic ? (
@@ -242,6 +254,7 @@ const Chat: FC<Props> = (props) => {
         onNewTopic={props.onNewTopic}
         onCreateEmptyTopic={props.onCreateEmptyTopic}
         locateMessageId={locateMessageId}
+        locateToEnd={locateToEnd}
         onLocateMessageHandled={handleLocateMessageHandled}
         onBranchLiveStateChange={handleBranchLiveStateChange}
         assistantContext={assistantContext}
@@ -282,6 +295,7 @@ const Chat: FC<Props> = (props) => {
                     (assistantContext.isLoading ? t('common.loading') : t('button.select_assistant'))
                   }
                   assistantEmoji={assistantContext.assistant?.emoji}
+                  assistantAvatarSrc={assistantContext.assistant?.avatarSrc}
                   model={assistantContext.model}
                   modelPending={
                     assistantContext.isLoading || assistantContext.isModelPending || !activeConversationControlsSnapshot
