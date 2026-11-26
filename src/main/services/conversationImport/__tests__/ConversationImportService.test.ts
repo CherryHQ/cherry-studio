@@ -203,6 +203,7 @@ describe('local history atomic import', () => {
     labels.push('WB answer')
     await writeFile(path.join(project, 'wb.jsonl'), rows.map((row) => JSON.stringify(row)).join('\n'))
     const sourceDb = new Database(path.join(sourceRoot, 'workbuddy.db'))
+    sourceDb.pragma('journal_mode = WAL')
     sourceDb.exec(
       'CREATE TABLE sessions (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, custom_title TEXT, transport TEXT, deleted_at INTEGER, created_at INTEGER, updated_at INTEGER, last_activity_at INTEGER)'
     )
@@ -211,6 +212,8 @@ describe('local history atomic import', () => {
     insert.run('cloud', '', 'Cloud only', '', 'cloud', -1, timestamp, timestamp, timestamp)
     sourceDb.close()
     const scan = await service.discover('window', 'workbuddy', sourceRoot)
+    expect(await readdir(sourceRoot)).not.toContain('workbuddy.db-wal')
+    expect(await readdir(sourceRoot)).not.toContain('workbuddy.db-shm')
     const prepared = await service.preview(
       'window',
       scan.scanId,

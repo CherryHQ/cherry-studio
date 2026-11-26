@@ -39,7 +39,7 @@ Codex 还会只读扫描 `thread_history_1.sqlite` 的 `thread_items`。按线�
 `opencode.ts` 在只读 SQLite 事务中读取同一快照。识别旧版 session/message/part，以及新版 session_v2/session_message，后者可带 session_part。只列出含消息的会话。按 seq 或旧版 time_created、id 排序。版本夹具为 1.2.0 和 2.2.5；新版结构依据 anomalyco/opencode 的 1bf08ae46a91f7793c756e4ee521e37b6b554064。旧版结构依据该提交的 v1-migration 源类型。夹具为合成数据，不能替代真实安装版验证。回退、继承 fork、压缩和未知表结构均明确拒绝。数据库指纹覆盖被选会话的逻辑快照，包含 WAL 已提交行，不要求复制数据库。
 
 `workbuddy.ts` 关联只读 sessions 索引和 projects 下的直属 JSONL。结构依据为 Windows 桌面 5.9.3 与运行时 2.165.0 的本地样本。支持顶层正文、rawContent 思考及静态工具记录；缺少本地正文、未知附件和不完整父链会阻止导入。不同路径分隔符按来源平台语法比较。索引行和正文共同参与指纹；无关行更新不使预览失效。
-WAL 模式要求现有 WAL/SHM 边文件，避免只读打开时创建来源边文件。无法安全读取时明确拒绝，不 checkpoint 或修复来源。
+WorkBuddy 读取活动 WAL 数据库时要求 WAL 和 SHM 文件齐全。正常关闭后，两者都不存在时以只读快照打开索引，查询后复核文件状态。只剩一个辅助文件时提示重试。
 WorkBuddy 入口仅在开发环境可操作，正式构建保持禁用。三平台真实来源和打包验收尚未完成。此限制不代表读取器已覆盖所有发布版本。
 
 WorkBuddy 优先保存 providerData.model 中的实际模型。快速／均衡属于请求路由；只有路由信息时明确标为 WorkBuddy 路由名称，不猜测实际模型。
