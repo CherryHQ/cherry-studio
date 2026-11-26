@@ -31,12 +31,14 @@ import { getMessageListItemModel, toMessageListItem } from '@renderer/components
 import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import { ipcApi } from '@renderer/ipc'
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { PartOverrides, type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { extractAgentSessionId } from '@shared/ai/agentSessionTopic'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { AgentSessionHistoryActions } from '@shared/data/api/schemas/agentSessionMessages'
@@ -69,42 +71,43 @@ export function scrollAgentMessageListToEnd(topicId: string): void {
 
 function withTerminalErrorFallback(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>,
+  partsByMessageId: MessagePartRows,
   noResponseMessage: string
-): Record<string, CherryMessagePart[]> {
-  let next = partsByMessageId
+): MessagePartRows {
+  const replacements = new Map<string, CherryMessagePart[]>()
 
   for (const message of messages) {
     if (message.role !== 'assistant') continue
     const status = message.metadata?.status
-    const parts = partsByMessageId[message.id] ?? message.parts ?? []
-    const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
+    const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts ?? []
+    const resolvedParts = messageProjectionService.ownsRowParts(parts)
+      ? messageProjectionService.readParts(parts)
+      : parts
+    const hasVisiblePart = resolvedParts.some((part) => !isHiddenPart(part))
     if (message.metadata?.importedHistory) {
       if (status === 'error' || !hasVisiblePart) {
-        if (next === partsByMessageId) next = { ...partsByMessageId }
-        next[message.id] = [
-          ...parts,
+        replacements.set(message.id, [
+          ...resolvedParts,
           { type: 'data-imported-status', data: { status: message.metadata.importedHistory.status } }
-        ]
+        ])
       }
       continue
     }
     const needsFallback =
-      (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
+      (status === 'error' && !resolvedParts.some((part) => part.type === 'data-error')) ||
       (status === 'success' && !hasVisiblePart)
     if (!needsFallback) continue
 
-    if (next === partsByMessageId) next = { ...partsByMessageId }
-    next[message.id] = [
-      ...parts,
+    replacements.set(message.id, [
+      ...resolvedParts,
       {
         type: 'data-error',
         data: { name: 'AgentRuntimeError', message: noResponseMessage, stack: null }
       }
-    ]
+    ])
   }
 
-  return next
+  return replacements.size ? new PartOverrides(partsByMessageId, replacements) : partsByMessageId
 }
 
 export function locateAgentMessageInList(topicId: string, messageId: string, highlight?: boolean): boolean {
@@ -120,7 +123,7 @@ interface AgentMessageListParams {
   topic: Topic
   messages: CherryUIMessage[]
   historyActions?: Readonly<Record<string, AgentSessionHistoryActions | undefined>>
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers?: MessageStreamingLayers
   assistantProfile?: MessageUserProfile & { id?: string }
   assistantId?: string
@@ -254,7 +257,7 @@ export function useAgentMessageListProviderValue({
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
-        const parts = displayPartsByMessageId[message.id] ?? message.parts ?? []
+        const parts = messagePartsAt(displayPartsByMessageId, message.id) ?? message.parts ?? []
         if (parts.length === 0) return true
         return parts.some((part) => !hasPartParentToolCallId(part))
       }),
@@ -460,7 +463,12 @@ export function useAgentMessageListProviderValue({
     [sessionId, t, notifyError]
   )
   const agentRenderConfig = useMemo(
-    () => ({ ...renderConfig, keepIntermediateAssistantText: true, expandToolSteps: true }),
+    () => ({
+      ...renderConfig,
+      keepIntermediateAssistantText: true,
+      expandToolSteps: false,
+      expandLiveToolSteps: true
+    }),
     [renderConfig]
   )
   const state = useMemo<MessageListState>(
@@ -515,7 +523,7 @@ export function useAgentMessageListProviderValue({
       void EventEmitter.emit(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, {
         topicId: topic.id,
         messageId: message.id,
-        parts: partsByMessageId[message.id] ?? [],
+        parts: messagePartsAt(partsByMessageId, message.id) ?? [],
         send
       }),
     [partsByMessageId, topic.id]

@@ -4,6 +4,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
   findOpenTextTailIndex,
+  type MessagePartLayoutItem,
   type PartEntry,
   projectCompletedMessageParts,
   projectLiveMessageParts
@@ -15,6 +16,14 @@ function entries(parts: readonly Record<string, unknown>[]): PartEntry[] {
 
 function indexes(items: readonly PartEntry[]): number[] {
   return items.map((entry) => entry.index)
+}
+
+function historyEntries(items: readonly MessagePartLayoutItem[]): PartEntry[] {
+  return items.flatMap((item) => (item.kind === 'process' ? item.entries : []))
+}
+
+function inlineEntries(items: readonly MessagePartLayoutItem[]): PartEntry[] {
+  return items.flatMap((item) => (item.kind === 'part' ? [item.entry] : []))
 }
 
 function generateImagePart(toolName: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -108,9 +117,10 @@ describe('projectLiveMessageParts', () => {
       ['part', 0],
       ['process', 1],
       ['part', 2],
+      ['process', 3],
       ['part', 4]
     ])
-    expect(layout[1].kind === 'process' ? indexes(layout[1].entries) : []).toEqual([1, 3])
+    expect(indexes(historyEntries(layout))).toEqual([1, 3])
   })
 
   it('keeps approval-backed AskUserQuestion direct', () => {
@@ -179,6 +189,12 @@ describe('projectLiveMessageParts', () => {
 
     expect(hiddenOnly).toEqual([])
     expect(emptyReasoning).toEqual([])
+  })
+
+  it('keeps an addressed open text row mounted before the first suffix arrives', () => {
+    const entry = { part: { type: 'text', text: '', state: 'streaming' }, index: 0, partId: 'reply' } as const
+    expect(projectLiveMessageParts([entry])).toEqual([{ kind: 'part', key: 'reply', entry }])
+    expect(projectLiveMessageParts([{ ...entry, part: { ...entry.part, state: 'done' } }])).toEqual([])
   })
 
   it('does not let empty settled text or reasoning split a continuous tool run', () => {
@@ -295,16 +311,18 @@ describe('projectCompletedMessageParts', () => {
     const before = projectCompletedMessageParts(parts)
     const after = projectCompletedMessageParts(parts, { keepIntermediateAssistantText: true })
 
-    expect(nonTextIndexes(after.historyEntries)).toEqual(nonTextIndexes(before.historyEntries))
-    expect(nonTextIndexes(after.resultEntries)).toEqual(nonTextIndexes(before.resultEntries))
+    expect(nonTextIndexes(historyEntries(after.items))).toEqual(nonTextIndexes(historyEntries(before.items)))
+    expect(nonTextIndexes(inlineEntries(after.items))).toEqual(nonTextIndexes(inlineEntries(before.items)))
     expect(indexes(after.reportEntries)).toEqual(indexes(before.reportEntries))
-    expect(indexes(after.historyEntries)).toContain(6)
-    expect(indexes(after.resultEntries)).toContain(10)
-    expect(indexes(after.resultEntries)).toContain(11)
+    expect(indexes(historyEntries(after.items))).toContain(6)
+    expect(indexes(inlineEntries(after.items))).toContain(10)
+    expect(indexes(inlineEntries(after.items))).toContain(11)
     expect(indexes(after.reportEntries)).toEqual([15])
-    expect(after.resultEntries.filter((entry) => entry.part.type === 'text').map((entry) => entry.index)).toEqual([
-      0, 16
-    ])
+    expect(
+      inlineEntries(after.items)
+        .filter((entry) => entry.part.type === 'text')
+        .map((entry) => entry.index)
+    ).toEqual([0, 16])
   })
 
   it('keeps prose between successive tools in the response lane when enabled', () => {
@@ -319,8 +337,8 @@ describe('projectCompletedMessageParts', () => {
       { keepIntermediateAssistantText: true }
     )
 
-    expect(indexes(layout.historyEntries)).toEqual([1, 3])
-    expect(indexes(layout.resultEntries)).toEqual([0, 2, 4])
+    expect(indexes(historyEntries(layout.items))).toEqual([1, 3])
+    expect(indexes(inlineEntries(layout.items))).toEqual([0, 2, 4])
   })
 
   it('keeps the existing split with the switch off across two tool calls', () => {
@@ -335,8 +353,8 @@ describe('projectCompletedMessageParts', () => {
       { keepIntermediateAssistantText: false }
     )
 
-    expect(indexes(layout.historyEntries)).toEqual([0, 1, 2, 3])
-    expect(indexes(layout.resultEntries)).toEqual([4])
+    expect(indexes(historyEntries(layout.items))).toEqual([0, 1, 2, 3])
+    expect(indexes(inlineEntries(layout.items))).toEqual([4])
   })
 
   it.each([
@@ -356,11 +374,11 @@ describe('projectCompletedMessageParts', () => {
     const before = projectCompletedMessageParts(original)
     expect(projectCompletedMessageParts([...original, marker])).toEqual({
       ...before,
-      resultEntries: [...before.resultEntries, marker]
+      items: [...before.items, { kind: 'part', key: marker.index, entry: marker }]
     })
   })
 
-  it('keeps the last substantive answer and associated values outside history despite trailing tools', () => {
+  it('keeps prose and attachments in place when a reply ends in further process activity', () => {
     const layout = projectCompletedMessageParts(
       entries([
         { type: 'text', text: 'Initial narration' },
@@ -373,11 +391,11 @@ describe('projectCompletedMessageParts', () => {
       ])
     )
 
-    expect(indexes(layout.resultEntries)).toEqual([2, 3, 4])
-    expect(indexes(layout.historyEntries)).toEqual([0, 1, 5, 6])
+    expect(indexes(inlineEntries(layout.items))).toEqual([])
+    expect(indexes(historyEntries(layout.items))).toEqual([0, 1, 2, 3, 4, 5, 6])
   })
 
-  it('keeps interleaved answer values in the same terminal result run', () => {
+  it('keeps interleaved attachments with prose in a tool-ended process', () => {
     const layout = projectCompletedMessageParts(
       entries([
         { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
@@ -388,8 +406,8 @@ describe('projectCompletedMessageParts', () => {
       ])
     )
 
-    expect(indexes(layout.historyEntries)).toEqual([0, 4])
-    expect(indexes(layout.resultEntries)).toEqual([1, 2, 3])
+    expect(indexes(historyEntries(layout.items))).toEqual([0, 1, 2, 3, 4])
+    expect(indexes(inlineEntries(layout.items))).toEqual([])
   })
 
   it('does not let hidden transport markers split associated final-answer values', () => {
@@ -398,13 +416,12 @@ describe('projectCompletedMessageParts', () => {
         { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
         { type: 'text', text: 'Final answer' },
         { type: 'data-citation', data: {} },
-        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
-        { type: 'dynamic-tool', toolCallId: 'cleanup', toolName: 'Cleanup', state: 'output-available' }
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' }
       ])
     )
 
-    expect(indexes(layout.historyEntries)).toEqual([0, 4])
-    expect(indexes(layout.resultEntries)).toEqual([1, 2, 3])
+    expect(indexes(historyEntries(layout.items))).toEqual([0])
+    expect(indexes(inlineEntries(layout.items))).toEqual([1, 3])
   })
 
   it('leaves pure text entirely in the result', () => {
@@ -416,8 +433,8 @@ describe('projectCompletedMessageParts', () => {
       ])
     )
 
-    expect(indexes(layout.resultEntries)).toEqual([0, 1, 2])
-    expect(layout.historyEntries).toEqual([])
+    expect(indexes(inlineEntries(layout.items))).toEqual([0, 1, 2])
+    expect(historyEntries(layout.items)).toEqual([])
   })
 
   it('does not let an empty settled tail replace the last substantive answer', () => {
@@ -429,8 +446,8 @@ describe('projectCompletedMessageParts', () => {
       ])
     )
 
-    expect(indexes(layout.resultEntries)).toEqual([1])
-    expect(indexes(layout.historyEntries)).toEqual([0])
+    expect(indexes(inlineEntries(layout.items))).toEqual([1])
+    expect(indexes(historyEntries(layout.items))).toEqual([0])
   })
 
   it('lets an associated result value cross an empty terminal content part', () => {
@@ -443,8 +460,8 @@ describe('projectCompletedMessageParts', () => {
       ])
     )
 
-    expect(indexes(layout.historyEntries)).toEqual([0])
-    expect(indexes(layout.resultEntries)).toEqual([1, 3])
+    expect(indexes(historyEntries(layout.items))).toEqual([0])
+    expect(indexes(inlineEntries(layout.items))).toEqual([1, 3])
   })
 
   it('removes only tool-bound ellipsis fillers from completed projection', () => {
@@ -463,10 +480,10 @@ describe('projectCompletedMessageParts', () => {
       ])
     )
 
-    expect(indexes(layout.historyEntries)).toEqual([0, 2])
-    expect(indexes(layout.resultEntries)).toEqual([3])
-    expect(indexes(ellipsisAnswer.historyEntries)).toEqual([0])
-    expect(indexes(ellipsisAnswer.resultEntries)).toEqual([1])
+    expect(indexes(historyEntries(layout.items))).toEqual([0, 2])
+    expect(indexes(inlineEntries(layout.items))).toEqual([3])
+    expect(indexes(historyEntries(ellipsisAnswer.items))).toEqual([0])
+    expect(indexes(inlineEntries(ellipsisAnswer.items))).toEqual([1])
   })
 
   it('keeps a value-only response and a final value tail outside process history', () => {
@@ -485,13 +502,13 @@ describe('projectCompletedMessageParts', () => {
       ])
     )
 
-    expect(indexes(pureValues.resultEntries)).toEqual([0, 1, 2])
-    expect(pureValues.historyEntries).toEqual([])
-    expect(indexes(trailingValues.historyEntries)).toEqual([0])
-    expect(indexes(trailingValues.resultEntries)).toEqual([1, 2])
+    expect(indexes(inlineEntries(pureValues.items))).toEqual([0, 1, 2])
+    expect(historyEntries(pureValues.items)).toEqual([])
+    expect(indexes(historyEntries(trailingValues.items))).toEqual([0])
+    expect(indexes(inlineEntries(trailingValues.items))).toEqual([2])
   })
 
-  it('preserves an interleaved AskUser boundary inside completed history', () => {
+  it('preserves an interleaved AskUser boundary between completed tool groups', () => {
     const layout = projectCompletedMessageParts(
       entries([
         { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
@@ -506,11 +523,15 @@ describe('projectCompletedMessageParts', () => {
       ])
     )
 
-    expect(indexes(layout.historyEntries)).toEqual([0, 1, 2])
-    expect(indexes(layout.resultEntries)).toEqual([3])
+    expect(layout.items.map((item) => [item.kind, item.key])).toEqual([
+      ['process', 0],
+      ['part', 1],
+      ['process', 2],
+      ['part', 3]
+    ])
   })
 
-  it('does not let AskUserQuestion split adjacent main text', () => {
+  it('keeps the introduction and search narration on either side of AskUserQuestion after Stop', () => {
     const layout = projectCompletedMessageParts(
       entries([
         { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
@@ -521,13 +542,16 @@ describe('projectCompletedMessageParts', () => {
           toolName: 'AskUserQuestion',
           state: 'output-available'
         },
-        { type: 'reasoning', text: 'Waiting for input', state: 'done' },
-        { type: 'text', text: 'Waiting for your choice' }
+        { type: 'text', text: 'I will search now' },
+        { type: 'dynamic-tool', toolCallId: 'search', toolName: 'Search', state: 'output-error' }
       ])
     )
 
-    expect(indexes(layout.historyEntries)).toEqual([0, 2, 3])
-    expect(indexes(layout.resultEntries)).toEqual([1, 4])
+    expect(layout.items.map((item) => (item.kind === 'process' ? indexes(item.entries) : item.entry.index))).toEqual([
+      [0, 1],
+      2,
+      [3, 4]
+    ])
   })
 
   it('extracts report_artifacts without letting it split the final answer result', () => {
@@ -545,8 +569,8 @@ describe('projectCompletedMessageParts', () => {
       ])
     )
 
-    expect(indexes(layout.historyEntries)).toEqual([0])
-    expect(indexes(layout.resultEntries)).toEqual([1, 3])
+    expect(indexes(historyEntries(layout.items))).toEqual([0])
+    expect(indexes(inlineEntries(layout.items))).toEqual([1, 3])
     expect(indexes(layout.reportEntries)).toEqual([2])
   })
 })
@@ -576,6 +600,6 @@ it('preserves imported reasoning and tool chronology outside the answer lane', (
     { type: 'data-imported-status', data: { status: 'INCOMPLETE' } }
   ])
   const layout = projectCompletedMessageParts(parts, { keepIntermediateAssistantText: true })
-  expect(indexes(layout.historyEntries)).toEqual([0, 1, 2, 3])
-  expect(indexes(layout.resultEntries)).toEqual([4, 5])
+  expect(indexes(historyEntries(layout.items))).toEqual([0, 1, 2, 3])
+  expect(indexes(inlineEntries(layout.items))).toEqual([4, 5])
 })

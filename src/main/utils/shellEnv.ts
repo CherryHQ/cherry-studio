@@ -322,13 +322,40 @@ function loadShellEnv(): Promise<Record<string, string>> {
   // is always populated and `inflight` always cleared.
   inflight = fetchShellEnv()
     .then((env) => {
-      cachedEnv = env
-      return env
+      cachedEnv = stripNullBytes(env)
+      return cachedEnv
     })
     .finally(() => {
       inflight = null
     })
   return inflight
+}
+
+/**
+ * Node's child_process validates spawn env values and rejects embedded NUL bytes;
+ * a Windows registry PATH (REG_EXPAND_SZ) or a corrupted profile can carry them,
+ * which otherwise fails every spawn with `must be a string without null bytes`.
+ */
+function stripNullBytes(env: Record<string, string>): Record<string, string> {
+  let stripped = false
+  const out: Record<string, string> = {}
+  for (const key of Object.keys(env)) {
+    if (key.includes('\0')) {
+      stripped = true
+      continue
+    }
+    const value = env[key]
+    if (value.includes('\0')) {
+      out[key] = value.replace(/\0/g, '')
+      stripped = true
+    } else {
+      out[key] = value
+    }
+  }
+  if (stripped) {
+    logger.warn('Captured shell environment contained NUL bytes; stripped them from the cached env')
+  }
+  return out
 }
 
 /**
@@ -342,7 +369,7 @@ function loadShellEnv(): Promise<Record<string, string>> {
 export async function getRawShellEnv(signal?: AbortSignal): Promise<Record<string, string>> {
   signal?.throwIfAborted()
   // A cancellable cold query owns its shell; aborting it must not poison the shared app cache.
-  const env = cachedEnv ?? (await (signal ? getLoginShellEnvironment(signal) : loadShellEnv()))
+  const env = cachedEnv ?? (await (signal ? getLoginShellEnvironment(signal).then(stripNullBytes) : loadShellEnv()))
   signal?.throwIfAborted()
   cachedEnv ??= env
   return { ...env }

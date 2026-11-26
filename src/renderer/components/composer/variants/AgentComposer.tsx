@@ -51,6 +51,7 @@ import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
+import { useAgentSessionStreamTopic } from '@renderer/hooks/agent/useAgentSessionStreamTopic'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
@@ -80,6 +81,7 @@ import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart, CherryUIMessage, FileUIPart } from '@shared/data/types/message'
@@ -94,6 +96,8 @@ import { excludeComposerDraftTokens } from '../composerDraft'
 import type { ComposerInputFilePreviewAction } from '../filePreview'
 import { createComposerFolderToken } from '../folderToken'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
+import { NativeQueuedFollowups } from '../NativeQueuedFollowups'
+import { ProviderQuotaNotice } from '../ProviderQuotaNotice'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
@@ -184,6 +188,7 @@ export interface AgentComposerSendBody {
   reasoningEffort?: ThinkingOption
   serviceTier?: ServiceTierSelection
   fastMode?: boolean
+  followUp?: boolean
 }
 
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
@@ -221,6 +226,8 @@ type Props = {
   launchOptions?: AgentComposerLaunchOptions
   /** Sends during a running turn steer it instead of queueing, for windows that cannot keep a queue alive. */
   steerWhileBusy?: boolean
+  /** The latest reply failed because a provider other than Cherry Cloud ran out of quota. */
+  providerQuotaExhausted?: boolean
 }
 
 type AgentComposerRootProps = Props & {
@@ -253,6 +260,7 @@ const AgentComposerRoot = ({
   previewInputFile,
   launchOptions,
   steerWhileBusy = false,
+  providerQuotaExhausted = false,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -413,6 +421,7 @@ const AgentComposerRoot = ({
         previewInputFile={previewInputFile}
         launchOptions={launchOptions}
         steerWhileBusy={steerWhileBusy}
+        providerQuotaExhausted={providerQuotaExhausted}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
         deferQuickPanel={deferQuickPanel}
@@ -458,6 +467,7 @@ interface InnerProps {
   previewInputFile?: ComposerInputFilePreviewAction
   launchOptions?: AgentComposerLaunchOptions
   steerWhileBusy: boolean
+  providerQuotaExhausted: boolean
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
   deferQuickPanel?: boolean
@@ -539,6 +549,7 @@ const AgentComposerInner = ({
   previewInputFile,
   launchOptions,
   steerWhileBusy,
+  providerQuotaExhausted,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false,
@@ -547,6 +558,12 @@ const AgentComposerInner = ({
   const { updateAgent } = useUpdateAgent()
   const quotaExhaustion = useCherryCloudQuotaExhaustion(model, true)
   const quotaBlocksSend = !!quotaExhaustion && quotaExhaustion.reason !== 'unknown'
+  // Once the user has moved to a Cherry Cloud model, the subscription suggestion has served its purpose.
+  const showProviderQuotaNotice =
+    providerQuotaExhausted &&
+    !isStreaming &&
+    !quotaExhaustion &&
+    !(model && isManagedCherryCloudModel(model.providerId))
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -635,6 +652,16 @@ const AgentComposerInner = ({
   const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
   const [text, setTextState] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
+  const requestCommands = useCallback(() => {
+    if (agent?.type === 'claude-code' && sessionId)
+      void ipcApi
+        .request('ai.agent.session.commands', { sessionId })
+        .catch((error) => logger.warn('Could not load session commands', { error }))
+  }, [agent?.type, sessionId])
+  const usingSlash = text.startsWith('/')
+  useEffect(() => {
+    if (usingSlash) requestCommands()
+  }, [usingSlash, requestCommands])
   const supportsPlan = !!agent && getPermissionModeCards(agent.type).some((card) => card.mode === 'plan')
   const nativeFollowUp = !!agent && AGENT_RUNTIME_CAPABILITIES[agent.type].nativeFollowUp
   const [isDirectSending, setIsDirectSending] = useState(false)
@@ -1069,7 +1096,7 @@ const AgentComposerInner = ({
     })
   }, [refreshAvailableSkills])
 
-  useComposerQuoteInsertion(actionsRef)
+  useComposerQuoteInsertion(actionsRef, sessionTopicId, !launchOptions?.editing)
   useComposerSelectionReferenceInsertion(actionsRef, sessionTopicId)
   useComposerPrefill(actionsRef, {
     topicId: sessionTopicId,
@@ -1433,7 +1460,8 @@ const AgentComposerInner = ({
   ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
-  const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(sessionTopicId)
+  const runtimeTopicId = useAgentSessionStreamTopic(sessionId)
+  const { status: sessionStatus, lastCompletedAt } = useTopicStreamStatus(runtimeTopicId)
   const {
     items: queuedFollowups,
     enqueue: enqueueFollowup,
@@ -1638,7 +1666,10 @@ const AgentComposerInner = ({
         id: 'slash-commands',
         label: slashCommandsLabel,
         icon: <Terminal size={18} aria-hidden />,
-        onSelect: ({ unifiedPanelControl }) => unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+        onSelect: ({ unifiedPanelControl }) => {
+          requestCommands()
+          unifiedPanelControl?.open({ searchText: slashCommandsLabel })
+        }
       },
       {
         id: ComposerPanelSymbol.McpStatus,
@@ -1649,7 +1680,15 @@ const AgentComposerInner = ({
           unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }
     ]
-  }, [handleCreateEmptySession, hasNewSessionAction, mcpToolbarActive, screenshotEnabled, startScreenshot, t])
+  }, [
+    handleCreateEmptySession,
+    hasNewSessionAction,
+    mcpToolbarActive,
+    requestCommands,
+    screenshotEnabled,
+    startScreenshot,
+    t
+  ])
 
   const renderQuickPanelShortcuts = useCallback(
     ({
@@ -1778,6 +1817,7 @@ const AgentComposerInner = ({
           queueContent={
             <>
               {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
+              {showProviderQuotaNotice ? <ProviderQuotaNotice /> : null}
               {compaction.status === 'failed' && (
                 <Alert
                   type="warning"
@@ -1787,6 +1827,9 @@ const AgentComposerInner = ({
                   description={compaction.error}
                 />
               )}
+              {nativeFollowUp && !launchOptions?.editing ? (
+                <NativeQueuedFollowups key={runtimeTopicId} topicId={runtimeTopicId} />
+              ) : null}
               {queuedFollowups.length > 0 ? (
                 <QueuedFollowupsDock
                   items={queuedFollowups}
