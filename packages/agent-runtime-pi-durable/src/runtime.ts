@@ -323,7 +323,12 @@ export async function createPiDurableRuntime(
     } catch (cleanupError) {
       report(cleanupError)
     }
-    return { status: 'unknown', error: error('initialize', 'native-error') }
+    const failure = error('initialize', 'native-error')
+    const detail = cause instanceof Error ? cause.message : typeof cause === 'string' ? cause : ''
+    return {
+      status: 'unknown',
+      error: detail.trim() ? { ...failure, message: `${failure.message} — ${detail.trim()}` } : failure
+    }
   }
   const committedStorage = storage
   const native = harness

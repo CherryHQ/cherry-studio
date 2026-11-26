@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url'
 
 import type { Options, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
+import { validate as isUuid } from 'uuid'
 
 import { application } from '@application'
 import {
@@ -40,7 +41,7 @@ import {
   withAgentContext,
   wrapAgentSessionDeliveryContent
 } from '@main/ai/runtime/agentUserContent'
-import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
+import { claudeBranchQueryIdentity, prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { probeReadable } from '@main/utils/file'
@@ -66,6 +67,7 @@ import type {
   AgentSessionRuntimeDriver,
   AgentSessionUsageCapture
 } from '../types'
+import { type UnavailableNativeContext, unavailableNativeContext } from '../types'
 import {
   buildClaudeCodeQueryRequestForAgentSession,
   type ConnectionConfig,
@@ -180,12 +182,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.resumeToken = input.resumeToken
   }
 
-  async start(): Promise<this> {
+  async start(): Promise<this | UnavailableNativeContext> {
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
+    const storedResume = messages.getLastRuntimeResumeToken(this.input.sessionId, this.input.branchHead)
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
-      this.resumeToken ?? messages.getLastRuntimeResumeToken(this.input.sessionId, this.input.branchHead),
+      storedResume,
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
@@ -204,17 +207,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.context = prepareClaudeBranch(
       this.input.sessionId,
       resolveClaudeConfigDirectory(request.options.env),
-      request.options.resume ?? this.input.nativeSessionId,
-      this.input.branchHead
+      storedResume ?? undefined,
+      this.input.branchHead,
+      true
     )
+    if (!this.context.nativeThreadId || !isUuid(this.context.nativeThreadId))
+      return unavailableNativeContext(this.context, 'Invalid Claude session identity')
 
     const traceEnv = await this.prepareTraceEnv()
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
     const options: Options = {
       ...request.options,
-      ...(request.options.resume || this.context.bindingState === 'bound'
-        ? { resume: request.options.resume ?? this.context.nativeThreadId! }
-        : { sessionId: this.context.nativeThreadId! }),
+      ...claudeBranchQueryIdentity(this.context, storedResume ?? undefined),
       ...(traceEnv
         ? {
             env: {
@@ -226,6 +230,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       abortController: this.abortController,
       spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(coldProcessDiagnostics)
     }
+    if (!options.resume) this.resumeToken = undefined
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
     // which is exactly what tracing needs (env is fixed at spawn). No trace branch required here.
@@ -265,6 +270,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const opened = resume
       ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(resume) })
       : await this.runtime.create(config)
+    if (opened.status === 'rejected' && opened.error.code === 'native-storage-missing')
+      return unavailableNativeContext(this.context, opened.error.message)
     if (opened.status !== 'confirmed') throw new Error(opened.error.message)
     this.handle = opened.value
     this.sdkModelId = request.sdkModelId
@@ -294,6 +301,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     )
     if (started.status !== 'confirmed') throw new Error(started.error.message)
+    if (resume) this.updateResumeToken(resume)
     this.parkedQuery = undefined
     return this
   }
@@ -1307,9 +1315,20 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
-    const connection = new ClaudeCodeRuntimeConnection(input)
+    let connection = new ClaudeCodeRuntimeConnection(input)
     try {
-      return await connection.start()
+      const opened = await connection.start()
+      if (!('status' in opened)) return opened
+      await connection.close()
+      contexts.rebuildFileBranch(opened.context)
+      logger.warn('Rebuilding Claude context from session messages', {
+        sessionId: input.sessionId,
+        reason: opened.reason
+      })
+      connection = new ClaudeCodeRuntimeConnection(input)
+      const rebuilt = await connection.start()
+      if (!('status' in rebuilt)) return rebuilt
+      throw new Error(rebuilt.reason)
     } catch (error) {
       logAiFailure(logger, 'Claude Code startup failed', error, 'agent.claude.start', classifyClaudeFailure(error))
       await connection.close()

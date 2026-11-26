@@ -17,6 +17,8 @@ import { runtimeId, type InputState } from '@cherrystudio/agent-runtime'
 import type { PiThreadHandle } from '@cherrystudio/agent-runtime-pi'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextTable } from '@data/db/schemas/agentSessionContext'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
@@ -25,6 +27,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { savedChildView } from '@main/ai/agentSession/childArchive'
 import { childTimelines } from '@main/ai/agentSession/childTimelines'
 import { prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
+import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { checkCommand } from '@main/ai/toolApproval/commandPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
@@ -50,6 +53,7 @@ import type { PiConnectionSnapshot } from './piConnectionSignature'
 import type * as PiMcpExtension from './piMcpExtension'
 import { buildPiMcpToolName } from './piMcpExtension'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
+import { PiRuntimeDriver } from './PiRuntimeDriver'
 import { buildPiLoginPathPrefix } from './piShell'
 
 const modelId = 'test::test-model'
@@ -223,8 +227,11 @@ describe('desktop Pi root connection', () => {
       message: { id: uuid(), role: 'user', data: { parts: [{ type: 'text', text }] } }
     })
   }
-  async function connect() {
-    const connection = await new PiRuntimeConnection(input).start()
+  async function connect(rebuild = false) {
+    const connection = rebuild
+      ? await new PiRuntimeDriver().connect(input)
+      : await new PiRuntimeConnection(input).start()
+    if ('status' in connection) throw new Error(connection.reason)
     connections.push(connection)
     const nativeInputs: InputState[] = []
     const handle = (connection as unknown as { handle: PiThreadHandle }).handle
@@ -1270,7 +1277,7 @@ describe('desktop Pi root connection', () => {
     expect(JSON.stringify(script.calls[1].messages)).toContain('native tool result')
   })
 
-  it('rejects missing or ambiguous history without creating a replacement', async () => {
+  it('reports missing or ambiguous history without creating a replacement', async () => {
     const { connection, events } = await connect()
     await connection.send({ message: message('save history') })
     await done(events)
@@ -1280,10 +1287,116 @@ describe('desktop Pi root connection', () => {
       application.getPath('feature.agents.pi.sessions', file),
       application.getPath('feature.agents.pi.sessions', `copy_${file}`)
     )
-    await expect(connect()).rejects.toThrow('ambiguous')
+    await expect(new PiRuntimeConnection(input).start()).resolves.toMatchObject({
+      status: 'native-context-unavailable',
+      reason: 'Pi session identity is ambiguous'
+    })
     for (const file of nativeFiles()) rmSync(application.getPath('feature.agents.pi.sessions', file))
-    await expect(connect()).rejects.toThrow('missing')
+    await expect(new PiRuntimeConnection(input).start()).resolves.toMatchObject({
+      status: 'native-context-unavailable',
+      reason: 'Pi session history is missing'
+    })
     expect(nativeFiles()).toEqual([])
+  })
+
+  it.each(['missing file', 'ambiguous files', 'mismatched file identity', 'missing binding', 'invalid token'])(
+    'rebuilds Pi context from the selected product history after %s',
+    async (failure) => {
+      const first = await connect()
+      const original = contexts.context(first.connection.contextId!)
+      const previous = message('Remember the blue notebook')
+      await first.connection.send({ message: previous })
+      await done(first.events)
+      const answer = messages.saveMessage({
+        sessionId: input.sessionId,
+        runtimeResumeToken: original.nativeThreadId!,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Notebook saved' }] } }
+      })
+      await first.connection.close()
+      input.branchHead = answer.id
+      const file = nativeFiles()[0]
+      const path = application.getPath('feature.agents.pi.sessions', file)
+      if (failure === 'missing file') rmSync(path)
+      if (failure === 'ambiguous files')
+        copyFileSync(path, application.getPath('feature.agents.pi.sessions', `copy_${file}`))
+      if (failure === 'mismatched file identity') {
+        const [header, ...entries] = readFileSync(path, 'utf8').split('\n')
+        writeFileSync(path, [JSON.stringify({ ...JSON.parse(header), id: uuid() }), ...entries].join('\n'))
+      }
+      if (failure === 'missing binding') {
+        dbh.db.transaction((tx) => contexts.detachBranchTx(tx, original.id))
+        rmSync(path)
+      }
+      if (failure === 'invalid token') {
+        input.resumeToken = '../invalid'
+        dbh.db
+          .update(agentSessionContextTable)
+          .set({ nativeThreadId: input.resumeToken })
+          .where(eq(agentSessionContextTable.id, original.id))
+          .run()
+      }
+
+      const next = message('What should you remember?')
+      if (failure === 'missing file') {
+        dbh.db.transaction((tx) => {
+          messages.bindInputContextTx(tx, input.sessionId, next.id, original.id)
+          tx.update(agentSessionMessageTable)
+            .set({ nativeInputId: 'stale-input' })
+            .where(eq(agentSessionMessageTable.id, next.id))
+            .run()
+        })
+      }
+      setScript([assistantReply('Context recovered')])
+      const rebuilt = await connect(true)
+      expect(rebuilt.connection.contextId).not.toBe(original.id)
+      expect(script.calls).toHaveLength(0)
+      await rebuilt.connection.send({
+        message: next,
+        context: await readSessionHistory(input.sessionId, next.id, rebuilt.connection.contextId)
+      })
+      await done(rebuilt.events)
+      expect(text(rebuilt.events)).toBe('Context recovered')
+      const request = JSON.stringify(script.calls[0].messages)
+      expect(request).toContain('Remember the blue notebook')
+      expect(request).toContain('Notebook saved')
+      expect(messages.inputBinding(input.sessionId, next.id)).toMatchObject({ contextId: rebuilt.connection.contextId })
+      expect(messages.inputBinding(input.sessionId, next.id)?.nativeInputId).not.toBe('stale-input')
+      await rebuilt.connection.close()
+
+      input.resumeToken = original.nativeThreadId!
+      const reopened = await connect(true)
+      expect(reopened.connection.contextId).toBe(rebuilt.connection.contextId)
+      const followup = message('Continue again')
+      expect(await readSessionHistory(input.sessionId, followup.id, reopened.connection.contextId)).toBeUndefined()
+    }
+  )
+
+  it('reuses the original Pi history with a stale hint or missing product binding', async () => {
+    const first = await connect()
+    await first.connection.send({ message: message('Remember the blue notebook') })
+    await done(first.events)
+    const original = contexts.context(first.connection.contextId!)
+    const answer = messages.saveMessage({
+      sessionId: input.sessionId,
+      runtimeResumeToken: original.nativeThreadId!,
+      message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Hello world' }] } }
+    })
+    await first.connection.close()
+    input.branchHead = answer.id
+    input.resumeToken = 'stale-token'
+    const reopened = await connect(true)
+    expect(reopened.connection.contextId).toBe(original.id)
+    await reopened.connection.close()
+    dbh.db.transaction((tx) => contexts.detachBranchTx(tx, original.id))
+
+    const restored = await connect(true)
+    expect(contexts.context(restored.connection.contextId!).nativeThreadId).toBe(original.nativeThreadId)
+    const next = message('What should you remember?')
+    expect(await readSessionHistory(input.sessionId, next.id, restored.connection.contextId)).toBeUndefined()
+    await restored.connection.send({ message: next })
+    await done(restored.events)
+    expect(JSON.stringify(script.calls[1].messages)).toContain('Remember the blue notebook')
+    expect(nativeFiles()).toHaveLength(1)
   })
 
   it('never initializes a missing file for a prepared but unresolved submission', async () => {
@@ -1291,7 +1404,10 @@ describe('desktop Pi root connection', () => {
     const context = preparePiBranch(input.sessionId)
     prepareNativeSubmission(input.sessionId, user.id, context.id, 'reject')
     expect(context.bindingState).toBe('pending')
-    await expect(connect()).rejects.toThrow('missing')
+    await expect(new PiRuntimeConnection(input).start()).resolves.toMatchObject({
+      status: 'native-context-unavailable',
+      reason: 'Pi session history is missing'
+    })
     expect(nativeFiles()).toEqual([])
   })
 
