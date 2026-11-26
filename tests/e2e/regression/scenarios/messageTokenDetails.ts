@@ -208,6 +208,10 @@ export async function messageTokenDetails(app: RegressionApp, page: Page, testIn
     await card.getByRole('button', { name: 'Less details', exact: true }).click()
     await expect(card.getByTestId('message-performance-breakdown')).toBeHidden()
     const composer = chat.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
+    // The token-details hover card is a radix popper: while it is open its wrapper intercepts clicks on
+    // the composer. Park the pointer away and let the card close before typing.
+    await page.mouse.move(0, 0)
+    await expect(card).toBeHidden()
     await composer.click()
     await composer.fill('MP39 composer remains accessible')
     await expect(composer).toHaveText('MP39 composer remains accessible')
