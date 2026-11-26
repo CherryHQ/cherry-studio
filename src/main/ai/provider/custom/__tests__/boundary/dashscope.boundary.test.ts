@@ -410,13 +410,12 @@ describe('DashScope newly registered and dated image models', () => {
     })
   })
 
-  it('routes qwen-image-2.1-pro edit with reference images, n=2, seed=11, omitting auto size', async () => {
+  it('routes qwen-image-2.1-pro edit with reference images, n=2, seed=11, and no explicit size', async () => {
     const req = await captureImageRequest(transport, {
       ...base,
       modelId: 'qwen-image-2.1-pro',
       prompt: 'add warm rim light',
       n: 2,
-      size: 'auto' as unknown as ImageGenerationSubmitInput['size'],
       seed: 11,
       files: file([1, 2]),
       modelDescriptor: syncDescriptor('qwen-image-2.1-pro', 'edit'),
@@ -510,7 +509,7 @@ describe('DashScope newly registered and dated image models', () => {
       size: '1664x928',
       seed: 19,
       providerParams: { negativePrompt: 'blurry', promptExtend: true, addWatermark: false }
-    }
+    } satisfies ImageGenerationSubmitInput
 
     const catalogReq = await captureImageRequest(transport, {
       ...sharedInput,

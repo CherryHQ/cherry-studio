@@ -81,7 +81,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     // No persisted-task resume branch: `recovery: 'abandon'` means a job never
     // outlives the process that enqueued it, so every execution starts at submit.
     let urls: string[]
-    const submitInput = await buildSubmitInput(input, sdkConfig.modelId, ctx.signal)
+    const submitInput = await buildSubmitInput(input, sdkConfig, ctx.signal)
     // Built fresh every execution and held in memory only. Upstream persists this
     // to job metadata so a resumed run can still attribute its cost; with
     // `recovery: 'abandon'` no run outlives the process, so persisting it would be
@@ -144,16 +144,20 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
 
 async function buildSubmitInput(
   input: ImageGenerationJobPayload,
-  modelId: string,
+  { providerId, modelId }: { providerId: string; modelId: string },
   signal: AbortSignal
 ): Promise<ImageGenerationSubmitInput> {
   const files = input.inputFileIds?.length ? await Promise.all(input.inputFileIds.map(readImageFile)) : undefined
   const mask = input.maskFileId ? await readImageFile(input.maskFileId) : undefined
+  let size = input.size
+  if (providerId === 'dashscope' || providerId === 'qwencloud') {
+    size = size?.replace(/[*X]/, 'x').match(/^\d+x\d+$/)?.[0]
+  }
   return {
     modelId,
     prompt: input.prompt,
     n: input.n,
-    size: input.size as `${number}x${number}` | undefined,
+    size: size as ImageGenerationSubmitInput['size'],
     aspectRatio: input.aspectRatio as `${number}:${number}` | undefined,
     seed: input.seed,
     files,

@@ -225,6 +225,24 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(submitMock.mock.calls[0][0]).toMatchObject({ requestTimeoutMs: 15_000 })
   })
 
+  it.each([
+    ['dashscope', '1664*928', '1664x928'],
+    ['dashscope', '1664X928', '1664x928'],
+    ['dashscope', '1664x928', '1664x928'],
+    ['dashscope', 'auto', undefined],
+    ['dashscope', 'invalid', undefined],
+    ['qwencloud', '1664*928', '1664x928']
+  ])('normalizes %s job size %s to %s before submission', async (providerId, size, expectedSize) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({ config: { providerId, providerSettings: { apiKey: 'k' } } })
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/sized.png'] })
+    const ctx = createCtx()
+    ctx.input.size = size
+
+    await imageGenerationJobHandler.execute(ctx)
+
+    expect(submitMock.mock.calls[0][0].size).toBe(expectedSize)
+  })
+
   it('sync: submit(imageUrls) → no poll, and no metadata is persisted', async () => {
     submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/sync.png'] })
 
