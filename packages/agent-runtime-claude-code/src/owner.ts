@@ -578,7 +578,7 @@ export class ClaudeOwner {
     }
     if (message.type === 'assistant') {
       events.push(...projection.remove(message.supersedes ?? []))
-      events.push(...projection.message(message, { live: !agentId, aborted: message.aborted }))
+      events.push(...projection.message(message, { live: true, aborted: message.aborted }))
       for (const block of message.message.content)
         if (block.type === 'tool_use') this.toolOwners.set(block.id, projection)
     } else if (message.type === 'user') {
