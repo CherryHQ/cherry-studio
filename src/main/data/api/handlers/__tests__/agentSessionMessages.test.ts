@@ -75,6 +75,52 @@ describe('Agent session message reads', () => {
     })
   })
 
+  it('expands oversized text, inline media, and tool input without reading the other parts', async () => {
+    const huge = 'x'.repeat(64 * 1024)
+    const parts = [
+      { type: 'text' as const, text: 'start ' + huge + ' end' },
+      { type: 'file' as const, url: 'data:image/png;base64,' + huge, filename: 'inline.png', mediaType: 'image/png' },
+      {
+        type: 'dynamic-tool' as const,
+        toolName: 'Write',
+        toolCallId: 'write',
+        state: 'output-available' as const,
+        input: { content: huge },
+        output: { result: huge }
+      }
+    ]
+    const message = agentSessionMessageService.saveMessage({
+      sessionId,
+      message: { role: 'assistant', data: { parts } }
+    })
+    const params = { sessionId, messageId: message.id }
+    const compact = AgentSessionMessageEntitySchema.parse(
+      await detail.GET({ params, query: { deferToolOutputs: true } })
+    )
+    const partRoute = agentSessionMessageHandlers['/agent-sessions/:sessionId/messages/:messageId/parts/:partId']
+    const previews = compact.data.parts ?? []
+    expect(previews.map((part) => part.type)).toEqual(Array(3).fill('data-deferred-history-part'))
+    expect(JSON.stringify(compact).length).toBeLessThan(3000)
+
+    for (const [index, partId] of compact.partIds!.entries()) {
+      await expect(partRoute.GET({ params: { ...params, partId } })).resolves.toEqual(parts[index])
+    }
+    await expect(partRoute.GET({ params: { ...params, partId: 'missing' } })).rejects.toMatchObject({
+      code: 'NOT_FOUND'
+    })
+    await expect(
+      partRoute.GET({
+        params: { ...params, messageId: 'other', partId: compact.partIds![0] }
+      })
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(
+      partRoute.GET({
+        params: { ...params, sessionId: 'background', partId: compact.partIds![0] }
+      })
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(detail.GET({ params })).resolves.toMatchObject({ data: { parts } })
+  })
+
   it('reads the saved edit and rejects a patch attempting to set terminal status', async () => {
     const row = agentSessionMessageService.saveMessage({ sessionId, message: { role: 'user', data: { parts: [] } } })
     const params = { sessionId, messageId: row.id }

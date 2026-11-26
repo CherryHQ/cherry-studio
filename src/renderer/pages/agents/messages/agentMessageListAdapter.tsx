@@ -34,10 +34,12 @@ import { ipcApi } from '@renderer/ipc'
 import { messageProjectionService } from '@renderer/services/aiTransport'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
 import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
-import { formatErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { readVerbatimHistoryParts } from '@renderer/utils/message/deferredHistoryPart'
 import { PartOverrides, type MessagePartRows, messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { extractAgentSessionId } from '@shared/ai/agentSessionTopic'
 import type { ProjectionTarget } from '@shared/ai/messageProjection'
@@ -546,14 +548,23 @@ export function useAgentMessageListProviderValue({
   )
 
   const restoreUnsentMessage = useCallback(
-    (message: MessageListItem, send: boolean) =>
-      void EventEmitter.emit(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, {
-        topicId: topic.id,
-        messageId: message.id,
-        parts: messagePartsAt(partsByMessageId, message.id) ?? [],
-        send
-      }),
-    [partsByMessageId, topic.id]
+    async (message: MessageListItem, send: boolean) => {
+      try {
+        const cachedParts = messagePartsAt(partsByMessageId, message.id) ?? []
+        const parts = cachedParts.some((part) => part.type === 'data-deferred-history-part')
+          ? await readVerbatimHistoryParts(cachedParts)
+          : cachedParts
+        await EventEmitter.emit(EVENT_NAMES.RESTORE_AGENT_COMPOSER_MESSAGE, {
+          topicId: topic.id,
+          messageId: message.id,
+          parts,
+          send
+        })
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+      }
+    },
+    [partsByMessageId, t, topic.id]
   )
 
   const actions = useMemo<MessageListActions>(

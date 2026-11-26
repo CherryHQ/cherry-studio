@@ -151,6 +151,14 @@ export type CherryDataPartTypes = {
   clear: ClearPartData
   code: CodePartData
   retry: RetryPartData
+  'deferred-history-part': {
+    sessionId: string
+    messageId: string
+    partId: string
+    partType: string
+    excerpt: string
+    updatedAt: number
+  }
 }
 
 // ============================================================================

@@ -94,6 +94,7 @@ import BlockErrorFallback from './BlockErrorFallback'
 import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ConversationResetBlock from './ConversationResetBlock'
+import DeferredHistoryPartBlock from './DeferredHistoryPartBlock'
 import ErrorBlock from './ErrorBlock'
 import { ImportedStatusBlock } from './ImportedStatusBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
@@ -820,6 +821,14 @@ function renderPart(
       : undefined
 
   switch (partType) {
+    case 'data-deferred-history-part':
+      return (
+        <DeferredHistoryPartBlock
+          key={`${partId}:${part.data.updatedAt}`}
+          part={part.data}
+          renderPart={(fullPart) => renderPart(fullPart, partId, message, false, options)}
+        />
+      )
     case 'data-imported-status':
       return <ImportedStatusBlock key={partId} status={part.data.status} />
     case 'reasoning': {

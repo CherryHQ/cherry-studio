@@ -30,6 +30,9 @@ interface MessagePartsScopeValue {
 
 const MessagePartsScopeContext = createContext<MessagePartsScopeValue | null>(null)
 const ToolPartScopeContext = createContext<PartsMap>(null)
+export const MessageCapturePartsContext = createContext<((parts: CherryMessagePart[]) => () => void) | undefined>(
+  undefined
+)
 const MessageIdContext = createContext<string | undefined>(undefined)
 
 /**

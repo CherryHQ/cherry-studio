@@ -18,6 +18,25 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 const SQLITE_INARRAY_CHUNK = 500
+const DEFER_HISTORY_PART_BYTES = 32 * 1024
+const HISTORY_PART_EXCERPT_CHARS = 512
+
+function historyPartPayload() {
+  const { payload, type, sessionId, messageId, id, updatedAt } = messageParts
+  // octet_length(column) can use the SQLite record header for oversized values.
+  return sql`case when octet_length(${payload}) <= ${DEFER_HISTORY_PART_BYTES} then ${payload}
+    else json_object('type', 'data-deferred-history-part', 'data', json_object(
+      'sessionId', ${sessionId}, 'messageId', ${messageId}, 'partId', ${id},
+      'partType', substr(${type}, 1, 128), 'updatedAt', ${updatedAt},
+      'excerpt', coalesce(substr(case
+        when ${type} in ('text', 'reasoning') then json_extract(${payload}, '$.text')
+        when ${type} in ('data-code', 'data-compact', 'data-translation') then json_extract(${payload}, '$.data.content')
+        when ${type} = 'file' then json_extract(${payload}, '$.filename')
+        when ${type} = 'dynamic-tool' or ${type} like 'tool-%' then ${payload} -> '$.input'
+      end, 1, ${HISTORY_PART_EXCERPT_CHARS}), '')
+    ))
+  end`.mapWith(payload)
+}
 
 /** Message data assembled from the container row and its ordered part rows. */
 export type AgentSessionMessageData = AgentSessionMessageStoredData & { parts?: CherryMessagePart[] }
@@ -32,8 +51,9 @@ export type AgentSessionMessageRecord = WithAgentSessionMessageParts<AgentSessio
 export function attachAgentSessionMessagePartsTx<T extends { id: string; data: AgentSessionMessageStoredData }>(
   db: DbOrTx,
   rows: T[],
-  includePartIds = false
+  partMode: boolean | 'deferred' = false
 ): WithAgentSessionMessageParts<T>[] {
+  const includePartIds = partMode !== false
   const bodies = new Map(
     rows.map(({ id }) => [
       id,
@@ -50,7 +70,7 @@ export function attachAgentSessionMessagePartsTx<T extends { id: string; data: A
       .select({
         id: messageParts.id,
         messageId: messageParts.messageId,
-        payload: messageParts.payload,
+        payload: partMode === 'deferred' ? historyPartPayload() : messageParts.payload,
         pos: messageParts.pos
       })
       .from(messageParts)
@@ -284,6 +304,20 @@ function hydrateResult(part: TerminalTool, output: unknown): CherryMessagePart {
   if (failure.data.resultProviderMetadata) restored.resultProviderMetadata = failure.data.resultProviderMetadata
   else delete restored.resultProviderMetadata
   return restored
+}
+
+export function hydrateAgentSessionMessagePartTx(
+  db: DbOrTx,
+  messageId: string,
+  part: CherryMessagePart
+): CherryMessagePart {
+  if (!hasDeferredResult(part)) return part
+  const stored = db
+    .select({ output: toolOutputs.output })
+    .from(toolOutputs)
+    .where(and(eq(toolOutputs.messageId, messageId), eq(toolOutputs.toolCallId, part.toolCallId)))
+    .get()
+  return stored ? hydrateResult(part, stored.output) : part
 }
 
 export function hydrateAgentSessionMessageDataTx<T extends AgentSessionMessageData>(

@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Button, ScrollArea } from '@cherrystudio/ui'
@@ -14,7 +15,7 @@ import { createUniqueModelId, type Model } from '@shared/data/types/model'
 
 import CompactionAnchorBlock from '../blocks/CompactionAnchorBlock'
 import MessageImageBlock from '../blocks/MessageImageBlock'
-import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
+import { MessageCapturePartsContext, MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
 import MessageTimelineMarker from '../blocks/MessageTimelineMarker'
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
@@ -343,13 +344,30 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
 }
 
 const MessageItem: FC<Props> = ({ message, messageParts, ...props }) => {
-  const content = <MessageItemContent message={message} {...props} />
-  if (!messageParts) return content
+  const [captureParts, setCaptureParts] = useState<CherryMessagePart[]>()
+  const captureCount = useRef(0)
+  const showCaptureParts = useCallback((parts: CherryMessagePart[]) => {
+    if (++captureCount.current === 1) {
+      // eslint-disable-next-line @eslint-react/dom/no-flush-sync -- The screenshot reads the live DOM after this call.
+      flushSync(() => setCaptureParts(parts))
+    }
+    return () => {
+      if (--captureCount.current === 0) setCaptureParts(undefined)
+    }
+  }, [])
 
+  const content = <MessageItemContent message={message} {...props} />
+  const parts = captureParts ?? messageParts
   return (
-    <MessagePartsScopeProvider messageId={message.id} parts={messageParts}>
-      {content}
-    </MessagePartsScopeProvider>
+    <MessageCapturePartsContext value={showCaptureParts}>
+      {parts ? (
+        <MessagePartsScopeProvider messageId={message.id} parts={parts}>
+          {content}
+        </MessagePartsScopeProvider>
+      ) : (
+        content
+      )}
+    </MessageCapturePartsContext>
   )
 }
 

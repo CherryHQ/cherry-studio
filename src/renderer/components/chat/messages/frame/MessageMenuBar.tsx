@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { memo, useCallback, useMemo } from 'react'
+import { memo, use, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
@@ -7,7 +7,7 @@ import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens
 import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
 import { classNames } from '@renderer/utils/style'
 
-import { useMessageParts } from '../blocks/MessagePartsContext'
+import { MessageCapturePartsContext, useMessageParts } from '../blocks/MessagePartsContext'
 import { useOptionalMessageMountLease } from '../list/MessageMountLeaseContext'
 import {
   useMessageListActions,
@@ -63,6 +63,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   const messageUi = useMessageListUi()
   const renderConfig = useMessageRenderConfig()
   const messageMountLease = useOptionalMessageMountLease()
+  const showCaptureParts = use(MessageCapturePartsContext)
   const menuConfig = messageUi.menuConfig ?? defaultMessageMenuConfig
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const translateLanguages = useMemo(() => messageUi.translationLanguages ?? [], [messageUi.translationLanguages])
@@ -100,6 +101,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       messageForExport,
       messageContainerRef,
       acquireMessageCaptureLease: messageMountLease?.acquireMessageMountLease,
+      showCaptureParts,
       getRenderedMessageElement: messageMountLease?.getRenderedMessageElement,
       mainTextContent,
       selection,
@@ -139,6 +141,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       message,
       messageContainerRef,
       messageMountLease,
+      showCaptureParts,
       messageUi.getTranslationLanguageLabel,
       messageUi.translationLanguagesStatus,
       messageForExport,

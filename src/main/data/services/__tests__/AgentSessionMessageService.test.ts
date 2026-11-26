@@ -42,7 +42,6 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { DEFER_TOOL_OUTPUT_BYTES } from '@main/utils/messageOutputProjection'
 import { isDeferredToolOutput } from '@shared/ai/transport'
-import { AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
@@ -2825,7 +2824,7 @@ describe('AgentSessionMessageService', () => {
     expect(older.items.map((message) => message.id)).toEqual([prompt.id])
   })
 
-  describe('deferred history byte budget', () => {
+  describe('deferred history parts', () => {
     function seedHistory(messages: { parts: CherryMessagePart[]; replyId?: string }[]) {
       const ids = messages.map((_, index) => `history-${String(index).padStart(3, '0')}`)
       const rootId = seedSessionRoot(dbh.db, SESSION_ID)
@@ -2847,34 +2846,26 @@ describe('AgentSessionMessageService', () => {
       return ids
     }
 
-    function inlineBytes(items: { data: { parts?: CherryMessagePart[] } }[]) {
-      return items.reduce(
-        (total, item) =>
-          total + (item.data.parts ?? []).reduce((bytes, part) => bytes + Buffer.byteLength(JSON.stringify(part)), 0),
-        0
-      )
-    }
-
-    it('returns a 13 MiB message whole and alone, then continues with older history', () => {
-      const oversized: CherryMessagePart = { type: 'reasoning', text: 'x'.repeat(13 * 1024 * 1024) }
-      const [oldest, middle, newest] = seedHistory([
+    it('keeps a single very large reasoning part on its count page and reads the full original by part ID', () => {
+      const oversized: CherryMessagePart = { type: 'reasoning', text: 'head ' + 'é'.repeat(6 * 1024 * 1024) + ' tail' }
+      const ids = seedHistory([
         { parts: [{ type: 'text', text: 'oldest' }] },
         { parts: [{ type: 'text', text: 'middle' }] },
         { parts: [oversized] }
       ])
 
       const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
-      expect(page.items.map(({ id }) => id)).toEqual([newest])
-      expect(page.items[0].data.parts).toEqual([oversized])
-      expect(page.nextCursor).toBeDefined()
-
-      const older = agentSessionMessageService.listSessionMessages(SESSION_ID, {
-        deferToolOutputs: true,
-        cursor: page.nextCursor
+      expect(page.items.map(({ id }) => id)).toEqual(ids.toReversed())
+      expect(page.nextCursor).toBeUndefined()
+      const [newest] = page.items
+      const preview = newest.data.parts?.[0]
+      expect(preview).toMatchObject({
+        type: 'data-deferred-history-part',
+        data: { partId: newest.partIds![0], partType: 'reasoning', excerpt: oversized.text.slice(0, 512) }
       })
-      expect(older.items.map(({ id }) => id)).toEqual([middle, oldest])
-      expect(inlineBytes(older.items)).toBeLessThanOrEqual(AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET)
-      expect(older.nextCursor).toBeUndefined()
+      expect(agentSessionMessageService.getSessionMessagePart(SESSION_ID, newest.id, newest.partIds![0])).toEqual(
+        oversized
+      )
     })
 
     it('visits mixed-size history exactly once in descending timestamp and ID order', () => {
@@ -2895,8 +2886,7 @@ describe('AgentSessionMessageService', () => {
           limit: 50,
           cursor
         })
-        expect(page.items.length).toBeGreaterThan(0)
-        expect(inlineBytes(page.items)).toBeLessThanOrEqual(AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET)
+        expect(page.items).toHaveLength(Math.min(50, ids.length - seen.length))
         seen.push(...page.items.map(({ id }) => id))
         cursor = page.nextCursor
         pages++
@@ -2906,54 +2896,48 @@ describe('AgentSessionMessageService', () => {
       expect(cursor).toBeUndefined()
     })
 
-    it('blanks deferred list search text while the journal call returns all 50 rows with their text', () => {
-      const oversized: CherryMessagePart = { type: 'reasoning', text: 'x'.repeat(5 * 1024 * 1024) }
-      const texts = Array.from({ length: 50 }, (_, index) => `searchable message ${index}`)
-      const ids = seedHistory(
-        texts.map((text, index) => ({
-          parts: [{ type: 'text', text }, ...(index === 25 ? [oversized] : [])]
-        }))
+    it('blanks the history projection while verbatim reads and stored search use all of the original text', () => {
+      const tail = 'needle-only-at-the-end'
+      const oversized: CherryMessagePart = { type: 'text', text: 'é'.repeat(17 * 1024) + ' ' + tail }
+      const small: CherryMessagePart = { type: 'text', text: 'searchable message' }
+      const [id] = seedHistory([{ parts: [oversized, small] }])
+
+      const deferred = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
+      expect(deferred.items[0].data.parts).toEqual([
+        expect.objectContaining({ type: 'data-deferred-history-part' }),
+        small
+      ])
+      expect(deferred.items[0].searchableText).toBe('')
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, id, { deferToolOutputs: true })).toEqual(
+        deferred.items[0]
       )
 
-      const deferred = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 50, deferToolOutputs: true })
-      expect(deferred.items.map(({ id }) => id)).toEqual(ids.slice(26).reverse())
-      expect(deferred.items.map((item) => item.searchableText)).toEqual(texts.slice(26).map(() => ''))
-      expect(deferred.nextCursor).toBeDefined()
-
       const journal = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 50 })
-      expect(journal.items).toHaveLength(50)
-      expect(journal.items.map((item) => item.searchableText)).toEqual(texts.toReversed())
-      expect(journal.items.find(({ id }) => id === ids[25])?.data.parts?.[1]).toEqual(oversized)
-      expect(journal.nextCursor).toBeUndefined()
+      expect(journal.items[0].data.parts).toEqual([oversized, small])
+      expect(journal.items[0].searchableText).toBe(oversized.text + '\n' + small.text)
+      const found = agentSessionMessageService.search({ q: tail, sessionId: SESSION_ID })
+      expect(found.items.map(({ messageId }) => messageId)).toEqual([id])
     })
 
-    it.each([
-      { mibPerPart: 1, fits: true },
-      { mibPerPart: 3, fits: false }
-    ])('back-fills a reply owner through intervening rows at $mibPerPart MiB per part', ({ mibPerPart, fits }) => {
-      const part: CherryMessagePart = { type: 'reasoning', text: 'x'.repeat(mibPerPart * 1024 * 1024) }
+    it('walks a reply-owner seam and resumes at the first row before it', () => {
+      const part: CherryMessagePart = { type: 'reasoning', text: 'x'.repeat(1024 * 1024) }
       const ids = seedHistory([
         { parts: [part] },
         { parts: [part] },
         ...Array.from({ length: 50 }, () => ({ parts: [] })),
-        { parts: [{ type: 'text', text: 'steer' }], replyId: 'history-000' }
+        { parts: [{ type: 'text', text: 'steer' }], replyId: 'history-001' }
       ])
 
-      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 1, deferToolOutputs: true })
-      expect(page.items.map(({ id }) => id)).toEqual(ids.slice(fits ? 0 : 1).reverse())
-      expect(inlineBytes(page.items)).toBeLessThanOrEqual(AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET)
-      if (fits) {
-        expect(page.nextCursor).toBeUndefined()
-      } else {
-        expect(page.nextCursor).toBeDefined()
-        const older = agentSessionMessageService.listSessionMessages(SESSION_ID, {
-          limit: 1,
-          deferToolOutputs: true,
-          cursor: page.nextCursor
-        })
-        expect(older.items.map(({ id }) => id)).toEqual([ids[0]])
-        expect(older.nextCursor).toBeUndefined()
-      }
+      const first = agentSessionMessageService.listSessionMessages(SESSION_ID, { limit: 1, deferToolOutputs: true })
+      expect(first.items.map(({ id }) => id)).toEqual(ids.slice(1).reverse())
+      expect(first.nextCursor).toBeDefined()
+      const second = agentSessionMessageService.listSessionMessages(SESSION_ID, {
+        limit: 1,
+        deferToolOutputs: true,
+        cursor: first.nextCursor
+      })
+      expect(second.items.map(({ id }) => id)).toEqual([ids[0]])
+      expect(second.nextCursor).toBeUndefined()
     })
   })
 
@@ -4017,7 +4001,7 @@ describe('AgentSessionMessageService', () => {
     const oversizedOutputB = { content: 'b'.repeat(DEFER_TOOL_OUTPUT_BYTES + 256) }
     const smallOutput = { content: 'small' }
 
-    it('resolves a deferred legacy inline output through the full-result reader', async () => {
+    it('resolves legacy inline tool output through the part and full-result readers', async () => {
       const parts = [
         {
           type: 'dynamic-tool' as const,
@@ -4042,10 +4026,13 @@ describe('AgentSessionMessageService', () => {
       const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
       expect(page.items).toHaveLength(1)
       const part = page.items[0].data.parts?.[0]
-      if (part?.type !== 'dynamic-tool' || part.state !== 'output-available' || !isDeferredToolOutput(part.output))
-        throw new Error('Expected a deferred tool result')
-      const { topicId, messageId, toolCallId } = part.output.$deferredToolResult
-      await expect(findPersistedToolOutput(topicId, messageId, toolCallId)).resolves.toEqual({
+      if (part?.type !== 'data-deferred-history-part') throw new Error('Expected a deferred history part')
+      expect(
+        agentSessionMessageService.getSessionMessagePart(SESSION_ID, ASSISTANT_MESSAGE_ID, part.data.partId)
+      ).toEqual(parts[0])
+      await expect(
+        findPersistedToolOutput(`agent-session:${SESSION_ID}`, ASSISTANT_MESSAGE_ID, 'legacy-call')
+      ).resolves.toEqual({
         found: true,
         output: oversizedOutputA
       })
@@ -4174,7 +4161,7 @@ describe('AgentSessionMessageService', () => {
         deferToolOutputs: true
       })
       expect(deferredPage.items[0].searchableText).toBe('')
-      expect(rendered).toEqual({ ...deferredPage.items[0], searchableText: 'Done reading' })
+      expect(rendered).toEqual(deferredPage.items[0])
       expect(sidecar.mock.calls.length).toBe(0)
       sidecar.mockRestore()
       const deferredLargePart = deferredPage.items[0]?.data.parts?.[1] as { output?: unknown } | undefined

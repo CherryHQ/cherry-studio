@@ -1,3 +1,4 @@
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -488,6 +489,35 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('leaf rendering', () => {
+    it('reveals the original history text after expanding a fetched preview', async () => {
+      const text = 'First line\n' + 'x'.repeat(32 * 1024) + '\nLast line'
+      MockDataApiUtils.setCustomResponse('/agent-sessions/session/messages/msg-1/parts/part-1', 'GET', {
+        type: 'text',
+        text
+      })
+      const user = userEvent.setup()
+      renderParts([
+        {
+          type: 'data-deferred-history-part',
+          data: {
+            sessionId: 'session',
+            messageId: 'msg-1',
+            partId: 'part-1',
+            partType: 'text',
+            excerpt: 'First line',
+            updatedAt: 1
+          }
+        }
+      ])
+
+      expect(screen.getByText('First line')).toBeVisible()
+      expect(screen.queryByRole('textbox')).toBeNull()
+      await user.click(screen.getByRole('button', { name: 'Expand' }))
+      expect(await screen.findByRole('textbox', { name: 'text' })).toHaveValue(text)
+      await user.click(screen.getByRole('button', { name: 'Collapse' }))
+      expect(screen.getByText('First line')).toBeVisible()
+    })
+
     it('does not rerender unrelated message content when another message becomes active', () => {
       const firstMessage = msg({ id: 'msg-1' })
       const secondMessage = msg({ id: 'msg-2' })

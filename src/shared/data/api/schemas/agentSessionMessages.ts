@@ -8,6 +8,7 @@ import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
 import { agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FORK_FAILURE_REASONS } from '@shared/ai/agentSessionFork'
 import {
+  type CherryMessagePart,
   type CherryUIMessage,
   ContentMessageRoleSchema,
   MessageDataSchema,
@@ -29,7 +30,6 @@ import type { CursorPaginationResponse } from '../types'
  *  back to the newest page. */
 export const AGENT_SESSION_MESSAGES_MAX_LIMIT = 200
 export const AGENT_SESSION_MESSAGES_DEFAULT_LIMIT = 50
-export const AGENT_SESSION_MESSAGES_PAGE_BYTE_BUDGET = 4 * 1024 * 1024
 
 export const AgentSessionMessagesListQuerySchema = z.strictObject({
   cursor: z.string().optional(),
@@ -111,6 +111,12 @@ export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMess
 export const SelectAgentSessionBranchSchema = z.strictObject({ messageId: z.string().min(1) })
 
 export type AgentSessionMessageSchemas = {
+  '/agent-sessions/:sessionId/messages/:messageId/parts/:partId': {
+    GET: {
+      params: { sessionId: string; messageId: string; partId: string }
+      response: CherryMessagePart
+    }
+  }
   '/agent-sessions/:sessionId/children/:toolCallId/history': {
     GET: {
       params: { sessionId: string; toolCallId: string }

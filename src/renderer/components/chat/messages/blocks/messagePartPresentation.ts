@@ -15,5 +15,5 @@ export function isTimelineMarkerPart(part: CherryMessagePart): boolean {
 }
 
 export function isHiddenPart(part: CherryMessagePart): boolean {
-  return HIDDEN_PART_TYPES.has(part.type)
+  return HIDDEN_PART_TYPES.has(part.type === 'data-deferred-history-part' ? part.data.partType : part.type)
 }

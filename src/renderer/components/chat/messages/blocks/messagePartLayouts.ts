@@ -243,6 +243,7 @@ export function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
     case 'data-compaction-anchor':
       return part.data.phase !== 'in-loop'
     case 'data-conversation-reset':
+    case 'data-deferred-history-part':
       return true
     case 'text':
       return !!part.text?.trim() || hasVisibleComposerToken(part)
