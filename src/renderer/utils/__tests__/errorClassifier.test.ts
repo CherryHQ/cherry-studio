@@ -82,6 +82,18 @@ describe('classifyError', () => {
     }
   )
 
+  it.each(['[SQLITE_BUSY] database is locked', 'Local initialization failed — operation timed out'])(
+    'keeps local diagnostics out of provider and stream guidance (%s)',
+    (message) => {
+      const error = makeError({ errorSource: 'local', message, streamStage: 'response-stream' })
+      expect(classifyError(error)).toEqual({
+        category: 'unknown',
+        i18nKey: 'error.diagnosis.unknown',
+        navTarget: null
+      })
+    }
+  )
+
   it.each([
     [401, 'auth'],
     [429, 'rate_limit'],

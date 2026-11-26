@@ -164,7 +164,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     navTarget: navTargetFor(category, providerSuffix)
   })
 
-  if (!error) return classify('unknown')
+  if (!error || error.errorSource === 'local') return classify('unknown')
 
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
   if (claudeCodeExitCategory) return classify(claudeCodeExitCategory)

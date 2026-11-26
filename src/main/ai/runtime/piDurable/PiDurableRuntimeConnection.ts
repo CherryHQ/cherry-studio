@@ -13,6 +13,7 @@ import {
   type Subagent
 } from '@cherrystudio/agent-runtime'
 import type {
+  DurableFollowup,
   DurableObservation,
   PiDurableRuntime,
   PiDurableThreadHandle
@@ -31,6 +32,7 @@ import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { t } from '@main/i18n'
+import { replaceFollowupText, type AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 import { AsyncEventQueue } from '@shared/utils/async'
@@ -49,6 +51,7 @@ import type {
   AgentRuntimeTraceContext,
   AgentRuntimeCommand
 } from '../types'
+import { type UnavailableNativeContext, unavailableNativeContext } from '../types'
 import type { DurableBackend, DurableRoot } from './DurableBackend'
 import type { prepareDurableBranch } from './durableContext'
 import { saveDurableRequest } from './durableRequest'
@@ -124,6 +127,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private readonly adapter = new PiMessageMetadata((name) => this.desktop?.mcp.metadata.get(name))
   private retryUpdates: Promise<void> = Promise.resolve()
   private publishedBackground?: DurableObservation['backgroundResults']
+  private publishedFollowups?: readonly DurableFollowup[]
   private projection?: ThreadProjection
 
   preparedFor(request: AgentRuntimeConnectInput): boolean {
@@ -142,7 +146,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.access = access
   }
 
-  async start(recoverChildren: readonly string[] = []): Promise<this> {
+  async start(recoverChildren: readonly string[] = []): Promise<this | UnavailableNativeContext> {
     const { owner, root } = this.access!
     this.desktop = root.desktop
     this.context = root.context
@@ -157,6 +161,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         }
       },
       retry: (event, sessionId) => this.onModelRetry(event, sessionId),
+      followups: (queue) => this.publishFollowups(queue),
       placed: (inputId) => {
         if (inputId && this.steers.has(inputId)) this.input.onSteerInjected?.([inputId])
       }
@@ -165,13 +170,19 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       backendId: runtimeId(this.context.backendId),
       id: runtimeId(this.context.nativeThreadId!)
     })
+    if (opened.status === 'rejected' && opened.error.code === 'not-found')
+      return unavailableNativeContext(root.context, opened.error.message)
     if (opened.status !== 'confirmed') throw new Error(opened.error.message)
     this.handle = opened.value
     this.context = contexts.bindContext(this.context.id, this.handle.thread.id)
+    this.publishFollowups(this.handle.durable.followups())
     await saveDurableRequest(this.runtime, this.handle.thread.id, this.input)
     await this.handle.durable.configure(root.agent)
     this.providerSessionId = await this.handle.durable.providerSessionId()
-    const observed = await this.handle.durable.observe((batch) => this.onObservation(batch))
+    const observed = await this.handle.durable.observe(
+      (batch) => this.onObservation(batch),
+      Object.keys(this.context.checkpointMapping?.root?.sources ?? {})
+    )
     if (observed.status !== 'confirmed') throw new Error(observed.error.message)
     this.observation = observed.value
     await this.observation.drain()
@@ -300,6 +311,43 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       this.events.push({ type: 'steer-undelivered', inputIds: [input.message.id] })
     })
     return true
+  }
+
+  private publishFollowups(queue: readonly DurableFollowup[]): void {
+    if (queue === this.publishedFollowups || (!queue.length && !this.publishedFollowups?.length)) return
+    this.publishedFollowups = queue
+    this.events.push({
+      type: 'followup-queue',
+      queue: queue.flatMap(({ inputId, revision }) => {
+        if (messages.inputBinding(this.input.sessionId, inputId)?.contextId !== this.context?.id) return []
+        const message = messages.getSessionMessage(this.input.sessionId, inputId)
+        return message.delivery ? [] : [{ id: inputId, revision, parts: message.data.parts ?? [] }]
+      })
+    })
+  }
+
+  async changeFollowups(change: AgentSessionFollowupChange): Promise<boolean> {
+    if (this.closing || !this.handle || !this.context) return false
+    if (change.type === 'reorder') return this.handle.durable.changeFollowups(change)
+    const context = this.context
+    if (messages.inputBinding(this.input.sessionId, change.inputId)?.contextId !== context.id) return false
+    const message = messages.getSessionMessage(this.input.sessionId, change.inputId)
+    if (message.delivery || message.role !== 'user') return false
+    if (change.type === 'withdraw') return this.handle.durable.changeFollowups(change)
+
+    const parts = message.data.parts ?? []
+    const index = parts.findIndex((part) => part.type === 'text')
+    const original = parts[index]
+    if (original?.type !== 'text') return false
+    const replacement = replaceFollowupText(original, change.text)
+    const edited = parts.map((part, partIndex) => (partIndex === index ? replacement : part))
+    return this.handle.durable.changeFollowups({
+      type: 'edit',
+      inputId: change.inputId,
+      revision: change.revision,
+      content: wrapSteerReminder(buildAgentUserContent({ ...message, data: { ...message.data, parts: edited } })),
+      textPart: JSON.stringify(replacement)
+    })
   }
 
   private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'follow-up' | 'steer') {
@@ -814,9 +862,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
           Boolean(input.fastMode) !== Boolean(this.input.fastMode)
         )
           return 'rebuild'
-        if (nextInput.permissionModeOverride !== this.input.permissionModeOverride) {
+        if (
+          nextInput.permissionModeOverride !== this.input.permissionModeOverride ||
+          nextInput.headless !== this.input.headless
+        ) {
           await saveDurableRequest(this.runtime!, this.handle!.thread.id, nextInput)
           this.input.permissionModeOverride = nextInput.permissionModeOverride
+          this.input.headless = nextInput.headless
         }
         return next.permissionChanged ? 'patched' : 'current'
       } catch (error) {

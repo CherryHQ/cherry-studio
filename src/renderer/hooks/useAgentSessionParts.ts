@@ -17,6 +17,7 @@ import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import {
   useDataChange,
   useMutation,
+  useReadCache,
   useWriteInfiniteCache,
   useWriteInfinitePage
 } from '@renderer/data/hooks/useDataApi'
@@ -31,6 +32,7 @@ import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 import { type PageRows, useHistoryRowUpdates } from './useHistoryRowUpdates'
 
 const PAGE_SIZE = 50
+const HISTORY_QUERY = { deferToolOutputs: true } as const
 
 const sessionRows: PageRows<AgentSessionMessageEntity, AgentSessionMessageEntity> = {
   get: (items, { item }) => items[item],
@@ -41,6 +43,49 @@ type SessionPage = CursorPaginationResponse<AgentSessionMessageEntity>
 type TurnOrigins = Record<string, AutonomousTurnOrigin | undefined>
 const noTurnOrigins: TurnOrigins = {}
 const keepMembership = <T>(current: T) => current
+
+async function readAppendedPages(
+  path: `/agent-sessions/${string}/messages`,
+  pages: SessionPage[],
+  announced: ReadonlySet<string>
+): Promise<SessionPage[] | undefined> {
+  const [first, second] = pages
+  if (!first?.items.length) return
+  const added = new Set(announced)
+  for (const page of pages) for (const row of page.items) added.delete(row.id)
+  if (!added.size) return
+
+  // Keep the first page full and carry any short page directly behind it.
+  const carry = second && second.items.length < PAGE_SIZE ? second : undefined
+  const before = carry ? [...first.items, ...carry.items] : first.items
+  const boundary = (carry ?? first).nextCursor ?? undefined
+  const addedCount = added.size
+  const total = addedCount + before.length
+  const prefix: SessionPage[] = []
+  let cursor: string | undefined
+  let offset = 0
+  while (offset < total) {
+    const remaining = total - offset
+    const limit = offset === PAGE_SIZE ? remaining % PAGE_SIZE || PAGE_SIZE : PAGE_SIZE
+    if (offset > addedCount && remaining <= PAGE_SIZE) {
+      prefix.push({ items: before.slice(offset - addedCount), nextCursor: boundary })
+      break
+    }
+    const page = await dataApiService.get(path as '/agent-sessions/:sessionId/messages', {
+      query: { ...HISTORY_QUERY, limit, cursor }
+    })
+    if (page.items.length !== Math.min(limit, remaining)) return
+    for (const row of page.items) {
+      const matches = offset < addedCount ? added.delete(row.id) : before[offset - addedCount]?.id === row.id
+      if (!matches) return
+      offset++
+    }
+    cursor = page.nextCursor ?? undefined
+    if (offset < total ? !cursor : cursor !== boundary) return
+    prefix.push(page)
+  }
+  return [...prefix, ...pages.slice(carry ? 2 : 1)]
+}
 
 function sessionMembership(pages: SessionPage[]) {
   const ids: string[] = []
@@ -118,7 +163,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   } = useConversationHistoryQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
     // Render-only read: a long session's tool outputs stay in main until a card actually needs one.
-    query: { deferToolOutputs: true },
+    query: HISTORY_QUERY,
     limit: PAGE_SIZE,
     enabled,
     swrOptions: {
@@ -145,7 +190,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   )
   const writeSessionMessagesCache = useWriteInfiniteCache('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
-    query: { deferToolOutputs: true },
+    query: HISTORY_QUERY,
     limit: PAGE_SIZE
   })
   const inFlightDeletePromisesRef = useRef(new Map<string, Promise<void>>())
@@ -153,9 +198,27 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const locallyRemovedIds = useMemo(() => ({ ids: new Set<string>(), sessionId }), [sessionId]).ids
   const writePage = useWriteInfinitePage('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
-    query: { deferToolOutputs: true },
+    query: HISTORY_QUERY,
     limit: PAGE_SIZE
   })
+  const readCache = useReadCache()
+  const path = `/agent-sessions/${sessionId}/messages` as const
+  const readPages = useCallback(
+    () => readCache<SessionPage[]>(path, HISTORY_QUERY, { limit: PAGE_SIZE }),
+    [path, readCache]
+  )
+  const prependPages = useCallback(
+    async (
+      ids: ReadonlySet<string>,
+      canCommit: (pages: SessionPage[]) => boolean
+    ): Promise<SessionPage[] | undefined> => {
+      const cached = readPages()
+      if (!cached?.length) return
+      const next = await readAppendedPages(path, cached, ids)
+      return next && canCommit(cached) ? writeSessionMessagesCache(next, cached) : undefined
+    },
+    [path, readPages, writeSessionMessagesCache]
+  )
   const readRow = useCallback(
     async (id: string) => {
       const row = await dataApiService.get(`/agent-sessions/${sessionId}/messages/${id}`, {
@@ -168,7 +231,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [sessionId]
   )
   const membership = useHistoryPageProjection(pages, sessionMembership, keepMembership)
-  const { replyHistory, onChange } = useHistoryRowUpdates(
+  const { replyHistory, onChange, refreshMembership } = useHistoryRowUpdates(
     pages,
     membership.byId,
     sessionRows,
@@ -176,7 +239,17 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     writePage,
     sessionId,
     refreshPages,
-    membership.excluded
+    membership.excluded,
+    prependPages
+  )
+  const refreshReservedMessages = useCallback(
+    async (ids: readonly string[]) => {
+      if (!enabled) return
+      const pages = readPages() ?? []
+      const missing = ids.filter((id) => !pages.some(({ items }) => items.some((row) => row.id === id)))
+      if (missing.length) await refreshMembership(missing, { append: true })
+    },
+    [enabled, readPages, refreshMembership]
   )
   useDataChange(
     '/agent-sessions/:sessionId/messages',
@@ -349,6 +422,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     selectAllPagination,
     refresh,
     revalidate,
+    refreshReservedMessages,
     displayIndex,
     deleteMessage
   }
