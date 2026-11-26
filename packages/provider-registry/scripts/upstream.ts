@@ -49,6 +49,12 @@ export type CherryMeta = Partial<
     | 'reasoning'
   >
 >
+const MdProvider = z.object({ provider: z.object({ npm: z.string().optional() }).optional() })
+
+export function readModelsDevSdk(raw: unknown): string | undefined {
+  return MdProvider.safeParse(raw).data?.provider?.npm
+}
+
 type Caps = NonNullable<CherryMeta['capabilities']>[number]
 type Effort = NonNullable<NonNullable<CherryMeta['reasoning']>['supportedEfforts']>[number]
 

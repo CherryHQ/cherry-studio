@@ -18,7 +18,7 @@ The CherryIN Chat Completions adapter reads the `cherryin` SDK option namespace.
 
 The Chat Completions adapter caps non-thinking Qwen4 Max requests at 131,072 output tokens. CherryIN Messages accepts a `max_tokens` request value of 262,144 even with thinking disabled. This confirms request validation, while the native model specification describes the underlying generation limits. [Alibaba Cloud Qwen4 Max specifications](https://www.alibabacloud.com/help/en/model-studio/qwen4-max)
 
-The daily workflow checks the generated catalog before updating its pull request and includes changed model data and tool indexes together.
+The daily workflow checks the generated catalog before updating its pull request and includes changed model data and tool indexes together. Full refreshes keep previously reviewed base models while generated offers still reference them. When a declared provider template has no fresh listing, its previous offer supplies the exact request ID and pricing. OpenCode Go offers use declared protocol settings first, then the supported upstream SDK protocol or Chat Completions. The generator publishes upstream reasoning controls only for models the reasoning rules recognize.
 
 ## Alternatives considered
 
@@ -43,3 +43,4 @@ The catalog can serve multiple exact offers for one model. A candidate that viol
 - Regression — `gatewayUsageNormalize.test.ts` and `providerBilling.integration.test.ts`: Chat Completions and Responses cache-write aliases count once and displace uncached input.
 - Regression — `providerBilling.integration.test.ts`: desktop requests preserve Qwen4 Max reasoning controls through both protocols.
 - Production smoke, 2026-11-26 — Chat Completions accepted `off`, `low`, `high`, and `xhigh`. Messages accepted the same modes and rejected `max_tokens: 262145`. Thinking streams returned answer text for the complete-sentence prompt, while the digits-only prompt ended without a text block. The non-streaming Messages response included the digits.
+- Regression — full catalog generation with captured and refreshed upstream inputs: the catalog checks cover request IDs, reference integrity, OpenCode Go endpoints and reasoning membership.

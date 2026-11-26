@@ -28,9 +28,11 @@ import {
 import { matchReasoningMembership } from '../src/patterns/reasoning-membership'
 import { PROVIDERS } from '../src/providers'
 import type { ProviderEntry } from '../src/providers/types'
+import { ProviderModelIndex } from '../src/registry-index'
 import { SERVER_TOOL, type ServerTool } from '../src/schemas/enums'
-import type { ReasoningFamilyRule } from '../src/schemas/model'
+import type { ModelConfig, ReasoningFamilyRule } from '../src/schemas/model'
 import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
+import type { ProviderModelOverride } from '../src/schemas/provider-models'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
@@ -49,7 +51,8 @@ import {
   parseMdEntry,
   parseOpenRouterReasoning,
   parseOrEntry,
-  parseOrImageGeneration
+  parseOrImageGeneration,
+  readModelsDevSdk
 } from './upstream'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -419,6 +422,17 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
     const meta = index.has(canonId) ? finalizeMeta(index.get(canonId)!.meta) : {}
     models.set(canonId, { id: canonId, name: meta.name || canonId, ownedBy: labId, ...meta, metadata: {} })
   }
+  // Only creator-backed controls are usable by ID-only reasoning inference.
+  const familyRules = collectReasoningFamilies()
+  for (const model of models.values()) {
+    if (
+      model.reasoning &&
+      !matchReasoningMembership(model.id, familyRules) &&
+      !/^gpt-5-\d+-chat-latest$/.test(model.id)
+    ) {
+      delete model.reasoning
+    }
+  }
   // manual creator models (add + override) — always win
   for (const creator of CREATORS) {
     for (const lm of creator.models ?? []) {
@@ -444,9 +458,9 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
   // (models.dev has no reasoning_options for them) get their controls from
   // the creator-declared family rules. Ingest-time only: the knowledge ships
   // as data, never as a runtime capability source (#16598).
-  const familyRules = collectReasoningFamilies()
   for (const m of models.values()) {
-    if (m.reasoning || !(m.capabilities ?? []).includes('reasoning')) continue
+    if (m.reasoning || !(m.capabilities ?? []).includes('reasoning') || !matchReasoningMembership(m.id, familyRules))
+      continue
     const controls = matchReasoningControls(m.id, familyRules)
     if (controls) m.reasoning = { controls }
   }
@@ -508,26 +522,28 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
  * Array order follows PROVIDERS; `sortKeys` orders each provider's keys.
  */
 function buildProviders(): ProviderEntry[] {
-  // oxlint-disable-next-line no-unused-vars
-  return PROVIDERS.map(({ modelsDevProvider, fetchModels, standaloneModelIds, overrides, modelTemplates, ...conn }) => {
-    const serverTools = conn.serverTools?.map((tool) => {
-      const config = { ...tool }
-      delete config.modelIdPrefixes
-      delete config.modelIds
-      delete config.imageModelIds
-      return config
-    })
-    return {
-      ...conn,
-      ...(serverTools ? { serverTools } : {}),
-      description: `${conn.name} - AI model provider`
+  return PROVIDERS.map(
+    // oxlint-disable-next-line no-unused-vars
+    ({ modelsDevProvider, modelsDevEndpoint, fetchModels, standaloneModelIds, overrides, modelTemplates, ...conn }) => {
+      const serverTools = conn.serverTools?.map((tool) => {
+        const config = { ...tool }
+        delete config.modelIdPrefixes
+        delete config.modelIds
+        delete config.imageModelIds
+        return config
+      })
+      return {
+        ...conn,
+        ...(serverTools ? { serverTools } : {}),
+        description: `${conn.name} - AI model provider`
+      }
     }
-  })
+  )
 }
 
 /**
- * Build provider-models.json PURELY from src/providers — no dependency on the previous output (generation is
- * a pure function of the source). Each provider contributes its manual `overrides` (curated pricing /
+ * Build provider-models.json from authored declarations and the served catalog.
+ * Each provider contributes its manual `overrides` (curated pricing /
  * apiModelId maps / imageGeneration — what the runtime can't derive) plus, if it declares a
  * `modelsDevProvider`, one row per served model carrying that listing's PRICING. `modelId` resolves to a
  * base row or is standalone with a `name`.
@@ -536,7 +552,8 @@ function buildProviderModels(
   md: ModelsDevApi,
   orModels: OpenRouterApi,
   orImageModels: OpenRouterApi,
-  baseIds: Set<string>
+  baseIds: Set<string>,
+  previousOffers?: ProviderModelIndex
 ): { overrides: any[] } {
   const openRouterStandaloneIds = new Set(
     PROVIDERS.find((provider) => provider.id === 'openrouter')?.standaloneModelIds?.map(canonOf) ?? []
@@ -568,11 +585,13 @@ function buildProviderModels(
       if (!modelId) continue
       const template = modelTemplates.find((override) => override.modelId === modelId)
       if (template) matchedTemplates.add(template)
+      const endpoint = p.modelsDevEndpoint?.(readModelsDevSdk(m))
       const row: any = {
         providerId: p.id,
         modelId,
         apiModelId,
         pricing: meta.pricing,
+        ...(endpoint ? { endpointTypes: [endpoint] } : {}),
         ...(meta.contextWindow || meta.maxOutputTokens
           ? { limits: { contextWindow: meta.contextWindow, maxOutputTokens: meta.maxOutputTokens } }
           : {}),
@@ -585,7 +604,13 @@ function buildProviderModels(
       addOverride(row)
     }
     for (const template of modelTemplates) {
-      if (!matchedTemplates.has(template)) addOverride({ providerId: p.id, ...template })
+      if (matchedTemplates.has(template)) continue
+      const previous = previousOffers?.findOverride(p.id, template.modelId)
+      addOverride({
+        ...(previous?.modelId === template.modelId ? previous : undefined),
+        providerId: p.id,
+        ...template
+      })
     }
   }
 
@@ -708,12 +733,22 @@ void (async () => {
   const index = buildIndex(md, or)
   const claimed = await assignCreators(index, md)
   let models = buildModels(index, claimed)
-  let pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
+  const previousModels: ModelConfig[] = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '../data/models.json'), 'utf8')
+  ).models
+  const previousOffers: ProviderModelOverride[] = JSON.parse(fs.readFileSync(PROVIDER_MODELS_PATH, 'utf8')).overrides
+  const previousModelById = new Map(previousModels.map((model) => [model.id, model]))
+  const knownBaseIds = new Set([...models.keys(), ...previousModelById.keys()])
+  let pm = buildProviderModels(md, orModels, orImageModels, knownBaseIds, new ProviderModelIndex(previousOffers))
+  for (const { modelId } of pm.overrides) {
+    const previous = previousModelById.get(modelId)
+    if (!models.has(modelId) && previous) models.set(modelId, previous)
+  }
   if (args.model?.length) {
     const scoped = scopeModelRefresh(
       {
         models: JSON.parse(fs.readFileSync(MODELS_PATH, 'utf8')).models,
-        overrides: JSON.parse(fs.readFileSync(PROVIDER_MODELS_PATH, 'utf8')).overrides
+        overrides: previousOffers
       },
       { models: [...models.values()], overrides: pm.overrides },
       args.model

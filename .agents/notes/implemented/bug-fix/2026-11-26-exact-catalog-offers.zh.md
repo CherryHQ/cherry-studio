@@ -18,7 +18,7 @@ CherryIN 的 Chat Completions 适配器读取 `cherryin` SDK 选项命名空间�
 
 关闭思考时，Chat Completions 适配器将 Qwen4 Max 请求的输出上限设为最多 131,072 token。CherryIN Messages 即使关闭思考也接受 `max_tokens: 262144`。这里确认的是请求参数校验，模型实际生成上限见原厂规格。[阿里云 Qwen4 Max 规格](https://www.alibabacloud.com/help/en/model-studio/qwen4-max)
 
-每日工作流在更新 PR 前检查生成目录，并一起提交变更的模型数据和工具索引。
+每日工作流在更新 PR 前检查生成目录，并一起提交变更的模型数据和工具索引。完整刷新会保留生成线路仍在引用的已审核基础模型。供应商模板没有匹配到新目录条目时，沿用上一版线路的完整请求 ID 和价格。OpenCode Go 优先使用模板声明的协议，其次采用上游标注且受支持的 SDK 协议，最后使用 Chat Completions。只有推理规则已覆盖的模型才会发布上游提供的推理控件。
 
 ## 考虑过的替代方案
 
@@ -43,3 +43,4 @@ CherryIN 的 Chat Completions 适配器读取 `cherryin` SDK 选项命名空间�
 - Regression — `gatewayUsageNormalize.test.ts` 和 `providerBilling.integration.test.ts`：Chat Completions 和 Responses 的缓存写入别名只统计一次，并从未缓存输入中扣除。
 - Regression — `providerBilling.integration.test.ts`：桌面端在两种协议的请求中保留 Qwen4 Max 推理设置。
 - 生产冒烟验证（2026-11-26）— Chat Completions 接受关闭思考以及 `low`、`high`、`xhigh` 档位。Messages 接受同样的档位，并拒绝 `max_tokens: 262145`。开启思考后，要求完整句子的流式请求返回正文，要求只回数字的请求结束时缺少正文块。同一数字请求走非流式 Messages 时返回了正文。
+- Regression — 用留存和重新获取的上游数据完整生成目录。目录校验覆盖请求 ID、模型引用、OpenCode Go 端点和推理模型识别。
