@@ -173,9 +173,10 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
     })
     signal.throwIfAborted()
     this.processDiagnostics = createClaudeCodeProcessDiagnostics()
+    const model = this.config.nativeModel ?? (headless ? launch.nativeModel : undefined)
     const options: Options = {
       ...localSdkOptions(launch, cwd, this.abortController, this.processDiagnostics),
-      model: this.config.nativeModel ?? (headless ? launch.nativeModel : undefined),
+      model,
       settingSources: headless ? [] : ['user', 'project', 'local'],
       ...(headless
         ? { permissionMode: 'dontAsk', tools: ['Read', 'Glob', 'Grep'], strictMcpConfig: true }
@@ -249,6 +250,19 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
           }
         }
         return { behavior: 'allow' as const, updatedInput: input }
+      }
+    }
+    if (this.config.sourceModelViaGateway && model) {
+      options.settings = {
+        env: {
+          ANTHROPIC_DEFAULT_FABLE_MODEL: model,
+          ANTHROPIC_DEFAULT_OPUS_MODEL: model,
+          ANTHROPIC_DEFAULT_SONNET_MODEL: model,
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+          CLAUDE_CODE_SUBAGENT_MODEL: model,
+          CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL: model,
+          CLAUDE_CODE_AUTO_MODE_MODEL: model
+        }
       }
     }
     const traceEnv = await this.prepareTraceEnv()
