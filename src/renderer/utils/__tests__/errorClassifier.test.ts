@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { SerializedError } from '@renderer/types/error'
 
-import { classifyError, getLocalModelResolutionFailure } from '../errorClassifier'
+import { classifyError, getLocalModelResolutionFailure, isUnattributedClaudeCodeExit } from '../errorClassifier'
 import { serializeToastError } from '../errorToast'
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
@@ -79,6 +79,18 @@ describe('classifyError', () => {
       })
       expect(error.message).toBe(message)
       expect(classifyError(makeError({ name: 'StreamError', message })).category).toBe('unknown')
+    }
+  )
+
+  it.each(['[SQLITE_BUSY] database is locked', 'Local initialization failed — operation timed out'])(
+    'keeps local diagnostics out of provider and stream guidance (%s)',
+    (message) => {
+      const error = makeError({ errorSource: 'local', message, streamStage: 'response-stream' })
+      expect(classifyError(error)).toEqual({
+        category: 'unknown',
+        i18nKey: 'error.diagnosis.unknown',
+        navTarget: null
+      })
     }
   )
 
@@ -940,4 +952,43 @@ it('uses the terminal structured quota identity ahead of copied retry text, pres
     makeApiCallAttempt({ statusCode: 429, message: 'Too Many Requests' })
   ])
   expect(classifyError(unmarkedTerminal).category).toBe('rate_limit')
+})
+
+describe('isUnattributedClaudeCodeExit', () => {
+  it.each([
+    ['POSIX code', { processExitCode: 134 }, true],
+    ['code 3 control', { processExitCode: 3 }, true],
+    ['Windows status', { processExitCode: 3221225785 }, true],
+    ['signal only', { processExitSignal: 'SIGABRT' }, true],
+    ['null code with signal', { processExitCode: null, processExitSignal: 'SIGABRT' }, true],
+    ['recognised category', { claudeCodeExitCategory: 'auth', processExitCode: 1 }, false],
+    ['invalid category', { claudeCodeExitCategory: 'future-category', processExitCode: 134 }, false],
+    ['missing reference', { diagnosticReference: undefined, processExitCode: 134 }, false],
+    ['empty reference', { diagnosticReference: '', processExitCode: 134 }, false],
+    ['blank reference', { diagnosticReference: ' \t ', processExitCode: 134 }, false],
+    ['code zero', { processExitCode: 0 }, false],
+    ['code zero with signal', { processExitCode: 0, processExitSignal: 'SIGABRT' }, false],
+    ['no exit status', {}, false],
+    ['blank signal', { processExitSignal: ' \t ' }, false],
+    ['string code', { processExitCode: '134' }, false],
+    ['string code with signal', { processExitCode: '134', processExitSignal: 'SIGABRT' }, false],
+    ['fractional code', { processExitCode: 1.5 }, false],
+    ['unsafe integer', { processExitCode: Number.MAX_SAFE_INTEGER + 1 }, false],
+    ['non-finite code', { processExitCode: Infinity }, false],
+    ['ordinary error mentioning 134', { claudeCodeExitCategory: undefined, message: 'Unmapped failure 134' }, false]
+  ] as const)('%s', (_case, fields, expected) => {
+    expect(
+      isUnattributedClaudeCodeExit(
+        makeError({
+          claudeCodeExitCategory: 'unknown',
+          diagnosticReference: 'diagnostic-ref',
+          ...fields
+        })
+      )
+    ).toBe(expected)
+  })
+
+  it('does not attribute an absent error', () => {
+    expect(isUnattributedClaudeCodeExit()).toBe(false)
+  })
 })

@@ -14,6 +14,11 @@ type HistoryRead = 'written' | 'pending'
 type Read = { newer?: Promise<HistoryRead> }
 const pageReads = new WeakMap<object, Map<string, Read>>()
 
+type PrependPages<Page> = (
+  ids: ReadonlySet<string>,
+  canCommit: (pages: Page[]) => boolean
+) => Promise<Page[] | undefined>
+
 type Membership = { kind: 'row'; row: Row } | { kind: 'excluded' | 'unknown' }
 
 export interface ReplyHistory {
@@ -40,12 +45,13 @@ export function useHistoryRowUpdates<
   write: (pageIndex: number, update: (page: Page) => Item[]) => Promise<void>,
   scope: string,
   refresh: (options: { throwOnError: true }) => Promise<Page[] | undefined>,
-  excludedSiblings: ReadonlySet<string>
+  excludedSiblings: ReadonlySet<string>,
+  prependPages?: PrependPages<Page>
 ) {
   const request = useMemo(
     (): {
       scope: string
-      pending?: { ids: Set<string>; promise: Promise<void> }
+      pending?: { ids: Set<string>; promise: Promise<void>; append: boolean }
       failed: boolean
     } => ({ scope, failed: false }),
     [scope]
@@ -58,12 +64,26 @@ export function useHistoryRowUpdates<
   )
   const [coverage, setCoverage] = useState<{ owner: typeof request; ids: Set<string>; first: object; last: object }>()
   const verifyMembership = useCallback(
-    (ids: string[], invalidate = false) => {
+    (ids: readonly string[], { invalidate = false, append = false } = {}) => {
       const current = request.pending
-      if (current && !invalidate && ids.every((id) => current.ids.has(id))) return current.promise
+      const tryAppend = !!prependPages && append && (!current || current.append)
+      if (current && (!invalidate || tryAppend) && ids.every((id) => current.ids.has(id))) return current.promise
       const expected = new Set([...(current?.ids ?? []), ...ids])
       setCoverage(undefined)
-      const promise = refresh({ throwOnError: true })
+      const isCurrent = () => request.pending?.promise === promise
+      const load = async () => {
+        if (!isCurrent()) return
+        if (tryAppend) {
+          const updated = await prependPages(
+            expected,
+            (pages) => isCurrent() && !pages.some(({ items }) => pageReads.get(historyPageLayout(items))?.size)
+          )
+          if (updated || !isCurrent()) return updated
+        }
+        return refresh({ throwOnError: true })
+      }
+      const promise: Promise<void> = Promise.resolve()
+        .then(load)
         .then((pages) => {
           if (request.pending?.promise !== promise || !pages?.length) return
           request.failed = false
@@ -81,10 +101,10 @@ export function useHistoryRowUpdates<
         .finally(() => {
           if (request.pending?.promise === promise) request.pending = undefined
         })
-      request.pending = { ids: expected, promise }
+      request.pending = { ids: expected, promise, append: tryAppend }
       return promise
     },
-    [request, refresh]
+    [request, refresh, prependPages]
   )
   const covered =
     coverage?.owner === request &&
@@ -157,7 +177,10 @@ export function useHistoryRowUpdates<
     if (effects.some((effect) => effect.kind !== 'projection' || !effect.entityIds)) {
       void verifyMembership(
         effects.flatMap((effect) => effect.entityIds ?? []),
-        true
+        {
+          invalidate: true,
+          append: effects.every((effect) => effect.kind === 'membership' && !!effect.entityIds?.length)
+        }
       ).catch((error) => logger.warn('Could not refresh history membership', { error }))
       return
     }
@@ -172,5 +195,5 @@ export function useHistoryRowUpdates<
     if (missing.length && request.failed)
       void verifyMembership(missing).catch((error) => logger.warn('Could not refresh history membership', { error }))
   }
-  return { replyHistory, onChange }
+  return { replyHistory, onChange, refreshMembership: verifyMembership }
 }

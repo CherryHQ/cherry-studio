@@ -22,6 +22,7 @@ Status: implemented
    - 新增 `agent_session_tool_output` 表（`message_id`、`tool_call_id`、`session_id`、`output`、`created_at`、`updated_at`），采用复合主键 `(message_id, tool_call_id)`，并对 `agent_session_message(id)` 与 `agent_session(id)` 配置 `ON DELETE CASCADE` 外键。
    - 在写入路径（`upsertMessage`、`replaceMessageParts`、`updateSessionMessage`、`insertForkMessagesTx`、`resolveCrashOrphanedMessages`）中，`AgentSessionMessageService` 将超过 `DEFER_TOOL_OUTPUT_BYTES`（32 KiB）的已完成工具输出剥离至 `agent_session_tool_output`，主表 `agent_session_message.data` 仅保留轻量的 `$deferredToolResult` 标记（引用标识 `sessionId`、`messageId`、`toolCallId`，以及可选的 `excerpt` 与 `skeleton`）。
    - `syncMessageToolOutputsTx` 在同一 `(message_id, tool_call_id)` 键下覆盖当前输出。`setWhere: output IS NOT excluded.output` 在序列化内容相同时跳过写入，不保存结果 revision。更新复用 `excluded.output`，不再次序列化同一个值。
+   - 消息块迁移将符合条件且超过 32 KiB 的旧内联工具结果直接写入旁路表，并在同一事务中把轻量引用写入消息块表。可能包含引用信息或 MCP App 元数据的结果、已有引用及无法唯一定位的调用 ID 保留原有表示。
 2. **按需延迟读取与批量回填**：
    - `listSessionMessages(sessionId, { deferToolOutputs: true })` 直接读取紧凑的 `agent_session_message` 行，无需查询 `agent_session_tool_output`；同时对存量内联旧数据保留内存裁剪以兼容历史会话。
    - 需要完整工具输出的调用方（`getSessionMessage`、`listApprovalMessages`、`findCrashOrphanedAssistantMessages`、`readAgentSessionPath`、`readRetiredAgentSessionHistory` 以及未开启 `deferToolOutputs` 的 `listSessionMessages`）按 `SQLITE_INARRAY_CHUNK` 分块从 `agent_session_tool_output` 批量回填 `$deferredToolResult` 标记。
@@ -36,7 +37,7 @@ Status: implemented
 
 - **将渲染进程 `/agent-sessions/:sessionId/messages` 的超时阈值调大到 15 秒（PR #23718）**：不采用，因为这只是掩盖主线程阻塞，既没有减少 SQLite 同步 I/O，也没有降低 JSON 序列化开销。
 - **复用旧版 Chat 的 `aiSdk/contextBuild`（`$persistedToolOutput` + `FileManager` 落盘文件）**：不采用，因为未来 Chat 将作为 Agent Profile 统一收敛到 `agent-runtime`，旧版 `aiSdk` Chat 消息管线将退役；将 `agent-runtime` 反向耦合到旧版 Chat 的文件落盘生命周期会违背演进方向，并使会话/分支删除时的事务级联清理复杂化。
-- **在应用启动时对所有存量 `agent_session_message` 执行全量回填迁移**：不采用，因为启动时执行 O(N) 数据重写会导致大型数据库启动缓慢；采用渐进式共存（存量内联行读取时无缝兼容、写入时自动剥离）可以零启动开销实现完整兼容。
+- **在启动时单独回填已保存的消息块**：额外的数据重写会延长大型数据库的启动时间。内联消息迁移到消息块时，可以同时剥离符合条件的结果。
 
 ## 影响
 
@@ -50,4 +51,4 @@ Status: implemented
 - Regression — `pnpm test:main src/main/ai/runtime/pi/__tests__/retiredSessionHistory.test.ts`：验证孤儿崩溃恢复（crash-orphan recovery）后紧接着执行已退役 DSH 会话历史导入时，已剥离的超大工具输出能完整回填到恢复的 Pi 上下文中。
 - Regression — `pnpm test:main src/main/utils/__tests__/messageOutputProjection.test.ts src/main/ai/messages/__tests__/readConversation.test.ts src/main/ipc/handlers/__tests__/ai.test.ts`：验证单次序列化投影、引用摘要骨架保留，以及 `ai.message.readToolOutput` 的 O(1) 点查。
 - Regression — `pnpm test:main src/main/ai/agentSession/__tests__/RootMessageProjection.test.ts src/main/ai/agentSession/__tests__/ChildThreadProjection.test.ts`：验证按 `messageId` 去重查询与子线程归档单次读取初始化。
-- Regression — `pnpm test:main src/main/data/db/__tests__/applyMigrations.test.ts src/main/data/db/__tests__/applyMigrations.populated.test.ts src/main/data/db/__tests__/ftsRebuild.test.ts`：验证迁移 `0044_agent_session_tool_output.sql` 与 `WHEN OLD.data IS NOT NEW.data` FTS 触发器完整性。
+- Regression — `pnpm test:main src/main/data/db/__tests__/applyMigrations.test.ts src/main/data/db/__tests__/applyMigrations.populated.test.ts src/main/data/db/__tests__/ftsRebuild.test.ts`：验证迁移 `0042_agent_history_artifacts_and_mcp.sql` 与 `WHEN OLD.data IS NOT NEW.data` FTS 触发器完整性。

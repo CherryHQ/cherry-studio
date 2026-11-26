@@ -14,6 +14,7 @@ import type { RuntimeForkAnchor } from '@main/ai/runtime/fork'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
+import type { AgentSessionFollowup, AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
@@ -33,6 +34,16 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import type { RuntimeForkInput, RuntimeForkResult } from './fork'
 import type { RuntimeWorkspaceRelocation } from './workspaceRelocation'
+
+export interface UnavailableNativeContext {
+  status: 'native-context-unavailable'
+  context: AgentSessionContextRow
+  reason: string
+}
+
+export function unavailableNativeContext(context: AgentSessionContextRow, reason: string): UnavailableNativeContext {
+  return { status: 'native-context-unavailable', context, reason }
+}
 
 /**
  * Agent-session usage has exactly one capture owner per runtime route.
@@ -91,8 +102,8 @@ export interface AgentRuntimeConnectInput {
   trace?: AgentRuntimeTraceContext
   /**
    * Synchronous host hook fired when a pending steer is actually injected. The host uses this
-   * before the SDK can issue its next provider request to reserve the continuation correlation;
-   * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
+   * before the SDK can issue its next provider request to associate the input with its active Run;
+   * the later `steer-boundary` confirms placement without creating another execution.
    */
   onSteerInjected?: (inputIds: readonly string[]) => void
   /** Pins a pending product input before native admission can run synchronously. */
@@ -190,17 +201,17 @@ export type AgentRuntimeEvent =
       }
     }
   | { type: 'resume-token'; token: string }
+  /** The stable input association identifies the owning Run, including a deferred placement. */
+  | { type: 'run-checkpoint'; contextId: string; inputId: string; forkAnchor: RuntimeForkAnchor }
   /** `paused`: native evidence that the turn was aborted, such as a recorded user stop. */
   | { type: 'turn-complete'; forkAnchor?: RuntimeForkAnchor; status?: 'paused' }
   /** The driver could not submit a pending input. The host requeues it for the next turn. */
   | { type: 'steer-undelivered'; inputIds: readonly string[] }
-  /** A steer was injected mid-turn (PreToolUse/PostToolBatch hook) and the model is about to emit its post-steer
-   *  assistant message. Marks where the host should roll the assistant message: finalise the
-   *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
-   *  steer user message sorts between them instead of dangling after the whole turn.
-   *  A runtime with `followUp()` also emits it when it places a queued input, after the content before it;
-   *  `followUp` marks that placement, which starts its own run and so never joins another reply. */
-  | { type: 'steer-boundary'; inputIds: readonly string[]; followUp?: true }
+  /** Placed inputs join the active native Run; no new execution or reply is reserved. */
+  | { type: 'steer-boundary'; inputIds: readonly string[] }
+  /** A queued input starts a distinct native execution after the preceding answer. */
+  | { type: 'run-started'; inputIds: readonly string[] }
+  | { type: 'followup-queue'; queue: AgentSessionFollowup[] }
   | { type: 'input-submission'; contextId: string; result: SubmitResult }
   | { type: 'input-state'; contextId: string; input: ProductInputState }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
@@ -282,10 +293,11 @@ export interface AgentRuntimeConnection {
   redirect?(input: AgentRuntimeCommand): boolean
   /**
    * Submit a user message that waits behind running native work and persists natively at once.
-   * The connection emits `steer-boundary` when the runtime places it, so it gets its own reply;
+   * The connection emits `run-started` when native placement starts its distinct execution;
    * a refused submission reports `input-submission`. Returns false when no native work is running.
    */
   followUp?(input: AgentRuntimeCommand): boolean
+  changeFollowups?(change: AgentSessionFollowupChange): Promise<boolean>
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts, permission mode included, are patched in place before the

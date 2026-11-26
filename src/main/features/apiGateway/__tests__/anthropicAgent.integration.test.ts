@@ -7,12 +7,15 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
 import '@data/services/ProviderRegistryService'
 import { AiService } from '@main/ai/AiService'
+import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import type * as CustomFetch from '@main/ai/utils/customFetch'
 import { BaseService } from '@main/core/lifecycle'
@@ -22,6 +25,7 @@ import { processMessage } from '../proxyStream'
 
 const mocks = vi.hoisted(() => ({
   internal: true,
+  sessionId: 'agent-session',
   transport: vi.fn<typeof fetch>(),
   manager: undefined as AiStreamManager | undefined,
   ai: undefined as AiService | undefined
@@ -37,9 +41,9 @@ vi.mock('@application', async () => {
     AiService: { streamText: (input: Parameters<AiService['streamText']>[0]) => mocks.ai!.streamText(input) },
     ApiGatewayService: {
       isInternalRequest: () => mocks.internal,
-      getAgentSessionId: () => (mocks.internal ? 'agent-session' : undefined),
+      getAgentSessionId: () => (mocks.internal ? mocks.sessionId : undefined),
       resolveAgentSessionUsage: () =>
-        mocks.internal ? { agentSessionId: 'agent-session', assistantMessageId: 'answer', source: null } : undefined
+        mocks.internal ? { agentSessionId: mocks.sessionId, assistantMessageId: 'answer', source: null } : undefined
     }
   }
   return mockApplicationFactory(overrides)
@@ -133,9 +137,19 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
   beforeEach(() => {
     BaseService.resetInstances()
     mocks.internal = true
+    mocks.sessionId = 'agent-session'
     mocks.manager = new AiStreamManager()
     mocks.ai = new AiService()
     mocks.transport.mockReset()
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'agent-workspace', name: 'Workspace', path: '/workspace', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({ id: 'agent-session', name: 'Session', workspaceId: 'agent-workspace', orderKey: 'a0' })
+      .run()
+    prepareClaudeBranch('agent-session', '/workspace/.claude')
     const getPath = vi.mocked(application.getPath).getMockImplementation()!
     vi.spyOn(application, 'getPath').mockImplementation((key, file) =>
       key === 'feature.provider_registry.data'
@@ -153,7 +167,9 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
         providerSettings: { extraHeaders: { 'X-Upstream': 'provider-header' } },
         endpointConfigs: {
           [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://anthropic.test/v1' },
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://openai.test/v1' }
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://openai.test/v1' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://google.test/v1beta', adapterFamily: 'google' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://openai.test/v1' }
         },
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
       })
@@ -175,6 +191,194 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
       .run()
   })
   afterEach(() => vi.restoreAllMocks())
+
+  function addModel(modelId: string, endpointType: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]) {
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: `wire::${modelId}`,
+        providerId: 'wire',
+        modelId,
+        name: modelId,
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+        supportsStreaming: true,
+        isEnabled: true,
+        orderKey: 'a1',
+        endpointTypes: [endpointType]
+      })
+      .run()
+  }
+
+  it('restores a Gemini 4 tool signature after reopen, pins its continuation, and cleans completed foreign history', async () => {
+    const gemini = 'gemini-4-flash'
+    const other = 'gemini-4-pro'
+    addModel(gemini, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    addModel(other, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    const signature = Buffer.from('gemini-tool-state').toString('base64')
+    const upstream: Array<{
+      url: string
+      body: { contents: Array<{ role: string; parts: Array<Record<string, unknown>> }> }
+    }> = []
+    mocks.transport.mockImplementation(async (url, init) => {
+      upstream.push({ url: String(url), body: JSON.parse(String(init?.body)) })
+      const parts =
+        upstream.length === 1
+          ? [{ functionCall: { id: 'call_google', name: 'echo', args: { value: 7 } }, thoughtSignature: signature }]
+          : [{ text: `Done ${upstream.length}` }]
+      const response = {
+        candidates: [{ index: 0, content: { role: 'model', parts }, finishReason: 'STOP' }],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5, totalTokenCount: 15 }
+      }
+      return new Response(`data: ${JSON.stringify(response)}\n\n`, { headers: { 'content-type': 'text/event-stream' } })
+    })
+    const user: MessageParam = { role: 'user', content: 'Call echo' }
+    const first = await request([user], true, { model: `wire:${gemini}` })
+    const call = first.content.find((block) => block.type === 'tool_use')!
+    expect(call).toMatchObject({ name: 'echo', input: { value: 7 } })
+    const history: MessageParam[] = [
+      user,
+      { role: 'assistant', content: first.content },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: call.id, content: '7' }] }
+    ]
+
+    BaseService.resetInstances()
+    mocks.manager = new AiStreamManager()
+    mocks.ai = new AiService()
+    dbh.db
+      .update(userModelTable)
+      .set({ isEnabled: false })
+      .where(eq(userModelTable.id, `wire::${other}`))
+      .run()
+    const continued = await request(history, false, { model: `wire:${other}` })
+    dbh.db
+      .update(userModelTable)
+      .set({ isEnabled: true })
+      .where(eq(userModelTable.id, `wire::${other}`))
+      .run()
+    expect(upstream[1].url).toContain(`/models/${gemini}:streamGenerateContent`)
+    expect(upstream[1].body.contents.flatMap(({ parts }) => parts)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          functionCall: expect.objectContaining({ name: 'echo' }),
+          thoughtSignature: signature
+        }),
+        expect.objectContaining({ functionResponse: expect.objectContaining({ name: 'echo' }) })
+      ])
+    )
+
+    const completed: MessageParam[] = [
+      ...history,
+      { role: 'assistant', content: continued.content },
+      { role: 'user', content: 'Follow up' }
+    ]
+    await request(completed, false, { model: `wire:${other}` })
+    expect(upstream[2].url).toContain(`/models/${other}:streamGenerateContent`)
+    const parts = upstream[2].body.contents.flatMap(({ parts }) => parts)
+    expect(parts).toEqual(
+      expect.arrayContaining([
+        { functionCall: expect.objectContaining({ name: 'echo', args: { value: 7 } }) },
+        expect.objectContaining({ functionResponse: expect.objectContaining({ name: 'echo' }) })
+      ])
+    )
+    await request(completed, false, { model: `wire:${gemini}` })
+    expect(upstream[3].body.contents.flatMap(({ parts }) => parts)).toContainEqual(
+      expect.objectContaining({ functionCall: expect.objectContaining({ name: 'echo' }), thoughtSignature: signature })
+    )
+    dbh.db
+      .update(userModelTable)
+      .set({ isEnabled: false })
+      .where(eq(userModelTable.id, `wire::${gemini}`))
+      .run()
+    await expect(request(history, false, { model: `wire:${other}` })).rejects.toThrow()
+    expect(upstream).toHaveLength(4)
+  })
+
+  it.each(['openai', 'open-responses'] as const)(
+    'replays empty %s reasoning only for unambiguous history in its own session',
+    async (adapterFamily) => {
+      const model = 'wire:o3'
+      addModel('o3', ENDPOINT_TYPE.OPENAI_RESPONSES)
+      dbh.db
+        .update(userProviderTable)
+        .set({
+          endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://openai.test/v1', adapterFamily } }
+        })
+        .where(eq(userProviderTable.providerId, 'wire'))
+        .run()
+      const sent: Array<{ store?: boolean; input: Array<Record<string, unknown>> }> = []
+      mocks.transport.mockImplementation(async (_url, init) => {
+        sent.push(JSON.parse(String(init?.body)))
+        const id = sent.length
+        const reasoning = { type: 'reasoning', id: `rs_${id}`, summary: [], encrypted_content: `cipher-${id}` }
+        const message = {
+          type: 'message',
+          id: `msg_${id}`,
+          role: 'assistant',
+          status: 'completed',
+          content: [{ type: 'output_text', text: `Answer ${id}`, annotations: [] }]
+        }
+        const events = [
+          { type: 'response.output_item.added', output_index: 0, item: { ...reasoning, encrypted_content: null } },
+          { type: 'response.output_item.done', output_index: 0, item: reasoning },
+          { type: 'response.output_item.added', output_index: 1, item: { ...message, content: [] } },
+          {
+            type: 'response.output_text.delta',
+            item_id: message.id,
+            output_index: 1,
+            content_index: 0,
+            delta: `Answer ${id}`
+          },
+          { type: 'response.output_item.done', output_index: 1, item: message },
+          {
+            type: 'response.completed',
+            response: {
+              id: `resp_${id}`,
+              object: 'response',
+              created_at: 1,
+              model: 'o3',
+              status: 'completed',
+              output: [reasoning, message],
+              usage: { input_tokens: 10, output_tokens: 5 }
+            }
+          }
+        ]
+        return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), {
+          headers: { 'content-type': 'text/event-stream' }
+        })
+      })
+      const history: MessageParam[] = [{ role: 'user', content: 'Hello' }]
+      for (let turn = 1; turn <= 3; turn++) {
+        const reply = await request(history, turn % 2 === 1, { model })
+        expect(reply.content).toMatchObject([
+          { type: 'thinking', thinking: '' },
+          { type: 'text', text: `Answer ${turn}` }
+        ])
+        history.push({ role: 'assistant', content: reply.content }, { role: 'user', content: `Follow-up ${turn}` })
+      }
+      if (adapterFamily === 'openai') expect(sent[2].store).toBe(false)
+      expect(sent[2].input.filter((item) => item.type === 'reasoning')).toMatchObject([
+        { encrypted_content: 'cipher-1' },
+        { encrypted_content: 'cipher-2' }
+      ])
+      expect(sent[2].input.some((item) => item.type === 'item_reference')).toBe(false)
+
+      const repeated = [history[0], history[1], { role: 'user' as const, content: 'Continue' }, ...history.slice(1)]
+      await request(repeated, false, { model })
+      expect(sent[3].input.filter((item) => item.type === 'reasoning')).toMatchObject([
+        { encrypted_content: 'cipher-2' },
+        { encrypted_content: 'cipher-3' }
+      ])
+
+      dbh.db
+        .insert(agentSessionTable)
+        .values({ id: 'other-session', name: 'Other', workspaceId: 'agent-workspace', orderKey: 'a1' })
+        .run()
+      prepareClaudeBranch('other-session', '/workspace/.claude')
+      mocks.sessionId = 'other-session'
+      await request(history, false, { model })
+      expect(sent[4].input.filter((item) => item.type === 'reasoning')).toEqual([])
+    }
+  )
 
   it('freezes the admitted price even when pricing changes while the provider runs', async () => {
     mocks.transport.mockImplementation(async () => {

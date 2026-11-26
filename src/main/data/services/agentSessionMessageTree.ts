@@ -26,6 +26,7 @@ export type AgentSessionMessageData = AgentSessionMessageStoredData & { parts?: 
 export type WithAgentSessionMessageParts<T extends { data: AgentSessionMessageStoredData }> = Omit<T, 'data'> & {
   data: T['data'] & { parts: CherryMessagePart[] }
   partIds?: string[]
+  partPositions?: (number | null)[]
 }
 export type AgentSessionMessageRecord = WithAgentSessionMessageParts<AgentSessionMessageRow>
 
@@ -38,13 +39,22 @@ export function attachAgentSessionMessagePartsTx<T extends { id: string; data: A
   const bodies = new Map(
     rows.map(({ id }) => [
       id,
-      { parts: [] as CherryMessagePart[], partIds: includePartIds ? ([] as string[]) : undefined }
+      {
+        parts: [] as CherryMessagePart[],
+        partIds: includePartIds ? ([] as string[]) : undefined,
+        partPositions: includePartIds ? ([] as (number | null)[]) : undefined
+      }
     ])
   )
   const ids = rows.map((row) => row.id)
   for (let index = 0; index < ids.length; index += SQLITE_INARRAY_CHUNK) {
     const stored = db
-      .select({ id: messageParts.id, messageId: messageParts.messageId, payload: messageParts.payload })
+      .select({
+        id: messageParts.id,
+        messageId: messageParts.messageId,
+        payload: messageParts.payload,
+        pos: messageParts.pos
+      })
       .from(messageParts)
       .where(inArray(messageParts.messageId, ids.slice(index, index + SQLITE_INARRAY_CHUNK)))
       .orderBy(asc(messageParts.messageId), asc(messageParts.seq))
@@ -52,12 +62,13 @@ export function attachAgentSessionMessagePartsTx<T extends { id: string; data: A
     for (const part of stored) {
       const body = bodies.get(part.messageId)!
       body.partIds?.push(part.id)
+      body.partPositions?.push(part.pos)
       body.parts.push(part.payload)
     }
   }
   return rows.map((row) => {
-    const { partIds, parts } = bodies.get(row.id)!
-    return { ...row, ...(partIds && { partIds }), data: { ...row.data, parts } }
+    const { partIds, partPositions, parts } = bodies.get(row.id)!
+    return { ...row, ...(partIds && { partIds, partPositions }), data: { ...row.data, parts } }
   })
 }
 
@@ -403,7 +414,12 @@ export function agentSessionDescendantIds(sessionId: string, messageId: string) 
   ) select id from descendants)`
 }
 
-export function readStoredAgentSessionPath(db: DbOrTx, sessionId: string, head?: string | null) {
+export function readStoredAgentSessionPath(
+  db: DbOrTx,
+  sessionId: string,
+  head?: string | null,
+  includePartIds = false
+) {
   const selected = head ?? getAgentSessionHead(db, sessionId)
   if (!selected) return []
   const rows = db
@@ -415,12 +431,13 @@ export function readStoredAgentSessionPath(db: DbOrTx, sessionId: string, head?:
     db,
     orderAgentSessionPath(rows, selected)
       .filter((row) => row.role !== 'root')
-      .map(({ provenance, ...row }) => ({ ...row, ...(provenance && { provenance }) }))
+      .map(({ provenance, ...row }) => ({ ...row, ...(provenance && { provenance }) })),
+    includePartIds
   )
 }
 
-export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: string | null) {
-  return hydrateAgentSessionMessageRowsTx(db, readStoredAgentSessionPath(db, sessionId, head))
+export function readAgentSessionPath(db: DbOrTx, sessionId: string, head?: string | null, includePartIds = false) {
+  return hydrateAgentSessionMessageRowsTx(db, readStoredAgentSessionPath(db, sessionId, head, includePartIds))
 }
 
 export function readAgentSessionAncestry(db: DbOrTx, sessionId: string, head: string) {
