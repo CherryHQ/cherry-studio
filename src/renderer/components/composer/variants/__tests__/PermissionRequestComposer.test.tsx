@@ -9,6 +9,8 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import PermissionRequestComposer, { type PermissionRequestComposerRequest } from '../PermissionRequestComposer'
 
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal())
+
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({
@@ -24,6 +26,9 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
         'agent.toolPermission.button.allow': 'Allow',
+        'agent.toolPermission.button.allowOnce': 'Allow this invocation',
+        'agent.toolPermission.workingDirectory': 'Working directory',
+        'agent.toolPermission.policyEvidence': 'Matching command details',
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
         'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
@@ -93,6 +98,30 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
+  // Catch evidence disclosure accidentally granting permission through the global Enter shortcut.
+  it('shows execution facts and lets the user inspect evidence before granting one invocation', async () => {
+    const user = userEvent.setup()
+    const onRespond = vi.fn()
+    const request = makeRequest({
+      commandPolicy: {
+        cwd: '/workspace/project',
+        revision: '1',
+        reason: 'May discard working-tree changes.',
+        rules: [{ ruleId: 'git-risk', reasonCode: 'git-discard-worktree', evidence: 'git reset --hard' }]
+      }
+    })
+    render(<PermissionRequestComposer request={request} onRespond={onRespond} />)
+    expect(screen.getByText('May discard working-tree changes.')).toBeVisible()
+    expect(screen.getByText('/workspace/project')).toBeVisible()
+    const disclosure = screen.getByRole('button', { name: 'Matching command details' })
+    disclosure.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByText('git reset --hard')).toBeVisible()
+    expect(onRespond).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: /Allow this invocation/ }))
+    expect(onRespond).toHaveBeenCalledWith({ match: request.match, approved: true })
+  })
+
   it('opens the requesting subagent without deciding its approval', async () => {
     const user = userEvent.setup()
     const onRespond = vi.fn()
@@ -434,5 +463,143 @@ describe('PermissionRequestComposer', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to send your decision. Please try again.'))
     expect(screen.getByRole('button', { name: 'Allow' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Deny' })).not.toBeDisabled()
+  })
+
+  describe('Agent settings changes', () => {
+    // Each test uses its own approval, as the preview is fetched once per approval.
+    function agentConfigRequest(approvalId: string, serverId: string, name: string, args: Record<string, unknown>) {
+      return makeRequest({
+        approvalId,
+        title: name,
+        toolResponse: {
+          id: 'call-1',
+          toolCallId: 'call-1',
+          status: 'pending',
+          arguments: args,
+          tool: {
+            id: `${serverId}__${name}`,
+            name,
+            type: 'mcp',
+            serverId,
+            serverName: serverId,
+            inputSchema: { type: 'object', properties: {}, required: [] }
+          }
+        }
+      })
+    }
+
+    it.each([
+      ['update_agent', 'assistant', 'update_agent'],
+      ['config_update', 'cherry_tools', 'config_update']
+    ])(
+      "shows %s as each changed field's current and new value, read for that approval",
+      async (_tool, serverId, name) => {
+        const approvalId = `approval-${name}`
+        vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+          ok: true,
+          data: { ok: true, summary: ['Model: Default Model → Other Model'] }
+        })
+        render(
+          <PermissionRequestComposer
+            request={agentConfigRequest(approvalId, serverId, name, { model: 'wire::other' })}
+            onRespond={vi.fn()}
+          />
+        )
+
+        expect(await screen.findByText('Model: Default Model → Other Model')).toBeInTheDocument()
+        expect(window.api.ipcApi.request).toHaveBeenCalledWith('ai.agent.preview_config_change', { approvalId })
+      }
+    )
+
+    // A create's arguments carry the whole system prompt; the card shows the new resource instead.
+    it('shows a create as the new resource with its raw arguments folded away', async () => {
+      const user = userEvent.setup()
+      vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+        ok: true,
+        data: {
+          ok: true,
+          resource: {
+            kind: 'agent',
+            name: 'Reviewer',
+            emoji: '🧐',
+            description: 'Reviews pull requests',
+            highlights: ['Other Model']
+          }
+        }
+      })
+      render(
+        <PermissionRequestComposer
+          request={agentConfigRequest('approval-create', 'cherry_tools', 'agent_create', {
+            name: 'Reviewer',
+            instructions: 'LONG_SYSTEM_PROMPT'
+          })}
+          onRespond={vi.fn()}
+        />
+      )
+
+      // Wait for the preview: the raw arguments also name the Agent while it loads.
+      expect(await screen.findByText('Reviews pull requests · Other Model')).toBeInTheDocument()
+      expect(screen.getByText('Reviewer')).toBeInTheDocument()
+      expect(screen.getByText('agent.toolPermission.agent_config.title.create_agent')).toBeInTheDocument()
+      expect(screen.queryByText('LONG_SYSTEM_PROMPT')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Input' }))
+
+      expect(screen.getByText('LONG_SYSTEM_PROMPT')).toBeInTheDocument()
+    })
+
+    // Catches a long prompt edit that can only be checked through its shortened summary line.
+    it('shows the full current and new text of a long field on demand', async () => {
+      const user = userEvent.setup()
+      vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({
+        ok: true,
+        data: {
+          ok: true,
+          summary: ['System Prompt: …Reply in English. → …Reply in French.'],
+          details: [{ field: 'System Prompt', from: 'FULL_OLD_PROMPT', to: 'FULL_NEW_PROMPT' }]
+        }
+      })
+      render(
+        <PermissionRequestComposer
+          request={agentConfigRequest('approval-details', 'assistant', 'update_agent', { instructions: 'x' })}
+          onRespond={vi.fn()}
+        />
+      )
+
+      await user.click(await screen.findByRole('button', { name: 'agent.toolPermission.agent_config.full_text' }))
+
+      expect(screen.getByText('FULL_OLD_PROMPT')).toBeInTheDocument()
+      expect(screen.getByText('FULL_NEW_PROMPT')).toBeInTheDocument()
+    })
+
+    it('keeps the raw arguments on screen while the preview loads', () => {
+      vi.mocked(window.api.ipcApi.request).mockReturnValueOnce(new Promise(() => {}))
+      render(
+        <PermissionRequestComposer
+          request={agentConfigRequest('approval-loading', 'assistant', 'update_agent', { model: 'wire::other' })}
+          requiresAgentConfigPreview
+          onRespond={vi.fn()}
+        />
+      )
+
+      expect(screen.getByText('agent.toolPermission.agent_config.loading')).toBeInTheDocument()
+      expect(screen.getByText('wire::other')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Allow/ })).toBeDisabled()
+    })
+
+    it('falls back to the raw arguments when main cannot preview the change', async () => {
+      vi.mocked(window.api.ipcApi.request).mockResolvedValueOnce({ ok: true, data: { ok: false } })
+      render(
+        <PermissionRequestComposer
+          request={agentConfigRequest('approval-refused', 'assistant', 'update_agent', {
+            permissionMode: 'bypassPermissions'
+          })}
+          onRespond={vi.fn()}
+        />
+      )
+
+      expect(await screen.findByText('agent.toolPermission.agent_config.error')).toBeInTheDocument()
+      expect(screen.getByText('bypassPermissions')).toBeInTheDocument()
+    })
   })
 })

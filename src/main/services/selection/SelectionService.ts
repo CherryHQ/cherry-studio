@@ -1400,9 +1400,14 @@ export class SelectionService extends BaseService implements Activatable {
 
     // act normally when the app is not in fullscreen mode
     if (!isFullScreen) {
+      // A pooled panel can be left at normal level by the renderer's unpin request, and an inactive
+      // app's normal-level panel can stay behind the active app's windows (#24622).
+      const pinned = actionWindow.isAlwaysOnTop()
+      actionWindow.setAlwaysOnTop(true)
       // Move before showing: a recycled panel may still belong to another Space.
       this.getNativePanel().moveToActiveSpace(actionWindow.getNativeWindowHandle())
       actionWindow.show()
+      if (!pinned) actionWindow.setAlwaysOnTop(false)
       return
     }
 

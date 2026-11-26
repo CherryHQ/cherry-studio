@@ -15,7 +15,7 @@ import { join } from 'node:path'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { createModels, fauxAssistantMessage, fauxProvider, InMemoryCredentialStore } from '@earendil-works/pi-ai'
 import { ModelRuntime, SessionManager } from '@earendil-works/pi-coding-agent'
-import { createRegistry } from '@earendil-works/pi-durable'
+import { createRegistry, type ConversationId } from '@earendil-works/pi-durable'
 import { SqliteStorage } from '@earendil-works/pi-durable/storage/sqlite'
 import { NodeSqliteDatabase, openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -58,7 +58,7 @@ import {
   openDurableStorage,
   prepareDurableRoot
 } from '../durableNativeContext'
-import { applyNativeSubmissionResult, bindNativeInput, prepareNativeSubmission } from '../nativeSubmission'
+import { applyNativeSubmissionResult, lookupNativeInput, prepareNativeSubmission } from '../nativeSubmission'
 
 function confirmed<T>(result: OperationResult<T>): T {
   if (result.status !== 'confirmed') throw new Error(result.error.message)
@@ -171,14 +171,13 @@ describe('native context storage and reconciliation', () => {
     messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [{ type: 'text', text }] } } })
     return id
   }
-  async function observeInputs(handle: ThreadHandle, contextId: string) {
+  async function observeInputs(handle: ThreadHandle) {
     const inputs = new Map<string, InputState>()
     const observation = confirmed(
       await handle.observe((event) => {
         const changed = event.type === 'snapshot' ? event.inputs : event.type === 'input.changed' ? [event.input] : []
         for (const input of changed) {
-          const messageId = bindNativeInput(sessionId, contextId, input)
-          if (messageId) inputs.set(messageId, input)
+          if (input.inputId) inputs.set(input.inputId, input)
         }
       })
     )
@@ -346,7 +345,7 @@ describe('native context storage and reconciliation', () => {
     const created = await createPiContext(sessionId, backend.id, runtime, options)
     const handle = confirmed(created.result)
     expect(() => confirmPiContext(created.context.id)).toThrow('missing')
-    const observer = await observeInputs(handle, created.context.id)
+    const observer = await observeInputs(handle)
     cleanup.push(() => observer.stop())
     const inputId = message()
     faux.setResponses([fauxAssistantMessage('saved answer')])
@@ -440,7 +439,7 @@ describe('native context storage and reconciliation', () => {
     const { backend, runtime, options, faux } = await pi()
     const created = await createPiContext(sessionId, backend.id, runtime, options)
     const handle = confirmed(created.result)
-    const observer = await observeInputs(handle, created.context.id)
+    const observer = await observeInputs(handle)
     cleanup.push(() => observer.stop())
     const id = message()
     vi.spyOn(messages, 'bindInputContextTx').mockImplementationOnce(() => {
@@ -455,7 +454,7 @@ describe('native context storage and reconciliation', () => {
     const { backend, runtime, options, faux } = await pi()
     const created = await createPiContext(sessionId, backend.id, runtime, options)
     const handle = confirmed(created.result)
-    const observer = await observeInputs(handle, created.context.id)
+    const observer = await observeInputs(handle)
     cleanup.push(() => observer.stop())
     const id = message()
     messages.updateSessionMessage(sessionId, id, { data: { parts: [] } })
@@ -499,6 +498,58 @@ describe('native context storage and reconciliation', () => {
     expect(draft).toEqual({ inputId: id, text: 'wrapped edited', whenBusy: 'reject' })
   })
 
+  it('recovers a reserved directory without losing its contents or durable turn history', async () => {
+    const intent = prepareDurableBranch(sessionId)
+    const reserved = contexts.backend(intent.backendId)
+    if (reserved.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+    const target = application.getPath('feature.agents.durable.stores', reserved.locator.fileName)
+    mkdirSync(target, { recursive: true })
+    writeFileSync(join(target, 'sentinel'), 'preserved data')
+    const { backend, runtime, faux, options, create } = await durable()
+    expect(backend).toMatchObject({ id: reserved.id, locator: reserved.locator, state: 'bound' })
+    expect(lstatSync(target).isFile()).toBe(true)
+    const parent = application.getPath('feature.agents.durable.stores')
+    const quarantines = readdirSync(parent).filter((name) => name.startsWith(`.quarantine-${backend.id}-`))
+    expect(quarantines).toHaveLength(1)
+    expect(readFileSync(join(parent, quarantines[0], 'occupant', 'sentinel'), 'utf8')).toBe('preserved data')
+    const storage = await openDurableStorage(backend)
+    await storage.close(BACKGROUND_CONTEXT)
+    const created = await create({
+      ownership: { kind: 'ownerless' },
+      agent: { model: { provider: 'faux', modelId: 'faux-1' } }
+    })
+    const handle = confirmed(created.result)
+    const observer = await observeInputs(handle)
+    cleanup.push(() => observer.stop())
+    faux.setResponses([fauxAssistantMessage('recovered durable answer')])
+    const id = message()
+    expect((await submitInput(handle, id, created.context.id)).status).toBe('acknowledged')
+    await expect.poll(() => observer.inputs.get(id)?.outcome).toBe('completed')
+    await observer.stop()
+    await runtime.shutdown()
+    const reopened = confirmed(await openDurableBackend(backend.id, options))
+    cleanup.push(() => reopened.shutdown())
+    const restored = confirmed(await reopened.open(handle.thread))
+    const text: string[] = []
+    const history = confirmed(
+      await restored.observe((event) => {
+        if (event.type === 'snapshot')
+          for (const item of event.messages)
+            text.push(...item.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
+      })
+    )
+    cleanup.push(() => history.stop())
+    expect(text.join('\n')).toContain('recovered durable answer')
+    const inputs = await observeInputs(restored)
+    cleanup.push(() => inputs.stop())
+    expect(inputs.inputs.get(id)?.outcome).toBe('completed')
+    faux.setResponses([fauxAssistantMessage('second durable answer')])
+    const second = message('second question')
+    expect((await submitInput(restored, second, created.context.id)).status).toBe('acknowledged')
+    await expect.poll(() => inputs.inputs.get(second)?.outcome).toBe('completed')
+    expect(contexts.backend(backend.id).locator).toEqual(reserved.locator)
+  })
+
   it('restores Durable inputs by their original message key without scheduling work on reopen', async () => {
     const { backend, runtime, faux, options, create } = await durable()
     const created = await create({
@@ -506,7 +557,7 @@ describe('native context storage and reconciliation', () => {
       agent: { model: { provider: 'faux', modelId: 'faux-1' } }
     })
     const handle = confirmed(created.result)
-    const observer = await observeInputs(handle, created.context.id)
+    const observer = await observeInputs(handle)
     cleanup.push(() => observer.stop())
     faux.setResponses([fauxAssistantMessage('durable native answer')])
     const id = message()
@@ -517,7 +568,7 @@ describe('native context storage and reconciliation', () => {
     const reopened = confirmed(await openDurableBackend(backend.id, options))
     cleanup.push(() => reopened.shutdown())
     const restored = confirmed(await reopened.open(handle.thread))
-    const restoredInputs = await observeInputs(restored, created.context.id)
+    const restoredInputs = await observeInputs(restored)
     cleanup.push(() => restoredInputs.stop())
     await expect.poll(() => restoredInputs.inputs.get(id)).toMatchObject({ outcome: 'completed' })
     expect(restoredInputs.inputs.has('missing')).toBe(false)
@@ -541,7 +592,7 @@ describe('native context storage and reconciliation', () => {
       agent: { model: { provider: 'faux', modelId: 'faux-1' } }
     })
     const handle = confirmed(created.result)
-    const observer = await observeInputs(handle, created.context.id)
+    const observer = await observeInputs(handle)
     const id = message()
     await submitInput(handle, id, created.context.id)
     await reached.promise
@@ -552,7 +603,7 @@ describe('native context storage and reconciliation', () => {
     const reopened = confirmed(await openDurableBackend(backend.id, options))
     cleanup.push(() => reopened.shutdown())
     const access = confirmed(await reopened.open(handle.thread))
-    const restoredInputs = await observeInputs(access, created.context.id)
+    const restoredInputs = await observeInputs(access)
     cleanup.push(() => restoredInputs.stop())
     await expect.poll(() => restoredInputs.inputs.get(id)).toMatchObject({ facts: ['accepted', 'placed'] })
     expect(restoredInputs.inputs.get(id)?.outcome).toBeUndefined()
@@ -563,8 +614,8 @@ describe('native context storage and reconciliation', () => {
     expect(faux.state.callCount).toBe(before + 1)
   })
 
-  it('recovers a queued Durable input by native identity before it has a transcript entry', async () => {
-    const { backend, runtime, faux, options, create } = await durable()
+  it('finds a queued input on its original conversation after losing the receipt and switching branches', async () => {
+    const { backend, runtime, faux, create } = await durable()
     const reached = Promise.withResolvers<void>()
     faux.setResponses([
       (_context, stream) =>
@@ -583,29 +634,54 @@ describe('native context storage and reconciliation', () => {
     await submitInput(handle, message('running'), created.context.id)
     await reached.promise
     const queuedId = message('queued')
-    const receipt = await submitInput(handle, queuedId, created.context.id, 'follow-up')
-    if (receipt.status !== 'acknowledged' || !receipt.nativeInput) throw new Error('Expected native queued receipt')
-    expect(receipt.facts).toContain('queued')
+    const draft = prepareNativeSubmission(sessionId, queuedId, created.context.id, 'follow-up')
+    const receipt = await handle.input.submit(draft)
+    expect(receipt).toMatchObject({ status: 'acknowledged', facts: ['accepted', 'queued'] })
+    expect(await handle.input.submit(draft)).toEqual(receipt)
+    const other = confirmed(await runtime.create({ ownership: { kind: 'ownerless' } }))
+    expect(await runtime.lookupInput(other.thread, draft.inputId)).toBeUndefined()
+    const legacy = await runtime.durable.commit(
+      (tx) =>
+        tx.createSubmission({
+          conversationId: Number(handle.thread.id) as ConversationId,
+          type: 'input',
+          status: 'queued'
+        }),
+      BACKGROUND_CONTEXT
+    )
+    const legacyId = message('legacy queued')
+    prepareNativeSubmission(sessionId, legacyId, created.context.id, 'follow-up')
+    dbh.db
+      .update(agentSessionMessageTable)
+      .set({ nativeInputId: String(legacy.id) })
+      .where(eq(agentSessionMessageTable.id, legacyId))
+      .run()
+    expect(await runtime.lookupInput(other.thread, runtimeId(legacyId), runtimeId(String(legacy.id)))).toBeUndefined()
+    const anchorMessageId = message('other branch')
+    const sibling = application.get('DbService').withWriteTx((tx) =>
+      contexts.reserveBranchTx(tx, {
+        sessionId,
+        backendId: backend.id,
+        anchorMessageId,
+        nativeThreadId: other.thread.id
+      })
+    )
     await runtime.shutdown()
     const before = faux.state.callCount
-    const reopened = confirmed(await openDurableBackend(backend.id, options))
-    cleanup.push(() => reopened.shutdown())
-    const restored = confirmed(await reopened.open(handle.thread))
-    const restoredInputs = await observeInputs(restored, created.context.id)
-    cleanup.push(() => restoredInputs.stop())
-    await expect
-      .poll(() => restoredInputs.inputs.get(queuedId))
-      .toMatchObject({
-        nativeInput: receipt.nativeInput,
-        facts: ['accepted', 'queued']
-      })
-    const found = restoredInputs.inputs.get(queuedId)!
-    expect(found.inputId).toBeUndefined()
-    expect(bindNativeInput(sessionId, created.context.id, found)).toBe(queuedId)
-    expect(messages.inputBinding(sessionId, queuedId)).toEqual({
-      contextId: created.context.id,
-      nativeInputId: receipt.nativeInput.id
+    const found = await lookupNativeInput(sessionId, created.context.id, queuedId)
+    expect(found).toMatchObject({
+      status: 'confirmed',
+      value: { found: true, input: { inputId: queuedId, facts: ['accepted', 'queued'] } }
     })
+    expect((await lookupNativeInput(sessionId, sibling.id, queuedId)).status).toBe('unknown')
+    expect(await lookupNativeInput(sessionId, created.context.id, legacyId)).toMatchObject({
+      status: 'confirmed',
+      value: {
+        found: true,
+        input: { inputId: legacyId, nativeInput: { id: String(legacy.id) }, facts: ['accepted', 'queued'] }
+      }
+    })
+    expect(messages.inputBinding(sessionId, queuedId)?.nativeInputId).toBeNull()
     expect(faux.state.callCount).toBe(before)
   })
 

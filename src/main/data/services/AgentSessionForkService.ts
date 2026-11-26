@@ -10,13 +10,15 @@ import {
   type AgentSessionCheckpoints,
   type AgentSessionContextRow
 } from '@data/db/schemas/agentSessionContext'
-import { type AgentSessionMessageRow, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { DbOrTx } from '@data/db/types'
+import type { UniqueModelId } from '@shared/data/types/model'
 
 import { agentSessionContextService } from './AgentSessionContextService'
 import { agentSessionMessageService } from './AgentSessionMessageService'
 import { agentSessionPathIds, ensureAgentSessionRootTx } from './agentSessionMessageTree'
+import type { AgentSessionMessageRecord } from './agentSessionMessageTree'
 import { agentSessionService } from './AgentSessionService'
 
 export class AgentSessionForkSourceError extends Error {
@@ -119,7 +121,7 @@ export class AgentSessionForkService {
       source: ReturnType<AgentSessionForkService['read']>
       excludedIds: readonly string[]
       messageId: string
-      messages: AgentSessionMessageRow[]
+      messages: AgentSessionMessageRecord[]
       contexts: Array<
         Pick<AgentSessionContextRow, 'backendId' | 'anchorMessageId'> & { id?: string; nativeThreadId: string }
       >
@@ -127,12 +129,13 @@ export class AgentSessionForkService {
   ): void {
     const { source } = input
     const current = this.readTx(tx, source.session.id, input.messageId, input.excludedIds)
-    // Appending after the boundary is allowed. Changes to the chosen prefix, Agent or cwd are not.
+    // Appending after the boundary is allowed. Changes to the chosen prefix, Agent, cwd or model are not.
     if (
       current.agent.type !== source.agent.type ||
       current.agent.id !== source.agent.id ||
       current.workspace.id !== source.workspace.id ||
       current.workspace.path !== source.workspace.path ||
+      current.session.model !== source.session.model ||
       JSON.stringify(current.messages) !== JSON.stringify(source.messages) ||
       JSON.stringify(current.contexts) !== JSON.stringify(source.contexts)
     )
@@ -165,6 +168,7 @@ export class AgentSessionForkService {
         agentId: source.agent.id,
         name: `${baseName}${separator}(${number})`,
         description: source.session.description,
+        model: (source.session.model ?? undefined) as UniqueModelId | undefined,
         workspace:
           source.workspace.type === 'system' ? { type: 'system' } : { type: 'user', workspaceId: source.workspace.id }
       },

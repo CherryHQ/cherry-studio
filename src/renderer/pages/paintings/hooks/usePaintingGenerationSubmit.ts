@@ -2,11 +2,15 @@ import { useCallback, useRef, useState } from 'react'
 
 import type { FileEntry } from '@shared/data/types/file'
 
+import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
 import { presentPaintingGenerationGuardFeedback } from '../utils/presentPaintingGenerationGuardFeedback'
+import { validateSeedreamPaintingParams } from '../utils/validateSeedreamPaintingParams'
+import { validateSeedreamPaintingProvider } from '../utils/validateSeedreamPaintingProvider'
 import { usePaintingGeneration } from './usePaintingGeneration'
 import { usePaintingGenerationGuard } from './usePaintingGenerationGuard'
+import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
 /** Resolves the composer's draft attachments into the entries a request consumes. */
 export type MaterializeInputs = () => Promise<{ entries: FileEntry[]; complete: boolean }>
@@ -51,6 +55,7 @@ export function usePaintingGenerationSubmit({
   onPaintingChange,
   ensureCurrentCatalog
 }: UsePaintingGenerationSubmitInput) {
+  const { provider } = usePaintingProviderRuntime(painting.providerId)
   const { validateBeforeGenerate } = usePaintingGenerationGuard({
     painting,
     ensureCurrentCatalog
@@ -74,6 +79,13 @@ export function usePaintingGenerationSubmit({
       setSubmitting(true)
       setPreparing(true)
       try {
+        try {
+          validateSeedreamPaintingProvider(painting.model, provider)
+          validateSeedreamPaintingParams(painting)
+        } catch (error) {
+          presentPaintingGenerateError(error)
+          return
+        }
         const guardResult = await validateBeforeGenerate()
         if (!guardResult.ok) {
           void presentPaintingGenerationGuardFeedback(guardResult.reason, guardResult.error, painting.providerId)
@@ -91,7 +103,7 @@ export function usePaintingGenerationSubmit({
         setPreparing(false)
       }
     },
-    [generate, generating, painting.providerId, validateBeforeGenerate]
+    [generate, generating, painting, provider, validateBeforeGenerate]
   )
 
   return { generating, submitting, preparing, submit, cancel }

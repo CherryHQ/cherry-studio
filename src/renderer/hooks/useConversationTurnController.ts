@@ -4,38 +4,26 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
-import type { ActiveExecution, AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
-import type { CherryUIMessage } from '@shared/data/types/message'
+import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 
 const logger = loggerService.withContext('useConversationTurnController')
 
 export type ConversationTurnPhase = 'draft' | 'persisting' | 'opening' | 'streaming' | 'ready'
 
-export interface ReservedMessageSeedOptions {
-  activeExecutions?: readonly ActiveExecution[]
-  preserveActiveNode?: boolean
-}
-
-export interface ConversationHistoryAdapter {
-  seedReservedMessages: (messages: CherryUIMessage[], options?: ReservedMessageSeedOptions) => Promise<void> | void
-  refresh: () => Promise<unknown> | unknown
-  rollback: () => Promise<unknown> | unknown
-}
-
 export interface UseConversationTurnControllerOptions<TInput, TConversation> {
   scopeKey: string
-  historyAdapter: ConversationHistoryAdapter
+  onRollback: () => Promise<unknown> | unknown
   ensureConversation: (input: TInput) => Promise<TConversation | null> | TConversation | null
   buildStreamRequest: (input: TInput, conversation: TConversation) => AiStreamOpenRequest
   openStream?: (request: AiStreamOpenRequest, input: TInput) => Promise<AiStreamOpenResponse>
   refreshMetadata?: (conversation: TConversation, ack: AiStreamOpenResponse) => Promise<unknown> | unknown
-  onAccepted?: (ack: Exclude<AiStreamOpenResponse, { mode: 'blocked' }>) => void
+  onAccepted?: (ack: Exclude<AiStreamOpenResponse, { mode: 'blocked' }>, input: TInput) => Promise<void> | void
   onError?: (error: unknown, input: TInput) => void
 }
 
 export function useConversationTurnController<TInput, TConversation>({
   scopeKey,
-  historyAdapter,
+  onRollback,
   ensureConversation,
   buildStreamRequest,
   openStream,
@@ -89,21 +77,13 @@ export function useConversationTurnController<TInput, TConversation>({
           return false
         }
 
-        callbacks.onAccepted?.(ack)
-        const reservedMessages = ack.reservedMessages ?? []
-        if (reservedMessages.length > 0) {
-          await historyAdapter.seedReservedMessages(reservedMessages, {
-            activeExecutions: ack.activeExecutions,
-            preserveActiveNode: ack.preserveActiveNode
-          })
-        }
-
+        await callbacks.onAccepted?.(ack, input)
         if (isCurrentScope()) setPhase('streaming')
         return true
       } catch (err) {
         if (!isCurrentScope()) return false
         try {
-          await historyAdapter.rollback()
+          await onRollback()
         } catch (rollbackErr) {
           logger.warn('Failed to rollback conversation history after stream open failure', rollbackErr as Error)
         }
@@ -117,7 +97,7 @@ export function useConversationTurnController<TInput, TConversation>({
         throw err
       }
     },
-    [buildStreamRequest, ensureConversation, historyAdapter, openStream, refreshMetadata]
+    [buildStreamRequest, ensureConversation, onRollback, openStream, refreshMetadata]
   )
 
   return {

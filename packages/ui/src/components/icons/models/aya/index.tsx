@@ -9,7 +9,7 @@ const Aya = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const AyaIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Aya, {
   Avatar: AyaAvatar,
-  colorPrimary: '#416FDC'
+  colorPrimary: '#eef2fc'
 })
 
 export default AyaIcon

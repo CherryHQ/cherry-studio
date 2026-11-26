@@ -11,6 +11,11 @@ export type McpSourceToolAccess = {
   approval: 'auto' | 'prompt'
 }
 
+export function resolveMcpSourceSkillAccess(server: McpServer, skillUri: string): McpSourceToolAccess {
+  const permission = server.skillPermissions?.[skillUri] ?? 'prompt'
+  return { enabled: permission !== 'disabled', approval: permission === 'auto' ? 'auto' : 'prompt' }
+}
+
 export function buildMcpWireToolId(serverName: string, toolName: string): string {
   return buildFunctionCallToolName(serverName, toolName)
 }

@@ -11,6 +11,7 @@ import type { ModelMessage, UIMessage } from 'ai'
 import { application } from '@application'
 import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
+import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import {
@@ -21,7 +22,6 @@ import {
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
-import { messageService } from '@main/data/services/MessageService'
 import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
@@ -37,12 +37,12 @@ import {
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
+import { applyMaxMessagesWindow } from '@shared/utils/contextSettings'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
 import { resolveOutputReservation } from '../../contextBuild/resolveOutputReservation'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
-import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
@@ -855,6 +855,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       id: m.id,
       role: m.role,
       parts: m.data?.parts ?? [],
+      modelId: m.role === 'assistant' && m.status === 'success' ? (m.modelId ?? undefined) : undefined,
       compactionSummary: m.compactionSummary ?? undefined,
       contextTokens: m.stats?.contextTokens ?? undefined
     }
@@ -863,7 +864,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   private toServed(row: CompactionRow): CherryUIMessage {
     // Route the role through toContentRole to keep the virtual-root guard that the
     // rest of this file relies on (a `root` row must never reach model history).
-    return { id: row.id, role: toContentRole(row.role as MessageRole), parts: row.parts } as CherryUIMessage
+    return {
+      id: row.id,
+      role: toContentRole(row.role as MessageRole),
+      parts: row.parts,
+      ...(row.modelId && { metadata: { modelId: row.modelId } })
+    } as CherryUIMessage
   }
 
   private estimateTotal(rows: CompactionRow[], dialect: TokenDialect): number {

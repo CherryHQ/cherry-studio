@@ -1347,10 +1347,10 @@ describe('release workflow gates', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
 
     expect(workflow.permissions).toEqual({ contents: 'read' })
-    for (const job of Object.values(workflow.jobs) as {
+    for (const job of Object.values<{
       permissions?: { contents?: string }
       steps: { name?: string; uses?: string; run?: string; env?: Record<string, string> }[]
-    }[]) {
+    }>(workflow.jobs)) {
       expect(job.permissions?.contents).not.toBe('write')
       for (const step of job.steps) {
         expect(step.uses ?? '').not.toMatch(/release-action|action-gh-release/)
@@ -1390,7 +1390,7 @@ describe('release workflow gates', () => {
       fs.rmSync(path.join(root, 'dist'), { recursive: true, force: true })
       for (const file of expected.files) write(root, `dist/${file}`, 'installer')
       for (const manifest of expected.manifests) {
-        write(root, `dist/${manifest.file}`, JSON.stringify({ files: manifest.urls.map((url) => ({ url })) }))
+        write(root, `dist/${manifest.file}`, JSON.stringify({ version, files: manifest.urls.map((url) => ({ url })) }))
       }
       const env = { ...process.env, EDITION: edition, PLATFORM: platform, ARCH: architecture }
       execFileSync('bash', ['-e', '-c', validation.run], { cwd: root, env, stdio: 'pipe' })

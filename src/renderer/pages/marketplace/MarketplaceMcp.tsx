@@ -1,9 +1,29 @@
-import { ExternalLink, Loader2, Plus, Settings2 } from 'lucide-react'
+import {
+  BookOpen,
+  BrainCircuit,
+  Car,
+  CodeXml,
+  Database,
+  ExternalLink,
+  Folder,
+  Globe,
+  Loader2,
+  NotebookPen,
+  PackagePlus,
+  Plus,
+  Search,
+  SearchCode,
+  Settings2,
+  Workflow,
+  Wrench
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@cherrystudio/ui'
-import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import { getIconDisplayConfig } from '@renderer/components/icons/iconDisplayConfig'
+import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { useBuiltinMcpCatalog } from '@renderer/hooks/useBuiltinMcpCatalog'
 import { useExitPresence } from '@renderer/hooks/useExitPresence'
 import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
@@ -32,6 +52,50 @@ import {
 } from './MarketplaceComponents'
 import MarketplaceMcpProvider from './MarketplaceMcpProvider'
 import { providers as providerConfigs } from './providers/config'
+
+const builtinMcpIcons: Partial<Record<McpServerPreset['name'], LucideIcon>> = {
+  [BuiltinMcpServerNames.flomo]: NotebookPen,
+  [BuiltinMcpServerNames.qveris]: SearchCode,
+  [BuiltinMcpServerNames.mcpAutoInstall]: PackagePlus,
+  [BuiltinMcpServerNames.sequentialThinking]: Workflow,
+  [BuiltinMcpServerNames.fetch]: Globe,
+  [BuiltinMcpServerNames.memory]: BrainCircuit,
+  [BuiltinMcpServerNames.filesystem]: Folder,
+  [BuiltinMcpServerNames.braveSearch]: Search,
+  [BuiltinMcpServerNames.difyKnowledge]: BookOpen,
+  [BuiltinMcpServerNames.python]: CodeXml,
+  [BuiltinMcpServerNames.didiMcp]: Car,
+  [BuiltinMcpServerNames.nowledgeMem]: Database
+}
+
+function BuiltinMcpIcon({ name, large = false }: { name: McpServerPreset['name']; large?: boolean }) {
+  const Icon = builtinMcpIcons[name] ?? Wrench
+  const displayConfig = getIconDisplayConfig('mini-app', 'mcp')
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex shrink-0 items-center justify-center overflow-hidden bg-muted text-foreground ${large ? 'size-14' : 'size-10'}`}
+      style={{ borderRadius: displayConfig?.borderRadius }}>
+      <Icon className={large ? 'size-10' : 'size-7'} strokeWidth={1.75} />
+    </span>
+  )
+}
+
+function McpSourceIcon({ logo, name }: { logo: string; name: string }) {
+  return (
+    <span aria-hidden="true" className="shrink-0">
+      <ProviderAvatarPrimitive
+        providerId={name}
+        providerName={name}
+        logo={logo}
+        size={40}
+        className="rounded-lg"
+        displayContext="toolbar"
+        artworkSize={32}
+      />
+    </span>
+  )
+}
 
 export function MarketplaceMcp({
   catalog,
@@ -144,7 +208,7 @@ export function MarketplaceMcp({
                 <MarketplaceCard
                   name={getProviderDisplayName(provider, t)}
                   description={t('marketplace.manage_mcp')}
-                  icon={<provider.logo.Avatar size={36} shape="circle" />}
+                  icon={<McpSourceIcon logo={provider.logo} name={getProviderDisplayName(provider, t)} />}
                   onOpen={(event) => {
                     trigger.current = event.currentTarget
                     onProviderChange(provider.key)
@@ -173,18 +237,11 @@ export function MarketplaceMcp({
             <MarketplaceGrid
               items={markets.map((market) => ({ ...market, id: market.url }))}
               renderItem={(market) => {
-                const Logo = market.logo
                 return (
                   <MarketplaceCard
                     name={market.name}
                     description={t(market.descriptionKey)}
-                    icon={
-                      typeof Logo === 'string' ? (
-                        <img src={Logo} alt="" className="size-9 shrink-0 rounded-lg object-contain" />
-                      ) : (
-                        <Logo.Avatar size={36} shape="circle" />
-                      )
-                    }
+                    icon={<McpSourceIcon logo={market.logo} name={market.name} />}
                     onOpen={() => openExternalWebsite(market.url)}
                     action={
                       <Button
@@ -218,11 +275,7 @@ export function MarketplaceMcp({
           <MarketplaceCard
             name={preset.name}
             description={description(preset)}
-            icon={
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-background-subtle">
-                <McpLogo className="size-5 text-muted-foreground" />
-              </span>
-            }
+            icon={<BuiltinMcpIcon name={preset.name} />}
             onOpen={(event) => {
               trigger.current = event.currentTarget
               setSelected(preset)
@@ -258,11 +311,7 @@ export function MarketplaceMcp({
                 name={selected.name}
                 description={description(selected)}
                 type={t('marketplace.type.mcp')}
-                icon={
-                  <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-border-subtle bg-background text-muted-foreground shadow-sm">
-                    <McpLogo className="size-7" aria-hidden="true" />
-                  </span>
-                }
+                icon={<BuiltinMcpIcon name={selected.name} large />}
               />
               <MarketplaceDetailBody>
                 <p className="whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">

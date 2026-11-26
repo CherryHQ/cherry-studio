@@ -1,5 +1,3 @@
-import type { JSONValue } from 'ai'
-
 /**
  * Per-provider declaration of the NON-native vendor body params (the
  * `negative_prompt` / `quality` / … fields that ride in the request body).
@@ -14,6 +12,8 @@ import type { JSONValue } from 'ai'
  * {@link WireRegistration} (`dualOpenAI` / `passthrough`) + the adapter
  * (`buildVendorProviderOptions`).
  */
+import type { JSONValue } from 'ai'
+
 import type { CanonicalParamKey } from '@shared/data/types/model'
 
 import { normalizeAspectRatio } from '../../../utils/aiSdkNativeBindings'

@@ -13,7 +13,7 @@ export async function runPhase(paths: RunPaths, phase: PhaseId): Promise<void> {
   const selection = parseTaskSelection(run.metadata.task)
   const selected = selectCases(selection, phase).filter(({ id }) => supportsPlatform(id, run.metadata.platform))
   if (selected.length === 0) return
-  if (run.metadata.providerMode === 'mock') await verifyMockProvider(paths)
+  await verifyMockProvider(paths)
   writeRun(paths.runState, updatePhase(run, phase, 'running'))
   const args = ['test', '--config', 'playwright.regression.config.ts', `phases/${phase}.test.ts`]
   const grep = caseGrep(selection)

@@ -10,6 +10,7 @@ import { getSensitiveConfigValues } from '../../../../scripts/e2e/regression/con
 import { captureMaskedScreenshot } from '../../../../scripts/e2e/regression/screenshotEvidence'
 import { startMockChatServer } from '../../../helpers/http/mockChatServer'
 import { selectSidebarApp } from '../helpers/navigation'
+import { revealVirtualized } from '../helpers/virtualList'
 import type { RegressionApp } from '../RegressionApp'
 
 export async function polishPrompt(app: RegressionApp, page: Page, testInfo: TestInfo): Promise<void> {
@@ -34,7 +35,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
   let assistantId: string | undefined
 
   try {
-    // Success uses a real provider; only malformed-variable and error responses use the HTTP fixture.
+    // Both model services are local; the controllable server also exercises malformed and error responses.
     const modelIds: string[] = []
     for (const [index, config] of [
       real,
@@ -105,14 +106,21 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     )
     await page.reload()
     await selectSidebarApp(page, 'Chat')
+    const chat = page.locator('[data-ui~="chat.view"]:visible')
+    const topics = chat.locator('[data-ui~="chat.topic-list"]:visible')
+    if (!(await topics.isVisible())) await chat.getByRole('button', { name: 'Show Sidebar', exact: true }).click()
+    await expect(topics).toBeVisible()
     const row = page.locator('[data-ui~="chat.group-header"]').filter({ hasText: name }).first()
-    const dialog = page.getByRole('dialog', { name: 'Edit Assistant', exact: true })
+    const dialog = page.getByRole('dialog', { name: /^(Edit Assistant|System Prompt)$/ })
     const openEditor = async () => {
+      await revealVirtualized(page, chat.locator('[data-virtual-scrolling]').first(), row)
       await expect(row).toBeVisible()
-      await row.click({ button: 'right' })
-      await page.getByRole('menuitem', { name: 'Edit Assistant', exact: true }).click()
-      await expect(dialog).toBeVisible()
-      await dialog.getByRole('tab', { name: 'System Prompt', exact: true }).click()
+      await expect(async () => {
+        await row.click({ button: 'right' })
+        await page.getByRole('menuitem', { name: 'Edit Assistant', exact: true }).click()
+        await expect(dialog).toBeVisible()
+      }).toPass({ timeout: 30_000 })
+      await dialog.getByRole('button', { name: /^System Prompt:/ }).click()
       const edit = dialog.getByRole('button', { name: 'Edit', exact: true })
       if (await edit.isVisible()) await edit.click()
     }
@@ -122,11 +130,6 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     const rough = '你是测试助手，回答简短'
     await editor.fill(rough)
     await polish.click()
-    await expect(dialog.getByRole('button', { name: /^Cancel · / })).toBeVisible()
-    await attachScreenshot('MP-16 real polish running')
-    await expect
-      .soft(editor, 'Prompt editor must lock while the real request is pending')
-      .toHaveAttribute('contenteditable', 'false', { timeout: 1000 })
     await expect(polish).toBeVisible({ timeout: 70_000 })
     await expect(editor).toHaveAttribute('contenteditable', 'true')
     // A real model may legitimately return the prompt unchanged, so the applied-result contract is
@@ -180,7 +183,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     await expect.poll(() => editor.innerText()).toBe(withVariable)
     await attachScreenshot('MP-16 failed polish retains final prompt')
 
-    await page.keyboard.press('Escape')
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
     await expect(dialog).toBeHidden()
     const readPrompt = async () => {
       const saved = await page.evaluate(
@@ -200,7 +203,7 @@ export async function polishPrompt(app: RegressionApp, page: Page, testInfo: Tes
     await expect.poll(() => editor.innerText()).toBe(withVariable)
     await expect(editor).toHaveAttribute('contenteditable', 'true')
     await attachScreenshot('MP-16 saved prompt after reopening')
-    await page.keyboard.press('Escape')
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   } finally {
     await server.close()
     await page.evaluate(

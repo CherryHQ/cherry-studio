@@ -37,7 +37,7 @@ export async function agentStatusPanel(app: RegressionApp, page: Page, testInfo:
       name: app.workspaceName
     })
 
-    // Real provider and real filesystem tools; no task, tool, or context events are injected.
+    // Mock model decisions; real filesystem tools and task events.
     const providerId = await ensureCustomChatProvider(app, page)
     await closeSettings(page)
     await createAgent(page, {

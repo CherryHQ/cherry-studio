@@ -61,6 +61,26 @@ beforeEach(() => {
 })
 
 describe('createUnifiedQuickPanelOpenOptions', () => {
+  it('excludes Off dictation from both root and search results and restores On', () => {
+    const launcher: ComposerToolLauncher = {
+      id: 'dictation',
+      kind: 'command',
+      label: 'Local dictation',
+      icon: 'mic',
+      hidden: true,
+      sources: ['root-panel'],
+      action: vi.fn()
+    }
+    const off = createUnifiedQuickPanelOpenOptions([launcher], { quickPanel, onToolLauncherSelect: vi.fn() })
+    expect(labels(getVisibleItems(off, ''))).not.toContain('Local dictation')
+    expect(labels(getVisibleItems(off, 'dictation'))).not.toContain('Local dictation')
+    const on = createUnifiedQuickPanelOpenOptions([{ ...launcher, hidden: false }], {
+      quickPanel,
+      onToolLauncherSelect: vi.fn()
+    })
+    expect(labels(getVisibleItems(on, 'dictation'))).toContain('Local dictation')
+  })
+
   it('flattens actionable leaves through nested submenus without looping on cycles', () => {
     const leafAction = vi.fn()
     const onToolLauncherSelect = vi.fn()

@@ -1,6 +1,3 @@
-import { getToolName, isToolUIPart } from 'ai'
-import { v4 as uuidv4 } from 'uuid'
-
 /**
  * Multimodal image support for Markdown file exports.
  *
@@ -14,6 +11,9 @@ import { v4 as uuidv4 } from 'uuid'
  * Failure policy: a single image that fails to resolve or read is skipped and
  * counted — export never aborts because of one image.
  */
+import { getToolName, isToolUIPart } from 'ai'
+import { v4 as uuidv4 } from 'uuid'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { ExportableMessage } from '@renderer/types/messageExport'
@@ -94,8 +94,8 @@ export async function hydrateDeferredImageOutputs(
       const output = (part as { output?: unknown }).output
       if (!isDeferredToolOutput(output)) continue
       try {
-        const response = await ipcApi.request('ai.tool.get_result', output.$deferredToolResult)
-        if (!response.found) {
+        const response = await ipcApi.request('ai.tool.get_result', { ...output.$deferredToolResult, purpose: 'full' })
+        if (response.status !== 'ready' || response.purpose !== 'full') {
           throw new Error(`Tool result is no longer available: ${output.$deferredToolResult.toolCallId}`)
         }
         messageParts ??= [...parts]

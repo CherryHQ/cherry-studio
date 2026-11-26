@@ -45,3 +45,10 @@ export async function assertOutsideManagedStorageMutation(...candidates: string[
     }
   }
 }
+
+/** Identify managed read sources, including symlink aliases and missing descendants. */
+export async function isInsideManagedStorage(candidate: string): Promise<boolean> {
+  const managedRoot = path.resolve(application.getPath('feature.files.data'))
+  if (isSameOrInside(path.resolve(candidate), managedRoot)) return true
+  return isSameOrInside(await nearestExistingRealPath(candidate), await nearestExistingRealPath(managedRoot))
+}

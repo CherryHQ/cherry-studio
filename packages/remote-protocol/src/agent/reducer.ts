@@ -78,16 +78,17 @@ function materialize(
   return text === undefined ? undefined : { ...part, content: { text } }
 }
 
-function hasPart(projection: AgentProjection, messageId: string, partId: string): boolean {
-  return Boolean(projection.messages[messageId]?.partIds.includes(partId) && projection.parts[partId])
-}
-
 function apply(
   projection: AgentProjection,
   event: AgentEvent,
   content: MaterializedContent,
-  integrity: IntegrityPrimitives
+  integrity: IntegrityPrimitives,
+  owners?: Map<string, string>
 ): RecoveryReason | undefined {
+  const hasPart = (messageId: string, partId: string) =>
+    owners
+      ? owners.get(partId) === messageId
+      : Boolean(projection.messages[messageId]?.partIds.includes(partId) && projection.parts[partId])
   switch (event.kind) {
     case 'session.updated':
       if (event.payload.sessionId !== projection.cursor.sessionId) return 'epoch'
@@ -125,6 +126,7 @@ function apply(
       const message = projection.messages[messageId]
       if (!message || !validRevision(message.revision, baseRevision, revision)) return 'revision'
       for (const partId of message.partIds) {
+        owners?.delete(partId)
         delete projection.parts[partId]
         projection.tombstones.push(partId)
       }
@@ -142,19 +144,25 @@ function apply(
         projection.tombstones.includes(part.partId)
       )
         return 'revision'
-      const position = afterPartId === null ? 0 : message.partIds.indexOf(afterPartId) + 1
+      const position =
+        afterPartId === null
+          ? 0
+          : message.partIds.at(-1) === afterPartId
+            ? message.partIds.length
+            : message.partIds.indexOf(afterPartId) + 1
       if (afterPartId !== null && position === 0) return 'revision'
-      const partIds = [...message.partIds]
-      partIds.splice(position, 0, part.partId)
-      projection.messages[messageId] = { ...message, revision: messageRevision, partIds }
       const materialized = materialize(part, content, integrity)
       if (!materialized) return 'content'
+      const partIds = message.partIds.slice()
+      partIds.splice(position, 0, part.partId)
+      projection.messages[messageId] = { ...message, revision: messageRevision, partIds }
       projection.parts[part.partId] = materialized
+      owners?.set(part.partId, messageId)
       return
     }
     case 'part.append': {
       const { messageId, partId, baseRevision, revision, offsetUtf8, text } = event.payload
-      if (!hasPart(projection, messageId, partId)) return 'revision'
+      if (!hasPart(messageId, partId)) return 'revision'
       const part = projection.parts[partId]
       if (!validRevision(part.revision, baseRevision, revision)) return 'revision'
       if (part.kind !== 'text' && part.kind !== 'reasoning' && part.kind !== 'tool-input') return 'content'
@@ -174,7 +182,7 @@ function apply(
     case 'part.replaced': {
       const { messageId, part, baseRevision } = event.payload
       if (
-        !hasPart(projection, messageId, part.partId) ||
+        !hasPart(messageId, part.partId) ||
         !validRevision(projection.parts[part.partId].revision, baseRevision, part.revision)
       )
         return 'revision'
@@ -185,7 +193,7 @@ function apply(
     }
     case 'part.completed': {
       const { messageId, partId, baseRevision, revision, byteLength, sha256 } = event.payload
-      if (!hasPart(projection, messageId, partId)) return 'revision'
+      if (!hasPart(messageId, partId)) return 'revision'
       const part = projection.parts[partId]
       if (!validRevision(part.revision, baseRevision, revision)) return 'revision'
       if (part.kind !== 'text' && part.kind !== 'reasoning' && part.kind !== 'tool-input') return 'content'
@@ -198,7 +206,7 @@ function apply(
     }
     case 'part.removed': {
       const { messageId, partId, baseRevision, revision, messageBaseRevision, messageRevision } = event.payload
-      if (!hasPart(projection, messageId, partId)) return 'revision'
+      if (!hasPart(messageId, partId)) return 'revision'
       const message = projection.messages[messageId]
       if (
         !validRevision(message.revision, messageBaseRevision, messageRevision) ||
@@ -210,6 +218,7 @@ function apply(
         revision: messageRevision,
         partIds: message.partIds.filter((id) => id !== partId)
       }
+      owners?.delete(partId)
       delete projection.parts[partId]
       projection.tombstones.push(partId)
       return
@@ -227,15 +236,36 @@ function apply(
   }
 }
 
+function parseBatch(input: AgentEventBatch) {
+  const parsed = agentEventBatchSchema.safeParse(input)
+  return parsed.success && encodeCanonical(parsed.data).length <= 16_384 ? parsed.data : undefined
+}
+
+/** Binds one journal epoch to its private mutable projection. Checkpoints share immutable row values. */
+export function createAgentJournalWriter(projection: AgentProjection, integrity: IntegrityPrimitives) {
+  const owners = new Map<string, string>()
+  for (const row of Object.values(projection.messages))
+    for (const partId of row.partIds) owners.set(partId, row.messageId)
+
+  return (event: AgentEvent, content: MaterializedContent): RecoveryReason | undefined => {
+    const { sessionId, streamEpoch, seq } = projection.cursor
+    const batch = parseBatch({ subscriptionId: 'journal', sessionId, streamEpoch, events: [event] })
+    if (!batch) return 'content'
+    if (BigInt(event.seq) !== BigInt(seq) + 1n) return 'gap'
+    const reason = apply(projection, batch.events[0], content, integrity, owners)
+    if (reason) return reason
+    projection.cursor = { sessionId, streamEpoch, seq: event.seq }
+  }
+}
+
 export function applyAgentEvents(
   projection: Readonly<AgentProjection>,
   input: AgentEventBatch,
   content: MaterializedContent,
   integrity: IntegrityPrimitives
 ): ApplyAgentEventsResult {
-  const parsed = agentEventBatchSchema.safeParse(input)
-  if (!parsed.success || encodeCanonical(parsed.data).length > 16_384) return { ok: false, reason: 'content' }
-  const batch = parsed.data
+  const batch = parseBatch(input)
+  if (!batch) return { ok: false, reason: 'content' }
   if (batch.sessionId !== projection.cursor.sessionId || batch.streamEpoch !== projection.cursor.streamEpoch)
     return { ok: false, reason: 'epoch' }
   const next: AgentProjection = {

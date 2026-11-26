@@ -4,6 +4,7 @@ import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { kbSearchInputSchema, type KbSearchOutputItem, kbSearchOutputSchema } from '@shared/ai/builtinTools'
 
 import { ToolDisclosure } from '../shared/ToolDisclosure'
+import { useToolResponsePreview } from '../useToolResponsePreview'
 
 function MessageKnowledgeSearchToolLabel({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const inputParse = kbSearchInputSchema.safeParse(toolResponse.arguments)
@@ -27,7 +28,12 @@ function MessageKnowledgeSearchToolLabel({ toolResponse }: { toolResponse: Norma
   )
 }
 
-export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse: NormalToolResponse }) {
+export function MessageKnowledgeSearchToolTitle({
+  toolResponse: originalResponse
+}: {
+  toolResponse: NormalToolResponse
+}) {
+  const { toolResponse } = useToolResponsePreview(originalResponse)
   const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
   const hasResults = toolResponse.status === 'done' && outputParse.success && outputParse.data.length > 0
   const label = <MessageKnowledgeSearchToolLabel toolResponse={toolResponse} />

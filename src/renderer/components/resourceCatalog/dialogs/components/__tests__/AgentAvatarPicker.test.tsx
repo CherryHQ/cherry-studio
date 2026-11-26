@@ -1,5 +1,6 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as Ui from '@cherrystudio/ui'
@@ -17,14 +18,16 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       (
         ({
-          'settings.general.image_upload': 'Image Upload',
-          'settings.general.emoji_picker': 'Emoji Picker',
-          'settings.general.avatar.reset': 'Reset Avatar'
+          'library.config.dialogs.create.avatar_upload': 'Image Upload',
+          'library.config.dialogs.create.avatar_random': 'Random avatar',
+          'library.config.dialogs.create.avatar_remove_image': 'Remove image'
         }) as Record<string, string>
       )[key] ?? key
   })
 }))
 vi.mock('@renderer/utils/image', () => ({ checkEntityImageSize: vi.fn(), prepareEntityImageBytes: vi.fn() }))
+const cropAvatar = vi.hoisted(() => vi.fn())
+vi.mock('@renderer/components/Avatar/AvatarCropPopup', () => ({ AvatarCropPopup: { show: cropAvatar } }))
 vi.mock('@renderer/components/EmojiPicker', () => ({
   EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
     <button type="button" onClick={() => onEmojiClick('🎓')}>
@@ -45,12 +48,14 @@ const props = {
 }
 const file = new File(['image'], 'avatar.png', { type: 'image/png' })
 const bytes = new Uint8Array([1, 2, 3])
+const framed = { x: 10, y: 20, width: 64, height: 64 }
 const uploadLabel = 'Image Upload'
 
 beforeEach(() => {
   vi.mocked(ipcApi.request).mockReset().mockResolvedValue(undefined)
   vi.mocked(checkEntityImageSize).mockReset().mockReturnValue(null)
   vi.mocked(prepareEntityImageBytes).mockReset().mockResolvedValue(bytes)
+  cropAvatar.mockReset().mockResolvedValue(framed)
   invalidate.mockReset().mockResolvedValue(undefined)
   vi.mocked(dataApiService.get).mockResolvedValue({ emoji: '🤖', avatarSrc: 'file:///new.webp' })
 })
@@ -66,31 +71,101 @@ async function openPicker() {
 }
 
 describe('AgentAvatarPicker persistence', () => {
-  it('uploads an image from the name-field addon without closing the picker before selection', async () => {
-    render(
-      <InputGroup>
-        <InputGroupAddon>
-          <AgentAvatarPicker {...props} />
-        </InputGroupAddon>
-        <InputGroupInput aria-label="Agent name" defaultValue="Agent" />
-      </InputGroup>
-    )
+  it('applies an image selected after the avatar popover is dismissed', async () => {
+    function Harness() {
+      const [avatar, setAvatar] = useState<{ avatarSrc?: string; emoji: string }>({
+        avatarSrc: props.avatarSrc,
+        emoji: props.emoji
+      })
+      return (
+        <>
+          <InputGroup>
+            <InputGroupAddon>
+              <AgentAvatarPicker {...props} {...avatar} onChanged={setAvatar} />
+            </InputGroupAddon>
+            <InputGroupInput aria-label="Agent name" defaultValue="Agent" />
+          </InputGroup>
+          <button type="button" onClick={() => setAvatar({ avatarSrc: props.avatarSrc, emoji: props.emoji })}>
+            Restore preview
+          </button>
+        </>
+      )
+    }
+    render(<Harness />)
     const user = await openPicker()
-    const input = screen.getByLabelText(uploadLabel)
     await user.click(screen.getByRole('button', { name: uploadLabel }))
     expect(screen.getByRole('textbox', { name: 'Agent name' })).not.toHaveFocus()
-    expect(input).toBeInTheDocument()
-    await user.upload(input, file)
+    expect(screen.getByLabelText(uploadLabel, { selector: 'input' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(uploadLabel, { selector: 'input' }), { target: { files: [file] } })
+    await waitFor(() => {
+      expect(ipcApi.request).toHaveBeenCalledExactlyOnceWith('agent.set_avatar', {
+        agentId: 'agent-1',
+        avatar: { kind: 'image', data: bytes }
+      })
+      expect(screen.getByRole('img', { name: 'Avatar' })).toHaveAttribute('src', 'file:///new.webp')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Restore preview' }))
+    expect(screen.getByRole('img', { name: 'Avatar' })).toHaveAttribute('src', props.avatarSrc)
+    await user.click(screen.getByRole('button', { name: 'Avatar' }))
+    await user.click(screen.getByRole('button', { name: uploadLabel }))
+    const input = screen.getByLabelText(uploadLabel, { selector: 'input' })
+    // Dismiss the picker by clicking away; a file chosen afterwards must still apply.
+    await user.click(screen.getByRole('textbox', { name: 'Agent name' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: uploadLabel })).not.toBeInTheDocument())
+
+    fireEvent.change(input, { target: { files: [file] } })
+    await waitFor(() => {
+      expect({
+        requests: vi.mocked(ipcApi.request).mock.calls.length,
+        preview: screen.getByRole('img', { name: 'Avatar' }).getAttribute('src')
+      }).toEqual({ requests: 2, preview: 'file:///new.webp' })
+      expect(ipcApi.request).toHaveBeenNthCalledWith(2, 'agent.set_avatar', {
+        agentId: 'agent-1',
+        avatar: { kind: 'image', data: bytes }
+      })
+    })
+  })
+
+  it('saves a rolled emoji right away and stays open for another roll', async () => {
+    render(<AgentAvatarPicker {...props} />)
+    const user = await openPicker()
+    await user.click(screen.getByRole('button', { name: 'Random avatar' }))
     expect(ipcApi.request).toHaveBeenCalledWith('agent.set_avatar', {
       agentId: 'agent-1',
-      avatar: { kind: 'image', data: bytes }
+      avatar: { kind: 'emoji', emoji: expect.not.stringMatching(/^🤖$/) }
     })
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith(['/agents/agent-1', '/agents']))
+    expect(screen.getByRole('button', { name: 'Random avatar' })).toBeEnabled()
+  })
+
+  it('saves the region framed in the crop dialog', async () => {
+    render(<AgentAvatarPicker {...props} />)
+    const user = await openPicker()
+    await user.upload(screen.getByLabelText(uploadLabel, { selector: 'input' }), file)
+
+    await waitFor(() => expect(ipcApi.request).toHaveBeenCalledOnce())
+    expect(cropAvatar).toHaveBeenCalledWith({ file, shape: 'square' })
+    expect(prepareEntityImageBytes).toHaveBeenCalledWith(file, framed)
+  })
+
+  it('keeps the current avatar when the crop dialog is cancelled', async () => {
+    cropAvatar.mockResolvedValue(null)
+    const onChanged = vi.fn()
+    render(<AgentAvatarPicker {...props} onChanged={onChanged} />)
+    const user = await openPicker()
+    await user.upload(screen.getByLabelText(uploadLabel, { selector: 'input' }), file)
+
+    await waitFor(() => expect(cropAvatar).toHaveBeenCalled())
+    expect(prepareEntityImageBytes).not.toHaveBeenCalled()
+    expect(ipcApi.request).not.toHaveBeenCalled()
+    expect(onChanged).not.toHaveBeenCalled()
   })
 
   it('resets the agent avatar from the menu', async () => {
     render(<AgentAvatarPicker {...props} />)
     const user = await openPicker()
-    await user.click(screen.getByRole('button', { name: 'Reset Avatar' }))
+    await user.click(screen.getByRole('button', { name: 'Remove image' }))
     expect(ipcApi.request).toHaveBeenCalledWith('agent.set_avatar', {
       agentId: 'agent-1',
       avatar: { kind: 'default' }
@@ -107,7 +182,7 @@ describe('AgentAvatarPicker persistence', () => {
     const onChanged = vi.fn()
     const { rerender } = render(<AgentAvatarPicker {...props} onChanged={onChanged} />)
     const user = await openPicker()
-    await user.upload(screen.getByLabelText(uploadLabel), file)
+    await user.upload(screen.getByLabelText(uploadLabel, { selector: 'input' }), file)
     rerender(<AgentAvatarPicker {...props} agentId="agent-2" onChanged={onChanged} />)
     await user.click(screen.getByRole('button', { name: 'Avatar' }))
     await act(async () => finish(bytes))
@@ -115,6 +190,6 @@ describe('AgentAvatarPicker persistence', () => {
     expect(invalidate).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(onChanged).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Reset Avatar' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Remove image' })).toBeEnabled()
   })
 })

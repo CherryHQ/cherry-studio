@@ -20,7 +20,7 @@ sources:
 
 Code block rendering has two separate responsibilities:
 
-- `CodeBlock` classifies Markdown content and routes inline code, file paths, HTML artifacts, and ordinary fenced code.
+- `CodeBlock` classifies Markdown content and routes inline code, file paths, HTML artifacts, and ordinary fenced code. File references preserve source coordinates through the [file preview navigation contract](../../../../src/renderer/components/FilePreview/README.md#source-locations).
 - `CodeBlockView` owns the workbench for ordinary fenced code and special-language previews.
 
 HTML artifacts keep their own preview, security, and consent pipeline. They are not modes of `CodeBlockView`.
@@ -106,6 +106,10 @@ success result so failed clipboard operations do not show success feedback.
 selection state and DOM while content grows. Existing worker sessions parse the shared code-block language with
 Lezer/StreamLanguage and return semantic classes for requested lines. Pending or failed syntax work leaves complete
 plain source readable. Tiptap decorations and snapshot/HTML/Markdown worker jobs use the same parser classification.
+
+For JSON up to 100,000 characters, the viewer adds indentation guides and a gutter for folding multiline
+objects and arrays. Folding hides the rows between the brackets. Line numbers, selection copying, and image
+capture continue to use the original source.
 
 A newly visible viewer paints plain source before starting its first syntax request, even when the highlighter is
 already warm. Ready tokens then update the same rows. Off-screen requests and subsequent range updates retain their

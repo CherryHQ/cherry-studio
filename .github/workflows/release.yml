@@ -67,6 +67,7 @@ jobs:
       tag: ${{ steps.release-ref.outputs.tag }}
       targets: ${{ steps.release-ref.outputs.targets }}
       draft-id: ${{ steps.draft.outputs.id }}
+      mac-bridge-electron: ${{ steps.bridge.outputs.mac-bridge-electron }}
     steps:
       - name: Validate release selection
         shell: bash
@@ -83,6 +84,30 @@ jobs:
           if [ "$BRANCH_SHA" != "$RELEASE_SHA" ]; then
             echo "Release branch moved away from $RELEASE_SHA" >&2
             exit 1
+          fi
+
+      - name: Select the CN macOS bridge
+        id: bridge
+        env:
+          TAG: ${{ inputs.tag }}
+          MAC_BRIDGE_TAG: ${{ vars.CHERRY_MAC_CN_REGION_BRIDGE_TAG }}
+          MAC_BRIDGE_ELECTRON_ASSETS: ${{ vars.CHERRY_MAC_BRIDGE_ELECTRON_ASSETS }}
+        run: |
+          if [[ -n "$MAC_BRIDGE_TAG" && "$TAG" == "$MAC_BRIDGE_TAG" ]]; then
+            if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "The CN macOS bridge requires a stable release" >&2
+              exit 1
+            fi
+            if ! assets="$(jq -ces '
+              select(length == 1) | .[0] | select(.version | type == "string") |
+              select(all(.x64, .arm64;
+                (.url | test("^https://[^[:space:]]+$")) and (.sha256 | test("^[a-f0-9]{64}$"))
+              ))' <<< "$MAC_BRIDGE_ELECTRON_ASSETS")"; then
+              echo "Set CHERRY_MAC_BRIDGE_ELECTRON_ASSETS with an Electron version and HTTPS ZIP URLs and SHA-256 values for x64 and arm64" >&2
+              exit 1
+            fi
+            echo "mac-bridge-electron=$assets" >> "$GITHUB_OUTPUT"
+            echo "CN macOS bridge enabled for $TAG" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Check out workflow scripts
@@ -105,6 +130,7 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
           PLATFORM: ${{ inputs.platform }}
+          MAC_BRIDGE_ELECTRON: ${{ steps.bridge.outputs.mac-bridge-electron }}
         run: |
           PACKAGE_VERSION="$(node -p "JSON.parse(require('node:fs').readFileSync('release-source/package.json', 'utf8')).version")"
           if [ "$TAG" != "v$PACKAGE_VERSION" ]; then
@@ -114,6 +140,9 @@ jobs:
           node -e 'const { scripts } = require("./release-source/package.json"); for (const name of ["build:release", "build:release:cn"]) { if (!scripts[name]) throw new Error(`Release source does not support ${name}`) }'
           node -e 'require("node:fs").accessSync("release-source/scripts/release/js-bundle.js")'
           node -e 'const tools = require("./release-source/scripts/download-binaries.js"); if (tools.PACKAGING_DOWNLOAD_VERSION !== 1) throw new Error("Release source does not support packaging tool assets v1"); require("node:fs").accessSync("release-source/scripts/release/prepare-tools.js")'
+          if [[ -n "$MAC_BRIDGE_ELECTRON" ]]; then
+            node -e 'const { devDependencies } = require("./release-source/package.json"); if (JSON.parse(process.env.MAC_BRIDGE_ELECTRON).version !== devDependencies.electron) throw new Error("The bridge Electron distribution must match the release Electron version"); require("node:fs").accessSync("release-source/electron-builder.region-bridge.config.cjs")'
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "targets=$(node scripts/release/targets.js "$PLATFORM")" >> "$GITHUB_OUTPUT"
 
@@ -181,8 +210,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.release-ref.outputs.tag }}
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+          TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
+          TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
         run: |
           RELEASE="$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" |
             jq -c --arg tag "$TAG" '[.[][] | select(.tag_name == $tag)][0] // empty')"
@@ -295,6 +324,7 @@ jobs:
       tag: ${{ needs.prepare.outputs.tag }}
       draft-id: ${{ needs.prepare.outputs.draft-id }}
       clean: ${{ inputs.clean }}
+      mac-bridge-electron: ${{ needs.prepare.outputs.mac-bridge-electron }}
     secrets: inherit
 
   release-cn:
@@ -333,8 +363,8 @@ jobs:
       - name: Summarize CN installers
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+          TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
+          TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
         run: python scripts/release/release-cos.py summary
 
   finalize-build:
@@ -388,8 +418,9 @@ jobs:
         id: inventory
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+          TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
+          TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
+          MAC_CN_REGION_BRIDGE: ${{ needs.prepare.outputs.mac-bridge-electron != '' }}
           PLATFORM: ${{ inputs.platform }}
         run: |
           node -e 'process.stdout.write(require("yaml").parse(require("node:fs").readFileSync("release-source/electron-builder.yml", "utf8")).releaseInfo.releaseNotes)' > release_body.txt
@@ -407,8 +438,8 @@ jobs:
           BRANCH: ${{ env.RELEASE_BRANCH }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+          TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
+          TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
@@ -592,8 +623,8 @@ jobs:
       - name: Record complete release inventory in COS
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+          TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
+          TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
         run: python scripts/release/release-cos.py record
 
   performance:
@@ -670,8 +701,8 @@ jobs:
       - name: Check the draft still belongs to the approved run
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+          TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
+          TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
         run: python scripts/release/release-cos.py check-draft
 
       - name: Validate and publish current draft
@@ -821,8 +852,8 @@ jobs:
 
       - name: Read complete release inventory from COS
         env:
-          COS_SECRET_ID: ${{ secrets.COS_SECRET_ID }}
-          COS_SECRET_KEY: ${{ secrets.COS_SECRET_KEY }}
+          TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
+          TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
         run: python scripts/release/release-cos.py prepare-sync
 
       - name: Sync GitCode release
@@ -830,8 +861,8 @@ jobs:
         env:
           RELEASE_FROM_COS: "true"
           RELEASE_VIA_SCF: "true"
-          TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
-          TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
+          TENCENT_CLOUD_SECRET_ID: ${{ secrets.TENCENT_CLOUD_SECRET_ID }}
+          TENCENT_CLOUD_SECRET_KEY: ${{ secrets.TENCENT_CLOUD_SECRET_KEY }}
           GITCODE_TOKEN: ${{ secrets.GITCODE_TOKEN }}
           GITCODE_OWNER: ${{ vars.GITCODE_OWNER }}
           GITCODE_REPO: ${{ vars.GITCODE_REPO }}
@@ -841,8 +872,8 @@ jobs:
           LC_ALL: C.UTF-8
         run: |
           if [ "$DRY_RUN" != "true" ]; then
-            : "${TENCENT_SECRET_ID:?TENCENT_SECRET_ID is required}"
-            : "${TENCENT_SECRET_KEY:?TENCENT_SECRET_KEY is required}"
+            : "${TENCENT_CLOUD_SECRET_ID:?TENCENT_CLOUD_SECRET_ID is required}"
+            : "${TENCENT_CLOUD_SECRET_KEY:?TENCENT_CLOUD_SECRET_KEY is required}"
             python -m pip install tencentcloud-sdk-python-scf==3.1.100
           fi
           bash scripts/release/sync-gitcode.sh

@@ -1146,7 +1146,7 @@ function validatedBreakdown(breakdown: AiUsageCostBreakdown | undefined, field: 
   for (const [bucket, value] of Object.entries(breakdown)) {
     requiredAmount(value, `${field}.${bucket}`)
   }
-  return structuredClone(breakdown)
+  return { ...breakdown }
 }
 
 function computedCost(
@@ -1187,7 +1187,7 @@ function completeProviderBreakdown(
   const values = Object.values(breakdown)
   if (values.length === 0 || values.some((value) => !Number.isFinite(value) || value < 0)) return null
   const sum = values.reduce((total, value) => total + value, 0)
-  return Math.abs(sum - amount) <= Math.max(1e-9, Math.abs(amount) * 1e-9) ? structuredClone(breakdown) : null
+  return Math.abs(sum - amount) <= Math.max(1e-9, Math.abs(amount) * 1e-9) ? { ...breakdown } : null
 }
 
 function invocationToRow(input: RecordAiInvocationInput): InsertAiUsageRecordRow {
@@ -1254,6 +1254,7 @@ function legacyToRow(input: LegacyAggregateInput): InsertAiUsageRecordRow {
         currency: input.cost.currency,
         source: input.cost.source,
         breakdown: validatedBreakdown(input.cost.breakdown, 'cost.breakdown'),
+        // oxlint-disable-next-line no-restricted-globals -- Persist one invocation pricing snapshot independently of caller-owned pricing tiers.
         pricingSnapshot: input.cost.pricingSnapshot ? structuredClone(input.cost.pricingSnapshot) : null
       }
     : null
@@ -1432,10 +1433,10 @@ export class AiUsageRecordService {
     return getMessageUsageProjectionTx(application.get('DbService').getDb(), ref)
   }
 
-  refreshMessageProjection(ref: MessageRef): void {
+  refreshMessageProjection(ref: MessageRef, { publishDataChange = true } = {}): void {
     try {
       const rebuilt = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
-      if (rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
+      if (publishDataChange && rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
     } catch (err) {
       logger.error('refreshMessageProjection failed', err as Error, ref)
     }
@@ -1453,13 +1454,17 @@ export class AiUsageRecordService {
     return getAiUsageRecordStats(query)
   }
 
-  totalTokens(range: { from: number; to: number }): number {
+  /** Tokens used in `range`, optionally only those attributed to one Assistant / Agent / mini app. */
+  totalTokens(range: { from: number; to: number }, source?: { type: AiUsageRecordSourceType; id: string }): number {
+    const sourceConditions = source
+      ? [eq(aiUsageRecordTable.sourceType, source.type), eq(aiUsageRecordTable.sourceId, source.id)]
+      : []
     const [row] = application
       .get('DbService')
       .getDb()
       .select({ totalTokens: totalTokensSum() })
       .from(aiUsageRecordTable)
-      .where(and(...rangeConditions(range)))
+      .where(and(...sourceConditions, ...rangeConditions(range)))
       .all()
     return row.totalTokens
   }
