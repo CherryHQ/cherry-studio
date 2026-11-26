@@ -19,8 +19,10 @@
   "dependencies": {
     "@cherrystudio/agent-behavior": "workspace:*",
     "@cherrystudio/agent-runtime": "workspace:*",
+    "@earendil-works/chord": "1.5.2",
     "@earendil-works/pi-ai": "1.5.2",
-    "@earendil-works/pi-coding-agent": "1.5.2"
+    "@earendil-works/pi-coding-agent": "1.5.2",
+    "ai": "6.0.185"
   },
   "devDependencies": {
     "@earendil-works/pi-schema": "1.5.2",

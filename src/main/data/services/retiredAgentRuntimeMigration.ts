@@ -13,7 +13,11 @@ import { LEGACY_DSH_TOOL_PREFIX } from '@shared/ai/retiredAgentRuntime'
 
 import { agentSessionContextService } from './AgentSessionContextService'
 import type { RuntimeForkAnchor } from './agentSessionForkContract'
-import { ensureAgentSessionRootTx } from './agentSessionMessageTree'
+import {
+  ensureAgentSessionRootTx,
+  attachAgentSessionMessagePartsTx,
+  hydrateAgentSessionMessageRowsTx
+} from './agentSessionMessageTree'
 
 const MIGRATION_KEY_PREFIX = 'agent-runtime-migration:'
 const PI_FILE_SHELL_TOOLS = new Set(['read', 'edit', 'write', 'bash'])
@@ -94,12 +98,18 @@ export function readRetiredAgentSessionHistory(db: DbOrTx, sessionId: string) {
     .where(eq(agentSessionTable.id, sessionId))
     .get()
   if (!session) return undefined
-  const messages = db
-    .select()
-    .from(agentSessionMessageTable)
-    .where(eq(agentSessionMessageTable.sessionId, sessionId))
-    .orderBy(asc(agentSessionMessageTable.createdAt), asc(agentSessionMessageTable.id))
-    .all()
+  const messages = hydrateAgentSessionMessageRowsTx(
+    db,
+    attachAgentSessionMessagePartsTx(
+      db,
+      db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, sessionId))
+        .orderBy(asc(agentSessionMessageTable.createdAt), asc(agentSessionMessageTable.id))
+        .all()
+    )
+  )
   return { workspacePath: session.path, messages }
 }
 

@@ -1,6 +1,12 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+import type * as SkillServiceModule from '@main/ai/skills/SkillService'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const mocks = vi.hoisted(() => ({
@@ -12,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   getApiKeys: vi.fn(),
   listSkills: vi.fn(),
   listLocalSkillPaths: vi.fn(),
-  getSkillDirectory: vi.fn(),
+  getInstalledSkillDirectory: vi.fn(),
   findMcp: vi.fn(),
   listTools: vi.fn(),
   getInstructions: vi.fn(),
@@ -48,7 +54,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
     list: mocks.listSkills,
     listLocalSkillPaths: mocks.listLocalSkillPaths,
-    getSkillDirectory: mocks.getSkillDirectory
+    getInstalledSkillDirectory: mocks.getInstalledSkillDirectory
   }
 }))
 const { capturePiConnectionSnapshot } = await import('./piConnectionSignature')
@@ -76,7 +82,7 @@ beforeEach(() => {
   mocks.getApiKeys.mockReturnValue([{ id: 'key-1', key: 'secret', enabled: true }])
   mocks.listSkills.mockResolvedValue([{ id: 'skill-1', isEnabled: true, updatedAt: 1 }])
   mocks.listLocalSkillPaths.mockResolvedValue([])
-  mocks.getSkillDirectory.mockImplementation((folderName: string) => `/skills/${folderName}`)
+  mocks.getInstalledSkillDirectory.mockImplementation((skill: { folderName: string }) => `/skills/${skill.folderName}`)
   mocks.findMcp.mockReturnValue({ id: 'mcp-1', name: 'server', updatedAt: 1 })
   mocks.listTools.mockReturnValue([{ name: 'search', inputSchema: { type: 'object' } }])
   mocks.findBySessionId.mockReturnValue(null)
@@ -180,6 +186,35 @@ describe('capturePiConnectionSnapshot', () => {
     })
     expect(snapshot.mcpServerSnapshots.get('mcp-1')).toMatchObject({ id: 'mcp-1', name: 'server' })
   })
+
+  it.each(['Release Notes', '..archive'])(
+    'passes the installed directory of an enabled local Skill (%s)',
+    async (folderName) => {
+      const library = await mkdtemp(path.join(os.tmpdir(), 'pi-managed-skills-'))
+      const descriptor = '---\nname: release-notes\ndescription: Writes release notes\n---\n# Release notes'
+      const getPath = vi.mocked(application.getPath).getMockImplementation()!
+      const pathSpy = vi
+        .spyOn(application, 'getPath')
+        .mockImplementation((key, filename) => (key === 'feature.agents.skills' ? library : getPath(key, filename)))
+      try {
+        const directory = path.join(library, folderName)
+        await mkdir(directory)
+        await writeFile(path.join(directory, 'SKILL.md'), descriptor)
+        const { skillService } = await vi.importActual<typeof SkillServiceModule>('@main/ai/skills/SkillService')
+        mocks.getInstalledSkillDirectory.mockImplementationOnce(
+          skillService.getInstalledSkillDirectory.bind(skillService)
+        )
+        mocks.listSkills.mockResolvedValueOnce([{ id: 'local-skill', source: 'local', folderName, isEnabled: true }])
+
+        const snapshot = await capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')
+        const [runtimeDirectory] = snapshot.additionalSkillPaths
+        await expect(readFile(path.join(runtimeDirectory, 'SKILL.md'), 'utf8')).resolves.toBe(descriptor)
+      } finally {
+        pathSpy.mockRestore()
+        await rm(library, { recursive: true, force: true })
+      }
+    }
+  )
 
   it('signs current turn notification recipients independent of input order', async () => {
     mocks.getTurnTrustedNotifyChannels.mockReturnValue([

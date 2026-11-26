@@ -40,6 +40,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { t } from '@main/i18n'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64, downloadPublicImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import type { CompactionSink } from '@shared/ai/compaction'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import {
@@ -67,7 +68,6 @@ import {
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
 import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
 
-import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
@@ -871,6 +871,25 @@ export class AiService extends BaseService {
     )
   }
 
+  /**
+   * Cancellable streamed generation: the same result as {@link runTextRequest}, with each text delta
+   * reported to `onTextDelta` as it arrives. A model that cannot stream answers in one piece.
+   */
+  async runTextStreamRequest(
+    requestId: string,
+    request: AsInProcess<AiGenerateRequest>,
+    onTextDelta: (delta: string) => void
+  ): Promise<AiGenerateResult> {
+    return this.runWithAbort(requestId, (signal) =>
+      this.generateTextWithMode(
+        { ...request, requestOptions: { ...request.requestOptions, signal } },
+        [],
+        'stream',
+        onTextDelta
+      )
+    )
+  }
+
   async generateText(
     request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[] = []
@@ -881,7 +900,8 @@ export class AiService extends BaseService {
   private async generateTextWithMode(
     request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[],
-    mode: 'generate' | 'stream'
+    mode: 'generate' | 'stream',
+    onTextDelta?: (delta: string) => void
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
@@ -998,7 +1018,12 @@ export class AiService extends BaseService {
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
     return this.withRuntimeActivity('ai:generate-text', () =>
-      agent.generate(request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] }, signal, mode)
+      agent.generate(
+        request.prompt ? { prompt: request.prompt } : { messages: messages ?? [] },
+        signal,
+        mode === 'stream' && model.supportsStreaming === false ? 'generate' : mode,
+        onTextDelta
+      )
     )
   }
 
@@ -1138,6 +1163,10 @@ export class AiService extends BaseService {
     }
 
     const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
+    const imageDownloadSettings =
+      sdkConfig.providerId === 'openai-compatible'
+        ? (sdkConfig.providerSettings as AppProviderSettingsMap['openai-compatible'])
+        : undefined
     const promptParam = inputImages
       ? { text: request.prompt, images: inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -1146,8 +1175,10 @@ export class AiService extends BaseService {
     // canonical bag to each provider's wire — a registered profile for the
     // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
     // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
-    const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
-    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
+    const wireProviderId =
+      sdkConfig.providerId === 'newapi' && sdkConfig.providerOptionsKey === 'google' ? 'google' : sdkConfig.providerId
+    const registration = WIRE_REGISTRY[wireProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
+    const imageProviderOptions = buildVendorProviderOptions(wireProviderId, params, registration, vendorBag)
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
     // native binding's `map` (in `splitParamValues`).
@@ -1159,6 +1190,7 @@ export class AiService extends BaseService {
     // (the WireProfile engine), which the image models read; passing them here is
     // dropped by `generateImage`, so they're omitted.
     let imageDownloadFailed = false
+    let imageDownloadErrorDetails: string | undefined
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
@@ -1176,10 +1208,20 @@ export class AiService extends BaseService {
             const downloaded =
               sdkConfig.providerId === 'google'
                 ? await downloadPublicImageAsBase64(url.href, signal)
-                : await downloadImageAsBase64(url.href)
+                : imageDownloadSettings
+                  ? await downloadImageAsBase64(url.href, {
+                      baseURL: imageDownloadSettings.baseURL,
+                      apiKey: imageDownloadSettings.apiKey,
+                      signal,
+                      onHttpError: (host, status) => {
+                        imageDownloadErrorDetails = `${host}, HTTP ${status}`
+                      }
+                    })
+                  : await downloadImageAsBase64(url.href)
             if (signal?.aborted) return null
             if (!downloaded) {
               imageDownloadFailed = true
+              if (imageDownloadSettings) imageDownloadErrorDetails ??= url.host
               return null
             }
             return {
@@ -1208,8 +1250,16 @@ export class AiService extends BaseService {
           onProviderCallStart: () => createProviderCallHandler(imageUsageContext())
         }
       ).catch((error: unknown) => {
-        if (sdkConfig.providerId === 'google' && imageDownloadFailed && NoImageGeneratedError.isInstance(error)) {
-          throw createPaintingGenerateError('REMOTE_ERROR', { message: t('paintings.image_download_failed') })
+        if (
+          (sdkConfig.providerId === 'google' || imageDownloadSettings) &&
+          imageDownloadFailed &&
+          !signal?.aborted &&
+          NoImageGeneratedError.isInstance(error)
+        ) {
+          const message = t('paintings.image_download_failed')
+          throw createPaintingGenerateError('REMOTE_ERROR', {
+            message: imageDownloadErrorDetails ? `${message} (${imageDownloadErrorDetails})` : message
+          })
         }
         throw error
       })

@@ -64,7 +64,7 @@ describe('resolveAssistantMcpToolIds', () => {
       await vi.advanceTimersByTimeAsync(10_000)
 
       expect(await resultPromise).toEqual([])
-      expect(listToolsMock).toHaveBeenCalledWith('srv-1')
+      expect(listToolsMock).toHaveBeenCalledWith('srv-1', { audience: 'model' })
     } finally {
       vi.useRealTimers()
     }

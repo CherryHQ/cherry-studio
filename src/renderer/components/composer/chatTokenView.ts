@@ -10,6 +10,7 @@ export interface ChatTokenView {
   label: string
   icon?: ReactNode
   description?: string
+  sourceMessageId?: string
   promptText?: string
   payload?: unknown
 }

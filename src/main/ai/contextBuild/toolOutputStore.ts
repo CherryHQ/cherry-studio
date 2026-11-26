@@ -18,6 +18,7 @@ import { application } from '@application'
 import { hashContent } from '@main/utils/file'
 import type { PersistedToolOutputEntitiesRef, PersistedToolOutputSingleRef } from '@shared/ai/transport'
 import type { FileEntry } from '@shared/data/types/file'
+import { hasMcpAppResult } from '@shared/types/mcpApp'
 
 export interface PersistedBlob {
   entry: FileEntry
@@ -100,12 +101,15 @@ export function extractPersistableText(output: unknown): PersistableText | null 
 
   const content = record.content
   if (!Array.isArray(content) || content.length === 0) return null
+  const hasApp = hasMcpAppResult(output)
+  if (hasApp && content.length !== 1) return null
   const texts: string[] = []
   for (const item of content) {
     if (typeof item !== 'object' || item === null) return null
     const block = item as Record<string, unknown>
     if (block.type !== 'text') return null
     if (block.text !== undefined && typeof block.text !== 'string') return null
+    if (hasApp && Object.keys(block).some((key) => key !== 'type' && key !== 'text')) return null
     texts.push(block.text || '')
   }
   // '\n' join matches mcpResultToTextSummary for all-text content.

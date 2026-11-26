@@ -264,6 +264,33 @@ describe('materialize – assembling the bundle from the shared cache', () => {
     expect(fs.readFileSync(path.join(bundle, '.rg-version'), 'utf8')).toBe('14.1.1')
   })
 
+  it('replaces a stale binary when different devices report the same inode', () => {
+    const cache = makeTmpDir('dl-cache-')
+    const bundle = makeTmpDir('dl-bundle-')
+    const rg = fakeTool('rg', '14.1.1')
+    const cached = seedCache(cache, rg, { rg: 'new binary payload' })
+    const source = path.join(cached, 'rg')
+    const destination = path.join(bundle, 'rg')
+    fs.writeFileSync(destination, 'old binary')
+
+    const sourceStat = Object.assign(fs.statSync(source), { dev: 1, ino: 42 })
+    const destinationStat = Object.assign(fs.statSync(destination), { dev: 2, ino: 42 })
+    const statSync = vi.spyOn(cjsFs, 'statSync').mockReturnValueOnce(sourceStat).mockReturnValueOnce(destinationStat)
+    const linkSync = vi.spyOn(cjsFs, 'linkSync').mockImplementation(() => {
+      throw Object.assign(new Error('cross-device link'), { code: 'EXDEV' })
+    })
+
+    try {
+      materialize([rg], PLATFORM, cache, bundle)
+
+      expect(fs.readFileSync(destination, 'utf8')).toBe('new binary payload')
+      expect(fs.readFileSync(path.join(bundle, '.rg-version'), 'utf8')).toBe('14.1.1')
+    } finally {
+      linkSync.mockRestore()
+      statSync.mockRestore()
+    }
+  })
+
   it('keeps versions apart, so two worktrees on different versions never collide', () => {
     const cache = makeTmpDir('dl-cache-')
     const oldBundle = makeTmpDir('dl-bundle-')

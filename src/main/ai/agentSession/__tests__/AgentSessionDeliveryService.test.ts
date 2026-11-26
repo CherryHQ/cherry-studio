@@ -80,7 +80,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     finalizeSessionDelivery: mocks.finalize,
     findDeliveringSessionDeliveryByTurnRef: mocks.findByTurnRef,
     getSessionMessage: mocks.getMessage,
-    inputBinding: () => undefined,
+    inputTarget: () => undefined,
     markAssistantMessageTerminalError: mocks.markTerminalError,
     publishDispatchChanges: mocks.publishDispatchChanges,
     listAcceptedSessionDeliveries: mocks.listAccepted,
@@ -146,6 +146,7 @@ vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
 }))
 
 const runtime = {
+  whenStartupRecoverySettles: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   getExecutionHead: () => undefined,
   cancelSessionForks: vi.fn().mockResolvedValue(undefined),
   recoverSessionForks: vi.fn().mockResolvedValue(undefined),
@@ -311,6 +312,30 @@ describe('AgentSessionDeliveryService', () => {
   })
 
   afterEach(() => BaseService.resetInstances())
+
+  it('lets Durable recover pending native input before delivering the next accepted message', async () => {
+    const recovery = Promise.withResolvers<void>()
+    runtime.whenStartupRecoverySettles.mockReturnValueOnce(recovery.promise)
+    mocks.listRecoverable.mockReturnValue([accepted])
+    mocks.listAccepted.mockImplementation((sessionId?: string) => (sessionId === 'target' ? [accepted] : []))
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+    const ready = service._doAllReady()
+
+    await flush()
+    expect(mocks.claim).not.toHaveBeenCalled()
+
+    mocks.runtimeBusy.mockReturnValue(true)
+    recovery.resolve()
+    await ready
+    await service.drainSessionQueues(['target'])
+    expect(mocks.claim).not.toHaveBeenCalled()
+
+    mocks.runtimeBusy.mockReturnValue(false)
+    for (const listener of mocks.idleListeners) listener({ sessionId: 'target' })
+    await service.drainSessionQueues(['target'])
+    expect(mocks.claim).toHaveBeenCalledTimes(1)
+  })
 
   it('waits for the previous terminal dispatch to settle before checking liveness', async () => {
     const service = new AgentSessionDeliveryService()
