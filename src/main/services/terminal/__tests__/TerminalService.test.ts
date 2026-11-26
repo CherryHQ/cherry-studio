@@ -295,12 +295,17 @@ describe.skipIf(process.platform === 'win32')('TerminalService with real Host ke
     expect(created).toEqual([])
   })
 
-  it('starts the configured default shell rather than forcing Bash', async () => {
-    const environment = vi.spyOn(shellEnv, 'getShellEnv').mockResolvedValue({
+  it('preserves the configured user shell and toolchain environment', async () => {
+    const userEnv = {
       PATH: '/usr/bin:/bin',
       HOME: path.join(root, '.context/terminal-test-home'),
-      SHELL: '/bin/zsh'
-    })
+      SHELL: '/bin/zsh',
+      MISE_DATA_DIR: '/user/toolchain'
+    }
+    const environment = vi.spyOn(shellEnv, 'getRawShellEnv').mockResolvedValue(userEnv)
+    const managedEnvironment = vi
+      .spyOn(shellEnv, 'getShellEnv')
+      .mockResolvedValue({ ...userEnv, MISE_DATA_DIR: '/managed/toolchain' })
     try {
       const receipt = await service.createUserTerminal(
         'user-default',
@@ -319,11 +324,14 @@ describe.skipIf(process.platform === 'win32')('TerminalService with real Host ke
         id: ref.id,
         actor: { kind: 'user' },
         controlRevision: receipt.resource.controlRevision,
-        data: 'printf "USER_ZSH:%s\\n" "$ZSH_VERSION"\n'
+        data: 'printf "USER_ZSH:%s USER_TOOLCHAIN:%s\\n" "$ZSH_VERSION" "$MISE_DATA_DIR"\n'
       })
-      await expect.poll(() => Buffer.from(service.read(ref).data).toString()).toMatch(/USER_ZSH:[0-9]+\.[0-9.]+\r\n/)
+      await expect
+        .poll(() => Buffer.from(service.read(ref).data).toString())
+        .toMatch(/USER_ZSH:[0-9]+\.[0-9.]+ USER_TOOLCHAIN:\/user\/toolchain\r\n/)
     } finally {
       environment.mockRestore()
+      managedEnvironment.mockRestore()
     }
   })
 

@@ -3,11 +3,11 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, ScrollArea } from '@cherrystudio/ui'
+import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import { ipcApi } from '@renderer/ipc'
 import { attachGeneratedText } from '@renderer/services/EventService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { TerminalResourceState } from '@shared/types/terminal'
-import type { WorkspaceUsageRecord } from '@shared/types/workspaceUsage'
 
 import { TerminalCanvas } from './TerminalCanvas'
 import { TerminalFindBar } from './TerminalFindBar'
@@ -24,16 +24,15 @@ export function TerminalPane({
 }) {
   const { t } = useTranslation()
   const terminal = useTerminalResources()
+  const panel = useRightPanelState()
   const resource = terminal.resources.find((item) => item.id === terminal.tabs.selectedTerminalId)
-  const cleanup = terminal.cleanupTabs.find((item) => item.id === terminal.selectedCleanupId)
   const lastTerminal = terminal.tabs.terminals
     .filter((item) => !terminal.tabs.hiddenTerminalIds.includes(item.id))
     .at(-1)
   const show = terminal.show
   useEffect(() => {
-    if (active && !terminal.tabs.selectedTerminalId && !terminal.selectedCleanupId && lastTerminal)
-      show(lastTerminal.id, lastTerminal.title)
-  }, [active, terminal.tabs.selectedTerminalId, terminal.selectedCleanupId, lastTerminal, show])
+    if (active && !terminal.tabs.selectedTerminalId && lastTerminal) show(lastTerminal.id, lastTerminal.title)
+  }, [active, terminal.tabs.selectedTerminalId, lastTerminal, show])
   return (
     <div className="flex size-full min-h-0 flex-col bg-background text-foreground">
       {terminal.error && (
@@ -41,14 +40,7 @@ export function TerminalPane({
           {terminal.error}
         </p>
       )}
-      {terminal.cleanup.data?.recoveryFailed && (
-        <p role="alert" className="px-3 py-2 text-xs text-warning">
-          {t('terminal.cleanup.protected')}
-        </p>
-      )}
-      {cleanup ? (
-        <CleanupRecord key={cleanup.id} record={cleanup} />
-      ) : resource ? (
+      {resource ? (
         <>
           {resource.kind === 'pty' && (resource.cleanup !== 'confirmed' || resource.screenAvailable) ? (
             <TerminalCanvas
@@ -56,6 +48,7 @@ export function TerminalPane({
               resource={resource}
               presentation={terminal.presentation(resource)}
               active={active}
+              resizeSuspended={panel.layoutAnimationPending || panel.paneResizing}
               onResource={terminal.update}
               takeControlOnAttach={terminal.claimId === resource.id}
               onAttached={terminal.clearClaim}
@@ -82,46 +75,6 @@ export function TerminalPane({
             {t('terminal.new_terminal')}
           </Button>
         </div>
-      )}
-    </div>
-  )
-}
-
-function CleanupRecord({ record }: { record: WorkspaceUsageRecord }) {
-  const { t } = useTranslation()
-  const terminal = useTerminalResources()
-  const [status, setStatus] = useState<'confirmed' | 'unconfirmed' | 'unavailable'>('unconfirmed')
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const retry = async () => {
-    setPending(true)
-    try {
-      const result = await ipcApi.request('terminal.cleanup.retry', { id: record.id })
-      setStatus(result.status)
-      await terminal.cleanup.mutate()
-      setError(null)
-    } catch (cause) {
-      setError(String(cause))
-    } finally {
-      setPending(false)
-    }
-  }
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 text-sm">
-      <p role="status" className={status === 'confirmed' ? 'text-muted-foreground' : 'text-warning'}>
-        {t(status === 'confirmed' ? 'terminal.cleanup.confirmed' : 'terminal.cleanup.unconfirmed')}
-      </p>
-      <p className="break-all font-mono text-xs text-muted-foreground">{record.cwd}</p>
-      {status !== 'confirmed' && <p className="text-muted-foreground">{t('terminal.cleanup.protected')}</p>}
-      {error && (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
-      )}
-      {status !== 'confirmed' && (
-        <Button className="self-start" variant="outline" size="sm" disabled={pending} onClick={() => void retry()}>
-          {t('terminal.retry_close')}
-        </Button>
       )}
     </div>
   )
@@ -256,8 +209,7 @@ function TerminalOutput({
       {findOpen && (
         <TerminalFindBar
           needle={needle}
-          scope="block"
-          canBlock={false}
+          target={{ kind: 'terminal', block: null }}
           result={{
             queryRevision: 0,
             resultRevision: 0,

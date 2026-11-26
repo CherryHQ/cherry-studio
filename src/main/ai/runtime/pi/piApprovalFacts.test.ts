@@ -226,7 +226,7 @@ describe('desktop facts and approvals through the shared behavior gate', () => {
           kind: 'pty',
           controlRevision: 4,
           control: { kind: 'unassigned' },
-          shellFacts: { kind: 'program', commandId: 'repl', programRevision: 1 }
+          shellFacts: { kind: 'program', commandId: 'repl', programRevision: 1, command: null }
         }
       ]
     })

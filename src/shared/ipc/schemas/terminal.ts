@@ -64,6 +64,12 @@ const block = z.object({
   command: z.string().nullable(),
   cwd: z.string().nullable(),
   status: z.enum(['running', 'completed', 'unknown']),
+  timing: z
+    .discriminatedUnion('kind', [
+      z.object({ kind: z.literal('running'), startedAt: z.number().nonnegative() }),
+      z.object({ kind: z.literal('completed'), durationMs: z.number().nonnegative() })
+    ])
+    .nullable(),
   exitCode: z.number().nullable(),
   reliable: z.boolean(),
   prompt: point.nullable(),
@@ -170,7 +176,7 @@ export const terminalRequestSchemas = {
       .object({
         viewId: z.uuid(),
         rowStart: z.number().int().min(0).max(128),
-        offset: z.number().int().min(0).max(5000),
+        offset: revision,
         revision: revision.nullable(),
         theme: theme.optional(),
         layout: terminalViewLayout.optional()

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,9 +8,6 @@ import CopyButton from '../CopyButton'
 
 // Mock navigator.clipboard
 const mockWriteText = vi.fn()
-const mockClipboard = {
-  writeText: mockWriteText
-}
 
 // Mock useTranslation
 vi.mock('react-i18next', () => ({
@@ -26,12 +23,11 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('CopyButton', () => {
+  let user: ReturnType<typeof userEvent.setup>
   beforeEach(() => {
-    // Setup mocks
-    Object.assign(navigator, { clipboard: mockClipboard })
-
-    // Clear all mocks
     vi.clearAllMocks()
+    user = userEvent.setup()
+    vi.spyOn(navigator.clipboard, 'writeText').mockImplementation(mockWriteText)
   })
 
   it('should copy text to the clipboard and show a success message', async () => {
@@ -40,7 +36,7 @@ describe('CopyButton', () => {
 
     render(<CopyButton textToCopy={textToCopy} />)
 
-    await userEvent.click(screen.getByRole('button'))
+    await user.click(screen.getByRole('button'))
 
     expect(mockWriteText).toHaveBeenCalledWith(textToCopy)
     expect(toast.success).toHaveBeenCalledWith('复制成功')
@@ -68,11 +64,41 @@ describe('CopyButton', () => {
 
     render(<CopyButton textToCopy="test text" />)
 
-    const copyIcon = document.querySelector('.copy-icon')
-    const clickableElement = copyIcon?.parentElement
-    await userEvent.click(clickableElement!)
+    await user.click(screen.getByRole('button'))
 
     expect(toast.error).toHaveBeenCalledWith('复制失败')
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('reads content on click and reports success only after the clipboard write completes', async () => {
+    const content = Promise.withResolvers<string>()
+    const written = Promise.withResolvers<void>()
+    mockWriteText.mockReturnValue(written.promise)
+    render(<CopyButton textToCopy={() => content.promise} />)
+
+    expect(mockWriteText).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button'))
+    expect(mockWriteText).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+    await act(async () => content.resolve('Fresh command output'))
+    expect(mockWriteText).toHaveBeenCalledWith('Fresh command output')
+    expect(toast.success).not.toHaveBeenCalled()
+    await act(async () => written.resolve())
+    expect(toast.success).toHaveBeenCalledWith('复制成功')
+  })
+
+  it('reports content-read failure without copying or reporting success', async () => {
+    render(
+      <CopyButton
+        textToCopy={async () => {
+          throw new Error('Output unavailable')
+        }}
+      />
+    )
+
+    await user.click(screen.getByRole('button'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('复制失败'))
+    expect(mockWriteText).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
   })
 })

@@ -90,7 +90,7 @@ export interface GhosttyTerminalOptions {
   rows: number
   cellWidth: number
   cellHeight: number
-  scrollbackBytes: number
+  scrollbackBytes: number | 'unlimited'
   theme: GhosttyTheme
   onPtyData: (data: string) => void
 }
@@ -230,7 +230,10 @@ export class GhosttyTerminalCore {
     this.mouseEvent = this.runtime.readPointer(this.mouseEventSlot)
 
     this.scratch = this.runtime.alloc(16)
-    this.runtime.view(this.scratch, 4).setUint32(0, scrollbackBytes, true)
+    // SIZE_MAX is libghostty's unlimited sentinel; zero disables history.
+    this.runtime
+      .view(this.scratch, 4)
+      .setUint32(0, scrollbackBytes === 'unlimited' ? 0xffffffff : scrollbackBytes, true)
     this.assertSuccess(
       'ghostty_terminal_set(scrollback)',
       this.runtime.call(
@@ -974,6 +977,47 @@ export class GhosttyTerminalCore {
     this.scroll(start - bottom.offset)
     const actual = this.scrollbarState()?.offset ?? 0
     return this.snapshot().rowData.slice(start - actual, start - actual + count)
+  }
+
+  /** Reads native input semantics only for bounded command-search rows. */
+  sourceInputRows(start: number, count: number): Array<GhosttyRow & { input: boolean[] }> {
+    this.scrollToBottom()
+    const bottom = this.scrollbarState()
+    if (!bottom) return []
+    this.scroll(start - bottom.offset)
+    const first = start - (this.scrollbarState()?.offset ?? 0)
+    const screen = this.snapshot()
+    this.assertSuccess(
+      'ghostty_render_state_get(row iterator)',
+      this.runtime.call('ghostty_render_state_get', this.renderState, RENDER_DATA.rowIterator, this.rowIteratorSlot)
+    )
+    const iterator = this.runtime.readPointer(this.rowIteratorSlot)
+    const semantic = this.runtime.enumValue('GhosttyCellData', 'SEMANTIC_CONTENT')
+    const inputValue = this.runtime.enumValue('GhosttyCellSemanticContent', 'INPUT')
+    const rows: Array<GhosttyRow & { input: boolean[] }> = []
+    for (let y = 0; rows.length < count && this.runtime.call('ghostty_render_state_row_iterator_next', iterator); y++) {
+      if (y < first) continue
+      const input: boolean[] = []
+      this.assertSuccess(
+        'ghostty_render_state_row_get(cells)',
+        this.runtime.call('ghostty_render_state_row_get', iterator, ROW_DATA.cells, this.rowCellsSlot)
+      )
+      const cells = this.runtime.readPointer(this.rowCellsSlot)
+      while (input.length < screen.cols && this.runtime.call('ghostty_render_state_row_cells_next', cells)) {
+        this.assertSuccess(
+          'ghostty_render_state_row_cells_get(raw)',
+          this.runtime.call('ghostty_render_state_row_cells_get', cells, CELL_DATA.raw, this.scratch)
+        )
+        const raw = this.runtime.memoryDataView().getBigUint64(this.scratch, true)
+        this.assertSuccess(
+          'ghostty_cell_get(semantic)',
+          this.runtime.call('ghostty_cell_get', raw, semantic, this.scratch + 8)
+        )
+        input.push(this.runtime.memoryDataView().getUint32(this.scratch + 8, true) === inputValue)
+      }
+      rows.push({ ...screen.rowData[y], input })
+    }
+    return rows
   }
 
   openSnapshotSearch(id: string): void {

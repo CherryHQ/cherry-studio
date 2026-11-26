@@ -68,7 +68,7 @@ export class TerminalSearch {
           ...this.projection,
           status: result.status === 'complete' ? 'caught-up' : 'searching',
           count: result.count,
-          selected: result.selected,
+          selected: result.selected && { ...result.selected, index: result.count - 1 - result.selected.index },
           matches: result.matches,
           highlightsLimited: result.highlightsLimited
         }
@@ -76,7 +76,7 @@ export class TerminalSearch {
         const blockId = this.scope.blockId
         const summary = this.blocks.summaries().find((block) => block.id === blockId)
         if (summary?.contentRevision === this.blockRevision) return this.projection
-        const read = this.blocks.read(this.scope.blockId, 'block')
+        const read = this.blocks.searchSnapshot(this.scope.blockId)
         if (read.kind !== 'content') {
           this.projection.status = 'unavailable'
           return this.publish()
@@ -96,7 +96,7 @@ export class TerminalSearch {
           matches.push({ index: matches.length, range: first && last ? { start: first.from, end: last.to } : null })
           position += needle.length
         }
-        this.blockMatches = matches.reverse().map((match, index) => match && { ...match, index })
+        this.blockMatches = matches
         this.projection = {
           ...this.projection,
           status: matches.length === 2000 ? 'limited' : 'caught-up',
@@ -126,13 +126,19 @@ export class TerminalSearch {
     }
     try {
       if (this.native) {
-        const result = this.core.navigateSearch(this.id, direction)
-        this.projection = { ...this.projection, selected: result.selected, matches: result.matches }
+        const result = this.core.navigateSearch(this.id, direction === 'next' ? 'previous' : 'next')
+        this.projection = {
+          ...this.projection,
+          selected: result.selected && { ...result.selected, index: result.count - 1 - result.selected.index },
+          matches: result.matches
+        }
       } else if (this.blockMatches.length) {
         const current = this.projection.selected?.index
         const index =
           current === undefined
-            ? 0
+            ? direction === 'next'
+              ? 0
+              : this.blockMatches.length - 1
             : (current + (direction === 'next' ? 1 : -1) + this.blockMatches.length) % this.blockMatches.length
         this.projection = { ...this.projection, selected: this.blockMatches[index] }
       }

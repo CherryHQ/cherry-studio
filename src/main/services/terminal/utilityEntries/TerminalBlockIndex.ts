@@ -7,6 +7,8 @@ import type { ShellIntegrationEvent } from './ShellIntegration'
 
 interface Block {
   summary: TerminalBlockSummary
+  startedMonoMs: number
+  commandFingerprint?: string
   fingerprint?: string
   verificationStart?: string
 }
@@ -37,6 +39,10 @@ export class TerminalBlockIndex {
     this.pendingCommand = command
   }
 
+  get currentCommand(): string | null {
+    return this.active?.summary.command ?? null
+  }
+
   written(): void {
     if (this.active) this.active.summary.contentRevision++
   }
@@ -46,6 +52,7 @@ export class TerminalBlockIndex {
     if (event.kind === 'unknown') {
       if (this.active) {
         this.active.summary.status = 'unknown'
+        this.active.summary.timing = null
         this.active.summary.reliable = false
         this.active.summary.contentRevision++
         this.active = null
@@ -61,6 +68,7 @@ export class TerminalBlockIndex {
         this.core.track(`${block.summary.id}:end`)
         block.summary.end = this.core.anchorPoint(`${block.summary.id}:end`)
         block.summary.status = 'completed'
+        block.summary.timing = { kind: 'completed', durationMs: performance.now() - block.startedMonoMs }
         block.summary.exitCode = event.exitCode
         block.summary.contentRevision++
         this.revision++
@@ -83,6 +91,7 @@ export class TerminalBlockIndex {
       } else if (this.prompt) {
         this.cwd = metadata(event.cwd)
         this.core.track(this.prompt)
+        this.summaries()
         return
       }
       this.cwd = metadata(event.cwd)
@@ -90,13 +99,18 @@ export class TerminalBlockIndex {
       this.prompt = `${this.resourceId}:prompt`
       this.core.track(this.prompt)
       this.pendingCommand = undefined
+      this.summaries()
     } else {
       if (!this.prompt || this.active) return
       const id = `${this.resourceId}:${++this.sequence}`
       const prompt = this.core.anchorPoint(this.prompt)
       if (prompt) this.core.track(`${id}:prompt`, prompt)
       this.core.track(`${id}:output`)
+      const output = this.core.anchorPoint(`${id}:output`)
+      const commandText = prompt && output ? this.format(prompt, output, 64 * 1024) : null
       const block: Block = {
+        startedMonoMs: performance.now(),
+        commandFingerprint: commandText === null ? undefined : hash(commandText),
         summary: {
           outputEmpty: false,
           id,
@@ -104,10 +118,11 @@ export class TerminalBlockIndex {
           command: metadata(this.pendingCommand ?? event.command),
           cwd: this.cwd,
           status: 'running',
+          timing: { kind: 'running', startedAt: Date.now() },
           exitCode: null,
           reliable: false,
           prompt,
-          output: this.core.anchorPoint(`${id}:output`),
+          output,
           end: null
         }
       }
@@ -137,7 +152,16 @@ export class TerminalBlockIndex {
         const prompt = this.core.anchorPoint(`${value.id}:prompt`)
         const output = this.core.anchorPoint(`${value.id}:output`)
         const end = value.status === 'running' ? this.core.cursorPoint() : this.core.anchorPoint(`${value.id}:end`)
-        if (!prompt && !output && !end && block !== this.active) {
+        if (
+          block !== this.active &&
+          ((!prompt &&
+            ((!output && (!end || (end.x === 0 && end.y === 0))) || (output && end && samePoint(output, end)))) ||
+            (prompt &&
+              output &&
+              output.y >= origin &&
+              block.commandFingerprint !== undefined &&
+              block.commandFingerprint !== hash(this.format(prompt, output, 64 * 1024) ?? '\0')))
+        ) {
           this.remove(block)
           continue
         }
@@ -215,7 +239,7 @@ export class TerminalBlockIndex {
               start: mapped.length + line.length,
               end: mapped.length + line.length + value.length,
               from: { x: first + x, y },
-              to: { x: Math.min(cols - 1, first + x + (cell.wide === 1 ? 1 : 0)), y }
+              to: { x: Math.min(cols - 1, first + x + Number(cell.wide === 1 || cells[x + 1]?.wide === 2)), y }
             }
             if (mappingBytes + size(span) < 8192) {
               lineMapping.push(span)
@@ -224,7 +248,10 @@ export class TerminalBlockIndex {
             line += value
           }
           line = line.trimEnd()
-          mapping.push(...lineMapping.filter((span) => span.end <= mapped.length + line.length))
+          for (const span of lineMapping) {
+            if (span.end <= mapped.length + line.length) mapping.push(span)
+            else mappingBytes -= size(span)
+          }
           mapped += line
           if (!row.wrapsToNext && y < end.y - 1) mapped += '\n'
           y++
@@ -266,6 +293,72 @@ export class TerminalBlockIndex {
       result.text = prefix + tail
     }
     return result
+  }
+
+  searchSnapshot(blockId: string): TerminalBlockRead {
+    const read = this.read(blockId, 'output')
+    if (read.kind !== 'content') return read
+    read.partial = read.partial.filter((reason) => reason !== 'metadata')
+    const { prompt, output } = read.block
+    if (!prompt || !output) return read
+    const cols = this.core.dimensions().cols
+    if ((output.y - prompt.y + 1) * cols > 64 * 1024) {
+      if (!read.partial.includes('size')) read.partial.push('size')
+      return read
+    }
+    let command = '',
+      bytes = 0,
+      mappingBytes = 0
+    const mapping: typeof read.mapping = []
+    try {
+      for (let y = prompt.y; y <= output.y;) {
+        const rows = this.core.sourceInputRows(y, Math.min(128, output.y - y + 1))
+        if (!rows.length) break
+        for (const row of rows) {
+          const first = y === prompt.y ? prompt.x : 0,
+            last = y === output.y ? output.x : cols
+          for (let x = first; x < last; x++) {
+            const cell = row.cells[x]
+            if (!row.input[x] || cell.wide === 2 || cell.wide === 3) continue
+            const value = cell.text || ' '
+            bytes += Buffer.byteLength(value)
+            if (bytes > 8192) break
+            const span = {
+              start: command.length,
+              end: command.length + value.length,
+              from: { x, y },
+              to: { x: Math.min(cols - 1, x + Number(cell.wide === 1 || row.cells[x + 1]?.wide === 2)), y }
+            }
+            if (mappingBytes + size(span) < 8192) {
+              mapping.push(span)
+              mappingBytes += size(span)
+            }
+            command += value
+          }
+          if (bytes > 8192) break
+          if (command && !row.wrapsToNext && (y + 1 < output.y || (y < output.y && output.x > 0))) {
+            command += '\n'
+            bytes++
+          }
+          y++
+        }
+        if (bytes > 8192) break
+      }
+    } finally {
+      this.core.scrollToBottom()
+    }
+    if (bytes > 8192 && !read.partial.includes('size')) read.partial.push('size')
+    if (!command) read.partial.push('metadata')
+    if (!command) return read
+    const prefix = `${command}\n`
+    return {
+      ...read,
+      text: prefix + read.text,
+      mapping: [
+        ...mapping,
+        ...read.mapping.map((span) => ({ ...span, start: span.start + prefix.length, end: span.end + prefix.length }))
+      ]
+    }
   }
 
   command(id: string, revision: number): string | null {

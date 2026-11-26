@@ -66,6 +66,105 @@ function create() {
   }
   return { host, states, mutation, run, dispose }
 }
+
+it.skipIf(process.platform === 'win32')(
+  'redraws a full-width zsh prompt and draft on resize without duplicating them or erasing output',
+  async () => {
+    execFileSync('node', ['native/terminal-scope/build.cjs'], { cwd: root })
+    const home = await mkdtemp(path.join(tmpdir(), 'cherry-terminal-resize-'))
+    await writeFile(
+      path.join(home, '.zshrc'),
+      "setopt PROMPT_SUBST\nPROMPT='RESIZE_PROMPT ${(l:$((COLUMNS - 14))::.:)}\n> '\nprintf 'SAVED_OUTPUT\\n'\n"
+    )
+    const item = create()
+    const id = terminalResourceId.parse(randomUUID())
+    const draft = `echo RESIZE_DRAFT ${'中文🙂'.repeat(30)}`
+    try {
+      await item.run({ kind: 'bind', context })
+      await item.run({
+        kind: 'start',
+        id,
+        context,
+        retention: { kind: 'session' },
+        launch: {
+          kind: 'pty',
+          shell: 'zsh',
+          file: '/bin/zsh',
+          args: [],
+          cwd: root,
+          env: { HOME: home, PATH: '/usr/bin:/bin' },
+          cols: 80,
+          rows: 24
+        }
+      })
+      const state = () => item.states.get(id)!
+      const text = () => {
+        const frame = item.host.view({
+          host: item.host.init.host,
+          id,
+          viewId: 'resize',
+          rowStart: 0,
+          offset: 0,
+          revision: null
+        })
+        return decodeTerminalRows(frame.snapshot.rowData, frame.styles)
+          .map((row) => row.text)
+          .join('\n')
+      }
+      await waitForHost(() => expect(text()).toContain('RESIZE_PROMPT'))
+      expect(
+        await item.run({
+          kind: 'control',
+          id,
+          actor: { kind: 'user' },
+          controlRevision: state().controlRevision,
+          target: { kind: 'user' }
+        })
+      ).toMatchObject({ kind: 'resource' })
+      expect(
+        await item.run({
+          kind: 'paste',
+          id,
+          actor: { kind: 'user' },
+          controlRevision: state().controlRevision,
+          geometryEpoch: state().geometryEpoch!,
+          data: draft
+        })
+      ).toMatchObject({ kind: 'resource' })
+      await waitForHost(() => expect(text().replaceAll('\n', '')).toContain(draft))
+      for (const cols of [100, 80, 100, 80]) {
+        const previous = state().outputCursor
+        expect(
+          await item.run({
+            kind: 'resize',
+            id,
+            actor: { kind: 'user' },
+            controlRevision: state().controlRevision,
+            geometryEpoch: state().geometryEpoch!,
+            cols,
+            rows: 24,
+            cellWidth: 8,
+            cellHeight: 16
+          })
+        ).toMatchObject({ kind: 'resource' })
+        await waitForHost(() => expect(state().outputCursor).toBeGreaterThan(previous))
+        await waitForHost(() => {
+          const visible = text().replaceAll('\n', '')
+          expect(visible).toContain(`RESIZE_PROMPT ${'.'.repeat(cols - 14)}`)
+          expect(visible.split('RESIZE_PROMPT')).toHaveLength(2)
+          expect(visible.split('RESIZE_DRAFT')).toHaveLength(2)
+          expect(visible).toContain(draft)
+          expect(visible).toContain('SAVED_OUTPUT')
+          expect(state().editor?.kind).toBe('dirty')
+        })
+      }
+    } finally {
+      await item.dispose()
+      await rm(home, { recursive: true, force: true })
+    }
+  }
+)
+
 describe.skipIf(process.platform === 'win32').each([
   { shell: 'bash', customZdotdir: false },
   { shell: 'zsh', customZdotdir: false },
@@ -197,15 +296,14 @@ describe.skipIf(process.platform === 'win32').each([
           )
         }
         expect(output()).not.toContain(']633;Cherry;')
-        await command(
-          `${shell === 'powershell' ? '& ' : ''}${JSON.stringify(process.execPath)} -e 'process.stdout.write("REPL_READY"); process.stdin.once("data",d=>{process.stdout.write("RECEIVED:"+d);process.exit(0)})'`,
-          'repl'
-        )
+        const replCommand = `${shell === 'powershell' ? '& ' : ''}${JSON.stringify(process.execPath)} -e 'process.stdout.write("REPL_READY"); process.stdin.once("data",d=>{process.stdout.write("RECEIVED:"+d);process.exit(0)})'`
+        await command(replCommand, 'repl')
         await waitForHost(() => expect(state().shellFacts?.kind).toBe('program'))
         await waitForHost(() => expect(output()).toContain('REPL_READY'))
         const facts = state().shellFacts
         expect(facts?.kind).toBe('program')
         if (facts?.kind !== 'program') throw new Error('No program identity')
+        expect(facts.command).toBe(replCommand)
         expect(
           await item.run({
             kind: 'shell-command',

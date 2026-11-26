@@ -92,6 +92,48 @@ describe('TerminalCapture', () => {
 describe.skipIf(process.platform === 'win32')('TerminalHost real executions', () => {
   beforeAll(() => execFileSync('node', ['native/terminal-scope/build.cjs'], { cwd: root }))
 
+  it('keeps long PTY output readable past five thousand rows through the ordinary view path', async () => {
+    const item = createHost()
+    const id = terminalResourceId.parse(randomUUID())
+    try {
+      await item.run({ kind: 'bind', context })
+      await item.run({
+        kind: 'start',
+        id,
+        context,
+        retention: { kind: 'session' },
+        launch: {
+          kind: 'pty',
+          shell: 'bash',
+          file: '/bin/bash',
+          args: ['--noprofile', '--norc', '-c', "printf 'LINE_%05d output\\n' {0..9999}"],
+          cwd: root,
+          env: { PATH: '/usr/bin:/bin' },
+          cols: 160,
+          rows: 24
+        }
+      })
+      await expect.poll(() => item.states.get(id)?.cleanup).toBe('confirmed')
+      const input = { host: item.host.init.host, id, viewId: randomUUID(), rowStart: 0, revision: null }
+      const first = item.host.view({ ...input, offset: 20000 })
+      expect(first.sourceTotal).toBeGreaterThanOrEqual(10000)
+      expect(first.scrollOffset).toBeGreaterThan(5000)
+      expect(first.snapshot.rowData[0].text).toBe('LINE_00000 output')
+      expect(first.scrollOffset).toBe(first.sourceTotal! - first.snapshot.rows)
+      let bottom = item.host.view({ ...input, offset: 0 })
+      const texts = bottom.snapshot.rowData.map((row) => row.text)
+      let rowStart = bottom.rowIndices.length
+      while (!bottom.complete) {
+        bottom = item.host.view({ ...input, offset: 0, revision: bottom.revision, rowStart })
+        texts.push(...bottom.snapshot.rowData.map((row) => row.text))
+        rowStart += bottom.rowIndices.length
+      }
+      expect(texts).toContain('LINE_09999 output')
+    } finally {
+      await item.dispose()
+    }
+  })
+
   it('answers a burst of terminal queries without closing the PTY', async () => {
     const item = createHost()
     const id = terminalResourceId.parse(randomUUID())

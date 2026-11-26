@@ -502,15 +502,12 @@ function RightPanelEntry({
   entry: ResolvedRightPanelEntry
   scope: unknown
 }) {
-  const [renderFailed, setRenderFailed] = useState(false)
   const Panel = entry.component
-  const showFallbackHeader = renderFailed && entry.headerMode === 'content'
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      {showFallbackHeader ? <RightPanelHeader canMaximize={entry.canMaximize} title={entry.title} /> : null}
       <div className="min-h-0 flex-1 overflow-hidden">
-        <ErrorBoundary onError={() => setRenderFailed(true)}>
+        <ErrorBoundary>
           <Panel active={active} panelId={entry.id} scope={scope} />
         </ErrorBoundary>
       </div>

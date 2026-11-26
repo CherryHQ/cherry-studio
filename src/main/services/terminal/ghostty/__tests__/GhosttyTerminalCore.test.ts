@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import manifest from '../../../../../../resources/terminal/ghostty/manifest.json'
 import { TerminalBlockIndex } from '../../utilityEntries/TerminalBlockIndex'
@@ -63,6 +63,231 @@ function rowText(screen: GhosttySnapshot, row: number) {
 }
 
 describe('headless Ghostty engine', () => {
+  it('retains the first and last output rows in unlimited history across resize', () => {
+    const core = GhosttyTerminalCore.create({
+      runtime,
+      cols: 160,
+      rows: 24,
+      cellWidth: 8,
+      cellHeight: 16,
+      scrollbackBytes: 'unlimited',
+      theme,
+      onPtyData: () => {}
+    })
+    terminals.push(core)
+    core.write(Array.from({ length: 12000 }, (_, n) => `LINE_${String(n).padStart(5, '0')} output\r\n`).join(''))
+    core.scroll(-20000)
+    expect(core.snapshot().rowData[0].text).toBe('LINE_00000 output')
+    core.resize(240, 30, 8, 16)
+    core.scroll(-20000)
+    expect(core.snapshot().rowData[0].text).toBe('LINE_00000 output')
+    core.scrollToBottom()
+    expect(core.snapshot().rowData.some((row) => row.text === 'LINE_11999 output')).toBe(true)
+  })
+
+  it.each(['\x1b[H\x1b[2J', '\x1b[H\x1b[2J\x1b[3J', '\x1bc'])(
+    'retires erased command blocks after clear without reusing their cells for the next command (%j)',
+    (clear) => {
+      const core = terminal()
+      core.resize(80, 12, 8, 16)
+      const index = new TerminalBlockIndex(core, 'clear')
+      index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+      core.write('❯ pwd\r\n')
+      index.boundary({ kind: 'program', revision: 2, command: 'pwd' })
+      core.write('/tmp\r\n')
+      index.written()
+      index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+      core.write('❯ true\r\n')
+      index.boundary({ kind: 'program', revision: 4, command: 'true' })
+      index.boundary({ kind: 'prompt', revision: 5, exitCode: 0, cwd: '/tmp' })
+      const previous = index.summaries()
+      expect(previous.map((block) => block.command)).toEqual(['pwd', 'true'])
+      core.write('❯ clear\r\n')
+      index.boundary({ kind: 'program', revision: 6, command: 'clear' })
+      for (const byte of clear) {
+        core.write(byte)
+        index.written()
+        index.summaries()
+      }
+      index.boundary({ kind: 'prompt', revision: 7, exitCode: 0, cwd: '/tmp' })
+      core.write('❯ ')
+      expect(index.summaries()).toEqual([])
+      for (const block of previous) expect(index.read(block.id, 'block')).toEqual({ kind: 'unavailable' })
+      core.write('pwd\r\n')
+      index.boundary({ kind: 'program', revision: 8, command: 'pwd' })
+      core.write('/tmp\r\n')
+      index.written()
+      index.boundary({ kind: 'prompt', revision: 9, exitCode: 0, cwd: '/tmp' })
+      expect(index.summaries()).toHaveLength(1)
+      expect(index.read(index.summaries()[0].id, 'output')).toMatchObject({ kind: 'content', text: '/tmp' })
+      index.dispose()
+    }
+  )
+
+  it('keeps retained history blocks when only the visible screen is erased', () => {
+    const core = terminal()
+    const index = new TerminalBlockIndex(core, 'history')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    core.write('❯ history\r\n')
+    index.boundary({ kind: 'program', revision: 2, command: 'history' })
+    core.write(Array.from({ length: 12 }, (_, n) => `line-${n}\r\n`).join(''))
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+    const previous = index.summaries()[0]
+    core.write('❯ wipe-screen\r\n')
+    index.boundary({ kind: 'program', revision: 4, command: 'wipe-screen' })
+    core.write('\x1b[H\x1b[2J')
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 5, exitCode: 0, cwd: '/tmp' })
+    const remaining = index.summaries()
+    expect(remaining.map((block) => block.id)).toEqual([previous.id])
+    expect(index.read(previous.id, 'command')).toMatchObject({ kind: 'content', text: 'history' })
+    index.dispose()
+  })
+
+  it('retires blocks whose command and output were pruned by repeated prompt-aware clears', () => {
+    const core = terminal()
+    const index = new TerminalBlockIndex(core, 'prompt-clear')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    core.write('\x1b]133;A\x07❯ \x1b]133;B\x07')
+    const removed: string[] = []
+    for (let attempt = 0; attempt < 3; attempt++) {
+      core.write('clear\r\n\x1b]133;C\x07')
+      index.boundary({ kind: 'program', revision: 2 + attempt * 2, command: 'clear' })
+      const current = index.summaries().find((block) => block.status === 'running')!
+      core.write('\x1b[3J\x1b[H\x1b[2J\x1b]133;D;0\x07')
+      index.written()
+      expect(index.summaries()).toContainEqual(expect.objectContaining({ id: current.id, status: 'running' }))
+      index.boundary({ kind: 'prompt', revision: 3 + attempt * 2, exitCode: 0, cwd: '/tmp' })
+      core.write('\x1b]133;A\x07❯ \x1b]133;B\x07')
+      expect(index.summaries().map((block) => block.id)).toEqual([current.id])
+      for (const id of removed) expect(index.read(id, 'block')).toEqual({ kind: 'unavailable' })
+      expect(core.snapshot().rowData[0].text).toBe('❯')
+      removed.push(current.id)
+    }
+    index.dispose()
+  })
+
+  it('keeps readable partial output after history pruning removes its command and output-start anchors', () => {
+    const core = terminal()
+    const index = new TerminalBlockIndex(core, 'partial-history')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    core.write('❯ lines\r\n')
+    index.boundary({ kind: 'program', revision: 2, command: 'lines' })
+    core.write(Array.from({ length: 10 }, (_, n) => `line-${n}\r\n`).join(''))
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+    const previous = index.summaries()[0]
+    core.write('\x1b[3J')
+    index.written()
+    expect(index.summaries()).toContainEqual(expect.objectContaining({ id: previous.id, prompt: null, output: null }))
+    const read = index.read(previous.id, 'output')
+    expect(read.kind).toBe('content')
+    if (read.kind !== 'content') throw new Error('Retained output became unavailable')
+    expect(read.partial).toContain('history')
+    expect(read.text).toContain('line-9')
+    expect(read.text).not.toContain('line-0')
+    index.dispose()
+  })
+
+  it('retires erased commands at the shell boundary even if identical text reuses their cells before a view reads', () => {
+    const core = terminal()
+    const index = new TerminalBlockIndex(core, 'reuse')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    core.write('❯ true\r\n')
+    index.boundary({ kind: 'program', revision: 2, command: 'true' })
+    index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+    const previous = index.summaries()[0]
+    core.write('❯ wipe-screen\r\n')
+    index.boundary({ kind: 'program', revision: 4, command: 'wipe-screen' })
+    core.write('\x1b[H\x1b[2J')
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 5, exitCode: 0, cwd: '/tmp' })
+    core.write('❯ true\r\n')
+    index.boundary({ kind: 'program', revision: 6, command: 'true' })
+    index.boundary({ kind: 'prompt', revision: 7, exitCode: 0, cwd: '/tmp' })
+    const remaining = index.summaries()
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0].id).not.toBe(previous.id)
+    expect(remaining[0].command).toBe('true')
+    expect(index.read(previous.id, 'command')).toEqual({ kind: 'unavailable' })
+    index.dispose()
+  })
+
+  it('measures command duration with a monotonic clock and drops timing when completion is unknown', () => {
+    const core = terminal()
+    const index = new TerminalBlockIndex(core, 'duration')
+    const monotonic = vi.spyOn(performance, 'now').mockReturnValue(100)
+    const wall = vi.spyOn(Date, 'now').mockReturnValue(1700000000000)
+    try {
+      index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+      core.write('❯ run\r\n')
+      index.boundary({ kind: 'program', revision: 2, command: 'run' })
+      expect(index.summaries()[0].timing).toEqual({ kind: 'running', startedAt: 1700000000000 })
+      monotonic.mockReturnValue(825)
+      wall.mockReturnValue(1699999940000)
+      core.write('done\r\n')
+      index.written()
+      index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+      expect(index.summaries()[0].timing).toEqual({ kind: 'completed', durationMs: 725 })
+      monotonic.mockReturnValue(30000)
+      expect(index.summaries()[0].timing).toEqual({ kind: 'completed', durationMs: 725 })
+      core.write('❯ interrupted\r\n')
+      index.boundary({ kind: 'program', revision: 4, command: 'interrupted' })
+      index.boundary({ kind: 'unknown' })
+      expect(index.summaries().at(-1)).toMatchObject({ status: 'unknown', timing: null })
+    } finally {
+      index.dispose()
+      monotonic.mockRestore()
+      wall.mockRestore()
+    }
+  })
+
+  it.each(['terminal', 'block'] as const)('orders %s matches from top to bottom and left to right', (scope) => {
+    const core = terminal()
+    core.resize(80, 8, 8, 16)
+    const index = new TerminalBlockIndex(core, 'reading-order')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    core.write('❯ run\r\n')
+    index.boundary({ kind: 'program', revision: 2, command: 'run' })
+    core.write('needle needle\r\nneedle\r\n')
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+    const query = new TerminalSearch(
+      'reading-order-query',
+      1,
+      scope === 'terminal' ? { kind: 'terminal' } : { kind: 'block', blockId: index.summaries()[0].id },
+      'needle',
+      core,
+      index
+    )
+    try {
+      let result = query.step(core.revision)
+      for (let n = 0; n < 30 && result.status === 'searching'; n++) result = query.step(core.revision)
+      expect(result.count).toBe(3)
+      const navigate = (direction: 'next' | 'previous') => {
+        const next = query.navigate(result.resultRevision, direction, core.revision)
+        if (!next) throw new Error('Search navigation lost its unchanged result revision')
+        result = next
+        return result.selected
+      }
+      for (const [position, point] of [
+        { x: 0, y: 1 },
+        { x: 7, y: 1 },
+        { x: 0, y: 2 }
+      ].entries()) {
+        expect(navigate('next')).toMatchObject({ index: position, range: { start: point } })
+        result = query.step(core.revision)
+        expect(result.selected).toMatchObject({ index: position, range: { start: point } })
+      }
+      expect(navigate('next')).toMatchObject({ index: 0, range: { start: { x: 0, y: 1 } } })
+      expect(navigate('previous')).toMatchObject({ index: 2, range: { start: { x: 0, y: 2 } } })
+    } finally {
+      query.close()
+      index.dispose()
+    }
+  })
+
   it('finishes native history search through bounded Host turns without relying on a view to feed it', () => {
     const core = terminal()
     core.write(Array.from({ length: 5000 }, (_, n) => `row ${n} find\r\n`).join(''))
@@ -110,6 +335,155 @@ describe('headless Ghostty engine', () => {
     query.close()
     index.dispose()
   })
+
+  it('searches the displayed command with exact cell mappings without searching prompts or attachment metadata', () => {
+    const core = terminal()
+    core.resize(80, 12, 8, 16)
+    const index = new TerminalBlockIndex(core, 'command-search')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/repeat-metadata-only' })
+    const prompt = 'repeat prompt-only> '
+    core.write(`\x1b]133;A\x07${prompt}\x1b]133;B\x07repeat 4 print -r -- BLOCK_BETA\r\n\x1b]133;C\x07`)
+    index.boundary({ kind: 'program', revision: 2, command: 'repeat 4 print -r -- BLOCK_BETA' })
+    core.write('BLOCK_BETA\r\n'.repeat(4))
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/repeat-metadata-only' })
+    const block = index.summaries()[0]
+    for (const [n, needle] of [
+      'repeat',
+      'metadata-only',
+      'prompt-only',
+      'completed',
+      'commandAvailable',
+      'BLOCK_BETA'
+    ].entries()) {
+      const query = new TerminalSearch(`command-${n}`, 1, { kind: 'block', blockId: block.id }, needle, core, index)
+      try {
+        const result = query.step(core.revision)
+        expect(result.partial).toBe(false)
+        expect(result.highlightsLimited, needle).toBe(false)
+        expect(result.count).toBe(needle === 'repeat' ? 1 : needle === 'BLOCK_BETA' ? 5 : 0)
+        if (needle === 'repeat') {
+          const match = query.navigate(result.resultRevision, 'next', core.revision)?.selected
+          expect(match).toEqual({
+            index: 0,
+            range: { start: { x: prompt.length, y: 0 }, end: { x: prompt.length + needle.length - 1, y: 0 } }
+          })
+        }
+      } finally {
+        query.close()
+      }
+    }
+    const copy = index.read(block.id, 'block')
+    expect(copy.kind === 'content' && copy.text).toContain('"cwd":"/repeat-metadata-only"')
+    index.dispose()
+  })
+
+  it('maps Unicode command text through wrapping and reflow while excluding continuation prompts', () => {
+    const core = terminal()
+    core.resize(18, 12, 8, 16)
+    const index = new TerminalBlockIndex(core, 'command-reflow')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    core.write('\x1b]133;A\x07$ \x1b]133;B\x07printf "中文🙂alpha\r\n')
+    core.write('\x1b]133;P;k=c\x07continuation> \x1b]133;B\x07second"\r\n\x1b]133;C\x07')
+    index.boundary({ kind: 'program', revision: 2, command: 'printf "中文🙂alpha\nsecond"' })
+    core.write('done\r\n')
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+    const block = index.summaries()[0]
+    const query = new TerminalSearch(
+      'command-reflow-query',
+      1,
+      { kind: 'block', blockId: block.id },
+      '中文🙂alpha',
+      core,
+      index
+    )
+    try {
+      const before = structuredClone(query.step(core.revision))
+      expect(before.count).toBe(1)
+      expect(before.highlightsLimited).toBe(false)
+      expect(core.formatRange(before.matches[0].start, before.matches[0].end, 1024)).toBe('中文🙂alpha')
+      core.resize(10, 12, 8, 16)
+      expect(query.navigate(before.resultRevision, 'next', core.revision)).toBeNull()
+      const after = query.step(core.revision)
+      expect(after.count).toBe(1)
+      expect(after.highlightsLimited).toBe(false)
+      expect(after.matches[0]).not.toEqual(before.matches[0])
+      expect(core.formatRange(after.matches[0].start, after.matches[0].end, 1024)).toBe('中文🙂alpha')
+      const continuation = new TerminalSearch(
+        'command-continuation',
+        1,
+        { kind: 'block', blockId: block.id },
+        'continuation',
+        core,
+        index
+      )
+      try {
+        expect(continuation.step(core.revision).count).toBe(0)
+      } finally {
+        continuation.close()
+      }
+    } finally {
+      query.close()
+      index.dispose()
+    }
+  })
+
+  it('maps both columns of wide command/output cells even when submitted-command metadata is unavailable', () => {
+    const core = terminal()
+    core.resize(40, 8, 8, 16)
+    const index = new TerminalBlockIndex(core, 'semantic-command')
+    index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+    core.write('\x1b]133;A\x07$ \x1b]133;B\x07printf "🙂"\r\n\x1b]133;C\x07')
+    index.boundary({ kind: 'program', revision: 2 })
+    core.write('🙂\r\n')
+    index.written()
+    index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+    const block = index.summaries()[0]
+    const query = new TerminalSearch(
+      'semantic-command-query',
+      1,
+      { kind: 'block', blockId: block.id },
+      '🙂',
+      core,
+      index
+    )
+    try {
+      const result = query.step(core.revision)
+      expect(result).toMatchObject({ count: 2, partial: false, highlightsLimited: false })
+      expect(result.matches).toEqual([
+        { start: { x: 10, y: 0 }, end: { x: 11, y: 0 } },
+        { start: { x: 0, y: 1 }, end: { x: 1, y: 1 } }
+      ])
+      expect(index.read(block.id, 'command')).toEqual({ kind: 'unavailable' })
+    } finally {
+      query.close()
+      index.dispose()
+    }
+  })
+
+  it.each([8192, 8193])(
+    'bounds %i bytes of displayed command text without charging its execution newline',
+    (length) => {
+      const core = terminal()
+      core.resize(256, 48, 8, 16)
+      const index = new TerminalBlockIndex(core, 'command-budget')
+      const command = 'x'.repeat(length)
+      index.boundary({ kind: 'prompt', revision: 1, exitCode: 0, cwd: '/tmp' })
+      core.write(`\x1b]133;A\x07$ \x1b]133;B\x07${command}\r\n\x1b]133;C\x07`)
+      index.boundary({ kind: 'program', revision: 2 })
+      index.boundary({ kind: 'prompt', revision: 3, exitCode: 0, cwd: '/tmp' })
+      try {
+        const snapshot = index.searchSnapshot(index.summaries()[0].id)
+        expect(snapshot.kind).toBe('content')
+        if (snapshot.kind !== 'content') throw new Error('Command snapshot unavailable')
+        expect(snapshot.text).toBe(`${'x'.repeat(Math.min(length, 8192))}\n`)
+        expect(snapshot.partial).toEqual(length > 8192 ? ['size'] : [])
+      } finally {
+        index.dispose()
+      }
+    }
+  )
   it('returns an explicit bounded suffix for large blocks and preserves complete command metadata', () => {
     const core = terminal()
     const index = new TerminalBlockIndex(core, 'large')

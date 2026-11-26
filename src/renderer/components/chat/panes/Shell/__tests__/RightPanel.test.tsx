@@ -543,37 +543,28 @@ describe('RightPanel', () => {
     expect(findSecondTip()).toHaveAttribute('data-disabled', 'true')
   })
 
-  it('keeps shell controls available when a content-composed panel fails to render', () => {
+  it('keeps unified header controls available without adding a fallback title when content fails', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const scope = { ...readyScope, firstHeaderMode: 'content' as const }
-
-    const { rerender } = render(
-      <Harness defaultOpen scope={scope}>
-        <RightPanelViewport>
-          <RightPanel />
-        </RightPanelViewport>
-      </Harness>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
-    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'true')
-
-    rerender(
-      <Harness defaultOpen scope={{ ...scope, firstShouldThrow: true }}>
-        <RightPanelViewport>
-          <RightPanel />
-        </RightPanelViewport>
-      </Harness>
-    )
-
-    expect(screen.getByRole('alert')).toHaveTextContent('render error')
-    expect(screen.getByTestId('shell-tab-list')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.minimize' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
-    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'false')
-
-    consoleError.mockRestore()
+    try {
+      render(
+        <Harness defaultOpen scope={{ ...readyScope, firstHeaderMode: 'content', firstShouldThrow: true }}>
+          <div role="toolbar" aria-label="Resource tabs">
+            <RightPanelHeaderControls canMaximize />
+          </div>
+          <RightPanelViewport>
+            <RightPanel />
+          </RightPanelViewport>
+        </Harness>
+      )
+      expect(screen.getByRole('alert')).toHaveTextContent('render error')
+      expect(screen.queryByTestId('shell-tab-list')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+      expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'true')
+      fireEvent.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
+      expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'false')
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
   it('rejects duplicate panel ids', () => {

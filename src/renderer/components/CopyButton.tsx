@@ -9,7 +9,7 @@ import { cn } from '@renderer/utils/style'
 
 interface CopyButtonProps extends Omit<ComponentProps<'button'>, 'children'> {
   tooltip?: string
-  textToCopy: string
+  textToCopy: string | (() => string | Promise<string>)
   label?: string
   color?: string
   hoverColor?: string
@@ -39,22 +39,21 @@ const CopyButton: FC<CopyButtonProps> = ({
   const { t } = useTranslation()
   const [copied, setCopied] = useTemporaryValue(false)
 
-  const handleCopy: MouseEventHandler<HTMLButtonElement> = (event) => {
+  const handleCopy: MouseEventHandler<HTMLButtonElement> = async (event) => {
     onClick?.(event)
     if (event.defaultPrevented) return
 
-    navigator.clipboard
-      .writeText(textToCopy)
-      .then(() => {
-        if (successFeedback === 'icon') {
-          setCopied(true)
-        } else {
-          toast.success(t('message.copy.success'))
-        }
-      })
-      .catch(() => {
-        toast.error(t('message.copy.failed'))
-      })
+    try {
+      const text = typeof textToCopy === 'function' ? await textToCopy() : textToCopy
+      await navigator.clipboard.writeText(text)
+      if (successFeedback === 'icon') {
+        setCopied(true)
+      } else {
+        toast.success(t('message.copy.success'))
+      }
+    } catch {
+      toast.error(t('message.copy.failed'))
+    }
   }
 
   const ariaLabel = props['aria-label'] || tooltip || t('common.copy')

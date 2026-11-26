@@ -82,7 +82,7 @@ export type TerminalReceipt =
 export type TerminalShellFacts =
   | { kind: 'unknown' }
   | { kind: 'prompt'; revision: number; cwd: string }
-  | { kind: 'program'; commandId: string; programRevision: number }
+  | { kind: 'program'; commandId: string; programRevision: number; command: string | null }
 export type TerminalShellCommand = { id: string; start: number } & (
   | { status: 'running' }
   | { status: 'completed'; exitCode: number; end: number }
@@ -208,6 +208,7 @@ export interface TerminalBlockSummary {
   command: string | null
   cwd: string | null
   status: 'running' | 'completed' | 'unknown'
+  timing: { kind: 'running'; startedAt: number } | { kind: 'completed'; durationMs: number } | null
   exitCode: number | null
   reliable: boolean
   prompt: TerminalSourcePoint | null

@@ -255,7 +255,6 @@ vi.mock('@renderer/ipc', async (importActual) => ({
     ...(await importActual<typeof RendererIpc>()).ipcApi,
     request: (route: string, ...args: unknown[]) => {
       if (route === 'terminal.list') return Promise.resolve({ resources: [], truncated: false })
-      if (route === 'terminal.cleanup.status') return Promise.resolve({ count: 0, recoveryFailed: false })
       return ipcRequestMock(route, ...args)
     }
   }

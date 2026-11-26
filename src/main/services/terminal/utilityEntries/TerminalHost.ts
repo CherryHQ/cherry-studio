@@ -565,6 +565,7 @@ export class TerminalHost {
             capture.append(data)
             resource.core?.write(data)
           })
+          resource.blocks?.boundary({ kind: 'unknown' })
           if (resource.state.command?.status === 'running')
             resource.state.command = { ...resource.state.command, status: 'unknown' }
           resource.state.shellFacts = { kind: 'unknown' }
@@ -583,6 +584,7 @@ export class TerminalHost {
           this.changed(resource)
         },
         onFault: (error) => {
+          resource.blocks?.boundary({ kind: 'unknown' })
           if (resource.state.process.kind !== 'exited')
             resource.state.process = { kind: 'lost', message: error.message }
           this.changed(resource)
@@ -606,7 +608,7 @@ export class TerminalHost {
           rows: launch.rows,
           cellWidth: 8,
           cellHeight: 16,
-          scrollbackBytes: 1024 * 1024,
+          scrollbackBytes: 'unlimited',
           theme: {
             foreground: { r: 255, g: 255, b: 255 },
             background: { r: 0, g: 0, b: 0 },
@@ -673,7 +675,12 @@ export class TerminalHost {
       resource.boundary = 'program'
       resource.state.editor = { kind: 'unknown', revision: (resource.state.editor?.revision ?? 0) + 1 }
       const id = resource.state.command?.status === 'running' ? resource.state.command.id : `user:${event.revision}`
-      resource.state.shellFacts = { kind: 'program', commandId: id, programRevision: ++resource.programRevision }
+      resource.state.shellFacts = {
+        kind: 'program',
+        commandId: id,
+        programRevision: ++resource.programRevision,
+        command: resource.blocks?.currentCommand ?? null
+      }
     } else {
       if (resource.state.command?.status === 'running')
         resource.state.command = {
@@ -714,15 +721,15 @@ export class TerminalHost {
         resource.core.scrollToBottom()
         const summaries = resource.blocks?.summaries() ?? []
         const historyTotal = resource.core.scrollbarState()?.total ?? 0
+        let snapshot = resource.core.snapshot()
         const scrollOffset = Math.min(
-          5000,
+          Math.max(0, historyTotal - snapshot.rows),
           Math.max(
             0,
             input.offset +
               (input.offset > 0 && view?.offset === input.offset ? Math.max(0, historyTotal - view.historyTotal) : 0)
           )
         )
-        let snapshot = resource.core.snapshot()
         const lastContent = snapshot.rowData.findLastIndex(
           (row) =>
             row.text.trimEnd() ||

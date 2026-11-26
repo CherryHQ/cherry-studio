@@ -9,7 +9,7 @@ import { BaseService, DependsOn, Emitter, Injectable, Phase, ServicePhase } from
 import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityProcess'
 import type { UtilityProcessInstance } from '@main/core/utilityProcess/types'
 import { findExecutableInEnv, autoDiscoverGitBash } from '@main/utils/commandResolver'
-import { getShellEnv } from '@main/utils/shellEnv'
+import { getRawShellEnv } from '@main/utils/shellEnv'
 import type { terminalViewAction } from '@shared/ipc/schemas/terminal'
 import type { WindowId } from '@shared/ipc/types'
 import type { TerminalViewFrame, GhosttyTheme, TerminalResourceView, TerminalViewLayout } from '@shared/types/terminal'
@@ -150,7 +150,7 @@ export class TerminalService extends BaseService {
         bindingId: userTerminalContextId
       })
       lease.workspaceRevision = workspaceRevision
-      const env = await getShellEnv()
+      const env = await getRawShellEnv()
       const requested =
         shell === 'default'
           ? env.SHELL ||

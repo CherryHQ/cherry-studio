@@ -15,7 +15,6 @@ import {
   type RightPanelCapability
 } from '@renderer/components/chat/panes/Shell'
 import { ShellExecutionActions } from '@renderer/components/terminal/ShellExecutionActions'
-import { TerminalPane } from '@renderer/components/terminal/TerminalPane'
 import {
   TerminalResourcesProvider,
   useTerminalResources
@@ -51,7 +50,6 @@ const original: TerminalResourceView = {
 }
 let resources: TerminalResourceView[]
 let requests: string[]
-let recovered: boolean
 let rejectCreation: boolean
 let closeOutcome: 'confirmed' | 'unconfirmed' | 'rejected'
 let stopWait: Promise<void> | undefined
@@ -59,19 +57,11 @@ let stopCalls: number
 let stopCompleted: boolean
 let fileCloseWait: Promise<boolean> | undefined
 let fileCloseStarted: boolean
-const record = {
-  id: '33333333-3333-4333-8333-333333333333',
-  sessionId: 'purged-conversation',
-  cwd: '/retained/old-workspace',
-  owner: { kind: 'terminal', resourceId: original.id, generation: '44444444-4444-4444-8444-444444444444' },
-  createdAt: 1
-}
 beforeEach(() => {
   resetPopupMocks()
   browser.declare('resource-tabs-test', 'resource-tab-owner')
   resources = [structuredClone(original)]
   requests = []
-  recovered = false
   rejectCreation = false
   closeOutcome = 'confirmed'
   stopWait = undefined
@@ -99,13 +89,6 @@ beforeEach(() => {
       }
 
     if (route === 'terminal.list') return { ok: true, data: { resources, truncated: false } }
-    if (route === 'terminal.cleanup.status')
-      return { ok: true, data: { count: recovered ? 1 : 0, recoveryFailed: false } }
-    if (route === 'terminal.cleanup.list') return { ok: true, data: recovered ? [record] : [] }
-    if (route === 'terminal.cleanup.retry') {
-      expect(payload).toEqual({ id: record.id })
-      return { ok: true, data: { status: 'unavailable' } }
-    }
     if (route === 'terminal.create' && rejectCreation) {
       expect(payload).toEqual({
         sessionId: 'resource-tabs-test',
@@ -208,7 +191,6 @@ function Content({ attachment = false, emptyFiles = false }: { attachment?: bool
       <output aria-label="Terminal control revision">{terminal.resources[0]?.controlRevision}</output>
       <output aria-label="Selected terminal">{terminal.tabs.selectedTerminalId}</output>
       <output aria-label="Selected file mode">{selectedFile?.previewType ?? 'artifact'}</output>
-      {terminal.selectedCleanupId && <TerminalPane sessionId="resource-tabs-test" active />}
     </>
   )
 }
@@ -513,21 +495,6 @@ it('promotes a pending Bash call without opening a tab or re-executing the comma
   expect(requests).not.toContain('terminal.create')
 })
 
-it('keeps recovered cleanup discoverable after its conversation was purged and retry is unavailable', async () => {
-  resources = []
-  recovered = true
-  const user = userEvent.setup()
-  mount()
-  await user.click(screen.getByRole('button', { name: t('agent.resources.open_create') }))
-  await user.click(await screen.findByRole('menuitem', { name: record.cwd }))
-  expect(await screen.findByText(t('terminal.cleanup.protected'))).toBeInTheDocument()
-  await user.click(screen.getByRole('button', { name: t('terminal.retry_close') }))
-  await waitFor(() => expect(screen.getByRole('button', { name: t('terminal.retry_close') })).toBeEnabled())
-  expect(screen.getByText(t('terminal.cleanup.protected'))).toBeInTheDocument()
-  expect(requests).toContain('terminal.cleanup.retry')
-  expect(requests).not.toContain('terminal.stop')
-})
-
 it('does not apply an old close receipt to another conversation', async () => {
   const stop = Promise.withResolvers<void>()
   stopWait = stop.promise
@@ -681,4 +648,15 @@ it('keeps a resource opened while Close All is awaiting terminal cleanup', async
   await waitFor(() => expect(screen.getByRole('tab', { name: 'New page' })).toHaveAttribute('aria-selected', 'true'))
   expect(screen.queryByRole('tab', { name: 'zsh 1' })).not.toBeInTheDocument()
   expect(browser.get('resource-tabs-test', newPage)).toBeDefined()
+})
+
+it('shows the running command in a terminal tab and restores its shell title at the prompt', async () => {
+  resources = [
+    { ...original, shellFacts: { kind: 'program', commandId: 'dev', programRevision: 1, command: 'pnpm\n  dev' } }
+  ]
+  mount()
+  expect(await screen.findByRole('tab', { name: 'pnpm dev' })).toBeInTheDocument()
+  resources = [{ ...original, revision: 2, shellFacts: { kind: 'prompt', revision: 2, cwd: '/workspace' } }]
+  expect(await screen.findByRole('tab', { name: 'zsh 1' })).toBeInTheDocument()
+  expect(screen.queryByRole('tab', { name: 'pnpm dev' })).not.toBeInTheDocument()
 })

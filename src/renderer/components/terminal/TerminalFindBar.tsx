@@ -1,26 +1,28 @@
-import { ChevronDown, ChevronUp, X } from 'lucide-react'
+import { Scan } from 'lucide-react'
 import { useEffect, useRef, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button, Input } from '@cherrystudio/ui'
-import type { TerminalSearchProjection } from '@shared/types/terminal'
+import { Tooltip } from '@cherrystudio/ui'
+import ActionIconButton from '@renderer/components/ActionIconButton'
+import { FindBarControls } from '@renderer/components/FindBar'
+import type { TerminalBlockSummary, TerminalSearchProjection } from '@shared/types/terminal'
 
 export function TerminalFindBar({
   ref,
   needle,
-  scope,
-  canBlock,
+  target,
   result,
   onChange,
+  onToggleScope,
   onNavigate,
   onClose
 }: {
   ref?: Ref<HTMLDivElement>
   needle: string
-  scope: 'terminal' | 'block'
-  canBlock: boolean
+  target: { kind: 'terminal' | 'block'; block: TerminalBlockSummary | null }
   result: TerminalSearchProjection | null
-  onChange: (needle: string, scope: 'terminal' | 'block') => void
+  onChange: (needle: string) => void
+  onToggleScope?: () => void
   onNavigate: (direction: 'next' | 'previous') => void
   onClose: () => void
 }) {
@@ -34,6 +36,11 @@ export function TerminalFindBar({
     failed: t('terminal.blocks.search_failed')
   }
   const input = useRef<HTMLInputElement>(null)
+  const targetLabel = target.block
+    ? t('terminal.blocks.search_target', {
+        command: target.block.command ?? t('terminal.blocks.command_unavailable')
+      })
+    : t(target.kind === 'block' ? 'terminal.blocks.unavailable' : 'terminal.blocks.find_in_block')
   useEffect(() => {
     input.current?.focus()
     input.current?.select()
@@ -42,8 +49,8 @@ export function TerminalFindBar({
     <div
       ref={ref}
       role="search"
-      aria-label={t('terminal.blocks.find')}
-      className="absolute inset-x-2 top-1 z-30 flex flex-wrap items-center gap-1 rounded-md border bg-popover p-1 font-sans text-popover-foreground shadow-md"
+      aria-label={t(target.kind === 'terminal' ? 'terminal.blocks.scope_terminal' : 'terminal.blocks.find_in_block')}
+      className="pointer-events-auto absolute top-2 right-2 z-30 flex w-[26rem] max-w-[calc(100%-1rem)] flex-col gap-1 rounded-[10px] bg-popover font-sans text-popover-foreground shadow-md"
       onPointerDown={(event) => event.stopPropagation()}
       onPointerMove={(event) => event.stopPropagation()}
       onPointerUp={(event) => event.stopPropagation()}
@@ -53,53 +60,36 @@ export function TerminalFindBar({
           event.preventDefault()
           onClose()
         }
-        if (event.key === 'Enter' && event.target === input.current) {
-          event.preventDefault()
-          onNavigate(event.shiftKey ? 'previous' : 'next')
-        }
       }}>
-      <Input
-        ref={input}
-        value={needle}
-        onChange={(event) => onChange(event.target.value, scope)}
-        aria-label={t('terminal.blocks.find')}
-        className="h-7 min-w-24 flex-1 text-xs"
-      />
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-7 text-xs"
-        title={t('terminal.blocks.scope')}
-        disabled={!canBlock}
-        onClick={() => onChange(needle, scope === 'terminal' ? 'block' : 'terminal')}>
-        {scope === 'terminal' ? t('terminal.blocks.scope_terminal') : t('terminal.blocks.scope_block')}
-      </Button>
-      <span role="status" className="px-1 text-xs text-muted-foreground">
-        {needle && result
-          ? `${result.selected ? result.selected.index + 1 : 0}/${result.count} · ${statuses[result.status]}`
-          : ''}
-      </span>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={t('terminal.blocks.previous')}
-        disabled={!needle}
-        onClick={() => onNavigate('previous')}>
-        <ChevronUp className="size-3" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={t('terminal.blocks.next')}
-        disabled={!needle}
-        onClick={() => onNavigate('next')}>
-        <ChevronDown className="size-3" />
-      </Button>
-      <Button variant="ghost" size="icon-sm" aria-label={t('common.close')} onClick={onClose}>
-        <X className="size-3" />
-      </Button>
+      <FindBarControls
+        inputRef={input}
+        query={needle}
+        onQueryChange={onChange}
+        matchCount={needle ? (result?.count ?? 0) : 0}
+        currentIndex={result?.selected?.index ?? -1}
+        status={needle && result ? statuses[result.status] : undefined}
+        onNavigate={(delta) => onNavigate(delta === 1 ? 'next' : 'previous')}
+        onClose={onClose}>
+        {onToggleScope && (
+          <Tooltip content={targetLabel}>
+            <ActionIconButton
+              icon={<Scan size={18} />}
+              aria-label={t('terminal.blocks.find_in_block')}
+              aria-description={targetLabel}
+              aria-pressed={target.kind === 'block'}
+              active={target.kind === 'block'}
+              disabled={target.kind === 'terminal' && !target.block}
+              className={target.kind === 'block' ? 'rounded-md bg-accent' : 'rounded-md'}
+              onClick={onToggleScope}
+            />
+          </Tooltip>
+        )}
+      </FindBarControls>
+      {needle && result && result.status !== 'searching' && result.status !== 'caught-up' && (
+        <span className="px-3 pb-1 text-xs text-warning">{statuses[result.status]}</span>
+      )}
       {(result?.partial || result?.highlightsLimited) && (
-        <span className="w-full px-1 text-xs text-warning">{t('terminal.blocks.partial')}</span>
+        <span className="w-full px-3 pb-1 text-xs text-warning">{t('terminal.blocks.partial')}</span>
       )}
     </div>
   )

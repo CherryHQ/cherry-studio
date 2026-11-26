@@ -14,15 +14,12 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
 
 import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Tooltip
 } from '@cherrystudio/ui'
@@ -41,10 +38,8 @@ import { buildTabCloseMenuItems, RightPaneTabs, type RightPaneTab } from '@rende
 import { useTerminalResources } from '@renderer/components/terminal/TerminalResourcesProvider'
 import { useSessionBrowserTabMenu } from '@renderer/components/useSessionBrowserTabMenu'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { ipcApi } from '@renderer/ipc'
 import { agentBrowserRuntimeService as browser } from '@renderer/services/AgentBrowserRuntimeService'
 import { getFileIconName } from '@renderer/utils/fileIconName'
-import type { WorkspaceUsageRecord } from '@shared/types/workspaceUsage'
 
 const HeaderSlotContext = createContext<{
   element: HTMLDivElement | null
@@ -72,7 +67,6 @@ type ResourceTab = RightPaneTab &
     | { kind: 'file'; file: ArtifactPaneFileSelection }
     | { kind: 'browser'; id: string }
     | { kind: 'terminal'; id: string }
-    | { kind: 'cleanup'; record: WorkspaceUsageRecord }
   )
 const fileKey = (file: ArtifactPaneFileSelection) =>
   `file:${JSON.stringify([file.workspacePath, file.filePath, file.previewType ?? 'artifact', Boolean(file.readOnly)])}`
@@ -100,7 +94,6 @@ export function AgentResourceTabs({
   const actions = useRightPanelActions()
   const slot = use(HeaderSlotContext)
   const prefix = useId()
-  const [menuOpen, setMenuOpen] = useState(false)
   const [closingBatch, setClosingBatch] = useState(false)
   const batchRunning = useRef(false)
   const currentSession = useRef<string | null>(terminal.sessionId)
@@ -119,8 +112,6 @@ export function AgentResourceTabs({
   const [browserEnabled] = usePreference('app.browser.agent_control.enabled')
   const pages = useSyncExternalStore(browser.subscribe, () => browser.getPages(terminal.sessionId))
   const page = useSyncExternalStore(browser.subscribe, () => browser.get(terminal.sessionId))
-  const cleanup = useSWR(menuOpen ? 'terminal-cleanup-list' : null, () => ipcApi.request('terminal.cleanup.list', {}))
-  const warning = (terminal.cleanup.data?.count ?? 0) > 0 || terminal.cleanup.data?.recoveryFailed
   const setTabs = terminal.setTabs
   const filesActive = panel.activePanelId === 'files' && panel.presentationOpen
   useEffect(() => {
@@ -173,12 +164,16 @@ export function AgentResourceTabs({
         const unconfirmed = resource?.cleanup === 'unconfirmed' || resource?.process.kind === 'lost'
         const agent = resource?.control.kind === 'agent'
         const closing = terminal.closingIds.includes(item.id)
+        const title =
+          (resource?.process.kind === 'running' && resource.shellFacts?.kind === 'program'
+            ? resource.shellFacts.command?.replace(/\s+/gu, ' ').trim()
+            : null) || item.title
         return {
           kind: 'terminal',
           id: item.id,
           key: `terminal:${item.id}`,
-          title: item.title,
-          path: item.title,
+          title,
+          path: title,
           icon: <TerminalSquare className="size-3.5 shrink-0" aria-hidden />,
           status: closing ? (
             <span role="status" className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
@@ -201,17 +196,7 @@ export function AgentResourceTabs({
             <span className="text-xs text-muted-foreground">{t('terminal.background')}</span>
           ) : undefined
         }
-      }),
-    ...terminal.cleanupTabs.map(
-      (record): ResourceTab => ({
-        kind: 'cleanup',
-        record,
-        key: `cleanup:${record.id}`,
-        title: t('terminal.cleanup.unconfirmed'),
-        path: record.cwd,
-        icon: <TriangleAlert className="size-3.5 shrink-0 text-warning" aria-hidden />
       })
-    )
   ]
   const tabs = [...all].sort((a, b) => {
     const left = terminal.tabs.order.indexOf(a.key),
@@ -235,11 +220,9 @@ export function AgentResourceTabs({
         ? page
           ? `browser:${page.pageId}`
           : null
-        : terminal.selectedCleanupId
-          ? `cleanup:${terminal.selectedCleanupId}`
-          : terminal.tabs.selectedTerminalId
-            ? `terminal:${terminal.tabs.selectedTerminalId}`
-            : null
+        : terminal.tabs.selectedTerminalId
+          ? `terminal:${terminal.tabs.selectedTerminalId}`
+          : null
   const activate = useCallback(
     (key: string) => {
       setPendingClose(null)
@@ -251,7 +234,6 @@ export function AgentResourceTabs({
         browser.activate(terminal.sessionId, tab.id)
         actions.requestOpen('browser', { userInitiated: true })
       } else if (tab.kind === 'terminal') terminal.show(tab.id, tab.title)
-      else terminal.openCleanup(tab.record)
     },
     [tabs, activateFile, actions, terminal]
   )
@@ -309,7 +291,7 @@ export function AgentResourceTabs({
       if (result === 'rejected' || result === 'cancelled')
         setPendingClose((current) => (current?.key === key ? null : current))
       return result === 'closed'
-    } else terminal.closeCleanup(tab.record.id)
+    }
     return true
   }
   const currentActions = useRef({ tabs, activeKey, close, activate })
@@ -384,7 +366,7 @@ export function AgentResourceTabs({
         }}
       />
       <div ref={slot?.setElement} className="flex shrink-0 items-center gap-1" />
-      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+      <DropdownMenu>
         <Tooltip content={t('agent.resources.open_create')}>
           <DropdownMenuTrigger asChild>
             <Button
@@ -395,12 +377,6 @@ export function AgentResourceTabs({
               <Plus className="size-4" />
               {terminal.truncated && (
                 <p className="px-2 py-1.5 text-xs text-muted-foreground">{t('terminal.history_limited')}</p>
-              )}
-              {warning && (
-                <span
-                  className="absolute end-0 top-0 size-1.5 rounded-full bg-warning"
-                  aria-label={t('terminal.cleanup.unconfirmed')}
-                />
               )}
             </Button>
           </DropdownMenuTrigger>
@@ -417,7 +393,7 @@ export function AgentResourceTabs({
                 actions.requestOpen('browser', { userInitiated: true })
               }}>
               <Globe className="size-4" />
-              {t('webview.tabs.new')}
+              {t('agent.resources.new_web_page')}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
@@ -426,25 +402,6 @@ export function AgentResourceTabs({
             <FolderOpen className="size-4" />
             {t('agent.right_pane.tabs.files')}
           </DropdownMenuItem>
-          {warning && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-warning">{t('terminal.cleanup.unconfirmed')}</DropdownMenuLabel>
-              {cleanup.data?.map((record) => (
-                <DropdownMenuItem key={record.id} onSelect={() => terminal.openCleanup(record)}>
-                  <TriangleAlert className="size-4 shrink-0" />
-                  <span className="truncate" title={record.cwd}>
-                    {record.cwd}
-                  </span>
-                </DropdownMenuItem>
-              ))}
-              {(terminal.cleanup.data?.recoveryFailed || cleanup.error) && (
-                <p role="alert" className="px-2 py-1.5 text-xs text-warning">
-                  {t('terminal.cleanup.protected')}
-                </p>
-              )}
-            </>
-          )}
         </DropdownMenuContent>
       </DropdownMenu>
       <RightPanelHeaderControls canMaximize />

@@ -71,10 +71,7 @@ import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
 import { FilePreviewNavigationProvider, hasRenderedFilePreview } from '@renderer/components/FilePreview'
-import {
-  TerminalResourcesProvider,
-  useOptionalTerminalResources
-} from '@renderer/components/terminal/TerminalResourcesProvider'
+import { TerminalResourcesProvider } from '@renderer/components/terminal/TerminalResourcesProvider'
 import type { WebviewAnnotationSavedPayload } from '@renderer/components/WebviewAnnotationControls'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentChildProjection } from '@renderer/hooks/agent/useAgentChildProjection'
@@ -1888,8 +1885,6 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts({
 }) {
   const { t } = useTranslation()
   const [browserControlEnabled] = usePreference('app.browser.agent_control.enabled')
-  const terminal = useOptionalTerminalResources()
-  const cleanupWarning = (terminal?.cleanup.data?.count ?? 0) > 0 || terminal?.cleanup.data?.recoveryFailed
 
   return (
     <>
@@ -1907,13 +1902,8 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts({
       )}
       <RightPanelShortcut
         tab={TERMINAL_PANE_ID}
-        label={t(cleanupWarning ? 'terminal.cleanup.unconfirmed' : 'terminal.title')}
-        icon={
-          <span className="relative">
-            <TerminalSquare className="size-3.5" />
-            {cleanupWarning && <span className="absolute -end-1 -top-1 size-1.5 rounded-full bg-warning" />}
-          </span>
-        }
+        label={t('terminal.title')}
+        icon={<TerminalSquare className="size-3.5" />}
       />
       <AgentSessionDetailsToggle>
         <AgentDetailsContent />

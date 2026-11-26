@@ -7,7 +7,6 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { TerminalResourceState, TerminalResourceView } from '@shared/types/terminal'
-import type { WorkspaceUsageRecord } from '@shared/types/workspaceUsage'
 
 import { useRightPanelActions } from '../chat/panes/Shell'
 import { newTerminalPresentation, type TerminalPresentation } from './terminalBlockLayout'
@@ -36,8 +35,6 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
   const [closeIntents, setCloseIntents] = useState<TerminalRef[]>([])
   const [closeError, setCloseError] = useState<{ ref: TerminalRef; message: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [cleanupTabs, setCleanupTabs] = useState<WorkspaceUsageRecord[]>([])
-  const [selectedCleanupId, setSelectedCleanupId] = useState<string | null>(null)
   const [previousSessionId, setPreviousSessionId] = useState(sessionId)
   const currentSession = useRef(sessionId)
   currentSession.current = sessionId
@@ -59,8 +56,6 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
     setCloseIntents([])
     setCloseError(null)
     setError(null)
-    setCleanupTabs([])
-    setSelectedCleanupId(null)
     observed.current = []
   }
   selectedId.current = tabs.selectedTerminalId
@@ -84,9 +79,6 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
     },
     { refreshInterval: active || closeIntents.length ? 500 : 0, dedupingInterval: 200 }
   )
-  const cleanup = useSWR('terminal-cleanup-status', () => ipcApi.request('terminal.cleanup.status', {}), {
-    refreshInterval: active ? 2000 : 0
-  })
   const resources = data?.resources ?? []
   observed.current = resources
   useEffect(() => {
@@ -166,7 +158,6 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
           ? [...current.terminals]
           : [...current.terminals, { id, title: `${title ?? t('terminal.title')} ${current.terminals.length + 1}` }]
       }))
-      setSelectedCleanupId(null)
       void mutate()
       panel.requestOpen('terminal', { userInitiated: true })
     },
@@ -285,11 +276,6 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
       }
     }
   }
-  const openCleanup = (record: WorkspaceUsageRecord) => {
-    setCleanupTabs((current) => (current.some((item) => item.id === record.id) ? current : [...current, record]))
-    setSelectedCleanupId(record.id)
-    panel.requestOpen('terminal', { userInitiated: true })
-  }
   return {
     sessionId,
     presentation,
@@ -306,15 +292,7 @@ function useTerminalResourcesState(sessionId: string, active: boolean) {
     claimId,
     clearClaim: () => setClaimId(null),
     error: error ?? closeError?.message ?? (loadError ? String(loadError) : null),
-    truncated: data?.truncated ?? false,
-    cleanup,
-    cleanupTabs,
-    selectedCleanupId,
-    openCleanup,
-    closeCleanup: (id: string) => {
-      setCleanupTabs((current) => current.filter((item) => item.id !== id))
-      setSelectedCleanupId((current) => (current === id ? null : current))
-    }
+    truncated: data?.truncated ?? false
   }
 }
 

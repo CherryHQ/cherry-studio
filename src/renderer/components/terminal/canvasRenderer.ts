@@ -347,9 +347,10 @@ export function renderGhosttyCursor(options: {
   padding: number
   cursorOn: boolean
   focused: boolean
+  originY?: number
 }): void {
   const { context, snapshot, metrics, fontSize, fontFamily, padding, cursorOn, focused } = options
-  const rowTop = (row: number) => padding + row * metrics.height
+  const rowTop = (row: number) => (options.originY ?? padding) + row * metrics.height
   if (cursorOn && snapshot.cursorVisible && snapshot.cursorX >= 0 && snapshot.cursorY >= 0) {
     const left = padding + snapshot.cursorX * metrics.width
     const top = rowTop(snapshot.cursorY)
