@@ -406,6 +406,10 @@
       "sources": ["src/main/core/job/JobManager.ts","src/main/core/lifecycle/BaseService.ts","src/main/core/scheduler/SchedulerService.ts"]
     },
     {
+      "path": "docs/dev/references/knowledge/chunk-governance-storage.md",
+      "sources": ["src/main/data/db/schemas/knowledgeChunkGovernance.ts","src/main/data/services/KnowledgeChunkGovernanceService.ts","src/shared/data/types/knowledgeChunkGovernance.ts"]
+    },
+    {
       "path": "docs/dev/references/knowledge/experiment/knowledge-technical-design.md",
       "sources": ["src/main/data/db/schemas/knowledge.ts","src/main/features/knowledge/pathStorage.ts","src/main/features/knowledge/pipeline/vectorstore/indexStore","src/main/features/knowledge/query"]
     },
