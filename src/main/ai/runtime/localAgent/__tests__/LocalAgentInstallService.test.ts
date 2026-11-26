@@ -12,8 +12,10 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { BaseService } from '@main/core/lifecycle'
+import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 import { installBinaryAgent } from '../installBinary'
+import { detectLocalAgents, resolveCodexLaunch, resolveLocalAgentLaunch } from '../launch'
 import { LocalAgentInstallService } from '../LocalAgentInstallService'
 import { resolveRequiredRuntime } from '../runtimeDependency'
 
@@ -250,14 +252,43 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
 
   it('repairs the Antigravity terminal through its official native installer', async () => {
     state.name = 'agy_acp_server.par'
-    await writeFile(path.join(state.root, state.name), 'adapter')
-    expect(await new LocalAgentInstallService().install('antigravity-acp')).toMatchObject({ ok: true, reused: true })
+    const adapter = path.join(state.root, state.name)
+    await writeFile(adapter, 'adapter')
+    expect(await new LocalAgentInstallService().install('antigravity-acp')).toMatchObject({
+      ok: true,
+      reused: true,
+      path: adapter
+    })
     expect(fs.existsSync(path.join(state.root, 'agy'))).toBe(true)
     expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toContain(
       process.platform === 'win32'
         ? 'https://antigravity.google/cli/install.ps1'
         : 'https://antigravity.google/cli/install.sh'
     )
+  })
+
+  it('discovers and resolves Antigravity ACP after installing only the official CLI', async () => {
+    const cli = path.join(state.root, 'agy')
+    const config: LocalAgentConfiguration = {
+      protocol: 'acp',
+      presetId: 'antigravity-acp',
+      enabled: true,
+      args: [],
+      env: {}
+    }
+
+    expect(await new LocalAgentInstallService().install('antigravity-acp')).toMatchObject({
+      ok: true,
+      reused: false,
+      path: cli
+    })
+    expect((await detectLocalAgents()).find(({ presetId }) => presetId === 'antigravity-acp')?.path).toBe(cli)
+    expect(await resolveLocalAgentLaunch(config)).toMatchObject({
+      installation: { componentId: 'agy', path: cli },
+      executable: cli,
+      args: ['acp']
+    })
+    expect(fs.existsSync(path.join(state.root, 'agy_acp_server.par'))).toBe(false)
   })
 
   it.each(['system', 'mise'])('reuses the %s native Pi without reinstalling it', async (source) => {
@@ -493,6 +524,21 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
       '["install","--global","@openai/codex"]\n["install","--global","@openai/codex@1.2.3"]\n'
     )
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('uses the executable found after installation for Codex discovery, chat and model probes', async () => {
+    state.name = 'codex'
+    const installed = await new LocalAgentInstallService().install('codex')
+    const settings = { protocol: 'codex' as const, presetId: 'codex', enabled: true, args: [], env: {} }
+    const signal = new AbortController().signal
+
+    expect(installed).toMatchObject({ ok: true, path: path.join(state.root, 'codex') })
+    if (!installed.ok) throw new Error('Expected Codex installation to succeed')
+    expect((await detectLocalAgents()).find(({ presetId }) => presetId === 'codex')?.path).toBe(installed.path)
+    for (const purpose of ['chat', 'models'] as const) {
+      const launch = await resolveCodexLaunch(settings, state.root, signal, purpose)
+      expect(launch.installation).toMatchObject({ componentId: 'codex', path: installed.path })
+    }
   })
 
   it('rejects unsafe version input before executing a package manager', async () => {

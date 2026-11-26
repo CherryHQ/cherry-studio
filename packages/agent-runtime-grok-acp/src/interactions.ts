@@ -18,6 +18,7 @@ const questionnaire = target.extend({
 })
 const plan = target.extend({ planContent: z.string().nullish() })
 
+type RequestTarget = z.infer<typeof target>
 type Questionnaire = z.infer<typeof questionnaire>
 const planActions = ['discuss', 'skip-interview'] as const
 type InterviewAction = (typeof planActions)[number]
@@ -44,14 +45,29 @@ type PlanResponse = { outcome: 'approved' | 'abandoned' } | { outcome: 'cancelle
 
 export interface GrokInteractionHost {
   ask(
-    request: InterviewRequest,
+    target: RequestTarget,
+    input: ReturnType<typeof questionInput>,
     signal: AbortSignal,
-    answer: (reply?: Reply) => QuestionDecision
-  ): Promise<QuestionDecision>
+    settle: (selection?: Reply) => { reply: QuestionResponse; output: unknown }
+  ): Promise<QuestionResponse>
   reviewPlan(
-    request: z.infer<typeof plan>,
+    target: RequestTarget,
+    input: { plan: string },
     signal: AbortSignal
-  ): Promise<{ action: 'approve' | 'abandon' } | { action: 'revise'; feedback: string }>
+  ): Promise<{ approved: boolean; reason?: string; reasonSource?: 'user' }>
+}
+
+function questionInput(request: InterviewRequest) {
+  const questions = request.questions.map(({ question, options, multiSelect }) => ({
+    question,
+    header: question,
+    multiSelect: multiSelect === true,
+    options: options.map(({ label, description, preview }) => ({
+      label,
+      description: [description, preview].filter(Boolean).join('\n')
+    }))
+  }))
+  return { questions, ...(request.actions.length > 0 && { interviewActions: request.actions }) }
 }
 
 function answerQuestion(request: InterviewRequest, reply?: Reply): QuestionDecision {
@@ -94,29 +110,46 @@ function answerQuestion(request: InterviewRequest, reply?: Reply): QuestionDecis
 
 export function grokInteractions(host: GrokInteractionHost): NonNullable<AcpHarnessAdapter['registerRequests']> {
   return (onRequest) => {
-    async function ask({ mode, ...target }: Questionnaire, signal: AbortSignal): Promise<QuestionResponse> {
-      const request = { ...target, actions: mode === 'plan' ? planActions : [] }
-      const result = await host.ask(request, signal, (reply) =>
-        answerQuestion(request, signal.aborted ? undefined : reply)
-      )
-      if (result.action === 'cancel') return { outcome: 'cancelled' }
-      if (result.action === 'submit')
+    function ask({ mode, ...request }: Questionnaire, signal: AbortSignal): Promise<QuestionResponse> {
+      const interview = { ...request, actions: mode === 'plan' ? planActions : [] }
+      const input = questionInput(interview)
+      return host.ask(request, input, signal, (selection) => {
+        const decision = answerQuestion(interview, signal.aborted ? undefined : selection)
+        if (decision.action === 'cancel') return { reply: { outcome: 'cancelled' }, output: { approved: false } }
+        if (decision.action !== 'submit')
+          return {
+            reply: {
+              outcome: decision.action === 'discuss' ? 'chat_about_this' : 'skip_interview',
+              partial_answers: decision.answers
+            },
+            output: { questions: input.questions, answers: decision.answers, interviewAction: decision.action }
+          }
+        const answers = Object.fromEntries(
+          input.questions.flatMap(({ question }, index) => {
+            if (!Object.hasOwn(decision.answers, question)) return []
+            const notes = decision.annotations?.[question]?.notes
+            const freeform = selection?.action === 'submit' && !selection.selections[index].selected.length
+            return [[question, freeform && notes ? notes : decision.answers[question].join(', ')]]
+          })
+        )
         return {
-          outcome: 'accepted',
-          answers: result.answers,
-          ...(result.annotations && { annotations: result.annotations })
+          reply: {
+            outcome: 'accepted',
+            answers: decision.answers,
+            ...(decision.annotations && { annotations: decision.annotations })
+          },
+          output: { questions: input.questions, answers, annotations: decision.annotations }
         }
-      return {
-        outcome: result.action === 'discuss' ? 'chat_about_this' : 'skip_interview',
-        partial_answers: result.answers
-      }
+      })
     }
 
     async function reviewPlan(request: z.infer<typeof plan>, signal: AbortSignal): Promise<PlanResponse> {
-      const decision = await host.reviewPlan(request, signal)
-      if (signal.aborted || decision.action === 'abandon') return { outcome: 'abandoned' }
-      if (decision.action === 'revise') return { outcome: 'cancelled', feedback: decision.feedback }
-      return { outcome: 'approved' }
+      const decision = await host.reviewPlan(request, { plan: request.planContent ?? '' }, signal)
+      if (signal.aborted) return { outcome: 'abandoned' }
+      if (decision.approved) return { outcome: 'approved' }
+      if (decision.reasonSource === 'user' && decision.reason?.trim())
+        return { outcome: 'cancelled', feedback: decision.reason }
+      return { outcome: 'abandoned' }
     }
 
     for (const prefix of ['_x.ai/', 'x.ai/']) {

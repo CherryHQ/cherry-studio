@@ -21,7 +21,3 @@ export function buildAgentSessionTopicId(sessionId: string, contextId?: string):
 export function extractAgentContextId(topicId: string): string | undefined {
   return topicId.split('/context/')[1]
 }
-
-export function isOpenClawTechnicalTitle(title: string | null | undefined): boolean {
-  return /^(?:(?:agent:[^:]+:)?acp-bridge:|\[Working directory:)/i.test((title ?? '').trim())
-}

@@ -4,7 +4,11 @@ import { basename, extname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { application } from '@application'
-import type { AcpContentBlock, AcpPromptCapabilities } from '@cherrystudio/agent-runtime-acp/v1'
+import {
+  encodeAcpAttachment,
+  type AcpContentBlock,
+  type AcpPromptCapabilities
+} from '@cherrystudio/agent-runtime-acp/v1'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { t } from '@main/i18n'
 import type { CherryMessagePart, FileUIPart } from '@shared/data/types/message'
@@ -61,54 +65,56 @@ export async function acpContent(
   const content: AcpContentBlock[] = []
   for (const [index, part] of (input.message.data.parts ?? []).entries()) {
     if (part.type === 'data-knowledge-scope') continue
-    if (part.type === 'file' && part.mediaType.startsWith('audio/')) {
-      if (capabilities.audio !== true) throw new Error(t('agent.session.attachment.audio_unsupported'))
-      content.push({ type: 'audio', ...(await inlineFileContent(part)) })
+    if (part.type !== 'file') {
+      content.push(await localPartContent(part, false))
       continue
     }
-    if (part.type !== 'file' || part.mediaType.startsWith('image/')) {
-      content.push(await localPartContent(part, capabilities.image === true))
-      continue
-    }
-    try {
-      const path = localFilePath(part)
-      const uri = path ? pathToFileURL(path).href : `urn:cherry:attachment:${index}`
-      if (capabilities.embeddedContext === true) {
-        const materialized = await materializeNativeFilePart(part)
-        const parsed = materialized?.url ? parseDataUrl(materialized.url) : null
-        if (!parsed || !materialized) throw new Error('Missing file content')
-        const mimeType = materialized.mediaType
-        const bytes = parsed.isBase64
-          ? Buffer.from(parsed.data, 'base64')
-          : Buffer.from(decodeURIComponent(parsed.data))
-        const isText =
-          mimeType.startsWith('text/') ||
-          textExts.includes((extname(part.filename ?? '') || extname(path ?? '')).toLowerCase())
-        content.push({
-          type: 'resource',
-          resource: {
-            uri,
-            mimeType,
-            ...(isText && isUtf8(bytes)
-              ? { text: new TextDecoder().decode(bytes) }
-              : { blob: bytes.toString('base64') })
-          }
-        })
-      } else {
-        if (!path) throw new Error('Missing local file path')
-        const metadata = await stat(path)
-        if (!metadata.isFile()) throw new Error('Not a file')
-        content.push({
-          type: 'resource_link',
-          uri,
-          name: part.filename ?? basename(path),
+    const path = localFilePath(part)
+    const unavailable = () =>
+      new Error(t('agent.session.attachment.unavailable', { name: part.filename ?? part.mediaType }))
+    content.push(
+      await encodeAcpAttachment(
+        {
+          uri: path ? pathToFileURL(path).href : `urn:cherry:attachment:${index}`,
+          name: part.filename ?? (path ? basename(path) : part.mediaType),
           mimeType: part.mediaType,
-          size: metadata.size
-        })
-      }
-    } catch {
-      throw new Error(t('agent.session.attachment.unavailable', { name: part.filename ?? part.mediaType }))
-    }
+          inline: () => inlineFileContent(part),
+          unsupported: (kind) =>
+            new Error(
+              t(
+                kind === 'image'
+                  ? 'agent.session.attachment.image_unsupported'
+                  : 'agent.session.attachment.audio_unsupported'
+              )
+            ),
+          async linkedSize() {
+            const metadata = path && (await stat(path).catch(() => undefined))
+            if (!metadata || !metadata.isFile()) throw unavailable()
+            return metadata.size
+          },
+          async embedded() {
+            try {
+              const materialized = await materializeNativeFilePart(part)
+              const parsed = materialized?.url ? parseDataUrl(materialized.url) : null
+              if (!parsed || !materialized) throw unavailable()
+              const mimeType = materialized.mediaType
+              const bytes = parsed.isBase64
+                ? Buffer.from(parsed.data, 'base64')
+                : Buffer.from(decodeURIComponent(parsed.data))
+              const text =
+                mimeType.startsWith('text/') ||
+                textExts.includes((extname(part.filename ?? '') || extname(path ?? '')).toLowerCase())
+              return text && isUtf8(bytes)
+                ? { mimeType, text: new TextDecoder().decode(bytes) }
+                : { mimeType, blob: bytes.toString('base64') }
+            } catch {
+              throw unavailable()
+            }
+          }
+        },
+        capabilities
+      )
+    )
   }
   return content
 }

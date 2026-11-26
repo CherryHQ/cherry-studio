@@ -7,6 +7,12 @@ import { runtimeId, type ItemRef, type RuntimePartEdit } from '@cherrystudio/age
 import { agentService } from '@data/services/AgentService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import {
+  ElicitationFormSchema,
+  elicitationChoices,
+  elicitationValidator,
+  type ElicitationContent
+} from '@shared/ai/elicitation'
 import type { LocalAgentConfiguration, LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import { AsyncEventQueue } from '@shared/utils/async'
 
@@ -18,12 +24,15 @@ import type {
 } from '../types'
 import { bindLocalContext, localContext } from './localContext'
 
-type LocalSource = { ref: ItemRef; contextId: string; nextPart: number }
+export type LocalSource = { ref: ItemRef; contextId: string; nextPart: number }
 
 export abstract class LocalConnection implements AgentRuntimeConnection {
   readonly sessionCostScope = 'native-session' as const
   readonly events = new AsyncEventQueue<AgentRuntimeEvent>()
-  readonly localSessionInfo: LocalAgentSessionInfo = { models: [], images: false, resume: false }
+  private info?: LocalAgentSessionInfo
+  get localSessionInfo(): LocalAgentSessionInfo {
+    return (this.info ??= { models: [], images: false, resume: false })
+  }
   protected supportedCommands: AgentSessionSlashCommand[] | null = null
   protected readonly abort = new AbortController()
   protected turnAbort = new AbortController()
@@ -40,7 +49,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   private closing?: Promise<void>
   private completeTurn?: () => void
   private turnDone: Promise<void> = Promise.resolve()
-  protected readonly tools = new Map<string, { part: number; source: LocalSource; value: DynamicToolUIPart }>()
+  protected readonly tools = new Map<string, { part: number; source: LocalSource; name: string; input?: unknown }>()
 
   constructor(
     protected readonly sessionId: string,
@@ -112,6 +121,10 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     this.tools.clear()
     return this.activeSource
   }
+  protected continueSource() {
+    this.endContent()
+    this.activeSource = this.openSource()
+  }
   protected openSource(
     toolOwner?: Extract<AgentRuntimeEvent, { type: 'message-projection' }>['toolOwner']
   ): LocalSource {
@@ -132,7 +145,7 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
     })
     return { ref, contextId: context.id, nextPart: 0 }
   }
-  private get source(): LocalSource {
+  protected get source(): LocalSource {
     if (!this.activeSource) throw new Error('Content outside a local turn')
     return this.activeSource
   }
@@ -179,44 +192,93 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   }
   protected tool(id: string, name: string, input: unknown, update = false) {
     if (this.tools.has(id) && !update) return
-    this.putTool({ type: 'dynamic-tool', toolCallId: id, toolName: name, state: 'input-available', input })
+    this.publishToolPart(
+      { type: 'dynamic-tool', toolCallId: id, toolName: name, state: 'input-available', input },
+      input
+    )
   }
-  protected putTool(value: DynamicToolUIPart, source = this.source) {
-    const existing = this.tools.get(value.toolCallId)
-    source = existing?.source ?? source
-    const part = existing?.part ?? source.nextPart++
-    this.tools.set(value.toolCallId, { part, value, source })
+  protected publishToolPart(value: DynamicToolUIPart, pendingInput?: unknown) {
+    const previous = this.tools.get(value.toolCallId)
+    const source = previous?.source ?? this.source
+    const part = previous?.part ?? source.nextPart++
+    this.tools.set(value.toolCallId, { part, source, name: value.toolName, input: pendingInput })
     this.editPart({ type: 'put', part, value }, source)
   }
   protected result(id: string, output: unknown, failed = false, resultProviderMetadata?: SharedV3ProviderMetadata) {
     const slot = this.tools.get(id)
     if (!slot) return
-    const { toolName, input, title, providerExecuted, callProviderMetadata } = slot.value
     const identity = {
       type: 'dynamic-tool' as const,
-      toolName,
+      toolName: slot.name,
       toolCallId: id,
-      input,
-      title,
-      providerExecuted,
-      callProviderMetadata,
+      input: slot.input,
       resultProviderMetadata
     }
-    const tool: DynamicToolUIPart = failed
-      ? { ...identity, state: 'output-error', errorText: typeof output === 'string' ? output : JSON.stringify(output) }
-      : { ...identity, state: 'output-available', output }
-    this.events.push({
-      type: 'message.tool-output',
-      ref: slot.source.ref,
-      contextId: slot.source.contextId,
-      part: slot.part,
-      tool
-    })
+    this.publishToolPart(
+      failed
+        ? {
+            ...identity,
+            state: 'output-error',
+            errorText: typeof output === 'string' ? output : JSON.stringify(output)
+          }
+        : { ...identity, state: 'output-available', output },
+      slot.input
+    )
   }
   protected denyUnattendedRequest(): { approved: false; reason: string } {
     const reason = 'The local agent requested approval or user input during a scheduled task'
     if (this.active) this.unattendedDenial = reason
     return { approved: false, reason }
+  }
+
+  protected async elicit(message: string, schema: unknown, agentName: string, requestSignal: AbortSignal) {
+    const parsed = ElicitationFormSchema.safeParse(schema)
+    if (!parsed.success) throw new RangeError('Unsupported elicitation schema')
+    let validator: ReturnType<typeof elicitationValidator>
+    try {
+      validator = elicitationValidator(parsed.data)
+    } catch {
+      throw new RangeError('Invalid elicitation schema')
+    }
+    const questions = Object.entries(parsed.data.properties).map(([id, field]) => ({
+      id,
+      question: field.title ?? id,
+      header: field.title ?? id,
+      options: elicitationChoices(field),
+      multiSelect: field.type === 'array'
+    }))
+    const id = randomUUID()
+    const input = {
+      questions: questions.length
+        ? questions
+        : [{ question: message, header: message, options: [], multiSelect: false }],
+      elicitation: {
+        schema: parsed.data,
+        message: message,
+        agentName: agentName
+      }
+    }
+    const turn = this.turnAbort.signal
+    const signal = AbortSignal.any([turn, requestSignal])
+    const answer = await this.approve(id, 'AskUserQuestion', input, signal)
+    const validated = validator.safeParse(answer.updatedInput?.elicitationContent)
+    const action =
+      signal.aborted || this.abort.signal.aborted || answer.updatedInput?.elicitationAction === 'cancel'
+        ? 'cancel'
+        : !answer.approved
+          ? 'decline'
+          : validated.success
+            ? 'accept'
+            : 'cancel'
+    const outcome =
+      action === 'accept' ? ({ action, content: validated.data as ElicitationContent } as const) : ({ action } as const)
+    if (this.active && !turn.aborted)
+      this.result(id, {
+        ...input,
+        answers: action === 'accept' ? answer.updatedInput?.answers : {},
+        elicitationOutcome: outcome
+      })
+    return outcome
   }
 
   protected approve(
@@ -232,6 +294,8 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
       return Promise.resolve(denial)
     }
     const approvalId = randomUUID()
+    const turn = this.turnAbort.signal
+    const contextId = this.source.contextId
     return new Promise((resolve) => {
       if (
         toolApprovalRegistry.register({
@@ -240,8 +304,13 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
           toolCallId: id,
           toolName: name,
           originalInput: input,
-          signal: AbortSignal.any([this.abort.signal, this.turnAbort.signal, ...(signal ? [signal] : [])]),
-          resolve
+          contextId,
+          signal: AbortSignal.any([this.abort.signal, turn, ...(signal ? [signal] : [])]),
+          resolve: (decision) => {
+            if (signal?.aborted && !turn.aborted && !this.abort.signal.aborted)
+              this.events.push({ type: 'tool-approval-withdrawn', contextId, toolCallId: id, approvalId })
+            resolve(decision)
+          }
         })
       ) {
         this.events.push({
@@ -254,7 +323,6 @@ export abstract class LocalConnection implements AgentRuntimeConnection {
   protected dispose() {
     this.closed = true
     this.abort.abort()
-    toolApprovalRegistry.abort(this.sessionId)
     this.events.close()
   }
 }

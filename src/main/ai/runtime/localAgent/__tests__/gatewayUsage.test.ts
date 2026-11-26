@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { LocalAgentConfigurationSchema } from '@shared/ai/localAgent'
+import { LocalAgentConfigurationSchema, type LocalAgentConfiguration } from '@shared/ai/localAgent'
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
+import { prepareAcpChatLaunch } from '../acpLaunch'
 import { bindLocalGatewayUsage } from '../gatewayUsage'
 
 const mocks = vi.hoisted(() => ({ read: vi.fn(), create: vi.fn() }))
@@ -29,7 +31,10 @@ describe('connection-local gateway attribution', () => {
     }
   })
   beforeEach(() => {
-    mocks.read.mockReset().mockResolvedValue([{ content: saved }])
+    mocks.read.mockReset().mockResolvedValue([
+      { target: 'opencode-config', content: saved },
+      { target: 'kilo-config', content: saved }
+    ])
     mocks.create.mockReset().mockImplementation(async ({ agentSessionId }) => ({
       baseUrl: 'http://127.0.0.1:12345',
       apiKey: agentSessionId,
@@ -62,14 +67,51 @@ describe('connection-local gateway attribution', () => {
       sourceModelViaGateway: true
     })
 
+  async function bind(config: LocalAgentConfiguration, sessionId: string, env: NodeJS.ProcessEnv) {
+    const files: { target: CliConfigTarget; content: string | null }[] = await mocks.read()
+    return bindLocalGatewayUsage(
+      config,
+      sessionId,
+      env,
+      Object.fromEntries(files.map(({ target, content }) => [target, content]))
+    )
+  }
+
+  it('uses the same config read for ACP environment and gateway attribution', async () => {
+    const credentials = {
+      cherry_managed: true,
+      model: 'provider:model',
+      base_url: 'http://127.0.0.1:23333',
+      z_ai_api_key: 'public'
+    }
+    mocks.read
+      .mockResolvedValueOnce([{ target: 'glm-credentials', content: JSON.stringify(credentials) }])
+      .mockResolvedValueOnce([
+        {
+          target: 'glm-credentials',
+          content: JSON.stringify({ ...credentials, model: 'another-model' })
+        }
+      ])
+
+    const { launch, gateway } = await prepareAcpChatLaunch(
+      { ...config('glm-acp-agent'), nativeModel: 'provider:model', executableOverride: process.execPath },
+      'session-glm',
+      new AbortController().signal
+    )
+
+    expect(launch.env.ACP_GLM_MODEL).toBe('provider:model')
+    expect(gateway).toBeDefined()
+    expect(mocks.read).toHaveBeenCalledTimes(1)
+  })
+
   it.each([
     ['opencode', 'OPENCODE_CONFIG_CONTENT'],
     ['kilo', 'KILO_CONFIG_CONTENT']
   ])('overlays only %s child configuration and keeps native global defaults unchanged', async (presetId, key) => {
     const env = { [key]: JSON.stringify({ theme: 'dark', provider: { other: { name: 'Other' } } }) }
     const second: NodeJS.ProcessEnv = {}
-    await bindLocalGatewayUsage(config(presetId), 'session-1', env)
-    await bindLocalGatewayUsage(config(presetId), 'session-2', second)
+    await bind(config(presetId), 'session-1', env)
+    await bind(config(presetId), 'session-2', second)
     expect(JSON.parse(env[key])).toMatchObject({
       theme: 'dark',
       provider: {
@@ -97,7 +139,7 @@ describe('connection-local gateway attribution', () => {
     }
   ])('leaves unsupported or overridden routes uncorrelated: $presetId $env', async ({ presetId, env }) => {
     const before = { ...env }
-    expect(await bindLocalGatewayUsage(config(presetId), 'session', env)).toBeUndefined()
+    expect(await bind(config(presetId), 'session', env)).toBeUndefined()
     expect(env).toEqual(before)
     expect(mocks.create.mock.calls).toEqual([])
   })
@@ -127,7 +169,7 @@ describe('connection-local gateway attribution', () => {
       ])
       const clineConfig = { ...config('cline'), nativeModel: 'provider:model' }
 
-      expect(await bindLocalGatewayUsage(clineConfig, 'session-cline', env)).toBeUndefined()
+      expect(await bind(clineConfig, 'session-cline', env)).toBeUndefined()
       expect(mocks.create).not.toHaveBeenCalled()
     }
   )
@@ -156,7 +198,7 @@ describe('connection-local gateway attribution', () => {
       sourceModelId: 'provider::model',
       sourceModelViaGateway: true
     })
-    expect(await bindLocalGatewayUsage(grokConfig, 'session-grok', {})).toBeDefined()
+    expect(await bind(grokConfig, 'session-grok', {})).toBeDefined()
 
     mocks.read.mockResolvedValueOnce([
       {
@@ -185,7 +227,7 @@ describe('connection-local gateway attribution', () => {
       sourceModelId: 'provider::model',
       sourceModelViaGateway: true
     })
-    expect(await bindLocalGatewayUsage(piConfig, 'session-pi', {})).toBeDefined()
+    expect(await bind(piConfig, 'session-pi', {})).toBeDefined()
 
     mocks.read.mockResolvedValueOnce([
       {
@@ -217,7 +259,7 @@ describe('connection-local gateway attribution', () => {
       POOLSIDE_STANDALONE_BASE_URL: 'http://127.0.0.1:23333/v1',
       POOLSIDE_STANDALONE_MODEL: 'provider:model'
     }
-    expect(await bindLocalGatewayUsage(poolsideConfig, 'session-poolside', poolsideEnv)).toBeDefined()
+    expect(await bind(poolsideConfig, 'session-poolside', poolsideEnv)).toBeDefined()
     expect(poolsideEnv).toMatchObject({
       POOLSIDE_API_KEY: 'session-poolside',
       POOLSIDE_STANDALONE_BASE_URL: 'http://127.0.0.1:12345/v1'
@@ -251,7 +293,7 @@ describe('connection-local gateway attribution', () => {
       sourceModelId: 'provider::model',
       sourceModelViaGateway: true
     })
-    expect(await bindLocalGatewayUsage(clineConfig, 'session-cline', {})).toBeDefined()
+    expect(await bind(clineConfig, 'session-cline', {})).toBeDefined()
 
     mocks.read.mockResolvedValueOnce([
       {
@@ -272,7 +314,7 @@ describe('connection-local gateway attribution', () => {
       sourceModelId: 'provider::model',
       sourceModelViaGateway: true
     })
-    expect(await bindLocalGatewayUsage(glmConfig, 'session-glm', {})).toBeDefined()
+    expect(await bind(glmConfig, 'session-glm', {})).toBeDefined()
 
     mocks.read.mockResolvedValueOnce([
       {
@@ -296,7 +338,7 @@ describe('connection-local gateway attribution', () => {
       sourceModelId: 'provider::model',
       sourceModelViaGateway: true
     })
-    expect(await bindLocalGatewayUsage(snowConfig, 'session-snow', {})).toBeDefined()
+    expect(await bind(snowConfig, 'session-snow', {})).toBeDefined()
 
     mocks.read.mockResolvedValueOnce([
       {
@@ -320,7 +362,7 @@ describe('connection-local gateway attribution', () => {
       sourceModelId: 'provider::model',
       sourceModelViaGateway: true
     })
-    expect(await bindLocalGatewayUsage(zcodeConfig, 'session-zcode', {})).toBeDefined()
+    expect(await bind(zcodeConfig, 'session-zcode', {})).toBeDefined()
 
     expect(mocks.create.mock.calls.map(([scope]) => scope)).toEqual([
       { path: '/v1/responses', model: 'provider:model', agentSessionId: 'session-grok', allowPublicCorrelation: true },
@@ -355,7 +397,7 @@ describe('connection-local gateway attribution', () => {
           '[models]\ndefault = "custom"\n[model.custom]\nmodel = "x"\nbase_url = "https://example.com"\napi_key = "other"\n'
       }
     ])
-    expect(await bindLocalGatewayUsage(grokConfig, 'session-unmatched', {})).toBeUndefined()
+    expect(await bind(grokConfig, 'session-unmatched', {})).toBeUndefined()
     expect(mocks.create).not.toHaveBeenCalled()
   })
 })

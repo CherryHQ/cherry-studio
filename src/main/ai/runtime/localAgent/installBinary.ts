@@ -11,10 +11,10 @@ import * as tar from 'tar'
 import unbzip2 from 'unbzip2-stream'
 
 import { application } from '@application'
+import type { CliInstallPlan } from '@cherrystudio/agent-runtime/cli'
 import { isOutsidePath } from '@main/utils/file'
 import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 
-import type { LocalAgentBinaryRecipe } from './installRecipe'
 import { systemAgentEntry, systemAgentWrapper } from './launch'
 import { getBinaryAgentInstallation, writeBinaryManifest } from './uninstall'
 
@@ -39,7 +39,7 @@ function inside(root: string, name: string, allowWindowsSeparators = false): str
 
 export async function installBinaryAgent(
   executable: string,
-  recipe: LocalAgentBinaryRecipe,
+  recipe: Extract<CliInstallPlan, { manager: 'binary' }>,
   signal: AbortSignal,
   expectedPath?: string
 ): Promise<string> {

@@ -7,6 +7,7 @@ import { promisify } from 'util'
 import { app } from 'electron'
 
 import { application } from '@application'
+import { antigravityTerminalArgs } from '@cherrystudio/agent-runtime-antigravity-acp/terminal'
 import { loggerService } from '@logger'
 import { syncLocalAgentConfigModel } from '@main/ai/runtime/localAgent/selectModel'
 import { skillService } from '@main/ai/skills/SkillService'
@@ -704,12 +705,10 @@ export class CodeCliService extends BaseService {
       }
 
       Object.assign(env, launchConfig.env)
-      const geminiDirArg =
-        platform === 'win32'
-          ? `"--gemini_dir=${launchConfig.geminiDir.replace(/%/g, '%%')}"`
-          : posixQuote(`--gemini_dir=${launchConfig.geminiDir}`)
-      const modelArg = platform === 'win32' ? `"${launchConfig.model}"` : posixQuote(launchConfig.model)
-      baseCommand = `${baseCommand} ${geminiDirArg} --model ${modelArg}`
+      const [directory, selector, model] = antigravityTerminalArgs(launchConfig.geminiDir, launchConfig.model)
+      const geminiDirArg = platform === 'win32' ? `"${directory.replace(/%/g, '%%')}"` : posixQuote(directory)
+      const modelArg = platform === 'win32' ? `"${model}"` : posixQuote(model)
+      baseCommand = `${baseCommand} ${geminiDirArg} ${selector} ${modelArg}`
     }
 
     // The Claude Code settings panel lands its terminal on the login flow rather

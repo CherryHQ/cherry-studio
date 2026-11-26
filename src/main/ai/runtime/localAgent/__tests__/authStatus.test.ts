@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { CommandFailedError, executeCommand } from '@main/utils/processRunner'
 
-import { getLocalAgentAuthStatus, parseOpenCodeAuthStatus } from '../authStatus'
+import { getLocalAgentAuthStatus } from '../authStatus'
 import { resolveLocalAgentCli } from '../launch'
 
 vi.mock('../launch', () => ({ resolveLocalAgentCli: vi.fn() }))
@@ -74,7 +74,9 @@ describe('native authentication status', () => {
     ['[{"id":"empty","connections":[]}]', 'signed-out'],
     ['\u001b[32m[{"id":"opencode-go","connections":[{"id":"cred_1"}]}]\u001b[0m\n', 'signed-in'],
     ['not json at all', 'unknown']
-  ])('parses OpenCode auth list JSON status cleanly: %s', (output, expected) => {
-    expect(parseOpenCodeAuthStatus(output)).toBe(expected)
+  ])('reads OpenCode account status from its decorated CLI output: %s', async (output, expected) => {
+    vi.mocked(resolveLocalAgentCli).mockResolvedValue({ executable: '/configured/cli', source: 'system', env: {} })
+    vi.mocked(executeCommand).mockResolvedValue(output)
+    expect(await getLocalAgentAuthStatus(config)).toBe(expected)
   })
 })

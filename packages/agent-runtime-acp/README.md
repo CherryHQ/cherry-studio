@@ -1,18 +1,22 @@
 # ACP v1 runtime
 
-`@cherrystudio/agent-runtime-acp/v1` adapts stable ACP v1 to the [common runtime](../agent-runtime/README.md). The SDK owns protocol framing; the host supplies an exclusive transport lease, native session configuration, credentials, and supported callbacks. The adapter does not launch agents, approve tools, fetch resources, or delete history.
+`@cherrystudio/agent-runtime-acp/v1` adapts stable ACP v1 to the [common runtime](../agent-runtime/README.md). The SDK owns protocol framing. The host supplies an exclusive transport lease or a platform spawn operation, native session configuration, credentials, and supported callbacks.
 
-Implementation follows the [ACP Spec](../../.agents/notes/implemented/architecture/2026-11-09-agent-runtime-acp-v1.md). Desktop protocol extensions share the `AcpHarnessAdapter` contract. The installed Pi and Grok packages implement provider-specific updates.
+Implementation follows the [ACP Spec](../../.agents/notes/implemented/architecture/2026-11-09-agent-runtime-acp-v1.md). Desktop protocol extensions share the `AcpHarnessAdapter` contract. Each harness with native extensions owns its adapter in an independent `@cherrystudio/agent-runtime-<harness>-acp` package. Ordinary ACP commands use the common adapter.
 
 ## Ownership
 
-Desktop chat uses `connectAcpStdio(stdin, stdout, options)`. It receives native updates through `options.update`. After `initialize()`, the negotiated agent exposes `create` and the supported `load` and `resume` methods. Each returns the configuration and operations bound to the native session ID. Main owns process termination and the Cherry timeline.
+Desktop chat uses `connectAcpStdio(stdin, stdout, options)`. After `initialize()`, the agent exposes `create` and, when negotiated, `restore`. Both bind one native session to `options.events`. The adapter delivers setup metadata for that session and streams individual content, tool and plan changes during its prompt. The [OpenClaw adapter](../agent-runtime-openclaw-acp/src/adapter.ts) prefers load on recovery, filters bridge titles and disables the working-directory prompt prefix.
+
+Desktop chat and Settings use `launchAcpStdio` with the resolved command and the host's `SpawnStdio`. The launcher attempts native session close when supported, closes the protocol client and joins the owned process. Main owns desktop resource leases, user approval and the Cherry timeline.
+
+A harness exposes browser-safe CLI metadata from `./cli` when the settings UI needs it. Its runtime entry implements native behavior such as model IDs, launch options and configuration formats. For example, [Cline](../agent-runtime-cline-acp/src/adapter.ts) resolves the same provider profile for launch and gateway attribution. [Poolside](../agent-runtime-poolside-acp/src/adapter.ts), [CodeBuddy](../agent-runtime-codebuddy-acp/src/adapter.ts) and [Goose](../agent-runtime-goose-acp/src/adapter.ts) share their native configuration readers with the settings editor. Poolside binds the session credential to the child environment. [Antigravity](../agent-runtime-antigravity-acp/src/cli.ts) declares the login fields used by Settings. Its [terminal entry](../agent-runtime-antigravity-acp/src/terminal.ts) encodes the model address for launch and decodes it at the gateway. Common descriptor types are exported from `@cherrystudio/agent-runtime-acp/profile`.
 
 Settings use `connectAcpManagementStdio(stdin, stdout, clientInfo)`. Its handshake returns agent information, authentication and model discovery. Authentication checks the advertised method ID and distinguishes terminal sign-in. Model discovery opens a temporary session with an empty MCP list, reads its model options and returns its negotiated close operation to the process owner. The management client installs no filesystem, terminal or elicitation callbacks. Chat, management and `createAcpRuntime` share one protocol implementation. Only `createAcpRuntime` constructs a recovery projection.
 
 The package pins the TypeScript SDK to 2.4.0. Its default import selects stable ACP v1 and the handshake sends protocol version 1.
 
-Desktop `session.prompt` returns the native response and its optional validated token usage together. Some v1 agents include a top-level `usage` extension. The Grok Build adapter can also read its native response metadata or a live completion for that exact prompt. Custom ACP presets use the generic path.
+Desktop `session.prompt` returns the stop reason, validated token usage and any harness-reported context reading for the submitted revision. Some v1 agents include a top-level `usage` extension. The Grok Build adapter can also read its native response metadata or a live completion for that exact prompt. Custom ACP presets use the generic path.
 
 Chat adapters can register typed reverse requests through `AcpHarnessAdapter.registerRequests`. The SDK routes each reply to the incoming JSON-RPC request and supplies its cancellation signal. The Grok Build adapter owns the question and plan wire formats. The desktop host checks the active session and turn before presenting either request.
 

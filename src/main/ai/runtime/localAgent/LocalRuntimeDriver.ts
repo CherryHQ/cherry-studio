@@ -1,7 +1,6 @@
-import { randomUUID } from 'node:crypto'
-
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { LocalAgentCheckResult, LocalAgentModelCatalog } from '@shared/ai/localAgent'
 import { LocalAgentConfigurationSchema, type LocalAgentConfiguration } from '@shared/ai/localAgent'
@@ -10,17 +9,13 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
 import { loadLocalClaudeRuntime } from '../claudeCode'
+import { checkCodex, listCodexModels } from '../codex/codexManagement'
 import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver } from '../types'
-import { acpError } from './acpError'
+import { withAcpLoginFallback } from './acpLaunch'
 import { AcpManagement } from './AcpManagement'
 import { getCursorApiKey } from './authStatus'
-import { resolveLocalAgentCli } from './launch'
+import { withConnectionTimeout } from './connectionTimeout'
 import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
-
-const nativeConnections = {
-  cursor: async () => (await import('./CursorConnection')).CursorConnection,
-  codex: async () => (await import('./CodexConnection')).CodexConnection
-}
 
 export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
   getExecutionId(agent: AgentEntity): `runtime:${string}` | undefined {
@@ -48,52 +43,54 @@ export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
     const config = LocalAgentConfigurationSchema.parse(
       agentService.getAgent(input.agentId)?.configuration?.localRuntime
     )
-    return withAntigravityFallback(config, async (selected) => {
-      if (selected.protocol === 'claude') {
-        const { LocalClaudeConnection } = await loadLocalClaudeRuntime()
-        const live = new LocalClaudeConnection(input, selected)
-        const startup = live.start(session.workspace.path)
-        try {
-          return await withConnectionTimeout(startup, () => live.cancelStartup())
-        } catch (error) {
-          await startup.catch(() => {})
-          await live.close()
-          throw error
-        }
+    const cwd = session.workspace.path
+    if (config.protocol === 'claude') {
+      const { LocalClaudeConnection } = await loadLocalClaudeRuntime()
+      const live = new LocalClaudeConnection(input, config)
+      const startup = live.start(cwd)
+      try {
+        return await withConnectionTimeout(startup, () => live.cancelStartup())
+      } catch (error) {
+        await startup.catch(() => {})
+        await live.close()
+        throw error
       }
-      const Connection =
-        selected.protocol === 'acp'
-          ? (await import('./AcpConnection')).AcpConnection
-          : await nativeConnections[selected.protocol]()
+    }
+    if (config.protocol === 'codex') {
+      const { CodexSessionHost } = await import('../codex/CodexSessionHost')
+      const host = new CodexSessionHost(input.sessionId, input.agentId, config, input.headless)
+      const restore = input.resumeToken
+        ? {
+            threadId: input.resumeToken,
+            kind:
+              !input.nativeSessionId && !agentSessionMessageService.hasSessionMessages(input.sessionId)
+                ? ('empty-prewarm' as const)
+                : ('required' as const)
+          }
+        : undefined
+      const startup = host.start(cwd, restore, input.branchHead)
+      try {
+        return await withConnectionTimeout(startup)
+      } catch (error) {
+        await host.close()
+        await startup.catch(() => {})
+        throw error
+      }
+    }
+    const Connection =
+      config.protocol === 'acp'
+        ? (await import('./AcpConnection')).AcpConnection
+        : (await import('./CursorConnection')).CursorConnection
+    const start = async (selected: LocalAgentConfiguration) => {
       const live = new Connection(input.sessionId, input.agentId, selected, input.headless)
       try {
-        return await withConnectionTimeout(live.start(session.workspace.path, input.resumeToken))
+        return await withConnectionTimeout(live.start(cwd, input.resumeToken))
       } catch (error) {
         await live.close()
         throw error
       }
-    })
-  }
-}
-
-async function withAntigravityFallback<T>(
-  config: LocalAgentConfiguration,
-  run: (config: LocalAgentConfiguration) => Promise<T>
-): Promise<T> {
-  try {
-    return await run(config)
-  } catch (error) {
-    if (
-      config.presetId !== 'antigravity-acp' ||
-      config.executableOverride ||
-      config.args.length ||
-      !(error instanceof Error && /no authentication method selected/i.test(error.message))
-    )
-      throw error
-    // The standalone adapter and terminal CLI own separate sign-ins.
-    const terminal = await resolveLocalAgentCli(config).catch(() => undefined)
-    if (!terminal) throw error
-    return run({ ...config, executableOverride: terminal.executable, args: ['acp'] })
+    }
+    return config.protocol === 'acp' ? withAcpLoginFallback(config, start) : start(config)
   }
 }
 
@@ -119,20 +116,9 @@ export async function listLocalAgentModels(config: LocalAgentConfiguration): Pro
   if (config.protocol === 'claude') return claudeCatalog(config, cwd)
   const probe = { ...config, nativeModel: undefined }
   if (config.protocol === 'acp') {
-    return withAntigravityFallback(probe, (selected) => withManagement(selected, (access) => access.listModels(cwd)))
+    return withAcpLoginFallback(probe, (selected) => withManagement(selected, (access) => access.listModels(cwd)))
   }
-  const Connection = await nativeConnections[config.protocol]()
-  const live = new Connection(`local-agent-models:${randomUUID()}`, '', probe)
-  try {
-    await withConnectionTimeout(live.start(cwd, undefined, 'models'))
-    return {
-      models: live.localSessionInfo.models,
-      activeModel: live.localSessionInfo.activeModel,
-      authMethods: live.localSessionInfo.protocolInfo?.authMethods
-    }
-  } finally {
-    await live.close()
-  }
+  return listCodexModels(probe, cwd)
 }
 
 export async function checkLocalAgent(config: LocalAgentConfiguration): Promise<LocalAgentCheckResult> {
@@ -150,14 +136,8 @@ export async function checkLocalAgent(config: LocalAgentConfiguration): Promise<
       const protocolInfo = await withManagement(config, (access) => access.check(cwd))
       return { ok: true, status: 'ready', protocolInfo }
     }
-    const Connection = await nativeConnections[config.protocol]()
-    const live = new Connection(`local-agent-check:${randomUUID()}`, '', config)
-    try {
-      await withConnectionTimeout(live.start(cwd, undefined, true))
-      return { ok: true, status: 'ready', protocolInfo: live.localSessionInfo.protocolInfo }
-    } finally {
-      await live.close()
-    }
+    await checkCodex(config, cwd)
+    return { ok: true, status: 'ready' }
   } catch (error) {
     const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
     return {
@@ -181,24 +161,5 @@ async function withManagement<T>(config: LocalAgentConfiguration, operation: (ac
     return await withConnectionTimeout(operation(access))
   } finally {
     await access.close()
-  }
-}
-
-async function withConnectionTimeout<T>(operation: Promise<T>, cancel?: () => void): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([
-      operation,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-          reject(new Error('Local agent connection timed out'))
-          cancel?.()
-        }, 30000)
-      })
-    ])
-  } catch (error) {
-    throw acpError(error)
-  } finally {
-    clearTimeout(timer)
   }
 }

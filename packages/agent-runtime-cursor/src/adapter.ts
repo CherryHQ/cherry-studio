@@ -8,6 +8,8 @@ import {
   type SendOptions
 } from '@cursor/sdk'
 
+import { cursorLoginMethod } from './cli'
+
 export type { Run, SDKAgent, SDKUserMessage } from '@cursor/sdk'
 
 export async function listCursorModels(apiKey?: string) {
@@ -15,7 +17,8 @@ export async function listCursorModels(apiKey?: string) {
   return models.map(({ id, displayName }) => ({ id, name: displayName || id }))
 }
 
-export function cursorLogin(signal: AbortSignal, openBrowser: (url: string) => Promise<void>) {
+export function cursorLogin(methodId: string, signal: AbortSignal, openBrowser: (url: string) => Promise<void>) {
+  if (methodId !== cursorLoginMethod.id) throw new Error('Unknown Cursor authentication method')
   return Cursor.auth.login({ signal, openBrowser }).then(() => undefined)
 }
 

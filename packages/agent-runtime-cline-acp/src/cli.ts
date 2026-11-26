@@ -1,0 +1,11 @@
+export const clineCli = {
+  modelConfig: { tool: 'cline', target: 'cline-providers', overrides: ['CLINE_DATA_DIR', 'CLINE_DIR'] },
+  id: 'cline',
+  terminalArgs: [],
+  permissionMode: { values: { act: { canonicalMode: 'default', priority: 1 } } },
+  name: 'Cline',
+  protocol: 'acp',
+  executable: 'cline',
+  args: ['--acp'],
+  helpUrl: 'https://cline.bot/cli'
+} as const

@@ -3,6 +3,7 @@ import { Readable, Writable } from 'node:stream'
 import { ndJsonStream, RequestError } from '@agentclientprotocol/sdk'
 
 import { acpAuthMethods, acpModelCatalog, connectAcpClient, type AcpClientOptions } from './client'
+import { AcpLiveUpdates, type AcpLiveEvents } from './live'
 import type { AcpSessionConfiguration } from './types'
 
 function stdioStream(stdin: Writable, stdout: Readable) {
@@ -12,12 +13,28 @@ function stdioStream(stdin: Writable, stdout: Readable) {
 export function connectAcpStdio(
   stdin: Writable,
   stdout: Readable,
-  options: Omit<AcpClientOptions, 'sessionCapabilities'>
+  options: Omit<AcpClientOptions, 'sessionCapabilities' | 'update'> & {
+    events: AcpLiveEvents
+    currentModel(): string | undefined
+  }
 ) {
-  return connectAcpClient(stdioStream(stdin, stdout), {
+  const updates = new AcpLiveUpdates(options.events, options.currentModel, options.harness)
+  const client = connectAcpClient(stdioStream(stdin, stdout), {
     ...options,
+    denyMutation:
+      options.denyMutation ??
+      (options.harness?.hostMutations === 'disabled'
+        ? () => acpHostError.invalidRequest('Host writes and terminals are disabled')
+        : undefined),
+    update: (params) => updates.receive(params),
     sessionCapabilities: { configOptions: { boolean: {} }, notices: {}, compaction: {} }
   })
+  client.signal.addEventListener('abort', () => updates.close(), { once: true })
+  return {
+    signal: client.signal,
+    close: client.close,
+    initialize: async () => updates.agent(await client.initialize(), client.signal)
+  }
 }
 
 /** Management connections can inspect, authenticate and read a temporary session's model catalog. */

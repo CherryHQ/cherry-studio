@@ -86,6 +86,7 @@ export function getLocalWrittenFilePaths(parts: readonly CherryMessagePart[]): s
     if (isRecord(input) && 'localAcpTool' in input) {
       const acp = LocalAcpToolSchema.safeParse(input.localAcpTool)
       if (acp.success && acp.data.status !== 'failed') {
+        for (const path of acp.data.diffPaths ?? []) addPath(path)
         for (const item of acp.data.content ?? []) {
           if (isRecord(item) && item.type === 'diff') addPath(item.path)
         }

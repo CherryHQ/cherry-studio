@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto'
 
 import * as z from 'zod'
 
+import { acpConfigRecord, type AcpGatewayConfig, type TomlModelProfile } from '@cherrystudio/agent-runtime-acp/profile'
 import type { AcpHarnessAdapter, AcpTurnUsage } from '@cherrystudio/agent-runtime-acp/v1'
 
+import { setGrokAuxiliaryModels } from './cli'
 import { grokInteractions, type GrokInteractionHost } from './interactions'
 
 const tokens = z.number().int().nonnegative()
@@ -117,3 +119,35 @@ export function createGrokAcpAdapter(host: GrokInteractionHost): AcpHarnessAdapt
     }
   }
 }
+
+export const grokGateway = {
+  format: 'toml',
+  read(doc, model) {
+    const entry = acpConfigRecord(acpConfigRecord(doc.model)?.[model])
+    if (!entry) return
+    return {
+      baseUrl: entry.base_url,
+      apiKey: entry.api_key,
+      model: entry.model,
+      path: entry.api_backend === 'responses' ? '/v1/responses' : '/v1/chat/completions'
+    }
+  }
+} satisfies AcpGatewayConfig
+
+export const grokModelProfile = {
+  format: 'toml',
+  target: 'grok-config',
+  readModel(doc) {
+    const value = acpConfigRecord(doc.models)?.default
+    return typeof value === 'string' ? value : undefined
+  },
+  writeModel(doc, model) {
+    const models = { ...acpConfigRecord(doc.models) }
+    const summary = model && `${model}-session-summary`
+    setGrokAuxiliaryModels(models, model, summary && acpConfigRecord(doc.model)?.[summary] ? summary : model)
+    if (model === undefined) delete models.default
+    else models.default = model
+    if (Object.keys(models).length) doc.models = models
+    else delete doc.models
+  }
+} satisfies TomlModelProfile<'grok-config'>

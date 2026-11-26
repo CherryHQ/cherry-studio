@@ -2,6 +2,7 @@ import { readlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { gooseConfigDirectory } from '@cherrystudio/agent-runtime-goose-acp'
 import { loggerService } from '@logger'
 import { mergeEnvironment } from '@main/utils/env'
 import { atomicWriteFile, ensureDir, read, realpath, remove } from '@main/utils/file'
@@ -118,13 +119,8 @@ async function resolveTargetPath(
     }
   }
   if (target === 'goose-config') {
-    const directory = env.GOOSE_PATH_ROOT
-      ? path.join(env.GOOSE_PATH_ROOT, 'config')
-      : process.platform === 'win32' && env.APPDATA
-        ? path.join(roaming, 'Block', 'goose', 'config')
-        : process.platform !== 'win32' && env.XDG_CONFIG_HOME
-          ? path.join(configHome, 'goose')
-          : application.getPath('external.goose.config')
+    const segments = gooseConfigDirectory(env, process.platform)
+    const directory = segments ? path.join(...segments) : application.getPath('external.goose.config')
     filename = path.join(directory, 'config.yaml')
   }
   if (target.startsWith('devin-')) {

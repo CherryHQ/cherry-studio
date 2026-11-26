@@ -19,7 +19,7 @@ import { LocalClaudeConnection, probeLocalClaude } from '../../claudeCode/LocalC
 import type { ClaudeCodeProcessDiagnostics } from '../../claudeCode/processExitDiagnostics'
 import type { AgentRuntimeEvent } from '../../types'
 import { acquireLocalAgentBrowserLease } from '../browserBridge'
-import { resolveLocalAgentLaunch, resolveLocalAgentModelLaunch } from '../launch'
+import { resolveClaudeLaunch } from '../launch'
 
 vi.mock('@anthropic-ai/claude-agent-sdk', async (load) => {
   const sdk = await load<typeof import('@anthropic-ai/claude-agent-sdk')>()
@@ -29,7 +29,7 @@ vi.mock(
   '@cherrystudio/agent-runtime-claude-code',
   () => import('../../../../../../packages/agent-runtime-claude-code/src')
 )
-vi.mock('../launch', () => ({ resolveLocalAgentLaunch: vi.fn(), resolveLocalAgentModelLaunch: vi.fn() }))
+vi.mock('../launch', () => ({ resolveClaudeLaunch: vi.fn() }))
 vi.mock('../browserBridge', async (load) => ({
   ...(await load<typeof import('../browserBridge')>()),
   acquireLocalAgentBrowserLease: vi.fn()
@@ -50,13 +50,13 @@ async function transport() {
   const executable = join(directory, process.platform === 'win32' ? 'claude.exe' : 'claude')
   await writeFile(executable, '', { mode: 0o700 })
   const launch = {
-    executable,
-    source: 'system' as const,
+    installation: { componentId: 'claude' as const, path: executable, source: 'system' as const },
+    cwd: directory,
+    configFiles: {},
     args: ['--verbose'],
     env: { CLAUDE_CONFIG_DIR: join(directory, 'profile') }
   }
-  vi.mocked(resolveLocalAgentLaunch).mockResolvedValue(launch)
-  vi.mocked(resolveLocalAgentModelLaunch).mockResolvedValue(launch)
+  vi.mocked(resolveClaudeLaunch).mockResolvedValue(launch)
   const spawn = vi.fn((_options: SpawnOptions, diagnostics: ClaudeCodeProcessDiagnostics) => {
     diagnostics.exited = new Promise<void>((resolve) => wire.process.once('exit', () => resolve()))
     return wire.process
@@ -133,7 +133,7 @@ it('sends successive turns to the selected CLI in one SDK session with the local
   const { connection, options, directory, spawn, wire, launch, events, input } = await session()
   expect(options).toMatchObject({
     cwd: directory,
-    pathToClaudeCodeExecutable: launch.executable,
+    pathToClaudeCodeExecutable: launch.installation.path,
     model: 'sonnet',
     settingSources: ['user', 'project', 'local']
   })
@@ -287,7 +287,7 @@ it('reads the initialization catalog without submitting a prompt or creating a t
   expect(wire.inputs).toHaveLength(0)
   expect(wire.process.exitCode).toBe(0)
   expect(vi.mocked(query).mock.calls.at(-1)?.[0].options).toMatchObject({
-    pathToClaudeCodeExecutable: launch.executable,
+    pathToClaudeCodeExecutable: launch.installation.path,
     tools: [],
     persistSession: false
   })

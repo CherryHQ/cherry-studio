@@ -6,43 +6,35 @@ import path from 'node:path'
 
 import type { FinishReason } from 'ai'
 
-import { application } from '@application'
 import {
   acpHostError,
   acpModelCatalog,
   connectAcpStdio,
-  type AcpHarnessSession,
+  type AcpLiveSession,
+  type AcpLiveEvents,
   type AcpClientCallbacks,
   type AcpMcpServer,
   type AcpPromptCapabilities,
-  type AcpSession,
-  type AcpSessionConfiguration,
-  type AcpSessionUpdate
+  type AcpSessionConfiguration
 } from '@cherrystudio/agent-runtime-acp/v1'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { AgentSessionCostSnapshotSchema } from '@shared/ai/agentSessionCost'
-import { isOpenClawTechnicalTitle } from '@shared/ai/agentSessionTopic'
 import {
-  ElicitationFormSchema,
-  elicitationChoices,
-  elicitationValidator,
-  type ElicitationContent
-} from '@shared/ai/elicitation'
-import {
-  DSH_LOCAL_MODE_ID,
-  DSH_LOCAL_MODE_OPTIONS,
+  isLocalAgentPlaceholderTitle,
   type LocalAcpTool,
+  type LocalAgentSelection,
   type LocalPermissionOption
 } from '@shared/ai/localAgent'
 import { resolveEffectiveLocalPermissionMode } from '@shared/ai/localAgentPermission'
 import { LocalAgentTurnUsageSchema } from '@shared/ai/localAgentUsage'
+import type { ToolTerminalDelta } from '@shared/ai/messageProjection'
 
 import type { AgentRuntimeUserInput } from '../types'
 import { acpError } from './acpError'
-import { localAcpHarness } from './acpHarness'
+import { acpModelSelection, prepareAcpChatLaunch } from './acpLaunch'
 import {
   classifyAcpToolKind,
   createAcpSessionPermissionGrants,
@@ -53,6 +45,7 @@ import {
   recordAcpAlwaysAllowGrant,
   selectAutoAllowPermissionOption
 } from './acpPermissionPolicy'
+import { bindAcpHarness } from './acpPresets'
 import { AcpProcess } from './AcpProcess'
 import { acpProtocolInfo } from './acpSessionInfo'
 import {
@@ -61,8 +54,6 @@ import {
   isInjectedAcpAutomationTool,
   LOCAL_AGENT_AUTOMATION_SERVER_NAME
 } from './browserBridge'
-import { bindLocalGatewayUsage } from './gatewayUsage'
-import { resolveLocalAgentLaunch } from './launch'
 import type { LocalAgentBrowserLease } from './LocalAgentMcpBridgeService'
 import { stopLocalAgentProcess } from './localAgentProcess'
 import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
@@ -75,7 +66,9 @@ const logger = loggerService.withContext('AcpConnection')
 const HOST_ALLOW_SESSION_OPTION_ID = '__cherry_allow_session__'
 type Terminal = {
   child: ChildProcess
+  tools: Set<string>
   output: string
+  bytes: number
   truncated: boolean
   exitStatus?: { exitCode?: number; signal?: string }
   exited: Promise<{ exitCode?: number; signal?: string }>
@@ -84,20 +77,17 @@ type Terminal = {
 export class AcpConnection extends LocalConnection {
   private gatewayLease?: { dispose: () => void | Promise<void> }
   private browserLease?: LocalAgentBrowserLease
-  private defaultModel?: string
-  private launchNativeModel?: string
   private readonly process = new AcpProcess()
   private promptCapabilities: AcpPromptCapabilities = {}
   private messageId?: string
-  private session?: AcpSession
+  private session?: AcpLiveSession
   private readonly terminals = new Map<string, Terminal>()
-  private readonly harness = localAcpHarness(
+  private readonly harness = bindAcpHarness(
     this.config.presetId,
     async (target, tool, toolInput, requestSignal, settle) => {
       const turn = this.turnAbort.signal
       if (
         !this.active ||
-        this.loading ||
         target.sessionId !== this.session?.id ||
         turn.aborted ||
         this.abort.signal.aborted ||
@@ -105,6 +95,7 @@ export class AcpConnection extends LocalConnection {
       )
         return settle({ approved: false }).reply
       if (this.headless) return settle(this.denyUnattendedRequest()).reply
+      this.detachToolTerminals(target.toolCallId, this.toolInputs.get(target.toolCallId)?.content)
       this.toolInputs.delete(target.toolCallId)
       const input = { ...toolInput, responseMode: 'native-request' }
       const answer = await this.approve(target.toolCallId, tool, input, requestSignal)
@@ -118,26 +109,21 @@ export class AcpConnection extends LocalConnection {
       return reply
     }
   )
-  private harnessSession?: AcpHarnessSession
-  private loading = false
-  private modelConfigId?: string
   private configChange?: Promise<void>
-  private modeConfigId?: string
-  private legacyMode?: NonNullable<AcpSessionConfiguration['modes']>
-  private readonly compactions = new Map<string, boolean>()
+  private launchMode?: LocalAgentSelection
+  private modeSource?: 'config' | 'legacy'
   private planPart?: number
   private planId?: string
-  private pendingUpdates: Array<{ sessionId: string; update: AcpSessionUpdate }> = []
   private readonly approvedWrites: Array<{ path: string; content: string }> = []
   private readonly permissionGrants = createAcpSessionPermissionGrants()
   private readonly toolInputs = new Map<string, LocalAcpTool>()
 
   get inspectContextUsage() {
-    return this.harnessSession?.inspectContextUsage
+    return this.session?.inspectContextUsage
   }
 
   get predictPrompt() {
-    return this.harnessSession?.predictPrompt
+    return this.session?.predictPrompt
   }
 
   private effectivePermissionMode() {
@@ -157,58 +143,13 @@ export class AcpConnection extends LocalConnection {
     }
   }
   private async startConnection(cwd: string, resume?: string): Promise<this> {
-    const launch = await resolveLocalAgentLaunch(this.config, this.abort.signal)
-    let dshPermissionMode: (typeof DSH_LOCAL_MODE_OPTIONS)[number]['value'] | undefined
-    if (this.config.presetId === 'deepseek-harness') {
-      let savedModeValue: string | undefined
-      try {
-        const savedMode = application.get('CacheService').getPersist?.('local_agent.session_overrides')?.[
-          this.sessionId
-        ]?.mode
-        if (savedMode?.configId === DSH_LOCAL_MODE_ID) savedModeValue = savedMode.value
-      } catch {
-        // Standalone unit tests may construct AcpConnection without booting CacheService.
-      }
-      const envMode = this.config.env.DSH_PERMISSION_MODE
-      const candidate = savedModeValue ?? envMode ?? 'workspace-write'
-      const matched = DSH_LOCAL_MODE_OPTIONS.find((item) => item.value === candidate)
-      dshPermissionMode = matched?.value ?? 'workspace-write'
-      launch.env.DSH_PERMISSION_MODE = dshPermissionMode
+    const { launch, gateway, mode } = await prepareAcpChatLaunch(this.config, this.sessionId, this.abort.signal)
+    if (this.abort.signal.aborted) {
+      await gateway?.dispose()
+      this.abort.signal.throwIfAborted()
     }
-    if (this.config.presetId === 'deepseek-harness' && !this.config.env.DSH_HOME) {
-      const usesDefaultProfile = launch.args.length === 2 && launch.args[0] === '--profile' && launch.args[1] === 'acp'
-      const prepared = await application
-        .get('DeepSeekHarnessService')
-        .prepareAgent(usesDefaultProfile ? this.sessionId : undefined)
-      if (prepared?.gateway) {
-        if (this.abort.signal.aborted) {
-          await prepared.gateway.dispose()
-          this.abort.signal.throwIfAborted()
-        }
-        this.gatewayLease = prepared.gateway
-        launch.args = [...launch.args, '--patch', prepared.gateway.patchPath]
-        Object.assign(launch.env, prepared.gateway.env)
-      }
-      launch.nativeModel = prepared?.nativeModel
-    }
-    if (!this.gatewayLease) {
-      const lease = await bindLocalGatewayUsage(this.config, this.sessionId, launch.env)
-      if (this.abort.signal.aborted) {
-        lease?.dispose()
-        this.abort.signal.throwIfAborted()
-      }
-      this.gatewayLease = lease
-    }
-    this.launchNativeModel = launch.nativeModel
-    if (this.config.presetId === 'cline') {
-      this.defaultModel = launch.env.CLINE_MODEL || undefined
-    } else {
-      this.defaultModel =
-        this.config.presetId === 'deepseek-harness'
-          ? (launch.nativeModel ?? this.config.nativeModel)
-          : (this.config.nativeModel ?? launch.nativeModel)
-    }
-    this.abort.signal.throwIfAborted()
+    this.gatewayLease = gateway
+    this.launchMode = mode
     const client = await this.process.open(
       this.config,
       launch,
@@ -217,31 +158,15 @@ export class AcpConnection extends LocalConnection {
       (stdin, stdout, clientInfo) =>
         connectAcpStdio(stdin, stdout, {
           clientInfo,
-          // Antigravity owns its native diff edits.
-          denyMutation:
-            this.headless || this.config.presetId === 'antigravity-acp'
-              ? (id) => {
-                  this.requireSession(id)
-                  return acpHostError.invalidRequest(
-                    this.headless ? this.denyUnattendedRequest().reason : 'Host writes and terminals are disabled'
-                  )
-                }
-              : undefined,
+          denyMutation: this.headless
+            ? (id) => {
+                this.requireSession(id)
+                return acpHostError.invalidRequest(this.denyUnattendedRequest().reason)
+              }
+            : undefined,
           callbacks: this.hostCallbacks(cwd, launch.env),
-          update: (params) => {
-            if (this.loading) {
-              if (
-                params.update.sessionUpdate === 'available_commands_update' ||
-                params.update.sessionUpdate === 'config_option_update' ||
-                params.update.sessionUpdate === 'usage_update' ||
-                params.update.sessionUpdate === 'session_info_update' ||
-                params.update.sessionUpdate === 'notice' ||
-                params.update.sessionUpdate === 'current_mode_update' ||
-                params.update.sessionUpdate === this.harness?.setupUpdate
-              )
-                this.pendingUpdates.push(params)
-            } else if (params.sessionId === this.session?.id) this.update(params.update)
-          },
+          currentModel: () => this.localSessionInfo.activeModel?.id,
+          events: this.liveEvents,
           harness: this.harness
         }),
       (error) => {
@@ -257,9 +182,7 @@ export class AcpConnection extends LocalConnection {
       protocolVersion: response.protocolVersion,
       agent: this.localSessionInfo.protocolInfo.agent
     })
-    // OpenClaw resume loses bridge UUID mappings across processes; load reads its persisted ledger.
-    const restore = this.config.presetId === 'openclaw' ? (agent.load ?? agent.resume) : (agent.resume ?? agent.load)
-    this.localSessionInfo.resume = !!restore
+    this.localSessionInfo.resume = !!agent.restore
     this.promptCapabilities = response.agentCapabilities?.promptCapabilities ?? {}
     this.localSessionInfo.images = this.promptCapabilities.image === true
     this.localSessionInfo.audio = this.promptCapabilities.audio === true
@@ -272,69 +195,44 @@ export class AcpConnection extends LocalConnection {
       isReadOnly: () => this.effectivePermissionMode() === 'plan'
     })
     const mcpServers = this.buildBrowserMcpServers(response.agentCapabilities?.mcpCapabilities?.http === true)
-    this.loading = true
-    try {
-      if (resume && !restore)
-        throw new LocalAgentSessionRestoreError(
-          'This agent cannot restore the previous conversation; create a new session'
-        )
-      const { configuration, session } =
-        resume && restore
-          ? await restore({ cwd, sessionId: resume, mcpServers })
-          : await agent.create({ cwd, mcpServers })
-      this.session = session
-      this.legacyMode = configuration.modes ?? undefined
-      this.readConfigOptions(configuration.configOptions, session.legacyModels)
-      this.harnessSession = session.bindHarness(() => this.localSessionInfo.activeModel?.id)
-      for (const pending of this.pendingUpdates.splice(0)) {
-        if (pending.sessionId === this.session?.id) this.update(pending.update)
-      }
-      if (this.defaultModel && this.config.sourceModelId) {
-        this.defaultModel = resolveConfiguredAcpModel(
-          this.config.presetId,
-          this.defaultModel,
-          (this.localSessionInfo.models ?? []).map((model) => model.id)
-        )
-      }
-      if (this.defaultModel && this.localSessionInfo.activeModel?.id !== this.defaultModel) {
-        const allowUnlistedModelSelection = this.config.presetId === 'cline' && Boolean(this.modelConfigId)
-        if (
-          !allowUnlistedModelSelection &&
-          this.localSessionInfo.models?.length &&
-          !this.localSessionInfo.models.some((model) => model.id === this.defaultModel)
-        )
-          throw new Error(t('local_agent.model_unavailable', { model: this.defaultModel }))
-        if (this.modelConfigId) {
-          const updated = await session.setConfigOption(this.modelConfigId, this.defaultModel)
-          this.readConfigOptions(updated.configOptions)
+    const configure = async (session: Pick<AcpLiveSession, 'setConfigOption' | 'legacyModels'>) => {
+      const selection = acpModelSelection(this.config, launch)
+      const model =
+        selection.model && this.config.sourceModelId
+          ? resolveConfiguredAcpModel(
+              this.config.presetId,
+              selection.model,
+              this.localSessionInfo.models.map(({ id }) => id)
+            )
+          : selection.model
+      if (model && this.localSessionInfo.activeModel?.id !== model) {
+        const catalog = this.localSessionInfo.models
+        const modelConfigId = this.localSessionInfo.configOptions?.find(
+          (option) => option.type === 'select' && option.category === 'model'
+        )?.id
+        if (!(selection.allowUnlisted && modelConfigId) && catalog.length && !catalog.some(({ id }) => id === model))
+          throw new Error(t('local_agent.model_unavailable', { model }))
+        if (modelConfigId) {
+          const updated = await session.setConfigOption(modelConfigId, model)
+          this.readConfigOptions(updated)
         } else if (session.legacyModels) {
-          await session.legacyModels.select(this.defaultModel)
-          this.localSessionInfo.activeModel = { id: this.defaultModel }
-        } else if (
-          this.config.presetId === 'snow' &&
-          this.launchNativeModel &&
-          this.defaultModel === this.launchNativeModel &&
-          !this.localSessionInfo.models?.length
-        ) {
-          // Snow follows its native config without advertising a model selector.
-          this.localSessionInfo.activeModel = { id: this.defaultModel }
+          await session.legacyModels.select(model)
+          this.localSessionInfo.activeModel = { id: model }
+        } else if (selection.implicit === model && !catalog.length) {
+          this.localSessionInfo.activeModel = { id: model }
         } else throw new Error('This agent does not support model selection')
       }
-      if (dshPermissionMode && !this.localSessionInfo.mode) {
-        this.localSessionInfo.mode = {
-          id: DSH_LOCAL_MODE_ID,
-          currentValue: dshPermissionMode,
-          options: DSH_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
-        }
-      }
-      this.localSessionInfo.protocolInfo.verified.push('session')
-      this.publishResumeToken(session.id)
-    } finally {
-      this.loading = false
-      for (const pending of this.pendingUpdates.splice(0)) {
-        if (pending.sessionId === this.session?.id) this.update(pending.update)
-      }
     }
+    if (resume && !agent.restore)
+      throw new LocalAgentSessionRestoreError(
+        'This agent cannot restore the previous conversation; create a new session'
+      )
+    const session =
+      resume && agent.restore
+        ? await agent.restore({ cwd, sessionId: resume, mcpServers }, configure)
+        : await agent.create({ cwd, mcpServers }, configure)
+    this.localSessionInfo.protocolInfo.verified.push('session')
+    this.publishResumeToken(session.id)
     return this
   }
   private hostCallbacks(cwd: string, env: NodeJS.ProcessEnv): AcpClientCallbacks {
@@ -348,54 +246,17 @@ export class AcpConnection extends LocalConnection {
           this.abort.signal.aborted
         )
           return { action: 'cancel' }
-        const parsed = ElicitationFormSchema.safeParse(params.requestedSchema)
-        if (!parsed.success) throw acpHostError.invalidRequest('Unsupported elicitation schema')
-        let validator: ReturnType<typeof elicitationValidator>
         try {
-          validator = elicitationValidator(parsed.data)
-        } catch {
-          throw acpHostError.invalidRequest('Invalid elicitation schema')
+          return await this.elicit(
+            params.message,
+            params.requestedSchema,
+            this.localSessionInfo.protocolInfo?.agent?.name ?? this.config.presetId ?? 'ACP',
+            requestSignal
+          )
+        } catch (error) {
+          if (error instanceof RangeError) throw acpHostError.invalidRequest(error.message)
+          throw error
         }
-        const questions = Object.entries(parsed.data.properties).map(([id, field]) => ({
-          id,
-          question: field.title ?? id,
-          header: field.title ?? id,
-          options: elicitationChoices(field),
-          multiSelect: field.type === 'array'
-        }))
-        const id = randomUUID()
-        const input = {
-          questions: questions.length
-            ? questions
-            : [{ question: params.message, header: params.message, options: [], multiSelect: false }],
-          elicitation: {
-            schema: parsed.data,
-            message: params.message,
-            agentName: this.localSessionInfo.protocolInfo?.agent?.name ?? this.config.presetId ?? 'ACP'
-          }
-        }
-        const signal = AbortSignal.any([this.turnAbort.signal, requestSignal])
-        const answer = await this.approve(id, 'AskUserQuestion', input, signal)
-        const validated = validator.safeParse(answer.updatedInput?.elicitationContent)
-        const action =
-          signal.aborted || this.abort.signal.aborted || answer.updatedInput?.elicitationAction === 'cancel'
-            ? 'cancel'
-            : !answer.approved
-              ? 'decline'
-              : validated.success
-                ? 'accept'
-                : 'cancel'
-        const outcome =
-          action === 'accept'
-            ? ({ action, content: validated.data as ElicitationContent } as const)
-            : ({ action } as const)
-        if (this.active)
-          this.result(id, {
-            ...input,
-            answers: action === 'accept' ? answer.updatedInput?.answers : {},
-            elicitationOutcome: outcome
-          })
-        return outcome
       },
       permission: async (params, { signal: requestSignal }) => {
         if (!this.active || params.sessionId !== this.session?.id || this.abort.signal.aborted)
@@ -418,10 +279,10 @@ export class AcpConnection extends LocalConnection {
         const policyDecision =
           this.browserLease &&
           isHostBrowserControlAllowed(this.config) &&
-          (isInjectedAcpAutomationTool(tool) ||
+          (isInjectedAcpAutomationTool(tool, this.config.presetId) ||
             (previousTool != null &&
               classifyAcpToolKind(tool) === 'other' &&
-              isInjectedAcpAutomationTool(previousTool)))
+              isInjectedAcpAutomationTool(previousTool, this.config.presetId)))
             ? 'allow'
             : evaluateAcpPermissionRequest({
                 mode: this.effectivePermissionMode(),
@@ -626,7 +487,9 @@ export class AcpConnection extends LocalConnection {
           })
           const terminal: Terminal = {
             child: proc,
+            tools: new Set(),
             output: '',
+            bytes: 0,
             truncated: false,
             exited: new Promise((resolve) => {
               proc.once('close', (code, signal) =>
@@ -640,15 +503,30 @@ export class AcpConnection extends LocalConnection {
           }
           const limit = Math.min(params.outputByteLimit ?? 1024 * 1024, 1024 * 1024)
           const receive = (data: string) => {
-            terminal.output += data
-            const bytes = Buffer.from(terminal.output)
-            if (bytes.length > limit) {
-              let start = bytes.length - limit
-              while ((bytes[start] & 0xc0) === 0x80) start++
-              terminal.output = bytes.subarray(start).toString('utf8')
+            const bytes = Buffer.byteLength(data)
+            let append = data
+            let drop = 0
+            if (terminal.bytes + bytes > limit) {
               terminal.truncated = true
-            }
-            this.publishTerminal(terminalId)
+              if (bytes >= limit) {
+                const buffer = Buffer.from(data)
+                let start = bytes - limit
+                while (start < bytes && (buffer[start] & 0xc0) === 0x80) start++
+                append = buffer.subarray(start).toString('utf8')
+                drop = terminal.output.length
+                terminal.bytes = bytes - start
+              } else {
+                let length = terminal.bytes + bytes
+                for (const char of terminal.output) {
+                  length -= Buffer.byteLength(char)
+                  drop += char.length
+                  if (length <= limit) break
+                }
+                terminal.bytes = length
+              }
+            } else terminal.bytes += bytes
+            terminal.output = terminal.output.slice(drop) + append
+            this.publishTerminal(terminalId, { append, drop, truncated: terminal.truncated })
           }
           proc.stdout?.setEncoding('utf8').on('data', receive)
           proc.stderr?.setEncoding('utf8').on('data', receive)
@@ -741,17 +619,18 @@ export class AcpConnection extends LocalConnection {
             .some((option) => option.value === value))
     )
       throw new Error('This session option is no longer available')
-    if (category === 'mode' && !this.modeConfigId && typeof value === 'string') {
+    if (category === 'mode' && this.modeSource !== 'config' && typeof value === 'string') {
+      const mode = this.localSessionInfo.mode
       this.configChange = this.session.setMode(value).then(() => {
-        if (this.legacyMode) this.legacyMode.currentModeId = value
-        if (this.localSessionInfo.mode) this.localSessionInfo.mode.currentValue = value
-        // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable ACP session/tool state before queuing an event.
-        this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
+        if (mode && this.localSessionInfo.mode === mode) {
+          mode.currentValue = value
+          this.publishSessionInfo()
+        }
       })
     } else {
       this.configChange = this.session
         .setConfigOption(configId, value)
-        .then((response) => this.readConfigOptions(response.configOptions))
+        .then((response) => this.readConfigOptions(response))
     }
     try {
       await this.configChange
@@ -762,10 +641,9 @@ export class AcpConnection extends LocalConnection {
   }
 
   private readConfigOptions(
-    options?: AcpSessionConfiguration['configOptions'],
-    initialLegacy?: AcpSession['legacyModels']
+    { configOptions: options, modes }: Pick<AcpSessionConfiguration, 'configOptions' | 'modes'>,
+    initialLegacy?: AcpLiveSession['legacyModels']
   ) {
-    if (options != null) this.legacyMode = undefined
     const mode = options?.find((option) => option.category === 'mode' && option.type === 'select')
     const thought = options?.find((option) => option.category === 'thought_level' && option.type === 'select')
     this.localSessionInfo.configOptions =
@@ -781,8 +659,8 @@ export class AcpConnection extends LocalConnection {
             : { type: 'select' as const, currentValue: option.currentValue, options: option.options })
         })) ?? undefined
 
-    this.modeConfigId = mode?.id
     if (mode?.type === 'select') {
+      this.modeSource = 'config'
       this.localSessionInfo.mode = {
         id: mode.id,
         currentValue: mode.currentValue,
@@ -790,18 +668,20 @@ export class AcpConnection extends LocalConnection {
           .flatMap((option) => ('group' in option ? option.options : [option]))
           .map(({ value, name, description }) => ({ value, name, description: description ?? undefined }))
       }
-    } else if (this.legacyMode) {
+    } else if (options == null && modes) {
+      this.modeSource = 'legacy'
       this.localSessionInfo.mode = {
         id: 'legacy-mode',
-        currentValue: this.legacyMode.currentModeId,
-        options: this.legacyMode.availableModes.map(({ id, name, description }) => ({
+        currentValue: modes.currentModeId,
+        options: modes.availableModes.map(({ id, name, description }) => ({
           value: id,
           name,
           description: description ?? undefined
         }))
       }
     } else {
-      this.localSessionInfo.mode = undefined
+      this.modeSource = undefined
+      this.localSessionInfo.mode = this.launchMode
     }
     this.localSessionInfo.thoughtLevel =
       thought?.type === 'select'
@@ -814,12 +694,14 @@ export class AcpConnection extends LocalConnection {
           }
         : undefined
     const catalog = acpModelCatalog(options, initialLegacy)
-    this.modelConfigId = catalog.configId
     if (catalog.configId || initialLegacy || !this.session?.legacyModels) {
       this.localSessionInfo.activeModel = catalog.activeModel
       this.localSessionInfo.models = catalog.models
     }
-    // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable ACP session/tool state before queuing an event.
+    this.publishSessionInfo()
+  }
+  private publishSessionInfo() {
+    // oxlint-disable-next-line no-restricted-globals -- The queued event owns its session snapshot.
     this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
   }
   private requireSession(sessionId: string) {
@@ -831,177 +713,189 @@ export class AcpConnection extends LocalConnection {
     if (!terminal) throw new Error('Unknown session terminal')
     return terminal
   }
-  private update(update: AcpSessionUpdate) {
-    if (
-      update.sessionUpdate === 'agent_message_chunk' &&
-      update.content.type === 'text' &&
-      this.harnessSession?.consumeAssistantText?.(update.content.text)
-    )
-      return
-
-    if (update.sessionUpdate === 'compaction_update') {
-      const { compactionId, status } = update
-      if (!['in_progress', 'completed', 'failed', 'cancelled'].includes(status)) return
-      const wasCompacting = [...this.compactions.values()].some(Boolean)
-      if (status !== 'in_progress' || !this.compactions.has(compactionId))
-        this.compactions.set(compactionId, status === 'in_progress')
-      const isCompacting = [...this.compactions.values()].some(Boolean)
-      if (!wasCompacting && isCompacting) this.events.push({ type: 'compaction-start' })
-      if (wasCompacting && !isCompacting)
-        this.events.push(
-          status === 'failed' && update.error
-            ? { type: 'compaction-error', error: update.error }
-            : { type: 'compaction-complete' }
-        )
-      return
-    }
-    if (update.sessionUpdate === 'notice' && update.title.trim()) {
-      this.events.push({
-        type: 'notice',
-        notice: {
-          title: update.title,
-          description: update.description ?? undefined,
-          severity: update.severity === 'warning' || update.severity === 'error' ? update.severity : 'info'
-        }
-      })
-    }
-    if (
-      update.sessionUpdate === 'session_info_update' &&
-      update.title?.trim() &&
-      !(this.config.presetId === 'openclaw' && isOpenClawTechnicalTitle(update.title))
-    )
-      this.events.push({ type: 'session-title', title: update.title })
-
-    if (update.sessionUpdate === 'usage_update' && update.cost && this.session?.id) {
-      const snapshot = AgentSessionCostSnapshotSchema.safeParse({
-        nativeSessionId: this.session.id,
-        reportedAt: Date.now(),
-        cost: { amount: update.cost.amount, currency: update.cost.currency }
-      })
-      if (snapshot.success) this.events.push({ type: 'session-cost', snapshot: snapshot.data })
-    }
-    if (update.sessionUpdate === 'usage_update' && update.used >= 0 && update.size > 0) {
-      const model = this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? ''
-      this.events.push({
-        type: 'context-usage',
-        result: {
-          status: 'confirmed',
-          value: {
-            model,
-            revision: model,
-            contextWindow: update.size,
-            basis: 'current-context',
-            used: { tokens: update.used, precision: 'reported' }
+  private readonly liveEvents: AcpLiveEvents = {
+    opened: (session, configuration) => {
+      this.session = session
+      this.readConfigOptions(configuration, session.legacyModels)
+    },
+    compaction: (event) => this.events.push(event),
+    notice: (notice) => this.events.push({ type: 'notice', notice }),
+    title: (title) => {
+      if (!isLocalAgentPlaceholderTitle(title, () => this.config.presetId))
+        this.events.push({ type: 'session-title', title })
+    },
+    options: (configOptions) => this.readConfigOptions({ configOptions }),
+    commands: (commands) => this.publishCommands(commands),
+    mode: (id) => {
+      if (this.modeSource !== 'legacy' || !this.localSessionInfo.mode) return
+      this.localSessionInfo.mode.currentValue = id
+      this.publishSessionInfo()
+    },
+    usage: ({ used, size, cost }) => {
+      if (cost && this.session) {
+        const snapshot = AgentSessionCostSnapshotSchema.safeParse({
+          nativeSessionId: this.session.id,
+          reportedAt: Date.now(),
+          cost: { amount: cost.amount, currency: cost.currency }
+        })
+        if (snapshot.success) this.events.push({ type: 'session-cost', snapshot: snapshot.data })
+      }
+      if (used >= 0 && size > 0) {
+        const model = this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? ''
+        this.events.push({
+          type: 'context-usage',
+          result: {
+            status: 'confirmed',
+            value: {
+              model,
+              revision: model,
+              contextWindow: size,
+              basis: 'current-context',
+              used: { tokens: used, precision: 'reported' }
+            }
           }
-        }
-      })
-    }
-    if (update.sessionUpdate === 'current_mode_update' && !this.modeConfigId && this.legacyMode) {
-      this.legacyMode.currentModeId = update.currentModeId
-      if (this.localSessionInfo.mode) this.localSessionInfo.mode.currentValue = update.currentModeId
-      // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable ACP session/tool state before queuing an event.
-      this.events.push({ type: 'local-session-info', info: structuredClone(this.localSessionInfo) })
-    }
-    if (
-      this.active &&
-      (update.sessionUpdate === 'agent_thought_chunk' || update.sessionUpdate === 'agent_message_chunk')
-    ) {
-      const messageId = update.messageId ?? undefined
+        })
+      }
+    },
+    content: (kind, content, messageId) => {
       if (messageId !== this.messageId) this.endContent()
       this.messageId = messageId
-      const reasoning = update.sessionUpdate === 'agent_thought_chunk'
-      if (update.content.type === 'text')
-        this.content(
-          update.content.text,
-          reasoning ? 'reasoning' : 'text',
-          messageId !== undefined ? { acp: { messageId } } : undefined
-        )
-      else {
+      if (content.type === 'text') {
+        this.content(content.text, kind, messageId === undefined ? undefined : { acp: { messageId } })
+      } else {
         this.endContent()
         this.putData({
           type: 'data-acp-content',
           id: randomUUID(),
-          data: { content: update.content, reasoning, ...(messageId !== undefined ? { messageId } : {}) }
+          data: { content, reasoning: kind === 'reasoning', ...(messageId !== undefined && { messageId }) }
         })
       }
-    }
-    if (update.sessionUpdate === 'plan' && this.active) {
+    },
+    plan: (entries) => {
       this.endContent()
       this.planId ??= randomUUID()
-      this.planPart = this.putData(
-        { type: 'data-agent-plan', id: this.planId, data: { entries: update.entries } },
-        this.planPart
-      )
-    }
-    if (update.sessionUpdate === 'config_option_update') this.readConfigOptions(update.configOptions)
-    if ((update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') && this.active) {
-      const owner = this.tools.get(update.toolCallId)?.value.toolName
+      this.planPart = this.putData({ type: 'data-agent-plan', id: this.planId, data: { entries } }, this.planPart)
+    },
+    tool: (id, patch) => {
+      const owner = this.tools.get(id)?.name
       if (owner === 'AskUserQuestion' || owner === 'ExitPlanMode') return
       this.endContent()
-      const previous = this.toolInputs.get(update.toolCallId)
-      const tool: LocalAcpTool = { title: 'Tool', ...previous }
-      for (const key of ['title', 'name', 'kind', 'status', 'content', 'locations', 'rawInput', 'rawOutput'] as const) {
-        if (update[key] != null) Object.assign(tool, { [key]: update[key] })
-      }
-      this.toolInputs.set(update.toolCallId, tool)
-      this.publishTool(update.toolCallId, tool)
-    }
-    if (update.sessionUpdate === 'available_commands_update')
-      this.publishCommands(
-        update.availableCommands.map((c) => ({
-          name: c.name,
-          description: c.description,
-          argumentHint: c.input?.hint ?? ''
-        }))
-      )
-  }
-  private publishTool(id: string, tool: LocalAcpTool) {
-    if (!this.active) return
-    for (const item of tool.content ?? []) {
-      if (typeof item === 'object' && item !== null && 'terminalId' in item && typeof item.terminalId === 'string') {
-        const terminal = this.terminals.get(item.terminalId)
-        if (terminal) {
-          tool.terminals = { ...tool.terminals, [item.terminalId]: terminal.output }
-          tool.terminalDetails = {
-            ...tool.terminalDetails,
-            [item.terminalId]: { truncated: terminal.truncated, ...terminal.exitStatus }
+      const previous = this.toolInputs.get(id)
+      let tool: LocalAcpTool = { title: 'Tool', ...previous, ...patch }
+      if (patch.content) {
+        this.detachToolTerminals(id, previous?.content)
+        delete tool.terminals
+        delete tool.terminalDetails
+        for (const item of patch.content) {
+          if (item.type !== 'terminal') continue
+          const terminal = this.terminals.get(item.terminalId)
+          if (terminal) {
+            terminal.tools.add(id)
+            tool = this.withTerminal(tool, item.terminalId, terminal)
+          } else if (
+            previous?.terminals?.[item.terminalId] !== undefined &&
+            previous.terminalDetails?.[item.terminalId]
+          ) {
+            ;(tool.terminals ??= {})[item.terminalId] = previous.terminals[item.terminalId]
+            ;(tool.terminalDetails ??= {})[item.terminalId] = previous.terminalDetails[item.terminalId]
           }
         }
       }
+      this.publishTool(id, tool)
     }
-    // oxlint-disable-next-line no-restricted-globals -- Snapshot mutable ACP session/tool state before queuing an event.
-    this.tool(id, `ACP: ${tool.title}`, { localAcpTool: structuredClone(tool) }, true)
-    if (tool.status === 'completed' || tool.status === 'failed')
-      this.result(id, tool.rawOutput ?? tool.content ?? tool.status, tool.status === 'failed')
   }
 
-  private publishTerminal(terminalId: string) {
-    for (const [id, tool] of this.toolInputs) {
-      if (
-        tool.content?.some(
-          (item) => typeof item === 'object' && item !== null && 'terminalId' in item && item.terminalId === terminalId
-        )
+  private detachToolTerminals(id: string, content: LocalAcpTool['content']) {
+    for (const item of content ?? []) {
+      if (typeof item === 'object' && item !== null && 'terminalId' in item && typeof item.terminalId === 'string')
+        this.terminals.get(item.terminalId)?.tools.delete(id)
+    }
+  }
+
+  private withTerminal(tool: LocalAcpTool, id: string, terminal: Terminal): LocalAcpTool {
+    return {
+      ...tool,
+      terminals: { ...tool.terminals, [id]: terminal.output },
+      terminalDetails: { ...tool.terminalDetails, [id]: { truncated: terminal.truncated, ...terminal.exitStatus } }
+    }
+  }
+
+  private publishTool(id: string, tool: LocalAcpTool) {
+    if (!this.active) return
+    this.toolInputs.set(id, tool)
+    const identity = { type: 'dynamic-tool' as const, toolCallId: id, toolName: `ACP: ${tool.title}` }
+    if (tool.status === 'completed' || tool.status === 'failed') {
+      const { rawOutput, content, ...metadata } = tool
+      const output = rawOutput ?? content ?? tool.status
+      const fromContent = rawOutput == null && content && tool.status === 'completed'
+      const localAcpTool = fromContent
+        ? {
+            ...metadata,
+            resultField: 'content',
+            diffPaths: content.flatMap((item) =>
+              item &&
+              typeof item === 'object' &&
+              'type' in item &&
+              item.type === 'diff' &&
+              'path' in item &&
+              typeof item.path === 'string'
+                ? [item.path]
+                : []
+            )
+          }
+        : { ...metadata, content, ...(rawOutput != null && { resultField: 'rawOutput' }) }
+      const input = { localAcpTool }
+      this.publishToolPart(
+        tool.status === 'failed'
+          ? {
+              ...identity,
+              state: 'output-error',
+              input,
+              errorText: typeof output === 'string' ? output : JSON.stringify(output)
+            }
+          : { ...identity, state: 'output-available', input, output }
       )
-        this.publishTool(id, tool)
+    } else {
+      this.publishToolPart({ ...identity, state: 'input-available', input: { localAcpTool: tool } })
+    }
+  }
+
+  private publishTerminal(terminalId: string, delta?: Pick<ToolTerminalDelta, 'append' | 'drop' | 'truncated'>) {
+    const terminal = this.terminals.get(terminalId)
+    if (!terminal || !this.active) return
+    for (const id of terminal.tools) {
+      const tool = this.toolInputs.get(id)
+      if (!tool || (delta && (tool.status === 'completed' || tool.status === 'failed'))) continue
+      const next = this.withTerminal(tool, terminalId, terminal)
+      if (!delta) {
+        this.publishTool(id, next)
+        continue
+      }
+      this.toolInputs.set(id, next)
+      const slot = this.tools.get(id)
+      if (slot) {
+        this.events.push({
+          type: 'local-tool-terminal',
+          contextId: this.source.contextId,
+          itemId: this.source.ref.id,
+          part: slot.part,
+          delta: { toolCallId: id, terminalId, ...delta }
+        })
+      }
     }
   }
 
   async send(input: AgentRuntimeUserInput) {
     const prompt = await acpContent(input, this.promptCapabilities)
     await this.configChange?.catch(() => {})
+    this.begin(input.message.id)
     this.planPart = undefined
     this.planId = undefined
-    this.toolInputs.clear()
-    this.begin(input.message.id)
     try {
       if (!this.session) throw new Error('ACP session is not connected')
       const model = this.localSessionInfo.activeModel?.id ?? null
-      const { response, usage } = await this.session.prompt(
-        prompt,
-        this.config.presetId === 'openclaw' ? { prefixCwd: false } : this.harnessSession?.promptMeta
-      )
-      const lastRequest = this.harnessSession?.contextAfterPrompt?.(response, input.message.id)
-      if (lastRequest) this.events.push({ type: 'context-usage', result: { status: 'confirmed', value: lastRequest } })
+      const { stopReason, usage, context } = await this.session.prompt(prompt, input.message.id)
+      if (context) this.events.push({ type: 'context-usage', result: { status: 'confirmed', value: context } })
       if (usage) {
         // ACP totals already include cached tokens.
         const cachedRead = usage.cachedReadTokens ?? 0
@@ -1025,24 +919,24 @@ export class AcpConnection extends LocalConnection {
       }
       if (!this.localSessionInfo.protocolInfo?.verified.includes('prompt'))
         this.localSessionInfo.protocolInfo?.verified.push('prompt')
-      const truncated = response.stopReason === 'max_tokens' || response.stopReason === 'max_turn_requests'
+      const truncated = stopReason === 'max_tokens' || stopReason === 'max_turn_requests'
       if (this.headless && truncated) {
         this.finish(new Error(t('local_agent.scheduled_output_limit')))
         return
       }
-      if (this.headless && response.stopReason === 'refusal') {
+      if (this.headless && stopReason === 'refusal') {
         this.finish(new Error(t('local_agent.scheduled_refusal')))
         return
       }
       this.finish(
         undefined,
-        response.stopReason === 'cancelled'
+        stopReason === 'cancelled'
           ? 'cancelled'
-          : response.stopReason === 'refusal'
+          : stopReason === 'refusal'
             ? 'content-filter'
             : truncated
               ? 'length'
-              : response.stopReason === 'end_turn'
+              : stopReason === 'end_turn'
                 ? 'stop'
                 : 'other'
       )
@@ -1050,25 +944,32 @@ export class AcpConnection extends LocalConnection {
       this.finish(error)
     }
   }
-  private clearCompaction() {
-    if ([...this.compactions.values()].some(Boolean)) this.events.push({ type: 'compaction-complete' })
-    this.compactions.clear()
-  }
   protected override finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop') {
     this.approvedWrites.length = 0
     if (this.active) {
       for (const [id, tool] of this.toolInputs) {
-        if (tool.status !== 'completed' && tool.status !== 'failed') {
-          tool.turnEnded = true
-          this.publishTool(id, tool)
+        let final = tool
+        for (const item of tool.content ?? []) {
+          if (!item || typeof item !== 'object' || !('terminalId' in item) || typeof item.terminalId !== 'string')
+            continue
+          const terminal = this.terminals.get(item.terminalId)
+          if (!terminal) continue
+          terminal.tools.delete(id)
+          if (
+            tool.terminals?.[item.terminalId] !== terminal.output ||
+            tool.terminalDetails?.[item.terminalId]?.truncated !== terminal.truncated
+          )
+            final = this.withTerminal(final, item.terminalId, terminal)
         }
+        if (tool.status !== 'completed' && tool.status !== 'failed') {
+          this.publishTool(id, { ...final, turnEnded: true })
+        } else if (final !== tool) this.publishTool(id, final)
       }
+      this.toolInputs.clear()
     }
-    this.clearCompaction()
     super.finish(acpError(error, this.process.stderr), finishReason)
   }
   protected override dispose() {
-    this.clearCompaction()
     void this.browserLease?.dispose().catch(() => {})
     this.browserLease = undefined
     void this.gatewayLease?.dispose()

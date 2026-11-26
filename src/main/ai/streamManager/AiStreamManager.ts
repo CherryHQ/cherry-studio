@@ -2406,7 +2406,9 @@ export class AiStreamManager extends BaseService {
           resetIdle()
           const active = this.activeStreams.get(topicId)
           const projection = this.projections.get(topicId)
-          if (change.type === 'part-put' || change.type === 'part-add') {
+          if (change.type === 'part-put' && change.terminalPatch) {
+            projection?.relayAgentPart(modelId, exec.attemptId, change.terminalPatch)
+          } else if (change.type === 'part-put' || change.type === 'part-add') {
             const { patch, ref } = projectAgentNonTextPart(topicId, change)
             projection?.relayAgentPart(modelId, exec.attemptId, patch)
             if (ref) projection?.invalidateToolResults([ref])

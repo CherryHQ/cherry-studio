@@ -2,6 +2,7 @@ import { acpAuthMethods, connectAcpManagementStdio, type AcpManagementAgent } fr
 import type { LocalAgentConfiguration, LocalAgentModelCatalog } from '@shared/ai/localAgent'
 
 import { acpError } from './acpError'
+import { acpModelSelection } from './acpLaunch'
 import { AcpProcess } from './AcpProcess'
 import { acpProtocolInfo } from './acpSessionInfo'
 import { resolveLocalAgentLaunch, resolveLocalAgentModelLaunch } from './launch'
@@ -25,11 +26,10 @@ export class AcpManagement {
     return this.run(cwd, resolveLocalAgentModelLaunch, async (agent, launch) => {
       const { models, activeModel, closeSession } = await agent.readModels(cwd)
       this.closeSession = closeSession
+      const implicit = acpModelSelection(this.config, launch).implicit
       return {
         models,
-        activeModel:
-          activeModel ??
-          (this.config.presetId === 'snow' && launch.nativeModel ? { id: launch.nativeModel } : undefined),
+        activeModel: activeModel ?? (implicit ? { id: implicit } : undefined),
         authMethods: acpAuthMethods(agent.response)
       }
     })

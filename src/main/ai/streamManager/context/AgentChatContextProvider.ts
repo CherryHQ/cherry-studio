@@ -26,8 +26,9 @@ import { reservePiBranchTx } from '@main/ai/runtime/pi/piContext'
 import { reserveDurableBranchTx } from '@main/ai/runtime/piDurable/durableContext'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { extractAgentSessionId, isAgentSessionTopic, isOpenClawTechnicalTitle } from '@shared/ai/agentSessionTopic'
+import { extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import { type ExecutionId, getProviderModelId } from '@shared/ai/executionIdentity'
+import { isLocalAgentPlaceholderTitle } from '@shared/ai/localAgent'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -211,8 +212,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         ? !agentSessionMessageService.hasSessionMessages(sessionId, deliveryMessage.id)
         : !agentSessionMessageService.hasSessionMessages(sessionId)) ||
       (!session.isNameManuallyEdited &&
-        agent.configuration?.localRuntime?.presetId === 'openclaw' &&
-        isOpenClawTechnicalTitle(session.name))
+        isLocalAgentPlaceholderTitle(session.name, () => agent.configuration?.localRuntime?.presetId))
     return {
       sessionId,
       parentMessageId,

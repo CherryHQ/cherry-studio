@@ -1,4 +1,4 @@
-import type { LocalAgentSessionInfo } from './localAgent'
+import { localCliPresetById, type LocalAgentSessionInfo } from './localAgent'
 
 export type LocalCanonicalPermissionMode = 'plan' | 'default' | 'acceptEdits' | 'auto' | 'bypassPermissions'
 
@@ -116,29 +116,15 @@ export function classifyNativePermissionMode(
   option: { value: string; name: string },
   presetId?: string
 ): { canonicalMode: LocalCanonicalPermissionMode; priority: number } | undefined {
-  // Pi uses ACP `mode` exclusively to carry thinking levels rather than permission policies.
-  if (presetId === 'pi-acp') return undefined
+  const aliases = presetId ? localCliPresetById.get(presetId)?.permissionMode : undefined
+  if (aliases === 'none') return undefined
   const value = option.value.trim().toLowerCase()
   const name = option.name.trim().toLowerCase()
-
-  if (presetId === 'goose' && (value === 'auto' || name === 'auto')) {
-    return { canonicalMode: 'bypassPermissions', priority: 1 }
-  }
-  if (presetId === 'minimax' && (value === 'ask' || name === 'ask')) {
-    return { canonicalMode: 'default', priority: 1 }
-  }
-  if (presetId === 'copilot' && (value === 'agent' || name === 'agent')) {
-    return { canonicalMode: 'default', priority: 1 }
-  }
-  if (name === 'default' && value !== 'plan') {
-    return { canonicalMode: 'default', priority: 0 }
-  }
-  if (presetId === 'hermes' && value === 'session') {
-    return { canonicalMode: 'auto', priority: 0 }
-  }
-  if (presetId === 'cline' && value === 'act') {
-    return { canonicalMode: 'default', priority: 1 }
-  }
+  const label = aliases?.labels
+  if (label && Object.hasOwn(label, value)) return label[value]
+  if (label && Object.hasOwn(label, name)) return label[name]
+  if (name === 'default' && value !== 'plan') return { canonicalMode: 'default', priority: 0 }
+  if (aliases?.values && Object.hasOwn(aliases.values, value)) return aliases.values[value]
 
   for (const classifier of NATIVE_PERMISSION_CLASSIFIERS) {
     const valuePriority = classifier.identifiers.get(value)

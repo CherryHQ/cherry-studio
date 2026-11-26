@@ -222,6 +222,7 @@ export default defineConfig({
         ['agent-runtime-pi-acp', 'tests'],
         ['agent-runtime-pi-durable', 'tests'],
         ['agent-runtime-acp', 'tests'],
+        ['agent-runtime-codex', 'tests'],
         ['agent-runtime-claude-code', 'tests'],
         ['ai-sdk-provider', 'src'],
         ['remote-protocol', 'tests'],

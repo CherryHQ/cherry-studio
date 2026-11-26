@@ -6,6 +6,16 @@ sources:
   - src/shared/ai/agentSessionCost.ts
   - src/shared/ai/executionIdentity.ts
   - src/main/ai/runtime/localAgent
+  - src/main/ai/runtime/codex
+  - packages/agent-runtime-acp/src
+  - packages/agent-runtime/src/cliLogin.ts
+  - packages/agent-runtime-amp-acp/src
+  - packages/agent-runtime-antigravity-acp/src
+  - packages/agent-runtime-claude-code/src/localLaunch.ts
+  - packages/agent-runtime-codebuddy-acp/src/cli.ts
+  - packages/agent-runtime-codex/src
+  - packages/agent-runtime-kiro-acp/src
+  - packages/agent-runtime-vibe-acp/src
   - src/main/ai/agentSession/AgentSessionRuntimeService.ts
   - src/main/services/codeCli/CodeCliService.ts
   - src/main/services/deepSeekHarness
@@ -57,12 +67,24 @@ are preserved.
   and sign-in only perform the handshake and the requested authentication. Model
   discovery opens a temporary session, reads its reported catalog and closes it when
   supported. Settings connections expose no host files, terminals or browser MCP.
-  Main owns the child process and reads conversation history from Cherry's archive.
+  The ACP package owns the stdio process lifecycle for chat and Settings. Main
+  supplies the platform spawn operation, releases desktop leases and reads history
+  from Cherry's archive.
+  For a harness with its own ACP adapter, settings and launch read its CLI declaration
+  from the same package. Main binds desktop services in `acpPresets.ts`. The adapter
+  translates the native model, permission and session formats it supports.
+- Codex chat and Settings share the [Codex App Server launcher](../../../../packages/agent-runtime-codex/README.md).
+  Main resolves the executable with the same component selection used by installation and passes
+  the workspace, environment and cross-platform process operations. The Codex package assembles the
+  stdio command and owns the launched server. Connection checks only initialize, and model discovery
+  follows the catalog cursor. Chat opens or resumes the thread. Main supplies attachments and browser
+  access, routes approval decisions and publishes incremental updates to the Cherry run.
 - Local Claude Code and built-in Claude Code share the Claude Agent SDK session reader,
   incremental message projection and native history. Local sessions use the selected CLI,
-  workspace and account configuration. Permission mode and effort apply to the current
-  query. Settings reads the SDK initialization catalog without sending a message or
-  creating a transcript.
+  workspace and account configuration. The Claude runtime package derives SDK
+  spawn options from that installation for both chat and Settings. Permission mode
+  and effort apply to the current query. Settings reads the initialization catalog
+  without sending a message or creating a transcript.
 - Streams use `runtime:<agent-id>` as execution identity. It belongs to the stream.
   Persisted messages retain author and native model attribution when available.
 - Cursor uses the bundled TypeScript SDK for login, model discovery and session recovery.
@@ -75,6 +97,9 @@ are preserved.
   session-scoped lease. Recovery uses the SDK agent ID. [Cursor SDK documentation](https://cursor.com/docs/api/sdk/typescript)
 - For CLI-backed routes the CLI owns authentication, project settings, MCP and Skills. Local turns use
   native resources and controls. Main rejects Cherry knowledge scopes for these turns.
+- Native CLI login uses the shared stdio process capability. The desktop forwards
+  device codes and login URLs. Each harness declares its account status command
+  and output format.
 - When host browser control is enabled, interactive sessions expose Cherry Studio's
   session-scoped built-in browser `automation` MCP (`LocalAgentMcpBridgeService`) over
   loopback Streamable HTTP with a per-session bearer token (or `stdioHttpMcpShim` when
@@ -95,6 +120,10 @@ appropriate. Stale editor drafts fail before writing. Gateway selections keep
 the Cherry model ID separately from the native ID and inject only Cherry gateway
 credentials. Switching back removes Cherry-owned configuration while preserving
 user settings and credentials.
+
+For a local launch, Main reads the files needed for startup and gateway attribution
+in one batch. The harness interprets the same file contents for both operations.
+Main verifies the model and gateway route before issuing a session-scoped credential.
 
 For Grok Build, applying a Cherry model also binds the native `session_summary`
 and `prompt_suggestion` roles. User-pinned roles keep their own model. Gateway
@@ -156,10 +185,15 @@ own executable names, arguments and package sources.
   archives. It rejects package manager targets inside Cherry-managed paths.
   Existing mise installations can be reused and removed. See
   [BinaryManager discovery rules](../binary-manager/README.md).
-- Pi uses a bundled ACP adapter and the installed native CLI. OMP requires
+- CodeBuddy installs its published `@tencent-ai/codebuddy-code` package and uses
+  its `--acp` entry point. Pi uses a bundled ACP adapter and the installed native CLI. OMP requires
   Bun 1.4.4 or newer. Amp chat requires both `amp-acp` and `amp`. Its terminal and CLI sign-in use `amp` directly. ZCode requires a separate native executable.
-  Antigravity's terminal entry requires `agy`. DeepAgents checks its Anthropic
-  and OpenAI provider packages even when reusing its adapter. Installation fails
+  Antigravity uses the official `agy` CLI for its terminal entry and can run
+  `agy acp` when no standalone ACP adapter is installed. Discovery keeps the
+  standalone adapter first when both are present. DeepAgents checks its Anthropic
+  and OpenAI provider packages even when reusing its adapter. Kiro supplies
+  its official installer and executable identity. Mistral Vibe supplies its
+  `uv` install plan. Installation fails
   if a required dependency is missing after setup.
 - Upgrades keep old managed resources for running terminals. Uninstall rechecks
   the confirmed installation and ownership of each component, verifies removal
@@ -215,6 +249,8 @@ recovery link.
 ### Session controls
 
 ACP `configOptions`, including an empty list, takes precedence over legacy modes.
+If the agent advertises new controls during a legacy mode change, its update stays
+authoritative when the pending `session/set_mode` request completes.
 Model config options similarly take precedence over the legacy model interface.
 Unknown option types are ignored. Known labels are localized and native IDs and
 custom text are preserved. A model absent from a non-empty catalog fails

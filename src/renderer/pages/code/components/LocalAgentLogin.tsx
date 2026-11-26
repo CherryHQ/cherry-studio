@@ -18,6 +18,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cursorLoginMethod } from '@cherrystudio/agent-runtime-cursor/cli'
 import {
   Badge,
   Button,
@@ -37,95 +38,14 @@ import { toast } from '@renderer/services/toast'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import {
   LOCAL_AGENT_PRESETS,
+  type CliAuthOption,
   type LocalAgentAuthMethod,
   type LocalAgentConfiguration,
   type LocalAgentModelCatalog
 } from '@shared/ai/localAgent'
 import type { OutputFor } from '@shared/ipc/types'
 
-const antigravityMethodIcons: Partial<Record<string, typeof LogIn>> = {
-  'oauth-personal': CircleUserRound,
-  'oauth-business': Building2,
-  'gemini-api-key': KeyRound,
-  'agent-platform': Cloud
-}
-
-interface CliAuthOption {
-  id: string
-  nameKey: string
-  hintKey: string
-  kind: 'browser' | 'api-key'
-  recommended?: boolean
-}
-
-const CLI_AUTH_OPTIONS: Partial<Record<string, readonly CliAuthOption[]>> = {
-  claude: [
-    {
-      id: 'claude-subscription',
-      nameKey: 'local_agents.auth_claude_subscription',
-      hintKey: 'local_agents.auth_claude_subscription_hint',
-      kind: 'browser',
-      recommended: true
-    },
-    {
-      id: 'claude-console',
-      nameKey: 'local_agents.auth_claude_console',
-      hintKey: 'local_agents.auth_claude_console_hint',
-      kind: 'browser'
-    }
-  ],
-  codex: [
-    {
-      id: 'codex-browser',
-      nameKey: 'local_agents.auth_codex_browser',
-      hintKey: 'local_agents.auth_codex_browser_hint',
-      kind: 'browser',
-      recommended: true
-    },
-    {
-      id: 'codex-api-key',
-      nameKey: 'local_agents.auth_codex_api_key',
-      hintKey: 'local_agents.auth_codex_api_key_hint',
-      kind: 'api-key'
-    }
-  ],
-  opencode: [
-    {
-      id: 'opencode-console',
-      nameKey: 'local_agents.auth_opencode_console',
-      hintKey: 'local_agents.auth_opencode_console_hint',
-      kind: 'browser'
-    },
-    {
-      id: 'opencode-openai',
-      nameKey: 'local_agents.auth_opencode_openai',
-      hintKey: 'local_agents.auth_opencode_openai_hint',
-      kind: 'browser'
-    },
-    {
-      id: 'opencode-copilot',
-      nameKey: 'local_agents.auth_opencode_copilot',
-      hintKey: 'local_agents.auth_opencode_copilot_hint',
-      kind: 'browser'
-    }
-  ],
-  kimi: [
-    {
-      id: 'kimi-cn',
-      nameKey: 'local_agents.auth_kimi_cn',
-      hintKey: 'local_agents.auth_kimi_cn_hint',
-      kind: 'browser'
-    },
-    {
-      id: 'kimi-global',
-      nameKey: 'local_agents.auth_kimi_global',
-      hintKey: 'local_agents.auth_kimi_global_hint',
-      kind: 'browser'
-    }
-  ]
-}
-
-const PI_QUICK_PROVIDERS = ['openai-codex', 'github-copilot', 'anthropic', 'openai'] as const
+const loginIcons = { browser: CircleUserRound, enterprise: Building2, 'api-key': KeyRound, cloud: Cloud }
 
 const cachedAuthStatus = new Map<string, OutputFor<'ai.local_agents.auth_status'>>()
 
@@ -172,33 +92,32 @@ export function LocalAgentLogin({
   })
   const sdk = config.protocol === 'cursor'
   const methods: LocalAgentAuthMethod[] | undefined = sdk
-    ? [{ id: 'cursor_login', type: 'agent', name: 'Cursor' }]
+    ? [cursorLoginMethod]
     : (authMethods ?? (discovered?.signature === signature ? discovered.methods : undefined))
   const methodNames: Record<string, Record<string, string>> = {
-    'antigravity-acp': {
-      'oauth-personal': 'Google',
-      'oauth-business': 'Gemini Enterprise',
-      'gemini-api-key': `Gemini ${t('settings.models.api_key')}`,
-      'agent-platform': 'Gemini Enterprise Agent Platform'
-    },
     'codebuddy-code': {
       iOA: 'iOA',
       external: 'Google / GitHub',
       internal: t('agent.channels.wechat.title'),
       selfhosted: t('local_agents.auth_enterprise_domain')
     },
-    cursor: { cursor_login: `Cursor · ${t('local_agents.sign_in')}` },
+    cursor: { [cursorLoginMethod.id]: `Cursor · ${t('local_agents.sign_in')}` },
     opencode: { 'opencode-login': `OpenCode · ${t('local_agents.sign_in')}` },
     kilo: { 'kilo-login': `Kilo · ${t('local_agents.sign_in')}` },
     hermes: { custom: t('local_agents.auth_runtime_credentials') }
   }
   const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === config.presetId && entry.protocol === config.protocol)
+  const loginMethod = (id: string | undefined) => preset?.auth?.methods.find((method) => method.id === id)
   const usableMethods = methods
     ?.filter((method) => method.type === 'agent' && !preset?.externalCredentialMethods?.includes(method.id))
-    .map((method) => ({ ...method, name: methodNames[config.presetId ?? '']?.[method.id] ?? method.name }))
-  const cliOptions = !usableMethods?.length ? CLI_AUTH_OPTIONS[config.presetId ?? ''] : undefined
-  const hasPiBrowserLogin = !usableMethods?.length && config.presetId === 'pi-acp'
-  const hasCliLoginFlow = Boolean(cliOptions?.length || hasPiBrowserLogin)
+    .map((method) => {
+      const declared = loginMethod(method.id)
+      const name = declared?.form === 'api-key' ? `${declared.name} ${t('settings.models.api_key')}` : declared?.name
+      return { ...method, name: name ?? methodNames[config.presetId ?? '']?.[method.id] ?? method.name }
+    })
+  const cliOptions = !usableMethods?.length ? preset?.cliLogin : undefined
+  const providerLogin = !usableMethods?.length ? preset?.providerLogin : undefined
+  const hasCliLoginFlow = Boolean(cliOptions?.length || providerLogin)
   const canAuthenticate = Boolean(usableMethods?.length || hasCliLoginFlow)
   const [provider, setProvider] = useState('')
   const [authStatus, setAuthStatus] = useState<{
@@ -211,13 +130,8 @@ export function LocalAgentLogin({
   const status = authFailed && !hasNativeStatus ? 'signed-out' : (currentStatus ?? 'unknown')
   const signedIn = status === 'signed-in'
   const needsLogin = !signedIn
-  const sessionRequiresLogin =
-    config.presetId === 'antigravity-acp' &&
-    config.protocol === 'acp' &&
-    !config.executableOverride &&
-    !config.args.length
+  const sessionRequiresLogin = preset?.auth?.catalogRequiresLogin && !config.executableOverride && !config.args.length
 
-  // Antigravity requires credentials for session/new, which produces the live model catalog.
   useEffect(() => {
     if (sessionRequiresLogin && freshCatalog) {
       cachedAuthStatus.set(signature, 'signed-in')
@@ -279,9 +193,10 @@ export function LocalAgentLogin({
   const [location, setLocation] = useState('')
   const [authPrompt, setAuthPrompt] = useState<{ url?: string; code?: string }>()
   const [copiedCode, setCopiedCode] = useState(false)
-  const needsKey = method === 'gemini-api-key' || method === 'codex-api-key'
-  const platform = method === 'agent-platform'
-  const business = method === 'oauth-business'
+  const form = loginMethod(method)?.form
+  const needsKey = form === 'api-key' || cliOptions?.find((option) => option.id === method)?.kind === 'api-key'
+  const platform = form === 'cloud'
+  const business = form === 'enterprise'
   const [error, setError] = useState<string>()
   const request = useRef<string | undefined>(undefined)
   const activeFlowKind = useRef<'acp' | 'cli'>('acp')
@@ -344,17 +259,15 @@ export function LocalAgentLogin({
   const chooseMethod = (methodId: string) => {
     setOpen(true)
     setError(undefined)
-    if (
-      config.presetId !== 'antigravity-acp' ||
-      !['gemini-api-key', 'agent-platform', 'oauth-business'].includes(methodId)
-    ) {
+    const native = loginMethod(methodId)
+    if (!native || native.form === 'browser') {
       void authenticate(methodId)
       return
     }
     setMethod(methodId)
-    setApiKey(config.env[methodId === 'gemini-api-key' ? 'GEMINI_API_KEY' : 'GOOGLE_API_KEY'] ?? '')
-    setProject(config.env.GOOGLE_CLOUD_PROJECT ?? '')
-    setLocation(config.env.GOOGLE_CLOUD_LOCATION ?? '')
+    setApiKey('apiKey' in native ? (config.env[native.apiKey] ?? '') : '')
+    setProject(native.form === 'cloud' ? (config.env[native.project] ?? '') : '')
+    setLocation(native.form === 'cloud' ? (config.env[native.location] ?? '') : '')
   }
 
   const chooseCliOption = (option: CliAuthOption) => {
@@ -373,29 +286,28 @@ export function LocalAgentLogin({
     let secret: string | undefined
     let cliProvider: string | undefined
 
-    if (config.presetId === 'antigravity-acp') {
-      if (methodId === 'gemini-api-key') {
-        if (!apiKey.trim()) return
-        nextConfig.env.GEMINI_API_KEY = apiKey.trim()
-      } else if (methodId === 'agent-platform') {
-        nextConfig.env.GOOGLE_API_KEY = apiKey.trim()
-        if (!apiKey.trim()) {
-          if (!project.trim() || !location.trim()) return
-          nextConfig.env.GOOGLE_CLOUD_PROJECT = project.trim()
-          nextConfig.env.GOOGLE_CLOUD_LOCATION = location.trim()
-        }
+    const native = loginMethod(methodId)
+    if (native?.form === 'api-key') {
+      if (!apiKey.trim()) return
+      nextConfig.env[native.apiKey] = apiKey.trim()
+    } else if (native?.form === 'cloud') {
+      nextConfig.env[native.apiKey] = apiKey.trim()
+      if (!apiKey.trim()) {
+        if (!project.trim() || !location.trim()) return
+        nextConfig.env[native.project] = project.trim()
+        nextConfig.env[native.location] = location.trim()
       }
-    } else if (methodId === 'codex-api-key') {
+    } else if (cliOptions?.find((option) => option.id === methodId)?.kind === 'api-key') {
       if (!apiKey.trim()) return
       secret = apiKey.trim()
-    } else if (methodId === 'pi-browser') {
+    } else if (methodId === providerLogin?.id) {
       const candidate = (overrideProvider ?? provider).trim()
       if (!candidate) return
       cliProvider = candidate
     }
 
     activeFlowKind.current =
-      cliOptions?.some((entry) => entry.id === methodId) || methodId === 'pi-browser' ? 'cli' : 'acp'
+      cliOptions?.some((entry) => entry.id === methodId) || methodId === providerLogin?.id ? 'cli' : 'acp'
 
     const current = ++generation.current
     const requestId = crypto.randomUUID()
@@ -446,7 +358,7 @@ export function LocalAgentLogin({
     setBusy(true)
     setError(undefined)
     try {
-      await onTerminalLogin?.(hasPiBrowserLogin && provider.trim() ? provider.trim() : undefined)
+      await onTerminalLogin?.(providerLogin && provider.trim() ? provider.trim() : undefined)
       if (generation.current === current) {
         setMethod(undefined)
         setOpen(false)
@@ -511,7 +423,7 @@ export function LocalAgentLogin({
 
   const activeCliOption = cliOptions?.find((entry) => entry.id === method)
   const dialogTitle =
-    (!method && config.presetId === 'antigravity-acp' ? 'Google Antigravity · ' : '') +
+    (!method && preset?.auth ? `${preset.name} · ` : '') +
     (usableMethods?.find((entry) => entry.id === method)?.name ??
       (activeCliOption ? t(activeCliOption.nameKey) : undefined) ??
       t(needsLogin ? 'local_agents.sign_in' : 'local_agents.reauthenticate'))
@@ -597,17 +509,17 @@ export function LocalAgentLogin({
                 </Button>
               )}
             </div>
-          ) : hasPiBrowserLogin ? (
+          ) : providerLogin ? (
             <form
               id="pi-provider-login"
               className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault()
-                void authenticate('pi-browser', provider)
+                void authenticate(providerLogin.id, provider)
               }}>
               <p className="text-xs leading-relaxed text-muted-foreground">{t('local_agents.auth_pi_hint')}</p>
               <div className="flex flex-wrap gap-1.5">
-                {PI_QUICK_PROVIDERS.map((id) => (
+                {providerLogin.suggestions.map((id) => (
                   <Button
                     key={id}
                     type="button"
@@ -631,7 +543,7 @@ export function LocalAgentLogin({
                   onChange={(event) => setProvider(event.target.value)}
                 />
                 <datalist id="pi-login-providers">
-                  {PI_QUICK_PROVIDERS.map((id) => (
+                  {providerLogin.suggestions.map((id) => (
                     <option key={id} value={id} />
                   ))}
                 </datalist>
@@ -727,11 +639,8 @@ export function LocalAgentLogin({
           ) : (
             <div className="flex flex-col gap-2">
               {usableMethods?.map((methodItem) => {
-                const Icon =
-                  (config.presetId === 'antigravity-acp' &&
-                    Object.hasOwn(antigravityMethodIcons, methodItem.id) &&
-                    antigravityMethodIcons[methodItem.id]) ||
-                  LogIn
+                const method = loginMethod(methodItem.id)
+                const Icon = method ? loginIcons[method.form] : LogIn
                 return (
                   <Button
                     key={methodItem.id}
@@ -801,13 +710,13 @@ export function LocalAgentLogin({
               }}>
               {t('common.cancel')}
             </Button>
-            {(method || hasPiBrowserLogin) && !busy && (
+            {(method || providerLogin) && !busy && (
               <Button
                 type="submit"
-                form={hasPiBrowserLogin ? 'pi-provider-login' : 'local-agent-auth-form'}
+                form={providerLogin ? 'pi-provider-login' : 'local-agent-auth-form'}
                 size="sm"
                 disabled={
-                  (hasPiBrowserLogin && !provider.trim()) ||
+                  (providerLogin && !provider.trim()) ||
                   (needsKey && !apiKey.trim()) ||
                   (platform && !apiKey.trim() && (!project.trim() || !location.trim()))
                 }>

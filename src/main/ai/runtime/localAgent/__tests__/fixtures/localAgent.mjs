@@ -144,7 +144,7 @@ const semanticConfig = () => [
 ]
 let promptId
 let previousGrokPromptId
-const finish = () => {
+const finish = (turnId = 'turn') => {
   if (protocol === 'acp')
     reply(promptId, {
       stopReason: scenario.startsWith('stop:') ? scenario.slice(5) : scenario === 'cancel' ? 'cancelled' : 'end_turn',
@@ -170,7 +170,7 @@ const finish = () => {
       params: {
         threadId: 'native-session',
         turn: {
-          id: 'turn',
+          id: turnId,
           status: scenario === 'interrupted' || scenario === 'cancel' ? 'interrupted' : 'completed',
           error: null
         }
@@ -388,7 +388,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
           ? semanticConfig()
           : scenario === 'config-multiple'
             ? multipleConfig()
-            : scenario === 'mode-legacy' || scenario === 'mode-legacy-upgrade'
+            : scenario === 'mode-legacy' || scenario.startsWith('mode-legacy-upgrade')
               ? undefined
               : scenario === 'mode-legacy-null'
                 ? null
@@ -420,6 +420,11 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     modeValue = message.params.modeId
     if (scenario === 'mode-legacy-upgrade')
       update({ sessionUpdate: 'config_option_update', configOptions: [thought()] })
+    if (scenario === 'mode-legacy-upgrade-with-mode')
+      update({
+        sessionUpdate: 'config_option_update',
+        configOptions: [{ ...mode(), id: 'legacy-mode', currentValue: 'ask' }]
+      })
     update({ sessionUpdate: 'current_mode_update', currentModeId: modeValue })
     reply(id, {})
   } else if (scenario === 'grok-prediction' && method === '_x.ai/suggestPrompt') {
@@ -429,6 +434,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       suggestion: sessionId === 'native-session' ? 'run the tests' : null
     })
   } else if (method === 'session/set_config_option') {
+    if (scenario === 'model-setup-update') {
+      update({ sessionUpdate: 'config_option_update', configOptions: [thought()] })
+      update({ sessionUpdate: 'compaction_update', compactionId: 'replayed', status: 'in_progress' })
+    }
     if (scenario === 'config-semantics') return reply(id, { configOptions: [extraConfig()[1], mode()] })
     if (scenario === 'config-multiple') {
       secondaryValues[message.params.configId] = message.params.value
@@ -522,7 +531,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         item: { id: 'compact-item', type: 'contextCompaction' }
       }
     })
-    finish()
+    finish('compact-turn')
   } else if (method === 'skills/list') {
     reply(id, {
       data: [
@@ -536,10 +545,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     })
   } else if (method === 'account/usage/read') {
     reply(id, { summary: { totalTokens: 500 } })
+  } else if (method === 'thread/revert') {
+    reply(id, { thread: { id: 'native-session', turns: [] } })
   } else if (method === 'review/start') {
     promptId = id
     turn++
-    reply(id, {})
+    reply(id, { turn: { id: 'turn' }, reviewThreadId: message.params.threadId })
     emit({ method: 'turn/started', params: { threadId: 'native-session', turn: { id: 'turn' } } })
     text(`review: ${JSON.stringify(message.params.target)}`)
     finish()
@@ -549,7 +560,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     promptId = id
     turn++
     if (scenario === 'workspace') {
-      if (protocol === 'codex') reply(id, { turn: { id: 'turn' } })
+      if (protocol === 'codex') {
+        reply(id, { turn: { id: 'turn' } })
+        emit({ method: 'turn/started', params: { threadId: 'native-session', turn: { id: 'turn' } } })
+      }
       text(process.cwd())
       finish()
       return
@@ -693,6 +707,16 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     if (protocol === 'codex') {
       reply(id, { turn: { id: 'turn', status: 'inProgress' } })
       emit({ method: 'turn/started', params: { threadId: 'native-session', turn: { id: 'turn' } } })
+    }
+    if (scenario === 'codex-text-items') {
+      const frame = (method, payload) =>
+        emit({ method, params: { threadId: 'native-session', turnId: 'turn', ...payload } })
+      frame('item/started', { item: { type: 'agentMessage', id: 'a', phase: 'commentary', text: '' } })
+      frame('item/agentMessage/delta', { itemId: 'a', delta: 'Working.' })
+      frame('item/completed', { item: { type: 'agentMessage', id: 'a', phase: 'commentary', text: 'Working.' } })
+      frame('item/completed', { item: { type: 'agentMessage', id: 'b', phase: 'final_answer', text: 'Finished.' } })
+      finish()
+      return
     }
     if (scenario === 'acp-policy-yolo') {
       void (async () => {

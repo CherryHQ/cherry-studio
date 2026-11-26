@@ -14,6 +14,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import {
   detectLocalAgents,
   openLocalAgentTerminal,
+  resolveClaudeLaunch,
   resolveLocalAgentCli,
   resolveLocalAgentLaunch,
   resolveLocalAgentModelLaunch,
@@ -79,6 +80,7 @@ describe('local agent installation resolution', () => {
       })
       inventory.readConfigFiles.mockResolvedValue([
         {
+          target: 'claude-settings',
           content: JSON.stringify({
             model: 'gateway-model',
             env: {
@@ -89,7 +91,7 @@ describe('local agent installation resolution', () => {
           })
         }
       ])
-      const launch = await resolveLocalAgentLaunch(
+      const launch = await resolveClaudeLaunch(
         {
           ...config,
           presetId: 'claude',
@@ -97,8 +99,9 @@ describe('local agent installation resolution', () => {
           executableOverride: process.execPath,
           env
         },
-        undefined,
-        { headless: true }
+        directory,
+        new AbortController().signal,
+        'scheduled-chat'
       )
       expect(launch.nativeModel).toBe('gateway-model')
       expect(launch.env.ANTHROPIC_BASE_URL).toBe(endpoint)
@@ -116,7 +119,7 @@ describe('local agent installation resolution', () => {
       .mockReset()
       .mockResolvedValue({ PATH: '/user/bin', MISE_DATA_DIR: '/user/mise', HOME: '/user/home' })
     inventory.openTerminal.mockReset()
-    inventory.readConfigFiles.mockReset().mockResolvedValue([{ content: null }])
+    inventory.readConfigFiles.mockReset().mockResolvedValue([])
     inventory.isWin = process.platform === 'win32'
     inventory.openTerminal.mockResolvedValue({ success: true })
     inventory.snapshots = {}
@@ -265,6 +268,7 @@ describe('local agent installation resolution', () => {
     installSystemCommands('pool')
     inventory.readConfigFiles.mockResolvedValue([
       {
+        target: 'poolside-settings',
         content: `pool:
   default_agent_server: cherry-poolside
 agent_servers:

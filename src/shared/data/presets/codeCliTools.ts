@@ -1,3 +1,7 @@
+import { antigravityCli } from '@cherrystudio/agent-runtime-antigravity-acp/cli'
+import { claudeCli } from '@cherrystudio/agent-runtime-claude-code/cli'
+import { codexCli } from '@cherrystudio/agent-runtime-codex/cli'
+import { piCli } from '@cherrystudio/agent-runtime-pi-acp/cli'
 import { CodeCli } from '@shared/types/codeCli'
 
 /** Canonical acquisition facts for a Code CLI tool. */
@@ -52,14 +56,14 @@ function defineCodeCliTool({ pipxExtras, ...definition }: CodeCliToolDefinition)
 export const CODE_CLI_TOOL_PRESETS = Object.freeze([
   defineCodeCliTool({
     id: CodeCli.CLAUDE_CODE,
-    executable: 'claude',
-    packageName: '@anthropic-ai/claude-code',
+    executable: claudeCli.executable,
+    packageName: claudeCli.npmPackage,
     install: 'registry'
   }),
   defineCodeCliTool({
     id: CodeCli.OPENAI_CODEX,
-    executable: 'codex',
-    packageName: '@openai/codex',
+    executable: codexCli.executable,
+    packageName: codexCli.npmPackage,
     install: 'registry'
   }),
   defineCodeCliTool({
@@ -70,9 +74,9 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
   }),
   defineCodeCliTool({
     id: CodeCli.ANTIGRAVITY_CLI,
-    executable: 'agy',
+    executable: antigravityCli.terminalCli.executable,
     skillFolderName: 'code-mate-antigravity',
-    packageName: 'google-antigravity/antigravity-cli',
+    packageName: antigravityCli.terminalCli.managedPackage,
     install: 'aqua'
   }),
   defineCodeCliTool({
@@ -131,9 +135,9 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
   }),
   defineCodeCliTool({
     id: CodeCli.PI,
-    executable: 'pi',
+    executable: piCli.executable,
     skillFolderName: 'code-mate-pi',
-    packageName: '@earendil-works/pi-coding-agent',
+    packageName: piCli.npmPackage,
     install: 'npm'
   }),
   defineCodeCliTool({

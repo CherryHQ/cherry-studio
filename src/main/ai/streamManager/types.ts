@@ -103,8 +103,10 @@ export type ExecutionPart = {
 export type MessageStreamEvent = { type: 'error'; error: unknown } | { type: 'control'; chunk: AgentControlChunk }
 
 export type AgentPartChange =
-  | Exclude<LivePartPatch<TimelinePlacement>, { type: 'part-put' | 'part-add' }>
-  | (Extract<LivePartPatch<TimelinePlacement>, { type: 'part-add' | 'part-put' }> & {
+  | Exclude<LivePartPatch<TimelinePlacement>, { type: 'part-put' | 'part-add' | 'part-tool-terminal' }>
+  | (Extract<LivePartPatch<TimelinePlacement>, { type: 'part-add' }> & { readonly archiveMessageId: string })
+  | (Extract<LivePartPatch<TimelinePlacement>, { type: 'part-put' }> & {
+      readonly terminalPatch?: Extract<LivePartPatch<TimelinePlacement>, { type: 'part-tool-terminal' }>
       readonly archiveMessageId: string
     })
 

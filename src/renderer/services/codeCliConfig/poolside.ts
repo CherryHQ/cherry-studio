@@ -1,16 +1,23 @@
 import { t } from 'i18next'
 
+import {
+  clearPoolsideGateway,
+  readPoolsideGateway,
+  writePoolsideGateway
+} from '@cherrystudio/agent-runtime-poolside-acp'
+import { poolsideCli } from '@cherrystudio/agent-runtime-poolside-acp/cli'
 import { formatApiHost } from '@shared/utils/api'
-import { getCliConfigTargets, POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
+import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
 import type { CliConfigAdapter } from './adapters'
 import { getDraftFile, makeDraftFile, readAndParseDraftFile, readConfigFilesForDraft } from './draftFiles'
 import { parseYamlDocumentOrThrow, parseYamlOrThrow, readConfigFiles, requireReadFile } from './file'
+import { stringValue } from './values'
 
 export const poolsideAdapter: CliConfigAdapter = {
-  targets: getCliConfigTargets('poolside'),
+  targets: getCliConfigTargets(poolsideCli.modelConfig.tool),
   providerBaseUrls: (provider) => {
-    const url = provider.endpointConfigs?.['openai-chat-completions']?.baseUrl
+    const url = provider.endpointConfigs?.[poolsideCli.modelEndpoints[0]]?.baseUrl
     return url ? [formatApiHost(url)] : []
   },
   sanitize: () => ({}),
@@ -18,18 +25,7 @@ export const poolsideAdapter: CliConfigAdapter = {
     this.assertCredentials(context)
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const document = readAndParseDraftFile('poolside-settings', parseYamlDocumentOrThrow, args.files, read)
-    document.setIn(['agent_servers', POOLSIDE_GATEWAY_SERVER], {
-      type: 'custom',
-      command: 'pool',
-      args: ['acp'],
-      env: {
-        POOLSIDE_API_KEY: context.apiKey,
-        POOLSIDE_STANDALONE_BASE_URL: this.providerBaseUrls(context.provider)[0],
-        POOLSIDE_STANDALONE_MODEL: context.model
-      },
-      default_config_options: { model: context.model }
-    })
-    document.setIn(['pool', 'default_agent_server'], POOLSIDE_GATEWAY_SERVER)
+    writePoolsideGateway(document, context.apiKey, this.providerBaseUrls(context.provider)[0], context.model)
     return [makeDraftFile('poolside-settings', document.toString(), read)]
   },
   assertCredentials(context) {
@@ -41,21 +37,17 @@ export const poolsideAdapter: CliConfigAdapter = {
     const file = requireReadFile('poolside-settings', await readConfigFiles(this.targets))
     if (file.content === null) return []
     const document = parseYamlDocumentOrThrow(file.content)
-    if (!document.hasIn(['agent_servers', POOLSIDE_GATEWAY_SERVER])) return []
-    document.deleteIn(['agent_servers', POOLSIDE_GATEWAY_SERVER])
-    if (document.getIn(['pool', 'default_agent_server']) === POOLSIDE_GATEWAY_SERVER)
-      document.deleteIn(['pool', 'default_agent_server'])
+    if (!clearPoolsideGateway(document)) return []
     return [{ target: 'poolside-settings', content: document.toString() }]
   },
   extractConnection(files) {
     const config = parseYamlOrThrow(getDraftFile(files, 'poolside-settings')?.content ?? '')
-    if (config.pool?.default_agent_server !== POOLSIDE_GATEWAY_SERVER) return null
-    const server = config.agent_servers?.[POOLSIDE_GATEWAY_SERVER]
-    return server
+    const connection = readPoolsideGateway(config)
+    return connection
       ? {
-          baseUrl: server.env?.POOLSIDE_STANDALONE_BASE_URL,
-          apiKey: server.env?.POOLSIDE_API_KEY,
-          model: server.default_config_options?.model
+          baseUrl: stringValue(connection.baseUrl),
+          apiKey: stringValue(connection.apiKey),
+          model: stringValue(connection.model)
         }
       : null
   },

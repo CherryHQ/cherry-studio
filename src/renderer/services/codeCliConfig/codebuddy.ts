@@ -1,4 +1,9 @@
-import type { EndpointType } from '@shared/data/types/model'
+import {
+  clearCodeBuddyModels,
+  readCodeBuddyConnection,
+  writeCodeBuddyModel
+} from '@cherrystudio/agent-runtime-codebuddy-acp'
+import { codeBuddyCli } from '@cherrystudio/agent-runtime-codebuddy-acp/cli'
 import { formatApiHost } from '@shared/utils/api'
 import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
@@ -8,17 +13,9 @@ import { parseJsonOrThrow, readConfigFiles, readValidatedJsonOrNull, renderJsonF
 import { resolveSupportedEndpointType } from './resolvers'
 import { stringValue } from './values'
 
-const ENDPOINTS: EndpointType[] = ['openai-chat-completions', 'openai-responses']
-const OWNER = 'x-cherry-studio'
-
-function modelEntries(config: Record<string, any>): Record<string, any>[] {
-  if (config.models === undefined) return []
-  if (!Array.isArray(config.models)) throw new Error('CodeBuddy models must be an array')
-  return config.models
-}
-
+const ENDPOINTS = codeBuddyCli.modelEndpoints
 export const codebuddyAdapter: CliConfigAdapter = {
-  targets: getCliConfigTargets('codebuddy-code'),
+  targets: getCliConfigTargets(codeBuddyCli.modelConfig.tool),
   providerBaseUrls: (provider) =>
     ENDPOINTS.flatMap((type) => {
       const url = provider.endpointConfigs?.[type]?.baseUrl
@@ -31,26 +28,20 @@ export const codebuddyAdapter: CliConfigAdapter = {
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const models = readAndParseDraftFile('codebuddy-models', parseJsonOrThrow, args.files, read)
     const settings = readAndParseDraftFile('codebuddy-settings', parseJsonOrThrow, args.files, read)
-    const retained = modelEntries(models).filter((entry) => entry[OWNER] !== true)
-    if (retained.some((entry) => entry.id === model)) {
-      throw new Error('CodeBuddy already has a custom model with this ID. Edit its CLI configuration first.')
-    }
-    const entry = {
+    const updated = writeCodeBuddyModel(models, {
       id: model,
       name: modelLabel ?? model,
       vendor: provider.name,
       apiKey,
-      url: endpoint === 'openai-responses' ? baseUrl : `${baseUrl.replace(/\/$/, '')}/chat/completions`,
-      api: endpoint === 'openai-responses' ? 'openai-responses' : 'openai-completions',
-      supportsToolCall: true,
+      baseUrl,
+      responses: endpoint === 'openai-responses',
       supportsImages: Boolean(modelRecord?.inputModalities?.includes('image')),
       supportsReasoning: Boolean(modelRecord?.reasoning),
-      ...(modelRecord?.contextWindow ? { maxInputTokens: modelRecord.contextWindow } : {}),
-      ...(modelRecord?.maxOutputTokens ? { maxOutputTokens: modelRecord.maxOutputTokens } : {}),
-      [OWNER]: true
-    }
+      maxInputTokens: modelRecord?.contextWindow ?? undefined,
+      maxOutputTokens: modelRecord?.maxOutputTokens ?? undefined
+    })
     return [
-      makeDraftFile('codebuddy-models', renderJsonFile({ ...models, models: [...retained, entry] }), read),
+      makeDraftFile('codebuddy-models', renderJsonFile(updated), read),
       makeDraftFile('codebuddy-settings', renderJsonFile({ ...settings, model }), read)
     ]
   },
@@ -68,20 +59,21 @@ export const codebuddyAdapter: CliConfigAdapter = {
     return [
       {
         target: 'codebuddy-models',
-        content: renderJsonFile({ ...models, models: modelEntries(models).filter((entry) => entry[OWNER] !== true) })
+        content: renderJsonFile(clearCodeBuddyModels(models))
       }
     ]
   },
   extractConnection(files) {
     const models = parseJsonOrThrow(getDraftFile(files, 'codebuddy-models')?.content ?? '')
     const settings = parseJsonOrThrow(getDraftFile(files, 'codebuddy-settings')?.content ?? '')
-    const entry = modelEntries(models).find((entry) => entry.id === settings.model)
-    if (!entry) return null
-    return {
-      model: stringValue(entry.id),
-      apiKey: stringValue(entry.apiKey),
-      baseUrl: stringValue(entry.url)?.replace(/\/chat\/completions\/?$/, '')
-    }
+    const connection = readCodeBuddyConnection(models, settings.model)
+    return connection
+      ? {
+          model: stringValue(connection.model),
+          apiKey: stringValue(connection.apiKey),
+          baseUrl: stringValue(connection.baseUrl)
+        }
+      : null
   },
   extractConfig: () => ({})
 }

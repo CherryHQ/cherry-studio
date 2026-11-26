@@ -1,11 +1,12 @@
 import type { ChildProcess } from 'node:child_process'
-import { access, lstat, readFile, realpath, rm, unlink } from 'node:fs/promises'
+import { access, lstat, realpath, unlink } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
 import { valid, gt } from 'semver'
 
 import { application } from '@application'
+import type { CliInstallPlan } from '@cherrystudio/agent-runtime/cli'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
@@ -28,17 +29,18 @@ import type { BinaryInstallByNameRequest } from '@shared/types/binary'
 import { LOCAL_AGENT_WEB_UI_IDS } from '@shared/types/managedTool'
 import { redactSecretText } from '@shared/utils/redaction'
 
+import { acpCliInstaller, acpPreset } from './acpPresets'
 import { installBinaryAgent } from './installBinary'
 import { readInstalledPackageVersion, resolveInstalledExecutable } from './installedVersion'
 import { resolveInstallRecipe, resolveCliInstallRecipe } from './installRecipe'
-import { selectAvailableInstallation } from './launch'
+import { selectChatInstallation } from './launch'
 import { resolveRequiredRuntime } from './runtimeDependency'
 import { getBinaryAgentInstallation, ownsNpmExecutable, ownsUvExecutable, uninstallBinaryAgent } from './uninstall'
 
 const logger = loggerService.withContext('LocalAgentInstallService')
 type InstallTarget = Pick<
   LocalCliAgentPreset,
-  'id' | 'executable' | 'aliases' | 'npmPackage' | 'requiredRuntime' | 'terminalCli'
+  'id' | 'executable' | 'aliases' | 'npmPackage' | 'requiredRuntime' | 'terminalCli' | 'modelDependencies'
 > & {
   protocol?: LocalCliAgentPreset['protocol']
   cli?: CodeCliToolPreset
@@ -131,7 +133,7 @@ export class LocalAgentInstallService extends BaseService {
 
   private async resolveUninstallComponents(target: InstallTarget, expectedPath: string) {
     let primary = await this.detect(target)
-    if (primary.source === 'none' && target.id === 'antigravity-acp' && target.terminalCli) {
+    if (primary.source === 'none' && acpPreset(target.id)?.cliFallback && target.terminalCli) {
       primary = await this.detect({ id: target.id, executable: target.terminalCli.executable })
     }
     if (primary.source === 'none' || primary.path !== expectedPath) return []
@@ -174,12 +176,11 @@ export class LocalAgentInstallService extends BaseService {
     return operation
   }
 
-  private async detect(target: InstallTarget, systemOnly = false) {
-    const snapshots = await application
-      .get('BinaryManager')
-      .getToolSnapshots([target.executable, ...(target.aliases ?? [])])
-    const installed = await selectAvailableInstallation(target, snapshots)
-    return systemOnly && installed.source === 'mise' ? { source: 'none' as const } : installed
+  private async detect(target: InstallTarget, systemOnly = false, chat = false) {
+    const fallback = chat && !target.cli ? acpPreset(target.id)?.cliFallback : undefined
+    const names = [target.executable, ...(target.aliases ?? []), ...(fallback ? [fallback.executable] : [])]
+    const snapshots = await application.get('BinaryManager').getToolSnapshots(names)
+    return selectChatInstallation(target, snapshots, fallback, systemOnly)
   }
 
   private closeIdleAgentSessions(presetIds: readonly string[]): Promise<boolean> {
@@ -199,7 +200,7 @@ export class LocalAgentInstallService extends BaseService {
       ? { id: cli.id, executable: cli.executable, cli }
       : LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === presetId)
     if (!target) return { canUpgrade: false }
-    const detected = await this.detect(target)
+    const detected = await this.detect(target, false, true)
     if (detected.source === 'none') return { canUpgrade: false }
     let current = 'version' in detected ? detected.version : await readInstalledPackageVersion(detected.path)
     if (!current) {
@@ -215,7 +216,7 @@ export class LocalAgentInstallService extends BaseService {
         return { canUpgrade: false }
       }
     }
-    if (!latest || !current) return { current, canUpgrade: false }
+    if (!latest || !current || detected.componentId !== target.executable) return { current, canUpgrade: false }
     try {
       const recipe = await this.recipe(target)
       let available: string | undefined
@@ -317,58 +318,16 @@ export class LocalAgentInstallService extends BaseService {
       return async () => {
         if (!(await uninstallBinaryAgent(target.executable, expectedPath))) throw new Error('Installation changed')
       }
-    if (target.executable === 'traecli' && process.platform !== 'win32') {
-      const bin = env.TRAECLI_INSTALL_DIR || env.XDG_BIN_HOME || application.getPath('external.acp.bin')
-      if (path.resolve(expectedPath) !== path.join(bin, 'traecli')) return undefined
-      const binary = await realpath(expectedPath)
-      const statePath = env.TRAECLI_STATE_DIR || application.getPath('external.trae.installation')
-      const state = await realpath(statePath).catch(() => statePath)
-      const release = path.dirname(binary)
-      const versioned = path.dirname(release) === path.join(state, 'releases') && path.basename(binary) === 'traex'
-      if (
-        !versioned &&
-        binary !== path.join(await realpath(bin), 'traex') &&
-        binary !== path.join(await realpath(bin), 'traecli')
+    const removeInstallation = acpPreset(target.id)?.removeInstallation
+    if (removeInstallation)
+      return removeInstallation(expectedPath, env, (args, timeout, includeStderr) =>
+        this.run(expectedPath, args, env, timeout, includeStderr)
       )
-        return undefined
-      if (versioned) {
-        const receipt = JSON.parse(await readFile(path.join(release, 'trae-installation.json'), 'utf8'))
-        if (typeof receipt.auto_update !== 'boolean' || typeof receipt.channel !== 'string') return undefined
-        if ((await realpath(release)) !== release) return undefined
-      }
-      const help = await this.run(expectedPath, ['--help'], env, 8000, true)
-      if (!/TRAE CLI/.test(help)) return undefined
-      const original = await lstat(binary)
-      return async () => {
-        if (/app-server/.test(help)) await this.run(expectedPath, ['app-server', 'daemon', 'stop'], env, 30_000)
-        const current = await lstat(binary)
-        if (
-          (await realpath(expectedPath)) !== binary ||
-          current.ino !== original.ino ||
-          current.mtimeMs !== original.mtimeMs
-        )
-          throw new Error('Installation changed')
-        const entries: string[] = []
-        for (const name of ['traecli', 'traex', 'coco', 'trae-cli', 'trae-agent', 'ta']) {
-          const entry = path.join(bin, name)
-          const stat = await lstat(entry).catch(() => undefined)
-          if (stat?.isSymbolicLink() && (await realpath(entry).catch(() => undefined)) === binary) entries.push(entry)
-        }
-        for (const entry of entries) await unlink(entry)
-        if (versioned) {
-          const currentLink = path.join(state, 'current')
-          if (
-            (await lstat(currentLink).catch(() => undefined))?.isSymbolicLink() &&
-            (await realpath(currentLink)) === release
-          )
-            await unlink(currentLink)
-          await rm(release, { recursive: true })
-        } else await unlink(binary)
-      }
-    }
-    if (target.executable === 'hermes') {
-      const help = await this.run(expectedPath, ['uninstall', '--help'], env, 8000, true).catch(() => '')
-      if (/hermes/i.test(help) && /--yes\b/.test(help) && /--full\b/.test(help)) {
+    const installer = acpCliInstaller(target.executable)
+    const removal = installer?.removal
+    if (removal?.kind === 'command') {
+      const help = await this.run(expectedPath, removal.probe, env, 8000, true).catch(() => '')
+      if (removal.accepts(help)) {
         const resolved = await realpath(expectedPath)
         const original = await lstat(resolved)
         return async () => {
@@ -380,27 +339,23 @@ export class LocalAgentInstallService extends BaseService {
             current.mtimeMs !== original.mtimeMs
           )
             throw new Error('Installation changed')
-          // Without --full, Hermes preserves configuration, sessions and named profiles.
-          await this.run(expectedPath, ['uninstall', '--yes'], env)
+          await this.run(expectedPath, removal.args, env)
         }
       }
     }
-    const recipe =
-      target.executable === 'hermes' ? { manager: 'uv' as const, package: 'hermes-agent' } : await this.recipe(target)
+    const recipe = removal?.kind === 'command' ? removal.fallback : await this.recipe(target)
     if (!recipe || recipe.manager === 'binary') return undefined
     if (recipe.manager === 'script') {
-      const standalone =
-        target.executable === 'agy'
-          ? application.getPath('external.antigravity.cli.file')
-          : target.executable === 'kiro-cli'
-            ? application.getPath('external.acp.bin', 'kiro-cli')
-            : undefined
+      if (removal?.kind !== 'file') return undefined
+      const standalone = installer?.file?.()
       if (!standalone || path.resolve(expectedPath) !== standalone || !(await lstat(expectedPath)).isFile())
         return undefined
       const version = await this.run(expectedPath, ['--version'], env, 8000)
-      const identity = target.executable === 'agy' ? /\b(?:antigravity|agy)\b/i : /\bkiro-cli\b/i
       if (!/\d+\.\d+/.test(version)) return undefined
-      if (!identity.test(version) && !identity.test(await this.run(expectedPath, ['--help'], env, 8000, true)))
+      if (
+        !removal.identity.test(version) &&
+        !removal.identity.test(await this.run(expectedPath, ['--help'], env, 8000, true))
+      )
         return undefined
       const original = await lstat(expectedPath)
       return async () => {
@@ -474,13 +429,8 @@ export class LocalAgentInstallService extends BaseService {
       for (const agent of agents) {
         const webUiId = LOCAL_AGENT_WEB_UI_IDS.find((id) => id === agent.id)
         if (webUiId) await application.get('LocalAgentWebUiService').stop(webUiId)
-        if (agent.id === 'codebuddy-code') await application.get('CodeBuddyWebUiService').stop()
-        if (agent.id === 'hermes') await application.get('HermesDashboardService').stop()
-        if (agent.id === 'deepseek-harness') await application.get('DeepSeekHarnessService').stop()
-        if (agent.id === 'openclaw') {
-          const stopped = await application.get('OpenClawService').stopGateway({ requirePortFree: true })
-          if (!stopped.success) return { ok: false, reason: 'busy' }
-        }
+        const stop = acpPreset(agent.id)?.stopForUninstall
+        if (stop && !(await stop())) return { ok: false, reason: 'busy' }
       }
       for (const { component, action } of actions) {
         this.abort.signal.throwIfAborted()
@@ -534,11 +484,12 @@ export class LocalAgentInstallService extends BaseService {
     systemOnly: boolean
   ): Promise<LocalAgentInstallResult> {
     const presetId = preset.id
-    if (preset.executable === 'hermes' && targetVersion) return { ok: false, reason: 'unsupported' }
+    if (targetVersion && acpCliInstaller(preset.executable)) return { ok: false, reason: 'unsupported' }
     try {
       this.abort.signal.throwIfAborted()
       await refreshShellEnv()
-      const existing = await this.detect(preset, systemOnly)
+      let existing = await this.detect(preset, systemOnly, !targetVersion)
+      const reused = existing.source !== 'none'
       let env = await getRawShellEnv(this.abort.signal)
       const nativeCli = preset.terminalCli && CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[preset.terminalCli.executable]
       if (nativeCli) {
@@ -549,6 +500,7 @@ export class LocalAgentInstallService extends BaseService {
         )
         if (!result.ok) return result
         env = await getRawShellEnv(this.abort.signal)
+        if (acpPreset(presetId)?.cliFallback && !targetVersion) existing = await this.detect(preset, systemOnly, true)
       }
       const executableDependencies = [
         ...(preset.requiredRuntime ? [{ executable: preset.requiredRuntime.executable, package: 'bun' }] : []),
@@ -578,7 +530,7 @@ export class LocalAgentInstallService extends BaseService {
         const failure = await this.ensureModelDependencies(preset, existing.path, env)
         if (failure) return failure
         application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
-        return { ok: true, reused: true, path: existing.path }
+        return { ok: true, reused, path: existing.path }
       }
       let recipe: Awaited<ReturnType<LocalAgentInstallService['recipe']>>
       try {
@@ -613,7 +565,7 @@ export class LocalAgentInstallService extends BaseService {
         if (!command) return { ok: false, reason: 'unsupported' }
         await this.run(command, recipe.args, env)
         await refreshShellEnv()
-        const installed = await this.detect(preset, systemOnly)
+        const installed = await this.detect(preset, systemOnly, !targetVersion)
         application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
         return installed.source === 'none'
           ? { ok: false, reason: 'not_detected' }
@@ -622,7 +574,7 @@ export class LocalAgentInstallService extends BaseService {
       const failure = await this.installPackage(recipe, env)
       if (failure) return failure
       await refreshShellEnv()
-      const detected = await this.detect(preset, systemOnly)
+      const detected = await this.detect(preset, systemOnly, !targetVersion)
       application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
       if (detected.source === 'none') return { ok: false, reason: 'not_detected', manager: recipe.manager }
       const dependencyFailure = await this.ensureModelDependencies(preset, detected.path, env)
@@ -637,9 +589,9 @@ export class LocalAgentInstallService extends BaseService {
   }
 
   private async ensureModelDependencies(preset: InstallTarget, executable: string, env: Record<string, string>) {
-    if (preset.id !== 'deepagents') return
+    const packages = preset.modelDependencies
+    if (!packages?.length) return
     const require = createRequire(await resolveInstalledExecutable(executable))
-    const packages = ['@langchain/anthropic', '@langchain/openai']
     const installed = async (name: string) =>
       (
         await Promise.all(
@@ -667,7 +619,7 @@ export class LocalAgentInstallService extends BaseService {
   }
 
   private async installPackage(
-    recipe: { manager: 'npm' | 'uv'; package: string; args: string[] },
+    recipe: Extract<CliInstallPlan, { manager: 'npm' | 'uv' }>,
     env: Record<string, string>
   ): Promise<LocalAgentInstallResult | undefined> {
     const command = await findExecutableInEnv(recipe.manager, { env })

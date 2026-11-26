@@ -1,7 +1,10 @@
 import * as z from 'zod'
 
+import type { CliInstallPlan } from '@cherrystudio/agent-runtime/cli'
 import { LOCAL_CLI_AGENT_PRESETS } from '@shared/ai/localAgent'
 import { CODE_CLI_TOOL_PRESETS, type CodeCliToolPreset } from '@shared/data/presets/codeCliTools'
+
+import { acpCliInstaller, acpPreset } from './acpPresets'
 
 const packageDistribution = z.object({ package: z.string().min(1) })
 const binaryDistribution = z.object({
@@ -28,63 +31,27 @@ const registrySchema = z.object({
     })
   )
 })
-const registryIds: Record<string, string> = {
-  copilot: 'github-copilot-cli',
-  qwen: 'qwen-code'
-}
-
-export interface LocalAgentInstallRecipe {
-  manager: 'npm' | 'uv'
-  package: string
-  args: string[]
-}
-
-export interface LocalAgentBinaryRecipe {
-  manager: 'binary'
-  version: string
-  archive: string
-  cmd: string
-  sha256?: string
-}
 
 export function resolveInstallRecipe(
   presetId: string,
   registry?: unknown,
   platform = process.platform,
   arch = process.arch
-): LocalAgentInstallRecipe | LocalAgentBinaryRecipe | CliScriptRecipe | undefined {
+): CliInstallPlan | undefined {
   const preset = LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === presetId)
   if (!preset) throw new Error('Unknown local agent preset')
-  // Hermes is absent from the registry; Kimi's registry entry still ships the retired CLI.
-  const native = ['claude', 'codex', 'kimi', 'hermes', 'deepseek-harness', 'openclaw'].includes(presetId)
-    ? CODE_CLI_TOOL_PRESETS.find((entry) => entry.executable === preset.executable)
-    : undefined
+  const adapter = acpPreset(presetId)
+  const native =
+    adapter?.installation === 'native-cli'
+      ? CODE_CLI_TOOL_PRESETS.find((entry) => entry.executable === preset.executable)
+      : undefined
   if (native) return resolveCliInstallRecipe(native, undefined, platform)
-  if (presetId === 'mistral-vibe')
-    return { manager: 'uv', package: 'mistral-vibe', args: ['tool', 'install', '--upgrade', 'mistral-vibe'] }
-  if (presetId === 'kiro' || presetId === 'trae') {
-    if (platform === 'win32')
-      return presetId === 'trae'
-        ? {
-            manager: 'script',
-            command: 'powershell.exe',
-            args: [
-              '-NoProfile',
-              '-NonInteractive',
-              '-Command',
-              "$ErrorActionPreference = 'Stop'; irm https://trae.cn/trae-cli/install_v2.ps1 | iex"
-            ]
-          }
-        : undefined
-    if (platform !== 'darwin' && platform !== 'linux') return undefined
-    const url = presetId === 'kiro' ? 'https://cli.kiro.dev/install' : 'https://trae.cn/trae-cli/install_v2.sh'
-    return { manager: 'script', command: 'bash', args: ['-o', 'pipefail', '-c', `curl -fsSL ${url} | bash`] }
-  }
+  if (adapter?.install) return adapter.install(platform)
   const entry = preset.npmPackage
     ? undefined
     : registry === undefined
       ? undefined
-      : registrySchema.parse(registry).agents.find((agent) => agent.id === (registryIds[presetId] ?? presetId))
+      : registrySchema.parse(registry).agents.find((agent) => agent.id === (preset.registryId ?? presetId))
   const npmPackage = preset.npmPackage ?? entry?.distribution.npx?.package
   if (npmPackage) {
     if (!/^(@[a-z0-9._-]+\/)?[a-z0-9][a-z0-9._-]*(?:@[a-zA-Z0-9.+_-]+)?$/.test(npmPackage)) {
@@ -107,60 +74,17 @@ export function resolveInstallRecipe(
   return undefined
 }
 
-export interface CliScriptRecipe {
-  manager: 'script'
-  command: string
-  args: string[]
-}
-
 export function resolveCliInstallRecipe(
   preset: CodeCliToolPreset,
   targetVersion?: string,
   platform = process.platform
-): LocalAgentInstallRecipe | CliScriptRecipe {
+): Exclude<CliInstallPlan, { manager: 'binary' }> {
   if (targetVersion && !/^[a-zA-Z0-9][a-zA-Z0-9.+_-]*$/.test(targetVersion)) throw new Error('Invalid CLI version')
-  if (preset.executable === 'hermes') {
-    if (targetVersion) throw new Error('Hermes manages its own updates')
-    return platform === 'win32'
-      ? {
-          manager: 'script',
-          command: 'powershell.exe',
-          args: [
-            '-NoProfile',
-            '-NonInteractive',
-            '-Command',
-            "$ErrorActionPreference = 'Stop'; & ([scriptblock]::Create((irm https://hermes-agent.nousresearch.com/install.ps1))) -NonInteractive; if ($LASTEXITCODE) { exit $LASTEXITCODE }"
-          ]
-        }
-      : {
-          manager: 'script',
-          command: 'bash',
-          args: [
-            '-o',
-            'pipefail',
-            '-c',
-            'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --non-interactive'
-          ]
-        }
-  }
-  if (preset.install === 'aqua') {
-    if (targetVersion) throw new Error('Antigravity manages its own updates')
-    return platform === 'win32'
-      ? {
-          manager: 'script',
-          command: 'powershell.exe',
-          args: [
-            '-NoProfile',
-            '-NonInteractive',
-            '-Command',
-            "$ErrorActionPreference = 'Stop'; irm https://antigravity.google/cli/install.ps1 | iex"
-          ]
-        }
-      : {
-          manager: 'script',
-          command: 'bash',
-          args: ['-o', 'pipefail', '-c', 'curl -fsSL https://antigravity.google/cli/install.sh | bash']
-        }
+  const installer = acpCliInstaller(preset.executable)
+  if (installer) {
+    const recipe = installer.script(platform, targetVersion)
+    if (!recipe) throw new Error('Unsupported CLI installation platform')
+    return recipe
   }
   const python = preset.install === 'pipx'
   const packageName =

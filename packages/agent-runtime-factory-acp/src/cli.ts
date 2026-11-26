@@ -1,0 +1,13 @@
+export const factoryCli = {
+  id: 'factory-droid',
+  terminalArgs: [],
+  name: 'Factory Droid',
+  protocol: 'acp',
+  executable: 'droid',
+  args: ['exec', '--output-format', 'acp-daemon'],
+  env: {
+    DROID_DISABLE_AUTO_UPDATE: 'true',
+    FACTORY_DROID_AUTO_UPDATE_ENABLED: 'false'
+  },
+  helpUrl: 'https://factory.ai/product/cli'
+} as const

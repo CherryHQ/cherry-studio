@@ -231,6 +231,30 @@ describe('global local agent model selection', () => {
     expect(JSON.parse(await readFile(path.join(home, '.pi/agent/settings.json'), 'utf8')).defaultModel).toBe('first')
   })
 
+  it('edits the Poolside model with an unrelated CLI override and refuses an override of its own model', async () => {
+    const agent = createLocalAgent('poolside-model-env', 'Poolside', {
+      presetId: 'poolside',
+      protocol: 'acp',
+      env: { CODEX_HOME: '/other/codex' }
+    })
+    await selectLocalAgentModel(agent.id, 'selected')
+    agentService.updateAgent(agent.id, {
+      configuration: { localRuntime: { env: { POOLSIDE_STANDALONE_MODEL: 'external' } } }
+    })
+    await expect(selectLocalAgentModel(agent.id, 'replaced')).rejects.toThrow(t('code_cli.model.environment_mismatch'))
+    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('selected')
+  })
+
+  it('selects the Codex model when only the Cline data directory differs', async () => {
+    const agent = createLocalAgent('codex-independent-env', 'Codex', {
+      presetId: 'codex',
+      protocol: 'codex',
+      env: { CLINE_DATA_DIR: '/other/cline' }
+    })
+    const selected = await selectLocalAgentModel(agent.id, 'next')
+    expect(selected.configuration?.localRuntime?.nativeModel).toBe('next')
+  })
+
   it('rejects a mixed-case Windows home override before writing a model to the wrong directory', async () => {
     const agent = createLocalAgent('windows-env-model', 'Codex', {
       presetId: 'codex',

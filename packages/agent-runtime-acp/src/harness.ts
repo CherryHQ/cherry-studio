@@ -19,6 +19,8 @@ export interface AcpHarnessSession {
 }
 
 export interface AcpHarnessAdapter {
+  readonly preferredRestore?: 'load'
+  readonly hostMutations?: 'disabled'
   registerRequests?(
     onRequest: <P, R>(
       method: string,

@@ -1211,6 +1211,34 @@ it('publishes the tool input when approval arrives before the native tool part',
   )
 })
 
+it('withdraws the matching live approval while leaving another request actionable', async () => {
+  const f = await fixture()
+  MockApplicationUtils.setService('AiStreamManager', { retireToolApproval: () => true })
+  for (const [toolCallId, approvalId] of [
+    ['one', 'old'],
+    ['one', 'current'],
+    ['two', 'other']
+  ]) {
+    await f.emit({
+      type: 'tool-approval-request',
+      request: { toolCallId, approvalId, toolName: 'write', input: {}, presentation: 'stream' }
+    })
+  }
+  for (const approvalId of ['old', 'other'])
+    await f.emit({
+      type: 'tool-approval-withdrawn',
+      contextId: f.context.id,
+      toolCallId: approvalId === 'old' ? 'one' : 'two',
+      approvalId
+    })
+  await vi.waitFor(() =>
+    expect(f.views.at(-1)?.parts).toEqual([
+      expect.objectContaining({ toolCallId: 'one', state: 'approval-requested', approval: { id: 'current' } }),
+      expect.objectContaining({ toolCallId: 'two', state: 'input-available' })
+    ])
+  )
+})
+
 // ExitPlanMode can supply display input before native content; a completed native card must stay withdrawn.
 it.each(['output-available', 'output-denied'] as const)(
   'does not resurrect a withdrawn %s plan card',

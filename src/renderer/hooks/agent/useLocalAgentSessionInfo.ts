@@ -59,7 +59,7 @@ export function useLocalAgentSessionInfo(
     const snapshot: LocalOptionSnapshot = {
       mode: info.mode,
       thoughtLevel: info.thoughtLevel,
-      configOptions: info.configOptions
+      configOptions: info.configOptions?.filter((option) => !option.liveOnly)
     }
     setSnapshots((previous) => upsertSnapshot(previous, sessionId, snapshot))
     setPersistedSnapshots((previous) => upsertSnapshot(previous, sessionId, snapshot))

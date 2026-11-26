@@ -21,6 +21,7 @@ import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { ExecutionId } from '@shared/ai/executionIdentity'
 import type { LocalAgentNotice, LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { LocalAgentTurnUsage } from '@shared/ai/localAgentUsage'
+import type { ToolTerminalDelta } from '@shared/ai/messageProjection'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -170,9 +171,11 @@ export type AgentRuntimeEvent =
       toolOwner?: { toolCallId: string; detached: boolean }
     }
   | (LivePartInput & { contextId: string })
+  | { type: 'local-tool-terminal'; contextId: string; itemId: string; part: number; delta: ToolTerminalDelta }
   | { type: 'response-start'; responseId: string; messageId?: string }
   | RuntimeStreamControl
   | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }
+  | { type: 'tool-approval-withdrawn'; contextId: string; toolCallId: string; approvalId: string }
   | {
       type: 'usage'
       invocation: {
@@ -209,6 +212,8 @@ export type AgentRuntimeEvent =
     }
   /** The driver could not submit a pending input. The host requeues it for the next turn. */
   | { type: 'steer-undelivered'; inputIds: readonly string[] }
+  /** The native turn discarded these inputs on interruption. Leave them available for manual resend. */
+  | { type: 'steer-withdrawn'; inputIds: readonly string[] }
   /** A steer was injected mid-turn (PreToolUse/PostToolBatch hook) and the model is about to emit its post-steer
    *  assistant message. Marks where the host should roll the assistant message: finalise the
    *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the

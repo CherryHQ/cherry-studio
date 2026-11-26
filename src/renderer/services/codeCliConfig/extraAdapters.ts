@@ -3,16 +3,18 @@ import { t } from 'i18next'
 import { stringify as stringifyToml } from 'smol-toml'
 import { type Document, stringify as stringifyYaml } from 'yaml'
 
+import {
+  clearGooseConnection,
+  readManagedGooseConnection,
+  writeGooseConnection
+} from '@cherrystudio/agent-runtime-goose-acp'
+import { gooseCli } from '@cherrystudio/agent-runtime-goose-acp/cli'
+import { setGrokAuxiliaryModels } from '@cherrystudio/agent-runtime-grok-acp/cli'
 import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { GROK_SESSION_SUMMARY_PATH } from '@shared/utils/apiGateway'
-import {
-  type CliConfigTarget,
-  type CliConfigWriteFile,
-  getCliConfigTargets,
-  setGrokAuxiliaryModels
-} from '@shared/utils/cliConfig'
+import { type CliConfigTarget, type CliConfigWriteFile, getCliConfigTargets } from '@shared/utils/cliConfig'
 
 import type { CliConfigAdapter } from './adapters'
 import { CHERRY_PROVIDER_PREFIX, PI_ENDPOINTS } from './constants'
@@ -260,9 +262,9 @@ export const ompAdapter: CliConfigAdapter = {
 }
 
 export const gooseAdapter: CliConfigAdapter = {
-  targets: getCliConfigTargets('goose'),
+  targets: getCliConfigTargets(gooseCli.modelConfig.tool),
   providerBaseUrls: (provider) =>
-    ANTHROPIC_OR_OPENAI_ENDPOINTS.flatMap((type) =>
+    gooseCli.modelEndpoints.flatMap((type) =>
       provider.endpointConfigs?.[type]?.baseUrl ? [resolveGooseBaseUrl(provider, type)] : []
     ),
   sanitize: () => ({}),
@@ -270,27 +272,13 @@ export const gooseAdapter: CliConfigAdapter = {
     const endpoint = resolveSupportedEndpointType(
       provider,
       modelRecord?.endpointTypes,
-      ANTHROPIC_OR_OPENAI_ENDPOINTS,
+      gooseCli.modelEndpoints,
       'anthropic-messages'
     )
     const baseUrl = resolveGooseBaseUrl(provider, endpoint)
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const doc = readAndParseDraftFile('goose-config', parseYamlDocumentOrThrow, args.files, read)
-    doc.setIn(['CHERRY_MANAGED'], true)
-    doc.setIn(['GOOSE_MODEL'], model)
-    if (endpoint === 'anthropic-messages') {
-      doc.setIn(['GOOSE_PROVIDER'], 'anthropic')
-      doc.setIn(['ANTHROPIC_HOST'], baseUrl)
-      doc.setIn(['ANTHROPIC_API_KEY'], apiKey)
-      doc.deleteIn(['OPENAI_HOST'])
-      doc.deleteIn(['OPENAI_API_KEY'])
-    } else {
-      doc.setIn(['GOOSE_PROVIDER'], 'openai')
-      doc.setIn(['OPENAI_HOST'], baseUrl)
-      doc.setIn(['OPENAI_API_KEY'], apiKey)
-      doc.deleteIn(['ANTHROPIC_HOST'])
-      doc.deleteIn(['ANTHROPIC_API_KEY'])
-    }
+    writeGooseConnection(doc, endpoint === 'anthropic-messages' ? 'anthropic' : 'openai', baseUrl, apiKey, model)
     return [makeDraftFile('goose-config', doc.toString(), read)]
   },
   assertCredentials(context) {
@@ -302,38 +290,21 @@ export const gooseAdapter: CliConfigAdapter = {
   async buildClearFiles() {
     const read = await readConfigFiles(this.targets)
     const doc = readYamlDocumentOrNull('goose-config', read)
-    if (!doc || doc.get('CHERRY_MANAGED') !== true) return []
-    for (const key of [
-      'CHERRY_MANAGED',
-      'GOOSE_MODEL',
-      'GOOSE_PROVIDER',
-      'ANTHROPIC_HOST',
-      'ANTHROPIC_API_KEY',
-      'OPENAI_HOST',
-      'OPENAI_API_KEY'
-    ]) {
-      doc.deleteIn([key])
-    }
+    if (!doc || !clearGooseConnection(doc)) return []
     return [{ target: 'goose-config', content: doc.toString() }]
   },
   extractConnection(files) {
     const content = getDraftFile(files, 'goose-config')?.content
     if (!content) return null
     const config = parseYamlOrThrow(content)
-    // Only surface Cherry-managed goose configs so unmanaged drafts keep CLI fields hidden.
-    if (config.CHERRY_MANAGED !== true) return null
-    if (config.GOOSE_PROVIDER === 'anthropic') {
-      return {
-        baseUrl: stringValue(config.ANTHROPIC_HOST),
-        apiKey: stringValue(config.ANTHROPIC_API_KEY),
-        model: stringValue(config.GOOSE_MODEL)
-      }
-    }
-    return {
-      baseUrl: stringValue(config.OPENAI_HOST),
-      apiKey: stringValue(config.OPENAI_API_KEY),
-      model: stringValue(config.GOOSE_MODEL)
-    }
+    const connection = readManagedGooseConnection(config)
+    return connection
+      ? {
+          baseUrl: stringValue(connection.baseUrl),
+          apiKey: stringValue(connection.apiKey),
+          model: stringValue(connection.model)
+        }
+      : null
   },
   extractConfig: () => ({})
 }

@@ -1,4 +1,8 @@
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { antigravityCli } from '@cherrystudio/agent-runtime-antigravity-acp/cli'
+import { codeBuddyCli } from '@cherrystudio/agent-runtime-codebuddy-acp/cli'
+import { gooseCli } from '@cherrystudio/agent-runtime-goose-acp/cli'
+import { poolsideCli } from '@cherrystudio/agent-runtime-poolside-acp/cli'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { MODEL_CONFIGURED_CLI_TOOL_IDS, type ModelConfiguredCli } from '@shared/utils/cliConfig'
@@ -21,13 +25,24 @@ import {
  * here so Gemini-compatible CLIs can select them despite lacking a Gemini endpoint. */
 const GEMINI_AGGREGATOR_PROVIDERS = new Set(['aihubmix', 'dmxapi', 'new-api', 'cherryin'])
 
-const hasEndpoint = (p: Provider, type: string): boolean =>
-  Boolean(p.endpointConfigs?.[type as 'anthropic-messages']?.baseUrl)
+const hasEndpoint = (p: Provider, type: EndpointType): boolean => Boolean(p.endpointConfigs?.[type]?.baseUrl)
 const hasAnthropic = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 const hasChat = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
 const hasResponses = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.OPENAI_RESPONSES)
 const hasOpenAILike = (p: Provider): boolean => hasChat(p) || hasResponses(p)
 const hasGemini = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+const declaredEndpoints = new Map<ModelConfiguredCli | CodeCli, readonly EndpointType[]>([
+  [poolsideCli.modelConfig.tool, poolsideCli.modelEndpoints],
+  [codeBuddyCli.modelConfig.tool, codeBuddyCli.modelEndpoints],
+  [gooseCli.modelConfig.tool, gooseCli.modelEndpoints],
+  [CodeCli.ANTIGRAVITY_CLI, antigravityCli.modelEndpoints]
+])
+
+function forEndpoints(endpoints: readonly EndpointType[]) {
+  return (providers: Provider[]) =>
+    providers.filter((provider) => endpoints.some((endpoint) => hasEndpoint(provider, endpoint)))
+}
+
 const filterGeminiProviders = (providers: Provider[]): Provider[] =>
   providers.filter((p) => isGeminiProvider(p) || hasGemini(p) || GEMINI_AGGREGATOR_PROVIDERS.has(p.id))
 
@@ -54,7 +69,7 @@ const filterGeminiProviders = (providers: Provider[]): Provider[] =>
  * - Qoder CLI: provider-less (authenticate via CLI login).
  */
 export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli | ModelConfiguredCli, (providers: Provider[]) => Provider[]> = {
-  poolside: (providers) => providers.filter(hasChat),
+  [poolsideCli.modelConfig.tool]: forEndpoints(poolsideCli.modelEndpoints),
   [CodeCli.CLAUDE_CODE]: (providers) => providers.filter(hasAnthropic),
   [CodeCli.OPENAI_CODEX]: (providers) => providers.filter(hasResponses),
   [CodeCli.OPEN_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
@@ -68,7 +83,7 @@ export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli | ModelConfiguredCli, (provid
         (resolveEndpointDialect(p, p.defaultChatEndpoint ?? undefined).developerRole || hasAnthropic(p))
     ),
   [CodeCli.ANTIGRAVITY_CLI]: filterGeminiProviders,
-  'codebuddy-code': (providers) => providers.filter(hasOpenAILike),
+  [codeBuddyCli.modelConfig.tool]: forEndpoints(codeBuddyCli.modelEndpoints),
   [CodeCli.QWEN_CODE]: (providers) => providers.filter(hasOpenAILike),
   [CodeCli.KIMI_CODE]: (providers) => providers.filter(hasOpenAILike),
   [CodeCli.QODER_CLI]: () => [],
@@ -81,7 +96,7 @@ export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli | ModelConfiguredCli, (provid
   [CodeCli.MINIMAX_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
   'grok-build': (providers) => providers.filter(hasOpenAILike),
   omp: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p) || hasGemini(p)),
-  goose: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  [gooseCli.modelConfig.tool]: forEndpoints(gooseCli.modelEndpoints),
   cline: (providers) => providers.filter(hasChat),
   zcode: (providers) => providers.filter((p) => hasAnthropic(p) || hasChat(p)),
   snow: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
@@ -90,20 +105,20 @@ export const CLI_TOOL_PROVIDER_MAP: Record<CodeCli | ModelConfiguredCli, (provid
 
 const OPENAI_LIKE_ENDPOINTS = [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
 
-function hasModelEndpoint(model: Model, endpoint: string): boolean {
+function hasModelEndpoint(model: Model, endpoint: EndpointType): boolean {
   if (!model.endpointTypes?.length) return true
-  return model.endpointTypes.includes(endpoint as any)
+  return model.endpointTypes.includes(endpoint)
 }
 
-function hasAnyModelEndpoint(model: Model, endpoints: string[]): boolean {
+function hasAnyModelEndpoint(model: Model, endpoints: readonly EndpointType[]): boolean {
   if (!model.endpointTypes?.length) return true
   return model.endpointTypes.some((endpoint) => endpoints.includes(endpoint))
 }
 
 export function modelSupportsCliTool(cliTool: CodeCli | ModelConfiguredCli, model: Model): boolean {
+  const endpoints = declaredEndpoints.get(cliTool)
+  if (endpoints) return hasAnyModelEndpoint(model, endpoints)
   switch (cliTool) {
-    case 'poolside':
-      return hasModelEndpoint(model, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     case CodeCli.CLAUDE_CODE:
       return hasModelEndpoint(model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
     case CodeCli.OPENAI_CODEX:
@@ -123,7 +138,6 @@ export function modelSupportsCliTool(cliTool: CodeCli | ModelConfiguredCli, mode
     case CodeCli.GITHUB_COPILOT_CLI:
     case 'factory-droid':
     case 'mistral-vibe':
-    case 'goose':
     case 'snow':
       return hasAnyModelEndpoint(model, [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ...OPENAI_LIKE_ENDPOINTS])
     case 'cline':
@@ -131,9 +145,6 @@ export function modelSupportsCliTool(cliTool: CodeCli | ModelConfiguredCli, mode
       return hasModelEndpoint(model, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     case 'zcode':
       return hasAnyModelEndpoint(model, [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
-    case CodeCli.ANTIGRAVITY_CLI:
-      return hasModelEndpoint(model, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
-    case 'codebuddy-code':
     case CodeCli.QWEN_CODE:
     case CodeCli.KIMI_CODE:
     case 'grok-build':

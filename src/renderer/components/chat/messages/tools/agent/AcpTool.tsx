@@ -39,8 +39,15 @@ const icons = {
   switch_mode: Route
 }
 
-export function AcpTool({ tool }: { tool: LocalAcpTool }): ToolDisclosureItem {
+export function AcpTool({
+  tool,
+  output = tool.rawOutput
+}: {
+  tool: LocalAcpTool
+  output?: unknown
+}): ToolDisclosureItem {
   const { t } = useTranslation()
+  const content = tool.resultField === 'content' && Array.isArray(output) ? output : tool.content
   const Icon = icons[tool.kind as keyof typeof icons] ?? Wrench
   return {
     key: 'acp-tool',
@@ -57,7 +64,7 @@ export function AcpTool({ tool }: { tool: LocalAcpTool }): ToolDisclosureItem {
             <ClickableFilePath path={location.path} line={location.line} />
           </div>
         ))}
-        {tool.content?.map((value, index) => {
+        {content?.map((value, index) => {
           const parsed = ContentSchema.safeParse(value)
           if (!parsed.success)
             return <ToolArgsTable key={index} args={{ content: value }} title={t('message.tools.sections.output')} />
@@ -105,8 +112,8 @@ export function AcpTool({ tool }: { tool: LocalAcpTool }): ToolDisclosureItem {
             title={t('message.tools.sections.input')}
           />
         )}
-        {tool.rawOutput != null && (
-          <ToolArgsTable args={{ output: tool.rawOutput }} title={t('message.tools.sections.output')} />
+        {tool.resultField !== 'content' && output != null && (
+          <ToolArgsTable args={{ output }} title={t('message.tools.sections.output')} />
         )}
       </div>
     )

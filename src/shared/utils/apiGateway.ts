@@ -1,12 +1,5 @@
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 
-/**
- * Separator in the custom-model path Antigravity CLI carries (`gemini-api://<providerId>/models/<apiModelId>`).
- * The producer (`main/services/codeCli/antigravity.ts`) and the gateway route that parses it back
- * (`main/features/apiGateway/routes/gemini.ts`) must agree, so neither may hardcode it.
- */
-export const ANTIGRAVITY_MODEL_PATH_SEPARATOR = '/models/'
-
 /** Base for Grok's auxiliary Chat Completions client, relative to the authenticated /v1 API. */
 export const GROK_SESSION_SUMMARY_PATH = '/agents/grok-build/session-summary'
 

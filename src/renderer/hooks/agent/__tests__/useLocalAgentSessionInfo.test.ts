@@ -111,6 +111,27 @@ describe('local agent session option cache', () => {
     expect(view.result.current.info?.mode?.currentValue).toBe('plan')
   })
 
+  it('removes controls owned by the live thread as soon as it disconnects', async () => {
+    const info = {
+      ...first,
+      configOptions: [
+        {
+          id: 'goal-status',
+          name: 'Current goal',
+          type: 'boolean' as const,
+          currentValue: true,
+          liveOnly: true as const
+        }
+      ]
+    }
+    vi.mocked(ipcApi.request).mockResolvedValue(info)
+    const view = renderHook(() => useLocalAgentSessionInfo('one', true))
+    await waitFor(() => expect(view.result.current.options?.configOptions).toEqual(info.configOptions))
+    act(() => publish({ sessionId: 'one', info: null }))
+    expect(view.result.current.options?.configOptions).toEqual([])
+    expect(view.result.current.options?.mode).toEqual(first.mode)
+  })
+
   it('retains read-only options when reactivation fails and replaces options removed by the agent', async () => {
     vi.mocked(ipcApi.request).mockResolvedValue(first)
     const view = renderHook(({ enabled }) => useLocalAgentSessionInfo('one', enabled), {

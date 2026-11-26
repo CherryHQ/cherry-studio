@@ -886,7 +886,15 @@ export class AgentSessionRuntimeService extends BaseService {
         this.scheduleRuntimeLaunch(entry, effect.target)
         break
       case 'deliver-buffer':
-        for (const chunk of effect.chunks) this.enqueueTurnChunk(effect.turn, chunk)
+        for (const chunk of effect.chunks) {
+          if (
+            chunk.type === 'tool-approval-request' &&
+            effect.turn.projection &&
+            !effect.turn.projection.isPendingToolApproval(chunk.toolCallId, chunk.approvalId)
+          )
+            continue
+          this.enqueueTurnChunk(effect.turn, chunk)
+        }
         break
       case 'settle-turn': {
         // Keep ownership until PersistenceListener completes and dispatches turn-terminal.
@@ -2733,10 +2741,13 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'message.text-append':
       case 'message.text-finish':
       case 'message.parts':
+      case 'local-tool-terminal':
       case 'message.tool-output': {
         const projection = entry.rootProjections?.get(event.contextId)
         if (!projection) break
-        for (const { messageId, patch, completed } of projection.changePart(event)) {
+        for (const { messageId, patch, completed } of event.type === 'local-tool-terminal'
+          ? projection.changeTerminal(event)
+          : projection.changePart(event)) {
           const turn = getAgentSessionRuntimeNativeTurn(entry.runtimeState)
           if (turn?.assistantMessageId === messageId && turn.controller && this.isTurnLive(entry, turn)) {
             if (patch.type === 'part-put' || patch.type === 'part-add') this.clearApiRetry(entry)
@@ -2802,6 +2813,17 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'tool-approval-request':
         this.handleToolApprovalRequest(entry, event.request)
         break
+      case 'tool-approval-withdrawn': {
+        const projection = entry.rootProjections?.get(event.contextId)
+        if (!projection?.isPendingToolApproval(event.toolCallId, event.approvalId)) break
+        const messageId = projection.toolCallMessageId(event.toolCallId)
+        if (!messageId || !projection.retireToolApproval(event.toolCallId)) break
+        application
+          .get('AiStreamManager')
+          .retireToolApproval(entry.topicId, event.toolCallId, { anchorMessageId: messageId })
+        this.publishRootMessage(entry, projection, messageId, projection.replyEntries(messageId) ?? [])
+        break
+      }
       case 'usage':
         this.recordRuntimeUsage(entry, event.invocation)
         break
@@ -2836,6 +2858,10 @@ export class AgentSessionRuntimeService extends BaseService {
         if (event.followUp && (entry.deferredPlacements || this.placementWaits(entry)))
           (entry.deferredPlacements ??= []).push(event.inputIds)
         else this.startPlacedInputs(entry, event.inputIds, connection, event.followUp)
+        break
+      case 'steer-withdrawn':
+        for (const { message } of this.pendingInputValues(entry, event.inputIds, true))
+          agentSessionMessageService.markUserMessageUnsent(entry.sessionId, message.id)
         break
       case 'steer-undelivered':
         this.queueUndeliveredInputs(entry, event.inputIds)

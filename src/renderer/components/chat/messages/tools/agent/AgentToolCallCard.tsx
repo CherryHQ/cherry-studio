@@ -85,7 +85,7 @@ export function AgentToolCallCard({
   )
   const displayStatus = acp.success && status === 'invoking' && acp.data.status === 'pending' ? 'pending' : status
   const renderedItem = acp.success
-    ? AcpTool({ tool: acp.data })
+    ? AcpTool({ tool: acp.data, output: acp.data.resultField ? output : acp.data.rawOutput })
     : isCherrySessionTool &&
         (toolName === SESSION_CREATE_TOOL_NAME || toolName === `mcp__cherry-tools__${SESSION_CREATE_TOOL_NAME}`)
       ? SessionCreateTool({ input, output, hasError, isStreaming, status })

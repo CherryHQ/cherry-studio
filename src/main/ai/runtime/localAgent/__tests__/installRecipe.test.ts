@@ -29,6 +29,7 @@ describe('system agent install recipes', () => {
     })
   })
   it.each([
+    ['codebuddy-code', '@tencent-ai/codebuddy-code'],
     ['deepseek-harness', '@deepseek-ai/dsh'],
     ['openclaw', 'openclaw'],
     ['omp', '@oh-my-pi/pi-coding-agent'],

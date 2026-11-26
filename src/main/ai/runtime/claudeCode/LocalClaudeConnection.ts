@@ -1,9 +1,13 @@
 import { randomUUID } from 'node:crypto'
-import { resolve } from 'node:path'
 
-import { query, type Options, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { Options } from '@anthropic-ai/claude-agent-sdk'
 
-import type { ClaudeControl, ClaudeObservation } from '@cherrystudio/agent-runtime-claude-code'
+import {
+  localClaudeOptions,
+  probeClaudeModels,
+  type ClaudeControl,
+  type ClaudeObservation
+} from '@cherrystudio/agent-runtime-claude-code'
 import { agentService } from '@data/services/AgentService'
 import { toolApprovalRegistry, type DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -17,7 +21,6 @@ import {
   type LocalAgentConfiguration,
   type LocalAgentSessionInfo
 } from '@shared/ai/localAgent'
-import { AsyncEventQueue } from '@shared/utils/async'
 
 import {
   acquireLocalAgentBrowserLease,
@@ -25,7 +28,7 @@ import {
   LOCAL_AGENT_AUTOMATION_SERVER_NAME
 } from '../localAgent/browserBridge'
 import { bindLocalGatewayUsage } from '../localAgent/gatewayUsage'
-import { resolveLocalAgentLaunch, resolveLocalAgentModelLaunch } from '../localAgent/launch'
+import { resolveClaudeLaunch } from '../localAgent/launch'
 import type { LocalAgentBrowserLease } from '../localAgent/LocalAgentMcpBridgeService'
 import type {
   AgentRuntimeCommand,
@@ -86,49 +89,16 @@ function localSessionTitle(message: { subtype: string }): string | undefined {
     return message.title
 }
 
-function localSdkOptions(
-  launch: Awaited<ReturnType<typeof resolveLocalAgentLaunch>>,
-  cwd: string,
-  abortController: AbortController,
-  diagnostics: ReturnType<typeof createClaudeCodeProcessDiagnostics>
-): Options {
-  const spawn = createSpawnClaudeCodeProcess(diagnostics)
-  const env = { ...launch.env }
-  if (env.CLAUDE_CONFIG_DIR) env.CLAUDE_CONFIG_DIR = resolve(cwd, env.CLAUDE_CONFIG_DIR)
-  else delete env.CLAUDE_CONFIG_DIR
-  return {
-    cwd,
-    abortController,
-    pathToClaudeCodeExecutable: launch.executable,
-    env,
-    spawnClaudeCodeProcess: (options) =>
-      spawn({ ...options, args: [...options.args, ...launch.args], detached: process.platform !== 'win32' })
-  }
-}
-
 export async function probeLocalClaude(config: LocalAgentConfiguration, cwd: string, abort: AbortController) {
-  const launch = await resolveLocalAgentModelLaunch(config, abort.signal)
-  abort.signal.throwIfAborted()
+  const launch = await resolveClaudeLaunch(config, cwd, abort.signal, 'models')
   const diagnostics = createClaudeCodeProcessDiagnostics()
-  const prompt = new AsyncEventQueue<SDKUserMessage>()
-  const stream = query({
-    prompt,
-    options: {
-      ...localSdkOptions(launch, cwd, abort, diagnostics),
-      settingSources: ['user', 'project', 'local'],
-      persistSession: false,
-      tools: [],
-      strictMcpConfig: true
-    }
-  })
-  try {
-    const { models } = await stream.initializationResult()
-    return { models: models.map((model) => ({ id: model.value, name: model.displayName })) }
-  } finally {
-    prompt.close()
-    stream.close()
-    await diagnostics.exited
-  }
+  const models = await probeClaudeModels(
+    launch,
+    abort,
+    createSpawnClaudeCodeProcess(diagnostics),
+    () => diagnostics.exited
+  )
+  return { models }
 }
 
 export class LocalClaudeConnection extends ClaudeSdkConnection {
@@ -160,9 +130,14 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
   async start(cwd: string): Promise<this> {
     const { sessionId, agentId, headless = false, branchHead } = this.input
     const { signal } = this.abortController
-    const launch = await resolveLocalAgentLaunch(this.config, signal, { headless })
+    const { configFiles, ...launch } = await resolveClaudeLaunch(
+      this.config,
+      cwd,
+      signal,
+      headless ? 'scheduled-chat' : 'chat'
+    )
     signal.throwIfAborted()
-    this.gatewayLease = await bindLocalGatewayUsage(this.config, sessionId, launch.env)
+    this.gatewayLease = await bindLocalGatewayUsage(this.config, sessionId, launch.env, configFiles)
     this.browserLease = await acquireLocalAgentBrowserLease({
       sessionId,
       agentId,
@@ -175,7 +150,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
     this.processDiagnostics = createClaudeCodeProcessDiagnostics()
     const model = this.config.nativeModel ?? (headless ? launch.nativeModel : undefined)
     const options: Options = {
-      ...localSdkOptions(launch, cwd, this.abortController, this.processDiagnostics),
+      ...localClaudeOptions(launch, this.abortController, createSpawnClaudeCodeProcess(this.processDiagnostics)),
       model,
       settingSources: headless ? [] : ['user', 'project', 'local'],
       ...(headless

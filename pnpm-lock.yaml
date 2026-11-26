@@ -529,15 +529,87 @@ importers:
       '@cherrystudio/agent-runtime-acp':
         specifier: workspace:*
         version: link:packages/agent-runtime-acp
+      '@cherrystudio/agent-runtime-amp-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-amp-acp
+      '@cherrystudio/agent-runtime-antigravity-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-antigravity-acp
+      '@cherrystudio/agent-runtime-cline-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-cline-acp
+      '@cherrystudio/agent-runtime-codebuddy-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-codebuddy-acp
+      '@cherrystudio/agent-runtime-codex':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-codex
+      '@cherrystudio/agent-runtime-copilot-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-copilot-acp
       '@cherrystudio/agent-runtime-cursor':
         specifier: workspace:*
         version: link:packages/agent-runtime-cursor
+      '@cherrystudio/agent-runtime-deepseek-harness-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-deepseek-harness-acp
+      '@cherrystudio/agent-runtime-factory-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-factory-acp
+      '@cherrystudio/agent-runtime-glm-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-glm-acp
+      '@cherrystudio/agent-runtime-goose-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-goose-acp
       '@cherrystudio/agent-runtime-grok-acp':
         specifier: workspace:*
         version: link:packages/agent-runtime-grok-acp
+      '@cherrystudio/agent-runtime-hermes-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-hermes-acp
+      '@cherrystudio/agent-runtime-kimi-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-kimi-acp
+      '@cherrystudio/agent-runtime-kiro-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-kiro-acp
+      '@cherrystudio/agent-runtime-minimax-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-minimax-acp
+      '@cherrystudio/agent-runtime-omp-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-omp-acp
+      '@cherrystudio/agent-runtime-openclaw-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-openclaw-acp
+      '@cherrystudio/agent-runtime-opencode-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-opencode-acp
       '@cherrystudio/agent-runtime-pi-acp':
         specifier: workspace:*
         version: link:packages/agent-runtime-pi-acp
+      '@cherrystudio/agent-runtime-poolside-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-poolside-acp
+      '@cherrystudio/agent-runtime-qoder-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-qoder-acp
+      '@cherrystudio/agent-runtime-qwen-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-qwen-acp
+      '@cherrystudio/agent-runtime-snow-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-snow-acp
+      '@cherrystudio/agent-runtime-trae-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-trae-acp
+      '@cherrystudio/agent-runtime-vibe-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-vibe-acp
+      '@cherrystudio/agent-runtime-zcode-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-zcode-acp
       '@cherrystudio/ai-core':
         specifier: workspace:*
         version: link:packages/aiCore
@@ -1745,6 +1817,9 @@ importers:
       '@cherrystudio/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
+      yaml:
+        specifier: 2.8.2
+        version: 2.8.2
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -1761,6 +1836,34 @@ importers:
       vitest:
         specifier: ^5.0.1
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+
+  packages/agent-runtime-amp-acp:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-antigravity-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
 
   packages/agent-runtime-claude-code:
     dependencies:
@@ -1790,6 +1893,76 @@ importers:
         specifier: ^5.0.1
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
 
+  packages/agent-runtime-cline-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-codebuddy-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-codex:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      json-rpc-2.0:
+        specifier: 1.8.1
+        version: 1.8.1
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-copilot-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
   packages/agent-runtime-cursor:
     dependencies:
       '@cursor/sdk':
@@ -1809,6 +1982,73 @@ importers:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
 
+  packages/agent-runtime-deepseek-harness-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-factory-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-glm-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-goose-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      yaml:
+        specifier: 2.8.2
+        version: 2.8.2
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
   packages/agent-runtime-grok-acp:
     dependencies:
       '@cherrystudio/agent-runtime-acp':
@@ -1817,6 +2057,118 @@ importers:
       zod:
         specifier: 4.4.3
         version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-hermes-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-kimi-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-kiro-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-minimax-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-omp-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-openclaw-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-opencode-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -1932,6 +2284,121 @@ importers:
       vitest:
         specifier: ^5.0.1
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
+
+  packages/agent-runtime-poolside-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+      yaml:
+        specifier: 2.8.2
+        version: 2.8.2
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-qoder-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-qwen-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-snow-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-trae-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-vibe-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-zcode-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime-acp':
+        specifier: workspace:*
+        version: link:../agent-runtime-acp
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.4
+        version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
 
   packages/ai-sdk-provider:
     dependencies:

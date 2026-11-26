@@ -10,7 +10,11 @@
       "types": "./dist/adapter.d.mts",
       "default": "./dist/adapter.mjs"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./cli": {
+      "types": "./dist/cli.d.mts",
+      "default": "./dist/cli.mjs"
+    }
   },
   "scripts": {
     "build": "tsdown",

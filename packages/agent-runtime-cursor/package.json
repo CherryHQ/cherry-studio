@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/adapter.d.mts",
       "default": "./dist/adapter.mjs"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.mts",
+      "default": "./dist/cli.mjs"
     }
   },
   "scripts": {

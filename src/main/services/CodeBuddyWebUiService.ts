@@ -7,6 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
+import { codeBuddyPreset, codeBuddyWebUi } from '@cherrystudio/agent-runtime-codebuddy-acp'
 import { resolveLocalAgentLaunch } from '@main/ai/runtime/localAgent/launch'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
@@ -49,7 +50,7 @@ export class CodeBuddyWebUiService extends BaseService {
   }
 
   async start(config: LocalAgentConfiguration): Promise<CodeBuddyWebUiStatus> {
-    if (config.presetId !== 'codebuddy-code') throw new Error('Unsupported Web UI agent')
+    if (config.presetId !== codeBuddyPreset.id) throw new Error('Unsupported Web UI agent')
     const revision = this.stopRevision
     return this.mutex.runExclusive(async () => {
       if (this.isLifecycleStopping) throw new Error('Application is shutting down')
@@ -67,27 +68,14 @@ export class CodeBuddyWebUiService extends BaseService {
         const port = await availablePort()
         abort.signal.throwIfAborted()
         const password = randomBytes(24).toString('base64url')
-        const url = `http://127.0.0.1:${port}/?password=${password}`
-        const child = crossPlatformSpawn(
-          launch.executable,
-          [
-            '--serve',
-            '--host',
-            '127.0.0.1',
-            '--port',
-            String(port),
-            '--auth',
-            'password',
-            ...(config.nativeModel ? ['--model', config.nativeModel] : [])
-          ],
-          {
-            env: { ...launch.env, CODEBUDDY_GATEWAY_PASSWORD: password },
-            cwd: application.getPath('sys.home'),
-            detached: process.platform !== 'win32',
-            windowsHide: true,
-            stdio: ['ignore', 'pipe', 'pipe']
-          }
-        )
+        const { url, args, env } = codeBuddyWebUi.launch(port, password, config.nativeModel)
+        const child = crossPlatformSpawn(launch.executable, args, {
+          env: { ...launch.env, ...env },
+          cwd: application.getPath('sys.home'),
+          detached: process.platform !== 'win32',
+          windowsHide: true,
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
         this.child = child
         const exited = () => {
           if (this.child !== child) return
@@ -152,10 +140,7 @@ export class CodeBuddyWebUiService extends BaseService {
   private async discover(): Promise<string | undefined> {
     try {
       const record = JSON.parse(await readFile(application.getPath('external.codebuddy.web_ui_ports.file'), 'utf8'))
-      const ports: unknown[] = Array.isArray(record?.ports) ? record.ports.slice(0, 4) : [record?.port]
-      for (const port of ports) {
-        if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) continue
-        const url = `http://127.0.0.1:${port}/`
+      for (const url of codeBuddyWebUi.addresses(record)) {
         if (await isCodeBuddyWebUi(url)) return url
       }
     } catch (error) {
@@ -168,7 +153,7 @@ export class CodeBuddyWebUiService extends BaseService {
 async function isCodeBuddyWebUi(url: string): Promise<boolean> {
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(1000), redirect: 'error' })
-    return response.ok && /<title>CodeBuddy\b/i.test(await response.text())
+    return response.ok && codeBuddyWebUi.matches(await response.text())
   } catch {
     return false
   }

@@ -1,8 +1,44 @@
 import * as z from 'zod'
 
-import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
+import type { AcpLoginProfile } from '@cherrystudio/agent-runtime-acp/profile'
+import { ampCli } from '@cherrystudio/agent-runtime-amp-acp/cli'
+import { antigravityCli } from '@cherrystudio/agent-runtime-antigravity-acp/cli'
+import { claudeCli } from '@cherrystudio/agent-runtime-claude-code/cli'
+import { clineCli } from '@cherrystudio/agent-runtime-cline-acp/cli'
+import { codeBuddyCli } from '@cherrystudio/agent-runtime-codebuddy-acp/cli'
+import {
+  codexCli,
+  CODEX_LOCAL_MODE_ID,
+  CODEX_LOCAL_MODE_OPTIONS,
+  CODEX_LOCAL_THOUGHT_LEVEL_ID,
+  CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS
+} from '@cherrystudio/agent-runtime-codex/cli'
+import { copilotCli } from '@cherrystudio/agent-runtime-copilot-acp/cli'
+import { dshCli } from '@cherrystudio/agent-runtime-deepseek-harness-acp/cli'
+import { factoryCli } from '@cherrystudio/agent-runtime-factory-acp/cli'
+import { glmCli } from '@cherrystudio/agent-runtime-glm-acp/cli'
+import { gooseCli } from '@cherrystudio/agent-runtime-goose-acp/cli'
+import { grokCli } from '@cherrystudio/agent-runtime-grok-acp/cli'
+import { hermesCli } from '@cherrystudio/agent-runtime-hermes-acp/cli'
+import { kimiCli } from '@cherrystudio/agent-runtime-kimi-acp/cli'
+import { kiroCli } from '@cherrystudio/agent-runtime-kiro-acp/cli'
+import { minimaxCli } from '@cherrystudio/agent-runtime-minimax-acp/cli'
+import { ompCli } from '@cherrystudio/agent-runtime-omp-acp/cli'
+import { openClawCli } from '@cherrystudio/agent-runtime-openclaw-acp/cli'
+import { openCodeCli } from '@cherrystudio/agent-runtime-opencode-acp/cli'
+import { piCli } from '@cherrystudio/agent-runtime-pi-acp/cli'
+import { poolsideCli } from '@cherrystudio/agent-runtime-poolside-acp/cli'
+import { qoderCli } from '@cherrystudio/agent-runtime-qoder-acp/cli'
+import { qwenCli } from '@cherrystudio/agent-runtime-qwen-acp/cli'
+import { snowCli } from '@cherrystudio/agent-runtime-snow-acp/cli'
+import { traeCli } from '@cherrystudio/agent-runtime-trae-acp/cli'
+import { vibeCli } from '@cherrystudio/agent-runtime-vibe-acp/cli'
+import { zcodeCli } from '@cherrystudio/agent-runtime-zcode-acp/cli'
+import type { CliAuthStatusProbe } from '@cherrystudio/agent-runtime/cli'
+import type { CliComponent } from '@cherrystudio/agent-runtime/cli'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
-import { CodeCli } from '@shared/types/codeCli'
+
+import type { LocalCanonicalPermissionMode } from './localAgentPermission'
 
 export const LocalAgentBrowserControlModeSchema = z.enum(['inherit', 'readonly', 'disabled'])
 export type LocalAgentBrowserControlMode = z.infer<typeof LocalAgentBrowserControlModeSchema>
@@ -36,19 +72,41 @@ export const LocalAgentLaunchSettingsSchema = LocalAgentConfigurationSchema.pick
 })
 export type LocalAgentLaunchSettings = z.infer<typeof LocalAgentLaunchSettingsSchema>
 
-interface LocalAgentCliOptions {
-  executable: string
+type PermissionAliases = Readonly<Record<string, { canonicalMode: LocalCanonicalPermissionMode; priority: number }>>
+
+export interface CliAuthOption {
+  id: string
+  nameKey: string
+  hintKey: string
+  kind: 'browser' | 'api-key'
+  args: readonly string[]
+  autoOpenUrl?: boolean
+  recommended?: boolean
+}
+
+interface LocalAgentCliOptions extends CliComponent {
+  cliLogin?: readonly CliAuthOption[]
+  providerLogin?: { id: string; args: readonly string[]; suggestions: readonly string[] }
+
+  auth?: AcpLoginProfile
+  sessionModel?: true
+  minimumAcpVersion?: string
+  registryId?: string
+  placeholderTitle?: RegExp
+  permissionMode?: 'none' | { labels?: PermissionAliases; values?: PermissionAliases }
+  defaultMode?: LocalAgentSelection
   terminalArgs?: readonly string[]
   aliases?: readonly string[]
   loginArgs?: readonly string[]
-  authStatusArgs?: readonly string[]
+  authStatus?: CliAuthStatusProbe
   /** ACP methods that rely on credentials configured outside the login flow. */
   externalCredentialMethods?: readonly string[]
   terminalCli?: { executable: string; npmPackage?: string; requiredForChat?: true }
   args: readonly string[]
   platformArgs?: Partial<Record<'linux' | 'darwin' | 'win32', readonly string[]>>
   env?: Readonly<Record<string, string>>
-  npmPackage?: string
+  modelDependencies?: readonly string[]
+  windowsShell?: { variable: string; allowSh: boolean }
   requiredRuntime?: { executable: 'bun'; minimumVersion: string }
 }
 
@@ -70,151 +128,26 @@ type CursorPreset = LocalAgentPresetInfo & { id: 'cursor'; protocol: 'cursor' } 
 export type LocalAgentPreset = LocalCliAgentPreset | CursorPreset
 
 export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
-  {
-    id: 'claude',
-    authStatusArgs: ['auth', 'status', '--json'],
-    loginArgs: ['auth', 'login'],
-    terminalArgs: [],
-    name: 'Claude Code',
-    protocol: 'claude',
-    executable: 'claude',
-    args: [],
-    helpUrl: 'https://code.claude.com/docs/en/setup'
-  },
-  {
-    id: 'codex',
-    authStatusArgs: ['login', 'status'],
-    loginArgs: ['login'],
-    terminalArgs: [],
-    name: 'Codex',
-    protocol: 'codex',
-    executable: 'codex',
-    args: ['app-server'],
-    helpUrl: 'https://developers.openai.com/codex/cli'
-  },
-  {
-    id: 'copilot',
-    terminalArgs: [],
-    name: 'GitHub Copilot',
-    protocol: 'acp',
-    executable: 'copilot',
-    args: ['--acp'],
-    helpUrl: 'https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server'
-  },
-  {
-    id: 'minimax',
-    terminalArgs: [],
-    name: 'MiniMax Code',
-    protocol: 'acp',
-    executable: 'mcode',
-    args: ['acp'],
-    // The registry ships the code-acp launcher, whose global install does not expose mcode.
-    npmPackage: '@minimax-ai/code',
-    helpUrl: 'https://github.com/MiniMax-AI/minimax-code'
-  },
+  claudeCli,
+  codexCli,
+  copilotCli,
+  minimaxCli,
   {
     id: 'cursor',
     name: 'Cursor',
     protocol: 'cursor',
     helpUrl: 'https://cursor.com/docs/api/sdk/typescript'
   },
-  {
-    id: 'kimi',
-    loginArgs: ['login'],
-    terminalArgs: [],
-    name: 'Kimi',
-    protocol: 'acp',
-    executable: 'kimi',
-    args: ['acp'],
-    helpUrl: 'https://moonshotai.github.io/kimi-code/'
-  },
-  {
-    id: 'qwen',
-    externalCredentialMethods: ['openai'],
-    terminalArgs: [],
-    name: 'Qwen Code',
-    protocol: 'acp',
-    executable: 'qwen',
-    args: ['--acp'],
-    helpUrl: 'https://qwenlm.github.io/qwen-code-docs/'
-  },
-  {
-    id: 'opencode',
-    authStatusArgs: ['auth', 'list', '--format', 'json'],
-    loginArgs: ['auth', 'login'],
-    externalCredentialMethods: ['opencode-login'],
-    terminalArgs: [],
-    name: 'OpenCode',
-    protocol: 'acp',
-    executable: 'opencode',
-    args: ['acp'],
-    helpUrl: 'https://opencode.ai/docs/acp/'
-  },
-  {
-    id: 'openclaw',
-    name: 'OpenClaw',
-    protocol: 'acp',
-    executable: 'openclaw',
-    args: ['acp'],
-    npmPackage: 'openclaw',
-    helpUrl: 'https://docs.openclaw.ai/cli/acp'
-  },
-  {
-    id: 'deepseek-harness',
-    name: 'DeepSeek Harness',
-    protocol: 'acp',
-    executable: 'dsh',
-    args: ['--profile', 'acp'],
-    npmPackage: '@deepseek-ai/dsh',
-    helpUrl: 'https://github.com/deepseek-ai/deepseek-harness'
-  },
-  {
-    id: 'kiro',
-    terminalArgs: ['chat'],
-    name: 'Kiro',
-    protocol: 'acp',
-    executable: 'kiro-cli',
-    args: ['acp'],
-    helpUrl: 'https://kiro.dev/docs/cli/acp/'
-  },
-  {
-    id: 'qoder',
-    authStatusArgs: ['status', '-o', 'json'],
-    loginArgs: ['login'],
-    terminalArgs: [],
-    name: 'Qoder',
-    protocol: 'acp',
-    executable: 'qoderclicn',
-    aliases: ['qoder', 'qodercli'],
-    args: ['--acp'],
-    helpUrl: 'https://docs.qoder.com/cli/acp'
-  },
-  {
-    id: 'trae',
-    name: 'Trae',
-    protocol: 'acp',
-    executable: 'traecli',
-    args: ['acp', 'serve'],
-    helpUrl: 'https://docs.trae.cn/cli_agent-client-protocol'
-  },
-  {
-    id: 'hermes',
-    terminalArgs: [],
-    name: 'Hermes',
-    protocol: 'acp',
-    executable: 'hermes',
-    args: ['acp'],
-    helpUrl: 'https://hermes-agent.nousresearch.com/docs/user-guide/features/acp/'
-  },
-  {
-    id: 'cline',
-    terminalArgs: [],
-    name: 'Cline',
-    protocol: 'acp',
-    executable: 'cline',
-    args: ['--acp'],
-    helpUrl: 'https://cline.bot/cli'
-  },
+  kimiCli,
+  qwenCli,
+  openCodeCli,
+  openClawCli,
+  dshCli,
+  kiroCli,
+  qoderCli,
+  traeCli,
+  hermesCli,
+  clineCli,
   {
     id: 'kilo',
     terminalArgs: [],
@@ -224,25 +157,8 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     args: ['acp'],
     helpUrl: 'https://kilo.ai/'
   },
-  {
-    id: 'goose',
-    terminalArgs: ['session'],
-    name: 'goose',
-    protocol: 'acp',
-    executable: 'goose',
-    args: ['acp'],
-    helpUrl: 'https://block.github.io/goose/'
-  },
-  {
-    id: 'codebuddy-code',
-    terminalArgs: [],
-    name: 'Codebuddy Code',
-    protocol: 'acp',
-    executable: 'codebuddy',
-    aliases: ['codebuddy-code', 'cbc'],
-    args: ['--acp'],
-    helpUrl: 'https://www.codebuddy.cn/cli/'
-  },
+  gooseCli,
+  codeBuddyCli,
   {
     id: 'auggie',
     terminalArgs: [],
@@ -263,19 +179,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     args: ['--acp=true'],
     helpUrl: 'https://junie.jetbrains.com'
   },
-  {
-    id: 'factory-droid',
-    terminalArgs: [],
-    name: 'Factory Droid',
-    protocol: 'acp',
-    executable: 'droid',
-    args: ['exec', '--output-format', 'acp-daemon'],
-    env: {
-      DROID_DISABLE_AUTO_UPDATE: 'true',
-      FACTORY_DROID_AUTO_UPDATE_ENABLED: 'false'
-    },
-    helpUrl: 'https://factory.ai/product/cli'
-  },
+  factoryCli,
   {
     id: 'devin',
     terminalArgs: [],
@@ -285,108 +189,24 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     args: ['acp'],
     helpUrl: 'https://docs.devin.ai/cli'
   },
-  {
-    id: 'antigravity-acp',
-    terminalArgs: [],
-    terminalCli: { executable: 'agy' },
-    name: 'Google Antigravity',
-    protocol: 'acp',
-    executable: 'agy_acp_server.par',
-    aliases: ['agy_acp_server'],
-    platformArgs: {
-      linux: ['--uid=']
-    },
-    args: [],
-    helpUrl: 'https://antigravity.google/docs/ide/extensions'
-  },
-  {
-    id: 'mistral-vibe',
-    name: 'Mistral Vibe',
-    protocol: 'acp',
-    executable: 'vibe-acp',
-    args: [],
-    helpUrl: 'https://mistral.ai/products/vibe'
-  },
-  {
-    id: 'amp-acp',
-    terminalCli: { executable: 'amp', npmPackage: '@ampcode/cli', requiredForChat: true },
-    terminalArgs: [],
-    loginArgs: ['login'],
-    name: 'Amp',
-    protocol: 'acp',
-    executable: 'amp-acp',
-    args: [],
-    helpUrl: 'https://github.com/tao12345666333/amp-acp'
-  },
-  {
-    id: 'pi-acp',
-    loginArgs: ['auth', 'login'],
-    terminalArgs: [],
-    name: 'Pi',
-    protocol: 'acp',
-    executable: CODE_CLI_TOOL_PRESET_MAP[CodeCli.PI].executable,
-    npmPackage: CODE_CLI_TOOL_PRESET_MAP[CodeCli.PI].packageName,
-    args: [],
-    helpUrl: 'https://github.com/svkozak/pi-acp'
-  },
-  {
-    id: 'omp',
-    name: 'Oh My Pi',
-    protocol: 'acp',
-    executable: 'omp',
-    args: ['acp'],
-    terminalArgs: [],
-    npmPackage: '@oh-my-pi/pi-coding-agent',
-    requiredRuntime: { executable: 'bun', minimumVersion: '1.4.4' },
-    helpUrl: 'https://github.com/can1357/oh-my-pi'
-  },
-  {
-    id: 'snow',
-    name: 'Snow CLI',
-    protocol: 'acp',
-    executable: 'snow',
-    args: ['--acp'],
-    terminalArgs: [],
-    npmPackage: 'snow-ai',
-    helpUrl: 'https://github.com/MayDay-wpf/snow-cli'
-  },
-  {
-    id: 'zcode',
-    externalCredentialMethods: ['zcode-credentials'],
-    name: 'ZCode',
-    protocol: 'acp',
-    executable: 'zcode-acp',
-    args: ['server'],
-    terminalArgs: [],
-    npmPackage: 'zcode-acp-server',
-    env: { ZCODE_ACP_MODE: 'build' },
-    helpUrl: 'https://github.com/william0wang/zcode-acp'
-  },
+  antigravityCli,
+  vibeCli,
+  ampCli,
+  piCli,
+  ompCli,
+  snowCli,
+  zcodeCli,
   {
     id: 'deepagents',
+    modelDependencies: ['@langchain/anthropic', '@langchain/openai'],
     name: 'DeepAgents',
     protocol: 'acp',
     executable: 'deepagents-acp',
     args: [],
     helpUrl: 'https://docs.langchain.com/oss/javascript/deepagents/overview'
   },
-  {
-    id: 'glm-acp-agent',
-    externalCredentialMethods: ['z-ai-api-key', 'z_ai_api_key'],
-    name: 'GLM Agent',
-    protocol: 'acp',
-    executable: 'glm-acp-agent',
-    args: [],
-    helpUrl: 'https://github.com/stefandevo/glm-acp-agent'
-  },
-  {
-    id: 'grok-build',
-    name: 'Grok Build',
-    protocol: 'acp',
-    executable: 'grok',
-    args: ['agent', 'stdio'],
-    helpUrl: 'https://x.ai/cli'
-  },
+  glmCli,
+  grokCli,
   {
     id: 'cortex-code',
     name: 'Cortex Code',
@@ -395,19 +215,26 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     args: ['acp', 'serve'],
     helpUrl: 'https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code'
   },
-  {
-    id: 'poolside',
-    terminalArgs: [],
-    loginArgs: ['login'],
-    name: 'Poolside',
-    protocol: 'acp',
-    executable: 'pool',
-    args: ['acp'],
-    helpUrl: 'https://poolside.ai'
-  }
+  poolsideCli
 ]
 
 export const LOCAL_CLI_AGENT_PRESETS = LOCAL_AGENT_PRESETS.filter((preset) => preset.protocol !== 'cursor')
+
+export const localCliPresetById: ReadonlyMap<string, LocalCliAgentPreset> = new Map(
+  LOCAL_CLI_AGENT_PRESETS.map((preset) => [preset.id, preset])
+)
+
+const placeholderTitles = LOCAL_CLI_AGENT_PRESETS.flatMap(({ id, placeholderTitle }) =>
+  placeholderTitle ? [{ id, pattern: placeholderTitle }] : []
+)
+
+/** Resolve the owner only for a matching native title, including when it requires an archive lookup. */
+export function isLocalAgentPlaceholderTitle(
+  title: string | null | undefined,
+  presetId: () => string | undefined
+): boolean {
+  return !!title && placeholderTitles.some(({ id, pattern }) => pattern.test(title.trim()) && id === presetId())
+}
 
 export interface LocalAgentDetection {
   presetId: string
@@ -456,19 +283,7 @@ export const CLAUDE_LOCAL_MODE_OPTIONS = [
   { value: 'bypassPermissions', name: 'Bypass Permissions' }
 ] as const
 
-export const CODEX_LOCAL_MODE_ID = 'codex-mode'
-export const CODEX_LOCAL_MODE_OPTIONS = [
-  { value: 'readOnly', name: 'Read Only' },
-  { value: 'workspace', name: 'Workspace' },
-  { value: 'fullAccess', name: 'Full Access' }
-] as const
-
-export const DSH_LOCAL_MODE_ID = 'dsh-mode'
-export const DSH_LOCAL_MODE_OPTIONS = [
-  { value: 'read-only', name: 'Read Only' },
-  { value: 'workspace-write', name: 'Workspace' },
-  { value: 'danger-full-access', name: 'Full Access' }
-] as const
+export { DSH_LOCAL_MODE_ID, DSH_LOCAL_MODE_OPTIONS } from '@cherrystudio/agent-runtime-deepseek-harness-acp/cli'
 
 export const CLAUDE_LOCAL_THOUGHT_LEVEL_ID = 'claude-effort'
 export const CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS = [
@@ -477,15 +292,6 @@ export const CLAUDE_LOCAL_THOUGHT_LEVEL_OPTIONS = [
   { value: 'medium', name: 'Medium' },
   { value: 'high', name: 'High' },
   { value: 'max', name: 'Max' }
-] as const
-
-export const CODEX_LOCAL_THOUGHT_LEVEL_ID = 'codex-effort'
-export const CODEX_LOCAL_THOUGHT_LEVEL_OPTIONS = [
-  { value: 'default', name: 'Default' },
-  { value: 'low', name: 'Low' },
-  { value: 'medium', name: 'Medium' },
-  { value: 'high', name: 'High' },
-  { value: 'xhigh', name: 'Extra High' }
 ] as const
 
 export function getDefaultLocalAgentMode(
@@ -506,13 +312,8 @@ export function getDefaultLocalAgentMode(
       options: CODEX_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
     }
   }
-  if (protocol === 'acp' && presetId === 'deepseek-harness') {
-    return {
-      id: DSH_LOCAL_MODE_ID,
-      currentValue: 'workspace-write',
-      options: DSH_LOCAL_MODE_OPTIONS.map((option) => ({ ...option }))
-    }
-  }
+  const mode = protocol === 'acp' && presetId ? localCliPresetById.get(presetId)?.defaultMode : undefined
+  if (mode) return { ...mode, options: mode.options.map((option) => ({ ...option })) }
   return undefined
 }
 
@@ -565,6 +366,8 @@ export interface LocalAgentNotice {
 }
 
 export type LocalAgentConfigOption = {
+  /** The option is valid only while its native session is connected. */
+  liveOnly?: true
   id: string
   name: string
   description?: string | null
@@ -670,6 +473,8 @@ export const LocalAcpToolSchema = z.object({
   content: z.array(z.unknown()).optional(),
   rawInput: z.unknown().optional(),
   rawOutput: z.unknown().optional(),
+  resultField: z.enum(['content', 'rawOutput']).optional(),
+  diffPaths: z.array(z.string()).optional(),
   terminals: z.record(z.string(), z.string()).optional(),
   terminalDetails: z
     .record(

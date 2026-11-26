@@ -1,5 +1,10 @@
 import * as z from 'zod'
 
+import {
+  acpProviderModelGateway,
+  type AcpGatewayConfig,
+  type AcpJsonModelProfile
+} from '@cherrystudio/agent-runtime-acp/profile'
 import type { AcpHarnessAdapter } from '@cherrystudio/agent-runtime-acp/v1'
 
 import { bindPiContextUsage } from './contextUsage'
@@ -21,3 +26,32 @@ export const piAcpAdapter: Required<Pick<AcpHarnessAdapter, 'bind' | 'setupUpdat
     }
   }
 }
+
+export const piModelProfile = {
+  format: 'json',
+  target: 'pi-settings',
+  readModel({ defaultProvider, defaultModel }) {
+    return typeof defaultProvider === 'string' && defaultProvider && typeof defaultModel === 'string' && defaultModel
+      ? `${defaultProvider}/${defaultModel}`
+      : undefined
+  },
+  writeModel(_doc, model, invalidModel) {
+    const slash = model?.indexOf('/') ?? -1
+    if (model && (slash < 1 || slash === model.length - 1)) return invalidModel()
+    return [
+      [['defaultProvider'], model?.slice(0, slash)],
+      [['defaultModel'], model?.slice(slash + 1)]
+    ]
+  }
+} satisfies AcpJsonModelProfile<'pi-settings'>
+
+export const piBundledBridge = {
+  runtime: { executable: 'node', minimumVersion: '20.0.0', label: 'Node.js', major: '20' },
+  commandEnv: 'PI_ACP_PI_COMMAND'
+} as const
+
+export const piGateway = {
+  format: 'json',
+  target: 'pi-models',
+  read: acpProviderModelGateway
+} satisfies AcpGatewayConfig<'pi-models'>

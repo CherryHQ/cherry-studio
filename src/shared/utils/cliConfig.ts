@@ -83,23 +83,8 @@ export const QWEN_CONFIG_PATH = '~/.qwen/settings.json'
 export const KIMI_CONFIG_PATH = '~/.kimi-code/config.toml'
 export const PI_MODELS_PATH = '~/.pi/agent/models.json'
 export const PI_SETTINGS_PATH = '~/.pi/agent/settings.json'
-export const POOLSIDE_GATEWAY_SERVER = 'cherry-poolside'
 
 export const CHERRY_PROVIDER_PREFIX = 'cherry-'
-
-/** Grok resolves these roles independently of its default model. Preserve user-pinned roles. */
-export function setGrokAuxiliaryModels(
-  models: Record<string, unknown>,
-  selected: string | undefined,
-  summary = selected
-): void {
-  for (const role of ['session_summary', 'prompt_suggestion'] as const) {
-    const current = models[role]
-    if (current !== undefined && !(typeof current === 'string' && current.startsWith(CHERRY_PROVIDER_PREFIX))) continue
-    if (selected?.startsWith(CHERRY_PROVIDER_PREFIX)) models[role] = role === 'session_summary' ? summary : selected
-    else delete models[role]
-  }
-}
 
 // Unlike the `~/…` paths above, these are relative to the runtime-resolved Hermes
 // home (HERMES_HOME or platform default) — see `pathBase: 'hermes-home'` below.

@@ -7,9 +7,13 @@ import { lt, valid } from 'semver'
 import { parseDocument } from 'yaml'
 
 import { application } from '@application'
+import type { LocalClaudeLaunch } from '@cherrystudio/agent-runtime-claude-code'
+import { claudeCli, scheduledClaudeEnvironment } from '@cherrystudio/agent-runtime-claude-code/cli'
+import { codexCli } from '@cherrystudio/agent-runtime-codex/cli'
+import type { CodexLaunch } from '@cherrystudio/agent-runtime-codex/launcher'
+import type { InstalledCli } from '@cherrystudio/agent-runtime/cli'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
-import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { appendBundledGitPathTail, mergeBinaryExecutionEnv, mergePathPrefixes } from '@main/utils/binaryEnv'
 import { isManagedBinaryPath } from '@main/utils/binaryResolver'
 import { getBundledGitDir } from '@main/utils/bundledGit'
@@ -22,37 +26,28 @@ import {
   type LocalAgentConfiguration,
   type LocalAgentDetection
 } from '@shared/ai/localAgent'
+import { LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
 import type { InputFor } from '@shared/ipc/types'
 import type { BinaryAvailability, BinaryToolSnapshot } from '@shared/types/binary'
-import { POOLSIDE_GATEWAY_SERVER } from '@shared/utils/cliConfig'
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
+import { acpPreset } from './acpPresets'
 import { readInstalledPackageVersion } from './installedVersion'
-import { readNativeModelConfig, resolveClineProvider, usesGlobalClineProfile } from './nativeModelConfig'
+import { readNativeModelConfig } from './nativeModelConfig'
 import { resolveRequiredRuntime } from './runtimeDependency'
 
-const CLAUDE_CREDENTIAL_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_CUSTOM_HEADERS'] as const
-const CLAUDE_PROVIDER_ENV_KEYS = ['ANTHROPIC_BASE_URL', ...CLAUDE_CREDENTIAL_ENV_KEYS, 'ANTHROPIC_MODEL'] as const
+type AgentCommand = Pick<LocalCliAgentPreset, 'executable' | 'aliases'> &
+  Partial<Pick<LocalCliAgentPreset, 'protocol' | 'minimumAcpVersion'>>
 
-function mergeClaudeProviderEnv(base: Record<string, string>, overrides: Record<string, string>) {
-  const endpoint = getEnvironmentValue(overrides, 'ANTHROPIC_BASE_URL')
-  const replacesCredentials =
-    (endpoint !== undefined && endpoint !== getEnvironmentValue(base, 'ANTHROPIC_BASE_URL')) ||
-    CLAUDE_CREDENTIAL_ENV_KEYS.some((key) => getEnvironmentValue(overrides, key) !== undefined)
-  const inherited = { ...base }
-  if (replacesCredentials) {
-    for (const key of CLAUDE_CREDENTIAL_ENV_KEYS) delete inherited[key]
-  }
-  return mergeEnvironment(inherited, overrides)
-}
-
-type AgentCommand = Pick<LocalCliAgentPreset, 'executable' | 'aliases'> & Partial<Pick<LocalCliAgentPreset, 'protocol'>>
+type InstalledBinary = InstalledCli<string, Exclude<BinaryAvailability['source'], 'none'>>
+type LaunchPurpose = 'session' | 'chat' | 'scheduled-chat' | 'models' | 'cli'
+export type LaunchConfigFiles = Readonly<Partial<Record<CliConfigTarget, string | null>>>
 
 async function supportsAgentCommand(preset: AgentCommand, candidate: BinaryAvailability) {
-  if (preset.executable !== 'dsh' || preset.protocol !== 'acp' || candidate.source === 'none') return true
+  if (preset.protocol !== 'acp' || !preset.minimumAcpVersion || candidate.source === 'none') return true
   const version =
     valid('version' in candidate ? candidate.version : undefined) ?? (await readInstalledPackageVersion(candidate.path))
-  // This is the first dsh package that includes the ACP profile.
-  return !version || !lt(version, '0.1.2-alpha.2')
+  return !version || !lt(version, preset.minimumAcpVersion)
 }
 
 async function selectInstallation(preset: AgentCommand, snapshots: Record<string, BinaryToolSnapshot>) {
@@ -79,12 +74,16 @@ export function systemAgentWrapper(command: string): string {
     : `#!/bin/sh\nexec '${command.replace(/'/g, "'\\''")}' "$@"\n`
 }
 
-export async function selectAvailableInstallation(preset: AgentCommand, snapshots: Record<string, BinaryToolSnapshot>) {
+export async function selectAvailableInstallation(
+  preset: AgentCommand,
+  snapshots: Record<string, BinaryToolSnapshot>
+): Promise<InstalledBinary | { source: 'none' }> {
   const installed = await selectInstallation(preset, snapshots)
-  if (installed.source === 'system' || installed.source === 'bundled') return installed
+  const fallback = installed.source === 'none' ? installed : { ...installed, componentId: preset.executable }
+  if (installed.source === 'system' || installed.source === 'bundled') return fallback
   const entry = systemAgentEntry(preset.executable)
   try {
-    if (!(await fs.stat(entry)).isFile()) return installed
+    if (!(await fs.stat(entry)).isFile()) return fallback
     await fs.access(entry, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
     if (
       await isManagedBinaryPath(entry, [
@@ -93,12 +92,27 @@ export async function selectAvailableInstallation(preset: AgentCommand, snapshot
         application.getPath('app.root')
       ])
     )
-      return installed
-    const candidate = { source: 'system' as const, path: entry }
-    return (await supportsAgentCommand(preset, candidate)) ? candidate : installed
+      return fallback
+    const candidate = { source: 'system' as const, path: entry, componentId: preset.executable }
+    return (await supportsAgentCommand(preset, candidate)) ? candidate : fallback
   } catch {
-    return installed
+    return fallback
   }
+}
+
+export async function selectChatInstallation(
+  preset: AgentCommand,
+  snapshots: Record<string, BinaryToolSnapshot>,
+  fallback?: AgentCommand,
+  systemOnly = false
+): Promise<InstalledBinary | { source: 'none' }> {
+  const primary = await selectAvailableInstallation(preset, snapshots)
+  if (primary.source !== 'none' && (!systemOnly || primary.source !== 'mise')) return primary
+  if (fallback) {
+    const alternate = await selectAvailableInstallation(fallback, snapshots)
+    if (!systemOnly || alternate.source !== 'mise') return alternate
+  }
+  return { source: 'none' }
 }
 
 export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
@@ -113,23 +127,27 @@ export async function detectLocalAgents(): Promise<LocalAgentDetection[]> {
     )
   return Promise.all(
     LOCAL_CLI_AGENT_PRESETS.map(async (preset) => {
-      const adapter = await selectAvailableInstallation(preset, snapshots)
-      const terminal = preset.terminalCli ? await selectAvailableInstallation(preset.terminalCli, snapshots) : adapter
-      const installed = preset.id === 'antigravity-acp' && adapter.source === 'none' ? terminal : adapter
+      const fallback = acpPreset(preset.id)?.cliFallback
+      const installed = await selectChatInstallation(preset, snapshots, fallback)
+      const terminal =
+        preset.terminalCli && (installed.source === 'none' || installed.componentId !== preset.terminalCli.executable)
+          ? await selectAvailableInstallation(preset.terminalCli, snapshots)
+          : installed
       return {
         presetId: preset.id,
-        ...installed,
+        source: installed.source,
+        path: installed.source === 'none' ? undefined : installed.path,
         missingChatExecutable:
-          preset.terminalCli?.requiredForChat && terminal.source === 'none' && adapter.source !== 'none'
+          preset.terminalCli?.requiredForChat && terminal.source === 'none' && installed.source !== 'none'
             ? preset.terminalCli.executable
             : undefined,
         terminalPath: preset.terminalArgs && terminal.source !== 'none' ? terminal.path : undefined,
         version:
-          'version' in installed
-            ? installed.version
-            : installed.source !== 'none'
-              ? await readInstalledPackageVersion(installed.path)
-              : undefined
+          installed.source === 'none'
+            ? undefined
+            : 'version' in installed
+              ? installed.version
+              : await readInstalledPackageVersion(installed.path)
       }
     })
   )
@@ -143,208 +161,26 @@ function parseJsonRecord(content: string | null | undefined): Record<string, unk
     : undefined
 }
 
-async function readCliConfigFilesSafe(
-  targets: Parameters<ReturnType<typeof application.get<'CodeCliService'>>['readConfigFiles']>[0]
-) {
-  const result = await application.get('CodeCliService').readConfigFiles(targets)
-  return Array.isArray(result) ? result : []
-}
-
-async function injectPresetConfigEnv(
-  presetId: string | undefined,
+function injectPresetConfigEnv(
+  profile: NonNullable<ReturnType<typeof acpPreset>>['profile'],
+  files: LaunchConfigFiles,
   env: Record<string, string>,
   purpose: 'chat' | 'models',
   lookupEnv: NodeJS.ProcessEnv
-): Promise<string | undefined> {
-  let nativeModel: string | undefined
-  if (presetId === 'poolside') {
-    const [file] = await readCliConfigFilesSafe(['poolside-settings'])
-    if (file?.content != null) {
-      const document = parseDocument(file.content)
-      if (document.errors.length) throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
-      const server =
-        purpose !== 'models' && document.getIn(['pool', 'default_agent_server']) === POOLSIDE_GATEWAY_SERVER
-          ? POOLSIDE_GATEWAY_SERVER
-          : 'Poolside'
-      const model = document.getIn(['agent_servers', server, 'default_config_options', 'model'])
-      if (typeof model === 'string') nativeModel = model
-      if (server === POOLSIDE_GATEWAY_SERVER) {
-        for (const key of ['POOLSIDE_API_KEY', 'POOLSIDE_STANDALONE_BASE_URL', 'POOLSIDE_STANDALONE_MODEL']) {
-          const value = document.getIn(['agent_servers', POOLSIDE_GATEWAY_SERVER, 'env', key])
-          if (typeof value !== 'string' || !value)
-            throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
-          env[key] = value
-        }
-      }
-    }
-    return nativeModel
+): string | undefined {
+  if (profile?.format === 'json' && profile.launch) {
+    const get = (key: string) => getEnvironmentValue(lookupEnv, key)
+    const primary = parseJsonRecord(files[profile.target]) ?? {}
+    const related = profile.relatedTarget ? parseJsonRecord(files[profile.relatedTarget]) : undefined
+    return profile.launch(primary, env, get, related, purpose)
   }
-
-  if (presetId === 'glm-acp-agent') {
-    const [file] = await readCliConfigFilesSafe(['glm-credentials'])
-    const doc = parseJsonRecord(file?.content)
-    if (!doc) return undefined
-    let apiKey: string | undefined
-    let baseUrl: string | undefined
-    let model: string | undefined
-    if (doc.cherry_managed === true) {
-      apiKey = typeof doc.z_ai_api_key === 'string' ? doc.z_ai_api_key : undefined
-      baseUrl = typeof doc.base_url === 'string' ? doc.base_url : undefined
-      model = typeof doc.model === 'string' ? doc.model : undefined
-    } else if (doc.providers && typeof doc.providers === 'object' && !Array.isArray(doc.providers)) {
-      const cherryKey =
-        typeof doc.provider === 'string' && doc.provider.startsWith('cherry-') ? doc.provider : undefined
-      const entry = cherryKey ? (doc.providers as Record<string, unknown>)[cherryKey] : undefined
-      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-        const record = entry as Record<string, unknown>
-        apiKey = typeof record.apiKey === 'string' ? record.apiKey : undefined
-        baseUrl = typeof record.baseUrl === 'string' ? record.baseUrl : undefined
-        model = typeof record.model === 'string' ? record.model : undefined
-      }
-    }
-    if (apiKey) env.Z_AI_API_KEY = apiKey
-    if (baseUrl) env.ACP_GLM_BASE_URL = baseUrl
-    if (model) {
-      env.ACP_GLM_MODEL = model
-      if (purpose !== 'models') env.ACP_GLM_AVAILABLE_MODELS = model
-      nativeModel = model
-    }
-    return nativeModel
+  if (profile?.format === 'yaml' && profile.launch) {
+    const content = files[profile.target]
+    if (content == null) return
+    return profile.launch(parseDocument(content), env, purpose, () => {
+      throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
+    })
   }
-
-  if (presetId === 'codebuddy-code') {
-    const files = await readCliConfigFilesSafe(['codebuddy-settings', 'codebuddy-models'])
-    const settings = parseJsonRecord(files.find((file) => file.target === 'codebuddy-settings')?.content)
-    const modelsDoc = parseJsonRecord(files.find((file) => file.target === 'codebuddy-models')?.content)
-    const list = Array.isArray(modelsDoc?.models) ? modelsDoc.models : []
-    const activeId = typeof settings?.model === 'string' ? settings.model : undefined
-    const entry = list.find((item) => {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) return false
-      const record = item as Record<string, unknown>
-      return record['x-cherry-studio'] === true && (!activeId || record.id === activeId)
-    }) as Record<string, unknown> | undefined
-    if (typeof entry?.apiKey === 'string' && entry.apiKey) {
-      env.CODEBUDDY_API_KEY = entry.apiKey
-    }
-    if (activeId) nativeModel = activeId
-    return nativeModel
-  }
-
-  if (presetId === 'cline') {
-    const [file] = await readCliConfigFilesSafe(['cline-providers'])
-    const { provider, managed, settings } = resolveClineProvider(parseJsonRecord(file?.content))
-    if (!managed || !settings) return undefined
-    const providerOverride = getEnvironmentValue(lookupEnv, 'CLINE_PROVIDER')
-    if (providerOverride && providerOverride !== provider) return undefined
-    if (typeof settings.apiKey === 'string' && settings.apiKey) env.CLINE_API_KEY = settings.apiKey
-    env.CLINE_PROVIDER = provider
-    if (typeof settings.baseUrl === 'string' && settings.baseUrl) {
-      env.OPENAI_BASE_URL = settings.baseUrl
-      env.CLINE_BASE_URL = settings.baseUrl
-    }
-    if (typeof settings.model === 'string' && settings.model) {
-      env.CLINE_MODEL = settings.model
-      nativeModel = settings.model
-    }
-    return nativeModel
-  }
-
-  if (presetId === 'snow') {
-    const [file] = await readCliConfigFilesSafe(['snow-config'])
-    const doc = parseJsonRecord(file?.content)
-    const snowcfg =
-      doc?.snowcfg && typeof doc.snowcfg === 'object' && !Array.isArray(doc.snowcfg)
-        ? (doc.snowcfg as Record<string, unknown>)
-        : undefined
-    return doc?.cherryManaged === true && typeof snowcfg?.advancedModel === 'string' && snowcfg.advancedModel
-      ? snowcfg.advancedModel
-      : undefined
-  }
-
-  if (presetId === 'goose') {
-    const [file] = await readCliConfigFilesSafe(['goose-config'])
-    if (file?.content != null) {
-      const document = parseDocument(file.content)
-      if (!document.errors.length && document.get('CHERRY_MANAGED') === true) {
-        const readYamlString = (key: string): string | undefined => {
-          const val = document.get(key)
-          return typeof val === 'string' && val ? val : undefined
-        }
-        const provider = readYamlString('GOOSE_PROVIDER')
-        const model = readYamlString('GOOSE_MODEL')
-        if (provider) env.GOOSE_PROVIDER = provider
-        if (model) {
-          env.GOOSE_MODEL = model
-          nativeModel = model
-        }
-        if (provider === 'anthropic') {
-          const host = readYamlString('ANTHROPIC_HOST')
-          const apiKey = readYamlString('ANTHROPIC_API_KEY')
-          if (host) env.ANTHROPIC_HOST = host
-          if (apiKey) env.ANTHROPIC_API_KEY = apiKey
-        } else if (provider === 'openai') {
-          const host = readYamlString('OPENAI_HOST')
-          const apiKey = readYamlString('OPENAI_API_KEY')
-          if (host) env.OPENAI_HOST = host
-          if (apiKey) env.OPENAI_API_KEY = apiKey
-        }
-      }
-    }
-    return nativeModel
-  }
-
-  return undefined
-}
-
-async function isRegularFile(targetPath: string): Promise<boolean> {
-  return fs.stat(targetPath).then(
-    (stats) => stats.isFile(),
-    () => false
-  )
-}
-
-async function resolveZcodeHostBinary(
-  env: Record<string, string>,
-  snapshots: Record<string, BinaryToolSnapshot>
-): Promise<string | undefined> {
-  const zcodeBin = env.ZCODE_BIN?.trim()
-  if (zcodeBin) {
-    if (path.isAbsolute(zcodeBin) || zcodeBin.includes('/') || zcodeBin.includes('\\')) {
-      return (await isRegularFile(zcodeBin)) ? zcodeBin : undefined
-    }
-    return (await findExecutableInEnv(zcodeBin, { env })) ?? undefined
-  }
-
-  const snapshot = await selectAvailableInstallation({ executable: 'zcode' }, snapshots)
-  if (snapshot.source !== 'none') return snapshot.path
-
-  const onPath = await findExecutableInEnv('zcode', { env })
-  if (onPath) return onPath
-
-  const home = application.getPath('sys.home')
-  const candidates = isWin
-    ? [
-        path.join(
-          env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'),
-          'Programs',
-          'ZCode',
-          'resources',
-          'glm',
-          'zcode.cjs'
-        ),
-        path.join(env.ProgramFiles || 'C:\\Program Files', 'ZCode', 'resources', 'glm', 'zcode.cjs')
-      ]
-    : [
-        '/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs',
-        path.join(home, 'Applications', 'ZCode.app', 'Contents', 'Resources', 'glm', 'zcode.cjs'),
-        '/opt/ZCode/resources/glm/zcode.cjs',
-        '/usr/share/zcode/resources/glm/zcode.cjs'
-      ]
-
-  for (const candidate of candidates) {
-    if (await isRegularFile(candidate)) return candidate
-  }
-  return undefined
 }
 
 async function isExistingFile(filePath: string): Promise<boolean> {
@@ -374,13 +210,55 @@ async function resolveWindowsShellPath(
 export function resolveLocalAgentLaunch(
   config: LocalAgentConfiguration,
   signal?: AbortSignal,
-  options?: { headless: boolean }
+  purpose: 'chat' | 'session' = 'chat'
 ) {
-  return resolveProgram(config, options?.headless ? 'scheduled-chat' : 'chat', signal)
+  return resolveProgram(config, purpose, signal)
 }
 
 export function resolveLocalAgentModelLaunch(config: LocalAgentConfiguration, signal?: AbortSignal) {
   return resolveProgram(config, 'models', signal)
+}
+
+export async function resolveCodexLaunch(
+  config: LocalAgentConfiguration,
+  cwd: string,
+  signal: AbortSignal,
+  purpose: 'chat' | 'models' = 'chat'
+): Promise<CodexLaunch & { configFiles: LaunchConfigFiles }> {
+  const program = await resolveProgram(config, purpose === 'chat' ? 'session' : purpose, signal)
+  return {
+    installation: requireInstallation(program.installation, codexCli.executable),
+    cwd,
+    env: program.env,
+    args: program.args,
+    configFiles: program.configFiles,
+    executableOverride: config.executableOverride !== undefined
+  }
+}
+
+export async function resolveClaudeLaunch(
+  config: LocalAgentConfiguration,
+  cwd: string,
+  signal: AbortSignal,
+  purpose: 'chat' | 'scheduled-chat' | 'models'
+): Promise<LocalClaudeLaunch & { env: Record<string, string>; nativeModel?: string; configFiles: LaunchConfigFiles }> {
+  const program = await resolveProgram(config, purpose === 'chat' ? 'session' : purpose, signal)
+  return {
+    installation: requireInstallation(program.installation, claudeCli.executable),
+    cwd,
+    env: program.env,
+    args: program.args,
+    configFiles: program.configFiles,
+    nativeModel: program.nativeModel
+  }
+}
+
+function requireInstallation<Component extends string>(
+  installation: InstalledBinary | undefined,
+  componentId: Component
+): InstalledCli<Component, InstalledBinary['source']> {
+  if (installation?.componentId !== componentId) throw new Error(`Expected a ${componentId} installation`)
+  return { ...installation, componentId }
 }
 
 export async function resolveLocalAgentCli(config: LocalAgentConfiguration, signal?: AbortSignal) {
@@ -388,11 +266,7 @@ export async function resolveLocalAgentCli(config: LocalAgentConfiguration, sign
   return { executable, source, env }
 }
 
-async function resolveProgram(
-  config: LocalAgentConfiguration,
-  purpose: 'chat' | 'scheduled-chat' | 'models' | 'cli',
-  signal?: AbortSignal
-) {
+async function resolveProgram(config: LocalAgentConfiguration, purpose: LaunchPurpose, signal?: AbortSignal) {
   const terminal = purpose === 'cli'
   const definition = LOCAL_CLI_AGENT_PRESETS.find((p) => p.id === config.presetId)
   const preset =
@@ -405,39 +279,46 @@ async function resolveProgram(
     throw new Error('Local agent is being uninstalled')
   let shellEnv = await getRawShellEnv(signal)
   let lookupEnv = mergeEnvironment(shellEnv, preset?.env, config.env)
-  let executable: string | undefined
-  let source = 'system'
-  let nativeAntigravity = false
-  if (config.executableOverride && !(terminal && (definition?.terminalCli || config.presetId === 'pi-acp'))) {
-    executable = path.isAbsolute(config.executableOverride)
+  let installation: InstalledBinary | { source: 'none' } = { source: 'none' }
+  const desktop = acpPreset(config.presetId)
+  let nativeArgs: string[] | undefined
+  if (config.executableOverride && !(terminal && (definition?.terminalCli || desktop?.bundledBridge))) {
+    const executable = path.isAbsolute(config.executableOverride)
       ? config.executableOverride
       : ((await findExecutableInEnv(config.executableOverride, { env: lookupEnv })) ?? undefined)
     if (!executable) throw new Error('Local agent executable was not found')
     if (!(await fs.stat(executable)).isFile()) throw new Error('Local agent executable is not a file')
     await fs.access(executable, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
     const root = application.getPath('feature.binary.data')
-    if (await isManagedBinaryPath(executable, [root])) source = 'mise'
+    installation = {
+      componentId:
+        preset?.executable ??
+        (config.protocol === 'codex'
+          ? codexCli.executable
+          : config.protocol === 'claude'
+            ? claudeCli.executable
+            : config.executableOverride),
+      path: executable,
+      source: (await isManagedBinaryPath(executable, [root])) ? 'mise' : 'system'
+    }
   } else if (preset) {
     const names = [preset.executable, ...(preset.aliases ?? [])]
-    const canUseNative = !terminal && preset.id === 'antigravity-acp' && !config.args.length
-    if (canUseNative) names.push('agy')
+    const fallback = !terminal && !config.args.length ? desktop?.cliFallback : undefined
+    if (fallback) names.push(fallback.executable)
     const snapshots = await application.get('BinaryManager').getToolSnapshots(names)
-    let installation = await selectAvailableInstallation(preset, snapshots)
-    if (canUseNative && installation.source === 'none') {
-      installation = await selectAvailableInstallation({ executable: 'agy' }, snapshots)
-      nativeAntigravity = true
-    }
-    executable = installation.source !== 'none' ? installation.path : undefined
-    source = installation.source
+    installation = await selectChatInstallation(preset, snapshots, fallback)
+    if (fallback && installation.source !== 'none' && installation.componentId === fallback.executable)
+      nativeArgs = fallback.args
   }
-  if (!executable) {
+  if (installation.source === 'none') {
     throw Object.assign(new Error('Local agent is not installed'), { code: 'LOCAL_AGENT_NOT_INSTALLED' })
   }
   if (config.presetId && application.get('LocalAgentInstallService').isUninstalling(config.presetId))
     throw new Error('Local agent is being uninstalled')
+  const { path: executable, source } = installation
   const dependencies = [
     ...(!terminal && definition?.terminalCli ? [definition.terminalCli.executable] : []),
-    ...(config.presetId === 'zcode' && !config.executableOverride ? ['zcode'] : [])
+    ...(desktop?.hostBinary && !config.executableOverride ? [desktop.hostBinary.executable] : [])
   ]
   const dependencySnapshots = dependencies.length
     ? await application.get('BinaryManager').getToolSnapshots(dependencies)
@@ -477,102 +358,137 @@ async function resolveProgram(
           : mergePathPrefixes(env, [path.dirname(runtime.path)])
   }
   appendBundledGitPathTail(env)
-  if (config.presetId === 'deepseek-harness') env.DSH_HOME = application.getPath('external.deepseek_harness.config')
-  if (config.presetId === 'openclaw') {
-    env.OPENCLAW_STATE_DIR = application.getPath('external.openclaw.config')
-    env.OPENCLAW_CONFIG_PATH = application.getPath('external.openclaw.config', 'openclaw.json')
-    env.OPENCLAW_NO_AUTO_UPDATE = '1'
+  Object.assign(env, desktop?.defaultEnv?.())
+  const native = config.protocol === 'claude' ? claudeCli : undefined
+  const scheduled = purpose === 'scheduled-chat' ? native : undefined
+  let profile = terminal ? undefined : desktop?.profile
+  if (
+    profile?.format === 'json' &&
+    profile.matchesEnvironment &&
+    !profile.matchesEnvironment(
+      (key) => getEnvironmentValue(lookupEnv, key),
+      (key) => getEnvironmentValue(shellEnv, key)
+    )
+  )
+    profile = undefined
+
+  const targets = new Set<CliConfigTarget>()
+  if (profile?.format === 'json' && profile.launch) {
+    targets.add(profile.target)
+    if (profile.relatedTarget) targets.add(profile.relatedTarget)
   }
-  let nativeModel =
-    !terminal && (config.presetId !== 'cline' || usesGlobalClineProfile(lookupEnv, shellEnv))
-      ? await injectPresetConfigEnv(config.presetId, env, purpose === 'models' ? 'models' : 'chat', lookupEnv)
-      : undefined
-  if (config.presetId === 'pi-acp' && !terminal && !config.executableOverride) {
+  if (profile?.format === 'yaml' && profile.launch) targets.add(profile.target)
+  if (scheduled) targets.add(scheduled.modelConfig.target)
+  if (
+    (purpose === 'session' || scheduled) &&
+    config.sourceModelViaGateway &&
+    config.sourceModelId &&
+    config.nativeModel &&
+    config.presetId
+  ) {
+    const binding = LOCAL_AGENT_MODEL_CONFIG[config.presetId]
+    const gateway = desktop?.gateway
+    const overlay = desktop?.gatewayOverlay
+    if (overlay) targets.add(overlay.target)
+    if (binding && gateway && profile) {
+      targets.add(binding.target)
+      if (gateway.target) targets.add(gateway.target)
+      if (gateway.envFile) targets.add(gateway.envFile)
+      if (gateway.related) targets.add(gateway.related.target)
+    }
+  }
+  const configFiles: LaunchConfigFiles = targets.size
+    ? Object.fromEntries(
+        (
+          await application
+            .get('CodeCliService')
+            .readConfigFiles([...targets], scheduled ? mergeEnvironment(env, preset?.env, config.env) : undefined)
+        ).map(({ target, content }) => [target, content])
+      )
+    : {}
+  let nativeModel = injectPresetConfigEnv(
+    profile,
+    configFiles,
+    env,
+    purpose === 'models' ? 'models' : 'chat',
+    lookupEnv
+  )
+  const bridge = desktop?.bundledBridge
+  if (bridge && !terminal && !config.executableOverride) {
     const nativeExecutable = executable
     const finalEnv = mergeEnvironment(env, preset?.env, config.env)
-    const runtime = await resolveRequiredRuntime({ executable: 'node', minimumVersion: '20.0.0' }, finalEnv)
-    if (!runtime) throw new Error(t('local_agent.runtime_required', { runtime: 'Node.js', version: '20' }))
+    const runtime = await resolveRequiredRuntime(bridge.runtime, finalEnv)
+    if (!runtime)
+      throw new Error(
+        t('local_agent.runtime_required', { runtime: bridge.runtime.label, version: bridge.runtime.major })
+      )
     return {
       executable: runtime.path,
       source: runtime.source,
-      args: [application.getPath('app.pi_acp.file'), ...config.args],
+      installation: undefined,
+      configFiles,
+      args: [bridge.entry(), ...config.args],
       env: {
         ...(runtime.source === 'mise'
           ? mergeBinaryExecutionEnv(finalEnv, [path.dirname(runtime.path)])
           : mergePathPrefixes(finalEnv, [path.dirname(runtime.path)])),
-        PI_ACP_PI_COMMAND: finalEnv.PI_ACP_PI_COMMAND || nativeExecutable
+        [bridge.commandEnv]: finalEnv[bridge.commandEnv] || nativeExecutable
       }
     }
   }
   let childEnv = mergeEnvironment(env, preset?.env, config.env)
-  if (isWin) {
-    if (config.presetId === 'kimi' && !getEnvironmentValue(childEnv, 'KIMI_SHELL_PATH')) {
-      const shellPath = await resolveWindowsShellPath(childEnv, true)
-      if (shellPath) childEnv.KIMI_SHELL_PATH = shellPath
-    }
-    if (config.protocol === 'claude' && !getEnvironmentValue(childEnv, 'CLAUDE_CODE_GIT_BASH_PATH')) {
-      const gitBashPath = await resolveWindowsShellPath(childEnv, false)
-      if (gitBashPath) childEnv.CLAUDE_CODE_GIT_BASH_PATH = gitBashPath
-    }
+  const windowsShell = definition?.windowsShell ?? native?.windowsShell
+  if (isWin && windowsShell && !getEnvironmentValue(childEnv, windowsShell.variable)) {
+    const shell = await resolveWindowsShellPath(childEnv, windowsShell.allowSh)
+    if (shell) childEnv[windowsShell.variable] = shell
   }
-  if (purpose === 'scheduled-chat' && config.protocol === 'claude') {
-    const [settings] = await application.get('CodeCliService').readConfigFiles(['claude-settings'], childEnv)
-    const savedEnv = parseJsonRecord(settings?.content)?.env as Record<string, unknown> | undefined
-    const providerEnv = Object.fromEntries(
-      CLAUDE_PROVIDER_ENV_KEYS.flatMap((key) => {
-        const value = savedEnv?.[key]
-        return typeof value === 'string' ? [[key, value]] : []
-      })
+  if (scheduled) {
+    const content = configFiles[scheduled.modelConfig.target]
+    childEnv = scheduledClaudeEnvironment(
+      mergeEnvironment(env, preset?.env),
+      parseJsonRecord(content),
+      config.env,
+      mergeEnvironment
     )
-    childEnv = mergeClaudeProviderEnv(
-      mergeClaudeProviderEnv(mergeEnvironment(env, preset?.env), providerEnv),
-      config.env
-    )
-    if (settings?.content) nativeModel = readNativeModelConfig('claude-settings', settings.content)
+    if (content) nativeModel = readNativeModelConfig(scheduled.modelConfig.target, content)
   }
-  if (preset?.id === 'antigravity-acp' && !terminal && !nativeAntigravity && !config.executableOverride) {
-    // Set WebSocket proxies explicitly because the adapter lacks python-socks.
-    const agentProxy = Object.keys(config.env).some((key) => /^(https?|all|socks)_proxy$/i.test(key))
-    const appliedProxy = getProxyEnvironment()
-    const useAppliedProxy = !agentProxy && !!appliedProxy[CHERRY_NODE_PROXY_RULES_ENV]
-    if (useAppliedProxy) childEnv = mergeEnvironment(childEnv, appliedProxy, config.env)
-    const proxyEnv = agentProxy ? mergeEnvironment(config.env) : useAppliedProxy ? appliedProxy : childEnv
-    const secureProxy = proxyEnv.https_proxy ?? proxyEnv.HTTPS_PROXY
-    const generalProxy = proxyEnv.all_proxy ?? proxyEnv.ALL_PROXY
-    const websocketProxies = {
-      WS_PROXY: secureProxy ?? proxyEnv.http_proxy ?? proxyEnv.HTTP_PROXY ?? generalProxy,
-      WSS_PROXY: secureProxy ?? generalProxy
-    }
-    for (const [key, proxy] of Object.entries(websocketProxies)) {
-      if (!(key in childEnv) && !(key.toLowerCase() in childEnv) && proxy && /^https?:\/\//i.test(proxy)) {
-        childEnv[key] = proxy
-      }
-    }
-  }
-  if (config.presetId === 'zcode' && !config.executableOverride) {
-    const zcodeHost = await resolveZcodeHostBinary(childEnv, dependencySnapshots)
-    if (!zcodeHost) {
+  if (desktop?.adapterEnv && !terminal && !nativeArgs && !config.executableOverride)
+    childEnv = desktop.adapterEnv(childEnv, config.env)
+  const binary = desktop?.hostBinary
+  if (binary && !config.executableOverride) {
+    const available = await binary.resolve(childEnv, {
+      windows: isWin,
+      home: () => application.getPath('sys.home'),
+      find: (name) => findExecutableInEnv(name, { env: childEnv }),
+      installed: async () => {
+        const installed = await selectAvailableInstallation(binary, dependencySnapshots)
+        return installed.source !== 'none' ? installed.path : undefined
+      },
+      isFile: isExistingFile
+    })
+    if (!available)
       throw Object.assign(
         new Error(
           t('local_agent.host_required_with_env', {
-            agent: definition?.name ?? 'ZCode',
-            host: 'ZCode Desktop / zcode CLI',
-            envVar: 'ZCODE_BIN'
+            agent: definition?.name ?? binary.executable,
+            host: binary.label,
+            envVar: binary.envKey
           })
         ),
         { code: 'LOCAL_AGENT_HOST_REQUIRED' }
       )
-    }
   }
   return {
     executable,
+    installation,
+    configFiles,
     ...(nativeModel ? { nativeModel } : {}),
     source,
-    args: nativeAntigravity
-      ? ['acp']
-      : config.args.length
+    args:
+      nativeArgs ??
+      (config.args.length
         ? config.args
-        : [...(preset?.platformArgs?.[process.platform as 'linux' | 'darwin' | 'win32'] ?? preset?.args ?? [])],
+        : [...(preset?.platformArgs?.[process.platform as 'linux' | 'darwin' | 'win32'] ?? preset?.args ?? [])]),
     env: childEnv
   }
 }
@@ -583,9 +499,9 @@ export async function openLocalAgentTerminal(config: InputFor<'ai.local_agents.o
   let args = config.login ? preset.loginArgs : preset.terminalArgs
   if (!args) throw new Error('This agent does not have a supported terminal login command')
   if (typeof config.login === 'object') {
-    if (preset.id !== 'pi-acp') throw new Error('Only Pi accepts a login provider')
+    if (!preset.providerLogin) throw new Error('This login method does not accept a provider')
     args = [...args, config.login.provider]
-  } else if (config.login && preset.id === 'pi-acp') {
+  } else if (config.login && preset.providerLogin) {
     throw new Error('Pi login requires a provider')
   }
   const launch = await resolveLocalAgentCli(config)

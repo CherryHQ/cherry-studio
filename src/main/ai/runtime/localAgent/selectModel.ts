@@ -10,41 +10,13 @@ import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@sh
 
 import { readNativeModelConfig, updateNativeModelConfig } from './nativeModelConfig'
 
-function hasConfigOverrides(env: Record<string, string>, shellEnv: Record<string, string | undefined>) {
-  const overrides = [
-    'HOME',
-    'USERPROFILE',
-    'CLAUDE_CONFIG_DIR',
-    'CODEX_HOME',
-    'PI_CODING_AGENT_DIR',
-    'KIMI_CODE_HOME',
-    'HERMES_HOME',
-    'XDG_CONFIG_HOME',
-    'OPENCODE_CONFIG',
-    'OPENCODE_CONFIG_DIR',
-    'CODEBUDDY_MODEL',
-    'ANTHROPIC_MODEL',
-    'KILO_CONFIG',
-    'KILO_CONFIG_CONTENT',
-    'COPILOT_HOME',
-    'COPILOT_PROVIDERS_CONFIG',
-    'COPILOT_MODEL',
-    'VIBE_HOME',
-    'VIBE_ACTIVE_MODEL',
-    'POOLSIDE_API_KEY',
-    'POOLSIDE_STANDALONE_BASE_URL',
-    'POOLSIDE_STANDALONE_MODEL',
-    'GROK_HOME',
-    'OMP_PROFILE',
-    'PI_PROFILE',
-    'PI_CONFIG_DIR',
-    'GOOSE_PATH_ROOT',
-    'CLINE_DATA_DIR',
-    'CLINE_DIR',
-    'ZCODE_HOME',
-    'SNOW_CONFIG_DIR'
-  ]
-  return overrides.some((key) => {
+function hasConfigOverrides(
+  overrides: (typeof LOCAL_AGENT_MODEL_CONFIG)[string]['overrides'],
+  env: Record<string, string>,
+  shellEnv: Record<string, string | undefined>
+) {
+  const specific = typeof overrides === 'function' ? overrides(process.platform) : overrides
+  return ['HOME', 'USERPROFILE', 'XDG_CONFIG_HOME', ...specific].some((key) => {
     const override = getEnvironmentValue(env, key)
     return override !== undefined && override !== getEnvironmentValue(shellEnv, key)
   })
@@ -81,7 +53,7 @@ export async function selectLocalAgentModel(
     return updated
   }
   const shellEnv = await getRawShellEnv()
-  if (hasConfigOverrides(config.env, shellEnv)) {
+  if (hasConfigOverrides(native.overrides, config.env, shellEnv)) {
     throw new Error(t('code_cli.model.environment_mismatch'))
   }
   if (selection.sourceModelId && !selection.files?.length) throw new Error(t('code_cli.model.provider_config_missing'))
@@ -118,7 +90,10 @@ export async function selectLocalAgentModel(
       // Re-read after queued I/O so an enable or environment edit is not overwritten.
       const current = agentService.getAgent(agentId)?.configuration?.localRuntime
       if (!current) throw new Error(t('code_cli.model.agent_missing'))
-      if (hasConfigOverrides(current.env, shellEnv)) throw new Error(t('code_cli.model.environment_mismatch'))
+      if (current.presetId !== config.presetId || current.protocol !== config.protocol)
+        throw new Error(t('code_cli.model.config_changed'))
+      if (hasConfigOverrides(native.overrides, current.env, shellEnv))
+        throw new Error(t('code_cli.model.environment_mismatch'))
       const updated = agentService.updateAgent(agentId, {
         configuration: {
           localRuntime: {
@@ -148,7 +123,11 @@ export function syncLocalAgentConfigModel(
   const agent = agentService
     .listAgents()
     .agents.find((agent) => agent.configuration?.localRuntime?.presetId === presetId)
-  if (!agent?.configuration?.localRuntime || hasConfigOverrides(agent.configuration.localRuntime.env, shellEnv)) return
+  if (
+    !agent?.configuration?.localRuntime ||
+    hasConfigOverrides(native.overrides, agent.configuration.localRuntime.env, shellEnv)
+  )
+    return
   const nativeModel =
     file?.content === undefined
       ? agent.configuration.localRuntime.nativeModel

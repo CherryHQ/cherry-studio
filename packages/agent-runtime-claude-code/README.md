@@ -8,6 +8,11 @@ This package contains no Electron, product database, rendering, or tool policy.
 
 ## Access and ownership
 
+For a local CLI, desktop chat and Settings pass the resolved installation, workspace,
+environment and extra arguments to this package. `localClaudeOptions` configures
+the SDK launch. `probeClaudeModels` reads the initialization catalog without
+sending input or creating a transcript, then closes the query and joins its process.
+
 Pass a stable `backendId`, an absolute `configDir`, and optionally a `load(root)`
 callback returning materialized native options for a saved root. The host owns
 the backend namespace and must not create competing runtimes over the same files.

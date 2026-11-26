@@ -9,6 +9,10 @@
     "./v1": {
       "types": "./dist/v1.d.mts",
       "default": "./dist/v1.mjs"
+    },
+    "./profile": {
+      "types": "./dist/profile.d.mts",
+      "default": "./dist/profile.mjs"
     }
   },
   "scripts": {
@@ -18,7 +22,8 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "2.4.0",
     "@cherrystudio/agent-runtime": "workspace:*",
-    "zod": "4.4.3"
+    "zod": "4.4.3",
+    "yaml": "^2.8.1"
   },
   "devDependencies": {
     "@types/node": "^24.10.4",

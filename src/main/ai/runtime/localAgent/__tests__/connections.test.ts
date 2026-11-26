@@ -13,10 +13,10 @@ import { BaseService } from '@main/core/lifecycle'
 import type * as ShellEnv from '@main/utils/shellEnv'
 import { type LocalAgentConfiguration, LocalPermissionOptionsSchema } from '@shared/ai/localAgent'
 
+import { CodexSessionHost } from '../../codex/CodexSessionHost'
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
 import { AcpConnection } from '../AcpConnection'
 import { isInjectedAcpAutomationTool } from '../browserBridge'
-import { CodexConnection } from '../CodexConnection'
 import { LocalAgentAuthService } from '../LocalAgentAuthService'
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { checkLocalAgent, listLocalAgentModels } from '../LocalRuntimeDriver'
@@ -44,7 +44,7 @@ const input = { message: { data: { parts: [{ type: 'text', text: 'hello' }] } } 
 
 describe('local protocol processes', () => {
   let cwd: string
-  const connections: Array<AcpConnection | CodexConnection> = []
+  const connections: Array<AcpConnection | CodexSessionHost> = []
   beforeEach(async () => {
     gateway.acquireGateway.mockReset().mockResolvedValue({
       url: 'ws://127.0.0.1:18790/ws',
@@ -99,7 +99,7 @@ describe('local protocol processes', () => {
     const connection =
       protocol === 'acp'
         ? new AcpConnection('session', 'agent', config, headless)
-        : new CodexConnection('session', 'agent', config, headless)
+        : new CodexSessionHost('session', 'agent', config, headless)
     connections.push(connection)
     const events: AgentRuntimeEvent[] = []
     const drained = (async () => {
@@ -524,7 +524,9 @@ describe('local protocol processes', () => {
         })
       })
     )
-    expect(tools.at(-1)).toMatchObject({
+    expect(
+      chunks.findLast((chunk) => chunk.type === 'dynamic-tool' && chunk.state === 'output-available')
+    ).toMatchObject({
       toolCallId: 'edit',
       input: {
         localAcpTool: {
@@ -537,9 +539,11 @@ describe('local protocol processes', () => {
             { path: '/example', line: 2 },
             { path: '/example', line: null }
           ],
-          content: [{ type: 'diff', path: '/example', oldText: 'old', newText: 'new' }]
+          resultField: 'content',
+          diffPaths: ['/example']
         }
-      }
+      },
+      output: [{ type: 'diff', path: '/example', oldText: 'old', newText: 'new' }]
     })
     expect(chunks.filter((chunk) => chunk.type === 'dynamic-tool' && chunk.state === 'output-available')).toHaveLength(
       1
@@ -582,7 +586,7 @@ describe('local protocol processes', () => {
     expect(chunks.indexOf(content[0])).toBeGreaterThan(chunks.indexOf(text[0]))
     expect(chunks.indexOf(content[5])).toBeLessThan(chunks.indexOf(text[1]))
     expect(
-      chunks.filter((chunk) => chunk.type === 'dynamic-tool' && chunk.state === 'input-available').at(-1)
+      chunks.filter((chunk) => chunk.type === 'dynamic-tool' && chunk.state === 'output-error').at(-1)
     ).toMatchObject({
       toolCallId: 'output',
       input: {
@@ -622,6 +626,14 @@ describe('local protocol processes', () => {
     expect(wire.some((message) => message.method === 'session/set_config_option')).toBe(false)
   })
 
+  it('keeps setup option notifications across model selection without reopening a replayed compaction', async () => {
+    const { connection, events, closeAndDrain } = create('acp', 'model-setup-update', 'fixture-model')
+    await connection.start(cwd, 'native-session')
+    await closeAndDrain()
+    expect(connection.localSessionInfo.thoughtLevel?.currentValue).toBe('balanced')
+    expect(events.filter((event) => event.type.startsWith('compaction-'))).toEqual([])
+  })
+
   it.each(['thought-legacy-duplicate', 'thought-legacy-distinct'])(
     'prefers configOptions over legacy modes regardless of matching labels (%s)',
     async (scenario) => {
@@ -652,6 +664,20 @@ describe('local protocol processes', () => {
     await acp.setThoughtLevel('reasoning-budget', 'deep')
     expect(acp.localSessionInfo.thoughtLevel?.currentValue).toBe('deep')
     expect(acp.localSessionInfo.mode).toBeUndefined()
+  })
+
+  it('keeps the newly advertised mode when a legacy set_mode reply arrives after config_option_update', async () => {
+    const acp = create('acp', 'mode-legacy-upgrade-with-mode').connection as AcpConnection
+    await acp.start(cwd)
+    await acp.setMode('legacy-mode', 'plan')
+    expect(acp.localSessionInfo.mode).toMatchObject({ id: 'legacy-mode', currentValue: 'ask' })
+    expect(acp.localSessionInfo.configOptions).toContainEqual(
+      expect.objectContaining({
+        category: 'mode',
+        id: 'legacy-mode',
+        currentValue: 'ask'
+      })
+    )
   })
 
   it('uses advertised thought option IDs and values and publishes confirmed state', async () => {
@@ -1557,7 +1583,7 @@ describe('local protocol processes', () => {
       ).toHaveLength(3)
     )
     const terminalInputs = observedParts(events).flatMap((chunk) =>
-      chunk.type === 'dynamic-tool' && chunk.state === 'input-available' && chunk.toolCallId === 'terminal-tool'
+      chunk.type === 'dynamic-tool' && chunk.state === 'output-available' && chunk.toolCallId === 'terminal-tool'
         ? [chunk.input]
         : []
     )
@@ -1869,6 +1895,18 @@ describe('local protocol processes', () => {
     expect(prompt.params).toMatchObject({ prompt: [{ type: 'text', text: 'hello' }], _meta: { prefixCwd: false } })
   })
 
+  it('keeps bridge-like titles reported by a custom ACP agent', async () => {
+    const { connection, events, closeAndDrain } = create('acp', 'openclaw-title')
+    await connection.start(cwd)
+    await closeAndDrain()
+    expect(events.filter((event) => event.type === 'session-title').map((event) => event.title)).toEqual([
+      'agent:main:acp-bridge:native-session',
+      'acp-bridge:native-session',
+      '[Working directory: ~/project…',
+      'Explain the project'
+    ])
+  })
+
   it.each([undefined, 'native-session'])(
     'receives native titles during setup and conversation without accepting other sessions: %s',
     async (resume) => {
@@ -1896,23 +1934,10 @@ describe('local protocol processes', () => {
     const { connection, events, text, closeAndDrain } = create('codex')
     await connection.start(cwd)
     const commands = await connection.getSupportedCommands()
-    expect(commands?.map((cmd) => cmd.name)).toEqual(
+    expect(commands).toEqual(
       expect.arrayContaining([
-        'clear',
-        'compact',
-        'usage',
-        'status',
-        'review',
-        'diff',
-        'init',
-        'mcp',
-        'skills',
-        'plan',
-        'fork',
-        'undo',
-        'rename',
-        'goal',
-        'repo-skill'
+        expect.objectContaining({ name: 'clear', aliases: ['new'] }),
+        expect.objectContaining({ name: 'repo-skill', builtin: false })
       ])
     )
 
@@ -1951,9 +1976,33 @@ describe('local protocol processes', () => {
     )
   })
 
+  it('keeps adjacent Codex items in separate parts and writes terminal-only text exactly once', async () => {
+    const { connection, events, closeAndDrain } = create('codex', 'codex-text-items')
+    await connection.start(cwd)
+    await connection.send(input)
+    await vi.waitFor(() => expect(events.some((event) => event.type === 'turn-complete')).toBe(true))
+    await closeAndDrain()
+    const edits = events.flatMap((event) => (event.type === 'message.parts' ? [...event.changes] : []))
+    expect(edits.filter((edit) => edit.type === 'append').map(({ part, text }) => [part, text])).toEqual([
+      [0, 'Working.'],
+      [1, 'Finished.']
+    ])
+    expect(edits.filter((edit) => edit.type === 'finish').map((edit) => edit.providerMetadata?.codex)).toEqual([
+      { itemId: 'a', kind: 'agentMessage', phase: 'commentary' },
+      { itemId: 'b', kind: 'agentMessage', phase: 'final_answer' }
+    ])
+  })
+
+  it('reports missing persisted Codex history without switching to a fresh thread', async () => {
+    const { connection } = create('codex', 'no-rollout')
+    await expect(connection.start(cwd, 'lost')).rejects.toBeInstanceOf(LocalAgentSessionRestoreError)
+    expect((await readWire()).filter((request) => request.method === 'thread/start')).toEqual([])
+  })
+
   it('recovers when Codex thread has no rollout file yet on resume, rename, compact, or fork', async () => {
     const { connection, events, text, closeAndDrain } = create('codex', 'no-rollout')
-    await connection.start(cwd, 'stale-prewarm-thread')
+    if (!(connection instanceof CodexSessionHost)) throw new Error('Expected Codex fixture')
+    await connection.start(cwd, { kind: 'empty-prewarm', threadId: 'stale-prewarm-thread' })
     await vi.waitFor(() => expect(events).toContainEqual({ type: 'resume-token', token: 'native-session' }))
 
     await connection.send({
@@ -2060,7 +2109,6 @@ describe('local protocol processes', () => {
     })()
 
     await connection.start(cwd)
-    expect(events.length).toBeGreaterThanOrEqual(0)
     expect(connection.localSessionInfo.mode).toEqual({
       id: 'dsh-mode',
       currentValue: 'read-only',
@@ -2286,7 +2334,7 @@ describe('local protocol processes', () => {
     expect(JSON.parse(text())).toEqual({
       cmd: { decision: 'accept' },
       fc: { decision: 'accept' },
-      perms: { permissions: { fileSystem: { write: [cwd] } }, scope: 'session' }
+      perms: { permissions: { fileSystem: { read: null, write: [cwd] } }, scope: 'session' }
     })
     await closeAndDrain()
   })
@@ -2300,7 +2348,7 @@ describe('local protocol processes', () => {
       undefined,
       true
     )
-    if (!(connection instanceof CodexConnection)) throw new Error('Expected Codex protocol')
+    if (!(connection instanceof CodexSessionHost)) throw new Error('Expected Codex protocol')
     await connection.start(cwd, resume)
     await expect(connection.setMode('codex-mode', 'fullAccess')).rejects.toThrow('no longer available')
     await connection.send(input)
@@ -2360,7 +2408,7 @@ describe('local protocol processes', () => {
     toolApprovalRegistry.dispatch(network.request.approvalId, { approved: false })
     await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({ type: 'turn-complete' })))
     expect(JSON.parse(text())).toEqual([
-      { permissions: { fileSystem: { write: [cwd] } }, scope: 'session' },
+      { permissions: { fileSystem: { read: null, write: [cwd] } }, scope: 'session' },
       { permissions: {}, scope: 'turn' }
     ])
     await closeAndDrain()
@@ -2585,29 +2633,34 @@ describe('local protocol processes', () => {
       'automation_js',
       'automation: js',
       'automation/reset',
-      'mcp_automation.js',
-      'mcp:poolside__agent__automation:js',
-      'poolside__agent__automation__js'
+      'mcp_automation.js'
     ]) {
-      expect(isInjectedAcpAutomationTool({ title, kind: 'other' })).toBe(true)
+      expect(isInjectedAcpAutomationTool({ title, kind: 'other' }, undefined)).toBe(true)
     }
-    expect(
-      isInjectedAcpAutomationTool({
-        title: 'DeferExecuteTool',
-        kind: 'other',
-        rawInput: { toolName: 'mcp__automation__js', params: { code: '1' } }
-      })
-    ).toBe(true)
+    for (const title of ['mcp:poolside__agent__automation:js', 'poolside__agent__automation__js']) {
+      expect(isInjectedAcpAutomationTool({ title, kind: 'other' }, 'poolside')).toBe(true)
+      expect(isInjectedAcpAutomationTool({ title, kind: 'other' }, 'codebuddy-code')).toBe(false)
+    }
+    const deferred = {
+      title: 'DeferExecuteTool',
+      kind: 'other',
+      rawInput: { toolName: 'mcp__automation__js', params: { code: '1' } }
+    } as const
+    expect(isInjectedAcpAutomationTool(deferred, 'codebuddy-code')).toBe(true)
+    expect(isInjectedAcpAutomationTool(deferred, undefined)).toBe(false)
 
-    expect(isInjectedAcpAutomationTool({ title: 'js', kind: 'other' })).toBe(false)
+    expect(isInjectedAcpAutomationTool({ title: 'js', kind: 'other' }, undefined)).toBe(false)
     expect(
-      isInjectedAcpAutomationTool({
-        title: 'DeferExecuteTool',
-        kind: 'other',
-        rawInput: { toolName: 'Bash', params: { command: 'rm -rf /' } }
-      })
+      isInjectedAcpAutomationTool(
+        {
+          title: 'DeferExecuteTool',
+          kind: 'other',
+          rawInput: { toolName: 'Bash', params: { command: 'rm -rf /' } }
+        },
+        'codebuddy-code'
+      )
     ).toBe(false)
-    expect(isInjectedAcpAutomationTool({ title: 'mcp__automation__js', kind: 'execute' })).toBe(false)
-    expect(isInjectedAcpAutomationTool({ title: 'mcp__automation__js', kind: 'edit' })).toBe(false)
+    expect(isInjectedAcpAutomationTool({ title: 'mcp__automation__js', kind: 'execute' }, undefined)).toBe(false)
+    expect(isInjectedAcpAutomationTool({ title: 'mcp__automation__js', kind: 'edit' }, undefined)).toBe(false)
   })
 })
