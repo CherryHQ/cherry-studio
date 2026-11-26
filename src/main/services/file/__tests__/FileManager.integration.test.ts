@@ -531,11 +531,7 @@ describe('FileManager (integration)', () => {
         dbh.db
           .update(agentSessionMessageTable)
           .set({
-            data: {
-              ...agentSessionMessageService.getSessionMessage('session-detach', '019606a0-0000-7000-8000-00000000dd01')
-                .data,
-              nativeSessionId: 'native-thread'
-            }
+            data: { nativeSessionId: 'native-thread' }
           })
           .where(eq(agentSessionMessageTable.id, '019606a0-0000-7000-8000-00000000dd01'))
           .run()
@@ -555,9 +551,13 @@ describe('FileManager (integration)', () => {
           .parts
       ).toEqual([{ type: 'text', text: 'see attachment' }])
       if (nativeBound) {
-        expect(row?.data.parts).toHaveLength(2)
         expect(row?.data.nativeSessionId).toBe('native-thread')
-      } else expect(row?.data.parts).toHaveLength(1)
+      }
+      expect(
+        agentSessionMessageService
+          .getStoredMessageParts('session-detach', '019606a0-0000-7000-8000-00000000dd01')
+          .map(({ payload }) => payload)
+      ).toHaveLength(nativeBound ? 2 : 1)
     }
   )
 

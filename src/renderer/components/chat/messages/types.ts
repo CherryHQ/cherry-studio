@@ -9,6 +9,7 @@ import type { Citation, MessageUiState } from '@renderer/types/message'
 import type { MessageExportTarget, MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type {
@@ -30,6 +31,7 @@ import type {
 } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import type { OutputFor } from '@shared/ipc/types'
 import type { FileUrlString } from '@shared/types/file'
 
 import type { ActionAvailabilityInput } from '../actions/actionTypes'
@@ -217,6 +219,7 @@ export interface RemoveMessageErrorPartInput {
 }
 
 export interface MessageListItem {
+  partIds?: readonly string[]
   id: string
   role: CherryUIMessage['role']
   assistantId?: string
@@ -321,7 +324,7 @@ export type MessageRenderConfigUpdate = Partial<
  * stream snapshots); `liveMessageIds` marks the mutable streaming tail.
  */
 export interface MessageStreamingLayers {
-  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  historyPartsByMessageId: MessagePartRows
   liveMessageIds: readonly string[]
 }
 
@@ -333,7 +336,7 @@ export interface MessageTailSlot {
 export interface MessageListState {
   topic: Topic
   messages: MessageListItem[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   /** When provided, streaming updates stay isolated from historical message subtrees. */
   streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
@@ -385,6 +388,7 @@ export const DEFAULT_MESSAGE_LIST_CONFIG = {
 } as const satisfies Pick<MessageListState, 'estimateSize' | 'overscan' | 'loadOlderDelayMs' | 'loadingResetDelayMs'>
 
 export interface MessageListActions {
+  openMcpApp?: (messageId: string, toolCallId: string, requestId: string) => Promise<OutputFor<'mcp.app.open'>>
   addGeneratedImageToComposer?: (image: { url: string; name: string }) => void | Promise<void>
   openForkSourceSession?: (sessionId: string) => Promise<void>
   /** Sends again a user message (status `paused`) that the runtime withdrew before the agent received it. */

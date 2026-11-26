@@ -150,8 +150,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── prepareGatewayMessage.ts         ← shared protocol conversion and request overrides
 ├── objectStream.ts                  ← native protocol object transport for Pi / Pi Durable
 ├── proxyStream.ts                   ← `processMessage()` — converter → single SDK call → response adapter
-├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
-├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)
+├── reasoningCache.ts                ← Google signatures and OpenRouter reasoning details captured per tool call
 ├── providerExport.ts                ← provider/model export payload served to paired devices over remote access
 ├── middleware/
 │   └── auth.ts                      ← desktop API-key auth

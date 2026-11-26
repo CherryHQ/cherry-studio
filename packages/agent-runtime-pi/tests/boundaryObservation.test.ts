@@ -89,7 +89,7 @@ it.each(['turn_end', 'agent_before_settle'] as const)(
       metadata: { completeness: 'complete' }
     }))
     const completed = events.flatMap((event) =>
-      event.type === 'message.upsert' &&
+      event.type === 'message.reconcile' &&
       event.message.metadata?.completeness === 'complete' &&
       event.message.role !== 'system'
         ? [event.message]
