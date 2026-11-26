@@ -12,7 +12,7 @@ import {
 } from '@cherrystudio/provider-registry/node'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { isPortable } from '@main/core/platform'
-import { resolveRegistryPaths } from '@main/data/services/utils/registryDataPaths'
+import { probeOverrideSnapshot, resolveRegistryPaths } from '@main/data/services/utils/registryDataPaths'
 import { loadNativeCaptureBackend } from '@main/services/screenshot'
 import { isOutsidePath, isPathInside } from '@main/utils/file'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
@@ -180,6 +180,15 @@ export const providerRegistryReadable = defineDoctorCheck({
     }
     const [fallback] = providerRegistryService.getRegistryFallbacks()
     if (fallback) return unreadableRegistry(fallback.path, fallback.namespace, fallback.cause)
+
+    const rejection = probeOverrideSnapshot()
+    if (rejection) {
+      return unreadableRegistry(
+        application.getPath('feature.provider_registry.override', rejection.file),
+        'override',
+        rejection.cause
+      )
+    }
 
     const paths = resolveRegistryPaths()
     const files = [

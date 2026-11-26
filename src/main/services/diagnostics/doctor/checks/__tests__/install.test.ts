@@ -289,6 +289,52 @@ describe('install-provider-registry-readable', () => {
     })
   })
 
+  it('reports an incomplete cold-start override snapshot before any override loader runs', async () => {
+    writeOverride()
+    const providerModels = path.join(overrideRoot, 'provider-models.json')
+    unlinkSync(providerModels)
+
+    expect(providerRegistryService.getRegistryFallbacks()).toEqual([])
+
+    await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
+      status: 'warn',
+      attribution: 'user-fixable',
+      detail: { variant: 'unreadable_override', params: { file: 'provider-models.json' } },
+      actions: [{ kind: 'navigate', target: '/settings/about' }, { kind: 'report' }],
+      evidence: expect.arrayContaining([
+        { key: 'file', value: 'provider-models.json', dataClass: 'public' },
+        { key: 'namespace', value: 'override', dataClass: 'public' },
+        { key: 'path', value: providerModels, dataClass: 'local_only' },
+        { key: 'cause', value: 'missing', dataClass: 'consent_required' }
+      ])
+    })
+  })
+
+  it('reports a corrupt cold-start override file before any override loader runs', async () => {
+    writeOverride()
+    const providerModels = path.join(overrideRoot, 'provider-models.json')
+    writeFileSync(providerModels, '{')
+
+    expect(providerRegistryService.getRegistryFallbacks()).toEqual([])
+
+    await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
+      status: 'warn',
+      attribution: 'user-fixable',
+      detail: { variant: 'unreadable_override', params: { file: 'provider-models.json' } },
+      evidence: expect.arrayContaining([
+        { key: 'file', value: 'provider-models.json', dataClass: 'public' },
+        { key: 'namespace', value: 'override', dataClass: 'public' },
+        { key: 'path', value: providerModels, dataClass: 'local_only' },
+        { key: 'cause', value: 'unparsable', dataClass: 'consent_required' }
+      ])
+    })
+  })
+
+  it('passes when a complete compatible override snapshot is present', async () => {
+    writeOverride()
+    await expect(providerRegistryReadable.run(ctx)).resolves.toEqual({ status: 'pass' })
+  })
+
   it('attributes invalid provider-model metadata to the active override', async () => {
     writeOverride()
     const providerModels = path.join(overrideRoot, 'provider-models.json')

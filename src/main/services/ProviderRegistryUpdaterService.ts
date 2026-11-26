@@ -14,7 +14,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { notifyDataApiDataChange } from '@main/data/dataApiDataChange'
 import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
-import { readActiveOverrideManifest } from '@main/data/services/utils/registryDataPaths'
+import { probeOverrideSnapshot, readActiveOverrideManifest } from '@main/data/services/utils/registryDataPaths'
 import { writeProviderRegistrySnapshot } from '@main/services/providerRegistrySnapshot'
 import { regionService } from '@main/services/RegionService'
 import { generateUserAgent } from '@main/utils/systemInfo'
@@ -107,6 +107,7 @@ export class ProviderRegistryUpdaterService extends BaseService {
       if (
         !this.hasChanges(staged) &&
         !hasOverrideFallback() &&
+        !probeOverrideSnapshot() &&
         (!currentManifest || currentManifest.revision === manifest.revision)
       ) {
         logger.debug('registry update: catalog already current')
