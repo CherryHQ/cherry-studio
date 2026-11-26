@@ -2320,6 +2320,7 @@ describe('deriveConnectionConfig', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
       false,
       'plan'
     )
