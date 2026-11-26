@@ -18,6 +18,8 @@ before starting execution. Native permission mode defaults to `default`; explici
 modes and native hooks/callbacks pass through. `open(thread)` validates the backend
 and existing native storage. Opening and observing do not run a model. The first
 root submission starts or resumes its Query. Concurrent opens share that owner.
+Opening reports `native-storage-missing` when the archive is absent and
+`native-storage-unavailable` when its read fails.
 
 The host may supply a reserved `sessionId` to `create`. `claude.start()` initializes
 the connection without model input, optionally taking exclusive ownership of a
@@ -100,8 +102,9 @@ and native idle barrier must finish. Running shell commands retain occupancy wit
 product reply open; their completion notifications retain the root Bash call's identity. Nested
 shell calls and ambient notifications do not become root reply results. Main reuses an existing
 assistant message for background generation instead of creating a standalone continuation message.
-Overflow recovery retains unseen control
-and invocation facts after their matching body; an unrecoverable backlog reports a gap and closes.
+Observers receive incremental batches in order. On overflow a gap and snapshot can replace queued
+content after the last control or invocation. Each control and invocation sees the content at its own
+revision. The feed closes an observer with a gap when more than 1,000 of its pending batches carry these facts.
 Slow or failing consumers cannot block native execution. After stopping production, hosts await
 `Observation.drain()` before final archive persistence, then detach and release. `runtime.settled()`
 joins native input and background occupancy without closing the SDK; the desktop backup barrier
@@ -137,7 +140,9 @@ Main converts token counts to product usage and owns frozen
 pricing, product attribution and idempotent persistence; Gateway remains the sole capture path for
 Gateway requests. The display decorator owns only MCP presentation, reminders and thinking timing.
 
-Committed message IDs use transcript UUIDs; ordered SDK parts retain their native blocks.
+The live root routes each SDK block index to its source. Text and thinking deltas append to that block.
+Tool argument fragments belong to the open call, and a tool result updates its calling block by tool-use ID.
+Committed message IDs use transcript UUIDs. Ordered SDK parts retain their native blocks.
 Provisional root messages carry `replaces` when committed; distinct UUIDs sharing an API response ID remain
 distinct. Child output has native complete-block granularity. Aborted content stays
 partial. Explicit retractions are retained in live snapshots and archives so replay
@@ -148,10 +153,13 @@ late event. Missing parent evidence leaves relationships unresolved.
 retractions. Raw native messages and committed-source membership remain internal. SDK history APIs and native export run in an isolated
 worker with the backend's configuration environment; the caller's environment is
 unchanged. Live events are buffered during reconciliation and applied afterward.
-Compaction selects a new model context without deleting previously observed product
-content. Missing native files return an error instead of a writable replacement.
-`claude.archive({ refresh: false })` captures already observed committed content
-without triggering another observation from inside a projection writer. Default archive
+Compaction publishes the boundary and resumes live delivery from the retained product content.
+An explicit archive refresh reads the SDK-selected model context.
+Missing native files return an error instead of a writable replacement.
+`claude.archive({ refresh: false })` reads committed content from memory, including on the first attachment.
+Foreground children publish their opening user message. For a background child, the original
+`task_started.prompt` identifies one opening input per child thread. Native recovery returns
+the alias from its transcript UUID to that thread so the product can keep the same row. Default archive
 refresh still reads the selected native view. Permission denial is applied to native tool parts and
 survives out-of-order assistant messages and archive refresh.
 The adapter preserves signatures, files, citations and raw tool outputs in SDK parts/metadata.

@@ -1,8 +1,18 @@
 diff --git a/dist/index.js b/dist/index.js
-index 06b36c7486ee0236fcb861ad4d16e172c6554b4d..303afc0a4cf03ac2ab1a5d999f4f6367ba64ae7b 100644
+index 06b36c7486ee0236fcb861ad4d16e172c6554b4d..2a542237c4077e0ee83a58dff254076ca73b361b 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -1490,7 +1490,7 @@ async function downloadToolResultFiles(prompt, {
+@@ -1281,7 +1281,8 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+                   // model response legitimately have no signature.
+                   !isServerToolCall && thoughtSignature == null && modelResponseHasSignedFunctionCall
+                 );
+-                const effectiveThoughtSignature = thoughtSignature != null ? thoughtSignature : isGemini3Model && !shouldSkipMissingSignatureMitigation ? injectSkipSignature(part.toolName) : void 0;
++                const omitThoughtSignature = part.providerOptions?.cherry?.omitGeminiThoughtSignature === true;
++                const effectiveThoughtSignature = omitThoughtSignature ? void 0 : thoughtSignature != null ? thoughtSignature : isGemini3Model && !shouldSkipMissingSignatureMitigation ? injectSkipSignature(part.toolName) : void 0;
+                 if (!isServerToolCall && thoughtSignature != null) {
+                   modelResponseHasSignedFunctionCall = true;
+                 }
+@@ -1490,7 +1491,7 @@ async function downloadToolResultFiles(prompt, {
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
@@ -11,7 +21,7 @@ index 06b36c7486ee0236fcb861ad4d16e172c6554b4d..303afc0a4cf03ac2ab1a5d999f4f6367
  }
  
  // src/google-generative-ai-options.ts
-@@ -3807,7 +3807,7 @@ var GoogleGenerativeAIImageModel = class {
+@@ -3807,7 +3808,7 @@ var GoogleGenerativeAIImageModel = class {
        parameters
      };
      const { responseHeaders, value: response } = await (0, import_provider_utils17.postJsonToApi)({
@@ -20,7 +30,7 @@ index 06b36c7486ee0236fcb861ad4d16e172c6554b4d..303afc0a4cf03ac2ab1a5d999f4f6367
        headers: (0, import_provider_utils17.combineHeaders)(await (0, import_provider_utils17.resolve)(this.config.headers), headers),
        body,
        failedResponseHandler: googleFailedResponseHandler,
-@@ -3941,6 +3941,15 @@ var GoogleGenerativeAIImageModel = class {
+@@ -3941,6 +3942,15 @@ var GoogleGenerativeAIImageModel = class {
          images.push((0, import_provider_utils17.convertToBase64)(part.data));
        }
      }
@@ -36,7 +46,7 @@ index 06b36c7486ee0236fcb861ad4d16e172c6554b4d..303afc0a4cf03ac2ab1a5d999f4f6367
      const languageModelGoogleMetadata = (_h = (_g = result.providerMetadata) == null ? void 0 : _g.google) != null ? _h : {};
      return {
        images,
-@@ -3966,7 +3975,7 @@ var GoogleGenerativeAIImageModel = class {
+@@ -3966,7 +3976,7 @@ var GoogleGenerativeAIImageModel = class {
    }
  };
  function isGeminiModel(modelId) {
@@ -46,10 +56,20 @@ index 06b36c7486ee0236fcb861ad4d16e172c6554b4d..303afc0a4cf03ac2ab1a5d999f4f6367
  var googleImageResponseSchema = (0, import_provider_utils17.lazySchema)(
    () => (0, import_provider_utils17.zodSchema)(
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 13e3fb42d9bdfbbca564a068740bff1faa5d3448..b8e506dbf230f689daec5a192da638fe2dadb177 100644
+index 13e3fb42d9bdfbbca564a068740bff1faa5d3448..199fa986207085d507e065bf34e7ddd0caafdb66 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -1523,7 +1523,7 @@ async function downloadToolResultFiles(prompt, {
+@@ -1310,7 +1310,8 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+                   // model response legitimately have no signature.
+                   !isServerToolCall && thoughtSignature == null && modelResponseHasSignedFunctionCall
+                 );
+-                const effectiveThoughtSignature = thoughtSignature != null ? thoughtSignature : isGemini3Model && !shouldSkipMissingSignatureMitigation ? injectSkipSignature(part.toolName) : void 0;
++                const omitThoughtSignature = part.providerOptions?.cherry?.omitGeminiThoughtSignature === true;
++                const effectiveThoughtSignature = omitThoughtSignature ? void 0 : thoughtSignature != null ? thoughtSignature : isGemini3Model && !shouldSkipMissingSignatureMitigation ? injectSkipSignature(part.toolName) : void 0;
+                 if (!isServerToolCall && thoughtSignature != null) {
+                   modelResponseHasSignedFunctionCall = true;
+                 }
+@@ -1523,7 +1524,7 @@ async function downloadToolResultFiles(prompt, {
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
@@ -58,7 +78,7 @@ index 13e3fb42d9bdfbbca564a068740bff1faa5d3448..b8e506dbf230f689daec5a192da638fe
  }
  
  // src/google-generative-ai-options.ts
-@@ -3875,7 +3875,7 @@ var GoogleGenerativeAIImageModel = class {
+@@ -3875,7 +3876,7 @@ var GoogleGenerativeAIImageModel = class {
        parameters
      };
      const { responseHeaders, value: response } = await postJsonToApi4({
@@ -67,7 +87,7 @@ index 13e3fb42d9bdfbbca564a068740bff1faa5d3448..b8e506dbf230f689daec5a192da638fe
        headers: combineHeaders4(await resolve4(this.config.headers), headers),
        body,
        failedResponseHandler: googleFailedResponseHandler,
-@@ -4009,6 +4009,15 @@ var GoogleGenerativeAIImageModel = class {
+@@ -4009,6 +4010,15 @@ var GoogleGenerativeAIImageModel = class {
          images.push(convertToBase643(part.data));
        }
      }
@@ -83,7 +103,7 @@ index 13e3fb42d9bdfbbca564a068740bff1faa5d3448..b8e506dbf230f689daec5a192da638fe
      const languageModelGoogleMetadata = (_h = (_g = result.providerMetadata) == null ? void 0 : _g.google) != null ? _h : {};
      return {
        images,
-@@ -4034,7 +4043,7 @@ var GoogleGenerativeAIImageModel = class {
+@@ -4034,7 +4044,7 @@ var GoogleGenerativeAIImageModel = class {
    }
  };
  function isGeminiModel(modelId) {
@@ -93,10 +113,20 @@ index 13e3fb42d9bdfbbca564a068740bff1faa5d3448..b8e506dbf230f689daec5a192da638fe
  var googleImageResponseSchema = lazySchema13(
    () => zodSchema13(
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index 1dc5d421dcb3d1cab9e715e6d25744adfbd4a363..cece6472530c81161c71bf1b5091ada16072b7be 100644
+index 1dc5d421dcb3d1cab9e715e6d25744adfbd4a363..97e3a963713551e9b1e75fc9531b76654d66b34b 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
-@@ -1019,7 +1019,7 @@ async function downloadToolResultFiles(prompt, {
+@@ -810,7 +810,8 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+                   // model response legitimately have no signature.
+                   !isServerToolCall && thoughtSignature == null && modelResponseHasSignedFunctionCall
+                 );
+-                const effectiveThoughtSignature = thoughtSignature != null ? thoughtSignature : isGemini3Model && !shouldSkipMissingSignatureMitigation ? injectSkipSignature(part.toolName) : void 0;
++                const omitThoughtSignature = part.providerOptions?.cherry?.omitGeminiThoughtSignature === true;
++                const effectiveThoughtSignature = omitThoughtSignature ? void 0 : thoughtSignature != null ? thoughtSignature : isGemini3Model && !shouldSkipMissingSignatureMitigation ? injectSkipSignature(part.toolName) : void 0;
+                 if (!isServerToolCall && thoughtSignature != null) {
+                   modelResponseHasSignedFunctionCall = true;
+                 }
+@@ -1019,7 +1020,7 @@ async function downloadToolResultFiles(prompt, {
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
@@ -106,10 +136,20 @@ index 1dc5d421dcb3d1cab9e715e6d25744adfbd4a363..cece6472530c81161c71bf1b5091ada1
  
  // src/google-error.ts
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index 2bc79ffb339a9f2961d80a868d46184a070cd727..935c0eba68d8f410fa9738aee7a50addd0bd9cd8 100644
+index 2bc79ffb339a9f2961d80a868d46184a070cd727..5462eb507ff56e361061fd1f03d685e6f0bf8049 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
-@@ -1014,7 +1014,7 @@ async function downloadToolResultFiles(prompt, {
+@@ -801,7 +801,8 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+                   // model response legitimately have no signature.
+                   !isServerToolCall && thoughtSignature == null && modelResponseHasSignedFunctionCall
+                 );
+-                const effectiveThoughtSignature = thoughtSignature != null ? thoughtSignature : isGemini3Model && !shouldSkipMissingSignatureMitigation ? injectSkipSignature(part.toolName) : void 0;
++                const omitThoughtSignature = part.providerOptions?.cherry?.omitGeminiThoughtSignature === true;
++                const effectiveThoughtSignature = omitThoughtSignature ? void 0 : thoughtSignature != null ? thoughtSignature : isGemini3Model && !shouldSkipMissingSignatureMitigation ? injectSkipSignature(part.toolName) : void 0;
+                 if (!isServerToolCall && thoughtSignature != null) {
+                   modelResponseHasSignedFunctionCall = true;
+                 }
+@@ -1014,7 +1015,7 @@ async function downloadToolResultFiles(prompt, {
  
  // src/get-model-path.ts
  function getModelPath(modelId) {

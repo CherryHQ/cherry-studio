@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, readdir, rmdir, unlink, writeFile } from 'nod
 import os from 'node:os'
 import path from 'node:path'
 
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
@@ -14,7 +14,6 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelSessionTable, agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
@@ -2171,33 +2170,25 @@ describe('memory organization lifecycle and commit fences', () => {
     }
     vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 100)
     const rootId = ensureAgentSessionRootTx(dbh.db, sessionId)
-    const [user] = dbh.db
-      .insert(agentSessionMessageTable)
-      .values({
-        sessionId,
-        parentId: rootId,
-        role: 'user',
-        status: 'success',
-        data: { parts: [{ type: 'text', text: 'I prefer concise answers.' }] }
-      })
-      .returning()
-      .all()
-    const [response] = dbh.db
-      .insert(agentSessionMessageTable)
-      .values({
+    const userId = randomUUID()
+    const responseId = randomUUID()
+    const parts = [{ type: 'text' as const, text: 'I prefer concise answers.' }]
+    insertAgentSessionMessages(dbh.db, [
+      { id: userId, sessionId, parentId: rootId, role: 'user', status: 'success', data: { parts } },
+      {
+        id: responseId,
         sessionId,
         role: 'assistant',
-        parentId: kind === 'preview-unrelated-response' ? rootId : user.id,
+        parentId: kind === 'preview-unrelated-response' ? rootId : userId,
         status: kind === 'failed' ? 'error' : 'success',
         data: { parts: [] },
         messageSnapshot: { id: agentId, name: 'Agent', model: { id: 'gpt-4o', name: 'Fixture', provider: 'fixture' } }
-      })
-      .returning()
-      .all()
-    dbh.db.update(agentSessionTable).set({ activeNodeId: response.id }).where(eq(agentSessionTable.id, sessionId)).run()
+      }
+    ])
+    dbh.db.update(agentSessionTable).set({ activeNodeId: responseId }).where(eq(agentSessionTable.id, sessionId)).run()
     if (kind.startsWith('preview')) {
-      dreaming.authorizeSubmission('agent', sessionId, agentId)?.(user.id, user.data.parts ?? [])
-      dreaming['captureExtraction']({ kind: 'agent', sessionId, userMessageId: user.id, responseId: response.id })
+      dreaming.authorizeSubmission('agent', sessionId, agentId)?.(userId, parts)
+      dreaming['captureExtraction']({ kind: 'agent', sessionId, userMessageId: userId, responseId })
       generate.mockImplementationOnce(async (input) => {
         const message = JSON.parse(input.prompt!).messages[0]
         return {
@@ -2225,8 +2216,8 @@ describe('memory organization lifecycle and commit fences', () => {
       })
       const preview = dreaming.previewExtraction(
         {
-          source: { kind: 'agent', sessionId, userMessageId: user.id, responseId: response.id },
-          fromMessageId: user.id
+          source: { kind: 'agent', sessionId, userMessageId: userId, responseId },
+          fromMessageId: userId
         },
         () => undefined
       )
@@ -2262,13 +2253,13 @@ describe('memory organization lifecycle and commit fences', () => {
         finishReason: 'stop'
       }
     })
-    if (kind !== 'headless') dreaming.authorizeSubmission('agent', sessionId, agentId)?.(user.id, user.data.parts ?? [])
+    if (kind !== 'headless') dreaming.authorizeSubmission('agent', sessionId, agentId)?.(userId, parts)
     agentTurns.fire({
       sessionId,
-      assistantMessageId: response.id,
+      assistantMessageId: responseId,
       status: 'success',
       boundary: 'turn',
-      ...(kind === 'headless' ? {} : { memoryUserMessageId: user.id })
+      ...(kind === 'headless' ? {} : { memoryUserMessageId: userId })
     })
     if (kind.endsWith('queued')) changeSession()
     const eligible = kind === 'desktop' || kind.startsWith('renamed') || kind === 'configured-queued'

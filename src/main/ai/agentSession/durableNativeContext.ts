@@ -3,20 +3,24 @@ import { dirname, join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { pathToFileURL } from 'node:url'
 
+import type { Context } from '@earendil-works/chord/context'
 import type { Storage, Tx, ConversationId } from '@earendil-works/pi-durable'
 
 import { application } from '@application'
+import type { LookupInput } from '@cherrystudio/agent-runtime'
 import type { AgentRuntimeBackendRow } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { loggerService } from '@logger'
+import { unavailableNativeContext } from '@main/ai/runtime/types'
 
+const PRODUCT_CONTEXT_KIND = 'cherry.product-context'
 const DURABLE_STORAGE_ERROR_I18N_KEY = 'durable_storage_failed'
 const logger = loggerService.withContext('durableNativeContext')
 
 export async function durableContextIdentity() {
   const { defineDoc } = await import('@earendil-works/pi-durable')
   return defineDoc({
-    kind: 'cherry.product-context',
+    kind: PRODUCT_CONTEXT_KIND,
     version: 1,
     scope: 'conversation',
     history: 'latest',
@@ -70,7 +74,9 @@ export async function createDurableBackend(backendId: string) {
     const storage = await openNodeSqliteStorage(stagedPath)
     const session = createSession(storage)
     try {
+      const { recoveryIndex } = await import('@cherrystudio/agent-runtime-pi-durable')
       await session.commit(async (tx) => {
+        ;(await tx.doc(recoveryIndex)).initialized = true
         const marker = await tx.doc(backendDocument)
         marker.backendId = backend.id
       }, nativeContext)
@@ -148,14 +154,19 @@ export async function createDurableBackend(backendId: string) {
   return contexts.backend(backend.id)
 }
 
-export async function openDurableStorage(backend: AgentRuntimeBackendRow): Promise<Storage> {
-  const { SqliteStorage, NodeSqliteDatabase, backendDocument, nativeContext } = await loadDurableStorage()
+export async function openDurableStorage(backend: AgentRuntimeBackendRow, mode: 'ro' | 'rw' = 'rw'): Promise<Storage> {
+  const { SqliteStorage, NodeSqliteDatabase, openNodeSqliteDatabase, backendDocument, nativeContext } =
+    await loadDurableStorage()
   const path = durablePath(backend)
   const uri = pathToFileURL(path)
-  uri.searchParams.set('mode', 'rw')
+  uri.searchParams.set('mode', mode)
   let storage: Storage
   try {
-    storage = await SqliteStorage.openExisting(new NodeSqliteDatabase(new DatabaseSync(uri, { timeout: 5000 })))
+    storage = await SqliteStorage.openExisting(
+      mode === 'ro'
+        ? await openNodeSqliteDatabase(path, { mode: 'read-only' })
+        : new NodeSqliteDatabase(new DatabaseSync(uri, { timeout: 5000 }))
+    )
   } catch (error) {
     throw Object.assign(error as Error, { i18nKey: DURABLE_STORAGE_ERROR_I18N_KEY })
   }
@@ -178,6 +189,19 @@ export async function openDurableStorage(backend: AgentRuntimeBackendRow): Promi
   }
 }
 
+export const lookupStoredDurableInput: LookupInput = async (thread, inputId, legacyId) => {
+  const [{ readDurableInput }, { BACKGROUND_CONTEXT }] = await Promise.all([
+    import('@cherrystudio/agent-runtime-pi-durable'),
+    import('@earendil-works/chord/context')
+  ])
+  const storage = await openDurableStorage(contexts.backend(thread.backendId), 'ro')
+  try {
+    return await readDurableInput(storage, thread, inputId, legacyId)
+  } finally {
+    await storage.close(BACKGROUND_CONTEXT)
+  }
+}
+
 export async function reconcileDurableBackend(backendId: string): Promise<Storage> {
   const backend = contexts.backend(backendId)
   const storage = await openDurableStorage(backend)
@@ -191,10 +215,32 @@ export async function reconcileDurableBackend(backendId: string): Promise<Storag
   }
 }
 
+export async function matchesDurableContext(
+  storage: Storage,
+  id: ConversationId,
+  contextId: string,
+  ctx: Context
+): Promise<boolean> {
+  const address = await storage.findDocument(
+    { kind: PRODUCT_CONTEXT_KIND, scope: { kind: 'conversation', conversationId: id } },
+    'current',
+    ctx
+  )
+  const doc = address && (await storage.document(address.id, 'current', ctx))
+  return doc?.version === 1 && doc.value.contextId === contextId
+}
+
 /** Recover the native identity from the same commit that created the root conversation. */
 export async function prepareDurableRoot(contextId: string) {
   const context = contexts.context(contextId)
-  if (contexts.backend(context.backendId).state === 'creating') {
+  const backend = contexts.backend(context.backendId)
+  try {
+    if (backend.state === 'bound' && !lstatSync(durablePath(backend), { throwIfNoEntry: false }))
+      return unavailableNativeContext(context, 'Durable store is missing')
+  } catch (error) {
+    throw Object.assign(error as Error, { i18nKey: DURABLE_STORAGE_ERROR_I18N_KEY })
+  }
+  if (backend.state === 'creating') {
     try {
       await createDurableBackend(context.backendId)
     } catch (error) {
@@ -209,24 +255,33 @@ export async function prepareDurableRoot(contextId: string) {
   const { nativeContext } = await loadDurableStorage()
   const identity = await durableContextIdentity()
   try {
-    const matches: string[] = []
-    let cursor: Parameters<Storage['scanConversations']>[2]
-    do {
-      const page = await storage.scanConversations({}, 256, cursor, nativeContext)
-      for (const conversation of page.items) {
-        const address = await storage.findDocument(
-          { kind: identity.definition.kind, scope: { kind: 'conversation', conversationId: conversation.id } },
-          'current',
-          nativeContext
-        )
-        const doc = address && (await storage.document(address.id, 'current', nativeContext))
-        if (doc?.value.contextId === contextId) matches.push(String(conversation.id))
+    const expected = context.nativeThreadId ?? undefined
+    let nativeId = expected
+    if (nativeId) {
+      const id = Number(nativeId) as ConversationId
+      if (!(await matchesDurableContext(storage, id, contextId, nativeContext))) {
+        if (await storage.conversation(id, nativeContext)) throw new Error('Durable context identity does not match')
+        nativeId = undefined
       }
-      cursor = page.next
-    } while (cursor)
-    if (matches.length > 1 || (context.nativeThreadId && matches[0] !== context.nativeThreadId))
-      throw new Error('Durable context identity does not match')
-    const nativeId = matches[0]
+    }
+    if (!nativeId) {
+      let cursor: Parameters<Storage['scanConversations']>[2]
+      do {
+        const page = await storage.scanConversations({}, 256, cursor, nativeContext)
+        for (const conversation of page.items) {
+          if (!(await matchesDurableContext(storage, conversation.id, contextId, nativeContext))) continue
+          if (nativeId) throw new Error('Durable context identity does not match')
+          nativeId = String(conversation.id)
+        }
+        cursor = page.next
+      } while (cursor)
+      if (expected) {
+        if (nativeId) throw new Error('Durable context identity does not match')
+        return storage
+          .close(nativeContext)
+          .then(() => unavailableNativeContext(context, 'Durable conversation is missing'))
+      }
+    }
     if (nativeId && context.bindingState === 'pending') contexts.bindContext(contextId, nativeId)
     return {
       storage,

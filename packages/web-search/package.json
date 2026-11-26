@@ -379,7 +379,7 @@
     "eventsource-parser": "3.1.1",
     "js-base64": "3.7.7",
     "tokenx": "^1.1.0",
-    "zod": "4.4.3"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@types/node": "^24.10.2",
