@@ -315,6 +315,7 @@
   "agent.right_pane.info.context_details.last_request": "คำขอล่าสุดไปยังโมเดล",
   "agent.right_pane.info.context_details.loaded": "โหลดแล้ว",
   "agent.right_pane.info.context_details.partial": "รายละเอียดบางส่วน",
+  "agent.right_pane.info.context_details.unavailable": "ไม่มีข้อมูลการใช้งาน",
   "agent.right_pane.info.context_usage": "การใช้คอนเท็กซ์",
   "agent.right_pane.info.context_used": "ใช้แล้ว {{percent}}%",
   "agent.right_pane.info.desktop_control.active": "กำลังควบคุม",

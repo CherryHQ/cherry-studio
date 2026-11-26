@@ -315,6 +315,7 @@
   "agent.right_pane.info.context_details.last_request": "Poslední požadavek na model",
   "agent.right_pane.info.context_details.loaded": "Načteno",
   "agent.right_pane.info.context_details.partial": "Částečný rozpis",
+  "agent.right_pane.info.context_details.unavailable": "Bez údajů o využití",
   "agent.right_pane.info.context_usage": "Využití kontextu",
   "agent.right_pane.info.context_used": "Využito {{percent}} %",
   "agent.right_pane.info.desktop_control.active": "Ovládání probíhá",

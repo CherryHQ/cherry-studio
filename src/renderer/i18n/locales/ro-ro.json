@@ -315,6 +315,7 @@
   "agent.right_pane.info.context_details.last_request": "Ultima cerere către model",
   "agent.right_pane.info.context_details.loaded": "Încărcat",
   "agent.right_pane.info.context_details.partial": "Defalcare parțială",
+  "agent.right_pane.info.context_details.unavailable": "Fără date de utilizare",
   "agent.right_pane.info.context_usage": "Utilizarea contextului",
   "agent.right_pane.info.context_used": "{{percent}}% utilizat",
   "agent.right_pane.info.desktop_control.active": "În control",
