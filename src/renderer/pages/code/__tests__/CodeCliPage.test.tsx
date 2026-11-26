@@ -3,7 +3,7 @@ import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ipcApi } from '@renderer/ipc'
 import { codeCliForLocalAgent } from '@renderer/utils/agent/codeCliForLocalAgent'
@@ -86,6 +86,8 @@ beforeEach(() => {
 })
 
 describe('managed local Agent details', () => {
+  afterEach(() => vi.restoreAllMocks())
+
   it('provides a native file editor for every preset with persistent configuration', () => {
     const missing = LOCAL_CLI_AGENT_PRESETS.filter((p) => p.id !== 'deepagents')
       .filter((p) => !getCliConfigTargets(codeCliForLocalAgent(p.id) ?? p.id).length)
@@ -94,6 +96,7 @@ describe('managed local Agent details', () => {
   })
 
   it('groups gateway models by provider', async () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(320)
     const tool = CodeCli.DEEPSEEK_HARNESS
     render(
       <ManagedLocalAgentDetails

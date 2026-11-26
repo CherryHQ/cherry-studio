@@ -1,8 +1,18 @@
 import { LockKeyhole, Settings2 } from 'lucide-react'
-import { type ReactElement, type ReactNode, useId, useLayoutEffect, useState } from 'react'
+import {
+  type ReactElement,
+  type ReactNode,
+  startTransition,
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { PortalContainerProvider, ScrollArea, Tabs, TabsContent } from '@cherrystudio/ui'
+import { PortalContainerProvider, Tabs, TabsContent } from '@cherrystudio/ui'
 import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { LocalAgentModelTabList } from '@renderer/components/localAgent/LocalAgentModelTabList'
@@ -17,6 +27,7 @@ import {
 } from '@renderer/components/ModelSelector'
 import { SelectorShell } from '@renderer/components/SelectorShell'
 import { ModelTag } from '@renderer/components/tags/Model'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import type {
   LocalAgentModelOption,
   LocalAgentModelSourceRestrictions
@@ -26,6 +37,11 @@ import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import { getSearchMatchScore } from '@renderer/utils/model'
 import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import { cn } from '@renderer/utils/style'
+
+type ModelOption = { key: string; model?: LocalAgentModelOption; label: string; score: number }
+type ModelSelectorListRow = { type: 'group'; key: string; label: string } | ({ type: 'option' } & ModelOption)
+
+const GROUP_HEADER_HEIGHT = 28
 
 interface LocalAgentModelSelectorProps {
   trigger: ReactElement
@@ -69,6 +85,8 @@ export function LocalAgentModelSelector({
   const [open, setOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [focusedKey, setFocusedKey] = useState('')
+  const [virtualList, setVirtualList] = useState<DynamicVirtualListRef | null>(null)
+  const pointerFocusKey = useRef('')
   const [tagSelection, setTagSelection] = useState<Record<ModelSelectorTag, boolean>>(
     () => Object.fromEntries(MODEL_SELECTOR_TAGS.map((tag) => [tag, false])) as Record<ModelSelectorTag, boolean>
   )
@@ -76,44 +94,82 @@ export function LocalAgentModelSelector({
   const tabs = useLocalAgentModelTabs(models, value, showFollowCli)
   const source = tabs.sources.includes(tabs.source) ? tabs.source : ''
   const selectionDisabled = disabled || !!sourceRestrictions?.[tabs.source]
-  const availableTags =
-    tabs.source === 'gateway'
-      ? MODEL_SELECTOR_TAGS.filter((tag) => tabs.models.some((model) => model.tags?.includes(tag)))
-      : []
-  const selectedTags = availableTags.filter((tag) => tagSelection[tag])
+  const sourceModels = tabs.models
+  const availableTags = useMemo(
+    () =>
+      tabs.source === 'gateway'
+        ? MODEL_SELECTOR_TAGS.filter((tag) => sourceModels.some((model) => model.tags?.includes(tag)))
+        : [],
+    [sourceModels, tabs.source]
+  )
+  const resetFocus = () => {
+    pointerFocusKey.current = ''
+    setFocusedKey('')
+  }
   const toggleTag = (tag: ModelSelectorTag) => {
     setTagSelection((prev) => ({ ...prev, [tag]: !prev[tag] }))
-    setFocusedKey('')
+    resetFocus()
   }
   const resetTags = () =>
     setTagSelection(
       Object.fromEntries(MODEL_SELECTOR_TAGS.map((tag) => [tag, false])) as Record<ModelSelectorTag, boolean>
     )
-  const options = tabs.source === 'native' && showFollowCli ? [undefined, ...tabs.models] : tabs.models
-  const tagFiltered = selectedTags.length
-    ? options.filter((model) => model && selectedTags.every((tag) => model.tags?.includes(tag)))
-    : options
-  const items = tagFiltered
-    .flatMap((model) => {
+  const { rows, items, optionIndexes } = useMemo(() => {
+    const rows: ModelSelectorListRow[] = []
+    const items: ModelOption[] = []
+    const optionIndexes = new Map<string, number>()
+    if (!open) return { rows, items, optionIndexes }
+
+    const selectedTags = availableTags.filter((tag) => tagSelection[tag])
+    const options = tabs.source === 'native' && showFollowCli ? [undefined, ...sourceModels] : sourceModels
+    const query = searchText.trim()
+    const matches: ModelOption[] = []
+    for (const model of options) {
+      if (selectedTags.length && !selectedTags.every((tag) => model?.tags?.includes(tag))) continue
       const label = model ? model.name || model.id : t('local_agents.follow_cli')
-      const score = getSearchMatchScore(searchText, [
-        { value: label, weight: 0, allowAbbreviation: true },
-        { value: model?.id, weight: 1, allowAbbreviation: true },
-        { value: model?.group, weight: 2, allowAbbreviation: false, allowPinyin: true }
-      ])
-      return score === null ? [] : [{ key: model?.id ?? '__cli_default__', model, label, score }]
-    })
-    .sort((a, b) => a.score - b.score)
-  const activeKey = items.some((item) => item.key === focusedKey)
+      const score = query
+        ? getSearchMatchScore(searchText, [
+            { value: label, weight: 0, allowAbbreviation: true },
+            { value: model?.id, weight: 1, allowAbbreviation: true },
+            { value: model?.group, weight: 2, allowAbbreviation: false, allowPinyin: true }
+          ])
+        : 0
+      if (score !== null) matches.push({ key: model?.id ?? '__cli_default__', model, label, score })
+    }
+    const groups = new Map<string, ModelOption[]>()
+    for (const item of matches.sort((a, b) => a.score - b.score)) {
+      const group = item.model?.group ?? ''
+      const entries = groups.get(group)
+      if (entries) entries.push(item)
+      else groups.set(group, [item])
+    }
+    for (const [group, entries] of groups) {
+      if (group) rows.push({ type: 'group', key: `group:${group}`, label: group })
+      for (const item of entries) {
+        optionIndexes.set(item.key, rows.length)
+        rows.push({ ...item, type: 'option' })
+        items.push(item)
+      }
+    }
+    return { rows, items, optionIndexes }
+  }, [availableTags, open, searchText, showFollowCli, sourceModels, t, tabs.source, tagSelection])
+  const selectedKey = value ?? '__cli_default__'
+  const activeKey = optionIndexes.has(focusedKey)
     ? focusedKey
-    : (items.find((item) => item.model?.id === value)?.key ?? items[0]?.key ?? '')
-  const groups = new Map<string, typeof items>()
-  for (const item of items) {
-    const group = item.model?.group ?? ''
-    const entries = groups.get(group)
-    if (entries) entries.push(item)
-    else groups.set(group, [item])
-  }
+    : optionIndexes.has(selectedKey)
+      ? selectedKey
+      : items[0]?.key
+  const activeIndex = activeKey === undefined ? undefined : optionIndexes.get(activeKey)
+  const keepMountedIndexes = useMemo(() => (activeIndex === undefined ? [] : [activeIndex]), [activeIndex])
+  const getRowKey = useCallback((index: number) => `${rows[index].type}:${rows[index].key}`, [rows])
+  const isStickyGroup = useCallback((index: number) => rows[index].type === 'group', [rows])
+  const estimateRowSize = useCallback(
+    (index: number) => {
+      const row = rows[index]
+      return row.type === 'group' ? GROUP_HEADER_HEIGHT : row.model?.effort?.options.length ? 44 : 36
+    },
+    [rows]
+  )
   const optionId = (key: string) => `${listboxId}-${encodeURIComponent(key)}`
   const select = async (next?: string) => {
     if (selectionDisabled) return
@@ -121,23 +177,27 @@ export function LocalAgentModelSelector({
   }
   useModelListKeyboardNav({
     open,
-    focusedItemKey: activeKey,
-    items: selectionDisabled ? [] : [...groups.values()].flat(),
+    focusedItemKey: activeKey ?? '',
+    items: selectionDisabled ? [] : items,
     onClose: () => setOpen(false),
-    onFocusItem: setFocusedKey,
+    onFocusItem: (key) => {
+      pointerFocusKey.current = ''
+      setFocusedKey(key)
+    },
     onSelectItem: (item) => void select(item.model?.id)
   })
   useLayoutEffect(() => {
-    if (open && activeKey)
-      document.getElementById(`${listboxId}-${encodeURIComponent(activeKey)}`)?.scrollIntoView({ block: 'nearest' })
-  }, [activeKey, listboxId, open, tabs.source])
+    if (open && activeIndex !== undefined && pointerFocusKey.current !== activeKey) {
+      virtualList?.scrollToIndex(activeIndex, { align: 'auto' })
+    }
+  }, [activeIndex, activeKey, open, virtualList])
   return (
     <Tabs
       value={source}
       onValueChange={(source) => {
         tabs.setSource(source)
         setSearchText('')
-        setFocusedKey('')
+        resetFocus()
         resetTags()
       }}
       className="contents">
@@ -147,7 +207,7 @@ export function LocalAgentModelSelector({
         onOpenChange={(next) => {
           if (next) tabs.setSource()
           setSearchText('')
-          setFocusedKey('')
+          resetFocus()
           resetTags()
           setOpen(next)
           if (next && !loaded && !loading && !disabled) void onLoad()
@@ -159,10 +219,10 @@ export function LocalAgentModelSelector({
           value: searchText,
           onChange: (text) => {
             setSearchText(text)
-            setFocusedKey('')
+            resetFocus()
           },
           placeholder: t('models.search.placeholder'),
-          ariaControls: listboxId,
+          ariaControls: rows.length > 0 ? listboxId : undefined,
           activeDescendant: activeKey ? optionId(activeKey) : undefined,
           onKeyDown: (event) => {
             if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'].includes(event.key)) event.preventDefault()
@@ -224,81 +284,98 @@ export function LocalAgentModelSelector({
                   {footer}
                 </div>
               )}
-              <ScrollArea
-                className="min-h-0 flex-1"
-                contentProps={{ className: 'py-1' }}
-                viewportProps={{ role: 'listbox', id: listboxId, 'aria-label': t('settings.models.list_title') }}>
-                {[...groups].map(([group, entries]) => (
-                  <div key={group}>
-                    {group && (
-                      <div className="sticky top-0 z-1 flex h-7 items-center bg-popover px-4 text-[11px] text-muted-foreground">
-                        {group}
-                      </div>
-                    )}
-                    {entries.map(({ key, model, label }) => {
-                      const selected = model ? value === model.id : !value
-                      const effort = model?.effort?.options
-                        .map(({ value, name }) => reasoningEffortLabel(value, t, name))
-                        .join(' · ')
-                      const rowTags =
-                        model?.tags ?? (model && /free/i.test(`${model.id} ${model.name}`) ? (['free'] as const) : [])
+              {rows.length > 0 ? (
+                <DynamicVirtualList
+                  ref={setVirtualList}
+                  list={rows}
+                  size="auto"
+                  scrollAreaClassName="min-h-0 flex-1"
+                  contentProps={{ className: 'py-1' }}
+                  role="listbox"
+                  scrollerProps={{ id: listboxId, 'aria-label': t('settings.models.list_title') }}
+                  estimateSize={estimateRowSize}
+                  getItemKey={getRowKey}
+                  isSticky={isStickyGroup}
+                  keepMountedIndexes={keepMountedIndexes}
+                  scrollPaddingStart={GROUP_HEADER_HEIGHT}
+                  autoHideScrollbar
+                  overscan={6}>
+                  {(row) => {
+                    if (row.type === 'group') {
                       return (
-                        <div key={key} className="px-1 py-0.5" onMouseEnter={() => setFocusedKey(key)}>
-                          <ModelSelectorRow
-                            className={effort ? 'h-10' : undefined}
-                            selected={selected}
-                            focused={activeKey === key}
-                            disabled={selectionDisabled}
-                            showSelectedIndicator={selected}
-                            onSelect={() => void select(model?.id)}
-                            optionProps={{
-                              id: optionId(key),
-                              'aria-label': label,
-                              'aria-description': effort || undefined
-                            }}
-                            leading={
-                              model ? (
-                                <ModelAvatar model={model} size={24} className="rounded-full border border-border" />
-                              ) : (
-                                <CliModelAvatar className="size-6 border border-border" />
-                              )
-                            }
-                            trailing={
-                              rowTags.length > 0 ? (
-                                <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
-                                  {rowTags.map((tag) => (
-                                    <ModelTag
-                                      key={`${key}-${tag}`}
-                                      tag={tag}
-                                      size={9}
-                                      showLabel={false}
-                                      showTooltip
-                                      className="h-full items-center"
-                                    />
-                                  ))}
-                                </div>
-                              ) : undefined
-                            }>
-                            <div className="min-w-0">
-                              <div className="truncate" title={model ? label : undefined}>
-                                {label}
-                              </div>
-                              {effort && (
-                                <div className="truncate text-muted-foreground text-xs" title={effort}>
-                                  {effort}
-                                </div>
-                              )}
-                            </div>
-                          </ModelSelectorRow>
+                        <div className="flex h-7 items-center bg-popover px-4 text-[11px] text-muted-foreground">
+                          {row.label}
                         </div>
                       )
-                    })}
-                  </div>
-                ))}
-                {!items.length && (
-                  <div className="px-3 py-4 text-center text-xs text-muted-foreground">{t('models.no_matches')}</div>
-                )}
-              </ScrollArea>
+                    }
+                    const { key, model, label } = row
+                    const selected = model ? value === model.id : !value
+                    const effort = model?.effort?.options
+                      .map(({ value, name }) => reasoningEffortLabel(value, t, name))
+                      .join(' · ')
+                    const rowTags =
+                      model?.tags ?? (model && /free/i.test(`${model.id} ${model.name}`) ? (['free'] as const) : [])
+                    return (
+                      <div
+                        className="px-1 py-0.5"
+                        onPointerMove={() => {
+                          if (activeKey === key || pointerFocusKey.current === key) return
+                          pointerFocusKey.current = key
+                          startTransition(() => setFocusedKey(key))
+                        }}>
+                        <ModelSelectorRow
+                          className={effort ? 'h-10' : undefined}
+                          selected={selected}
+                          focused={activeKey === key}
+                          disabled={selectionDisabled}
+                          showSelectedIndicator={selected}
+                          onSelect={() => void select(model?.id)}
+                          optionProps={{
+                            id: optionId(key),
+                            'aria-label': label,
+                            'aria-description': effort || undefined
+                          }}
+                          leading={
+                            model ? (
+                              <ModelAvatar model={model} size={24} className="rounded-full border border-border" />
+                            ) : (
+                              <CliModelAvatar className="size-6 border border-border" />
+                            )
+                          }
+                          trailing={
+                            rowTags.length > 0 ? (
+                              <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+                                {rowTags.map((tag) => (
+                                  <ModelTag
+                                    key={`${key}-${tag}`}
+                                    tag={tag}
+                                    size={9}
+                                    showLabel={false}
+                                    showTooltip
+                                    className="h-full items-center"
+                                  />
+                                ))}
+                              </div>
+                            ) : undefined
+                          }>
+                          <div className="min-w-0">
+                            <div className="truncate" title={model ? label : undefined}>
+                              {label}
+                            </div>
+                            {effort && (
+                              <div className="truncate text-muted-foreground text-xs" title={effort}>
+                                {effort}
+                              </div>
+                            )}
+                          </div>
+                        </ModelSelectorRow>
+                      </div>
+                    )
+                  }}
+                </DynamicVirtualList>
+              ) : (
+                <div className="px-3 py-4 text-center text-xs text-muted-foreground">{t('models.no_matches')}</div>
+              )}
             </TabsContent>
           </PortalContainerProvider>
         )}

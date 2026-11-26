@@ -1,6 +1,6 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { LocalAgentModelOption } from '@renderer/hooks/agent/useLocalAgentModelSelection'
 
@@ -10,6 +10,48 @@ import { LocalAgentModelList } from '../LocalAgentModelList'
 vi.unmock('@cherrystudio/ui')
 
 describe('local agent model search', () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.hasAttribute('data-index') ? 42 : 320
+    })
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
+
+  it('mounts a window of gateway models and reaches later models by scrolling the settings pane', () => {
+    render(
+      <LocalAgentModelList
+        models={Array.from({ length: 100 }, (_, index) => ({
+          id: `model-${index}`,
+          name: `Gateway model ${index}`,
+          group: 'Gateway provider',
+          source: 'gateway'
+        }))}
+        showFollowCli={false}
+        loaded
+        loading={false}
+        disabled={false}
+        loadDisabled={false}
+        onLoad={async () => {}}
+        onSelect={async () => true}
+      />
+    )
+    expect(screen.getByText('Gateway model 0')).toBeVisible()
+    expect(screen.queryByText('Gateway model 40')).not.toBeInTheDocument()
+
+    const tabPanel = screen.getByRole('tabpanel')
+    const viewport = tabPanel.querySelector('[data-slot="scroll-area-viewport"]')!
+    fireEvent.scroll(viewport, { target: { scrollTop: 1680 } })
+
+    expect(screen.getByText('Gateway model 40')).toBeVisible()
+    expect(screen.queryByText('Gateway model 0')).not.toBeInTheDocument()
+    expect(viewport).not.toContainElement(screen.getByRole('tab', { name: '统一网关' }))
+    expect(viewport).not.toContainElement(screen.getByRole('button', { name: '搜索' }))
+  })
+
   it('allows browsing and refreshing restricted model sources without changing the default', async () => {
     const user = userEvent.setup()
     const onLoad = vi.fn(async () => {})
@@ -167,7 +209,6 @@ describe('local agent model search', () => {
   })
 
   it('reopens the chat selector on the selected model category after browsing another tab', async () => {
-    HTMLElement.prototype.scrollIntoView = vi.fn()
     const user = userEvent.setup()
     const onSelect = vi.fn(async () => true)
     render(
@@ -194,8 +235,38 @@ describe('local agent model search', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
+  it('keeps the active gateway option available to the search field during keyboard navigation', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn(async () => true)
+    render(
+      <LocalAgentModelSelector
+        trigger={<button type="button">Models</button>}
+        models={Array.from({ length: 100 }, (_, index) => ({
+          id: `model-${index}`,
+          name: `Gateway model ${index}`,
+          group: 'Gateway provider',
+          source: 'gateway'
+        }))}
+        value="model-70"
+        loaded
+        onLoad={async () => {}}
+        onSelect={onSelect}
+      />
+    )
+    await user.click(screen.getByRole('button', { name: 'Models' }))
+    const search = screen.getByRole('textbox')
+    const selected = screen.getByRole('option', { name: 'Gateway model 70', selected: true })
+    expect(search).toHaveAttribute('aria-activedescendant', selected.id)
+    expect(screen.queryByRole('option', { name: 'Gateway model 99' })).not.toBeInTheDocument()
+
+    await user.keyboard('{PageDown}')
+    const next = screen.getByRole('option', { name: 'Gateway model 82' })
+    expect(search).toHaveAttribute('aria-activedescendant', next.id)
+    await user.keyboard('{Enter}')
+    expect(onSelect).toHaveBeenCalledWith('model-82')
+  })
+
   it('searches within the current source and selects the visible model with the keyboard', async () => {
-    HTMLElement.prototype.scrollIntoView = vi.fn()
     const user = userEvent.setup()
     const onSelect = vi.fn(async () => true)
     render(
@@ -228,7 +299,6 @@ describe('local agent model search', () => {
   })
 
   it('shows gateway capability filter pills and full row tags, filtering gateway models and resetting across tabs', async () => {
-    HTMLElement.prototype.scrollIntoView = vi.fn()
     const user = userEvent.setup()
     render(
       <LocalAgentModelSelector

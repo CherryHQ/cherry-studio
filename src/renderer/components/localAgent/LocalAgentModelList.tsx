@@ -1,22 +1,12 @@
-import { Check, RefreshCw, Search, X } from 'lucide-react'
-import { useState } from 'react'
+import { Check, ChevronDown, RefreshCw, Search, X } from 'lucide-react'
+import { useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-  Button,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Button, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelTag } from '@renderer/components/tags/Model'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import type {
   LocalAgentModelOption,
   LocalAgentModelSourceRestrictions
@@ -26,6 +16,10 @@ import { cn } from '@renderer/utils/style'
 import { deriveModelGroupName } from '@shared/utils/model'
 
 import { LocalAgentModelTabs } from './LocalAgentModelTabs'
+
+type ModelListRow =
+  | { type: 'group'; key: string; label: string; open: boolean }
+  | { type: 'model'; key: string; model: LocalAgentModelOption; first: boolean; last: boolean }
 
 export function LocalAgentModelList({
   models,
@@ -56,7 +50,8 @@ export function LocalAgentModelList({
   const [refreshing, setRefreshing] = useState(false)
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
-  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([])
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(() => new Set())
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const iconButtonClass =
     'size-6 shrink-0 rounded-md p-0 text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground'
   const closeSearch = () => {
@@ -66,29 +61,54 @@ export function LocalAgentModelList({
   const tabs = useLocalAgentModelTabs(models, value, showFollowCli)
   const selectionDisabled = disabled || !!sourceRestrictions?.[tabs.source]
   const search = query.trim().toLowerCase()
-  const filtered = tabs.models.filter((model) =>
-    `${model.name} ${model.id} ${model.group ?? ''}`.toLowerCase().includes(search)
-  )
-  const grouped = new Map<string, LocalAgentModelOption[]>()
-  for (const model of filtered) {
-    const group = model.group ?? deriveModelGroupName(model.id) ?? groupFallback ?? t('models.group.ungrouped')
-    const key = `${model.source ?? ''}:${group}`
-    const models = grouped.get(key)
-    if (models) models.push(model)
-    else grouped.set(key, [model])
-  }
-  const groups = [...grouped.entries()].sort(
-    ([a, modelsA], [b, modelsB]) => Number(!!modelsA[0].group) - Number(!!modelsB[0].group) || a.localeCompare(b)
-  )
+  const sourceModels = tabs.models
+  const source = tabs.source
+  useLayoutEffect(() => {
+    if (scrollElement) scrollElement.scrollTop = 0
+  }, [scrollElement, search, source])
+  const groups = useMemo(() => {
+    const grouped = new Map<string, { label: string; models: LocalAgentModelOption[] }>()
+    for (const model of sourceModels) {
+      if (search && !`${model.name} ${model.id} ${model.group ?? ''}`.toLowerCase().includes(search)) continue
+      const label = model.group ?? deriveModelGroupName(model.id) ?? groupFallback ?? t('models.group.ungrouped')
+      const key = `group:${model.source ?? ''}:${label}`
+      const group = grouped.get(key)
+      if (group) group.models.push(model)
+      else grouped.set(key, { label, models: [model] })
+    }
+    return [...grouped].sort(
+      ([a, groupA], [b, groupB]) =>
+        Number(!!groupA.models[0].group) - Number(!!groupB.models[0].group) || a.localeCompare(b)
+    )
+  }, [groupFallback, search, sourceModels, t])
+  const rows = useMemo(() => {
+    const rows: ModelListRow[] = []
+    for (const [key, group] of groups) {
+      const open = !!search || !collapsedGroups.has(key)
+      rows.push({ type: 'group', key, label: group.label, open })
+      if (!open) continue
+      group.models.forEach((model, index) => {
+        rows.push({
+          type: 'model',
+          key: `model:${key}:${model.id}`,
+          model,
+          first: index === 0,
+          last: index === group.models.length - 1
+        })
+      })
+    }
+    return rows
+  }, [collapsedGroups, groups, search])
   const rowClass = cn(
     'group flex min-h-[42px] items-center gap-2.5 px-2.5 py-1 text-foreground leading-none',
     'h-auto w-full justify-start rounded-lg font-normal hover:bg-accent/40 aria-pressed:hover:bg-transparent disabled:opacity-100'
   )
   return (
-    <section className="space-y-3" aria-labelledby="local-agent-model-label">
+    <section className="flex min-h-0 flex-1 flex-col" aria-labelledby="local-agent-model-label">
       <LocalAgentModelTabs
         tabs={tabs}
         sourceRestrictions={sourceRestrictions}
+        viewportRef={setScrollElement}
         renderHeader={(tabList) => (
           <div className="flex min-h-9 min-w-0 items-end justify-between gap-2 border-b border-border-subtle">
             <h2 id="local-agent-model-label" className="sr-only">
@@ -176,73 +196,97 @@ export function LocalAgentModelList({
             </Button>
           </div>
         )}
-        {filtered.length > 0 ? (
-          <Accordion
-            type="multiple"
-            className="space-y-2.5"
-            value={groups.filter(([group]) => query.trim() || !collapsedGroups.includes(group)).map(([group]) => group)}
-            onValueChange={(openGroups) =>
-              setCollapsedGroups((previous) => [
-                ...previous.filter((group) => !grouped.has(group)),
-                ...groups.filter(([group]) => !openGroups.includes(group)).map(([group]) => group)
-              ])
-            }>
-            {groups.map(([group, models]) => (
-              <AccordionItem
-                key={group}
-                value={group}
-                className="overflow-hidden rounded-lg border border-border-subtle last:border-b">
-                <AccordionTrigger className="min-h-9 justify-start gap-2 rounded-none bg-muted/30 px-4 py-0 font-normal text-foreground data-[state=open]:border-b data-[state=open]:border-border-subtle [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
-                  <span className="min-w-0 truncate leading-5">
-                    {models[0].group ??
-                      deriveModelGroupName(models[0].id) ??
-                      groupFallback ??
-                      t('models.group.ungrouped')}
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-1 p-1.5" contentClassName="text-foreground">
-                  {models.map((model) => {
-                    const rowTags = model.tags ?? (/free/i.test(`${model.id} ${model.name}`) ? (['free'] as const) : [])
-                    return (
+        {rows.length > 0 ? (
+          <DynamicVirtualList
+            externalScrollElement={scrollElement}
+            list={rows}
+            estimateSize={(index) => {
+              const row = rows[index]
+              if (row.type === 'group') return row.open ? 38 : 48
+              return 46 + (row.first ? 6 : 0) + (row.last ? 13 : 0)
+            }}
+            getItemKey={(index) => rows[index].key}
+            overscan={8}>
+            {(row) => {
+              if (row.type === 'group') {
+                return (
+                  <div className={cn(!row.open && 'pb-2.5')}>
+                    <div
+                      className={cn(
+                        'overflow-hidden border border-border-subtle',
+                        row.open ? 'rounded-t-lg' : 'rounded-lg'
+                      )}>
                       <Button
-                        key={model.id}
                         variant="ghost"
-                        aria-pressed={value === model.id}
-                        disabled={selectionDisabled}
-                        className={rowClass}
-                        onClick={() => void onSelect(model.id)}>
-                        <ModelAvatar
-                          model={model}
-                          size={26}
-                          className="shrink-0 overflow-hidden rounded-full border border-border [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]"
+                        aria-expanded={row.open}
+                        className="h-9 w-full justify-start gap-2 rounded-none bg-muted/30 px-4 font-normal text-foreground"
+                        onClick={() => {
+                          if (search) return
+                          setCollapsedGroups((previous) => {
+                            const next = new Set(previous)
+                            if (row.open) next.add(row.key)
+                            else next.delete(row.key)
+                            return next
+                          })
+                        }}>
+                        <ChevronDown
+                          className={cn('lucide-custom size-4 text-muted-foreground', !row.open && '-rotate-90')}
+                          aria-hidden
                         />
-                        <span className="min-w-0 flex-1 truncate text-left text-sm" title={model.name || model.id}>
-                          {model.name || model.id}
-                        </span>
-                        {rowTags.length > 0 && (
-                          <div className="flex shrink-0 items-center gap-1">
-                            {rowTags.map((tag) => (
-                              <ModelTag
-                                key={`${model.id}-${tag}`}
-                                tag={tag}
-                                size={9}
-                                showLabel={false}
-                                showTooltip
-                                className="[&_svg]:size-[9px]!"
-                              />
-                            ))}
-                          </div>
-                        )}
-                        <span className="flex size-[30px] shrink-0 items-center justify-center">
-                          {value === model.id && <Check className="size-4 text-primary" />}
-                        </span>
+                        <span className="min-w-0 truncate leading-5">{row.label}</span>
                       </Button>
-                    )
-                  })}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
+                    </div>
+                  </div>
+                )
+              }
+              const { model } = row
+              const rowTags = model.tags ?? (/free/i.test(`${model.id} ${model.name}`) ? (['free'] as const) : [])
+              return (
+                <div className={cn(row.last && 'pb-2.5')}>
+                  <div
+                    className={cn(
+                      'border-x border-border-subtle px-1.5 pb-1',
+                      row.first && 'pt-1.5',
+                      row.last && 'rounded-b-lg border-b pb-1.5'
+                    )}>
+                    <Button
+                      key={model.id}
+                      variant="ghost"
+                      aria-pressed={value === model.id}
+                      disabled={selectionDisabled}
+                      className={rowClass}
+                      onClick={() => void onSelect(model.id)}>
+                      <ModelAvatar
+                        model={model}
+                        size={26}
+                        className="shrink-0 overflow-hidden rounded-full border border-border [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-left text-sm" title={model.name || model.id}>
+                        {model.name || model.id}
+                      </span>
+                      {rowTags.length > 0 && (
+                        <div className="flex shrink-0 items-center gap-1">
+                          {rowTags.map((tag) => (
+                            <ModelTag
+                              key={`${model.id}-${tag}`}
+                              tag={tag}
+                              size={9}
+                              showLabel={false}
+                              showTooltip
+                              className="[&_svg]:size-[9px]!"
+                            />
+                          ))}
+                        </div>
+                      )}
+                      <span className="flex size-[30px] shrink-0 items-center justify-center">
+                        {value === model.id && <Check className="size-4 text-primary" />}
+                      </span>
+                    </Button>
+                  </div>
+                </div>
+              )
+            }}
+          </DynamicVirtualList>
         ) : (
           (loaded || query) && (
             <p className="rounded-lg border border-dashed border-border-subtle px-4 py-6 text-center text-xs text-muted-foreground">

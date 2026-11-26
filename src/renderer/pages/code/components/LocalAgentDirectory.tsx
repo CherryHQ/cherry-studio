@@ -1235,29 +1235,31 @@ export function LocalAgentDetails({
             </AgentServiceCard>
           </div>
         </div>
-        <ScrollArea className="min-h-0 flex-1" contentProps={{ className: 'px-6 pb-6' }}>
-          <div className="mx-auto w-full max-w-3xl space-y-3">
-            {!editing && feedback}
-            {modelList ? (
-              <LocalAgentModelList {...modelList} disabled={busy || archived || modelList.disabled} />
-            ) : (
-              (preset || agent) && (
-                <LocalAgentModelList
-                  models={modelSelection.models}
-                  sourceRestrictions={modelSelection.sourceRestrictions}
-                  groupFallback={agent?.name ?? preset?.name}
-                  value={modelSelection.value}
-                  disabled={busy || archived}
-                  loading={modelsLoading}
-                  loaded={!!catalog}
-                  loadDisabled={!available}
-                  onLoad={loadModels}
-                  onSelect={selectModel}
-                />
-              )
-            )}
-          </div>
-        </ScrollArea>
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
+          {!editing && feedback && (
+            <div className="shrink-0 px-6">
+              <div className="mx-auto max-w-3xl">{feedback}</div>
+            </div>
+          )}
+          {modelList ? (
+            <LocalAgentModelList {...modelList} disabled={busy || archived || modelList.disabled} />
+          ) : (
+            (preset || agent) && (
+              <LocalAgentModelList
+                models={modelSelection.models}
+                sourceRestrictions={modelSelection.sourceRestrictions}
+                groupFallback={agent?.name ?? preset?.name}
+                value={modelSelection.value}
+                disabled={busy || archived}
+                loading={modelsLoading}
+                loaded={!!catalog}
+                loadDisabled={!available}
+                onLoad={loadModels}
+                onSelect={selectModel}
+              />
+            )
+          )}
+        </div>
       </div>
       {children}
       {editing && (
