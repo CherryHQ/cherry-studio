@@ -18,7 +18,6 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     await writeFile(path, await captureMaskedScreenshot(page, getSensitiveConfigValues()))
     await testInfo.attach(name, { path, contentType: 'image/png' })
   }
-  const server = await startMockChatServer()
   testInfo.annotations.push({
     type: 'data-source',
     description:
@@ -33,6 +32,7 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     body: 'Local OpenAI HTTP mock; real Pi agent, scheduler, task persistence and run history.',
     contentType: 'text/plain'
   })
+  const server = await startMockChatServer()
   try {
     await screenshot('MP-58 application before setup')
     const seeded = await page.evaluate(
@@ -101,11 +101,11 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     await screenshot('MP-58 invalid cron validation')
     await dialog.getByRole('combobox', { name: 'Execution Frequency', exact: true }).click()
     await page.getByRole('option', { name: 'Custom interval', exact: true }).click()
-    await dialog.getByRole('textbox', { name: 'Interval', exact: true }).fill('5')
+    await dialog.getByRole('textbox', { name: 'Interval', exact: true }).fill('1')
     await dialog.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(dialog).toBeHidden()
     const card = page.getByRole('region', { name: 'Active', exact: true }).getByRole('button').filter({ hasText: name })
-    await expect(card).toContainText('Every 5 minutes')
+    await expect(card).toContainText(/\bEvery 1 minutes?\b/)
     await expect(card).toHaveAttribute('aria-pressed', 'true')
     await screenshot('MP-58 saved task in active group')
     const taskId = await page.evaluate(async (name) => {
@@ -131,7 +131,7 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     }
     task = await readTask()
     expect(task.prompt).toBe('输出当前时间')
-    expect(task.trigger).toMatchObject({ kind: 'interval', ms: 300_000 })
+    expect(task.trigger).toMatchObject({ kind: 'interval', ms: 60_000 })
     expect(task.enabled).toBe(true)
     expect(Date.parse(task.nextRun!)).toBeGreaterThan(Date.now())
     const readLogs = async () => {
@@ -167,6 +167,7 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     await expect(page.getByText(answer, { exact: true })).toBeVisible()
     await screenshot('MP-58 completed execution conversation')
     const beforePause = await readTask()
+    const deadline = Date.parse(beforePause.nextRun ?? '')
     await openActions()
     await page.getByRole('menuitem', { name: 'Pause', exact: true }).click()
     await expect(
@@ -174,10 +175,9 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     ).toBeVisible()
     await expect.poll(async () => (await readTask()).status).toBe('paused')
     expect((await readTask()).nextRun).toBeNull()
-    // Cross the original five-minute deadline to catch a paused timer that still fires.
-    await expect
-      .poll(() => Date.now(), { timeout: 310_000, intervals: [1_000] })
-      .toBeGreaterThan(Date.parse(beforePause.nextRun!) + 2_000)
+    expect(Date.now(), 'The task must be paused before its scheduled deadline').toBeLessThan(deadline)
+    // Cross the original deadline to catch a paused timer that still fires.
+    await expect.poll(() => Date.now(), { timeout: 70_000, intervals: [1_000] }).toBeGreaterThan(deadline + 2_000)
     expect((await readLogs()).map(({ id }) => id)).toEqual([running[0].id])
     await screenshot('MP-58 paused beyond original deadline')
     await openActions()
@@ -186,27 +186,34 @@ export async function scheduledTasks(app: RegressionApp, page: Page, testInfo: T
     await expect.poll(async () => (await readTask()).status).toBe('active')
     const resumed = await readTask()
     expect(Date.parse(resumed.nextRun!)).toBeGreaterThan(Date.now())
-    expect(Date.parse(resumed.nextRun!)).toBeGreaterThan(Date.parse(beforePause.nextRun!))
+    expect(Date.parse(resumed.nextRun!)).toBeGreaterThan(deadline)
     await expect(card).toHaveAttribute('aria-pressed', 'true')
     await screenshot('MP-58 resumed with refreshed next run')
   } finally {
-    if (task)
+    try {
+      if (task)
+        await page.evaluate(
+          ({ agentId, id }) => window.api.ipcApi.request('ai.agent.task.delete', { agentId, taskId: id }),
+          task
+        )
+      if (agentId) {
+        const deletedAgent = await page.evaluate(
+          (agentId) => window.api.ipcApi.request('ai.agent.delete_permanently', { agentId, deleteSessions: true }),
+          agentId
+        )
+        expect(deletedAgent).toMatchObject({ ok: true, data: { deleted: true } })
+      }
       await page.evaluate(
-        ({ agentId, id }) => window.api.ipcApi.request('ai.agent.task.delete', { agentId, taskId: id }),
-        task
+        (providerId) =>
+          window.api.dataApi.request({
+            id: 'mp58-delete-provider',
+            method: 'DELETE',
+            path: `/providers/${providerId}`
+          }),
+        providerId
       )
-    if (agentId) {
-      const deletedAgent = await page.evaluate(
-        (agentId) => window.api.ipcApi.request('ai.agent.delete_permanently', { agentId, deleteSessions: true }),
-        agentId
-      )
-      expect(deletedAgent).toMatchObject({ ok: true, data: { deleted: true } })
+    } finally {
+      await server.close()
     }
-    await page.evaluate(
-      (providerId) =>
-        window.api.dataApi.request({ id: 'mp58-delete-provider', method: 'DELETE', path: `/providers/${providerId}` }),
-      providerId
-    )
-    await server.close()
   }
 }

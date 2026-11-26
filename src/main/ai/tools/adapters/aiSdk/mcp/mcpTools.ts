@@ -9,6 +9,7 @@ import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
+import type { McpAppReference } from '@shared/types/mcpApp'
 
 import { getRequestContext } from '../context'
 import { createMcpInputSchema } from '../mcpSchema'
@@ -64,10 +65,15 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
       }
+      let appReference: McpAppReference | undefined
       const result: CallToolResult = await application.get('McpRuntimeService').callTool({
         serverId: server.id,
         name: mcpTool.name,
         args,
+        audience: 'model',
+        onAppResult: (reference) => {
+          appReference = reference
+        },
         callId: toolCallId,
         // Isolation scope for abort-by-id: provider call ids (e.g. "call_0") can collide
         // across topics, and the renderer's abort presents the same topicId.
@@ -87,7 +93,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
       // parts intact); `toModelOutput` below produces the model's view.
       return {
         ...result,
-        metadata
+        metadata: appReference ? { ...metadata, app: appReference, appInput: args } : metadata
       }
     },
     toModelOutput({ output }) {
@@ -157,7 +163,7 @@ export async function syncMcpToolsToRegistry(
     if (selectedToolIds && freshNames.size === selectedToolIds.size) break
     const namespace = namespaceForServer(server.id)
     try {
-      const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
+      const enabledTools = application.get('McpCatalogService').listTools(server.id, { audience: 'model' })
       const scopedTools = selectedToolIds ? enabledTools.filter((tool) => selectedToolIds.has(tool.id)) : enabledTools
       if (!selectedToolIds || scopedTools.length > 0) targetNamespaces.add(namespace)
       const freshEntries: ToolEntry[] = []

@@ -15,7 +15,7 @@ async function project(message: RuntimeMessage, native: ClaudeObservation['nativ
     { backendId: runtimeId('claude'), id: runtimeId('root') },
     metadata.decorate
   )
-  const batch: ClaudeObservation = { events: [{ type: 'message.upsert', message }], native, retracted: [] }
+  const batch: ClaudeObservation = { events: [{ type: 'message.reconcile', message }], native, retracted: [] }
   metadata.accept(batch)
   await projection.accept(batch.events[0])
   const messages = projection.snapshot().messages
@@ -39,7 +39,7 @@ it('times each reasoning block through its own end and preserves timing through 
     const batch: ClaudeObservation = {
       events: [
         {
-          type: 'message.upsert',
+          type: 'message.reconcile',
           message: {
             id: complete ? 'canonical' : 'partial',
             role: 'assistant',
@@ -133,7 +133,7 @@ it('refreshes a late reminder without another native content update', async () =
   await accept({
     events: [
       {
-        type: 'message.upsert',
+        type: 'message.reconcile',
         message: {
           id: 'native',
           role: 'assistant',
@@ -154,7 +154,7 @@ it('refreshes a late reminder without another native content update', async () =
     native: [],
     retracted: []
   })
-  const changes = await accept({
+  await accept({
     events: [],
     retracted: [],
     native: [
@@ -171,8 +171,9 @@ it('refreshes a late reminder without another native content update', async () =
       }
     ]
   })
-  expect(changes).toHaveLength(1)
-  expect(changes[0].parts).toMatchObject([
+  const { messages } = projection.snapshot()
+  expect(messages.map((message) => message.id)).toEqual(['native'])
+  expect(messages[0].parts).toMatchObject([
     { type: 'text', text: 'Visible ' },
     { type: 'dynamic-tool', toolCallId: 'call', state: 'input-available' }
   ])
@@ -207,7 +208,7 @@ it('refreshes a replaced MCP catalog and preserves completed reasoning timing', 
   const partial: ClaudeObservation = {
     events: [
       {
-        type: 'message.upsert',
+        type: 'message.reconcile',
         message: {
           ...source,
           metadata: { completeness: 'partial' },
@@ -230,7 +231,11 @@ it('refreshes a replaced MCP catalog and preserves completed reasoning timing', 
     retracted: []
   }
   await projection.accept(partial.events, metadata.accept(partial) ? true : [])
-  const batch: ClaudeObservation = { events: [{ type: 'message.upsert', message: source }], native: [], retracted: [] }
+  const batch: ClaudeObservation = {
+    events: [{ type: 'message.reconcile', message: source }],
+    native: [],
+    retracted: []
+  }
   await projection.accept(batch.events, metadata.accept(batch) ? true : [])
   const reasoning = projection.snapshot().messages[0].parts[0]
   expect(reasoning).toMatchObject({
@@ -239,11 +244,17 @@ it('refreshes a replaced MCP catalog and preserves completed reasoning timing', 
   })
   expect(projection.snapshot().messages[0].parts[1]).toMatchObject({ title: 'Before: read' })
   catalog.mcp__server__read.serverName = 'After'
-  const update: ClaudeObservation = { events: [], native: [], retracted: [] }
-  const changed = await projection.accept(update.events, metadata.accept(update) ? true : [])
+  const update: ClaudeObservation = {
+    events: [{ type: 'message.parts', ref: { session: projection.thread, id: runtimeId(source.id) }, changes: [] }],
+    native: [],
+    retracted: []
+  }
+  await projection.accept(update.events, metadata.accept(update) ? true : [])
+  const changed = projection.snapshot().messages
   expect(changed[0].parts[1]).toMatchObject({ title: 'After: read', state: 'output-available' })
   expect(changed[0].parts[0]).toEqual(reasoning)
-  expect(await projection.accept(update.events, metadata.accept(update) ? true : [])).toEqual([])
+  await projection.accept(update.events, metadata.accept(update) ? true : [])
+  expect(projection.snapshot().messages[0]).toBe(changed[0])
 })
 
 it('decorates native tool identity and output without moving surrounding content', async () => {
@@ -283,6 +294,32 @@ it('decorates native tool identity and output without moving surrounding content
       { type: 'text', text: 'After' }
     ]
   })
+})
+
+it.each(['Read', 'mcp__files__read'])('projects %s images without serializing the received bytes', async (toolName) => {
+  const data = 'a'.repeat(326396)
+  const source = { type: 'base64', media_type: 'image/jpeg', data }
+  const output = [
+    { type: 'text', text: 'page' },
+    { type: 'image', source }
+  ]
+  const stringify = vi.spyOn(JSON, 'stringify')
+  onTestFinished(() => {
+    stringify.mockRestore()
+  })
+  const [message] = await project({
+    id: 'image',
+    role: 'assistant',
+    parts: [{ type: 'dynamic-tool', toolCallId: 'read', toolName, input: {}, state: 'output-available', output }]
+  })
+  expect(stringify.mock.calls.some(([value]) => Array.isArray(value) && value[1]?.source?.data === data)).toBe(false)
+  source.data = 'changed by the producer'
+  const image =
+    toolName === 'Read'
+      ? { type: 'image', source: { ...source, data } }
+      : { type: 'image', data, mimeType: 'image/jpeg' }
+  const blocks = [{ type: 'text', text: 'page' }, image]
+  expect(message.parts[0]).toMatchObject({ output: toolName === 'Read' ? blocks : { content: blocks } })
 })
 
 it.each([true, false])(

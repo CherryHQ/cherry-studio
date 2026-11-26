@@ -8,6 +8,7 @@ import { toSafeFileUrl } from '@shared/utils/file'
 
 import ImageBlock from '../../blocks/ImageBlock'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
+import { useToolResponsePreview } from '../useToolResponsePreview'
 import { parseGeneratedImageOutput } from './generateImageTool'
 
 /**
@@ -81,10 +82,11 @@ const NoteText = ({ children }: { children: React.ReactNode }) => (
 )
 
 export const MessageGenerateImageToolTitle = ({
-  toolResponse
+  toolResponse: originalResponse
 }: {
   toolResponse: McpToolResponse | NormalToolResponse
 }) => {
+  const { toolResponse } = useToolResponsePreview(originalResponse)
   const { t } = useTranslation()
   const { addGeneratedImageToComposer } = useOptionalMessageListActions() ?? {}
   const { inlineUrls, items } = useMemo(() => parseGeneratedImageOutput(toolResponse.response), [toolResponse.response])

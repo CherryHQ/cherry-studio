@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamOpenResponse } from '@shared/ai/transport'
 
-import { type ConversationHistoryAdapter, useConversationTurnController } from '../useConversationTurnController'
+import { useConversationTurnController } from '../useConversationTurnController'
 
 const mocks = vi.hoisted(() => ({
   streamOpen: vi.fn(),
@@ -43,16 +43,12 @@ function createDeferred<T>() {
 
 function renderController(initialScopeKey = 'topic-a', onError?: (error: unknown, input: string) => void) {
   const refreshMetadata = vi.fn()
-  const historyAdapter: ConversationHistoryAdapter = {
-    seedReservedMessages: vi.fn(),
-    refresh: vi.fn(),
-    rollback: vi.fn()
-  }
+  const callbacks = { onAccepted: vi.fn(), onRollback: vi.fn() }
   const view = renderHook(
     ({ scopeKey }: { scopeKey: string }) =>
       useConversationTurnController<string, { topicId: string }>({
         scopeKey,
-        historyAdapter,
+        ...callbacks,
         ensureConversation: () => ({ topicId: scopeKey }),
         buildStreamRequest: (_input, conversation) => ({
           trigger: 'submit-message',
@@ -65,7 +61,7 @@ function renderController(initialScopeKey = 'topic-a', onError?: (error: unknown
     { initialProps: { scopeKey: initialScopeKey } }
   )
 
-  return { ...view, historyAdapter, refreshMetadata }
+  return { ...view, callbacks, refreshMetadata }
 }
 
 describe('useConversationTurnController', () => {
@@ -76,7 +72,7 @@ describe('useConversationTurnController', () => {
   it('ignores a stream-open acknowledgement from a previous scope', async () => {
     const pendingAck = createDeferred<AiStreamOpenResponse>()
     mocks.streamOpen.mockReturnValueOnce(pendingAck.promise)
-    const { result, rerender, historyAdapter, refreshMetadata } = renderController('agent-session:a')
+    const { result, rerender, callbacks, refreshMetadata } = renderController('agent-session:a')
 
     let sendFromA!: Promise<boolean>
     act(() => {
@@ -94,7 +90,7 @@ describe('useConversationTurnController', () => {
     })
 
     expect(result.current.phase).toBe('draft')
-    expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
+    expect(callbacks.onAccepted).not.toHaveBeenCalled()
     expect(refreshMetadata).toHaveBeenCalledWith(
       { topicId: 'agent-session:a' },
       expect.objectContaining({ mode: 'started' })
@@ -119,7 +115,7 @@ describe('useConversationTurnController', () => {
         message: 'Workspace access is required'
       })
       const onError = vi.fn()
-      const { result, historyAdapter } = renderController('topic-a', onError)
+      const { result, callbacks } = renderController('topic-a', onError)
 
       let sent: boolean | undefined
       await act(async () => {
@@ -133,29 +129,29 @@ describe('useConversationTurnController', () => {
       if (throwOnError) expect(mocks.toastError).not.toHaveBeenCalled()
       else expect(mocks.toastError).toHaveBeenCalledWith('Workspace access is required')
       expect(onError).not.toHaveBeenCalled()
-      expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
-      expect(historyAdapter.rollback).not.toHaveBeenCalled()
+      expect(callbacks.onAccepted).not.toHaveBeenCalled()
+      expect(callbacks.onRollback).not.toHaveBeenCalled()
     }
   )
 
   it('returns to draft when stream open fails', async () => {
     mocks.streamOpen.mockRejectedValueOnce(new Error('stream open failed'))
-    const { result, historyAdapter } = renderController()
+    const { result, callbacks } = renderController()
 
     await act(async () => {
       await expect(result.current.send('failed message')).rejects.toThrow('stream open failed')
     })
 
     expect(result.current.phase).toBe('draft')
-    expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
-    expect(historyAdapter.rollback).toHaveBeenCalledOnce()
+    expect(callbacks.onAccepted).not.toHaveBeenCalled()
+    expect(callbacks.onRollback).toHaveBeenCalledOnce()
   })
 
   it('does not surface a stream-open failure after switching scopes', async () => {
     const pendingAck = createDeferred<AiStreamOpenResponse>()
     mocks.streamOpen.mockReturnValueOnce(pendingAck.promise)
     const onError = vi.fn()
-    const { result, rerender, historyAdapter } = renderController('agent-session:a', onError)
+    const { result, rerender, callbacks } = renderController('agent-session:a', onError)
 
     let sendFromA!: Promise<boolean>
     act(() => {
@@ -170,7 +166,7 @@ describe('useConversationTurnController', () => {
     })
 
     expect(result.current.phase).toBe('draft')
-    expect(historyAdapter.rollback).not.toHaveBeenCalled()
+    expect(callbacks.onRollback).not.toHaveBeenCalled()
     expect(onError).not.toHaveBeenCalled()
   })
 
@@ -179,8 +175,8 @@ describe('useConversationTurnController', () => {
     mocks.streamOpen.mockRejectedValueOnce(failure)
     const pendingRollback = createDeferred<void>()
     const onError = vi.fn()
-    const { result, rerender, historyAdapter } = renderController('agent-session:a', onError)
-    vi.mocked(historyAdapter.rollback).mockImplementation(async () => {
+    const { result, rerender, callbacks } = renderController('agent-session:a', onError)
+    vi.mocked(callbacks.onRollback).mockImplementation(async () => {
       await pendingRollback.promise
       if (rollbackFails) throw new Error('rollback failed')
     })
@@ -189,7 +185,7 @@ describe('useConversationTurnController', () => {
     act(() => {
       sendFromA = result.current.send('from A')
     })
-    await waitFor(() => expect(historyAdapter.rollback).toHaveBeenCalledOnce())
+    await waitFor(() => expect(callbacks.onRollback).toHaveBeenCalledOnce())
     rerender({ scopeKey: 'agent-session:b' })
 
     mocks.streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })

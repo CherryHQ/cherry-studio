@@ -2,12 +2,15 @@ import { randomUUID } from 'node:crypto'
 
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { isToolUIPart, type UIMessageChunk } from 'ai'
+import { omit } from 'es-toolkit'
 
 import { application } from '@application'
+import { cloneObservationValue } from '@cherrystudio/agent-runtime'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
 import { logAiFailure } from '@main/ai/errorReporting'
+import { AcceptedToolResults } from '@main/ai/messages/AcceptedToolResults'
 import { ProjectionSubscriptions } from '@main/ai/messages/ProjectionSubscriptions'
 import { classifyAiSdkFailure } from '@main/ai/runtime/aiSdk'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
@@ -22,12 +25,14 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
+import { agentSessionMessageService } from '@main/data/services/AgentSessionMessageService'
 import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { isAbortError } from '@main/utils/error'
-import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
+import { projectAgentNonTextPart } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
+import { extractAgentContextId, extractAgentSessionId, isAgentSessionTopic } from '@shared/ai/agentSessionTopic'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { MessageProjectionUpdate, MessageProjectionView } from '@shared/ai/messageProjection'
 import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
@@ -38,7 +43,7 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
-import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import { aiStreamAdmissionReasons, isDeferredToolOutput, toolResultValue } from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
@@ -47,7 +52,6 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 import { KeyedMutex } from '@shared/utils/async'
 
-import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import type { AsInProcess } from '../AiService'
 import { applyTurnOutputAttributes } from '../observability'
 import type {
@@ -66,7 +70,7 @@ import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { TerminalPersistenceError } from './listeners/PersistenceListener'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
-import { pipeMessageStream } from './pipeMessageStream'
+import { materializeAgentMessage, pipeMessageStream } from './pipeMessageStream'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
 import { TopicMessageProjection } from './TopicMessageProjection'
@@ -86,6 +90,13 @@ import type {
   TransportTimings
 } from './types'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
+
+function hasToolOutcome(part: CherryUIMessage['parts'][number]) {
+  return (
+    isToolUIPart(part) &&
+    (part.state === 'output-denied' || part.state === 'output-error' || part.state === 'output-available')
+  )
+}
 
 function withResolvedApprovals(message: CherryUIMessage, exec: StreamExecution): CherryUIMessage {
   if (!exec.resolvedToolApprovals?.size) return message
@@ -226,7 +237,6 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
   gracePeriodMs: 30_000,
   backgroundMode: 'continue',
   maxBufferChunks: 10_000,
-  maxDeferredOutputs: 64,
   maxDeltaBytes: 16_384,
   // Generous (2 h) but bounded: a human can deliberate, yet a renderer that never responds (window
   // closed/crashed) can't leave the stream + subprocess hanging until app quit.
@@ -310,18 +320,25 @@ function withCompactionAnchors(message: CherryUIMessage, exec: StreamExecution):
   const anchors = exec.compactionAnchors
   if (!anchors?.length) return message
   const parts = [...message.parts]
+  const partIds = message.partIds?.slice()
   for (const anchor of anchors) {
     // Narrow on `type` before reading `id` — only data parts carry one.
     const at = parts.findIndex((p) => p.type === 'data-compaction-anchor' && p.id === anchor.id)
     if (anchor.data.status === 'skipped') {
-      if (at >= 0) parts.splice(at, 1)
+      if (at >= 0) {
+        parts.splice(at, 1)
+        partIds?.splice(at, 1)
+      }
       continue
     }
     const part: CherryMessagePart = { type: 'data-compaction-anchor', id: anchor.id, data: anchor.data }
     if (at >= 0) parts[at] = part
-    else parts.push(part)
+    else {
+      parts.push(part)
+      partIds?.push('')
+    }
   }
-  return { ...message, parts }
+  return { ...message, parts, partIds }
 }
 
 function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
@@ -382,7 +399,35 @@ export class AiStreamManager extends BaseService {
   private topicProjection(topicId: string): TopicMessageProjection {
     let projection = this.projections.get(topicId)
     if (!projection) {
-      projection = new TopicMessageProjection(topicId, (message) => projectStreamMessageForRenderer(topicId, message))
+      projection = new TopicMessageProjection(topicId, (message) => {
+        const stream = this.activeStreams.get(topicId)
+        const exec =
+          stream &&
+          [...stream.executions.values()].find(
+            (item) => item.anchorMessageId === message.id || item.finalMessage?.id === message.id
+          )
+        if (!exec) return cloneObservationValue(projectStreamMessageForRenderer(topicId, message))
+        const accepted = (exec.acceptedToolResults ??= new AcceptedToolResults(topicId))
+        const parts = message.parts.map((part, index) => {
+          if (isToolUIPart(part) && part.state === 'output-available') {
+            const partId = message.partIds?.[index]
+            return accepted.project(
+              message.id,
+              part,
+              () => {
+                this.projections
+                  .get(topicId)
+                  ?.invalidateToolResults([
+                    { topicId, messageId: message.id, toolCallId: part.toolCallId, ...(partId && { partId }) }
+                  ])
+              },
+              partId
+            )
+          }
+          return cloneObservationValue(part)
+        })
+        return { ...cloneObservationValue({ ...message, parts: [] }), parts }
+      })
       this.projections.set(topicId, projection)
     }
     return projection
@@ -1302,7 +1347,10 @@ export class AiStreamManager extends BaseService {
       for (const chunk of exec.buffer) {
         listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId, chunk.attemptId, chunk.sequence)
       }
-      if (exec.finalMessage) listener.onMessage?.(exec.finalMessage, exec.modelId, exec.sourceKind)
+      if (listener.content && exec.sourceKind) {
+        const message = exec.readMessage?.() ?? exec.finalMessage
+        if (message) listener.content.snapshot(message, exec.sourceKind)
+      }
     }
     return true
   }
@@ -1336,7 +1384,9 @@ export class AiStreamManager extends BaseService {
       } else {
         this.onChunk(topicId, exec.modelId, { type: 'tool-output-denied', toolCallId }, exec)
       }
-      if (exec.finalMessage) {
+      if (exec.sourceKind === 'messages') {
+        this.projections.get(topicId)?.refreshAgentMessage(exec.modelId, exec.attemptId)
+      } else if (exec.finalMessage) {
         exec.finalMessage = withResolvedApprovals(exec.finalMessage, exec)
         this.projections.get(topicId)?.accumulate(exec.modelId, exec.attemptId, exec.finalMessage)
       }
@@ -1387,7 +1437,9 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) {
       if (isAgentSessionTopic(topicId)) {
-        application.get('AgentSessionRuntimeService').abortPendingTurn(extractAgentSessionId(topicId), reason)
+        application
+          .get('AgentSessionRuntimeService')
+          .abortPendingTurn(extractAgentSessionId(topicId), reason, extractAgentContextId(topicId))
       }
       return
     }
@@ -1418,7 +1470,7 @@ export class AiStreamManager extends BaseService {
       if (isAgentSessionTopic(topicId)) {
         const runtimeClosing = application
           .get('AgentSessionRuntimeService')
-          .stopSession(extractAgentSessionId(topicId), reason)
+          .stopSession(extractAgentSessionId(topicId), reason, extractAgentContextId(topicId))
         const drainReplacementLoops = async (): Promise<void> => {
           for (;;) {
             const replacement = this.activeStreams.get(topicId)
@@ -1529,14 +1581,33 @@ export class AiStreamManager extends BaseService {
         exec.buffer.push(segment)
       }
     }
-    // Keeps stripped outputs resolvable until the message lands in SQLite. Bounded; an evicted
-    // entry just falls through to the persisted copy.
-    if (chunk.type === 'tool-output-available' && shouldDeferToolOutput(chunk.output)) {
+    if (chunk.type === 'tool-output-available') {
+      const accepted = (exec.acceptedToolResults ??= new AcceptedToolResults(topicId))
+      const messageId = exec.anchorMessageId ?? exec.finalMessage?.id
+      if (messageId) {
+        accepted.accept(messageId, {
+          type: 'dynamic-tool',
+          toolName: '',
+          toolCallId: chunk.toolCallId,
+          state: 'output-available',
+          input: undefined,
+          output: chunk.output
+        })
+        this.projections.get(topicId)?.invalidateToolResults([{ topicId, messageId, toolCallId: chunk.toolCallId }])
+      }
       const deferredOutputs = (exec.deferredOutputs ??= new Map())
       deferredOutputs.set(chunk.toolCallId, chunk.output)
-      if (deferredOutputs.size > this.config.maxDeferredOutputs) {
-        const oldest = deferredOutputs.keys().next()
-        if (!oldest.done) deferredOutputs.delete(oldest.value)
+    }
+    if (
+      chunk.type === 'tool-output-error' ||
+      chunk.type === 'tool-input-error' ||
+      chunk.type === 'tool-output-denied'
+    ) {
+      const messageId = exec.anchorMessageId ?? exec.finalMessage?.id
+      exec.deferredOutputs?.delete(chunk.toolCallId)
+      if (messageId) {
+        exec.acceptedToolResults?.remove(messageId, chunk.toolCallId)
+        this.projections.get(topicId)?.invalidateToolResults([{ topicId, messageId, toolCallId: chunk.toolCallId }])
       }
     }
 
@@ -2005,7 +2076,7 @@ export class AiStreamManager extends BaseService {
         bufferedChunkCount: exec.buffer.length,
         droppedChunks: exec.droppedChunks,
         siblingsGroupId: exec.siblingsGroupId,
-        finalMessage: exec.finalMessage,
+        finalMessage: exec.readMessage?.() ?? exec.finalMessage,
         timings: { ...exec.timings }
       })
     }
@@ -2040,8 +2111,9 @@ export class AiStreamManager extends BaseService {
       const finalMessages: Partial<Record<UniqueModelId, CherryUIMessage>> = {}
       let firstFinalMessage: CherryUIMessage | undefined
       for (const exec of stream.executions.values()) {
-        if (!exec.finalMessage) continue
-        const finalMessage = projectStreamMessageForRenderer(req.topicId, exec.finalMessage)
+        const message = exec.readMessage?.() ?? exec.finalMessage
+        if (!message) continue
+        const finalMessage = projectStreamMessageForRenderer(req.topicId, message)
         finalMessages[exec.modelId] = finalMessage
         if (!firstFinalMessage) firstFinalMessage = finalMessage
       }
@@ -2100,17 +2172,39 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Full output of a deferred tool call, while the stream that produced it is still active. */
-  getDeferredToolOutput(topicId: string, toolCallId: string): { found: true; output: unknown } | { found: false } {
+  getDeferredToolOutput(
+    topicId: string,
+    toolCallId: string,
+    messageId?: string,
+    partId?: string
+  ): { found: true; output: unknown } | { found: false } {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return { found: false }
 
     for (const exec of stream.executions.values()) {
       if (exec.persistence?.status === 'saved') continue
+      if (messageId && messageId !== exec.anchorMessageId && messageId !== exec.finalMessage?.id) continue
+      const acceptedId = messageId ?? exec.anchorMessageId ?? exec.finalMessage?.id
       if (exec.sourceKind === 'messages') {
-        const part = exec.finalMessage?.parts.find((part) => isToolUIPart(part) && part.toolCallId === toolCallId)
-        if (part && isToolUIPart(part) && part.state === 'output-available') return { found: true, output: part.output }
-        continue
+        const message = exec.readMessage?.() ?? exec.finalMessage
+        const part = partId
+          ? message?.parts[message.partIds?.indexOf(partId) ?? -1]
+          : message?.parts.find((part) => isToolUIPart(part) && part.toolCallId === toolCallId)
+        if (
+          !part ||
+          !isToolUIPart(part) ||
+          part.toolCallId !== toolCallId ||
+          (part.state !== 'output-available' && part.state !== 'output-error')
+        )
+          continue
+        const output = toolResultValue(part)
+        if (isDeferredToolOutput(output)) continue
+        if (part.state === 'output-error') return { found: true, output }
+        const accepted = acceptedId && exec.acceptedToolResults?.get(acceptedId, toolCallId)
+        return accepted && accepted.found ? accepted : { found: true, output }
       }
+      const accepted = acceptedId && exec.acceptedToolResults?.get(acceptedId, toolCallId)
+      if (accepted && accepted.found) return accepted
       if (exec.deferredOutputs?.has(toolCallId)) {
         return { found: true, output: exec.deferredOutputs.get(toolCallId) }
       }
@@ -2186,33 +2280,33 @@ export class AiStreamManager extends BaseService {
   ): Promise<void> {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
-    const publishMessage = (message: CherryUIMessage) => {
-      exec.finalMessage = withResolvedApprovals(withCompactionAnchors(message, exec), exec)
-      this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, exec.finalMessage)
-      const active = this.activeStreams.get(topicId)
-      if (!active || active.executions.get(modelId) !== exec) return
-      const hadPending = !!exec.pendingApprovalToolCallIds?.size
-      for (const part of message.parts) {
-        if (
-          isToolUIPart(part) &&
-          (part.state === 'output-available' || part.state === 'output-error' || part.state === 'output-denied')
-        ) {
-          exec.pendingApprovalToolCallIds?.delete(part.toolCallId)
-          exec.runtimeTiming.finishApproval({ toolCallId: part.toolCallId })
-        }
-      }
-      if (hadPending && !exec.pendingApprovalToolCallIds?.size) active.lifecycle.onApprovalPendingChanged(active)
+    const notifyContent = (active: ActiveStream, deliver: (sink: NonNullable<StreamListener['content']>) => void) => {
       for (const [id, listener] of active.listeners) {
         if (!listener.isAlive()) {
           active.listeners.delete(id)
           continue
         }
         try {
-          listener.onMessage?.(exec.finalMessage, modelId, exec.sourceKind)
+          if (listener.content) deliver(listener.content)
         } catch (err) {
-          logger.warn('Listener threw', { topicId, listenerId: id, event: 'onMessage', err })
+          logger.warn('Content listener threw', { topicId, listenerId: id, err })
         }
       }
+    }
+    const finishToolApproval = (toolCallId: string) => {
+      exec.pendingApprovalToolCallIds?.delete(toolCallId)
+      exec.runtimeTiming.finishApproval({ toolCallId })
+    }
+    const publishMessage = (message: CherryUIMessage) => {
+      const current = withResolvedApprovals(withCompactionAnchors(message, exec), exec)
+      if (exec.sourceKind !== 'messages') exec.finalMessage = current
+      this.projections.get(topicId)?.accumulate(modelId, exec.attemptId, current)
+      const active = this.activeStreams.get(topicId)
+      if (!active || active.executions.get(modelId) !== exec) return
+      const hadPending = !!exec.pendingApprovalToolCallIds?.size
+      for (const part of message.parts) if (hasToolOutcome(part)) finishToolApproval(part.toolCallId)
+      if (hadPending && !exec.pendingApprovalToolCallIds?.size) active.lifecycle.onApprovalPendingChanged(active)
+      notifyContent(active, (sink) => sink.snapshot(current, source.kind))
     }
 
     let source: AiStreamSource
@@ -2270,19 +2364,51 @@ export class AiStreamManager extends BaseService {
     let result: Awaited<ReturnType<typeof pipeStreamLoop>>
     if (source.kind === 'messages') {
       const { stream, idle } = withIdleTimeout(source.stream, exec.abortController, timeoutMs)
+      const initial = omit(ensureTerminalFinalMessage(exec), ['parts', 'partIds'])
+      let header = initial
+      exec.readMessage = () =>
+        withResolvedApprovals(withCompactionAnchors(materializeAgentMessage(header, source.readParts()), exec), exec)
+      this.projections
+        .get(topicId)
+        ?.readAgentFrom(modelId, exec.attemptId, () => exec.readMessage?.() ?? exec.finalMessage)
+      const resetIdle = () =>
+        idle.reset(exec.pendingApprovalToolCallIds?.size ? this.config.approvalIdleTimeoutMs : timeoutMs)
       result = await pipeMessageStream(
-        stream,
+        { ...source, stream },
         signal,
-        ensureTerminalFinalMessage(exec),
+        initial,
         (message) => {
           publishMessage(message)
-          if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
+          resetIdle()
         },
-        (chunk) => {
+        (chunk, metadata) => {
           this.onChunk(topicId, modelId, chunk, exec)
-          if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
+          if (metadata) {
+            header = { ...header, metadata }
+            this.projections.get(topicId)?.refreshAgentMessage(modelId, exec.attemptId)
+          }
+          resetIdle()
+        },
+        (change) => {
+          resetIdle()
+          const active = this.activeStreams.get(topicId)
+          const projection = this.projections.get(topicId)
+          if (change.type === 'part-put' || change.type === 'part-add') {
+            const { patch, ref } = projectAgentNonTextPart(topicId, change)
+            projection?.relayAgentPart(modelId, exec.attemptId, patch)
+            if (ref) projection?.invalidateToolResults([ref])
+            const hadPending = !!exec.pendingApprovalToolCallIds?.size
+            const { part } = change
+            if (hasToolOutcome(part)) finishToolApproval(part.toolCallId)
+            if (active && hadPending && !exec.pendingApprovalToolCallIds?.size)
+              active.lifecycle.onApprovalPendingChanged(active)
+          } else projection?.relayAgentPart(modelId, exec.attemptId, change)
+          if (active?.executions.get(modelId) === exec) notifyContent(active, (sink) => sink.part(change))
         }
       )
+      if (result.finalMessage)
+        exec.finalMessage = withResolvedApprovals(withCompactionAnchors(result.finalMessage, exec), exec)
+      exec.readMessage = undefined
     } else {
       const { stream: idleStream, idle } = withIdleTimeout(source.stream, exec.abortController, timeoutMs)
       const lastIncoming = request.messages?.at(-1)
@@ -2514,6 +2640,27 @@ export class AiStreamManager extends BaseService {
           else this.terminalPersistenceCounts.set(stream.topicId, remaining)
           if (remaining === 0 && stream.terminalLifecyclePending && this.activeStreams.get(stream.topicId) === stream) {
             this.runTerminalLifecycle(stream)
+          }
+        }
+      }
+    }
+    if (exec.persistence?.status === 'saved') {
+      exec.acceptedToolResults?.clear()
+      exec.deferredOutputs?.clear()
+      if (exec.sourceKind === 'messages' && isAgentSessionTopic(stream.topicId) && exec.finalMessage) {
+        const header = omit(exec.finalMessage, ['parts', 'partIds'])
+        const sessionId = extractAgentSessionId(stream.topicId)
+        const messageId = exec.persistence.message.messageId
+        exec.finalMessage = undefined
+        exec.readMessage = () => {
+          try {
+            return materializeAgentMessage(
+              header,
+              agentSessionMessageService.getStoredMessageParts(sessionId, messageId)
+            )
+          } catch (error) {
+            if (!isDataApiNotFoundError(error)) throw error
+            return materializeAgentMessage(header, [])
           }
         }
       }
