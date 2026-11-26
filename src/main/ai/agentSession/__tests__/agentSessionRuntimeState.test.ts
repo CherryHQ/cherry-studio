@@ -154,7 +154,7 @@ describe('reply ownership and delivery', () => {
     m.open(first)
     m.finish(first)
     if (persisted) m.persist(first)
-    m.send({ type: 'steer-boundary', turn: second })
+    m.send({ type: 'run-placed', turn: second })
     expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(second)
     if (!persisted) {
       expect(m.state.launch.kind).toBe('idle')
@@ -164,12 +164,11 @@ describe('reply ownership and delivery', () => {
     expect(getAgentSessionRuntimeReply(m.state, second)?.admission).toBe('admitted')
   })
 
-  it('gives steer facts to the reserved successor while the source is still persisting', () => {
+  it('buffers a newly placed run while the source is still persisting', () => {
     const m = machine()
     m.open(first)
-    m.send({ type: 'reserve-steer', reservation: second })
     expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(first)
-    m.send({ type: 'steer-boundary', turn: second })
+    m.send({ type: 'run-placed', turn: second })
     const chunk = { type: 'message-metadata', messageMetadata: { stats: { outputTokens: 1 } } } as const
     m.send({ type: 'buffer-chunk', turn: second, chunk })
     m.finish(second)
@@ -214,7 +213,7 @@ describe('reply ownership and delivery', () => {
     m.open(second)
     m.completeLaunch()
 
-    expect(m.send({ type: 'steer-boundary', turn: third })).toEqual([
+    expect(m.send({ type: 'run-placed', turn: third })).toEqual([
       { type: 'settle-turn', turn: second, outcome: { status: 'success' } }
     ])
     expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(third)
@@ -232,7 +231,7 @@ describe('reply ownership and delivery', () => {
     m.open(second)
     m.completeLaunch()
 
-    m.send({ type: 'steer-boundary', turn: first })
+    m.send({ type: 'run-placed', turn: first })
     expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(first)
     m.persist(second)
     expect(m.state.launch).toEqual({ kind: 'scheduled', target: { kind: 'reply', turn: first } })
@@ -243,7 +242,7 @@ describe('reply ownership and delivery', () => {
   it('keeps output on an autonomous reply that has not opened yet', () => {
     const m = machine(undefined)
     m.send({ type: 'autonomous-turn-started', turn: second, deferCurrentTurn: false })
-    m.send({ type: 'steer-boundary', turn: { id: 'third' } })
+    m.send({ type: 'run-placed', turn: { id: 'third' } })
     expect(getAgentSessionRuntimeNativeTurn(m.state)).toBe(second)
   })
 

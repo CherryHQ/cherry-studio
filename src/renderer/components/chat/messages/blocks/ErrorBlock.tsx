@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next'
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
 import React, { useCallback, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -16,7 +17,8 @@ import {
   type ErrorCategory,
   getClaudeCodeExitCategory,
   getClaudeCodeExitInfo,
-  getLocalModelResolutionFailure
+  getLocalModelResolutionFailure,
+  isUnattributedClaudeCodeExit
 } from '@renderer/utils/errorClassifier'
 
 import { useMessageListActions } from '../MessageListProvider'
@@ -38,17 +40,22 @@ const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
   return <MessageErrorInfo partId={partId} error={error} message={message} />
 }
 
+function getClaudeCodeExitMessage(error: Props['error'], t: TFunction): string | undefined {
+  const exit = getClaudeCodeExitInfo(error)
+  if (!exit) return undefined
+  const { reference, exitCode, exitSignal } = exit
+  if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
+  if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
+  return t('error.claude_code_exit.start', { reference })
+}
+
 const ErrorMessage: React.FC<{ error: Props['error']; category: ErrorCategory }> = ({ error, category }) => {
   const { t, i18n } = useTranslation()
   const { navigateToRoute } = useMessageListActions()
 
-  const claudeCodeExit = getClaudeCodeExitInfo(error)
-  if (claudeCodeExit) {
-    const { reference, exitCode, exitSignal } = claudeCodeExit
-    if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
-    if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
-    return t('error.claude_code_exit.start', { reference })
-  }
+  if (isUnattributedClaudeCodeExit(error)) return null
+  const claudeCodeExitMessage = getClaudeCodeExitMessage(error, t)
+  if (claudeCodeExitMessage !== undefined) return claudeCodeExitMessage
 
   const i18nKey = error && 'i18nKey' in error ? `error.${(error as Record<string, unknown>).i18nKey}` : ''
   const errorKey = `error.${error?.message}`
@@ -168,12 +175,14 @@ const MessageErrorInfo: React.FC<{
         model: failedProviderId ? `${failedProviderId}/${modelId}` : modelId
       })
     }
+    if (isUnattributedClaudeCodeExit(error)) return getClaudeCodeExitMessage(error, t)
     return t(classification.i18nKey, providerId ? { provider: t(getProviderLabelKey(providerId)) } : undefined)
   }, [
     cherryCloudQuotaRejection,
     hasAppOwnedI18nKey,
     appOwnedErrorKey,
     classification.i18nKey,
+    error,
     localModelFailure,
     providerId,
     t

@@ -106,16 +106,12 @@ export class AgentSessionForkOperations {
     if (source.version !== target.version) throw new AgentSessionEditError('history_changed')
     const agent = source.session.agentId ? agentService.getAgent(source.session.agentId) : undefined
     const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
-    const facts = agentSessionForkService.readHistoryBoundaries(sessionId, [target.messageId])[0]
-    const editFailure = facts
-      ? getEditFailure(
-          driver?.fork && driver.isForkCheckpoint
-            ? { type: driver.type, isForkCheckpoint: driver.isForkCheckpoint.bind(driver) }
-            : undefined,
-          facts,
-          facts.parent
-        )
-      : 'invalid_target'
+    const editFailure = getEditFailure(
+      driver?.fork && driver.isForkCheckpoint
+        ? { type: driver.type, isForkCheckpoint: driver.isForkCheckpoint.bind(driver) }
+        : undefined,
+      source.plan.resolution
+    )
     if (editFailure) throw new AgentSessionEditError(editFailure)
     // oxlint-disable-next-line no-restricted-globals -- Fork once: detach the selected prefix before rewriting IDs and metadata.
     const prefix = structuredClone(source.prefix)
@@ -127,8 +123,8 @@ export class AgentSessionForkOperations {
     let resources: AgentSessionForkResources | undefined
     try {
       if (prefix.length) {
-        const row = prefix.at(-1)!
-        const boundary = resolveForkBoundary(driver, { ...row, anchor: row.data.runtimeAnchor })
+        const row = source.boundary!
+        const boundary = resolveForkBoundary(driver, row)
         if (boundary.reason) throw new AgentSessionEditError('checkpoint_unsupported')
         const { anchor } = boundary
         if (anchor.excludedMessageIds?.some((id) => prefix.some((row) => row.id === id)))
@@ -183,7 +179,7 @@ export class AgentSessionForkOperations {
         const sourceBackendId = sourceHead
           ? agentSessionContextService.branchTx(tx, sessionId, sourceHead)?.backendId
           : undefined
-        agentSessionMessageService.replaceEditBranchTx(tx, sessionId, target)
+        agentSessionMessageService.replaceEditBranchTx(tx, sessionId, source.plan)
         const result = persist(tx, nativeSessionId, nativeContextId, sourceBackendId)
         if (resources) {
           const checkpointMapping = Object.fromEntries(
@@ -251,7 +247,7 @@ export class AgentSessionForkOperations {
     signal.throwIfAborted()
     await ensureRetiredSessionHistory(sourceSessionId)
     const preliminary = agentSessionForkService.read(sourceSessionId, messageId)
-    const selected = preliminary.messages.at(-1)!
+    const selected = preliminary.messages.find((row) => row.id === messageId)!
     const agent = agentService.getAgent(preliminary.agent.id)
     if (!agent) throw new AgentSessionForkSourceError('source_missing')
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
@@ -333,7 +329,7 @@ export class AgentSessionForkOperations {
         prepared.push({ group, result })
       }
       signal.throwIfAborted()
-      const messages = cloneMessages(source.messages, resources.targetSessionId, prepared)
+      const messages = cloneMessages(source.messages, resources.targetSessionId, prepared, messageId)
       const positions = new Map(source.messages.map((row, index) => [row.id, index]))
       const contexts = prepared.map(({ group, result }, index) => {
         const first = positions.get(group.rows[0].id)!
@@ -548,17 +544,25 @@ function remapNativeHistory(rows: AgentSessionMessageRecord[], prepared: Prepare
 function cloneMessages(
   rows: readonly AgentSessionMessageRecord[],
   targetSessionId: string,
-  prepared: PreparedContext[]
+  prepared: PreparedContext[],
+  selectedMessageId: string
 ): AgentSessionMessageRecord[] {
   // Preserve the existing (createdAt, id) order even when several source rows share a timestamp.
   const newIds = rows.map(() => randomUUID()).sort()
   const ids = new Map(rows.map((row, index) => [row.id, newIds[index]]))
+  const copiedParts = new Map(rows.flatMap((row) => row.partIds ?? []).map((id) => [id, randomUUID()]))
+  let markerPos = 0
+  for (const row of rows) {
+    markerPos = Math.max(markerPos, row.pos ?? 0)
+    for (const pos of row.partPositions ?? []) markerPos = Math.max(markerPos, pos ?? 0)
+  }
+  markerPos++
   // oxlint-disable-next-line no-restricted-globals -- Fork once: isolate the selected branch rows before assigning destination IDs.
   const messages = rows.map((row) => structuredClone(row))
   remapNativeHistory(messages, prepared)
   const nativeIds = new Map(prepared.map(({ group, result }) => [group.context.nativeThreadId, result.resumeToken]))
   const copiedIds = new Set(nativeIds.values())
-  return messages.map((row, index) => {
+  return messages.map((row) => {
     const data = row.data
     const nativeId = data.nativeSessionId && nativeIds.get(data.nativeSessionId)
     if (nativeId) data.nativeSessionId = nativeId
@@ -572,13 +576,22 @@ function cloneMessages(
       }
     }
     // Task events are live execution registries, not conversation content.
+    const retained = (data.parts ?? []).flatMap((part, index) =>
+      part.type === 'data-agent-task-event' || part.type === 'data-agent-session-fork' ? [] : [index]
+    )
+    const partIds = retained.map((index) => copiedParts.get(row.partIds?.[index] ?? '') ?? randomUUID())
+    const partPositions = retained.map((index) => row.partPositions?.[index] ?? null)
     data.parts = data.parts
       ?.filter((part) => part.type !== 'data-agent-task-event' && part.type !== 'data-agent-session-fork')
       .map((part) => {
         if (part.type === 'data-translation' && part.data.sourceBlockId) {
           return {
             ...part,
-            data: { ...part.data, sourceBlockId: ids.get(part.data.sourceBlockId) ?? part.data.sourceBlockId }
+            data: {
+              ...part.data,
+              sourceBlockId:
+                copiedParts.get(part.data.sourceBlockId) ?? ids.get(part.data.sourceBlockId) ?? part.data.sourceBlockId
+            }
           }
         }
         if (!('toolCallId' in part)) return part
@@ -602,7 +615,9 @@ function cloneMessages(
         delete copy.approval
         return copy
       })
-    if (index === rows.length - 1) {
+    if (row.id === selectedMessageId) {
+      partIds.push(randomUUID())
+      partPositions.push(markerPos)
       data.parts = [
         ...(data.parts ?? []),
         { type: 'data-agent-session-fork', data: { sourceSessionId: row.sessionId } }
@@ -612,6 +627,9 @@ function cloneMessages(
       ...row,
       id: ids.get(row.id)!,
       sessionId: targetSessionId,
+      replyId: row.replyId ? (ids.get(row.replyId) ?? null) : null,
+      partIds,
+      partPositions,
       data,
       stats: null,
       ftsRowid: null,

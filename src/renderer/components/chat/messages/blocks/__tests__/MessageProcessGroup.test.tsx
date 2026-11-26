@@ -36,6 +36,23 @@ describe('MessageProcessGroup', () => {
     vi.useRealTimers()
   })
 
+  it('does not present user-cancelled tool history as a failed Run', () => {
+    const message = {
+      id: 'message-1',
+      role: 'assistant',
+      topicId: 'topic-1',
+      createdAt: '2026-01-01T00:00:00Z',
+      status: 'paused'
+    } as MessageListItem
+    render(
+      <MessageProcessGroup phase="completed" outcome="error" message={message} toolItems={[]} defaultExpanded>
+        {() => <div>Cancelled tool detail</div>}
+      </MessageProcessGroup>
+    )
+    expect(screen.queryByText('message.tools.error')).not.toBeInTheDocument()
+    expect(screen.getByText('Cancelled tool detail')).toBeVisible()
+  })
+
   it('updates only the active header while elapsed time advances', () => {
     const renderHistory = vi.fn(() => <div>Process history</div>)
     const message = {

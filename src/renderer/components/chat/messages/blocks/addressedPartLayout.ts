@@ -30,12 +30,14 @@ export interface HistoryRun {
   hasIntent?: boolean
   folds?: Runs<ToolFold>
 }
+export type HistorySection =
+  | { key: string; kind: 'process'; runs: Runs<HistoryRun> }
+  | { key: string; kind: 'inline'; entry: AddressedEntry }
+
 export interface PartLayout {
-  history?: Runs<HistoryRun>
-  tailHistory?: Runs<HistoryRun>
-  kept?: Range<AddressedEntry>
+  history?: Runs<HistorySection>
+  tailHistory?: Runs<HistorySection>
   tail?: Range<AddressedEntry>
-  tailText?: Range<AddressedEntry>
   lastProcess?: string
   openTail?: string
   trailingAnswer?: boolean
@@ -78,7 +80,12 @@ function joinHistory(left: HistoryRun, right: HistoryRun): HistoryRun | undefine
   }
 }
 
-const history = (a?: Runs<HistoryRun>, b?: Runs<HistoryRun>) => joinRuns(a, b, joinHistory)
+const joinSections = (a?: Runs<HistorySection>, b?: Runs<HistorySection>) =>
+  joinRuns(a, b, (left, right) =>
+    left.kind === 'process' && right.kind === 'process'
+      ? { ...left, runs: joinRuns(left.runs, right.runs, joinHistory)! }
+      : undefined
+  )
 
 export const EMPTY_LAYOUT: PartLayout = {}
 
@@ -87,11 +94,9 @@ export function joinPartLayout(left: PartLayout, right: PartLayout): PartLayout 
   if (right === EMPTY_LAYOUT) return left
   const sealed = !!right.lastProcess
   return {
-    history: sealed ? history(history(left.history, left.tailHistory), right.history) : left.history,
-    tailHistory: sealed ? right.tailHistory : history(left.tailHistory, right.tailHistory),
-    kept: sealed ? concat(concat(left.kept, left.tailText), right.kept) : left.kept,
+    history: sealed ? joinSections(joinSections(left.history, left.tailHistory), right.history) : left.history,
+    tailHistory: sealed ? right.tailHistory : joinSections(left.tailHistory, right.tailHistory),
     tail: sealed ? right.tail : concat(left.tail, right.tail),
-    tailText: sealed ? right.tailText : concat(left.tailText, right.tailText),
     lastProcess: right.lastProcess ?? left.lastProcess,
     openTail: right.lastBody !== undefined ? right.openTail : left.openTail,
     lastBody: right.lastBody ?? left.lastBody,
@@ -106,7 +111,7 @@ export function joinPartLayout(left: PartLayout, right: PartLayout): PartLayout 
 export function layoutPart(
   entry: AddressedEntry,
   kind: HistoryRun['kind'],
-  keepText: boolean,
+  keepInline: boolean,
   tool?: ToolRenderItem,
   intentTitle?: string
 ): PartLayout {
@@ -134,11 +139,13 @@ export function layoutPart(
     folds: fold ? { first: fold } : undefined
   }
   const process = kind === 'process'
+  const section: HistorySection = keepInline
+    ? { key, kind: 'inline', entry }
+    : { key, kind: 'process', runs: { first: run } }
   return {
-    history: process ? { first: run } : undefined,
-    tailHistory: !process && !keepText ? { first: run } : undefined,
+    history: process ? { first: section } : undefined,
+    tailHistory: process ? undefined : { first: section },
     tail: process || kind === 'barrier' ? undefined : entries,
-    tailText: keepText ? entries : undefined,
     lastProcess: process ? key : undefined,
     lastBody: key,
     openTail: part.type === 'data-code' || (part.type === 'text' && part.state === 'streaming') ? key : undefined

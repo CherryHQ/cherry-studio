@@ -9,6 +9,9 @@ import { agentInlineResultPresentationRegistry } from '../tools/agent'
 import { isChannelAuthQrPart } from '../tools/channelConfigTool'
 import { isGeneratedImageResultPart } from '../tools/painting/generateImageTool'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
+import { isHiddenPart } from './messagePartPresentation'
+
+export { isHiddenPart, isTimelineMarkerPart } from './messagePartPresentation'
 
 export interface PartEntry {
   part: CherryMessagePart
@@ -16,23 +19,22 @@ export interface PartEntry {
   partId?: string
 }
 
-export interface LiveProcessLayoutItem {
+export interface ProcessLayoutItem {
   kind: 'process'
   key: string | number
   entries: readonly PartEntry[]
 }
 
-export interface LivePartLayoutItem {
+export interface InlinePartLayoutItem {
   kind: 'part'
   key: string | number
   entry: PartEntry
 }
 
-export type LiveMessagePartLayoutItem = LiveProcessLayoutItem | LivePartLayoutItem
+export type MessagePartLayoutItem = ProcessLayoutItem | InlinePartLayoutItem
 
 export interface CompletedMessagePartLayout {
-  historyEntries: readonly PartEntry[]
-  resultEntries: readonly PartEntry[]
+  items: readonly MessagePartLayoutItem[]
   reportEntries: readonly PartEntry[]
 }
 
@@ -40,21 +42,7 @@ interface MessagePartLayoutOptions {
   keepIntermediateAssistantText?: boolean
 }
 
-const HIDDEN_PART_TYPES = new Set([
-  'step-start',
-  'source-url',
-  'source-document',
-  'data-citation',
-  'data-agent-task-event',
-  'data-knowledge-scope',
-  'data-clear'
-])
-
 const ASSOCIATED_RESULT_PART_TYPES = new Set(['data-error', 'data-imported-status', 'file', 'data-video'])
-
-export function isHiddenPart(part: CherryMessagePart): boolean {
-  return HIDDEN_PART_TYPES.has(part.type)
-}
 
 function isIgnorableEmptyContentPart(part: CherryMessagePart): boolean {
   if (part.type === 'text') return isEmptyContentPart(part)
@@ -160,78 +148,58 @@ function isVisibleProcessPart(part: CherryMessagePart): boolean {
   return isVisibleReasoningPart(part) || isProcessToolPart(part)
 }
 
-/**
- * Projects an active message into stable, ordered layout items.
- *
- * Hidden transport markers are discarded without splitting process history.
- * Within each region bounded by an interactive or side-channel tool, visible
- * content through the last reasoning/tool part belongs to one process item.
- * By default, only the trailing content remains outside as the current result
- * candidate. The opt-in layout also keeps intermediate text outside.
- */
+export function isInlineLayoutPart(part: CherryMessagePart): boolean {
+  if (isToolUIPart(part)) return !isProcessToolPart(part)
+  return part.type === 'data-agent-session-fork' || (part.type !== 'text' && isSubstantiveAnswerPart(part))
+}
+
+function projectOrderedMessageParts(
+  entries: readonly PartEntry[],
+  keepIntermediateAssistantText: boolean
+): MessagePartLayoutItem[] {
+  const lastProcessIndex = entries.findLastIndex(({ part }) => isVisibleProcessPart(part))
+  const items: MessagePartLayoutItem[] = []
+  let process: PartEntry[] = []
+  let inlineValue = false
+  const flush = () => {
+    if (!process.length) return
+    const first = process[0]
+    items.push({ kind: 'process', key: first.partId ?? first.index, entries: process })
+    process = []
+  }
+
+  for (const [position, entry] of entries.entries()) {
+    const { part } = entry
+    const associated = inlineValue && isAssociatedResultPart(part)
+    inlineValue = associated || (part.type !== 'text' && isSubstantiveAnswerPart(part))
+    if (
+      (position > lastProcessIndex && !(part.type === 'data-error' && process.length)) ||
+      associated ||
+      isInlineLayoutPart(part) ||
+      (keepIntermediateAssistantText && part.type === 'text')
+    ) {
+      flush()
+      items.push({ kind: 'part', key: entry.partId ?? entry.index, entry })
+    } else {
+      process.push(entry)
+    }
+  }
+  flush()
+  return items
+}
+
 export function projectLiveMessageParts(
   entries: readonly PartEntry[],
   { keepIntermediateAssistantText = false }: MessagePartLayoutOptions = {}
-): LiveMessagePartLayoutItem[] {
-  const items: LiveMessagePartLayoutItem[] = []
-  let regionEntries: PartEntry[] = []
-
-  const flushRegion = () => {
-    let lastProcessPosition = -1
-    for (let position = regionEntries.length - 1; position >= 0; position--) {
-      if (isVisibleProcessPart(regionEntries[position].part)) {
-        lastProcessPosition = position
-        break
-      }
-    }
-
-    if (lastProcessPosition >= 0) {
-      const processEntries = regionEntries.slice(0, lastProcessPosition + 1)
-      if (keepIntermediateAssistantText) {
-        const foldedEntries = processEntries.filter((entry) => entry.part.type !== 'text')
-        for (const entry of processEntries) {
-          if (entry.part.type === 'text') {
-            items.push({ kind: 'part', key: entry.partId ?? entry.index, entry })
-          } else if (entry === foldedEntries[0]) {
-            items.push({ kind: 'process', key: entry.partId ?? entry.index, entries: foldedEntries })
-          }
-        }
-      } else {
-        items.push({
-          kind: 'process',
-          key: processEntries[0].partId ?? processEntries[0].index,
-          entries: processEntries
-        })
-      }
-    }
-
-    const resultStart = lastProcessPosition + 1
-    for (let position = resultStart; position < regionEntries.length; position++) {
-      const entry = regionEntries[position]
-      items.push({ kind: 'part', key: entry.partId ?? entry.index, entry })
-    }
-
-    regionEntries = []
-  }
-
-  for (let position = 0; position < entries.length; position++) {
-    const entry = entries[position]
+): MessagePartLayoutItem[] {
+  const content = entries.filter((entry, position) => {
     const addressedStream = entry.partId && entry.part.type === 'text' && entry.part.state === 'streaming'
-    if (!addressedStream && isIgnorableEmptyContentPart(entry.part)) continue
-    if (isHiddenPart(entry.part)) continue
-    if (!addressedStream && isProcessFillerText(entries, position, true)) continue
-
-    if (isToolUIPart(entry.part) && !isVisibleProcessPart(entry.part)) {
-      flushRegion()
-      items.push({ kind: 'part', key: entry.partId ?? entry.index, entry })
-      continue
-    }
-
-    regionEntries.push(entry)
-  }
-
-  flushRegion()
-  return items
+    return (
+      !isHiddenPart(entry.part) &&
+      (addressedStream || (!isIgnorableEmptyContentPart(entry.part) && !isProcessFillerText(entries, position, true)))
+    )
+  })
+  return projectOrderedMessageParts(content, keepIntermediateAssistantText)
 }
 
 /**
@@ -299,104 +267,19 @@ export function isResultPart(part: CherryMessagePart): boolean {
   return isSubstantiveAnswerPart(part) || isAssociatedResultPart(part)
 }
 
-/**
- * Projects a terminal message into completed history, final result, and report
- * artifact side-channel entries. Active messages must use
- * {@link projectLiveMessageParts}; this function intentionally performs no
- * streaming-state inference.
- */
 export function projectCompletedMessageParts(
   entries: readonly PartEntry[],
   { keepIntermediateAssistantText = false }: MessagePartLayoutOptions = {}
 ): CompletedMessagePartLayout {
   const reportEntries: PartEntry[] = []
-  const forkEntries: PartEntry[] = []
-  const contentEntries: PartEntry[] = []
-
-  for (let position = 0; position < entries.length; position++) {
-    const entry = entries[position]
-    if (entry.part.type === 'data-agent-session-fork') {
-      forkEntries.push(entry)
-    } else if (isReportToolPart(entry.part)) {
+  const content = entries.filter((entry, position) => {
+    if (isReportToolPart(entry.part)) {
       reportEntries.push(entry)
-    } else if (!isEmptyContentPart(entry.part) && !isProcessFillerText(entries, position, false)) {
-      contentEntries.push(entry)
+      return false
     }
-  }
-
-  let lastAnswerPosition = -1
-  for (let position = contentEntries.length - 1; position >= 0; position--) {
-    if (isSubstantiveAnswerPart(contentEntries[position].part)) {
-      lastAnswerPosition = position
-      break
-    }
-  }
-
-  let resultStart = -1
-  let resultEnd = -1
-  if (lastAnswerPosition >= 0) {
-    let lastRegularToolPosition = -1
-    for (let position = lastAnswerPosition - 1; position >= 0; position--) {
-      if (isProcessToolPart(contentEntries[position].part)) {
-        lastRegularToolPosition = position
-        break
-      }
-    }
-
-    const hasAskUserQuestionAfterLastRegularTool = contentEntries
-      .slice(lastRegularToolPosition + 1, lastAnswerPosition)
-      .some((entry) => isAskUserQuestionPart(entry.part))
-
-    if (hasAskUserQuestionAfterLastRegularTool) {
-      resultStart = lastRegularToolPosition + 1
-    } else {
-      resultStart = lastAnswerPosition
-      while (
-        resultStart > 0 &&
-        (isSubstantiveAnswerPart(contentEntries[resultStart - 1].part) ||
-          isAssociatedResultPart(contentEntries[resultStart - 1].part) ||
-          isHiddenPart(contentEntries[resultStart - 1].part))
-      ) {
-        resultStart--
-      }
-    }
-
-    resultEnd = lastAnswerPosition + 1
-    while (
-      resultEnd < contentEntries.length &&
-      (isAssociatedResultPart(contentEntries[resultEnd].part) || isHiddenPart(contentEntries[resultEnd].part))
-    ) {
-      resultEnd++
-    }
-  } else {
-    // Value-only responses (generated files, media, or terminal errors) have
-    // no prose answer to anchor them. Keep only the final uninterrupted value
-    // tail outside process history; an ending tool/reasoning part seals it.
-    let tailPosition = contentEntries.length - 1
-    while (tailPosition >= 0 && isHiddenPart(contentEntries[tailPosition].part)) tailPosition--
-    if (tailPosition >= 0 && isAssociatedResultPart(contentEntries[tailPosition].part)) {
-      resultEnd = contentEntries.length
-      resultStart = tailPosition
-      while (
-        resultStart > 0 &&
-        (isAssociatedResultPart(contentEntries[resultStart - 1].part) ||
-          isHiddenPart(contentEntries[resultStart - 1].part))
-      ) {
-        resultStart--
-      }
-    }
-  }
-
-  const isDirectResult = (entry: PartEntry, position: number) =>
-    isInlineResultToolPart(entry.part) ||
-    (keepIntermediateAssistantText && entry.part.type === 'text' && isSubstantiveAnswerPart(entry.part)) ||
-    (position >= resultStart &&
-      position < resultEnd &&
-      (isSubstantiveAnswerPart(entry.part) || isAssociatedResultPart(entry.part) || isHiddenPart(entry.part)))
-
-  return {
-    historyEntries: contentEntries.filter((entry, position) => !isDirectResult(entry, position)),
-    resultEntries: [...contentEntries.filter(isDirectResult), ...forkEntries],
-    reportEntries
-  }
+    return (
+      !isHiddenPart(entry.part) && !isEmptyContentPart(entry.part) && !isProcessFillerText(entries, position, false)
+    )
+  })
+  return { items: projectOrderedMessageParts(content, keepIntermediateAssistantText), reportEntries }
 }
