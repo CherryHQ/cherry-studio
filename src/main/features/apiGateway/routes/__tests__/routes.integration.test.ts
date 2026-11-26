@@ -31,7 +31,7 @@ const {
     if (tokens.some((value) => value === 'internal-agent-key' || value === 'Bearer internal-agent-key')) return true
     return tokens.some((value) => scopedCredentials.has(value?.replace(/^Bearer /, '') ?? ''))
   }),
-  mockAcquireInternalRequestBudget: vi.fn<() => Promise<() => void>>(),
+  mockAcquireInternalRequestBudget: vi.fn<(headers: Headers, signal: AbortSignal) => Promise<() => void>>(),
   mockGetCredentialScope: vi.fn((headers: Headers) =>
     scopedCredentials.get(
       headers.get('x-api-key') ??
@@ -247,6 +247,76 @@ describe('API gateway routes (integration)', () => {
   })
 
   describe('Anthropic token counting', () => {
+    const path = '/v1/messages/count_tokens'
+    const input = { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hello' }] }
+    const sessionHeaders = { ...AUTH, 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session' }
+
+    it('waits for Agent admission while public token counting can proceed', async () => {
+      const admission = Promise.withResolvers<() => void>()
+      const release = vi.fn()
+      mockAcquireInternalRequestBudget.mockReturnValueOnce(admission.promise)
+
+      const queued = post(internalApp, path, input, sessionHeaders)
+      try {
+        await vi.waitFor(() => expect(mockAcquireInternalRequestBudget).toHaveBeenCalledOnce())
+        expect(mockEstimateAnthropicRequestTokens).not.toHaveBeenCalled()
+        const publicHeaders = { ...AUTH, 'x-cherry-agent-session-id': 'session' }
+        await expect(post(app, path, input, publicHeaders).then(read)).resolves.toEqual({
+          status: 200,
+          body: { input_tokens: 42 }
+        })
+        expect(mockAcquireInternalRequestBudget).toHaveBeenCalledOnce()
+      } finally {
+        admission.resolve(release)
+        await queued
+      }
+
+      await expect(queued.then(read)).resolves.toEqual({ status: 200, body: { input_tokens: 42 } })
+      expect(release).toHaveBeenCalledOnce()
+    })
+
+    it('returns Agent budget when token estimation fails', async () => {
+      const release = vi.fn()
+      mockAcquireInternalRequestBudget.mockResolvedValueOnce(release)
+      mockEstimateAnthropicRequestTokens.mockRejectedValueOnce(
+        Object.assign(new Error('Invalid input'), { statusCode: 400 })
+      )
+
+      const { status, body } = await read(await post(internalApp, path, input, sessionHeaders))
+      expect(status).toBe(400)
+      expect(body).toMatchObject({ type: 'error', error: { type: 'invalid_request_error' } })
+      expect(release).toHaveBeenCalledOnce()
+    })
+
+    it('cancels a waiting Agent request before estimation', async () => {
+      const controller = new AbortController()
+      mockAcquireInternalRequestBudget.mockImplementationOnce(
+        (_headers, signal) =>
+          new Promise((_resolve, reject) => {
+            signal.throwIfAborted()
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+
+      const queued = internalApp.handle(
+        new Request(`http://localhost${path}`, {
+          method: 'POST',
+          headers: sessionHeaders,
+          body: JSON.stringify(input),
+          signal: controller.signal
+        })
+      )
+      try {
+        await vi.waitFor(() => expect(mockAcquireInternalRequestBudget).toHaveBeenCalledOnce())
+      } finally {
+        controller.abort()
+        await queued
+      }
+
+      expect((await queued).status).toBe(504)
+      expect(mockEstimateAnthropicRequestTokens).not.toHaveBeenCalled()
+    })
+
     it('resolves Cherry Cloud models as an internal request', async () => {
       const response = await post(
         internalApp,

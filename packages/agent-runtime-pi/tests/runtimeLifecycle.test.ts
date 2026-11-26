@@ -41,7 +41,7 @@ async function runtime() {
 function texts(events: ObservationPayload[]) {
   return events
     .flatMap((event) =>
-      event.type === 'snapshot' ? event.messages : event.type === 'message.upsert' ? [event.message] : []
+      event.type === 'snapshot' ? event.messages : event.type === 'message.reconcile' ? [event.message] : []
     )
     .flatMap((item) =>
       item.parts.flatMap((part) => (part.type === 'text' || part.type === 'reasoning' ? [part.text] : []))
