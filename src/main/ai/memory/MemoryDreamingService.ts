@@ -18,6 +18,7 @@ import { memoryDreamingJobHandler } from './memoryDreamingJobHandler'
 import { DreamingError, fitDreamingInputs, generateDreamingPlan, resolveDreamingModel } from './memoryDreamingModel'
 import { prepareDreamingPlan } from './memoryDreamingPlan'
 import {
+  canAttemptDreaming,
   memoryScopeKey,
   needsDreaming,
   observeMemory,
@@ -383,7 +384,7 @@ export class MemoryDreamingService extends BaseService {
           .filter((state) => !state.cancelled && (state.scanRetryAt ?? 0) <= now)
         const priority = (state: DreamingState) => {
           const entry = state.files[MEMORY_ENTRY]
-          if (entry && entry.attempts >= 2 && entry.reason === 'budget') return 2
+          if (entry && !canAttemptDreaming(entry, now)) return 2
           return Object.values(state.files).some((file) => needsDreaming(file, now)) ? 1 : 2
         }
         candidates.sort((left, right) => priority(left) - priority(right) || left.lastScanAt - right.lastScanAt)
@@ -989,16 +990,10 @@ export class MemoryDreamingService extends BaseService {
         if (bytes <= 50_000) inputs.push(read)
       }
       let latest = readDreamingState(scope)
-      inputs = inputs.filter(
-        (read) =>
-          read.path === MEMORY_ENTRY ||
-          (latest.files[read.path].attempts < 2 && latest.files[read.path].retryAt <= Date.now())
-      )
-      if (latest.files[MEMORY_ENTRY].attempts >= 2 && latest.files[MEMORY_ENTRY].reason === 'budget')
-        return { deferred: true }
-      if (!inputs.some((read) => needsDreaming(latest.files[read.path], Date.now()))) return { scanned: inputs.length }
-      if (!inputs.some((read) => latest.files[read.path].attempts < 2 && latest.files[read.path].retryAt <= Date.now()))
-        return { deferred: true }
+      const now = Date.now()
+      if (!canAttemptDreaming(latest.files[MEMORY_ENTRY], now)) return { deferred: true }
+      inputs = inputs.filter((read) => canAttemptDreaming(latest.files[read.path], now))
+      if (!inputs.some((read) => needsDreaming(latest.files[read.path], now))) return { scanned: inputs.length }
       const empty = inputs.every((read) => !read.content?.trim())
       const resolved = empty ? undefined : await resolveDreamingModel()
       const batch = resolved ? fitDreamingInputs(inputs, resolved) : undefined

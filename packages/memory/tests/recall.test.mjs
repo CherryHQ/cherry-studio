@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { createMemorySearchTurn } from '../dist/index.mjs'
-test('query and expansion share an owner-bound four-call budget', async () => {
+void test('query and expansion share an owner-bound four-call budget', async () => {
   const base = { owner: 'one', conversationId: 'c', success: true, role: 'user', text: 'same question', createdAt: 0 }
   const rows = ['current', 'older', 'sibling', 'other'].map((messageId) => ({
     ...base,
@@ -24,7 +24,7 @@ test('query and expansion share an owner-bound four-call budget', async () => {
   for (let i = 0; i < 3; i++) await search({ conversationId: 'c', messageId: 'older' })
   await assert.rejects(search({ query: 'same' }), /exhausted/)
 })
-test('truncated history carries its correction and escapes model delimiters', async () => {
+void test('truncated history carries its correction and escapes model delimiters', async () => {
   const row = {
     owner: 'one',
     conversationId: 'c',

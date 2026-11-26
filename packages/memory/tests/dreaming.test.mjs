@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { engineHost } from './engine-host.mjs'
-test('manual organization uses the validated proposal and leaves the first conversation snapshot stable', async () => {
+void test('manual organization uses the validated proposal and leaves the first conversation snapshot stable', async () => {
   const { session, approve } = engineHost()
   const read = await session.read('MEMORY.md')
   await session.commit([{ kind: 'write', receipt: read.receipt, content: 'Original.' }], approve)
@@ -12,7 +12,7 @@ test('manual organization uses the validated proposal and leaves the first conve
   assert.equal((await session.read('MEMORY.md')).content, 'Organized.')
   assert.equal((await session.context()).content, 'Original.')
 })
-test('interrupting a model call discards its output and preserves a manual request', async () => {
+void test('interrupting a model call discards its output and preserves a manual request', async () => {
   const { session, ports, engine, approve } = engineHost()
   const { receipt } = await session.read('MEMORY.md')
   await session.commit([{ kind: 'write', receipt, content: 'before' }], approve)
@@ -41,7 +41,7 @@ test('interrupting a model call discards its output and preserves a manual reque
   ports.model = normal
   assert.equal(await session.runMaintenance({ extraction: false, organization: true }), 'organized')
 })
-test('ten controlled changes or seven days make pending organization eligible', async () => {
+void test('ten controlled changes or seven days make pending organization eligible', async () => {
   for (const mode of ['count', 'age']) {
     const { session, ports, approve } = engineHost()
     let at = Date.UTC(2025, 0, 1)
@@ -57,7 +57,7 @@ test('ten controlled changes or seven days make pending organization eligible', 
     assert.equal(await session.runMaintenance(options), 'organized')
   }
 })
-test('clearing another conversation invalidates persisted admissions across restart', async () => {
+void test('clearing another conversation invalidates persisted admissions across restart', async () => {
   const { session, ports, engine, access, approve } = engineHost()
   const other = engine.open({ ...access, conversationId: 'other' })
   await other.recordSubmission('u', 'v')
