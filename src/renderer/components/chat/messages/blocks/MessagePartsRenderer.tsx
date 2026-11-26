@@ -43,7 +43,7 @@ import {
 } from '@renderer/utils/message/citations'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
-import { collect, single, type Range } from '@renderer/utils/message/projectionRange'
+import { collect, single, filterProjectionRow, type Range } from '@renderer/utils/message/projectionRange'
 import {
   type CitationReferenceView,
   convertReferencesToCitationReferences,
@@ -2370,7 +2370,17 @@ const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) =>
 
   const reader = React.use(ProjectionPartContext)
   const layouts = React.use(ProjectionLayoutContext)
-  const row = isActiveTurnProcessing && message.role === 'assistant' ? layouts?.row(message.id) : undefined
+  const sourceRow =
+    isActiveTurnProcessing && message.role === 'assistant'
+      ? layouts?.row(message.sourceMessageId ?? message.id)
+      : undefined
+  const row = useMemo(
+    () =>
+      sourceRow && message.sourceMessageId && message.partIds
+        ? filterProjectionRow(sourceRow, message.partIds)
+        : sourceRow,
+    [sourceRow, message.sourceMessageId, message.partIds]
+  )
   const { layout, auxiliary, sideParts } = useAddressedMessageParts(
     row,
     reader,

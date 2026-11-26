@@ -2687,6 +2687,7 @@
   "message.backup.cleanup_failed": "Резервное копирование завершено, но удалить старые резервные копии не удалось.",
   "message.backup.failed": "Создание резервной копии не удалось",
   "message.backup.success": "Резервная копия успешно создана",
+  "message.chat.completion.interrupted": "Прервано",
   "message.chat.completion.paused": "Завершение чата приостановлено",
   "message.citation": "{{count}} цитат",
   "message.citation_source": "Источник цитирования {{number}}",

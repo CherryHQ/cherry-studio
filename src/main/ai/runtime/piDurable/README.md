@@ -72,6 +72,10 @@ Input placement reserves attribution before a model call. Each native answer is
 associated with its product input once; later snapshots and autonomous child-result
 turns do not repeat a prior input's response association.
 The adapter delivers content, input outcomes and foreground settlement from one native revision.
+Successful submission answer positions become `run-checkpoint` events, addressed through the
+stable product input association. Main resolves the owning Run, including deferred placements
+and already saved replies. Overall foreground settlement does not overwrite this precise answer
+position. Pending-reply recovery reads the same native answer and commits its checkpoint with the restored body.
 The connection consumes that batch; it does not poll pending inputs or infer completion from idle.
 It reports an input only when its state changes and reconsiders a child's status and release on
 snapshots, activity changes and input changes.
@@ -81,12 +85,12 @@ A message sent while native work runs is submitted with Durable's `follow-up` bu
 persisted at once. The Work composer sends it immediately when the descriptor declares
 `nativeFollowUp` and displays the native waiting order in the follow-up dock. Durable places it at the next run
 boundary, in the same batch as the preceding answer. The connection announces the placement with
-`steer-boundary` after that batch's projection, so the preceding answer stays in its reply and Main
+`run-started` after that batch's projection, so the preceding answer stays in its reply and Main
 opens a new one. The event marks the placement as a follow-up: Main holds it while the previous reply
 is still starting, so it never joins that reply, while steers placed into the running turn still share
 its continuation. Durable reports the preceding input's outcome only when the run ends, so Main
 settles that reply as answered at the boundary and replaces it if the outcome is not `completed`;
-cycle completion reads only the input that owns the current reply. A follow-up whose submission
+cycle completion aggregates only the inputs owned by the current Run. A follow-up whose submission
 fails before it reaches Durable moves to Main's queue.
 `/compact` still waits in Main's queue, and input is refused while compacting.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including

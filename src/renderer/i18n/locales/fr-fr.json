@@ -2681,6 +2681,7 @@
   "message.backup.cleanup_failed": "La sauvegarde est terminée, mais les anciennes sauvegardes n'ont pas pu être nettoyées.",
   "message.backup.failed": "La sauvegarde a échoué",
   "message.backup.success": "La sauvegarde a réussi",
+  "message.chat.completion.interrupted": "Interrompu",
   "message.chat.completion.paused": "La conversation est en pause",
   "message.citation": "{{count}} éléments cités",
   "message.citation_source": "Source de citation {{number}}",

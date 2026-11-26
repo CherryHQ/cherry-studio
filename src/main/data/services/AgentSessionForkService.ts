@@ -1,5 +1,4 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { alias, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
@@ -10,7 +9,6 @@ import {
   type AgentSessionCheckpoints,
   type AgentSessionContextRow
 } from '@data/db/schemas/agentSessionContext'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { DbOrTx } from '@data/db/types'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -57,48 +55,17 @@ export class AgentSessionForkService {
 
   readHistoryBoundaries(sessionId: string, messageIds: readonly string[]) {
     if (!messageIds.length) return []
-    const parent = alias(agentSessionMessageTable, 'parent')
-    const anchor = (data: AnySQLiteColumn) =>
-      sql<unknown>`json_quote(json_extract(${data}, '$.runtimeAnchor'))`.mapWith((value: string): unknown =>
-        JSON.parse(value)
-      )
     const db = application.get('DbService').getDb()
-    const boundaries = db
-      .select({
-        id: agentSessionMessageTable.id,
-        role: agentSessionMessageTable.role,
-        status: agentSessionMessageTable.status,
-        delivery: agentSessionMessageTable.delivery,
-        anchor: anchor(agentSessionMessageTable.data),
-        parent: { id: parent.id, role: parent.role, status: parent.status, anchor: anchor(parent.data) }
-      })
-      .from(agentSessionMessageTable)
-      .leftJoin(parent, and(eq(parent.sessionId, sessionId), eq(parent.id, agentSessionMessageTable.parentId)))
-      .where(and(eq(agentSessionMessageTable.sessionId, sessionId), inArray(agentSessionMessageTable.id, messageIds)))
-      .all()
-    return boundaries.map((boundary) => {
-      let parentBoundary = boundary.parent
-      const visited = new Set<string>()
-      while (parentBoundary?.role === 'system' && !visited.has(parentBoundary.id)) {
-        visited.add(parentBoundary.id)
-        const row = db
-          .select()
-          .from(agentSessionMessageTable)
-          .where(
-            and(eq(agentSessionMessageTable.sessionId, sessionId), eq(agentSessionMessageTable.id, parentBoundary.id))
-          )
-          .get()
-        if (!row?.data.modelSwitchHandoff || !row.parentId) break
-        const previous = db
-          .select()
-          .from(agentSessionMessageTable)
-          .where(and(eq(agentSessionMessageTable.sessionId, sessionId), eq(agentSessionMessageTable.id, row.parentId)))
-          .get()
-        parentBoundary = previous
-          ? { id: previous.id, role: previous.role, status: previous.status, anchor: previous.data.runtimeAnchor }
-          : null
+    const histories = [agentSessionMessageService.readRunHistoryTx(db, sessionId)]
+    return messageIds.flatMap((id) => {
+      for (const history of histories) {
+        const resolved = history.inspect(id)
+        if (resolved) return [resolved]
       }
-      return { ...boundary, parent: parentBoundary }
+      const history = agentSessionMessageService.readRunHistoryTx(db, sessionId, id)
+      histories.push(history)
+      const resolved = history.inspect(id)
+      return resolved ? [resolved] : []
     })
   }
 

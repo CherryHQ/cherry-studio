@@ -2681,6 +2681,7 @@
   "message.backup.cleanup_failed": "备份已完成，但旧备份清理失败。",
   "message.backup.failed": "备份失败",
   "message.backup.success": "备份成功",
+  "message.chat.completion.interrupted": "已中断",
   "message.chat.completion.paused": "会话已停止",
   "message.citation": "{{count}} 个引用内容",
   "message.citation_source": "引用来源 {{number}}",

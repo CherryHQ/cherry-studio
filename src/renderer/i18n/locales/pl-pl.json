@@ -2709,6 +2709,7 @@
   "message.backup.cleanup_failed": "Tworzenie kopii zapasowej zakończone, ale nie udało się wyczyścić starych kopii zapasowych.",
   "message.backup.failed": "Kopia zapasowa nie powiodła się",
   "message.backup.success": "Kopia zapasowa utworzona pomyślnie",
+  "message.chat.completion.interrupted": "Przerwano",
   "message.chat.completion.paused": "Generowanie odpowiedzi czatu wstrzymane",
   "message.citation": "Liczba cytowań: {{count}}",
   "message.citation_source": "Źródło cytowania {{number}}",

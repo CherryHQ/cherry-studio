@@ -2681,6 +2681,7 @@
   "message.backup.cleanup_failed": "Η δημιουργία αντιγράφου ασφαλείας ολοκληρώθηκε, αλλά δεν ήταν δυνατή η εκκαθάριση των παλιών αντιγράφων ασφαλείας.",
   "message.backup.failed": "Η αντιγραφή ασφαλείας απέτυχε",
   "message.backup.success": "Η αντιγραφή ασφαλείας ήταν επιτυχής",
+  "message.chat.completion.interrupted": "Διακόπηκε",
   "message.chat.completion.paused": "Η συζήτηση διακόπηκε",
   "message.citation": "{{count}} αναφορές",
   "message.citation_source": "Πηγή παραπομπής {{number}}",
