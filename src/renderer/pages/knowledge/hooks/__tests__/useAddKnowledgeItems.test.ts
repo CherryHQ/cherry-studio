@@ -167,7 +167,7 @@ describe('useAddKnowledgeItems', () => {
     expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
   })
 
-  it('chunks a rename resolution larger than the transport limit without dropping files', async () => {
+  it('submits a rename resolution larger than 20 files in one atomic call without partial success', async () => {
     const items = Array.from({ length: 150 }, (_, index) => ({
       type: 'file' as const,
       data: {
@@ -182,15 +182,14 @@ describe('useAddKnowledgeItems', () => {
       await expect(result.current.submit(items, 'rename')).resolves.toEqual({ status: 'added' })
     })
 
-    expect(mockIpcRequest).toHaveBeenCalledTimes(2)
-    expect(mockIpcRequest.mock.calls[0][1]).toEqual({
+    // Atomic whole-selection admission: chunking rename would let the first 100
+    // commit and the last 50 reject when background work leaves only 125 slots,
+    // leaving a partial success. The backend capacity guard reserves for the
+    // full batch with zero admissions on rejection.
+    expect(mockIpcRequest).toHaveBeenCalledTimes(1)
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.add_items', {
       baseId: 'base-1',
-      items: items.slice(0, 100),
-      conflictStrategy: 'rename'
-    })
-    expect(mockIpcRequest.mock.calls[1][1]).toEqual({
-      baseId: 'base-1',
-      items: items.slice(100),
+      items,
       conflictStrategy: 'rename'
     })
   })

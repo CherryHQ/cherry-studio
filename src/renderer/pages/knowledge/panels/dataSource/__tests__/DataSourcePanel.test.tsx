@@ -1392,7 +1392,7 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('excludes already-deleting rows from bulk delete so their pending cleanup is not cancelled', async () => {
+  it('submits already-deleting rows for bulk delete so the service can retry orphans', async () => {
     const onDeleteItems = vi.fn().mockResolvedValue(undefined)
 
     render(
@@ -1419,10 +1419,11 @@ describe('DataSourcePanel', () => {
     await waitFor(() => {
       expect(onDeleteItems).toHaveBeenCalledOnce()
     })
-    // The Cancelling row already has cleanup pending — re-requesting it together
-    // with an unrelated row would cancel the combined job and strand the
-    // unrelated row as `deleting`.
-    expect(onDeleteItems).toHaveBeenCalledWith(['file-2'])
+    // The service deduplicates against live `knowledge.delete-subtree` jobs:
+    // roots already under live cleanup are left to their existing job, while
+    // orphaned `deleting` rows with no live job are retried. The renderer
+    // submits every selected id so orphans can be rescued.
+    expect(onDeleteItems).toHaveBeenCalledWith(['file-1', 'file-2'])
   })
 
   it('selects all rows from the header checkbox and clears selection when toggled again from all selected', async () => {

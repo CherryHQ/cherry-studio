@@ -1934,6 +1934,148 @@ describe('KnowledgeService', () => {
     expect(enqueueMock).not.toHaveBeenCalled()
   })
 
+  it('rejects a 150-file batch when only 125 slots remain with zero admissions', async () => {
+    const service = new KnowledgeService()
+    // 125 slots remain: 4,875 active jobs, 150 requested => 5,025 > 5,000.
+    // Whole-selection admission must fail without creating any rows (no partial
+    // first-100 commit), so the user can split the batch instead of untangling
+    // 100 queued files.
+    listMock.mockResolvedValueOnce(Array.from({ length: 4875 }, (_, index) => ({ id: `job-${index}` })))
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
+
+    const inputs = Array.from({ length: 150 }, (_, index) => ({
+      type: 'note' as const,
+      data: { source: `note-${index}`, content: `hello ${index}` }
+    }))
+
+    await expect(service.addItems('kb-1', inputs)).rejects.toThrow('slots remain')
+    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('counts pending unqueued reservations without double-counting enqueued rows', async () => {
+    const service = new KnowledgeService()
+    const ingestion = ingestionOf(service) as unknown as {
+      addPendingEnqueues: (baseId: string, count: number) => void
+    }
+    // 4,990 queued reindexes on terminal rows (invisible to the DB check) plus
+    // a prior 10-URL admission that created 10 rows but has not yet enqueued
+    // their jobs (pending = 10, queue = 4,990, DB = 10). Effective must be
+    // max(10, 4,990 + 10) = 5,000, so one more file rejects. Without pending,
+    // max(10, 4,990) = 4,990 would wrongly admit to 5,001.
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValue(
+      Array.from({ length: 10 }, (_, index) => createNoteItem(`pending-${index}`, 'kb-1', null, 'processing'))
+    )
+    listMock.mockResolvedValue(Array.from({ length: 4990 }, (_, index) => ({ id: `reindex-${index}` })))
+    ingestion.addPendingEnqueues('kb-1', 10)
+
+    await expect(
+      service.addItems('kb-1', [{ type: 'note', data: { source: 'late-note', content: 'hello' } }])
+    ).rejects.toThrow('slots remain')
+    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
+  })
+
+  it('uses effective occupancy for the capacity message when queued reindexes dominate', async () => {
+    const service = new KnowledgeService()
+    // Fast-path sees an empty queue and passes; the locked check sees 4,998
+    // queued reindexes (terminal rows, DB = 0) and must report 4,998 active —
+    // not 0 — so the remaining-slots math matches the displayed occupancy.
+    listMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(Array.from({ length: 4998 }, (_, index) => ({ id: `reindex-${index}` })))
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
+
+    const inputs = Array.from({ length: 5 }, (_, index) => ({
+      type: 'note' as const,
+      data: { source: `note-${index}`, content: `hello ${index}` }
+    }))
+
+    const error = await service.addItems('kb-1', inputs).catch((e) => e)
+    expect(isDataApiError(error)).toBe(true)
+    expect(error.message).toMatch('4998 jobs still processing')
+    expect(error.message).toMatch('2 slots remain')
+    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
+  })
+
+  it('clears pending reservations after successful scheduling', async () => {
+    const service = new KnowledgeService()
+    const ingestion = ingestionOf(service) as unknown as {
+      getPendingEnqueueCount: (baseId: string) => number
+    }
+    listMock.mockResolvedValue([])
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
+
+    await expect(
+      service.addItems('kb-1', [
+        { type: 'note', data: { source: 'note-1', content: 'hello 1' } },
+        { type: 'note', data: { source: 'note-2', content: 'hello 2' } }
+      ])
+    ).resolves.toEqual({ status: 'added' })
+
+    expect(enqueueMock).toHaveBeenCalledTimes(2)
+    expect(ingestion.getPendingEnqueueCount('kb-1')).toBe(0)
+  })
+
+  it('retries orphaned deleting roots with no live cleanup job', async () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetOutermostSelectedItemIdsMock.mockReturnValueOnce(['orphan-1'])
+    // No live delete-subtree jobs: the orphaned deleting row must be retried.
+    listMock.mockResolvedValueOnce([])
+
+    await service.deleteItems('kb-1', ['orphan-1'])
+
+    expect(enqueueTxMock).toHaveBeenCalledTimes(1)
+    expect(enqueueTxMock).toHaveBeenCalledWith(
+      expect.anything(),
+      'knowledge.delete-subtree',
+      { baseId: 'kb-1', rootItemIds: ['orphan-1'] },
+      expect.any(Object)
+    )
+  })
+
+  it('skips roots already under live cleanup while retrying orphans', async () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetOutermostSelectedItemIdsMock.mockReturnValueOnce(['live-1', 'orphan-1'])
+    // Live cleanup for live-1 only: bulk retry [live-1, orphan-1] must enqueue
+    // for orphan-1 alone, leaving live-1 to its existing job.
+    listMock.mockResolvedValueOnce([
+      {
+        id: 'delete-live-1',
+        status: 'running',
+        priority: 0,
+        queue: 'base.kb-1',
+        idempotencyKey: 'knowledge:kb-1:live-1:delete',
+        scheduleId: null,
+        scheduledAt: '2026-04-08T00:00:00.000Z',
+        startedAt: '2026-04-08T00:00:00.000Z',
+        finishedAt: null,
+        attempt: 1,
+        maxAttempts: 3,
+        input: { baseId: 'kb-1', rootItemIds: ['live-1'] },
+        output: null,
+        error: null,
+        parentId: null,
+        cancelRequested: false,
+        cancelRequestedAt: null,
+        metadata: {},
+        timeoutMs: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z',
+        type: 'knowledge.delete-subtree'
+      }
+    ])
+
+    await service.deleteItems('kb-1', ['live-1', 'orphan-1'])
+
+    expect(enqueueTxMock).toHaveBeenCalledTimes(1)
+    expect(enqueueTxMock).toHaveBeenCalledWith(
+      expect.anything(),
+      'knowledge.delete-subtree',
+      { baseId: 'kb-1', rootItemIds: ['orphan-1'] },
+      expect.any(Object)
+    )
+  })
+
   it('rolls back already-created addItems rows when a later create fails mid-batch', async () => {
     const service = new KnowledgeService()
     knowledgeItemCreateActiveMock

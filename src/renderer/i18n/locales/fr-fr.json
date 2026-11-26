@@ -2010,6 +2010,8 @@
   "knowledge.data_source.actions.preview_source": "Aperçu de la source",
   "knowledge.data_source.actions.reindex": "Réindexer",
   "knowledge.data_source.actions.view_chunks": "Afficher les morceaux",
+  "knowledge.data_source.add_dialog.capacity.batch_too_large": "Cet import ({{count}} éléments) dépasse la capacité de traitement de {{limit}} tâches actives ; divisez-le en lots plus petits",
+  "knowledge.data_source.add_dialog.capacity.no_slots": "Cette base a encore {{active}} tâches en cours de traitement ; il reste {{remaining}} places pour {{requested}} nouveaux éléments. Attendez la fin du traitement ou divisez le lot",
   "knowledge.data_source.add_dialog.conflict_dialog.description": "{{count}} des sources que vous ajoutez portent le même nom que des éléments existants. Choisissez comment les traiter.",
   "knowledge.data_source.add_dialog.conflict_dialog.keep_all": "Conserver tout",
   "knowledge.data_source.add_dialog.conflict_dialog.replace": "Remplacer",

@@ -171,12 +171,19 @@ export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
  * Guidance for a single interactive Knowledge Base import operation.
  *
  * `knowledge.add_items` itself is unbounded so one user selection stays one
- * logical operation (conflict detection spans the whole batch). The renderer
- * chunks transport at `KNOWLEDGE_RUNTIME_ITEMS_MAX` so a 20+ file pick never
- * becomes a single oversized IPC payload, and processing stays bounded via
- * per-base JobManager concurrency (5 per queue) without dropping accepted files.
- * When a stricter safety limit is ever required, the UI must explain the reason
- * and remaining capacity instead of silently capping the picker.
+ * logical operation (conflict detection spans the whole batch, and the capacity
+ * guard reserves for the full selection with zero admissions on rejection).
+ * The renderer submits the whole selection in one call: chunking `rename`
+ * transport would let the first 100 commit and the last 50 reject when
+ * background work leaves only 125 slots, leaving a partial success. Processing
+ * stays bounded via per-base JobManager concurrency (5 per queue) without
+ * dropping accepted files. When a stricter safety limit is ever required, the
+ * UI must explain the reason and remaining capacity instead of silently
+ * capping the picker.
+ *
+ * `KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK` is retained for documentation (it
+ * equals `KNOWLEDGE_RUNTIME_ITEMS_MAX`, the per-call limit for delete/reindex
+ * chunking) but is no longer used to split add_items transport.
  */
 export const KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK = KNOWLEDGE_RUNTIME_ITEMS_MAX
 

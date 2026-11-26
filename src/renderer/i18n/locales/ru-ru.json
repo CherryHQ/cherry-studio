@@ -2014,6 +2014,8 @@
   "knowledge.data_source.actions.preview_source": "Предварительный просмотр источника",
   "knowledge.data_source.actions.reindex": "Переиндексация",
   "knowledge.data_source.actions.view_chunks": "Просмотр фрагментов",
+  "knowledge.data_source.add_dialog.capacity.batch_too_large": "Этот импорт ({{count}} элементов) превышает ёмкость обработки в {{limit}} активных задач; разбейте его на меньшие партии",
+  "knowledge.data_source.add_dialog.capacity.no_slots": "В этой базе ещё {{active}} задач в обработке; для {{requested}} новых элементов осталось {{remaining}} мест. Дождитесь завершения обработки или разбейте партию",
   "knowledge.data_source.add_dialog.conflict_dialog.description": "{{count}} из добавляемых источников имеют такое же имя, как у существующих элементов. Выберите, как с ними поступить.",
   "knowledge.data_source.add_dialog.conflict_dialog.keep_all": "Сохранить все",
   "knowledge.data_source.add_dialog.conflict_dialog.replace": "Заменить",

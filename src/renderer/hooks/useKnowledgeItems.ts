@@ -5,7 +5,6 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { KnowledgeItemListResponse, KnowledgeItemSort } from '@shared/data/api/schemas/knowledges'
 import {
-  KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK,
   KNOWLEDGE_RUNTIME_ITEMS_MAX,
   type KnowledgeAddConflictStrategy,
   type KnowledgeAddItemInput,
@@ -23,20 +22,6 @@ const chunkKnowledgeItemIds = (itemIds: string[]) => {
   const batches: string[][] = []
   for (let index = 0; index < itemIds.length; index += KNOWLEDGE_RUNTIME_ITEMS_MAX) {
     batches.push(itemIds.slice(index, index + KNOWLEDGE_RUNTIME_ITEMS_MAX))
-  }
-  return batches
-}
-
-/**
- * Transport chunking for a single logical import operation: a 20+ file pick
- * stays one user operation, but IPC payloads stay bounded at
- * `KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK`. Processing concurrency stays bounded
- * downstream (per-base JobManager queue, 5 slots) without dropping accepted files.
- */
-const chunkKnowledgeAddItems = (items: KnowledgeAddItemInput[]) => {
-  const batches: KnowledgeAddItemInput[][] = []
-  for (let index = 0; index < items.length; index += KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK) {
-    batches.push(items.slice(index, index + KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK))
   }
   return batches
 }
@@ -191,34 +176,22 @@ export const useAddKnowledgeItems = (baseId: string) => {
       let submitError: Error | undefined
       let result: KnowledgeAddItemsResult | undefined
       try {
-        // One logical import operation, bounded transport: `detect` and
-        // `replace` need the whole batch in one call so same-name conflicts
-        // are resolved atomically across all of it before anything is written
-        // (atomic check-and-add for `detect`; atomic purge-then-add for
-        // `replace`). Chunking `replace` would let an early chunk commit an
-        // auto-renamed copy (e.g. `report.md` -> `report_1.md` when a
-        // different-typed snapshot already occupies `report.md`) that a later
-        // chunk then sees as an existing conflict and purges — silently
-        // dropping a selected file. `rename` (the default, and every internal
-        // caller) keeps all with auto-rename and never purges, so it stays
-        // safe to chunk per `KNOWLEDGE_FILE_IMPORT_TRANSPORT_CHUNK` in order;
-        // earlier chunks stay queued if a later chunk throws (partial
-        // success), and per-file failed states surface via status polling.
-        // Processing concurrency stays bounded downstream via the per-base
-        // JobManager queue (5 slots) without dropping accepted files.
-        if (conflictStrategy === 'rename' || conflictStrategy === undefined) {
-          const batches = chunkKnowledgeAddItems(items)
-          for (const batch of batches) {
-            const batchResult = await ipcApi.request('knowledge.add_items', {
-              baseId,
-              items: batch,
-              conflictStrategy
-            })
-            result = batchResult
-          }
-        } else {
-          result = await ipcApi.request('knowledge.add_items', { baseId, items, conflictStrategy })
-        }
+        // One logical import operation in one atomic call for every strategy:
+        // `detect` needs the whole batch so same-name conflicts are detected
+        // across all of it before anything is written (atomic check-and-add);
+        // `replace` needs the whole batch so the purge-then-add stays atomic
+        // (chunking it would let an early chunk commit an auto-renamed copy
+        // that a later chunk then purges, silently dropping a selected file);
+        // `rename` (the default, and every internal caller) also needs the
+        // whole batch so the capacity guard reserves for the full selection
+        // before committing anything — chunking it would let the first 100
+        // commit and the last 50 reject when background work leaves only 125
+        // slots, leaving a partial success the user must untangle. The backend
+        // `KNOWLEDGE_ACTIVE_JOB_LIMIT` guard rejects over-capacity batches
+        // upfront with zero admissions, and processing concurrency stays bounded
+        // downstream via the per-base JobManager queue (5 slots) without
+        // dropping accepted files.
+        result = await ipcApi.request('knowledge.add_items', { baseId, items, conflictStrategy })
       } catch (error) {
         submitError = normalizeKnowledgeError(error)
 

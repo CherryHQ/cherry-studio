@@ -2010,6 +2010,8 @@
   "knowledge.data_source.actions.preview_source": "พรีวิวแหล่งที่มา",
   "knowledge.data_source.actions.reindex": "ทำดัชนีใหม่",
   "knowledge.data_source.actions.view_chunks": "ดูส่วนย่อย",
+  "knowledge.data_source.add_dialog.capacity.batch_too_large": "การนำเข้านี้ ({{count}} รายการ) เกินความจุการประมวลผลของงานที่ใช้งานอยู่ {{limit}} งาน โปรดแบ่งเป็นชุดเล็กๆ",
+  "knowledge.data_source.add_dialog.capacity.no_slots": "ฐานนี้ยังมีงานที่กำลังประมวลผล {{active}} งาน เหลือช่อง {{remaining}} ช่องสำหรับรายการใหม่ {{requested}} รายการ โปรดรอให้ประมวลผลเสร็จหรือแบ่งชุด",
   "knowledge.data_source.add_dialog.conflict_dialog.description": "{{count}} แหล่งที่มาที่คุณกำลังเพิ่ม มีชื่อเดียวกันกับรายการที่มีอยู่ เลือกวิธีการจัดการ",
   "knowledge.data_source.add_dialog.conflict_dialog.keep_all": "เก็บทั้งหมด",
   "knowledge.data_source.add_dialog.conflict_dialog.replace": "แทนที่",

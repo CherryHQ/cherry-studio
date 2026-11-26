@@ -7,6 +7,7 @@ import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
+import { formatKnowledgeCapacityError } from '@renderer/utils/knowledgeCapacityError'
 import {
   type KnowledgeFileItemData,
   resolveFileEntryDataFromFile,
@@ -252,7 +253,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         if (session !== undefined && session !== sessionRef.current) {
           return
         }
-        setSubmitErrorMessage(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
+        const prefix = t('knowledge.data_source.add_dialog.submit.error')
+        setSubmitErrorMessage(
+          formatKnowledgeCapacityError(error, t, prefix) ?? formatErrorMessageWithPrefix(error, prefix)
+        )
       })
       .finally(() => {
         if (session === undefined || session === sessionRef.current) {
@@ -392,7 +396,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         }
         await submitWithStrategy(items, 'detect')
       } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
+        const prefix = t('knowledge.data_source.add_dialog.submit.error')
+        toast.error(formatKnowledgeCapacityError(error, t, prefix) ?? formatErrorMessageWithPrefix(error, prefix))
         handleOpenChange(false)
       } finally {
         setIsResolvingSubmit(false)
@@ -427,7 +432,8 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
             return
           }
           setPendingConflict(null)
-          const message = formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error'))
+          const prefix = t('knowledge.data_source.add_dialog.submit.error')
+          const message = formatKnowledgeCapacityError(error, t, prefix) ?? formatErrorMessageWithPrefix(error, prefix)
           // Direct-pick sources have no panel to fall back to, so report inline (toast) and close.
           if (directPick) {
             toast.error(message)

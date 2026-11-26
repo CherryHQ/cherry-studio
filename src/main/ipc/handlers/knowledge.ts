@@ -26,7 +26,30 @@ export const knowledgeHandlers: IpcHandlersFor<typeof knowledgeRequestSchemas> =
     if (items.some((item) => item.type === 'url' && !isHttpUrl(item.data.url))) {
       throw new IpcError(knowledgeErrorCodes.INVALID_SOURCE_URL, t('knowledge.source.invalid_url'))
     }
-    return application.get('KnowledgeService').addItems(baseId, items, conflictStrategy)
+    try {
+      return await application.get('KnowledgeService').addItems(baseId, items, conflictStrategy)
+    } catch (error) {
+      // Capacity rejections carry structured counts in `details.capacity` (see
+      // KnowledgeIngestionService). Surface them as a domain IpcError with the
+      // same data so the renderer can render the message through i18next —
+      // otherwise IpcError.from would flatten them to INTERNAL with only the
+      // English message.
+      if (isDataApiError(error) && error.code === ErrorCode.VALIDATION_ERROR) {
+        const capacity = (error.details as { capacity?: unknown } | undefined)?.capacity
+        if (
+          capacity &&
+          typeof capacity === 'object' &&
+          'requested' in capacity &&
+          'remaining' in capacity &&
+          'limit' in capacity
+        ) {
+          throw new IpcError(knowledgeErrorCodes.CAPACITY_EXCEEDED, error.message, {
+            details: error.details
+          })
+        }
+      }
+      throw error
+    }
   },
   'knowledge.delete_items': async ({ baseId, itemIds }) => {
     await application.get('KnowledgeService').deleteItems(baseId, itemIds)

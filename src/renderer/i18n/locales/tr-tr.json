@@ -2010,6 +2010,8 @@
   "knowledge.data_source.actions.preview_source": "Kaynağı Önizle",
   "knowledge.data_source.actions.reindex": "Yeniden Dizine Ekle",
   "knowledge.data_source.actions.view_chunks": "Parçaları Görüntüle",
+  "knowledge.data_source.add_dialog.capacity.batch_too_large": "Bu içe aktarma ({{count}} öğe), {{limit}} etkin işin işlem kapasitesini aşıyor; daha küçük gruplara bölün",
+  "knowledge.data_source.add_dialog.capacity.no_slots": "Bu tabanda hâlâ işlemede {{active}} iş var; {{requested}} yeni öğe için {{remaining}} yer kaldı. İşlemin bitmesini bekleyin veya grubu bölün",
   "knowledge.data_source.add_dialog.conflict_dialog.description": "Eklenen kaynaklardan {{count}} tanesi mevcut öğelerle aynı ada sahip. Bunların nasıl işleneceğini seçin.",
   "knowledge.data_source.add_dialog.conflict_dialog.keep_all": "Tümünü Koru",
   "knowledge.data_source.add_dialog.conflict_dialog.replace": "Değiştir",

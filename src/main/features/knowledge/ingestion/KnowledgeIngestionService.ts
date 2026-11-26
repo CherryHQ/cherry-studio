@@ -5,7 +5,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { FileProcessingTaskId } from '@main/features/fileProcessing'
 import { getFileExt } from '@main/utils/legacyFile'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import { ACTIVE_JOB_STATUSES } from '@shared/data/api/schemas/jobs'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
@@ -39,6 +39,7 @@ import {
 import { type KnowledgeSourcePlanOptions, planKnowledgeItemSource } from '../pipeline/sources/sourcePlanning'
 import type { KnowledgeSourceCopy } from '../tasks/jobTypes'
 import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
+import { narrowKnowledgeJobInput } from '../tasks/utils/jobInput'
 import {
   type KnowledgeBaseId,
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
@@ -65,6 +66,32 @@ const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'fai
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 
 /**
+ * Structured capacity data carried in a `VALIDATION_ERROR`'s `details` so the
+ * renderer can render the rejection through i18next instead of showing the
+ * English fallback message. `kind` selects the i18n key:
+ * - `batch_too_large`: the single batch exceeds the absolute limit.
+ * - `no_slots`: the batch does not fit in the remaining slots.
+ */
+export interface KnowledgeCapacityErrorDetails {
+  requested: number
+  active: number
+  remaining: number
+  limit: number
+  kind: 'batch_too_large' | 'no_slots'
+}
+
+const throwKnowledgeCapacityError = (details: KnowledgeCapacityErrorDetails, fallbackMessage: string): never => {
+  const fieldMessage =
+    details.kind === 'batch_too_large'
+      ? `Knowledge import batch of ${details.requested} items exceeds the processing capacity of ${details.limit} active jobs`
+      : `Knowledge base has ${details.active} active jobs; ${details.remaining} slots remain for ${details.requested} new items`
+  throw new DataApiError(ErrorCode.VALIDATION_ERROR, fallbackMessage, 422, {
+    fieldErrors: { base: [fieldMessage] },
+    capacity: details
+  } as unknown as { fieldErrors: Record<string, string[]> })
+}
+
+/**
  * The workflow re-entry seam job handlers call back into (workflow-architecture.md): expand a
  * container or index a leaf. Handlers depend on exactly this surface, not the full
  * `KnowledgeIngestionService`.
@@ -85,6 +112,42 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     private readonly knowledgeLockManager: KeyedMutex,
     private readonly fileProcessingWaits: FileProcessingWaitManager
   ) {}
+
+  /**
+   * Rows created under the admission lock but whose follow-up jobs are not yet
+   * enqueued (the scheduling loop runs off the lock). A competing admission
+   * that only takes `max(dbActive, queueActive)` would miss them: with 4,990
+   * queued reindexes on terminal rows, a 10-URL import creates 10 rows then
+   * enqueues one job at a time — a one-file check reading the queue before the
+   * last URL is enqueued would see a free slot and over-admit to 5,001.
+   * Tracking the unqueued remainder lets the locked check admit against
+   * `max(dbActive, queueActive + pending)` without double-counting rows that
+   * already have jobs.
+   */
+  private readonly pendingEnqueues = new Map<string, number>()
+
+  private getPendingEnqueueCount(baseId: string): number {
+    return this.pendingEnqueues.get(baseId) ?? 0
+  }
+
+  private addPendingEnqueues(baseId: string, count: number): void {
+    if (count <= 0) {
+      return
+    }
+    this.pendingEnqueues.set(baseId, this.getPendingEnqueueCount(baseId) + count)
+  }
+
+  private removePendingEnqueues(baseId: string, count: number): void {
+    if (count <= 0) {
+      return
+    }
+    const next = this.getPendingEnqueueCount(baseId) - count
+    if (next <= 0) {
+      this.pendingEnqueues.delete(baseId)
+    } else {
+      this.pendingEnqueues.set(baseId, next)
+    }
+  }
 
   /**
    * Accept a batch: resolve conflicts, reserve `raw/` names, and create the rows under the base
@@ -117,11 +180,13 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     // the merge base admits it.
     if (!options.copyInline) {
       if (inputs.length > KNOWLEDGE_ACTIVE_JOB_LIMIT) {
-        throw DataApiErrorFactory.validation(
+        throwKnowledgeCapacityError(
           {
-            base: [
-              `Knowledge import batch of ${inputs.length} items exceeds the processing capacity of ${KNOWLEDGE_ACTIVE_JOB_LIMIT} active jobs`
-            ]
+            requested: inputs.length,
+            active: inputs.length,
+            remaining: KNOWLEDGE_ACTIVE_JOB_LIMIT - inputs.length,
+            limit: KNOWLEDGE_ACTIVE_JOB_LIMIT,
+            kind: 'batch_too_large'
           },
           `This import (${inputs.length} items) exceeds the processing capacity of ${KNOWLEDGE_ACTIVE_JOB_LIMIT} active jobs; split it into smaller batches`
         )
@@ -133,7 +198,10 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           status: [...ACTIVE_JOB_STATUSES],
           limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
         })
-        activeJobCount = activeJobs.length
+        // Include rows created by prior admissions that have not yet enqueued
+        // their jobs (see pendingEnqueues): they are in the DB but not yet in
+        // the queue, so the queue count alone would undercount.
+        activeJobCount = activeJobs.length + this.getPendingEnqueueCount(base.id)
       } catch (error) {
         // A list failure must not block admission — fall through and let
         // scheduling surface per-file states instead.
@@ -144,11 +212,13 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       if (activeJobCount !== undefined) {
         const remainingCapacity = KNOWLEDGE_ACTIVE_JOB_LIMIT - activeJobCount
         if (inputs.length > remainingCapacity) {
-          throw DataApiErrorFactory.validation(
+          throwKnowledgeCapacityError(
             {
-              base: [
-                `Knowledge base has ${activeJobCount} active jobs; ${remainingCapacity} slots remain for ${inputs.length} new items`
-              ]
+              requested: inputs.length,
+              active: activeJobCount,
+              remaining: remainingCapacity,
+              limit: KNOWLEDGE_ACTIVE_JOB_LIMIT,
+              kind: 'no_slots'
             },
             `This base has ${activeJobCount} jobs still processing; ${remainingCapacity} slots remain for ${inputs.length} new items. Wait for processing to finish or split the batch`
           )
@@ -214,8 +284,12 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         //
         // Queued reindex jobs are invisible to the DB check (their roots are
         // still terminal until activation), so also take the live JobManager
-        // count and admit against the larger of the two. Taking the max (not
-        // the sum) avoids double-counting jobs whose rows are already active.
+        // count plus unqueued reservations from prior admissions that created
+        // rows but have not yet enqueued their jobs (the scheduling loop runs
+        // off the lock). Admit against `max(db, queue + pending)`: `max` (not
+        // sum) avoids double-counting jobs whose rows are already active, and
+        // adding `pending` closes the post-lock scheduling window where a
+        // competing check would otherwise see a free slot and over-admit.
         if (!options.copyInline) {
           const activeItems = knowledgeItemService
             .getItemsByBaseId(base.id, { includeDeleting: true })
@@ -235,6 +309,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           // queue already excludes them — no second subtraction. A cancel
           // settlement race can only over-count here, which fails safe (reject
           // without purging) rather than over-admitting.
+          const pendingEnqueues = this.getPendingEnqueueCount(base.id)
           let effectiveActive = dbEffectiveActive
           try {
             const activeJobs = await application.get('JobManager').list({
@@ -242,7 +317,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
               status: [...ACTIVE_JOB_STATUSES],
               limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
             })
-            effectiveActive = Math.max(dbEffectiveActive, activeJobs.length)
+            effectiveActive = Math.max(dbEffectiveActive, activeJobs.length + pendingEnqueues)
           } catch (error) {
             logger.warn(
               'Failed to check knowledge queue capacity inside admission lock; using DB rows only',
@@ -254,13 +329,15 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           }
           if (effectiveActive + itemsToAdd.length > KNOWLEDGE_ACTIVE_JOB_LIMIT) {
             const remainingCapacity = KNOWLEDGE_ACTIVE_JOB_LIMIT - effectiveActive
-            throw DataApiErrorFactory.validation(
+            throwKnowledgeCapacityError(
               {
-                base: [
-                  `Knowledge base has ${existingActiveCount} active jobs; ${remainingCapacity} slots remain for ${itemsToAdd.length} new items`
-                ]
+                requested: itemsToAdd.length,
+                active: effectiveActive,
+                remaining: remainingCapacity,
+                limit: KNOWLEDGE_ACTIVE_JOB_LIMIT,
+                kind: 'no_slots'
               },
-              `This base has ${existingActiveCount} jobs still processing; ${remainingCapacity} slots remain for ${itemsToAdd.length} new items. Wait for processing to finish or split the batch`
+              `This base has ${effectiveActive} jobs still processing; ${remainingCapacity} slots remain for ${itemsToAdd.length} new items. Wait for processing to finish or split the batch`
             )
           }
         }
@@ -299,6 +376,11 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           })
           acceptedItems.push({ item: createdItem, pendingCopies })
         }
+        // Reserve the unqueued remainder for competing admissions: rows exist now
+        // but their jobs enqueue off the lock one at a time (see pendingEnqueues).
+        // Restore also reserves — its target is brand new, but a concurrent
+        // interactive add to the same new base must still see the unqueued rows.
+        this.addPendingEnqueues(base.id, acceptedItems.length)
       } catch (error) {
         this.rollbackAcceptedItems(
           base.id,
@@ -324,8 +406,17 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           await this.scheduleItem(toKnowledgeBaseId(item.baseId), toKnowledgeItemId(item.id))
         }
         completedSchedulingItemIds.add(item.id)
+        // This row now has a job: it is no longer an unqueued reservation.
+        // Decrement per item so a competing admission reading
+        // `queue + pending` mid-loop sees `queue(partial) + pending(remaining)`
+        // = the true distinct count without double-counting enqueued rows.
+        this.removePendingEnqueues(base.id, 1)
       }
     } catch (error) {
+      // The failing item and every later item never got a job: clear their
+      // reservations (they are marked failed below) so the counter cannot leak.
+      const remainingUnqueued = acceptedItems.length - completedSchedulingItemIds.size
+      this.removePendingEnqueues(base.id, remainingUnqueued)
       this.markUnscheduledAcceptedItemsFailed(
         base.id,
         acceptedItems.map(({ item }) => item),
@@ -386,15 +477,79 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     }
 
     knowledgeBaseService.getById(baseId)
+    // Deduplicate against live cleanup jobs so a bulk retry can rescue orphaned
+    // `deleting` rows (whose job exhausted retries and is gone) while roots
+    // already under live cleanup are left to their existing job. Re-enqueueing
+    // a live root together with an unrelated root would cancel the combined job
+    // on overlap and strand the unrelated row as `deleting` — the saturated-queue
+    // bulk-delete case. Filtering here (not only in the renderer) lets the
+    // service retry orphans: the renderer now submits every selected id.
+    let deleteRootIds = rootItemIds
+    try {
+      const liveJobs = await application.get('JobManager').list({
+        queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
+        type: 'knowledge.delete-subtree',
+        status: [...ACTIVE_JOB_STATUSES],
+        limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
+      })
+      const liveRootIds: string[] = []
+      for (const job of liveJobs) {
+        const narrowed = narrowKnowledgeJobInput({ type: job.type, input: job.input })
+        if (narrowed?.type === 'knowledge.delete-subtree' && narrowed.input.baseId === baseId) {
+          liveRootIds.push(...narrowed.input.rootItemIds)
+        }
+      }
+      if (liveRootIds.length > 0) {
+        let liveCovered = new Set<string>(liveRootIds)
+        try {
+          const liveSubtree = knowledgeItemService.getSubtreeItems(baseId, [...new Set(liveRootIds)], {
+            includeRoots: true
+          })
+          liveCovered = new Set([...liveRootIds, ...liveSubtree.map((item) => item.id)])
+        } catch (error) {
+          logger.warn('Failed to expand live delete-subtree roots; falling back to root ids only', error as Error, {
+            baseId
+          })
+        }
+        const filtered: string[] = []
+        for (const rootId of rootItemIds) {
+          let overlaps = liveCovered.has(rootId)
+          if (!overlaps) {
+            try {
+              const subtree = knowledgeItemService.getSubtreeItems(baseId, [rootId], { includeRoots: true })
+              overlaps = subtree.some((item) => liveCovered.has(item.id))
+            } catch {
+              overlaps = false
+            }
+          }
+          if (overlaps) {
+            logger.info('Skipping delete for root already under live cleanup', { baseId, rootItemId: rootId })
+          } else {
+            filtered.push(rootId)
+          }
+        }
+        if (filtered.length === 0) {
+          return
+        }
+        deleteRootIds = filtered
+      }
+    } catch (error) {
+      // A list failure must not block deletion — fall through with the full
+      // root set (the pre-dedup behavior) and let enqueue surface any failure.
+      logger.warn('Failed to check live delete-subtree jobs; proceeding without dedup', error as Error, {
+        baseId
+      })
+    }
+
     const knowledgeBaseId = toKnowledgeBaseId(baseId)
-    const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
+    const knowledgeRootItemIds = toKnowledgeItemIds(deleteRootIds)
     await this.knowledgeLockManager.runExclusive(baseId, () =>
       application.get('DbService').withWriteTx((tx) => {
-        knowledgeItemService.setSubtreeStatusTx(tx, baseId, rootItemIds, 'deleting')
+        knowledgeItemService.setSubtreeStatusTx(tx, baseId, deleteRootIds, 'deleting')
         application.get('JobManager').enqueueTx(
           tx,
           'knowledge.delete-subtree',
-          { baseId, rootItemIds },
+          { baseId, rootItemIds: deleteRootIds },
           {
             idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(knowledgeBaseId, knowledgeRootItemIds),
             queue: knowledgeQueueName(knowledgeBaseId)
