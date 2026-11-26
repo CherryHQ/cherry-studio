@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as AiCore from '@cherrystudio/ai-core'
 import type * as MessageServiceModule from '@data/services/MessageService'
 import type * as EndpointModule from '@main/ai/provider/endpoint'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
@@ -313,6 +314,22 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     })
     // Owned tool-output blob entry → passes resolveOwnedBlobPath's isToolOutputBlobEntry gate.
     mockFindFileEntryById.mockReturnValue({ origin: 'internal', cleanupPolicy: 'delete_when_unreferenced', ext: 'txt' })
+  })
+
+  it('keeps sibling dispatch preparation alive when a provider disappears during compressor resolution', async () => {
+    mockGetPathToNode.mockReturnValue([fakeMsg('u1', 'user', 'hello')])
+    compressionOn()
+    const settings = mockResolveRequestContextSettings.getMockImplementation()!
+    mockResolveRequestContextSettings.mockImplementationOnce(async (...args: unknown[]) => {
+      const resolved = await settings(...args)
+      mockGetProviderById.mockImplementation(() => {
+        throw DataApiErrorFactory.notFound('Provider', 'deleted')
+      })
+      return resolved
+    })
+    const { prepared, messages } = await makeHistory('u1', [DEFAULT_MODEL_ID, createUniqueModelId('other', 'model')])
+    expect(prepared.models).toHaveLength(2)
+    expect(messages.map((message) => message.id)).toContain('u1')
   })
 
   it('1. under budget, no marker → full history served, no summarization', async () => {

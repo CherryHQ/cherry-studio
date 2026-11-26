@@ -23,6 +23,7 @@ import { providerService } from '@main/data/services/ProviderService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink } from '@shared/ai/compaction'
 import { aiStreamAdmissionReasons, applyApprovalDecisions } from '@shared/ai/transport'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import {
   type AssistantTurnOptions,
@@ -977,11 +978,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // persist lane still bounds tool outputs by the character setting.
     const minContextWindow = resolveMinContextWindow(
       models.map((m) => {
-        const provider = providerService.getByProviderId(m.providerId)
-        if (!provider) return m.contextWindow
-        const { endpointType } = resolveEffectiveEndpoint(provider, m)
-        const runtimeProviderId = resolveAiSdkProviderId(provider, endpointType)
-        return resolveModelRequestContextWindow(m, provider, endpointType, runtimeProviderId)
+        try {
+          const provider = providerService.getByProviderId(m.providerId)
+          if (!provider) return m.contextWindow
+          const { endpointType } = resolveEffectiveEndpoint(provider, m)
+          const runtimeProviderId = resolveAiSdkProviderId(provider, endpointType)
+          return resolveModelRequestContextWindow(m, provider, endpointType, runtimeProviderId)
+        } catch (error) {
+          // Provider removal while the compressor resolves must not strand every
+          // reserved sibling. Dispatch owns each model's missing-provider error.
+          if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return m.contextWindow
+          throw error
+        }
       })
     )
     if (minContextWindow === null) {
