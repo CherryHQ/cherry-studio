@@ -9,7 +9,10 @@ import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import type { SerializedError } from '@renderer/types/error'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
+import { createLocalError } from '@shared/utils/localError'
 
+// Exercise the desktop serializer before rendering the Work error card.
+import { serializeError } from '../../../../../../main/ai/utils/serializeError'
 import { useMessageErrorActions } from '../../hooks/useMessageErrorActions'
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -118,20 +121,20 @@ describe('ErrorBlock', () => {
     vi.clearAllMocks()
   })
 
-  it('shows the Pi Durable initialization cause without network guidance', () => {
-    const error = {
-      name: 'PiDurableInitializationError',
-      message: 'Pi Durable initialize: native-error — operation timed out',
-      stack: null,
-      streamStage: 'response-stream'
-    }
-    render(<ErrorBlock partId="part-1" error={error} message={{ ...message, status: 'error' }} />)
+  it.each(['[SQLITE_BUSY] database is locked', 'operation timed out'])(
+    'shows the serialized local initialization cause without network guidance (%s)',
+    (cause) => {
+      const failure = createLocalError(`Pi Durable initialize: native-error — ${cause}`)
+      failure.name = 'PiDurableInitializationError'
+      const error = JSON.parse(JSON.stringify({ ...serializeError(failure), streamStage: 'response-stream' }))
+      render(<ErrorBlock partId="part-1" error={error} message={{ ...message, status: 'error' }} />)
 
-    expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
-    expect(screen.getByText(error.message)).toBeInTheDocument()
-    expect(screen.queryByText('error.diagnosis.network')).not.toBeInTheDocument()
-    expect(screen.queryByText('error.diagnosis.stream')).not.toBeInTheDocument()
-  })
+      expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+      expect(screen.getByText(error.message)).toBeInTheDocument()
+      expect(screen.queryByText('error.diagnosis.network')).not.toBeInTheDocument()
+      expect(screen.queryByText('error.diagnosis.stream')).not.toBeInTheDocument()
+    }
+  )
 
   it.each([false, true])('gates model requests on privacy and a user click (data collection: %s)', async (enabled) => {
     const user = userEvent.setup()

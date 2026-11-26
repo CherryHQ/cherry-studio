@@ -80,6 +80,8 @@ import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import {
   approvalRequiredRuntimeNames,
   ASK_USER_QUESTION_TOOL_NAME,
+  CLAUDE_FILE_WRITE_TOOLS,
+  FILE_WRITE_PLAN_DENIAL,
   GLOBAL_INSTALL_PLAN_DENIAL,
   GLOBAL_INSTALL_UNATTENDED_DENIAL,
   HEADLESS_INTERACTIVE_TOOL_DENIAL,
@@ -538,6 +540,9 @@ async function buildToolPermissions(
     }
 
     const permissionMode = snapshot.getPermissionMode()
+    if (permissionMode === 'plan' && CLAUDE_FILE_WRITE_TOOLS.has(toolName)) {
+      return { behavior: 'deny', message: FILE_WRITE_PLAN_DENIAL }
+    }
     const skillAccess = resolveMcpSkillToolAccess(toolName, input)
     if (skillAccess?.enabled === false) return { behavior: 'deny', message: 'This MCP skill is disabled.' }
     const dialect = shellToolDialect(toolName)
@@ -725,10 +730,14 @@ async function buildToolPermissions(
     supportsImages
   })
 
+  const disallowedTools = resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext)
   return {
     canUseTool,
     hooks,
-    disallowedTools: resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
+    disallowedTools:
+      agentConfig?.permission_mode === 'plan'
+        ? [...new Set([...disallowedTools, ...CLAUDE_FILE_WRITE_TOOLS])]
+        : disallowedTools,
     toolPolicySnapshot
   }
 }

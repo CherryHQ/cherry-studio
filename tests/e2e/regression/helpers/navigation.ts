@@ -1,6 +1,15 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+export async function showConversationSidebar(chatView: Locator): Promise<Locator> {
+  const topics = chatView.locator('[data-ui~="chat.topic-list"]:visible').first()
+  const showSidebar = chatView.getByRole('button', { name: 'Show Sidebar', exact: true }).first()
+  await expect(topics.or(showSidebar).first()).toBeVisible({ timeout: 20_000 })
+  if (!(await topics.isVisible())) await showSidebar.click()
+  await expect(topics).toBeVisible({ timeout: 20_000 })
+  return topics
+}
+
 export async function openConversationListOptions(view: Locator): Promise<void> {
   const options = view.getByRole('button', { name: 'List options', exact: true })
   const showSidebar = view.getByRole('button', { name: 'Show Sidebar', exact: true })

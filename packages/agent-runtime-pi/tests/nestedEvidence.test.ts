@@ -55,12 +55,15 @@ it('bounds aggregate retained payloads and reports calls beyond the count limit'
 
 it('does not invent a result for legacy evidence or leave interrupted calls running', async () => {
   const { projectNestedTool } = await import('@cherrystudio/agent-runtime')
-  expect(projectNestedTool({ id: 'old', name: 'read', status: 'ok' })).toMatchObject({
+  const missingResult = () => {
+    throw new Error('An absent result cannot supply provider metadata')
+  }
+  expect(projectNestedTool({ id: 'old', name: 'read', status: 'ok' }, missingResult)).toMatchObject({
     state: 'output-available',
     output: { content: [{ type: 'text', text: 'Tool completed; result was not retained.' }] },
     callProviderMetadata: { pi: { argumentsOmitted: true, resultOmitted: true } }
   })
-  expect(projectNestedTool({ id: 'interrupted', name: 'bash', status: 'unfinished' })).toMatchObject({
+  expect(projectNestedTool({ id: 'interrupted', name: 'bash', status: 'unfinished' }, missingResult)).toMatchObject({
     state: 'output-error',
     errorText: 'Tool execution was interrupted.'
   })
