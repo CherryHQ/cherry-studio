@@ -18,16 +18,10 @@ describe('Alert', () => {
     expect(screen.getByText('Something went wrong')).toBeInTheDocument()
   })
 
-  it('renders the status role for non-error alerts', () => {
-    render(<Alert type="warning" message="Heads up" />)
-
-    expect(screen.getByRole('status')).toBeInTheDocument()
-  })
-
   it.each(['info', 'success', 'warning', 'error'] as const)(
     'announces %s with the appropriate live-region role',
     (type) => {
-      render(<Alert type={type} message="Message" showIcon />)
+      render(<Alert type={type} message="Message" showIcon={type !== 'warning'} />)
 
       expect(screen.getByRole(type === 'error' ? 'alert' : 'status')).toHaveTextContent('Message')
     }

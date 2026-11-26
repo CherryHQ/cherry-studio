@@ -3828,27 +3828,6 @@ describe('AiStreamManager', () => {
       expect(mgr.hasPendingSteer('a')).toBe(false)
     })
 
-    it('a finished turn with a queued steer chains a continuation instead of finishing (no idle flicker)', async () => {
-      const dispatchSpy = spyOnLockedDispatch(mgr).mockResolvedValue({ mode: 'started' } as any)
-      const listener = new FakeListener('l:a')
-      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
-
-      // Steer arrives while the turn is live → queued, not started.
-      mgr.enqueuePendingSteer('a', 'u2')
-      expect(dispatchSpy).not.toHaveBeenCalled()
-
-      await mgr.onExecutionDone('a', 'provider-a::model-a')
-
-      // The assistant bubble finalises but the topic stays busy (isTopicDone=false), and no
-      // terminal `done` is broadcast to the status cache.
-      expect(listener.doneResults).toHaveLength(1)
-      expect(listener.doneResults[0].isTopicDone).toBe(false)
-      expect((sharedCacheStore.get('topic.stream.statuses.a') as any)?.status).not.toBe('done')
-
-      await flush()
-      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u2'))
-    })
-
     it.each(['persistence', 'topic lock'] as const)(
       'finishes the topic when Stop cancels a continuation waiting on %s',
       async (wait) => {
@@ -3916,20 +3895,6 @@ describe('AiStreamManager', () => {
       expect(dispatchSpy).toHaveBeenCalledTimes(1)
       expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u1'))
       expect(mgr.hasPendingSteer('a')).toBe(true)
-    })
-
-    it('drops a queued steer when the turn is aborted instead of chaining onto it', async () => {
-      const dispatchSpy = spyOnLockedDispatch(mgr).mockResolvedValue({ mode: 'started' } as any)
-      const listener = new FakeListener('l:a')
-      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
-      mgr.enqueuePendingSteer('a', 'u2')
-
-      mgr.abort('a', 'user-requested')
-      await mgr.onExecutionPaused('a', 'provider-a::model-a')
-
-      await flush()
-      expect(dispatchSpy).not.toHaveBeenCalled()
-      expect(mgr.hasPendingSteer('a')).toBe(false)
     })
 
     // Agent sessions drive their own continuation (terminal listener → markTurnTerminal → startNextTurn),

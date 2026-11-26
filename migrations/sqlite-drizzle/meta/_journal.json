@@ -301,6 +301,13 @@
       "when": 1795662594367,
       "tag": "0042_agent_history_artifacts_and_mcp",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1795691699090,
+      "tag": "0043_agent_session_head_recovery",
+      "breakpoints": true
     }
   ],
   "version": "7"
