@@ -10,7 +10,7 @@ import type {
   SDKPermissionDeniedMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 
 import { claudeThread, type ClaudeObservation } from '../src'
 import { ClaudeFeed } from '../src/observation'
@@ -39,6 +39,73 @@ function denied(sessionId: string, toolUseId: string): SDKPermissionDeniedMessag
   }
 }
 
+it.each([20, 20000])('publishes a task run and response without visiting %i unrelated native records', async (size) => {
+  const feed = new ClaudeFeed((error) => {
+    throw error
+  })
+  const sessionId = randomUUID()
+  feed.publish(
+    [],
+    Array.from({ length: size }, (_, n) => ({ source: 'live' as const, message: denied(sessionId, String(n)) }))
+  )
+  const observed = feed.observe(() => {})
+  await observed.drain()
+  const task = (run_id: string): SDKMessage => ({
+    type: 'system',
+    subtype: 'task_started',
+    task_id: 'child',
+    run_id,
+    description: 'Child',
+    uuid: randomUUID(),
+    session_id: sessionId
+  })
+  const progress = (task_id: string): SDKMessage => ({
+    type: 'tool_progress',
+    tool_use_id: 'tool',
+    tool_name: 'Read',
+    parent_tool_use_id: null,
+    elapsed_time_seconds: 1,
+    task_id,
+    uuid: randomUUID(),
+    session_id: sessionId
+  })
+  const old = progress('child')
+  const other = progress('sibling')
+  const resumed = task('002')
+  const entries = vi.spyOn(feed['native'], Symbol.iterator)
+  const values = vi.spyOn(feed['native'], 'values')
+  try {
+    feed.publish(
+      [],
+      [task('001'), old, other].map((message) => ({ source: 'live', message }))
+    )
+    feed.publish(
+      [],
+      [{ source: 'live', message: resumed }],
+      undefined,
+      [],
+      [{ type: 'response-start', responseId: 'reply' }]
+    )
+    await observed.drain()
+    expect([entries.mock.calls.length, values.mock.calls.length]).toEqual([0, 0])
+  } finally {
+    entries.mockRestore()
+    values.mockRestore()
+    await observed.stop()
+  }
+  const batches: ClaudeObservation[] = []
+  const late = feed.observe((batch) => {
+    batches.push(batch)
+  })
+  await late.drain()
+  const ids = batches[0].native.map(({ message }) => message.uuid)
+  expect(ids).toHaveLength(size + 2)
+  expect(ids).toContain(resumed.uuid)
+  expect(ids).toContain(other.uuid)
+  expect(ids).not.toContain(old.uuid)
+  await late.stop()
+})
+
 it('attaches current background occupancy without replaying an earlier completion or charge', async () => {
   const test = await wireFixture()
   try {
@@ -63,7 +130,9 @@ it('attaches current background occupancy without replaying an earlier completio
     })
     await expect
       .poll(() =>
-        test.view.batches.flatMap((batch) => batch.controls ?? []).some((fact) => fact.type === 'background-tasks')
+        test.view.batches
+          .flatMap((batch) => batch.controls ?? [])
+          .some((fact) => fact.type === 'background-tasks' && fact.tasks.some((task) => task.task_id === 'child'))
       )
       .toBe(true)
     expect(test.view.batches.flatMap((batch) => batch.controls ?? []).some((fact) => fact.type === 'result')).toBe(true)
@@ -126,7 +195,7 @@ it('delivers queued final content before close without waiting for a detached or
         .flatMap((batch) => batch.events)
         .some(
           (event) =>
-            event.type === 'message.upsert' &&
+            event.type === 'message.reconcile' &&
             event.message.parts.some((part) => 'text' in part && part.text === 'Last content')
         )
     ).toBe(true)
@@ -338,6 +407,19 @@ it('recovers a slow observer with a paired native baseline while other observers
     const denials = [denied(test.sessionId, 'call-a'), denied(test.sessionId, 'call-b')]
     for (const denial of denials) test.send(denial)
     for (let index = 0; index < 150; index++) test.send(test.assistant(`Block ${index}`))
+    for (let index = 1; index <= 110; index++)
+      test.send({
+        type: 'system',
+        subtype: 'thinking_tokens',
+        estimated_tokens: index,
+        estimated_tokens_delta: 1,
+        session_id: test.sessionId,
+        uuid: randomUUID()
+      })
+    await test.view.event(
+      (message) =>
+        message.type === 'system' && message.subtype === 'thinking_tokens' && message.estimated_tokens === 110
+    )
     await expect.poll(() => test.view.snapshot.messages.length).toBe(150)
     expect(batches).toHaveLength(1)
     resume()
@@ -702,6 +784,80 @@ it('retains root state with compacted context in the boundary publication', asyn
   } finally {
     await test.close()
   }
+})
+
+it('delivers each charge and control with its own content when two turns overflow before close', async () => {
+  const feed = new ClaudeFeed((error) => {
+    throw error
+  })
+  let resume!: () => void
+  const gate = new Promise<void>((resolve) => {
+    resume = resolve
+  })
+  let current = ''
+  const received: string[] = []
+  const observation = feed.observe(async (batch) => {
+    for (const event of batch.events) {
+      const message =
+        event.type === 'snapshot' ? event.messages[0] : event.type === 'message.reconcile' ? event.message : undefined
+      if (message?.parts[0]?.type === 'text') current = message.parts[0].text
+      if (event.type === 'closed') received.push(`closed ${current}`)
+    }
+    for (const invocation of batch.invocations ?? []) received.push(`charge ${invocation.responseId} ${current}`)
+    for (const control of batch.controls ?? [])
+      if (control.type === 'response-start') received.push(`start ${control.responseId} ${current}`)
+    await gate
+  })
+  await Promise.resolve()
+  for (const turn of ['first', 'second', 'last']) {
+    for (let n = 0; n < 130; n++)
+      feed.publish([
+        {
+          type: 'message.reconcile',
+          message: { id: 'body', role: 'assistant', parts: [{ type: 'text', text: `${turn} ${n}` }] }
+        }
+      ])
+    if (turn !== 'last')
+      feed.publish([], [], undefined, [{ responseId: turn }], [{ type: 'response-start', responseId: turn }])
+  }
+  feed.close('shutdown')
+  resume()
+  await observation.drain()
+  expect(received).toEqual([
+    'charge first first 129',
+    'start first first 129',
+    'charge second second 129',
+    'start second second 129',
+    'closed last 129'
+  ])
+})
+
+it('closes only the observer that cannot deliver its pending controls', async () => {
+  const errors: unknown[] = []
+  const feed = new ClaudeFeed((error) => errors.push(error))
+  let resume!: () => void
+  const gate = new Promise<void>((resolve) => {
+    resume = resolve
+  })
+  const terminal: string[] = []
+  const slow = feed.observe(async (batch) => {
+    for (const event of batch.events) if (event.type === 'gap' || event.type === 'closed') terminal.push(event.reason)
+    await gate
+  })
+  let count = 0
+  const fast = feed.observe((batch) => {
+    count += batch.controls?.length ?? 0
+  })
+  for (let n = 0; n <= 1000; n++) {
+    feed.publish([], [], undefined, [], [{ type: 'response-start', responseId: String(n) }])
+    await fast.drain()
+  }
+  resume()
+  await slow.drain()
+  expect(terminal).toEqual(['overflow', 'source-lost'])
+  expect(errors).toHaveLength(1)
+  expect(count).toBe(1001)
+  await fast.stop()
 })
 
 it('shares retained native history across critical frames held for a stalled observer', async () => {

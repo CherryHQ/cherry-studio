@@ -15,6 +15,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { replaceAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { RuntimeForkInput, RuntimeForkResult } from '@main/ai/runtime/fork'
 import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
@@ -201,11 +202,7 @@ describe('Agent fork publication', () => {
         data: { event: 'started' as const, taskId: 'live-task', status: 'in_progress' as const }
       }
     ]
-    dbh.db
-      .update(agentSessionMessageTable)
-      .set({ data: { ...source.data, parts } })
-      .where(eq(agentSessionMessageTable.id, messageId))
-      .run()
+    replaceAgentSessionMessagePartsTx(dbh.db, { sessionId, messageId, parts, timestampMs: source.updatedAt })
     const childId = await new AgentSessionForkOperations().fork(sessionId, messageId)
     const child = agentSessionMessageService.listSessionMessages(childId).items[0]
     expect(child.data.parts).toEqual([
@@ -228,15 +225,17 @@ describe('Agent fork publication', () => {
     'edits a native prefix: %s',
     async (outcome) => {
       if (outcome === 'first message') agentSessionMessageService.deleteSessionMessage(sessionId, messageId)
-      const tail = agentSessionMessageService.saveMessages({
-        sessionId,
-        messages: [
-          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Old question' }] } },
-          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Old answer' }] } },
-          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Later question' }] } },
-          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Later answer' }] } }
-        ]
-      })
+      const tail = dbh.db.transaction((tx) =>
+        agentSessionMessageService.saveMessagesTx(tx, {
+          sessionId,
+          messages: [
+            { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Old question' }] } },
+            { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Old answer' }] } },
+            { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Later question' }] } },
+            { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Later answer' }] } }
+          ]
+        })
+      )
       const target = {
         messageId: tail[0].id,
         version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, tail[0].id).version
@@ -247,10 +246,12 @@ describe('Agent fork publication', () => {
         expect(input.checkpoint).toMatchObject({ leafId: 'leaf' })
         if (outcome === 'history changed')
           tail.push(
-            ...agentSessionMessageService.saveMessages({
-              sessionId,
-              messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New input' }] } }]
-            })
+            ...dbh.db.transaction((tx) =>
+              agentSessionMessageService.saveMessagesTx(tx, {
+                sessionId,
+                messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'New input' }] } }]
+              })
+            )
           )
       }
       const operation = new AgentSessionForkOperations().edit(
@@ -332,19 +333,17 @@ describe('Agent fork publication', () => {
   })
 
   it('keeps later turns when the boundary before an edited message has no checkpoint', async () => {
-    dbh.db
-      .update(agentSessionMessageTable)
-      .set({ data: { parts: [] } })
-      .where(eq(agentSessionMessageTable.id, messageId))
-      .run()
-    const tail = agentSessionMessageService.saveMessages({
-      sessionId,
-      messages: [
-        { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question A' }] } },
-        { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Answer A' }] } },
-        { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question B' }] } }
-      ]
-    })
+    dbh.db.update(agentSessionMessageTable).set({ data: {} }).where(eq(agentSessionMessageTable.id, messageId)).run()
+    const tail = dbh.db.transaction((tx) =>
+      agentSessionMessageService.saveMessagesTx(tx, {
+        sessionId,
+        messages: [
+          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question A' }] } },
+          { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Answer A' }] } },
+          { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Question B' }] } }
+        ]
+      })
+    )
     const target = {
       messageId: tail[0].id,
       version: agentSessionMessageService.readEditSnapshotTx(dbh.db, sessionId, tail[0].id).version

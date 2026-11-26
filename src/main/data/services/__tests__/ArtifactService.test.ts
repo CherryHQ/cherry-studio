@@ -218,19 +218,28 @@ describe('ArtifactService', () => {
         ...extra
       })
       function message(sessionId: string, createdAt: number, parts: unknown[]) {
+        const id = `m-${++messageSeq}`
         dbh.db
           .insert(agentSessionMessageTable)
           .values({
-            id: `m-${++messageSeq}`,
+            id,
             sessionId,
             parentId: seedSessionRoot(dbh.db, sessionId),
             role: 'assistant',
-            data: { parts: parts as never },
+            data: {},
             status: 'success',
             createdAt,
             updatedAt: createdAt
           })
           .run()
+        const insert = dbh.sqlite.prepare(
+          'INSERT INTO agent_session_message_part (id, session_id, message_id, seq, type, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        )
+        parts.forEach((part, seq) => {
+          const type =
+            part && typeof part === 'object' && 'type' in part && typeof part.type === 'string' ? part.type : ''
+          insert.run(`${id}-${seq}`, sessionId, id, seq, type, JSON.stringify(part), createdAt, createdAt)
+        })
       }
 
       it("lists the deliverables reported in every past session, in each transport's tool shape", async () => {

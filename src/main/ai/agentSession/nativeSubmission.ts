@@ -1,7 +1,7 @@
 import { application } from '@application'
 import {
   runtimeId,
-  type AgentRuntime,
+  type LookupInput,
   type InputLookup,
   type OperationResult,
   type BusyPolicy,
@@ -9,11 +9,10 @@ import {
   type InputState,
   type SubmitResult
 } from '@cherrystudio/agent-runtime'
-import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
-import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import type { AgentSessionMessageData, AgentSessionMessageRecord } from '@data/services/agentSessionMessageTree'
 
-function submissionDraft(message: AgentSessionMessageRow, whenBusy: BusyPolicy, preparedText?: string): InputDraft {
+function submissionDraft(message: AgentSessionMessageRecord, whenBusy: BusyPolicy, preparedText?: string): InputDraft {
   if (preparedText !== undefined) return { inputId: runtimeId(message.id), text: preparedText, whenBusy }
   if (!message.data.parts?.length) throw new Error('Native submission requires message content')
   const text = message.data.parts
@@ -30,7 +29,7 @@ export function prepareNativeSubmission(
   messageId: string,
   contextId: string,
   whenBusy: BusyPolicy,
-  prepared?: { text: string; parts: AgentSessionMessageRow['data']['parts'] }
+  prepared?: { text: string; parts: AgentSessionMessageData['parts'] }
 ): InputDraft {
   return application.get('DbService').withWriteTx((tx) => {
     const message = messages.bindInputContextTx(tx, sessionId, messageId, contextId)
@@ -40,31 +39,10 @@ export function prepareNativeSubmission(
   })
 }
 
-export function bindNativeInput(sessionId: string, contextId: string, input: InputState): string | undefined {
-  const context = contexts.context(contextId)
-  if (context.sessionId !== sessionId) throw new Error('Native input context does not belong to this session')
-  if (
-    input.nativeInput &&
-    (input.nativeInput.session.backendId !== context.backendId ||
-      input.nativeInput.session.id !== context.nativeThreadId)
-  )
-    throw new Error('Native input target does not match the captured context')
-  const messageId =
-    input.inputId ?? (input.nativeInput && messages.inputMessageId(sessionId, contextId, input.nativeInput.id))
-  if (!messageId) return undefined
-  const binding = messages.inputBinding(sessionId, messageId)
-  if (binding?.contextId !== contextId) return undefined
-  if (input.facts.includes('locally-handled'))
-    application
-      .get('DbService')
-      .withWriteTx((tx) => messages.markInputLocallyHandledTx(tx, sessionId, messageId, contextId))
-  if (input.nativeInput && binding.nativeInputId !== input.nativeInput.id) {
-    const nativeInputId = input.nativeInput.id
-    application
-      .get('DbService')
-      .withWriteTx((tx) => messages.bindNativeInputTx(tx, sessionId, messageId, contextId, nativeInputId))
-  }
-  return messageId
+export function markLocalInput(sessionId: string, contextId: string, inputId: string): void {
+  application
+    .get('DbService')
+    .withWriteTx((tx) => messages.markInputLocallyHandledTx(tx, sessionId, inputId, contextId))
 }
 
 /**
@@ -97,7 +75,8 @@ export function nativeOutcomeTerminal(
 }
 
 export function applyNativeSubmissionResult(sessionId: string, contextId: string, result: SubmitResult): void {
-  if (result.status === 'acknowledged') bindNativeInput(sessionId, contextId, result)
+  if (result.status === 'acknowledged' && result.facts.includes('locally-handled'))
+    markLocalInput(sessionId, contextId, result.inputId)
   else if (result.status === 'rejected' || result.status === 'unsupported')
     application
       .get('DbService')
@@ -106,35 +85,32 @@ export function applyNativeSubmissionResult(sessionId: string, contextId: string
 
 /** Read only the original native binding; absence is not proof of non-admission. */
 export async function lookupNativeInput(
-  runtime: AgentRuntime,
   sessionId: string,
   contextId: string,
-  inputId: string
+  inputId: string,
+  live?: { backendId: string; lookupInput: LookupInput }
 ): Promise<OperationResult<InputLookup>> {
   const unknown = (): OperationResult<InputLookup> => ({
     status: 'unknown',
     error: { operation: 'lookup-input', code: 'unavailable', message: 'The original native input is not observable' }
   })
-  const context = contexts.context(contextId)
-  const binding = messages.inputBinding(sessionId, inputId)
-  if (context.sessionId !== sessionId || binding?.contextId !== contextId || !context.nativeThreadId) return unknown()
-  const opened = await runtime.open({ backendId: runtimeId(context.backendId), id: runtimeId(context.nativeThreadId) })
-  if (opened.status !== 'confirmed') return unknown()
+  const target = messages.inputTarget(sessionId, inputId)
+  if (target?.contextId !== contextId) return unknown()
+  const id = runtimeId<'input'>(inputId)
+  if (target.locallyHandled)
+    return { status: 'confirmed', value: { found: true, input: { inputId: id, facts: ['locally-handled'] } } }
+  if (!target.threadId) return unknown()
+  const thread = { backendId: runtimeId<'backend'>(target.backendId), id: runtimeId<'thread'>(target.threadId) }
+  const legacyId = target.nativeInputId ? runtimeId<'native-input'>(target.nativeInputId) : undefined
+  let input
   try {
-    let found: InputState | undefined
-    const observed = await opened.value.observe((event) => {
-      if (event.type === 'snapshot')
-        found = event.inputs.find(
-          (input) =>
-            input.inputId === inputId ||
-            Boolean(binding.nativeInputId && input.nativeInput?.id === binding.nativeInputId)
-        )
-    })
-    if (observed.status !== 'confirmed') return unknown()
-    await observed.value.drain()
-    await observed.value.stop()
-    return found ? { status: 'confirmed', value: { found: true, input: found } } : unknown()
-  } finally {
-    await opened.value.release()
+    if (live?.backendId === target.backendId) input = await live.lookupInput(thread, id, legacyId)
+    else if (target.kind === 'pi-durable') {
+      const { lookupStoredDurableInput } = await import('./durableNativeContext')
+      input = await lookupStoredDurableInput(thread, id, legacyId)
+    }
+  } catch {
+    return unknown()
   }
+  return input ? { status: 'confirmed', value: { found: true, input } } : unknown()
 }

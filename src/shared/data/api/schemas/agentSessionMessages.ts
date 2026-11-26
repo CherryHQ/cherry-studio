@@ -9,6 +9,7 @@ import { agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FORK_FAILURE_REASONS } from '@shared/ai/agentSessionFork'
 import { MessageProvenanceSchema } from '@shared/data/types/conversationImport'
 import {
+  type CherryUIMessage,
   ContentMessageRoleSchema,
   MessageDataSchema,
   MessageSnapshotSchema,
@@ -36,6 +37,8 @@ export const AgentSessionMessagesListQuerySchema = z.strictObject({
   deferToolOutputs: z.boolean().optional()
 })
 export type AgentSessionMessagesListQuery = z.infer<typeof AgentSessionMessagesListQuerySchema>
+export const AgentSessionMessageReadQuerySchema = AgentSessionMessagesListQuerySchema.pick({ deferToolOutputs: true })
+export type AgentSessionMessageReadQuery = z.infer<typeof AgentSessionMessageReadQuerySchema>
 
 // ============================================================================
 // Entity & DTOs (Rule C: derive DTOs via .pick())
@@ -64,6 +67,7 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   id: z.string(),
   /** Session ID this message belongs to */
   sessionId: z.string(),
+  partIds: z.array(z.string()).optional(),
   siblings: z.array(z.string()).optional(),
   historyActions: AgentSessionHistoryActionsSchema.optional(),
   provenance: MessageProvenanceSchema.nullable().optional(),
@@ -104,6 +108,13 @@ export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMess
 export const SelectAgentSessionBranchSchema = z.strictObject({ messageId: z.string().min(1) })
 
 export type AgentSessionMessageSchemas = {
+  '/agent-sessions/:sessionId/children/:toolCallId/history': {
+    GET: {
+      params: { sessionId: string; toolCallId: string }
+      query: { before: string; cursor?: string; limit?: number }
+      response: CursorPaginationResponse<CherryUIMessage>
+    }
+  }
   '/agent-sessions/:sessionId/branch': {
     PUT: {
       params: { sessionId: string }
@@ -122,6 +133,7 @@ export type AgentSessionMessageSchemas = {
   '/agent-sessions/:sessionId/messages/:messageId': {
     GET: {
       params: { sessionId: string; messageId: string }
+      query?: AgentSessionMessageReadQuery
       response: AgentSessionMessageEntity
     }
     PATCH: {

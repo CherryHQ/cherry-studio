@@ -8,16 +8,19 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useStreamCommands } from '@renderer/hooks/useStreamCommands'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { useTopicCompletion } from '@renderer/hooks/useTopicCompletion'
+import { useTopicSpeech } from '@renderer/hooks/useTopicSpeech'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { autoReadService, readMessageAloud, voiceTargetManager } from '@renderer/services/voice'
+import type { ExecutionFinishEvent } from '@renderer/types/message'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
+import { projectedReplies } from '@renderer/utils/message/projectedReplies'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -43,41 +46,33 @@ const LazyBranchFallback = () => <div className="flex-1" />
 
 const logger = loggerService.withContext('HomeWindow')
 
-// Stable empty array — quick-assistant temp topic has no DB-backed messages.
-
 type MiniRoute = 'home' | 'chat' | 'translate' | 'summary' | 'explanation'
 
 const supportsVoicePlayback = (route: MiniRoute) => route === 'chat' || route === 'summary' || route === 'explanation'
 
-/**
- * Finalize a list of live assistant messages: turn any still-streaming text
- * or reasoning part into `state: 'done'`, deriving `thinkingMs` for reasoning
- * from `startedAt` if the upstream hasn't set it yet. Called when the
- * execution transitions from active to inactive.
- */
-export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessage[] => {
-  return messages.map((msg) => {
-    if (!msg.parts) return msg
-    let changed = false
-    const newParts = msg.parts.map((part) => {
-      if ((part.type !== 'text' && part.type !== 'reasoning') || part.state !== 'streaming') return part
+const EMPTY_INPUTS: CherryUIMessage[] = []
 
-      changed = true
-      if (part.type === 'text') return { ...part, state: 'done' as const }
+export function finalizeReply(msg: CherryUIMessage): CherryUIMessage {
+  if (!msg.parts) return msg
+  let changed = false
+  const newParts = msg.parts.map((part) => {
+    if ((part.type !== 'text' && part.type !== 'reasoning') || part.state !== 'streaming') return part
 
-      const cherry = readCherryMeta(part)
-      const startedAt = cherry?.startedAt
-      const thinkingMs = cherry?.thinkingMs
+    changed = true
+    if (part.type === 'text') return { ...part, state: 'done' as const }
 
-      let patch: Partial<CherryReasoningMeta> = {}
-      if (typeof startedAt === 'number' && Number.isFinite(startedAt) && typeof thinkingMs !== 'number') {
-        patch = { thinkingMs: Math.round(Math.max(0, Date.now() - startedAt)) }
-      }
+    const cherry = readCherryMeta(part)
+    const startedAt = cherry?.startedAt
+    const thinkingMs = cherry?.thinkingMs
 
-      return withCherryMeta({ ...part, state: 'done' }, patch)
-    })
-    return changed ? { ...msg, parts: newParts } : msg
+    let patch: Partial<CherryReasoningMeta> = {}
+    if (typeof startedAt === 'number' && Number.isFinite(startedAt) && typeof thinkingMs !== 'number') {
+      patch = { thinkingMs: Math.round(Math.max(0, Date.now() - startedAt)) }
+    }
+
+    return withCherryMeta({ ...part, state: 'done' }, patch)
   })
+  return changed ? { ...msg, parts: newParts } : msg
 }
 
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
@@ -131,18 +126,18 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [isPreparing, setIsPreparing] = useState(false)
   const [flowError, setFlowError] = useState<string | null>(null)
 
+  const [inputs, setInputs] = useState<{ topicId: string; messages: CherryUIMessage[] }>()
   const {
-    messages: chatMessages,
+    projection,
     sendMessage,
-    stop: stopChat,
-    setMessages
-  } = useStreamCommands(temporaryTopicId ?? 'pending-temp', undefined, (err) => {
+    stop: stopChat
+  } = useStreamCommands(temporaryTopicId ?? '', (err) => {
     setIsPreparing(false)
     setFlowError(err.message)
   })
 
   // Local inputs and projected assistant messages share the existing message list.
-  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? 'pending-temp')
+  const { activeExecutions, isPending } = useTopicStreamStatus(temporaryTopicId ?? '')
   const [lastCompletedVoiceMessage, setLastCompletedVoiceMessage] = useState<CherryUIMessage | null>(null)
   const voiceScopeGenerationRef = useRef(0)
   const voiceScopeTopicRef = useRef(temporaryTopicId)
@@ -152,6 +147,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   useEffect(() => {
     if (voiceScopeTopicRef.current === temporaryTopicId) return
+    setInputs(undefined)
     voiceScopeTopicRef.current = temporaryTopicId
     voiceScopeGenerationRef.current += 1
     voiceExecutionContextsRef.current.clear()
@@ -202,68 +198,70 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     },
     [autoReadEnabled, temporaryTopicId]
   )
-  const {
-    liveAssistants,
-    reset: resetExecutionMessages,
-    clear: clearExecutionMessages
-  } = useExecutionOverlay(temporaryTopicId ?? 'pending-temp', activeExecutions, {
-    onUpdate: (executionId, event) => {
-      const context = voiceExecutionContextsRef.current.get(`${executionId}:${event.attemptId}`)
-      if (!context || context.topicId !== temporaryTopicId || context.generation !== voiceScopeGenerationRef.current)
-        return
-      autoReadService.update({
-        ...event,
-        enabled: autoReadEnabled,
-        eligible: context.eligible,
-        scope: temporaryTopicId ?? 'pending-temp'
-      })
-    },
-    onLeave: () => autoReadService.cancelScope(temporaryTopicId ?? 'pending-temp'),
-    onFinish: handleExecutionFinish
+  const topicId = temporaryTopicId ?? ''
+  const [transcript, setTranscript] = useState<{
+    topicId: string
+    replies: Map<string, { attemptId: number; message: CherryUIMessage }>
+  }>()
+  const [clearedThrough, setClearedThrough] = useState(0)
+  const latestAttempt = useRef(0)
+  for (const execution of activeExecutions) latestAttempt.current = Math.max(latestAttempt.current, execution.attemptId)
+  for (const execution of projection?.executions ?? [])
+    latestAttempt.current = Math.max(latestAttempt.current, execution.attemptId)
+  useTopicSpeech(topicId, activeExecutions, autoReadEnabled, (executionId, event) => {
+    const context = voiceExecutionContextsRef.current.get(`${executionId}:${event.attemptId}`)
+    if (
+      !context ||
+      context.topicId !== temporaryTopicId ||
+      context.generation !== voiceScopeGenerationRef.current ||
+      event.attemptId <= clearedThrough
+    )
+      return
+    autoReadService.update({ ...event, enabled: autoReadEnabled, eligible: context.eligible, scope: topicId })
   })
-  const [completedAssistants, setCompletedAssistants] = useState<CherryUIMessage[]>([])
+  useTopicCompletion(topicId, activeExecutions, (executionId, event) => {
+    if (event.attemptId <= clearedThrough) return
+    latestAttempt.current = Math.max(latestAttempt.current, event.attemptId)
+    setTranscript((previous) => {
+      const saved = previous?.topicId === topicId ? previous.replies : undefined
+      if ((saved?.get(event.message.id)?.attemptId ?? 0) >= event.attemptId) return previous
+      const replies = new Map(saved)
+      replies.set(event.message.id, { attemptId: event.attemptId, message: finalizeReply(event.message) })
+      return { topicId, replies }
+    })
+    handleExecutionFinish(executionId, event)
+  })
 
-  const prevActiveCountRef = useRef(activeExecutions.length)
-  useEffect(() => {
-    const wasActive = prevActiveCountRef.current > 0
-    prevActiveCountRef.current = activeExecutions.length
-    if (activeExecutions.length === 0 && wasActive) {
-      // Terminal projection retains the final frame through the history handoff.
-      if (liveAssistants.length) {
-        setCompletedAssistants((done) => [...done, ...finalizeLiveMessages(liveAssistants)])
-        resetExecutionMessages()
-      }
+  const { allAssistants, activeMessageId } = useMemo(() => {
+    const replies = new Map(transcript?.topicId === topicId ? transcript.replies : undefined)
+    let activeMessageId: string | undefined
+    for (const { execution, message } of projectedReplies(projection, activeExecutions)) {
+      if (execution.attemptId <= clearedThrough || (replies.get(message.id)?.attemptId ?? 0) >= execution.attemptId)
+        continue
+      replies.set(message.id, { attemptId: execution.attemptId, message })
+      if (execution.status === 'active') activeMessageId = message.id
     }
-  }, [activeExecutions, liveAssistants, resetExecutionMessages])
+    return { allAssistants: Array.from(replies.values(), ({ message }) => message), activeMessageId }
+  }, [transcript, topicId, projection, activeExecutions, clearedThrough])
 
   useEffect(() => {
     if (isPending) setIsPreparing(false)
   }, [isPending])
 
-  const allAssistants = useMemo<CherryUIMessage[]>(
-    () => [...completedAssistants, ...liveAssistants],
-    [completedAssistants, liveAssistants]
-  )
-
+  const userMessages = inputs?.topicId === topicId ? inputs.messages : EMPTY_INPUTS
   const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
-    for (const message of [...chatMessages, ...allAssistants]) {
+    for (const message of [...userMessages, ...allAssistants]) {
       next[message.id] = message.parts ?? []
     }
     return next
-  }, [allAssistants, chatMessages])
+  }, [allAssistants, userMessages])
 
-  // Interleave user messages (from state.messages) with assistant turns
-  // (accumulated completed + live). The assumption: users and assistants
-  // alternate strictly — user[i] precedes assistant[i]. Temporary topics
-  // are always a clean linear chat, no branches.
   const displayMessages = useMemo<CherryUIMessage[]>(() => {
-    const users = chatMessages.filter((m) => m.role === 'user')
-    const latestAssistantId = liveAssistants[liveAssistants.length - 1]?.id
     const out: CherryUIMessage[] = []
-    const turns = Math.max(users.length, allAssistants.length)
+    const turns = Math.max(userMessages.length, allAssistants.length)
     for (let i = 0; i < turns; i++) {
-      const u = users[i]
+      const u = userMessages[i]
       if (u) {
         out.push(u)
       }
@@ -273,13 +271,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           ...a,
           metadata: {
             ...a.metadata,
-            status: a.id === latestAssistantId && isPending ? 'pending' : 'success'
+            status: a.id === activeMessageId && isPending ? 'pending' : 'success'
           }
         })
       }
     }
     return out
-  }, [chatMessages, allAssistants, liveAssistants, isPending])
+  }, [userMessages, allAssistants, activeMessageId, isPending])
 
   const messageItems = useMemo(
     () =>
@@ -303,12 +301,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const clear = useCallback(() => {
     void stopChat()
-    setMessages([])
-    setCompletedAssistants([])
-    clearExecutionMessages()
+    setInputs(undefined)
+    setTranscript(undefined)
+    setClearedThrough(latestAttempt.current)
     setFlowError(null)
     setIsPreparing(false)
-  }, [stopChat, setMessages, clearExecutionMessages])
+  }, [stopChat])
 
   const isLoading = isPreparing || isStreaming
   const isOutputted = messageItems.some((message) => message.role === 'assistant')
@@ -395,6 +393,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setUserInputText('')
         setIsPreparing(true)
         const message = { text: [prompt, requestText].filter(Boolean).join('\n\n') }
+        const input: CherryUIMessage = {
+          id: crypto.randomUUID(),
+          role: 'user',
+          parts: [{ type: 'text', text: message.text }]
+        }
+        setInputs((previous) => ({
+          topicId: temporaryTopicId,
+          messages: previous?.topicId === temporaryTopicId ? [...previous.messages, input] : [input]
+        }))
         if (!isAssistantMode && currentModel) {
           void sendMessage(message, { body: { mentionedModels: [currentModel.id] } })
         } else {

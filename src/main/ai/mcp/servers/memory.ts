@@ -278,16 +278,13 @@ class KnowledgeGraphManager {
     }
   }
 
-  // Read the current state from memory
   @TraceMethod({ spanName: 'readGraph', tag: 'KnowledgeGraph' })
-  async readGraph(): Promise<KnowledgeGraph> {
-    // Return a deep copy to prevent external modification of the internal state
-    return JSON.parse(
-      JSON.stringify({
-        entities: Array.from(this.entities.values()),
-        relations: Array.from(this.relations).map((rStr) => this._deserializeRelation(rStr))
-      })
-    )
+  async serializeGraph(): Promise<string> {
+    const graph: KnowledgeGraph = {
+      entities: Array.from(this.entities.values()),
+      relations: Array.from(this.relations, (value) => this._deserializeRelation(value))
+    }
+    return JSON.stringify(graph, null, 2)
   }
 
   // Search operates on the in-memory graph
@@ -458,7 +455,7 @@ function registerMemoryTools(server: McpServer, getManager: () => Promise<Knowle
   )
 
   server.registerTool('read_graph', { description: 'Read the entire knowledge graph from memory.' }, async () =>
-    json(await (await getManager()).readGraph())
+    text(await (await getManager()).serializeGraph())
   )
 
   server.registerTool(

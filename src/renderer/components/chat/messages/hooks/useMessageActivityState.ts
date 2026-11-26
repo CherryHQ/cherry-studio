@@ -8,7 +8,6 @@ import type {
 import { isMessageListItemProcessing } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
-import type { CherryMessagePart } from '@shared/data/types/message'
 
 const MESSAGE_ACTIVITY_STATE_CACHE = new Map<number, MessageActivityState>()
 
@@ -158,11 +157,7 @@ interface MessageActivityCapability {
   store: MessageActivityStore
 }
 
-export function useMessageActivityState(
-  topicId: string,
-  partsMap?: Record<string, CherryMessagePart[]> | null
-): MessageActivityCapability {
-  void partsMap
+export function useMessageActivityState(topicId: string): MessageActivityCapability {
   const { status, activeExecutions, awaitingApprovalAnchors } = useTopicStreamStatus(topicId)
   const statusRef = useRef(status)
   const activeExecutionsRef = useRef(activeExecutions)
