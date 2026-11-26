@@ -343,18 +343,70 @@ describe('ProviderRegistryService', () => {
     mockReadProviders.mockReturnValue(readCatalog('providers.json'))
 
     const models = providerRegistryService.listProviderRegistryModels({ providerId: 'cherryin' })
-    expect(models.find(({ apiModelId }) => apiModelId === 'qwen/qwen4-max')).toMatchObject({
+    const flashImage = models.find(({ apiModelId }) => apiModelId === 'google/gemini-2.5-flash-image')!
+    expect(flashImage).toMatchObject({ contextWindow: 32_768, maxOutputTokens: 32_768 })
+    expect(flashImage.capabilities).toContain('image-generation')
+    expect(flashImage.capabilities).not.toContain('reasoning')
+    expect(flashImage.reasoning).toBeUndefined()
+    const qwen4Max = models.find(({ apiModelId }) => apiModelId === 'qwen/qwen4-max')!
+    expect(qwen4Max).toMatchObject({
       contextWindow: 1_000_000,
       endpointTypes: ['openai-chat-completions', 'anthropic-messages']
     })
+    for (const [endpoint, off, high] of [
+      ['openai-chat-completions', { enable_thinking: false }, { enable_thinking: true, reasoningEffort: 'high' }],
+      ['anthropic-messages', { thinking: { type: 'disabled' } }, { effort: 'high' }]
+    ] as const) {
+      const profile = providerRegistryService.resolveReasoningProfile(
+        { id: 'cherryin', presetProviderId: 'cherryin', defaultChatEndpoint: endpoint },
+        qwen4Max,
+        endpoint
+      )
+      const model = { ...qwen4Max, reasoning: projectRuntimeReasoning(profile.support!, profile.wire) }
+      expect(
+        encodeReasoningInvocation(resolveReasoningInvocation({ model, selection: 'none', profile: profile.wire }))
+      ).toEqual(off)
+      expect(
+        encodeReasoningInvocation(resolveReasoningInvocation({ model, selection: 'high', profile: profile.wire }))
+      ).toEqual(high)
+    }
     expect(models.find(({ apiModelId }) => apiModelId === 'deepseek/deepseek-v3.2(free)')?.pricing?.input).toEqual({
       currency: 'USD',
       perMillionTokens: 0
     })
+    for (const id of ['deepseek/deepseek-v3.2', 'qwen/qwen3.5-9b']) {
+      expect(models.find(({ apiModelId }) => apiModelId === id)?.pricing).toMatchObject({
+        input: { perMillionTokens: null },
+        output: { perMillionTokens: null },
+        cacheRead: { perMillionTokens: null }
+      })
+    }
     expect(models.find(({ apiModelId }) => apiModelId === 'qwen/z-image-turbo')?.pricing?.perImage).toMatchObject({
       price: 0.013698630137,
       unit: 'image'
     })
+    for (const [version, contextWindow] of [
+      ['4', 200_000],
+      ['4.5', 200_000],
+      ['4.6', 1_000_000]
+    ] as const) {
+      expect(models.find(({ apiModelId }) => apiModelId === `anthropic/claude-sonnet-${version}`)?.contextWindow).toBe(
+        contextWindow
+      )
+    }
+    expect(models.find(({ apiModelId }) => apiModelId === 'x-ai/grok-4.5')?.contextWindow).toBe(1_000_000)
+    expect(models.find(({ apiModelId }) => apiModelId === 'x-ai/grok-4.7')?.contextWindow).toBe(524_288)
+    for (const id of ['qwen/qwen3.8-max', 'agent/qwen3.8-max']) {
+      expect(models.find(({ apiModelId }) => apiModelId === id)).toMatchObject({
+        inputModalities: ['text', 'image', 'video'],
+        capabilities: expect.arrayContaining(['image-recognition', 'video-recognition'])
+      })
+    }
+    const imageTokenPricing = models.find(({ apiModelId }) => apiModelId === 'openai/gpt-image-2')?.pricing
+    expect(imageTokenPricing?.input.perMillionTokens).toBeNull()
+    expect(imageTokenPricing?.output.perMillionTokens).toBeNull()
+    expect(imageTokenPricing?.cacheRead?.perMillionTokens).toBeNull()
+    expect(imageTokenPricing?.perImage).toBeUndefined()
   })
 
   describe('createCustomModel', () => {

@@ -23,7 +23,7 @@ const cherryInProvider = createCherryIn({
   // optional overrides:
   // baseURL: 'https://open.cherryin.net/v1',
   // anthropicBaseURL: 'https://open.cherryin.net/anthropic',
-  // geminiBaseURL: 'https://open.cherryin.net/gemini/v1beta',
+  // geminiBaseURL: 'https://open.cherryin.net/v1beta',
 })
 
 // Chat models will auto-route based on the model id prefix:

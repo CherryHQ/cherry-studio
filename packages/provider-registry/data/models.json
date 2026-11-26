@@ -8451,7 +8451,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
+      "capabilities": ["image-recognition", "image-generation", "file-input"],
       "contextWindow": 32768,
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-image",
@@ -8474,6 +8474,7 @@
         }
       },
       "inputModalities": ["text", "image"],
+      "maxOutputTokens": 32768,
       "metadata": {},
       "name": "gemini-2.5-flash-image",
       "outputModalities": ["text", "image"],
@@ -8491,24 +8492,6 @@
           "currency": "USD",
           "perMillionTokens": 30
         }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "budget",
-            "max": 24576,
-            "min": 0
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 24576,
-          "min": 0
-        },
-        "wireDialect": "budget"
       }
     },
     {
@@ -24236,5 +24219,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "949d9c17877ba6c6"
+  "version": "cd5749481ae3d411"
 }

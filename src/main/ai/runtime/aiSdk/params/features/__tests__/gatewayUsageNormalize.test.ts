@@ -46,6 +46,24 @@ describe('gatewayUsageNormalizeFeature', () => {
 describe('raw Anthropic cache bucket reconciliation', () => {
   it.each([
     ['nested write', { prompt_tokens_details: { cache_creation_tokens: 80 } }, 1000, 0, 920, 0, 80],
+    [
+      'CherryIN Chat Completions cache-write aliases describe one bucket',
+      { prompt_tokens_details: { cached_tokens: 100, cache_write_tokens: 80, cached_creation_tokens: 50 } },
+      1000,
+      100,
+      820,
+      100,
+      80
+    ],
+    [
+      'CherryIN Responses cache usage uses input token details',
+      { input_tokens_details: { cached_tokens: 100, cache_write_tokens: 50, cache_creation_input_tokens: 80 } },
+      1000,
+      0,
+      820,
+      100,
+      80
+    ],
     ['nested read', { prompt_tokens_details: { cache_read_tokens: 900 } }, 1000, 0, 100, 900, undefined],
     [
       'nested read and write',

@@ -54,11 +54,14 @@ export function createAiUsagePricingSnapshot(
  * provider, model, source, or rotation state.
  */
 export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextInput): AiUsageCaptureContext {
+  // CherryIN freezes the peak rates and selects the multiplier at settlement.
+  const startedAt =
+    input.billing?.source === 'cherryin' && input.billing.scheduleEnabled ? null : input.invocationStartedAt
   const resolved = resolveProviderBilling(
     input.pricing,
     input.billing,
     input.billingModelId ?? input.modelId,
-    input.invocationStartedAt === undefined ? new Date(input.capturedAt ?? Date.now()) : input.invocationStartedAt
+    startedAt === undefined ? new Date(input.capturedAt ?? Date.now()) : startedAt
   )
   const pricing = buildPricingSnapshot(resolved.pricing, input.capturedAt)
   if (pricing && resolved.billing) pricing.billing = resolved.billing

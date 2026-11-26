@@ -10,6 +10,7 @@ import {
   type ModelMessage,
   NoImageGeneratedError
 } from 'ai'
+import { isPlainObject } from 'es-toolkit'
 
 import { application } from '@application'
 import {
@@ -26,6 +27,7 @@ import {
   type AiUsageCaptureContext,
   aiUsageRecordService,
   type MessageRef,
+  type RecordAiInvocationInput,
   type SourceSnapshot
 } from '@data/services/AiUsageRecordService'
 import { assistantDataService } from '@data/services/AssistantService'
@@ -58,6 +60,7 @@ import type { ImageGenerationMode, ListedModels } from '@shared/data/types/model
 import { type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
+import { readNativeGeminiTokenUsage, readOpenAIImageTokenUsage } from '@shared/utils/cherryinModalityPricing'
 import {
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -66,7 +69,11 @@ import {
   isRerankModel
 } from '@shared/utils/model'
 import { isExternalCliProvider, isOllamaProvider } from '@shared/utils/provider'
-import { getDefaultProviderBilling } from '@shared/utils/providerBillingDefaults'
+import {
+  CHERRYIN_GEMINI_MODALITY_VERSION,
+  CHERRYIN_OPENAI_IMAGE_VERSION,
+  getDefaultProviderBilling
+} from '@shared/utils/providerBillingDefaults'
 
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
@@ -255,6 +262,42 @@ function createCaptureContext(input: {
   }
 }
 
+function imageUsageToRecord(
+  event: Extract<RuntimeProviderCallEvent, { modality: 'image' }>,
+  ruleVersion: string | undefined
+): RecordAiInvocationInput['usage'] {
+  if (ruleVersion === CHERRYIN_GEMINI_MODALITY_VERSION) {
+    const metadata: unknown = event.providerMetadata?.google
+    const usage = isPlainObject(metadata) ? readNativeGeminiTokenUsage(metadata.usageMetadata) : undefined
+    if (usage) {
+      return {
+        inputTokens: usage.input,
+        outputTokens: usage.output,
+        totalTokens: usage.input + usage.output,
+        reasoningTokens: usage.reasoning,
+        cacheReadTokens: usage.cached,
+        noCacheTokens: usage.input - usage.cached,
+        modalityUsage: usage.raw
+      }
+    }
+  } else if (ruleVersion === CHERRYIN_OPENAI_IMAGE_VERSION) {
+    const metadata: unknown = event.providerMetadata?.openaiCompatible
+    const raw = isPlainObject(metadata) ? metadata.usage : undefined
+    const usage = readOpenAIImageTokenUsage(raw)
+    if (usage) {
+      return {
+        inputTokens: usage.input,
+        outputTokens: usage.output,
+        totalTokens: usage.total,
+        cacheReadTokens: usage.cached,
+        noCacheTokens: usage.input - usage.cached,
+        modalityUsage: raw
+      }
+    }
+  }
+  return event.usage
+}
+
 function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProviderCallHandler {
   return (event: RuntimeProviderCallEvent) => {
     aiUsageRecordService.recordInvocation({
@@ -263,16 +306,13 @@ function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProvi
       modality: event.modality,
       ...(event.modality === 'embedding' && event.usage
         ? { usage: { inputTokens: event.usage.tokens, totalTokens: event.usage.tokens } }
-        : event.modality === 'image' && event.usage
-          ? {
-              usage: {
-                ...(event.usage.inputTokens !== undefined ? { inputTokens: event.usage.inputTokens } : {}),
-                ...(event.usage.outputTokens !== undefined ? { outputTokens: event.usage.outputTokens } : {}),
-                ...(event.usage.totalTokens !== undefined ? { totalTokens: event.usage.totalTokens } : {})
-              }
-            }
-          : {}),
-      ...(event.modality === 'image' ? { imageCount: event.imageCount } : {}),
+        : {}),
+      ...(event.modality === 'image'
+        ? {
+            imageCount: event.imageCount,
+            usage: imageUsageToRecord(event, context.pricingSnapshot?.billing?.ruleVersion)
+          }
+        : {}),
       metrics: event.metrics,
       completedAt: event.completedAt
     })

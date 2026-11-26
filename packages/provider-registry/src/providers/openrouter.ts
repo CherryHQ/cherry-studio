@@ -70,6 +70,17 @@ export default defineProvider({
   },
   modelsDevProvider: 'openrouter',
   standaloneModelIds: ['gpt-5-4-image-2'],
+  overrides: [
+    {
+      apiModelId: 'nvidia/nemotron-3.5-lightning:free',
+      limits: { contextWindow: 1_000_000, maxOutputTokens: 65_536 },
+      pricing: {
+        input: { currency: CURRENCY.USD, perMillionTokens: 0 },
+        output: { currency: CURRENCY.USD, perMillionTokens: 0 }
+      },
+      capabilities: { remove: ['structured-output'] }
+    }
+  ],
   modelTemplates: [
     // OpenRouter owns this moving router alias; DeepSeek does not publish it as
     // a model. Actual usage cost is authoritative, so omit a static alias price.

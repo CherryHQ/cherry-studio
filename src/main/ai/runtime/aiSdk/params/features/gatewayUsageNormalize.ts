@@ -25,12 +25,27 @@ function withRawCacheUsage(usage: LanguageModelV3Usage): LanguageModelV3Usage {
 
   const { raw } = usage
   const toCount = (value: unknown) => (typeof value === 'number' ? value : undefined)
-  const details = isPlainObject(raw.prompt_tokens_details)
-    ? (raw.prompt_tokens_details as Record<string, unknown>)
-    : undefined
+  const tokenDetails = (value: unknown) => (isPlainObject(value) ? value : undefined)
+  const promptDetails = tokenDetails(raw.prompt_tokens_details)
+  const inputDetails = tokenDetails(raw.input_tokens_details)
   const rawRead =
-    toCount(raw.cache_read_input_tokens) ?? toCount(details?.cached_tokens) ?? toCount(details?.cache_read_tokens)
-  const rawWrite = toCount(raw.cache_creation_input_tokens) ?? toCount(details?.cache_creation_tokens)
+    toCount(raw.cache_read_input_tokens) ??
+    toCount(promptDetails?.cached_tokens) ??
+    toCount(inputDetails?.cached_tokens) ??
+    toCount(promptDetails?.cache_read_tokens) ??
+    toCount(inputDetails?.cache_read_tokens)
+  // Gateway responses can carry several aliases for the same cache-write bucket.
+  const writeCounts = [promptDetails, inputDetails]
+    .flatMap((details) => [
+      details?.cache_write_tokens,
+      details?.cached_creation_tokens,
+      details?.cache_creation_input_tokens,
+      details?.cache_creation_tokens
+    ])
+    .map(toCount)
+    .filter((count) => count !== undefined)
+  const rawWrite =
+    toCount(raw.cache_creation_input_tokens) ?? (writeCounts.length ? Math.max(0, ...writeCounts) : undefined)
   if (rawRead === undefined && rawWrite === undefined) return usage
 
   const inputTokens = isFlatV3Usage(usage) ? normalizeFlatV3Usage(usage).inputTokens : usage.inputTokens

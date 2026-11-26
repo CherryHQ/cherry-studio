@@ -1,6 +1,7 @@
 import type { ProviderModelOverride } from '../schemas/provider-models'
+import { cherryInPublishedPriceOffers, unknownCherryInTokenPricing } from './cherryinPricing'
 import { defineProvider, type ProviderModelOffer } from './types'
-import { modeWire } from './wires'
+import { EFFORT, modeWire } from './wires'
 
 const claudeWebToolModels = [
   'claude-opus-4',
@@ -30,6 +31,7 @@ const deepSeekModelOverrides = [
   {
     apiModelId: 'deepseek/deepseek-v3.2',
     modelId: 'deepseek-v3-2',
+    pricing: unknownCherryInTokenPricing,
     reasoningContracts: {
       'openai-chat-completions': { wire: deepSeekThinkingWire }
     }
@@ -40,6 +42,7 @@ const qwenAudioCompatibilityOverrides = [
   {
     apiModelId: 'qwen/qwen3.5-9b',
     modelId: 'qwen3-5-9b',
+    pricing: unknownCherryInTokenPricing,
     capabilities: { remove: ['audio-recognition', 'video-recognition'] },
     inputModalities: ['text', 'image'],
     reason: 'CherryIN rejects native audio and video for the Qwen3.5 9B endpoint'
@@ -111,6 +114,34 @@ const freePricing = {
 }
 const freeImagePricing = { ...freePricing, perImage: { currency: 'USD', price: 0, unit: 'image' } } as const
 const unknownTokenPrice = { currency: 'USD', perMillionTokens: null } as const
+const perImagePricing = (price: number) => ({
+  input: unknownTokenPrice,
+  output: unknownTokenPrice,
+  perImage: { currency: 'USD', price, unit: 'image' } as const
+})
+const tokenPrice = (perMillionTokens: number | null) => ({ currency: 'USD' as const, perMillionTokens })
+const tokenRates = (
+  input: number,
+  output: number,
+  cacheRead: number | null = null,
+  cacheWrite: number | null = null
+) => ({
+  input: tokenPrice(input),
+  output: tokenPrice(output),
+  cacheRead: tokenPrice(cacheRead),
+  cacheWrite: tokenPrice(cacheWrite)
+})
+const flatPricing = (input: number, output: number, cacheRead?: number, cacheWrite?: number) => ({
+  ...tokenRates(input, output, cacheRead, cacheWrite),
+  inputTokenTiers: []
+})
+// https://open.cherryin.ai/api/pricing reports USD token rates as model_ratio × 2.
+const qwen35Pricing: Record<string, ReturnType<typeof flatPricing>> = {
+  'qwen/qwen3.5-27b': flatPricing(0.085714, 0.685712),
+  'qwen/qwen3.5-35b-a3b': flatPricing(0.057142, 0.457136),
+  'qwen/qwen3.5-122b-a10b': flatPricing(0.114, 0.912),
+  'qwen/qwen3.5-397b-a17b': flatPricing(0.171428, 1.028568)
+}
 const chatEndpoints = ['openai-chat-completions', 'anthropic-messages'] as const
 const anthropicFirst = ['anthropic-messages', 'openai-chat-completions'] as const
 const responsesEndpoints = ['openai-responses', 'anthropic-messages'] as const
@@ -182,17 +213,37 @@ const imageOffers = [
   { apiModelId: 'bytedance/seedream-4.0', name: 'Seedream 4.0', price: 0.027397260274 },
   { apiModelId: 'qwen/z-image-turbo', name: 'Z-Image Turbo', price: 0.013698630137 }
 ]
+const pricedImageOffers = [
+  { apiModelId: 'wan/wan2.7-image-pro', price: 0.068493150685 },
+  { apiModelId: 'wan/wan2.7-image', price: 0.027397260274 },
+  { apiModelId: 'qwen/qwen-image', price: 0.034246575342 },
+  { apiModelId: 'qwen/qwen-image-edit-2509', modelId: 'qwen-image-edit', price: 0.041095890411 }
+]
 
 const chatOffers = [
   {
     apiModelId: 'qwen/qwen4-max',
     limits: { contextWindow: 1_000_000 },
     endpointTypes: [...chatEndpoints],
-    pricing: {
-      input: { currency: 'USD', perMillionTokens: 1.5 },
-      output: { currency: 'USD', perMillionTokens: 4.5 },
-      cacheRead: { currency: 'USD', perMillionTokens: 0.075 },
-      cacheWrite: { currency: 'USD', perMillionTokens: 1.875 }
+    pricing: flatPricing(1.5, 4.5, 0.075, 1.875),
+    reasoningContracts: {
+      'openai-chat-completions': {
+        wire: {
+          ...modeWire('enable_thinking', { off: false, auto: true }),
+          effort: {
+            operations: [
+              { target: 'enable_thinking', value: { source: 'literal', value: true } },
+              { target: 'reasoningEffort', value: EFFORT }
+            ]
+          }
+        }
+      },
+      'anthropic-messages': {
+        wire: {
+          ...modeWire('thinking.type', { off: 'disabled' }),
+          ...modeWire('effort', { auto: 'high', effort: EFFORT })
+        }
+      }
     }
   },
   {
@@ -203,6 +254,10 @@ const chatOffers = [
     endpointTypes: ['google-generate-content', ...chatEndpoints],
     inputModalities: ['text', 'image', 'video', 'audio'],
     outputModalities: ['text'],
+    pricing: {
+      ...tokenRates(2, 12, 0.2),
+      inputTokenTiers: [{ minInputTokens: 200_001, ...tokenRates(4, 18, 0.4) }]
+    },
     capabilities: {
       add: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'audio-recognition', 'file-input']
     }
@@ -211,6 +266,7 @@ const chatOffers = [
     apiModelId: 'openai/o1-mini',
     name: 'OpenAI o1-mini',
     limits: { contextWindow: 128_000 },
+    pricing: flatPricing(1.1, 4.4, 0.28),
     endpointTypes: [...chatEndpoints],
     capabilities: { add: ['reasoning'] }
   },
@@ -219,12 +275,17 @@ const chatOffers = [
     name: 'Grok 4.2 Agents',
     endpointTypes: ['openai-chat-completions', 'openai-responses'],
     inputModalities: ['text', 'image'],
+    pricing: {
+      ...tokenRates(1.25, 2.5, 0.2),
+      inputTokenTiers: [{ minInputTokens: 200_000, ...tokenRates(2.5, 5, 0.4) }]
+    },
     capabilities: { add: ['reasoning', 'image-recognition'] }
   },
   {
     apiModelId: 'minimax/minimax-m2.1--lightning',
     modelId: 'minimax-m2-1',
     name: 'MiniMax M2.1 Lightning',
+    pricing: flatPricing(0.3, 1.2, 0.03),
     limits: { contextWindow: 200_000 },
     endpointTypes: [...anthropicFirst]
   },
@@ -233,6 +294,7 @@ const chatOffers = [
       apiModelId: `openai/gpt-${version}-chat`,
       name: `GPT-${version} Chat`,
       limits: { contextWindow: 128_000 },
+      pricing: version === '5.1' ? flatPricing(1.25, 10, 0.125) : flatPricing(1.75, 14),
       endpointTypes: [...responsesEndpoints],
       ...(version === '5.3'
         ? { capabilities: { add: ['function-call'] } }
@@ -301,6 +363,7 @@ export default defineProvider({
       modelId: 'claude-fable-5-2',
       apiModelId: 'anthropic/claude-fable-5.2',
       endpointTypes: ['anthropic-messages', 'openai-chat-completions'],
+      pricing: flatPricing(8, 40, 0.2, 10),
       capabilities: { remove: ['structured-output'] }
     },
     ...deepSeekModelOverrides,
@@ -308,11 +371,23 @@ export default defineProvider({
       switch (offer.apiModelId) {
         case 'qwen/qwen3.5-4b(free)':
         case 'qwen/qwen3.5-35b-a3b(free)':
-          return { ...offer, pricing: freePricing, endpointTypes: [...chatEndpoints] }
+          return {
+            ...offer,
+            pricing: freePricing,
+            endpointTypes: [...chatEndpoints],
+            limits: { contextWindow: 262_144 }
+          }
         case 'qwen/qwen3.5-9b(free)':
-          return { ...offer, pricing: freePricing, endpointTypes: ['openai-chat-completions'] }
-        default:
-          return offer
+          return {
+            ...offer,
+            pricing: freePricing,
+            endpointTypes: ['openai-chat-completions'],
+            limits: { contextWindow: 262_144 }
+          }
+        default: {
+          const pricing = qwen35Pricing[offer.apiModelId]
+          return pricing ? { ...offer, pricing, endpointTypes: ['openai-chat-completions'] } : offer
+        }
       }
     }),
     ...freeOffers.map((offer) => ({ ...offer, pricing: freePricing })),
@@ -341,13 +416,18 @@ export default defineProvider({
         outputModalities: ['image'],
         capabilities: { add: ['image-generation'] },
         imageGeneration: { modes: { generate: { supports: {} } } },
-        pricing: {
-          input: unknownTokenPrice,
-          output: unknownTokenPrice,
-          perImage: { currency: 'USD', price, unit: 'image' }
-        }
+        pricing: perImagePricing(price)
       })
     ),
-    ...chatOffers
+    ...pricedImageOffers.map(
+      ({ apiModelId, modelId, price }): ProviderModelOffer => ({
+        apiModelId,
+        modelId,
+        endpointTypes: [apiModelId === 'qwen/qwen-image-edit-2509' ? 'openai-image-edit' : 'openai-image-generation'],
+        pricing: perImagePricing(price)
+      })
+    ),
+    ...chatOffers,
+    ...cherryInPublishedPriceOffers
   ]
 })

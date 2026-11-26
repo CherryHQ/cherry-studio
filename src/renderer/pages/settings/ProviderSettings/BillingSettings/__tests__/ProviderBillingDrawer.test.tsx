@@ -102,6 +102,34 @@ describe('provider billing draft', () => {
     expect(within(preview).getByRole('row', { name: '00:00–24:00 0.3 1.2 0.3 0.3' })).toBeVisible()
   })
 
+  it('shows CherryIN weekday rates without quoting an ambiguous cache-write rate', () => {
+    const official = ProviderSchema.parse({
+      ...provider,
+      id: 'cherryin',
+      presetProviderId: 'cherryin',
+      settings: {},
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://open.cherryin.net' } }
+    })
+    MockUseDataApiUtils.mockQueryData('/models', [
+      {
+        ...model,
+        id: 'cherryin::agent/deepseek-v4-flash',
+        providerId: 'cherryin',
+        apiModelId: 'agent/deepseek-v4-flash',
+        pricing: undefined
+      }
+    ])
+    render(<ProviderBillingDrawer provider={official} onClose={() => {}} />)
+
+    const date = screen.getByLabelText('Preview date')
+    const preview = within(screen.getByRole('region', { name: 'Unit price preview' }))
+    fireEvent.change(date, { target: { value: '2026-11-16' } })
+    expect(preview.getByRole('row', { name: '09:00–12:00 0.3 1.2 0.006 Unable to estimate' })).toBeVisible()
+    fireEvent.change(date, { target: { value: '2026-11-14' } })
+    expect(preview.getByRole('row', { name: '00:00–24:00 0.15 0.6 0.003 Unable to estimate' })).toBeVisible()
+  })
+
   it('keeps edits private until Save and discards Cancel', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()

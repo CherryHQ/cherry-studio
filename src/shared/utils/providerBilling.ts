@@ -1,5 +1,23 @@
+import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import type { RuntimeModelPricing } from '@shared/data/types/model'
 import { billingTimeMinutes, type BillingResolution, type ProviderBilling } from '@shared/data/types/providerBilling'
+
+import {
+  CHERRYIN_GEMINI_MODALITY_VERSION,
+  CHERRYIN_OPENAI_IMAGE_VERSION,
+  CHERRYIN_WEEKDAY_BILLING,
+  getCherryInGeminiModalityRates,
+  getCherryInPublishedPricing,
+  isCherryInOpenAIImageModel
+} from './providerBillingDefaults'
+
+function getRuleVersion(billing: ProviderBilling, modelId: string): string {
+  if (billing.source === 'deepseek') return '2026-11-14-weekdays'
+  if (billing.scheduleEnabled) return '2026-11-26-weekdays'
+  if (getCherryInGeminiModalityRates(modelId)) return CHERRYIN_GEMINI_MODALITY_VERSION
+  if (isCherryInOpenAIImageModel(modelId)) return CHERRYIN_OPENAI_IMAGE_VERSION
+  return '2026-11-26-cache-duration'
+}
 
 export function resolveProviderBilling(
   pricing: RuntimeModelPricing | null | undefined,
@@ -14,7 +32,12 @@ export function resolveProviderBilling(
     multiplier: billing.defaultMultiplier,
     timeZone: billing.timeZone,
     reason: 'default',
-    ...(billing.source ? { source: billing.source, ruleVersion: '2026-11-14-weekdays' } : {}),
+    ...(billing.source
+      ? {
+          source: billing.source,
+          ruleVersion: getRuleVersion(billing, modelId)
+        }
+      : {}),
     ...(startedAt ? { pricedAt: startedAt.toISOString() } : {})
   }
   if (billing.scheduleEnabled && billing.periods.length > 0) {
@@ -71,9 +94,10 @@ export function resolveProviderBilling(
       }
     }
   }
-  if (!pricing) return { pricing: null, billing: resolution }
+  const basePricing = billing.source === 'cherryin' ? (getCherryInPublishedPricing(modelId) ?? pricing) : pricing
+  if (!basePricing) return { pricing: null, billing: resolution }
   // oxlint-disable-next-line no-restricted-globals -- Apply billing multipliers to private nested pricing tiers once per estimate/request.
-  const effective = structuredClone(pricing)
+  const effective = structuredClone(basePricing)
   const multiplier = resolution.multiplier ?? 1
   for (const rates of [effective, ...(effective.inputTokenTiers ?? [])]) {
     for (const key of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) {
@@ -84,4 +108,20 @@ export function resolveProviderBilling(
   if (effective.perImage) effective.perImage.price *= multiplier
   if (effective.perMinute) effective.perMinute.price *= multiplier
   return { pricing: effective, billing: resolution }
+}
+
+export function settleCherryInPricingSnapshot(
+  snapshot: AiUsagePricingSnapshot | null,
+  modelId: string,
+  completedAt: number
+): AiUsagePricingSnapshot | null {
+  if (snapshot?.billing?.source !== 'cherryin' || snapshot.billing.reason !== 'peak_fallback') return snapshot
+
+  const { billing } = resolveProviderBilling(null, CHERRYIN_WEEKDAY_BILLING, modelId, new Date(completedAt))
+  const settled = { ...snapshot, billing }
+  const multiplier = billing?.multiplier ?? 1
+  for (const key of ['inputPerMillionTokens', 'outputPerMillionTokens', 'cacheReadPerMillionTokens'] as const) {
+    if (settled[key] !== undefined) settled[key] *= multiplier
+  }
+  return settled
 }

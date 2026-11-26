@@ -256,6 +256,11 @@ is non-null. This is read-only provenance, not a persisted field or a comparison
 against current catalog prices. Automatic provider billing defaults use it to
 preserve user-owned model prices.
 
+CherryIN catalog prices apply to the exact API model ID. Its published price
+replaces the base model price. The catalog leaves flat rates blank for routes
+with time, modality, or cache-duration rules. The desktop can estimate eligible
+routes when it has the required [billing details](../ai/ai-usage-records.md).
+
 ## Provider Configuration Merge
 
 Provider connection config follows the same layered, read-time merge as

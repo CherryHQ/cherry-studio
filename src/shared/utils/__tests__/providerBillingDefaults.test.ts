@@ -104,3 +104,69 @@ describe('DeepSeek official billing defaults', () => {
     expect(getDefaultProviderBilling(provider, { ...model, endpointTypes: ['anthropic-messages'] })).toEqual(billing)
   })
 })
+
+describe('CherryIN production weekday billing defaults', () => {
+  const cherryInProvider = { ...provider, id: 'cherryin', endpointConfigs: undefined }
+  const cherryInModel = { ...model, apiModelId: 'agent/deepseek-v4-flash', pricing: undefined }
+  const baseUrl = 'https://open.cherryin.net/v1'
+
+  it.each([
+    ['agent/deepseek-v4-flash', 0.3, 1.2, 0.006],
+    ['agent/deepseek-v4-pro', 1.35, 4.05, 0.045],
+    ['deepseek-v4.1-flash', 0.3, 1.2, 0.006],
+    ['deepseek/deepseek-flash', 0.3, 1.2, 0.006],
+    ['deepseek/deepseek-v4-flash', 0.3, 1.2, 0.006],
+    ['deepseek/deepseek-v4-flash-vision-exp', 0.3, 1.2, 0.006],
+    ['deepseek/deepseek-v4-pro', 1.35, 4.05, 0.045],
+    ['deepseek/deepseek-v4.1-flash-1017', 0.3, 1.2, 0.006]
+  ])('prices %s on weekdays and weekends using the advertised schedule', (apiModelId, input, output, cacheRead) => {
+    const billing = getDefaultProviderBilling(cherryInProvider, { ...cherryInModel, apiModelId }, baseUrl)
+    for (const [date, multiplier] of [
+      ['2026-11-16T01:00:00Z', 1],
+      ['2026-11-16T04:00:00Z', 0.5],
+      ['2026-11-16T06:00:00Z', 1],
+      ['2026-11-16T10:00:00Z', 0.5],
+      ['2026-11-14T01:00:00Z', 0.5]
+    ] as const) {
+      expect(resolveProviderBilling(undefined, billing, apiModelId, new Date(date)).pricing).toMatchObject({
+        input: { currency: 'USD', perMillionTokens: input * multiplier },
+        output: { currency: 'USD', perMillionTokens: output * multiplier },
+        cacheRead: { currency: 'USD', perMillionTokens: cacheRead * multiplier }
+      })
+    }
+  })
+
+  it('leaves custom prices, nonproduction relays and the free variant alone', () => {
+    expect(
+      getDefaultProviderBilling(cherryInProvider, { ...cherryInModel, hasCustomPricing: true }, baseUrl)
+    ).toBeUndefined()
+    expect(getDefaultProviderBilling(cherryInProvider, cherryInModel, 'https://open.cherryin.dev')).toBeUndefined()
+    expect(
+      getDefaultProviderBilling(
+        cherryInProvider,
+        { ...cherryInModel, apiModelId: 'deepseek/deepseek-v3.2(free)' },
+        baseUrl
+      )
+    ).toBeUndefined()
+  })
+
+  it('uses the published cache-duration rates without applying peak or off-peak discounts', () => {
+    const apiModelId = 'moonshotai/kimi-k3.1-pro'
+    const durationModel = { ...cherryInModel, apiModelId }
+    const billing = getDefaultProviderBilling(cherryInProvider, durationModel, baseUrl)
+
+    for (const date of ['2026-11-16T01:00:00Z', '2026-11-16T04:00:00Z']) {
+      const resolved = resolveProviderBilling(undefined, billing, apiModelId, new Date(date))
+      expect(resolved.billing).toMatchObject({
+        multiplier: 1,
+        reason: 'default',
+        ruleVersion: '2026-11-26-cache-duration'
+      })
+      expect(resolved.pricing?.cacheWrite?.perMillionTokens).toBe(2)
+    }
+    expect(
+      getDefaultProviderBilling(cherryInProvider, { ...durationModel, hasCustomPricing: true }, baseUrl)
+    ).toBeUndefined()
+    expect(getDefaultProviderBilling(cherryInProvider, durationModel, 'https://open.cherryin.dev')).toBeUndefined()
+  })
+})

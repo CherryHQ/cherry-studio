@@ -119,6 +119,15 @@ describe('catalog invariants (data/*.json)', () => {
     expect(free?.pricing?.output?.perMillionTokens).toBe(0)
   })
 
+  it('does not advertise structured output on the free OpenRouter Nemotron route', () => {
+    const index = new ProviderModelIndex(providerModelOverrides)
+    const paid = index.findOverride('openrouter', 'nvidia/nemotron-3.5-lightning')
+    const free = index.findOverride('openrouter', 'nvidia/nemotron-3.5-lightning:free')
+
+    expect(free?.capabilities?.remove ?? []).toContain('structured-output')
+    expect(paid?.capabilities?.remove ?? []).not.toContain('structured-output')
+  })
+
   it('base model ids are unique', () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
   })

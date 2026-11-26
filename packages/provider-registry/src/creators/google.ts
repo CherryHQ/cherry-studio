@@ -53,7 +53,7 @@ export default defineCreator({
     { pattern: '^gemini-3(?:[.-]\\d+)?-flash-tts' },
     {
       pattern:
-        '^(?!.*tts).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'
+        '^(?!.*(?:tts|gemini-2[.-]5-flash-image$)).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'
     },
     { pattern: '^gemini-omni-flash' },
     { pattern: '^gemini-robotics' },
@@ -323,7 +323,10 @@ export default defineCreator({
       name: 'gemini-2.5-flash-image',
       family: 'gemini-flash',
       // No web-search: only gemini-3 image models (Nano Banana Pro) ground on Google Search; 2.5 does not.
-      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
+      capabilities: ['image-recognition', 'image-generation', 'file-input'],
+      contextWindow: 32_768,
+      maxOutputTokens: 32_768,
+      reasoning: undefined,
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {

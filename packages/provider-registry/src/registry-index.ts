@@ -62,8 +62,8 @@ export class ProviderModelIndex {
       this.overridesByProvider.set(pm.providerId, providerOffers)
       if (pm.apiModelId) this.overrideByApiKey.set(`${pm.providerId}::${pm.apiModelId}`, pm)
 
-      if (pm.providerId === 'cherryin' && pm.apiModelId?.endsWith('(free)')) {
-        // CherryIN bills tagged offers independently from their normalized model.
+      if (pm.providerId === 'cherryin' && pm.apiModelId && pm.pricing) {
+        // CherryIN prices belong to the exact served model, including aliases.
         continue
       }
       const key = `${pm.providerId}::${pm.modelId}`

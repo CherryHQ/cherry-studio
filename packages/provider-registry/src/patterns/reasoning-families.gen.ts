@@ -200,7 +200,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^gemini-3(?:[.-]\\d+)?-flash-tts' },
   {
     pattern:
-      '^(?!.*tts).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'
+      '^(?!.*(?:tts|gemini-2[.-]5-flash-image$)).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'
   },
   { pattern: '^gemini-omni-flash' },
   { pattern: '^gemini-robotics' },

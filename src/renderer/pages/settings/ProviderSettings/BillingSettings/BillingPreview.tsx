@@ -139,7 +139,9 @@ export function BillingPreview({
                 input: tier.inputPerMillionTokens,
                 output: tier.outputPerMillionTokens,
                 cacheRead: tier.cacheReadPerMillionTokens ?? tier.inputPerMillionTokens,
-                cacheWrite: tier.cacheWritePerMillionTokens ?? tier.inputPerMillionTokens
+                cacheWrite:
+                  tier.cacheWritePerMillionTokens ??
+                  (effectiveBilling?.source === 'cherryin' ? undefined : tier.inputPerMillionTokens)
               }
               return (
                 <TableRow

@@ -1,5 +1,6 @@
 import type { LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
 import type { LanguageModelMiddleware } from 'ai'
+import { isPlainObject } from 'es-toolkit'
 
 import { type AiPlugin, definePlugin } from '@cherrystudio/ai-core'
 import {
@@ -7,6 +8,10 @@ import {
   aiUsageRecordService,
   type RecordAiInvocationInput
 } from '@data/services/AiUsageRecordService'
+import {
+  CHERRYIN_GEMINI_MODALITY_VERSION,
+  getCherryInOneHourCacheWriteMultiplier
+} from '@shared/utils/providerBillingDefaults'
 
 import { extractProviderCostWithCurrency } from '../utils/billingCost'
 import { ensureNestedV3Usage, recordTotalTokens } from '../utils/usageNormalize'
@@ -38,6 +43,45 @@ function usageToRecord(usage: LanguageModelV3Usage): NonNullable<RecordAiInvocat
   }
 }
 
+function weightCacheWriteSplit(total: number, short: unknown, long: unknown, multiplier: number): number | undefined {
+  const shortTokens = short === undefined ? 0 : short
+  const longTokens = long === undefined ? 0 : long
+  if (
+    typeof shortTokens !== 'number' ||
+    typeof longTokens !== 'number' ||
+    !Number.isSafeInteger(shortTokens) ||
+    !Number.isSafeInteger(longTokens) ||
+    shortTokens < 0 ||
+    longTokens < 0 ||
+    shortTokens + longTokens !== total
+  ) {
+    return undefined
+  }
+  return shortTokens + longTokens * multiplier
+}
+
+function cherryInBillableCacheWriteTokens(
+  raw: LanguageModelV3Usage['raw'],
+  total: number,
+  modelId: string
+): number | undefined {
+  const claudeSplit: unknown = raw?.cache_creation
+  const promptDetails: unknown = raw?.prompt_tokens_details
+  const chatSplit = isPlainObject(promptDetails) ? promptDetails.cache_write_tokens_details : undefined
+  if (isPlainObject(claudeSplit) && !isPlainObject(chatSplit)) {
+    return weightCacheWriteSplit(
+      total,
+      claudeSplit.ephemeral_5m_input_tokens,
+      claudeSplit.ephemeral_1h_input_tokens,
+      getCherryInOneHourCacheWriteMultiplier(modelId)
+    )
+  }
+  if (isPlainObject(chatSplit) && !isPlainObject(claudeSplit)) {
+    return weightCacheWriteSplit(total, chatSplit.ttl_30m_tokens, chatSplit.ttl_12h_tokens, 2)
+  }
+  return undefined
+}
+
 function semanticOutput(part: LanguageModelV3StreamPart): boolean {
   return (
     part.type === 'text-delta' ||
@@ -62,11 +106,19 @@ function recordLanguageInvocation(
   record: (input: RecordAiInvocationInput) => void
 ): void {
   const providerCost = extractProviderCostWithCurrency(usage.raw, context.reportedCostCurrency)
+  const recordedUsage = usageToRecord(usage)
+  if (context.pricingSnapshot?.billing?.ruleVersion === CHERRYIN_GEMINI_MODALITY_VERSION) {
+    recordedUsage.modalityUsage = usage.raw
+  }
+  if (context.pricingSnapshot?.billing?.source === 'cherryin' && recordedUsage.cacheWriteTokens) {
+    const billableTokens = cherryInBillableCacheWriteTokens(usage.raw, recordedUsage.cacheWriteTokens, context.modelId)
+    if (billableTokens !== undefined) recordedUsage.cacheWriteBillableTokens = billableTokens
+  }
   record({
     requestId,
     context,
     modality: 'language',
-    usage: usageToRecord(usage),
+    usage: recordedUsage,
     ...(providerCost ? { providerCost } : {}),
     metrics,
     completedAt

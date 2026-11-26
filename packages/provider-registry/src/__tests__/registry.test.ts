@@ -120,7 +120,10 @@ describe('portable registry', () => {
         cacheRead: { perMillionTokens: 0 }
       }
     })
-    expect(registry.findOverride('cherryin', 'deepseek/deepseek-v3.2')?.pricing).toBeUndefined()
+    expect(registry.findOverride('cherryin', 'deepseek/deepseek-v3.2')?.pricing).toMatchObject({
+      input: { perMillionTokens: null },
+      output: { perMillionTokens: null }
+    })
     expect(registry.findOverride('cherryin', 'qwen/qwen3.5-4b')).toBeNull()
   })
 
@@ -131,6 +134,30 @@ describe('portable registry', () => {
       imageGeneration: { modes: { generate: { supports: {} } } },
       pricing: { perImage: { price: 0.013698630137, currency: 'USD', unit: 'image' } }
     })
+  })
+
+  it('preserves the different 200K pricing thresholds for CherryIN Gemini and Grok', () => {
+    const registry = createRegistry(bundledCatalog)
+    expect(registry.findOverride('cherryin', 'google/gemini-3-pro-preview')?.pricing).toMatchObject({
+      input: { perMillionTokens: 2 },
+      inputTokenTiers: [{ minInputTokens: 200_001, input: { perMillionTokens: 4 } }]
+    })
+    expect(registry.findOverride('cherryin', 'x-ai/grok-4.2-agents')?.pricing).toMatchObject({
+      input: { perMillionTokens: 1.25 },
+      inputTokenTiers: [{ minInputTokens: 200_000, input: { perMillionTokens: 2.5 } }]
+    })
+  })
+
+  it('keeps CherryIN paid aliases from supplying prices to a different API ID', () => {
+    const registry = createRegistry(bundledCatalog)
+    const agent = registry.findOverride('cherryin', 'agent/glm-5')
+    const standard = registry.findOverride('cherryin', 'z-ai/glm-5')
+
+    expect(agent?.apiModelId).toBe('agent/glm-5')
+    expect(standard?.apiModelId).toBe('z-ai/glm-5')
+    expect(agent?.pricing?.input?.perMillionTokens).toBe(0.86)
+    expect(standard?.pricing?.input?.perMillionTokens).toBeGreaterThan(0)
+    expect(registry.findOverride('cherryin', 'unknown/glm-5')).toBeNull()
   })
 })
 

@@ -136,9 +136,10 @@ settings; Save applies them, Cancel discards edits, and Reset removes only
   including cache and token tiers, without changing currency or tier thresholds.
   The per-period unit-price preview uses the same resolver as usage capture.
 - Trusted provider-reported costs take priority and are not multiplied.
-- Each observable invocation freezes its prices and optional `billing` metadata
-  at the start. Calls crossing a boundary retain those prices; later tool calls,
-  retries and fallback models resolve again. Settings edits do not rewrite history.
+- Each observable invocation freezes its pricing inputs before the provider call.
+  User-defined schedules and DeepSeek defaults select their periods at invocation
+  start. Later tool calls, retries and fallback models resolve again. Settings
+  edits leave historical estimates intact.
 
 DeepSeek's first-party Flash, Pro and the two retired Flash aliases inherit the
 weekday schedule when no provider billing override or stored model-price override
@@ -155,6 +156,31 @@ holiday table or missing-year fallback. Legacy settings without this condition s
 apply daily. Snapshots retain default source and rule version. These are client estimates, not a claim
 about DeepSeek's undisclosed cross-boundary settlement rule.
 
+CherryIN's eight exact DeepSeek routes with published weekday pricing use the
+same periods. The client's estimate freezes the peak token rates, then selects
+the multiplier at invocation completion. When the response accounts for all cache
+writes by duration, the estimate prices one-hour Messages writes at 1.6 times the
+short-duration rate and 12-hour Chat Completions writes at twice that rate. The
+usage record retains the original token counts. Missing or inconsistent duration
+counts leave the cost unset. Saved provider billing and model price overrides take
+precedence over the defaults. [CherryIN pricing](https://open.cherryin.ai/api/pricing) · [New API billing rules](https://docs.newapi.pro/zh/docs/guide/feature-guide/admin/billing-expression)
+
+The same resolver applies the published duration-specific rates for Claude Haiku
+5.5, Kimi K3.1 Pro, and Kimi K3.1 Pro Highspeed. The Haiku rate changes above
+100,000 total input tokens, including cache reads and writes. These models use the
+same rates throughout the day. Their flat catalog prices stay unset so clients
+without duration-aware estimates do not show a single cache-write price.
+
+For eight CherryIN Gemini routes, the desktop uses the published audio-input or
+image-output rates when the response supplies the applicable token split. A
+generation response that omits the split leaves its cost unset. Raw usage details
+are used for the estimate and are discarded after recording. [CherryIN pricing](https://open.cherryin.ai/api/pricing)
+
+Five CherryIN GPT Image routes use the published text-input, image-input,
+cached-input and output rates. The estimate applies cached tokens to text input
+first, then to image input. It requires token counts from the generation or edit
+response. [CherryIN pricing](https://open.cherryin.ai/api/pricing)
+
 The settings preview accepts a date and highlights the current period for today.
 It uses the same default eligibility
 and multiplier resolver as capture. Model price overrides remain undiscounted
@@ -167,7 +193,7 @@ or discount on separately billed search, file and speech APIs is performed.
 | Language calls and gateway agents | Each `doGenerate` / `doStream`. |
 | Embedding, SDK image and rerank | Each provider call, below SDK batching/retries. Rerank may still lack billable usage. |
 | Custom async images | Image submission. |
-| Direct DSH / Claude Code / external CLI | Frozen connection prices, refreshed at reconciliation. Without a reliable start time, use the highest active daily multiplier and record `peak_fallback`; include the default only for uncovered time. |
+| Direct DSH / Claude Code / external CLI | Frozen connection prices, refreshed at reconciliation. Without a reliable start time, start-based schedules use the highest active daily multiplier and record `peak_fallback`, including the default for uncovered time. |
 
 Missing required prices remain unpriced. Billing is stored in provider JSON and
 preserved by duplication and backup. Older snapshots and billing settings remain
@@ -321,9 +347,8 @@ invocation; tiers are not progressive. A count exactly on a boundary enters
 the new tier. If the input count is unavailable, tiered language cost remains
 unpriced rather than assuming the base tier. Per-image pricing is used only
 when a runtime model actually
-supplies `pricing.perImage`; current preset/settings producers normally do not,
-so image calls without provider-reported cost remain unpriced. Pixel pricing
-also stays unpriced without a reliable pixel count.
+supplies `pricing.perImage`. Token-priced CherryIN images use the provider's
+reported token counts. Pixel pricing requires a reliable pixel count.
 Provider cost breakdown is saved only when complete and equal to the reported
 total.
 

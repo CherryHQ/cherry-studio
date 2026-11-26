@@ -2,6 +2,7 @@ import '@data/services/ProviderRegistryService'
 import { resolve } from 'node:path'
 
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { tool, type UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
@@ -20,7 +21,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ProviderBilling } from '@shared/data/types/providerBilling'
 
 import { AiService } from '../AiService'
@@ -81,6 +82,33 @@ function cacheCompletion(usage: Record<string, unknown>, mode: 'generate' | 'str
   )
 }
 
+function anthropicCompletion(model: string, usage: Record<string, unknown>, mode: 'generate' | 'stream') {
+  const message = {
+    id: 'msg_fixture',
+    type: 'message',
+    role: 'assistant',
+    model,
+    content: [{ type: 'text', text: 'ok' }],
+    stop_reason: 'end_turn',
+    usage
+  }
+  if (mode === 'generate') return Response.json(message)
+  const events = [
+    {
+      type: 'message_start',
+      message: { ...message, content: [], stop_reason: null, usage: { ...usage, output_tokens: 0 } }
+    },
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } },
+    { type: 'content_block_stop', index: 0 },
+    { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: usage.output_tokens } },
+    { type: 'message_stop' }
+  ]
+  return new Response(events.map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(''), {
+    headers: { 'content-type': 'text/event-stream' }
+  })
+}
+
 describe('provider billing through AiService and the real SDK', () => {
   const dbh = setupTestDatabase()
   beforeEach(() => {
@@ -124,6 +152,7 @@ describe('provider billing through AiService and the real SDK', () => {
       .run()
   })
   afterEach(() => {
+    MockApplicationUtils.resetServices()
     vi.useRealTimers()
     vi.restoreAllMocks()
   })
@@ -168,7 +197,8 @@ describe('provider billing through AiService and the real SDK', () => {
         )
         .run()
       const service = new (AiService as unknown as new () => AiService)()
-      for (const details of [{ cache_creation_tokens: 155712 }, { cache_read_tokens: 155712 }]) {
+      const writeDetails = mode === 'stream' ? { cache_write_tokens: 155712 } : { cache_creation_input_tokens: 155712 }
+      for (const details of [writeDetails, { cache_read_tokens: 155712 }]) {
         transport.mockImplementationOnce(async () =>
           cacheCompletion(
             {
@@ -406,6 +436,491 @@ describe('provider billing through AiService and the real SDK', () => {
     rows = dbh.db.select().from(aiUsageRecordTable).all()
     expect(rows.map((row) => row.cost)).toContain(0.008)
     expect(rows.filter((row) => row.pricingSnapshot?.billing?.source === 'deepseek')).toHaveLength(2)
+  })
+
+  it.each([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])(
+    'settles CherryIN %s usage and cache lifetimes at the completion rate',
+    async (endpoint) => {
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'cherryin',
+          presetProviderId: 'cherryin',
+          name: 'CherryIN',
+          orderKey: 'a1',
+          isEnabled: true,
+          defaultChatEndpoint: endpoint,
+          endpointConfigs: { [endpoint]: { baseUrl: 'https://open.cherryin.net' } }
+        })
+        .run()
+      const uniqueModelId = 'cherryin::deepseek/deepseek-v4-pro' as const
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: uniqueModelId,
+          providerId: 'cherryin',
+          modelId: 'deepseek/deepseek-v4-pro',
+          presetModelId: 'deepseek-v4-pro',
+          orderKey: 'a1',
+          endpointTypes: [endpoint]
+        })
+        .run()
+      const anthropic = endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      const reply = (
+        cacheRead: number,
+        cacheWrite = 0,
+        split?: { short: number; long?: number },
+        mode: 'generate' | 'stream' = 'generate'
+      ) =>
+        anthropic
+          ? anthropicCompletion(
+              'deepseek/deepseek-v4-pro',
+              {
+                input_tokens: 2000 - cacheRead - cacheWrite,
+                output_tokens: 1000,
+                cache_read_input_tokens: cacheRead,
+                cache_creation_input_tokens: cacheWrite,
+                ...(split
+                  ? {
+                      cache_creation: { ephemeral_5m_input_tokens: split.short, ephemeral_1h_input_tokens: split.long }
+                    }
+                  : {})
+              },
+              mode
+            )
+          : cacheCompletion(
+              {
+                prompt_tokens: 2000,
+                completion_tokens: 1000,
+                prompt_tokens_details: {
+                  cached_tokens: cacheRead,
+                  cache_write_tokens: cacheWrite,
+                  ...(split
+                    ? { cache_write_tokens_details: { ttl_30m_tokens: split.short, ttl_12h_tokens: split.long } }
+                    : {})
+                }
+              },
+              mode
+            )
+      const service = new (AiService as unknown as new () => AiService)()
+      vi.setSystemTime(new Date('2026-11-16T11:59:59+08:00'))
+      transport.mockImplementationOnce(async () => {
+        vi.setSystemTime(new Date('2026-11-16T12:00:01+08:00'))
+        return reply(1000)
+      })
+      await service.generateText({ ...request, uniqueModelId })
+
+      expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+        cost: expect.closeTo(0.0027225, 12),
+        costSource: 'computed',
+        pricingSnapshot: {
+          billing: { multiplier: 0.5, pricedAt: '2026-11-16T04:00:01.000Z' },
+          inputPerMillionTokens: 0.675,
+          outputPerMillionTokens: 2.025,
+          cacheReadPerMillionTokens: 0.0225
+        }
+      })
+
+      for (const [mode, split, expectedCost, expectedCacheWriteCost] of [
+        ['generate', { short: 1000 }, 0.00304875, 0.000675],
+        ['stream', { short: 600, long: 400 }, anthropic ? 0.00321075 : 0.00331875, anthropic ? 0.000837 : 0.000945],
+        ['generate', { short: 600, long: 200 }, null, null],
+        ['generate', undefined, null, null]
+      ] as const) {
+        const completedAt = Date.now() + 1000
+        vi.setSystemTime(completedAt)
+        transport.mockImplementationOnce(async () => reply(500, 1000, split, mode))
+        if (mode === 'stream') {
+          const result = await service.runTextStreamRequest('cache-lifetime', { ...request, uniqueModelId }, () => {})
+          expect(result.text).toBe('ok')
+        } else {
+          await service.generateText({ ...request, uniqueModelId })
+        }
+        const row = dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.createdAt, completedAt)).get()
+        expect(row).toMatchObject({
+          inputTokens: 2000,
+          noCacheTokens: 500,
+          cacheReadTokens: 500,
+          cacheWriteTokens: 1000,
+          cost: expectedCost === null ? null : expect.closeTo(expectedCost, 12),
+          costBreakdown:
+            expectedCacheWriteCost === null ? null : { cacheWrite: expect.closeTo(expectedCacheWriteCost, 12) }
+        })
+      }
+    }
+  )
+
+  it.each([
+    ['anthropic/claude-haiku-5.5', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 100_000, 0.01051, 0.000155, 'claude-haiku-5-5'],
+    ['anthropic/claude-haiku-5.5', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 100_001, 0.0525505, 0.000775, 'claude-haiku-5-5'],
+    ['moonshotai/kimi-k3.1-pro', ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 2000, 0.0139, 0.0028, 'kimi-k3-1-pro'],
+    [
+      'moonshotai/kimi-k3.1-pro-highspeed',
+      ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      2000,
+      0.0277,
+      0.0056,
+      'kimi-k3-1-pro-highspeed'
+    ],
+    [
+      'anthropic/claude-haiku-5.5',
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      100_001,
+      0.0526505,
+      0.000875,
+      'claude-haiku-5-5'
+    ]
+  ] as const)(
+    'prices %s on %s at %s total input tokens with a complete write split',
+    async (apiModelId, endpoint, input, cost, writeCost, presetModelId) => {
+      dbh.db
+        .insert(userProviderTable)
+        .values({
+          providerId: 'cherryin',
+          presetProviderId: 'cherryin',
+          name: 'CherryIN',
+          orderKey: 'a1',
+          isEnabled: true,
+          defaultChatEndpoint: endpoint
+        })
+        .run()
+      const uniqueModelId = `cherryin::${apiModelId}` as const
+      dbh.db
+        .insert(userModelTable)
+        .values({
+          id: uniqueModelId,
+          providerId: 'cherryin',
+          modelId: apiModelId,
+          presetModelId,
+          orderKey: 'a1',
+          endpointTypes: [endpoint]
+        })
+        .run()
+      vi.setSystemTime(new Date('2026-11-16T12:01:00+08:00'))
+      transport.mockImplementationOnce(async () =>
+        endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+          ? anthropicCompletion(
+              apiModelId,
+              {
+                input_tokens: input - 1500,
+                output_tokens: 1000,
+                cache_read_input_tokens: 500,
+                cache_creation_input_tokens: 1000,
+                cache_creation: { ephemeral_5m_input_tokens: 600, ephemeral_1h_input_tokens: 400 }
+              },
+              'generate'
+            )
+          : completion({
+              prompt_tokens: input,
+              completion_tokens: 1000,
+              prompt_tokens_details: {
+                cached_tokens: 500,
+                cache_write_tokens: 1000,
+                cache_write_tokens_details: { ttl_30m_tokens: 600, ttl_12h_tokens: 400 }
+              }
+            })
+      )
+      const service = new (AiService as unknown as new () => AiService)()
+      expect(
+        (await service.generateText({ ...request, uniqueModelId, callOverrides: { maxOutputTokens: 4096 } })).text
+      ).toBe('ok')
+
+      expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+        inputTokens: input,
+        cacheWriteTokens: 1000,
+        cost: expect.closeTo(cost, 12),
+        costSource: 'computed',
+        costBreakdown: { cacheWrite: expect.closeTo(writeCost, 12) }
+      })
+    }
+  )
+
+  function addCherryInModel(
+    apiModelId: string,
+    presetModelId: string,
+    endpoint: EndpointType = ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+  ) {
+    const uniqueModelId = `cherryin::${apiModelId}` as const
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'cherryin',
+        presetProviderId: 'cherryin',
+        name: 'CherryIN',
+        orderKey: 'a1',
+        isEnabled: true,
+        defaultChatEndpoint:
+          endpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? endpoint : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      })
+      .run()
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: uniqueModelId,
+        providerId: 'cherryin',
+        modelId: apiModelId,
+        presetModelId,
+        orderKey: 'a1',
+        endpointTypes: [endpoint]
+      })
+      .run()
+    return uniqueModelId
+  }
+
+  it('includes Gemini tool prompt tokens in the recorded CherryIN cost', async () => {
+    const uniqueModelId = addCherryInModel('google/gemini-2.5-flash', 'gemini-2-5-flash')
+    transport.mockResolvedValueOnce(
+      Response.json({
+        candidates: [{ content: { role: 'model', parts: [{ text: 'ok' }] }, finishReason: 'STOP' }],
+        usageMetadata: {
+          promptTokenCount: 30,
+          toolUsePromptTokenCount: 12,
+          cachedContentTokenCount: 8,
+          candidatesTokenCount: 7,
+          thoughtsTokenCount: 3,
+          totalTokenCount: 52
+        }
+      })
+    )
+    const service = new (AiService as unknown as new () => AiService)()
+    expect((await service.generateText({ ...request, uniqueModelId })).text).toBe('ok')
+
+    expect(new URL(String(transport.mock.calls[0][0])).pathname).toBe(
+      '/v1beta/models/google/gemini-2.5-flash:generateContent'
+    )
+    expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+      inputTokens: 42,
+      noCacheTokens: 34,
+      cacheReadTokens: 8,
+      outputTokens: 10,
+      totalTokens: 52,
+      cost: expect.closeTo(0.00003544, 12),
+      costSource: 'computed'
+    })
+  })
+
+  it.each(['native', 'chat', 'missing audio details'] as const)(
+    'prices the CherryIN Gemini audio split for %s',
+    async (mode) => {
+      const uniqueModelId = addCherryInModel(
+        'google/gemini-3.1-flash-lite',
+        'gemini-3-1-flash-lite',
+        mode === 'chat' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      )
+      transport.mockResolvedValueOnce(
+        mode === 'chat'
+          ? completion({
+              prompt_tokens: 24,
+              completion_tokens: 1,
+              total_tokens: 25,
+              prompt_tokens_details: { audio_tokens: 13 }
+            })
+          : Response.json({
+              candidates: [{ content: { role: 'model', parts: [{ text: 'ok' }] }, finishReason: 'STOP' }],
+              usageMetadata: {
+                promptTokenCount: 24,
+                candidatesTokenCount: 1,
+                totalTokenCount: 25,
+                ...(mode === 'native'
+                  ? {
+                      promptTokensDetails: [
+                        { modality: 'AUDIO', tokenCount: 13 },
+                        { modality: 'TEXT', tokenCount: 11 }
+                      ]
+                    }
+                  : {})
+              }
+            })
+      )
+      const service = new (AiService as unknown as new () => AiService)()
+      expect((await service.generateText({ ...request, uniqueModelId })).text).toBe('ok')
+
+      expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+        inputTokens: 24,
+        outputTokens: 1,
+        totalTokens: 25,
+        cost: mode === 'missing audio details' ? null : expect.closeTo(0.00001075, 12)
+      })
+    }
+  )
+
+  it('prices image token output on the desktop Gemini image route', async () => {
+    const uniqueModelId = addCherryInModel('google/gemini-2.5-flash-image', 'gemini-2-5-flash-image')
+    const file = { id: 'generated-image', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }
+    MockApplicationUtils.setService('FileManager', { createInternalEntry: vi.fn().mockResolvedValue(file) })
+    transport.mockResolvedValueOnce(
+      Response.json({
+        candidates: [
+          {
+            content: { role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: 'aW1hZ2U=' } }] },
+            finishReason: 'STOP'
+          }
+        ],
+        usageMetadata: {
+          promptTokenCount: 8,
+          candidatesTokenCount: 1290,
+          totalTokenCount: 1298,
+          candidatesTokensDetails: [{ modality: 'IMAGE', tokenCount: 1290 }]
+        }
+      })
+    )
+
+    const service = new (AiService as unknown as new () => AiService)()
+    const result = await service.generateImage({ ...request, uniqueModelId, paramValues: {}, cleanupPolicy: 'manual' })
+    expect(result.files).toEqual([file])
+    expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+      modality: 'image',
+      imageCount: 1,
+      inputTokens: 8,
+      outputTokens: 1290,
+      cost: expect.closeTo(0.0387024, 12),
+      costBreakdown: { image: expect.closeTo(0.0387, 12) }
+    })
+  })
+
+  it.each([
+    [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, 'openai/gpt-image-2', 'gpt-image-2', 0, 0, 0.0019],
+    [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT, 'openai/gpt-image-2.5-flare', 'gpt-image-2-5-flare', 100, 120, 0.001705]
+  ] as const)(
+    'records CherryIN image token settlement through %s',
+    async (endpoint, apiId, presetId, images, cached, cost) => {
+      const uniqueModelId = addCherryInModel(apiId, presetId, endpoint)
+      const file = { id: 'generated-image', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }
+      MockApplicationUtils.setService('FileManager', { createInternalEntry: vi.fn().mockResolvedValue(file) })
+      transport.mockResolvedValueOnce(
+        Response.json({
+          data: [{ b64_json: 'aW1hZ2U=' }],
+          usage: {
+            input_tokens: 200,
+            output_tokens: 30,
+            total_tokens: 230,
+            input_tokens_details: { text_tokens: 200 - images, image_tokens: images, cached_tokens: cached }
+          }
+        })
+      )
+      const edits = endpoint === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+      const service = new (AiService as unknown as new () => AiService)()
+      const result = await service.generateImage({
+        ...request,
+        uniqueModelId,
+        paramValues: {},
+        cleanupPolicy: 'manual',
+        ...(edits ? { inputImages: ['data:image/png;base64,aW1hZ2U='] } : {})
+      })
+
+      expect(result.files).toEqual([file])
+      expect(new URL(String(transport.mock.calls[0][0])).pathname).toBe(
+        edits ? '/v1/images/edits' : '/v1/images/generations'
+      )
+      expect(dbh.db.select().from(aiUsageRecordTable).get()).toMatchObject({
+        modality: 'image',
+        imageCount: 1,
+        inputTokens: 200,
+        outputTokens: 30,
+        cacheReadTokens: cached,
+        cost: expect.closeTo(cost, 12),
+        costBreakdown: { image: expect.closeTo(0.0009, 12) }
+      })
+    }
+  )
+
+  it.each([
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, '/v1/chat/completions', 'generate'],
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, '/v1/messages', 'generate'],
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, '/v1/chat/completions', 'chat stream'],
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, '/v1/messages', 'chat stream'],
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, '/v1/chat/completions', 'text stream'],
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, '/v1/messages', 'text stream']
+  ] as const)('preserves Qwen4 Max reasoning on %s (%s, %s)', async (endpoint, path, mode) => {
+    dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'cherryin',
+        presetProviderId: 'cherryin',
+        name: 'CherryIN',
+        orderKey: 'a1',
+        isEnabled: true
+      })
+      .run()
+    const uniqueModelId = 'cherryin::qwen/qwen4-max' as const
+    dbh.db
+      .insert(userModelTable)
+      .values({
+        id: uniqueModelId,
+        providerId: 'cherryin',
+        modelId: 'qwen/qwen4-max',
+        presetModelId: 'qwen4-max',
+        orderKey: 'a1',
+        endpointTypes: [endpoint]
+      })
+      .run()
+
+    const anthropic = endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    const responseMode = mode === 'generate' ? 'generate' : 'stream'
+    transport.mockImplementation(async () =>
+      anthropic
+        ? anthropicCompletion('qwen/qwen4-max', { input_tokens: 10, output_tokens: 2 }, responseMode)
+        : cacheCompletion({ prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 }, responseMode)
+    )
+    const service = new (AiService as unknown as new () => AiService)()
+
+    for (const selection of ['none', 'low', 'high', 'xhigh', 'auto', 'default'] as const) {
+      const reasoningRequest = {
+        ...request,
+        uniqueModelId,
+        reasoningEffort: selection,
+        ...(selection === 'none' && anthropic
+          ? {}
+          : { callOverrides: { maxOutputTokens: selection === 'none' || selection === 'xhigh' ? 262_144 : 4096 } })
+      }
+      if (mode === 'generate') {
+        expect(await service.generateText(reasoningRequest)).toMatchObject({ text: 'ok', finishReason: 'stop' })
+      } else if (mode === 'text stream') {
+        const deltas: string[] = []
+        const result = await service.runTextStreamRequest(`qwen4-${selection}`, reasoningRequest, (delta) => {
+          deltas.push(delta)
+        })
+        expect(result).toMatchObject({ text: 'ok', finishReason: 'stop' })
+        expect(deltas.join('')).toBe('ok')
+      } else {
+        const result = await service.streamText({
+          ...reasoningRequest,
+          trigger: 'submit-message',
+          conversation: { id: 'qwen4-chat', topicId: 'qwen4-chat' },
+          messages: [{ id: 'user', role: 'user', parts: [{ type: 'text', text: request.prompt }] }],
+          requestOptions: { ...request.requestOptions, signal: new AbortController().signal }
+        })
+        if (result.kind !== 'chunks') throw new Error('Expected provider chunks')
+        const chunks: UIMessageChunk[] = []
+        for await (const chunk of result.stream) chunks.push(chunk)
+        expect(chunks).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'ok' }))
+        expect(chunks).toContainEqual(expect.objectContaining({ type: 'finish', finishReason: 'stop' }))
+      }
+      const [url, init] = transport.mock.lastCall!
+      const body = JSON.parse(String(init?.body))
+      expect(new URL(String(url)).pathname).toBe(path)
+      expect(body.model).toBe('qwen/qwen4-max')
+      expect(Boolean(body.stream)).toBe(mode !== 'generate')
+      const expectedMaxTokens =
+        selection === 'none' && !anthropic ? 131_072 : selection === 'none' || selection === 'xhigh' ? 262_144 : 4096
+      expect(body.max_tokens).toBe(expectedMaxTokens)
+      const useProviderDefault = selection === 'auto' || selection === 'default'
+      if (anthropic) {
+        if (selection === 'none') {
+          expect(body.thinking).toEqual({ type: 'disabled' })
+          expect(body).not.toHaveProperty('output_config')
+        } else {
+          expect(body.output_config?.effort, selection).toBe(useProviderDefault ? undefined : selection)
+          expect(body).not.toHaveProperty('thinking')
+        }
+      } else {
+        expect(body.enable_thinking, selection).toBe(useProviderDefault ? undefined : selection !== 'none')
+        expect(body.reasoning_effort, selection).toBe(
+          useProviderDefault || selection === 'none' ? undefined : selection
+        )
+        expect(body).not.toHaveProperty('thinking_budget')
+      }
+    }
   })
 
   it('uses frozen peak pricing when invocation time is unknown while preserving trusted reported costs', () => {

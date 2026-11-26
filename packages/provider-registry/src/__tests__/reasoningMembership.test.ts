@@ -50,7 +50,6 @@ describe('inferReasoningMembership', () => {
     'mimo-v2-6-flash',
     'mimo-v2-6-pro-ultraspeed',
     'llama-3-1-nemotron-ultra-253b-v1',
-    // Gemini image SKUs ship thinking budgets (catalog: gemini-2-5-flash-image, 3-1-flash-image).
     'gemini-3-flash-image',
     'mistralai/mistral-large-4-0',
     // Xunfei MaaS (讯飞星辰) ids omit hyphens/dots (iflytek creator): deepseek-v3.2,
@@ -74,6 +73,8 @@ describe('inferReasoningMembership', () => {
     'step-5',
     'step-router-v1',
     'gpt-5.1-chat',
+    'gemini-2-5-flash-image',
+    'google/gemini-2.5-flash-image',
     'text-embedding-3-small',
     'bge-reranker-v2',
     'qwen2.5-72b-instruct',
