@@ -121,6 +121,80 @@ describe('Agent session message reads', () => {
     await expect(detail.GET({ params })).resolves.toMatchObject({ data: { parts } })
   })
 
+  it('keeps bounded citation identity for oversized web_search parts across deferred list and detail reads', async () => {
+    const metadata = {
+      type: 'mcp',
+      name: 'web_search',
+      serverName: 'cherry-tools',
+      serverId: 'cherry-tools'
+    }
+    const mismatchOutput = {
+      content: [{ id: '3f2a1b9c-1', title: 'Handler Source', url: 'https://example.com/handler', content: '' }],
+      metadata
+    }
+    mismatchOutput.content[0].content = 'a'.repeat(32_674 - Buffer.byteLength(JSON.stringify(mismatchOutput)))
+    const mismatchPart = {
+      type: 'dynamic-tool' as const,
+      toolName: 'mcp__cherry-tools__web_search',
+      toolCallId: 'call-handler-mismatch',
+      state: 'output-available' as const,
+      input: { query: 'mismatch' },
+      output: mismatchOutput
+    }
+    const hugeInputPart = {
+      type: 'dynamic-tool' as const,
+      toolName: 'tool_call',
+      toolCallId: 'call-handler-huge-input',
+      state: 'output-available' as const,
+      input: { name: 'mcp__cherry-tools__web_search', params: { query: 'x'.repeat(64 * 1024) } },
+      output: {
+        content: [{ id: '3f2a1b9c-2', title: 'Huge Handler', url: 'https://example.com/huge', content: 'snippet' }],
+        metadata
+      }
+    }
+
+    const message = agentSessionMessageService.saveMessage({
+      sessionId,
+      message: { role: 'assistant', status: 'success', data: { parts: [mismatchPart, hugeInputPart] } }
+    })
+    const params = { sessionId, messageId: message.id }
+    const query = { deferToolOutputs: true }
+
+    const compact = AgentSessionMessageEntitySchema.parse(await detail.GET({ params, query }))
+    const page = await list.GET({ params: { sessionId }, query })
+    if (!('items' in page)) throw new Error('Expected a message page')
+    expect(page.items).toEqual([compact])
+
+    const [projectedMismatch, projectedHugeInput] = compact.data.parts ?? []
+    expect(Buffer.byteLength(JSON.stringify(projectedMismatch))).toBeLessThanOrEqual(DEFER_TOOL_OUTPUT_BYTES)
+    expect(Buffer.byteLength(JSON.stringify(projectedHugeInput))).toBeLessThanOrEqual(DEFER_TOOL_OUTPUT_BYTES)
+    expect(projectedMismatch).toMatchObject({
+      type: 'dynamic-tool',
+      toolName: 'mcp__cherry-tools__web_search',
+      output: {
+        skeleton: {
+          content: [{ id: '3f2a1b9c-1', title: 'Handler Source', url: 'https://example.com/handler' }]
+        }
+      }
+    })
+    expect(projectedHugeInput).toMatchObject({
+      type: 'data-deferred-history-part',
+      data: {
+        partId: compact.partIds![1],
+        citation: {
+          toolName: 'web_search',
+          skeleton: {
+            content: [{ id: '3f2a1b9c-2', title: 'Huge Handler', url: 'https://example.com/huge' }]
+          }
+        }
+      }
+    })
+
+    const partRoute = agentSessionMessageHandlers['/agent-sessions/:sessionId/messages/:messageId/parts/:partId']
+    await expect(partRoute.GET({ params: { ...params, partId: compact.partIds![1] } })).resolves.toEqual(hugeInputPart)
+    await expect(detail.GET({ params })).resolves.toMatchObject({ data: { parts: [mismatchPart, hugeInputPart] } })
+  })
+
   it('reads the saved edit and rejects a patch attempting to set terminal status', async () => {
     const row = agentSessionMessageService.saveMessage({ sessionId, message: { role: 'user', data: { parts: [] } } })
     const params = { sessionId, messageId: row.id }

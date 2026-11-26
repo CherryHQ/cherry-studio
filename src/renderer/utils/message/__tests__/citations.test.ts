@@ -5,6 +5,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   buildCitationPartsRegistry,
   getPriorCitationParts,
+  isCitationSourcePart,
   resolveCitationMarkerParts,
   resolveMessageCitations,
   stripCitationMarkers,
@@ -186,6 +187,94 @@ describe('resolveMessageCitations', () => {
       webToolPart({ $deferredToolResult: { topicId: 'topic-1', messageId: 'm1', toolCallId: 'c1' } })
     ])
     expect(mc.all).toHaveLength(0)
+  })
+
+  it('resolves bare dynamic-tool web_search citations from cherry-tools metadata inside a deferred skeleton', () => {
+    const cherryDeferred = {
+      type: 'dynamic-tool',
+      toolName: 'web_search',
+      toolCallId: 'c-bare-cherry',
+      state: 'output-available',
+      input: { query: 'q' },
+      output: {
+        $deferredToolResult: { topicId: 'topic-1', messageId: 'm1', toolCallId: 'c-bare-cherry' },
+        skeleton: {
+          content: webResults('bare'),
+          metadata: { type: 'mcp', name: 'web_search', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+        }
+      }
+    } as unknown as CherryMessagePart
+    const thirdPartyDeferred = {
+      ...cherryDeferred,
+      toolCallId: 'c-bare-other',
+      output: {
+        $deferredToolResult: { topicId: 'topic-1', messageId: 'm1', toolCallId: 'c-bare-other' },
+        skeleton: {
+          content: webResults('other'),
+          metadata: { type: 'mcp', name: 'web_search', serverName: 'other-server', serverId: 'other-server' }
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    expect(resolveMessageCitations([cherryDeferred]).byId.get('bare-1')).toMatchObject({
+      number: 1,
+      url: 'https://a.com/x',
+      type: 'websearch'
+    })
+    expect(resolveMessageCitations([thirdPartyDeferred]).all).toHaveLength(0)
+  })
+
+  it('resolves citations from a deferred-history-part carrying a bounded citation projection, while ignoring plain wrappers', () => {
+    const deferredWithCitation: CherryMessagePart = {
+      type: 'data-deferred-history-part',
+      data: {
+        sessionId: 's1',
+        messageId: 'm1',
+        partId: 'p1',
+        partType: 'dynamic-tool',
+        excerpt: 'query',
+        updatedAt: 1,
+        citation: {
+          toolName: 'web_search',
+          skeleton: {
+            content: webResults('dhp'),
+            metadata: { type: 'mcp', name: 'web_search', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+          }
+        }
+      }
+    }
+    const plainDeferred: CherryMessagePart = {
+      type: 'data-deferred-history-part',
+      data: {
+        sessionId: 's1',
+        messageId: 'm1',
+        partId: 'p2',
+        partType: 'dynamic-tool',
+        excerpt: 'query',
+        updatedAt: 1
+      }
+    }
+
+    expect(isCitationSourcePart(deferredWithCitation)).toBe(true)
+    expect(isCitationSourcePart(plainDeferred)).toBe(false)
+    expect(resolveMessageCitations([plainDeferred]).all).toHaveLength(0)
+    expect(resolveMessageCitations([deferredWithCitation]).byId.get('dhp-1')).toMatchObject({
+      number: 1,
+      url: 'https://a.com/x'
+    })
+
+    const registry = buildCitationPartsRegistry(['m1', 'm2'], {
+      m1: [deferredWithCitation, plainDeferred],
+      m2: [textPart('Follow-up [cite:dhp-2].')]
+    })
+    expect(getPriorCitationParts(registry, 'm2')).toEqual([deferredWithCitation])
+    const exported = toExportableCitations(
+      'Follow-up [cite:dhp-2].',
+      [textPart('Follow-up [cite:dhp-2].')],
+      getPriorCitationParts(registry, 'm2')
+    )
+    expect(exported.content).toBe('Follow-up [1].')
+    expect(exported.cited.map((citation) => citation.url)).toEqual(['https://b.com/y'])
   })
 
   it('collects provider-native source-url parts keyed by their marker numbers', () => {

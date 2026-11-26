@@ -41,6 +41,14 @@ import { PiForkCheckpointSchema } from '@main/ai/runtime/pi/forkCheckpoint'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { DEFER_TOOL_OUTPUT_BYTES } from '@main/utils/messageOutputProjection'
+// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- Verify real renderer citation resolution against cold-reopened Main history rows.
+import {
+  buildCitationPartsRegistry,
+  getPriorCitationParts,
+  resolveMessageCitations,
+  toExportableCitations,
+  withToolCitationTags
+} from '@renderer/utils/message/citations'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -2938,6 +2946,351 @@ describe('AgentSessionMessageService', () => {
       })
       expect(second.items.map(({ id }) => id)).toEqual([ids[0]])
       expect(second.nextCursor).toBeUndefined()
+    })
+
+    it('preserves citation identity on cold reopen for a threshold-mismatch web_search part in both the original reply and a later export', async () => {
+      const metadata = {
+        type: 'mcp',
+        name: 'web_search',
+        serverName: 'cherry-tools',
+        serverId: 'cherry-tools'
+      }
+      const searchOutput = {
+        content: [
+          {
+            id: '3f2a1b9c-1',
+            title: 'Threshold Source',
+            url: 'https://example.com/threshold',
+            content: ''
+          }
+        ],
+        metadata
+      }
+      const searchPartShell = {
+        type: 'dynamic-tool' as const,
+        toolName: 'mcp__cherry-tools__web_search',
+        toolCallId: 'call-mismatch',
+        state: 'output-available' as const,
+        input: { query: 'threshold mismatch' },
+        output: searchOutput
+      }
+      searchOutput.content[0].content = 'a'.repeat(32_674 - Buffer.byteLength(JSON.stringify(searchOutput)))
+      expect(Buffer.byteLength(JSON.stringify(searchOutput))).toBe(32_674)
+      expect(Buffer.byteLength(JSON.stringify(searchPartShell))).toBeGreaterThan(DEFER_TOOL_OUTPUT_BYTES)
+
+      const reply1 = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [searchPartShell, { type: 'text', text: 'First answer. [cite:3f2a1b9c-1]' }]
+          }
+        }
+      })
+      const reply2 = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [{ type: 'text', text: 'Follow-up answer. [cite:3f2a1b9c-1]' }]
+          }
+        }
+      })
+      expect(dbh.db.select().from(agentSessionToolOutputTable).all()).toEqual([])
+
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
+      const chronological = page.items.toReversed()
+      const coldReply1 = chronological.find((m) => m.id === reply1.id)!
+      const coldReply2 = chronological.find((m) => m.id === reply2.id)!
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, reply1.id, { deferToolOutputs: true })).toEqual(
+        coldReply1
+      )
+
+      const projectedToolPart = coldReply1.data.parts?.[0]
+      expect(projectedToolPart?.type).toBe('dynamic-tool')
+      expect(Buffer.byteLength(JSON.stringify(projectedToolPart))).toBeLessThanOrEqual(DEFER_TOOL_OUTPUT_BYTES)
+
+      const ownCitations = resolveMessageCitations(coldReply1.data.parts ?? [])
+      const renderedReply1 = withToolCitationTags('First answer. [cite:3f2a1b9c-1]', ownCitations)
+      expect(renderedReply1.content).toBe(
+        "First answer. [<sup data-citation='1'>1</sup>](https://example.com/threshold)"
+      )
+      expect(renderedReply1.cited.map((c) => ({ title: c.title, url: c.url }))).toEqual([
+        { title: 'Threshold Source', url: 'https://example.com/threshold' }
+      ])
+
+      const partsByMessageId = Object.fromEntries(chronological.map((m) => [m.id, m.data.parts ?? []]))
+      const registry = buildCitationPartsRegistry(
+        chronological.map((m) => m.id),
+        partsByMessageId
+      )
+      const exportedReply2 = toExportableCitations(
+        'Follow-up answer. [cite:3f2a1b9c-1]',
+        coldReply2.data.parts ?? [],
+        getPriorCitationParts(registry, coldReply2.id)
+      )
+      expect(exportedReply2.content).toBe('Follow-up answer. [1]')
+      expect(exportedReply2.cited.map((c) => ({ title: c.title, url: c.url }))).toEqual([
+        { title: 'Threshold Source', url: 'https://example.com/threshold' }
+      ])
+
+      await expect(findPersistedToolOutput(`agent-session:${SESSION_ID}`, reply1.id, 'call-mismatch')).resolves.toEqual(
+        { found: true, output: searchOutput }
+      )
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, reply1.id).data.parts?.[0]).toEqual(
+        searchPartShell
+      )
+    })
+
+    it('bounds offloaded large-skeleton and persisted-entities tool parts while resolving original and follow-up citations', () => {
+      const manyResults = Array.from({ length: 80 }, (_, index) => ({
+        id: `many-${index + 1}`,
+        title: `Result ${index + 1}`,
+        url: `https://example.com/${index + 1}`,
+        content: '测'.repeat(1000)
+      }))
+      const offloadedReply = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolName: 'mcp__cherry-tools__web_search',
+                toolCallId: 'call-many',
+                state: 'output-available',
+                input: { query: 'many' },
+                output: {
+                  content: manyResults,
+                  metadata: {
+                    type: 'mcp',
+                    name: 'web_search',
+                    serverName: 'cherry-tools',
+                    serverId: 'cherry-tools'
+                  }
+                }
+              },
+              { type: 'text', text: 'First. [cite:many-1]' }
+            ]
+          }
+        }
+      })
+      const persistedEntitiesReply = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'tool-web_search' as never,
+                toolCallId: 'call-entities',
+                state: 'output-available',
+                input: { query: 'entities' },
+                output: {
+                  $persistedToolOutput: {
+                    shape: 'entities',
+                    skeleton: manyResults.map((item, idx) => ({ ...item, id: `ent-${idx + 1}` })),
+                    blobRefs: [
+                      {
+                        key: '/0/content',
+                        fileEntryId: 'entry-1',
+                        vfsFilename: 'vfs_1.txt',
+                        head: 'head',
+                        tail: 'tail',
+                        totalChars: 80_000,
+                        totalLines: 100
+                      }
+                    ]
+                  }
+                }
+              } as unknown as CherryMessagePart,
+              { type: 'text', text: 'Second. [cite:ent-1]' }
+            ]
+          }
+        }
+      })
+      const followUp = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [{ type: 'text', text: 'Combined [cite:many-1] and [cite:ent-1].' }]
+          }
+        }
+      })
+
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
+      const chronological = page.items.toReversed()
+      for (const message of chronological) {
+        for (const part of message.data.parts ?? []) {
+          expect(Buffer.byteLength(JSON.stringify(part))).toBeLessThanOrEqual(DEFER_TOOL_OUTPUT_BYTES)
+        }
+      }
+
+      const coldOffloaded = chronological.find((m) => m.id === offloadedReply.id)!
+      const coldEntities = chronological.find((m) => m.id === persistedEntitiesReply.id)!
+      const coldFollowUp = chronological.find((m) => m.id === followUp.id)!
+
+      expect(resolveMessageCitations(coldOffloaded.data.parts ?? []).byId.get('many-1')?.url).toBe(
+        'https://example.com/1'
+      )
+      expect(resolveMessageCitations(coldEntities.data.parts ?? []).byId.get('ent-1')?.url).toBe(
+        'https://example.com/1'
+      )
+
+      const registry = buildCitationPartsRegistry(
+        chronological.map((m) => m.id),
+        Object.fromEntries(chronological.map((m) => [m.id, m.data.parts ?? []]))
+      )
+      const exported = toExportableCitations(
+        'Combined [cite:many-1] and [cite:ent-1].',
+        coldFollowUp.data.parts ?? [],
+        getPriorCitationParts(registry, coldFollowUp.id)
+      )
+      expect(exported.content).toBe('Combined [1] and [1].')
+      expect(exported.cited.map((c) => c.url)).toEqual(['https://example.com/1'])
+    })
+
+    it('falls back to a bounded deferred wrapper with citation metadata when citable tool input exceeds 32 KiB', () => {
+      const hugeInputPart: CherryMessagePart = {
+        type: 'dynamic-tool',
+        toolName: 'tool_call',
+        toolCallId: 'call-huge-input',
+        state: 'output-available',
+        input: { name: 'mcp__cherry-tools__web_search', params: { query: 'q'.repeat(64 * 1024) } },
+        output: {
+          content: [{ id: 'huge-1', title: 'Huge Input Source', url: 'https://example.com/huge', content: 'snippet' }],
+          metadata: { type: 'mcp', name: 'web_search', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+        }
+      }
+      const reply1 = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [hugeInputPart, { type: 'text', text: 'Answer [cite:huge-1].' }] }
+        }
+      })
+      const reply2 = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'Re-cite [cite:huge-1].' }] }
+        }
+      })
+
+      const page = agentSessionMessageService.listSessionMessages(SESSION_ID, { deferToolOutputs: true })
+      const chronological = page.items.toReversed()
+      const coldReply1 = chronological.find((m) => m.id === reply1.id)!
+      const coldReply2 = chronological.find((m) => m.id === reply2.id)!
+
+      const deferredPart = coldReply1.data.parts?.[0]
+      expect(deferredPart?.type).toBe('data-deferred-history-part')
+      expect(Buffer.byteLength(JSON.stringify(deferredPart))).toBeLessThanOrEqual(DEFER_TOOL_OUTPUT_BYTES)
+
+      expect(
+        withToolCitationTags('Answer [cite:huge-1].', resolveMessageCitations(coldReply1.data.parts ?? [])).content
+      ).toBe("Answer [<sup data-citation='1'>1</sup>](https://example.com/huge).")
+
+      const registry = buildCitationPartsRegistry(
+        chronological.map((m) => m.id),
+        Object.fromEntries(chronological.map((m) => [m.id, m.data.parts ?? []]))
+      )
+      const exported = toExportableCitations(
+        'Re-cite [cite:huge-1].',
+        coldReply2.data.parts ?? [],
+        getPriorCitationParts(registry, coldReply2.id)
+      )
+      expect(exported.content).toBe('Re-cite [1].')
+      expect(exported.cited.map((c) => c.url)).toEqual(['https://example.com/huge'])
+
+      expect(agentSessionMessageService.getSessionMessagePart(SESSION_ID, reply1.id, coldReply1.partIds![0])).toEqual(
+        hugeInputPart
+      )
+    })
+
+    it('keeps oversized non-citable and third-party tool parts as plain deferred wrappers without citations', () => {
+      const huge = 'x'.repeat(40 * 1024)
+      const thirdPartyMeta = {
+        type: 'mcp',
+        name: 'web_search',
+        serverName: 'other-server',
+        serverId: 'other-server'
+      }
+      const thirdPartyMismatchOutput = {
+        content: [{ id: 'tp-1', title: 'TP', url: 'https://tp.example.com', content: '' }],
+        metadata: thirdPartyMeta
+      }
+      thirdPartyMismatchOutput.content[0].content = 'x'.repeat(
+        32_674 - Buffer.byteLength(JSON.stringify(thirdPartyMismatchOutput))
+      )
+      const reply = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'dynamic-tool',
+                toolName: 'web_search',
+                toolCallId: 'third-party-bare',
+                state: 'output-available',
+                input: { query: 'q' },
+                output: thirdPartyMismatchOutput
+              },
+              {
+                type: 'dynamic-tool',
+                toolName: 'mcp__other-server__web_search',
+                toolCallId: 'third-party-prefixed',
+                state: 'output-available',
+                input: { query: huge },
+                output: {
+                  content: [{ id: 'tp-2', title: 'TP2', url: 'https://tp2.example.com', content: 'snippet' }],
+                  metadata: thirdPartyMeta
+                }
+              },
+              {
+                type: 'dynamic-tool',
+                toolName: 'mcp__cherry-tools__web_search',
+                toolCallId: 'non-citable-error-payload',
+                state: 'output-available',
+                input: { query: huge },
+                output: {
+                  content: 'No matches',
+                  metadata: { type: 'mcp', name: 'web_search', serverId: 'cherry-tools' }
+                }
+              },
+              {
+                type: 'dynamic-tool',
+                toolName: 'mcp__cherry-tools__web_search',
+                toolCallId: 'tool-error-state',
+                state: 'output-error',
+                input: { query: huge },
+                errorText: 'timeout'
+              }
+            ]
+          }
+        }
+      })
+
+      const cold = agentSessionMessageService.getSessionMessage(SESSION_ID, reply.id, { deferToolOutputs: true })
+      const parts = cold.data.parts ?? []
+      expect(parts).toHaveLength(4)
+      for (const part of parts) {
+        expect(part.type).toBe('data-deferred-history-part')
+        if (part.type === 'data-deferred-history-part') {
+          expect(part.data.citation).toBeUndefined()
+        }
+      }
+      expect(resolveMessageCitations(parts).all).toHaveLength(0)
     })
   })
 

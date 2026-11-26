@@ -625,6 +625,74 @@ describe('ExportService', () => {
       expect(markdown.match(/\[\^1\]: \[Example\]\(https:\/\/example\.com\)/g)).toHaveLength(2)
     })
 
+    it('resolves deferred and deferred-history citation projections in both the original reply and a later Markdown export', async () => {
+      const earlierProjected = createExportView([
+        {
+          type: 'dynamic-tool',
+          toolName: 'mcp__cherry-tools__web_search',
+          toolCallId: 'call-proj',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: {
+            $deferredToolResult: {
+              topicId: 'agent-session:s1',
+              messageId: 'm1',
+              toolCallId: 'call-proj',
+              partId: 'p1'
+            },
+            skeleton: {
+              content: [{ id: '3f2a1b9c-1', title: 'Example', url: 'https://example.com', content: 'snippet' }],
+              metadata: { type: 'mcp', name: 'web_search', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+            }
+          }
+        },
+        { type: 'text', text: 'First claim. [cite:3f2a1b9c-1]' }
+      ])
+      const earlierDeferredWrapper = createExportView([
+        {
+          type: 'data-deferred-history-part',
+          data: {
+            sessionId: 's1',
+            messageId: 'm2',
+            partId: 'p2',
+            partType: 'dynamic-tool',
+            excerpt: 'query',
+            updatedAt: 1,
+            citation: {
+              toolName: 'web_search',
+              skeleton: {
+                content: [{ id: '7a8b9c0d-1', title: 'Wrapper', url: 'https://wrapper.example.com', content: 'w' }],
+                metadata: { type: 'mcp', name: 'web_search', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+              }
+            }
+          }
+        },
+        { type: 'text', text: 'Second claim. [cite:7a8b9c0d-1]' }
+      ])
+      const followUp = createExportView([{ type: 'text', text: 'Recited [cite:3f2a1b9c-1] and [cite:7a8b9c0d-1].' }])
+
+      const withPrior = withPriorCitationParts([earlierProjected, earlierDeferredWrapper, followUp])
+      const earlierMarkdown = await messageToMarkdown(earlierProjected)
+      expect(earlierMarkdown).toContain('First claim. [^1]')
+      expect(earlierMarkdown).toContain('[^1]: [Example](https://example.com)')
+
+      const wrapperMarkdown = await messageToMarkdown(earlierDeferredWrapper)
+      expect(wrapperMarkdown).toContain('Second claim. [^1]')
+      expect(wrapperMarkdown).toContain('[^1]: [Wrapper](https://wrapper.example.com)')
+
+      const followUpSingleMarkdown = await messageToMarkdown(withPrior[2])
+      expect(followUpSingleMarkdown).not.toContain('[cite:')
+      expect(followUpSingleMarkdown).toContain('Recited [^1] and [^2].')
+      expect(followUpSingleMarkdown).toContain('[^1]: [Example](https://example.com)')
+      expect(followUpSingleMarkdown).toContain('[^2]: [Wrapper](https://wrapper.example.com)')
+
+      const topicMarkdown = await messagesToMarkdown(withPrior)
+      expect(topicMarkdown).not.toContain('[cite:')
+      expect(topicMarkdown).toContain('Recited [^1] and [^2].')
+      expect(topicMarkdown.match(/\[\^\d+\]: \[Example\]\(https:\/\/example\.com\)/g)).toHaveLength(2)
+      expect(topicMarkdown.match(/\[\^\d+\]: \[Wrapper\]\(https:\/\/wrapper\.example\.com\)/g)).toHaveLength(2)
+    })
+
     it('should resolve tool-part [cite:id] markers and list their sources', async () => {
       // Tool-derived citations carry no `cherry.references`; the marker lives in the
       // text, so an unresolved export leaks the internal id and lists no sources.

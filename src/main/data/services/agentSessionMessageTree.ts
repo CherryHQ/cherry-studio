@@ -13,6 +13,15 @@ import {
   agentSessionToolOutputTable as toolOutputs
 } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
+import { projectOversizedHistoryToolPart } from '@main/utils/messageOutputProjection'
+import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
+import {
+  KB_READ_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
+} from '@shared/ai/builtinTools'
+import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -21,10 +30,70 @@ const SQLITE_INARRAY_CHUNK = 500
 const DEFER_HISTORY_PART_BYTES = 32 * 1024
 const HISTORY_PART_EXCERPT_CHARS = 512
 
+const CITABLE_BUILTIN_NAMES = [
+  WEB_SEARCH_TOOL_NAME,
+  WEB_FETCH_TOOL_NAME,
+  KB_SEARCH_TOOL_NAME,
+  KB_READ_TOOL_NAME
+] as const
+const CITABLE_CHERRY_MCP_NAMES = CITABLE_BUILTIN_NAMES.flatMap((name) => [
+  `mcp__cherry-tools__${name}`,
+  `mcp__cherry_tools__${name}`
+])
+const CITABLE_STATIC_PART_TYPES = [
+  ...CITABLE_BUILTIN_NAMES.map((name) => `tool-${name}`),
+  ...CITABLE_CHERRY_MCP_NAMES.map((name) => `tool-${name}`)
+]
+const CITABLE_DYNAMIC_TOOL_NAMES = [...CITABLE_BUILTIN_NAMES, ...CITABLE_CHERRY_MCP_NAMES]
+
+function sqlStringList(values: readonly string[]) {
+  return sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `
+  )
+}
+
+function isCompletedCitableToolSql() {
+  const { payload, type } = messageParts
+  const staticTypes = sqlStringList(CITABLE_STATIC_PART_TYPES)
+  const dynamicNames = sqlStringList(CITABLE_DYNAMIC_TOOL_NAMES)
+  const builtinNames = sqlStringList(CITABLE_BUILTIN_NAMES)
+  const cherryMcpNames = sqlStringList(CITABLE_CHERRY_MCP_NAMES)
+  return sql`(
+    (
+      ${type} in (${staticTypes})
+      or (${type} = 'dynamic-tool' and json_extract(${payload}, '$.toolName') in (${dynamicNames}))
+      or (
+        (${type} = 'tool-tool_invoke' or (${type} = 'dynamic-tool' and json_extract(${payload}, '$.toolName') = 'tool_invoke'))
+        and json_extract(${payload}, '$.input.name') in (${builtinNames})
+      )
+      or (
+        (${type} = ${`tool-${PI_TOOL_CALL_TOOL_NAME}`} or (${type} = 'dynamic-tool' and json_extract(${payload}, '$.toolName') = ${PI_TOOL_CALL_TOOL_NAME}))
+        and json_extract(${payload}, '$.input.name') in (${cherryMcpNames})
+      )
+    )
+    and json_extract(${payload}, '$.state') = 'output-available'
+  )`
+}
+
+function deferredHistoryToolExcerpt(part: CherryMessagePart): string {
+  if (!('input' in part) || part.input === undefined) return ''
+  try {
+    const json = JSON.stringify(part.input) ?? ''
+    return json.length <= HISTORY_PART_EXCERPT_CHARS
+      ? json
+      : json.slice(0, HISTORY_PART_EXCERPT_CHARS).replace(/[\uD800-\uDBFF]$/, '')
+  } catch {
+    return ''
+  }
+}
+
 function historyPartPayload() {
   const { payload, type, sessionId, messageId, id, updatedAt } = messageParts
   // octet_length(column) can use the SQLite record header for oversized values.
-  return sql`case when octet_length(${payload}) <= ${DEFER_HISTORY_PART_BYTES} then ${payload}
+  return sql`case
+    when octet_length(${payload}) <= ${DEFER_HISTORY_PART_BYTES} then ${payload}
+    when ${isCompletedCitableToolSql()} then ${payload}
     else json_object('type', 'data-deferred-history-part', 'data', json_object(
       'sessionId', ${sessionId}, 'messageId', ${messageId}, 'partId', ${id},
       'partType', substr(${type}, 1, 128), 'updatedAt', ${updatedAt},
@@ -69,7 +138,14 @@ export function attachAgentSessionMessagePartsTx<T extends { id: string; data: A
     const stored = db
       .select({
         id: messageParts.id,
+        sessionId: messageParts.sessionId,
         messageId: messageParts.messageId,
+        type: messageParts.type,
+        updatedAt: messageParts.updatedAt,
+        oversized:
+          partMode === 'deferred'
+            ? sql<number>`octet_length(${messageParts.payload}) > ${DEFER_HISTORY_PART_BYTES}`
+            : sql<number>`0`,
         payload: partMode === 'deferred' ? historyPartPayload() : messageParts.payload,
         pos: messageParts.pos
       })
@@ -81,7 +157,32 @@ export function attachAgentSessionMessagePartsTx<T extends { id: string; data: A
       const body = bodies.get(part.messageId)!
       body.partIds?.push(part.id)
       body.partPositions?.push(part.pos)
-      body.parts.push(part.payload)
+      const payload =
+        partMode === 'deferred' && part.oversized && part.payload.type !== 'data-deferred-history-part'
+          ? projectOversizedHistoryToolPart(
+              part.payload,
+              {
+                topicId: buildAgentSessionTopicId(part.sessionId),
+                messageId: part.messageId,
+                partId: part.id,
+                toolCallId: isToolUIPart(part.payload) ? part.payload.toolCallId : ''
+              },
+              DEFER_HISTORY_PART_BYTES,
+              (citation) => ({
+                type: 'data-deferred-history-part',
+                data: {
+                  sessionId: part.sessionId,
+                  messageId: part.messageId,
+                  partId: part.id,
+                  partType: part.type.slice(0, 128),
+                  updatedAt: part.updatedAt,
+                  excerpt: deferredHistoryToolExcerpt(part.payload),
+                  ...(citation && { citation })
+                }
+              })
+            )
+          : part.payload
+      body.parts.push(payload)
     }
   }
   return rows.map((row) => {

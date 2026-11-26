@@ -133,6 +133,11 @@ export type RetryPartData = z.infer<typeof RetryPartDataSchema>
 // Cherry DataUIPart type map (for useChat dataPartSchemas)
 // ============================================================================
 
+export interface DeferredHistoryCitationSource {
+  toolName: 'web_search' | 'web_fetch' | 'kb_search' | 'kb_read'
+  skeleton: unknown
+}
+
 /**
  * All custom DataUIPart types for Cherry Studio.
  * Used with `useChat({ dataPartSchemas })` to enable type-safe custom parts.
@@ -158,6 +163,7 @@ export type CherryDataPartTypes = {
     partType: string
     excerpt: string
     updatedAt: number
+    citation?: DeferredHistoryCitationSource
   }
 }
 

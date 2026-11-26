@@ -4,7 +4,7 @@
  */
 
 import type { UIMessageChunk } from 'ai'
-import { isToolUIPart } from 'ai'
+import { getToolName, isToolUIPart } from 'ai'
 
 import {
   CITATION_SNIPPET_MAX_CHARS,
@@ -19,6 +19,8 @@ import {
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
 import type { LivePartPatch, NonTextPartWrite, PartPlacement } from '@shared/ai/messageProjection'
+import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import {
   type DeferredToolOutput,
   type DeferredToolResultRef,
@@ -28,6 +30,7 @@ import {
   toolResultValue
 } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { type DeferredHistoryCitationSource, readCherryMeta } from '@shared/data/types/uiParts'
 import { hasMcpAppResult } from '@shared/types/mcpApp'
 
 /** Serialized UTF-8 size at or below which a result travels inline. */
@@ -46,13 +49,72 @@ export type PublishedPartPatch<P extends PartPlacement = PartPlacement> =
         | { readonly part: ToolResult; readonly [rendererToolResult]: true }
       ))
 
+type CitableToolName = DeferredHistoryCitationSource['toolName']
 const CHERRY_TOOLS_MCP_SERVER = 'cherry-tools'
-const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
+const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
+const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set<CitableToolName>([
   WEB_SEARCH_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   KB_READ_TOOL_NAME
 ])
+
+function isCitableToolName(name: string): name is CitableToolName {
+  return CITABLE_TOOL_NAMES.has(name)
+}
+
+function citableCherryToolName(wireName: string): CitableToolName | null {
+  const parsed = parseFunctionCallToolName(wireName)
+  if (!parsed || (parsed.serverPart !== CHERRY_TOOLS_MCP_SERVER && parsed.serverPart !== 'cherry_tools')) return null
+  return isCitableToolName(parsed.toolPart) ? parsed.toolPart : null
+}
+
+function unwrapStoredCitationOutput(output: unknown): unknown {
+  if (isPersistedToolOutput(output)) {
+    return output.$persistedToolOutput.shape === 'entities' ? output.$persistedToolOutput.skeleton : undefined
+  }
+  if (isDeferredToolOutput(output)) return output.skeleton
+  return output
+}
+
+function resolveCitableToolPartName(
+  part: Extract<CherryMessagePart, { state: 'output-available' }>,
+  unwrappedOutput: unknown
+): CitableToolName | null {
+  const rawName = getToolName(part)
+  if (isCitableToolName(rawName)) {
+    if (part.type !== 'dynamic-tool') return rawName
+    const partMeta = readCherryMeta(part)?.tool
+    const outputMeta =
+      isRecord(unwrappedOutput) && isRecord(unwrappedOutput.metadata) ? unwrappedOutput.metadata : undefined
+    const belongsToCherryTools = (meta: { serverId?: unknown; serverName?: unknown } | undefined) =>
+      meta?.serverId === CHERRY_TOOLS_MCP_SERVER || meta?.serverName === CHERRY_TOOLS_MCP_SERVER
+    return belongsToCherryTools(partMeta) || belongsToCherryTools(outputMeta) ? rawName : null
+  }
+  if (rawName === TOOL_INVOKE_TOOL_NAME) {
+    return isRecord(part.input) && typeof part.input.name === 'string' && isCitableToolName(part.input.name)
+      ? part.input.name
+      : null
+  }
+  if (rawName === PI_TOOL_CALL_TOOL_NAME) {
+    return isRecord(part.input) && typeof part.input.name === 'string' ? citableCherryToolName(part.input.name) : null
+  }
+  return citableCherryToolName(rawName)
+}
+
+function hasCitableEntries(toolName: CitableToolName, skeleton: unknown): boolean {
+  const payload = isRecord(skeleton) && isRecord(skeleton.metadata) ? skeleton.content : skeleton
+  if (toolName === KB_SEARCH_TOOL_NAME) {
+    return Array.isArray(payload) && payload.length > 0 && kbSearchOutputSchema.safeParse(payload).success
+  }
+  if (toolName === KB_READ_TOOL_NAME) {
+    const read = kbReadOutputSchema.safeParse(payload)
+    if (read.success) return !!read.data.id
+    const grep = kbGrepOutputSchema.safeParse(payload)
+    return grep.success && !!grep.data.id && grep.data.matches.length > 0
+  }
+  return Array.isArray(payload) && payload.length > 0 && webSearchOutputSchema.safeParse(payload).success
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -216,39 +278,114 @@ function exceedsToolOutputTransportLimit(output: unknown): boolean {
   return serializeOversizedToolOutput(output) !== undefined
 }
 
-function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): DeferredToolOutput {
-  const skeleton = toCitationSkeleton(output)
-  if (skeleton === undefined) return deferred
+function fitsByteLimit(value: unknown, limit: number): boolean {
+  try {
+    if (textExceeds(value, limit)) return false
+    const serialized = JSON.stringify(value)
+    if (serialized === undefined || serialized.length > limit) return false
+    return Buffer.byteLength(serialized) <= limit
+  } catch {
+    return false
+  }
+}
 
-  const projected = { ...deferred, skeleton } satisfies DeferredToolOutput
-  if (!exceedsToolOutputTransportLimit(projected)) return projected
+function fitNormalizedCitationSkeleton(skeleton: unknown, fits: (candidate: unknown) => boolean): unknown | undefined {
+  if (fits(skeleton)) return skeleton
 
   const entities = Array.isArray(skeleton)
     ? skeleton
     : isRecord(skeleton) && Array.isArray(skeleton.content)
       ? skeleton.content
       : undefined
-  if (!entities || entities.length <= 1) return deferred
+  if (!entities || entities.length <= 1) return undefined
+
+  const buildCandidate = Array.isArray(skeleton)
+    ? (prefix: unknown[]) => prefix
+    : isRecord(skeleton)
+      ? (prefix: unknown[]) => ({ ...skeleton, content: prefix })
+      : undefined
+  if (!buildCandidate) return undefined
 
   // Citation order defines display numbering, so retain the longest prefix that fits.
   let low = 1
   let high = entities.length - 1
-  let best: DeferredToolOutput | undefined
+  let best: unknown | undefined
   while (low <= high) {
     const mid = Math.floor((low + high) / 2)
-    const trimmedSkeleton = Array.isArray(skeleton)
-      ? entities.slice(0, mid)
-      : { ...skeleton, content: entities.slice(0, mid) }
-    const candidate = { ...deferred, skeleton: trimmedSkeleton } satisfies DeferredToolOutput
-    if (!exceedsToolOutputTransportLimit(candidate)) {
-      best = candidate
+    if (fits(buildCandidate(entities.slice(0, mid)))) {
+      best = buildCandidate(entities.slice(0, mid))
       low = mid + 1
     } else {
       high = mid - 1
     }
   }
 
-  return best ?? deferred
+  return best
+}
+
+function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): DeferredToolOutput {
+  const skeleton = toCitationSkeleton(output)
+  if (skeleton === undefined) return deferred
+
+  const fitted = fitNormalizedCitationSkeleton(
+    skeleton,
+    (candidate) => !exceedsToolOutputTransportLimit({ ...deferred, skeleton: candidate })
+  )
+  return fitted === undefined ? deferred : ({ ...deferred, skeleton: fitted } satisfies DeferredToolOutput)
+}
+
+/**
+ * Projects an oversized stored citable tool part to stay within `maxBytes` while
+ * preserving tool identity and a bounded citation skeleton whenever possible.
+ * Falls back to `buildDeferredPart` (carrying bounded citation metadata if needed).
+ */
+export function projectOversizedHistoryToolPart(
+  part: CherryMessagePart,
+  ref: DeferredToolResultRef,
+  maxBytes: number,
+  buildDeferredPart: (citation?: DeferredHistoryCitationSource) => CherryMessagePart
+): CherryMessagePart {
+  if (!isToolUIPart(part) || part.state !== 'output-available') return buildDeferredPart()
+  const unwrappedOutput = unwrapStoredCitationOutput(part.output)
+  if (unwrappedOutput === undefined) return buildDeferredPart()
+  const citableToolName = resolveCitableToolPartName(part, unwrappedOutput)
+  if (!citableToolName) return buildDeferredPart()
+  const fullSkeleton = toCitationSkeleton(unwrappedOutput)
+  if (fullSkeleton === undefined || !hasCitableEntries(citableToolName, fullSkeleton)) return buildDeferredPart()
+
+  const baseDeferred: DeferredToolOutput = isDeferredToolOutput(part.output)
+    ? {
+        $deferredToolResult: ref,
+        ...(part.output.hasMcpApp && { hasMcpApp: true }),
+        ...(part.output.excerpt && { excerpt: part.output.excerpt }),
+        ...(part.output.archivedProviderMetadata && { archivedProviderMetadata: true })
+      }
+    : isPersistedToolOutput(part.output)
+      ? {
+          $deferredToolResult: ref,
+          ...(hasMcpAppResult(part.output) && { hasMcpApp: true }),
+          excerpt: envelopeDisplayExcerpt(part.output.$persistedToolOutput)
+        }
+      : {
+          $deferredToolResult: ref,
+          ...(hasMcpAppResult(part.output) && { hasMcpApp: true })
+        }
+
+  if (fitsByteLimit({ ...part, output: baseDeferred }, maxBytes)) {
+    const partSkeleton = fitNormalizedCitationSkeleton(fullSkeleton, (candidate) =>
+      fitsByteLimit({ ...part, output: { ...baseDeferred, skeleton: candidate } }, maxBytes)
+    )
+    if (partSkeleton !== undefined) {
+      return { ...part, output: { ...baseDeferred, skeleton: partSkeleton } }
+    }
+  }
+
+  const wrapperSkeleton = fitNormalizedCitationSkeleton(fullSkeleton, (candidate) =>
+    fitsByteLimit(buildDeferredPart({ toolName: citableToolName, skeleton: candidate }), maxBytes)
+  )
+  return wrapperSkeleton !== undefined
+    ? buildDeferredPart({ toolName: citableToolName, skeleton: wrapperSkeleton })
+    : buildDeferredPart()
 }
 
 function projectToolOutputForRenderer(
