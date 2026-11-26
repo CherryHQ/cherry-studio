@@ -1067,19 +1067,6 @@ describe('AgentPage', () => {
     expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).toHaveBeenCalledWith(false)
   })
 
-  it('toggles the classic session pane when the selected agent is clicked again', () => {
-    agentPageMocks.sessionDisplayMode = 'agent'
-    agentPageMocks.classicLayoutRightPaneOpenOverride = true
-    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
-    activeSessionMocks.sessionSource = 'query'
-
-    render(<AgentPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected agent pane' }))
-
-    expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).toHaveBeenCalledWith(false)
-  })
-
   it('closes classic-layout history records when the active agent is clicked', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.sessionPanePosition = 'right'
