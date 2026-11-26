@@ -52,6 +52,7 @@ import {
   type AgentSessionEditDraft,
   type AgentSessionEditTarget
 } from '@shared/ai/agentSessionEdit'
+import { AGENT_SESSION_FOLLOWUPS_CACHE_KEY, type AgentSessionFollowupChange } from '@shared/ai/agentSessionFollowups'
 import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
@@ -1129,6 +1130,15 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch {
       return null
     }
+  }
+
+  async changeFollowups(topicId: string, change: AgentSessionFollowupChange): Promise<boolean> {
+    if (!isAgentSessionTopic(topicId) || this.isWriteQuiesced || this.isShuttingDown) return false
+    const sessionId = extractAgentSessionId(topicId)
+    this.assertSessionWritable(sessionId)
+    const entry = this.entryForContext(sessionId, extractAgentContextId(topicId))
+    if (!entry || entry.topicId !== topicId || entry.closing || entry.stopping) return false
+    return (await this.currentConnection(entry)?.changeFollowups?.(change)) ?? false
   }
 
   async listSessionCommands(sessionId: string): Promise<AgentSessionSlashCommand[]> {
@@ -2690,6 +2700,15 @@ export class AgentSessionRuntimeService extends BaseService {
           entry.pendingInputs?.delete(event.result.inputId)
         break
       }
+      case 'followup-queue':
+        for (const { id, revision, parts } of event.queue) {
+          const pending = revision > 0 ? entry.pendingInputs?.get(id) : undefined
+          if (pending && pending.generation === entry.connectionGeneration) {
+            pending.input.message.data.parts = parts
+          }
+        }
+        application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), event.queue)
+        break
       case 'input-state':
         if (event.input.facts.includes('locally-handled'))
           markLocalInput(entry.sessionId, event.contextId, event.input.inputId)
@@ -3329,6 +3348,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-finished' })
     }
     const cache = application.get('CacheService')
+    if (connection.changeFollowups) cache.setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), [])
     cache.setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), [])
     cache.setShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId), {})
   }

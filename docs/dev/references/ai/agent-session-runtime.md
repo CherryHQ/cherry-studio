@@ -290,10 +290,10 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 2. **Other running native work, or a follow-up intent, + a driver with native admission** — calls
    `connection.followUp(...)` for an interactive input on the current config. When the runtime
    descriptor declares `nativeFollowUp`, the Work composer sends a busy-time Enter at once with
-   `followUp: true` instead of holding it in its follow-up dock; Main then skips `redirect` even
-   for an open turn. The steer shortcut still steers. Other runtimes keep busy-time Enter in the
-   dock until the turn ends. Pi Durable submits
-   it with its `follow-up` busy policy and persists it at once, so the queue survives a crash.
+   `followUp: true`; Main skips `redirect` even for an open turn. The steer shortcut still steers.
+   Other runtimes keep busy-time Enter in the dock until the turn ends. Pi Durable submits the input
+   with its `follow-up` busy policy and persists it at once. Its dock reflects the native waiting order
+   and offers text editing, reordering, and withdrawal while the input is still queued.
    When Durable places the input, the driver emits `steer-boundary` after the preceding answer;
    the host gives the input its own reply. The event's `followUp` flag marks such a placement: the
    host holds it while a steer transition or reservation is pending, or while the current reply has
