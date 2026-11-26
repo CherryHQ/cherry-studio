@@ -22,6 +22,7 @@ const entrySchema = z
     derivedFrom: z.array(identifier),
     validFrom: z.iso.datetime().optional(),
     validTo: z.iso.datetime().optional(),
+    clearedAt: z.number().int().nonnegative().optional(),
     supersededBy: identifier.optional(),
     retirement: z
       .strictObject({
@@ -33,6 +34,7 @@ const entrySchema = z
       .optional()
   })
   .refine((entry) => entry.status !== 'forgotten' || entry.text === '')
+  .refine((entry) => entry.clearedAt === undefined || entry.status === 'forgotten')
   .refine(
     (entry) => !entry.retirement || (entry.status === 'expired' && !entry.sources.length && !entry.derivedFrom.length)
   )
@@ -236,7 +238,11 @@ export function memoryModelView(
     invalidEntries()
   const parts = parsed.get(target)
   if (!parts) return null
-  if (protectedEntries.length && parts.some((part) => typeof part === 'string' && part.trim())) invalidEntries()
+  if (
+    protectedEntries.some((entry) => entry.clearedAt === undefined) &&
+    parts.some((part) => typeof part === 'string' && part.trim())
+  )
+    invalidEntries()
   return parts
     .map((part) => {
       if (typeof part === 'string')
