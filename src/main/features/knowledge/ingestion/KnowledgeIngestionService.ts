@@ -173,10 +173,18 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
    * that still fits (e.g. 4,997 reindexes + a 2-item Replace mid-handoff + a
    * 1-item waiter = 5,000 distinct, not 5,001). Reconciling by visible job
    * identity keeps `queue + unqueued` exact across the handoff.
+   *
+   * The caller snapshots `pendingEnqueues` before `JobManager.list`: the
+   * scheduling loop clears entries off the lock while `list` is in flight, so
+   * reconciling against the live map could miss a reservation whose job has
+   * not yet appeared in the stale queue snapshot and admit job 5,001. A
+   * pre-list copy keeps `queue snapshot + unqueued snapshot` exact.
    */
-  private getUnqueuedPendingCount(baseId: string, activeJobs: Array<{ type: string; input: unknown }>): number {
-    const pending = this.pendingEnqueues.get(baseId)
-    if (!pending || pending.size === 0) {
+  private getUnqueuedPendingCount(
+    pendingSnapshot: Set<string>,
+    activeJobs: Array<{ type: string; input: unknown }>
+  ): number {
+    if (pendingSnapshot.size === 0) {
       return 0
     }
     const queuedItemIds = new Set<string>()
@@ -190,14 +198,14 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       }
       if ('rootItemIds' in narrowed.input) {
         for (const rootItemId of narrowed.input.rootItemIds) {
-          if (pending.has(rootItemId)) {
+          if (pendingSnapshot.has(rootItemId)) {
             queuedItemIds.add(rootItemId)
           }
         }
       }
     }
     let unqueued = 0
-    for (const itemId of pending) {
+    for (const itemId of pendingSnapshot) {
       if (!queuedItemIds.has(itemId)) {
         unqueued += 1
       }
@@ -249,6 +257,11 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       }
       let activeJobCount: number | undefined
       try {
+        // Snapshot pending before the queue read: the off-lock scheduling loop
+        // can enqueue and clear a reservation while `list` is in flight. The
+        // stale queue snapshot would then miss both the job and its
+        // reservation, under-counting by one and over-admitting.
+        const pendingSnapshot = new Set(this.pendingEnqueues.get(base.id) ?? [])
         const activeJobs = await application.get('JobManager').list({
           queue: knowledgeQueueName(toKnowledgeBaseId(base.id)),
           status: [...ACTIVE_JOB_STATUSES],
@@ -259,7 +272,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         // the queue, so the queue count alone would undercount. Reconcile by
         // visible job identity so a row enqueued mid-handoff is not counted
         // in both the queue and the pending set.
-        activeJobCount = activeJobs.length + this.getUnqueuedPendingCount(base.id, activeJobs)
+        activeJobCount = activeJobs.length + this.getUnqueuedPendingCount(pendingSnapshot, activeJobs)
       } catch (error) {
         // A list failure must not block admission — fall through and let
         // scheduling surface per-file states instead.
@@ -369,12 +382,18 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           // without purging) rather than over-admitting.
           let effectiveActive = dbEffectiveActive
           try {
+            // Snapshot pending before the queue read (see pre-lock fast-path):
+            // a competing admission can enqueue its last job and clear its
+            // reservation between the `list` return and the count, which would
+            // hide one active job from both the stale queue snapshot and the
+            // live pending map.
+            const pendingSnapshot = new Set(this.pendingEnqueues.get(base.id) ?? [])
             const activeJobs = await application.get('JobManager').list({
               queue: knowledgeQueueName(toKnowledgeBaseId(base.id)),
               status: [...ACTIVE_JOB_STATUSES],
               limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
             })
-            const unqueuedPending = this.getUnqueuedPendingCount(base.id, activeJobs)
+            const unqueuedPending = this.getUnqueuedPendingCount(pendingSnapshot, activeJobs)
             effectiveActive = Math.max(dbEffectiveActive, activeJobs.length + unqueuedPending)
           } catch (error) {
             logger.warn(

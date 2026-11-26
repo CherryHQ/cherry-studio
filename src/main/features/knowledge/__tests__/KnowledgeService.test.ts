@@ -1978,6 +1978,31 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
   })
 
+  it('rejects when a reservation clears mid-list so the stale queue misses both job and reservation', async () => {
+    const service = new KnowledgeService()
+    const ingestion = ingestionOf(service) as unknown as {
+      addPendingEnqueues: (baseId: string, itemIds: string[]) => void
+      removePendingEnqueues: (baseId: string, itemIds: string[]) => void
+    }
+    // Prior admission holds one unqueued reservation. The waiter snapshots it
+    // before `list`; the prior admission then publishes its job and clears the
+    // reservation while `list` is in flight, so the stale queue snapshot
+    // contains neither the new job nor the reservation. The waiter must still
+    // count the snapshot (4,999 + 1 = 5,000) and reject one more file.
+    ingestion.addPendingEnqueues('kb-1', ['pending-1'])
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
+    listMock.mockResolvedValueOnce([])
+    listMock.mockImplementationOnce(async () => {
+      ingestion.removePendingEnqueues('kb-1', ['pending-1'])
+      return Array.from({ length: 4999 }, (_, index) => ({ id: `job-${index}` }))
+    })
+
+    await expect(
+      service.addItems('kb-1', [{ type: 'note', data: { source: 'late-note', content: 'hello' } }])
+    ).rejects.toThrow('slots remain')
+    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
+  })
+
   it('uses effective occupancy for the capacity message when queued reindexes dominate', async () => {
     const service = new KnowledgeService()
     // Fast-path sees an empty queue and passes; the locked check sees 4,998
@@ -2002,9 +2027,6 @@ describe('KnowledgeService', () => {
 
   it('clears pending reservations after successful scheduling', async () => {
     const service = new KnowledgeService()
-    const ingestion = ingestionOf(service) as unknown as {
-      getPendingEnqueueCount: (baseId: string) => number
-    }
     listMock.mockResolvedValue([])
     knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
 
@@ -2016,7 +2038,21 @@ describe('KnowledgeService', () => {
     ).resolves.toEqual({ status: 'added' })
 
     expect(enqueueMock).toHaveBeenCalledTimes(2)
-    expect(ingestion.getPendingEnqueueCount('kb-1')).toBe(0)
+
+    // A follow-up admission that fits only after those reservations cleared:
+    // 4,998 queued jobs + 2 new rows = 5,000. A leaked 2-item reservation
+    // would read as 4,998 + 2 pending + 2 requested = 5,002 and reject.
+    listMock.mockResolvedValue(Array.from({ length: 4998 }, (_, index) => ({ id: `job-${index}` })))
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
+
+    await expect(
+      service.addItems('kb-1', [
+        { type: 'note', data: { source: 'note-3', content: 'hello 3' } },
+        { type: 'note', data: { source: 'note-4', content: 'hello 4' } }
+      ])
+    ).resolves.toEqual({ status: 'added' })
+
+    expect(enqueueMock).toHaveBeenCalledTimes(4)
   })
 
   it('retries orphaned deleting roots with no live cleanup job', async () => {
