@@ -6,7 +6,14 @@ describe('resolveProviderAvatarResolution', () => {
   it('resolves the seeded ModelRush preset to the bundled icon', () => {
     expect(resolveProviderAvatarResolution({ id: 'modelrush', presetProviderId: 'modelrush' })).toEqual({
       kind: 'bundled',
-      presetId: 'modelrush'
+      iconId: 'modelrush'
+    })
+  })
+
+  it('prefers the row own icon for registry-owned alias rows (zai keeps z-ai, not zhipu)', () => {
+    expect(resolveProviderAvatarResolution({ id: 'zai', presetProviderId: 'zhipu' })).toEqual({
+      kind: 'bundled',
+      iconId: 'zai'
     })
   })
 
@@ -36,7 +43,7 @@ describe('resolveProviderAvatarResolution', () => {
   it('resolves derived preset instances via the persisted preset id', () => {
     expect(resolveProviderAvatarResolution({ id: 'my-rush', presetProviderId: 'modelrush' })).toEqual({
       kind: 'bundled',
-      presetId: 'modelrush'
+      iconId: 'modelrush'
     })
   })
 })

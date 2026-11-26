@@ -14,7 +14,7 @@ interface ProviderAvatarProps {
 
 export type ProviderAvatarResolution =
   | { kind: 'custom'; logo: string }
-  | { kind: 'bundled'; presetId: string }
+  | { kind: 'bundled'; iconId: string }
   | { kind: 'fallback-custom'; sentinelId: string }
   | { kind: 'fallback-preset'; presetId: string }
 
@@ -23,7 +23,11 @@ export type ProviderAvatarResolution =
  * `getModelDrawerMode`: unlinked rows (`presetProviderId == null`) never
  * resolve the bundled icon via the raw id, so a pre-existing custom
  * `modelrush` row keeps its saved logo (or initials) instead of the new
- * preset brand. Seeded rows (`preset == id`) resolve to the bundled icon.
+ * preset brand.
+ *
+ * For linked rows, prefer the row's own id icon (seeded `zai` keeps the
+ * dedicated `z-ai` mark) and fall back to the persisted preset id for
+ * derived instances (`id != preset` with no own icon, e.g. `my-rush`).
  */
 export function resolveProviderAvatarResolution(
   provider: Pick<Provider, 'id' | 'logo' | 'logoSrc' | 'presetProviderId'>
@@ -34,8 +38,11 @@ export function resolveProviderAvatarResolution(
   }
   const presetId = provider.presetProviderId
   if (presetId) {
+    if (resolveProviderIconRef(provider.id)) {
+      return { kind: 'bundled', iconId: provider.id }
+    }
     if (resolveProviderIconRef(presetId)) {
-      return { kind: 'bundled', presetId }
+      return { kind: 'bundled', iconId: presetId }
     }
     return { kind: 'fallback-preset', presetId }
   }
@@ -50,9 +57,14 @@ export function ProviderAvatar({ provider, size, className, style, displayContex
   const presetId = provider.presetProviderId
   // Existence is decided synchronously from the ref (meta catalog); only the
   // component itself loads async, so the branch below never flip-flops.
-  // Resolve via the persisted preset id (not the raw id) so derived instances
-  // (`id != preset`) show the preset brand and colliding custom rows never do.
-  const systemIconRef = presetId ? resolveProviderIconRef(presetId) : undefined
+  // Prefer the row's own id for registry-owned rows (seeded `zai` keeps the
+  // dedicated `z-ai` mark via the `zai` → `z-ai` alias) and fall back to the
+  // persisted preset id for derived instances (`id != preset` with no own
+  // icon). Unlinked rows (`preset == null`) never resolve via the raw id so
+  // colliding custom rows never pick up a preset brand.
+  const ownIconRef = presetId ? resolveProviderIconRef(provider.id) : undefined
+  const presetIconRef = presetId ? resolveProviderIconRef(presetId) : undefined
+  const systemIconRef = ownIconRef ?? presetIconRef
   const systemIcon = useIcon(systemIconRef)
   // Custom rows carry either a preset brand key (`icon:<id>` on `logo`) or a
   // main-resolved uploaded-logo URL (`logoSrc`). The primitive dispatches on
@@ -78,7 +90,7 @@ export function ProviderAvatar({ provider, size, className, style, displayContex
   if (systemIconRef) {
     return (
       <ProviderAvatarPrimitive
-        providerId={presetId ?? provider.id}
+        providerId={ownIconRef ? provider.id : (presetId ?? provider.id)}
         providerName={provider.name}
         logo={systemIcon}
         size={size}
