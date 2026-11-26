@@ -103,8 +103,9 @@ addItems(baseId, inputs)
   -> capacity guard (skipped for restore copyInline, which stays all-or-nothing):
        reject when the batch alone exceeds KNOWLEDGE_ACTIVE_JOB_LIMIT
        reject when the batch does not fit the remaining slots
-       (fast-path JobManager list + pending unqueued reservations, then authoritative
-       locked check against max(dbActive, queueActive + pending))
+       (fast-path JobManager list plus unqueued reservations, then authoritative
+       locked check against max(dbActive, queueActive + unqueued); unqueued
+       excludes reservations already visible as queued jobs by item identity)
        rejections carry { requested, active, remaining, limit, kind } for i18n
   -> resolve detect / replace conflicts when requested
   -> under same-base mutation lock:
@@ -162,8 +163,10 @@ deleteItems(baseId, itemIds)
   -> reject items outside baseId
   -> collapse nested selections to top-level roots
   -> no-op if no roots remain
-  -> list live knowledge.delete-subtree jobs and exclude roots already under live cleanup
-     (orphaned deleting roots with no live job are kept so bulk retry can rescue them)
+  -> list live knowledge.delete-subtree jobs and exclude only roots already covered
+     by live cleanup (a requested root equal to or inside a live subtree);
+     a requested ancestor of a live child still enqueues, and orphaned
+     deleting roots with no live job are kept so bulk retry can rescue them
   -> no-op if no roots remain after dedup
   -> under same-base mutation lock and one DB transaction:
        mark selected root subtrees deleting

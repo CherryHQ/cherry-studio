@@ -124,29 +124,93 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
    * `max(dbActive, queueActive + pending)` without double-counting rows that
    * already have jobs.
    */
-  private readonly pendingEnqueues = new Map<string, number>()
+  private readonly pendingEnqueues = new Map<string, Set<string>>()
+
+  private getPendingEnqueueIds(baseId: string): Set<string> {
+    return this.pendingEnqueues.get(baseId) ?? new Set<string>()
+  }
 
   private getPendingEnqueueCount(baseId: string): number {
-    return this.pendingEnqueues.get(baseId) ?? 0
+    return this.getPendingEnqueueIds(baseId).size
   }
 
-  private addPendingEnqueues(baseId: string, count: number): void {
-    if (count <= 0) {
+  private addPendingEnqueues(baseId: string, itemIds: string[]): void {
+    if (itemIds.length === 0) {
       return
     }
-    this.pendingEnqueues.set(baseId, this.getPendingEnqueueCount(baseId) + count)
+    let pending = this.pendingEnqueues.get(baseId)
+    if (!pending) {
+      pending = new Set<string>()
+      this.pendingEnqueues.set(baseId, pending)
+    }
+    for (const itemId of itemIds) {
+      pending.add(itemId)
+    }
   }
 
-  private removePendingEnqueues(baseId: string, count: number): void {
-    if (count <= 0) {
+  private removePendingEnqueue(baseId: string, itemId: string): void {
+    const pending = this.pendingEnqueues.get(baseId)
+    if (!pending) {
       return
     }
-    const next = this.getPendingEnqueueCount(baseId) - count
-    if (next <= 0) {
+    pending.delete(itemId)
+    if (pending.size === 0) {
       this.pendingEnqueues.delete(baseId)
-    } else {
-      this.pendingEnqueues.set(baseId, next)
     }
+  }
+
+  private removePendingEnqueues(baseId: string, itemIds: string[]): void {
+    const pending = this.pendingEnqueues.get(baseId)
+    if (!pending) {
+      return
+    }
+    for (const itemId of itemIds) {
+      pending.delete(itemId)
+    }
+    if (pending.size === 0) {
+      this.pendingEnqueues.delete(baseId)
+    }
+  }
+
+  /**
+   * Unqueued reservations exclude rows whose jobs are already visible in the
+   * live queue. The scheduling loop enqueues off the lock one item at a time:
+   * after `scheduleItem` enqueues but before its pending entry is removed, the
+   * same row appears in both the queue snapshot and the pending set. Counting
+   * both would over-count by one per in-flight handoff and reject an import
+   * that still fits (e.g. 4,997 reindexes + a 2-item Replace mid-handoff + a
+   * 1-item waiter = 5,000 distinct, not 5,001). Reconciling by visible job
+   * identity keeps `queue + unqueued` exact across the handoff.
+   */
+  private getUnqueuedPendingCount(baseId: string, activeJobs: Array<{ type: string; input: unknown }>): number {
+    const pending = this.pendingEnqueues.get(baseId)
+    if (!pending || pending.size === 0) {
+      return 0
+    }
+    const queuedItemIds = new Set<string>()
+    for (const job of activeJobs) {
+      const narrowed = narrowKnowledgeJobInput({ type: job.type, input: job.input })
+      if (!narrowed) {
+        continue
+      }
+      if ('itemId' in narrowed.input) {
+        queuedItemIds.add(narrowed.input.itemId)
+      }
+      if ('rootItemIds' in narrowed.input) {
+        for (const rootItemId of narrowed.input.rootItemIds) {
+          if (pending.has(rootItemId)) {
+            queuedItemIds.add(rootItemId)
+          }
+        }
+      }
+    }
+    let unqueued = 0
+    for (const itemId of pending) {
+      if (!queuedItemIds.has(itemId)) {
+        unqueued += 1
+      }
+    }
+    return unqueued
   }
 
   /**
@@ -200,8 +264,10 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         })
         // Include rows created by prior admissions that have not yet enqueued
         // their jobs (see pendingEnqueues): they are in the DB but not yet in
-        // the queue, so the queue count alone would undercount.
-        activeJobCount = activeJobs.length + this.getPendingEnqueueCount(base.id)
+        // the queue, so the queue count alone would undercount. Reconcile by
+        // visible job identity so a row enqueued mid-handoff is not counted
+        // in both the queue and the pending set.
+        activeJobCount = activeJobs.length + this.getUnqueuedPendingCount(base.id, activeJobs)
       } catch (error) {
         // A list failure must not block admission — fall through and let
         // scheduling surface per-file states instead.
@@ -309,7 +375,6 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           // queue already excludes them — no second subtraction. A cancel
           // settlement race can only over-count here, which fails safe (reject
           // without purging) rather than over-admitting.
-          const pendingEnqueues = this.getPendingEnqueueCount(base.id)
           let effectiveActive = dbEffectiveActive
           try {
             const activeJobs = await application.get('JobManager').list({
@@ -317,7 +382,8 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
               status: [...ACTIVE_JOB_STATUSES],
               limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
             })
-            effectiveActive = Math.max(dbEffectiveActive, activeJobs.length + pendingEnqueues)
+            const unqueuedPending = this.getUnqueuedPendingCount(base.id, activeJobs)
+            effectiveActive = Math.max(dbEffectiveActive, activeJobs.length + unqueuedPending)
           } catch (error) {
             logger.warn(
               'Failed to check knowledge queue capacity inside admission lock; using DB rows only',
@@ -380,7 +446,10 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         // but their jobs enqueue off the lock one at a time (see pendingEnqueues).
         // Restore also reserves — its target is brand new, but a concurrent
         // interactive add to the same new base must still see the unqueued rows.
-        this.addPendingEnqueues(base.id, acceptedItems.length)
+        this.addPendingEnqueues(
+          base.id,
+          acceptedItems.map(({ item }) => item.id)
+        )
       } catch (error) {
         this.rollbackAcceptedItems(
           base.id,
@@ -407,16 +476,19 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         }
         completedSchedulingItemIds.add(item.id)
         // This row now has a job: it is no longer an unqueued reservation.
-        // Decrement per item so a competing admission reading
-        // `queue + pending` mid-loop sees `queue(partial) + pending(remaining)`
-        // = the true distinct count without double-counting enqueued rows.
-        this.removePendingEnqueues(base.id, 1)
+        // Remove by identity so a competing admission reading
+        // `queue + unqueuedPending` mid-loop sees the true distinct count.
+        // Identity reconciliation in getUnqueuedPendingCount covers the
+        // enqueue-then-remove gap where the row is briefly in both sets.
+        this.removePendingEnqueue(base.id, item.id)
       }
     } catch (error) {
       // The failing item and every later item never got a job: clear their
-      // reservations (they are marked failed below) so the counter cannot leak.
-      const remainingUnqueued = acceptedItems.length - completedSchedulingItemIds.size
-      this.removePendingEnqueues(base.id, remainingUnqueued)
+      // reservations (they are marked failed below) so the set cannot leak.
+      const remainingUnqueuedIds = acceptedItems
+        .map(({ item }) => item.id)
+        .filter((itemId) => !completedSchedulingItemIds.has(itemId))
+      this.removePendingEnqueues(base.id, remainingUnqueuedIds)
       this.markUnscheduledAcceptedItemsFailed(
         base.id,
         acceptedItems.map(({ item }) => item),
@@ -479,11 +551,19 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     knowledgeBaseService.getById(baseId)
     // Deduplicate against live cleanup jobs so a bulk retry can rescue orphaned
     // `deleting` rows (whose job exhausted retries and is gone) while roots
-    // already under live cleanup are left to their existing job. Re-enqueueing
-    // a live root together with an unrelated root would cancel the combined job
-    // on overlap and strand the unrelated row as `deleting` — the saturated-queue
-    // bulk-delete case. Filtering here (not only in the renderer) lets the
-    // service retry orphans: the renderer now submits every selected id.
+    // already under live cleanup are left to their existing job. Only skip a
+    // requested root that is itself covered by a live job (the root equals or
+    // descends from a live root). A requested ancestor of a live child must
+    // still enqueue: the live child job removes only its own subtree, so
+    // dropping the parent would leave the folder and its other contents.
+    // Enqueueing the parent alongside the live child is safe — the parent
+    // handler cancels the overlapped child when it runs, and the child handler
+    // cannot cancel the parent (the parent root is not in the child's subtree).
+    // Re-enqueueing a live root together with an unrelated root would cancel
+    // the combined job on overlap and strand the unrelated row as `deleting` —
+    // the saturated-queue bulk-delete case. Filtering here (not only in the
+    // renderer) lets the service retry orphans: the renderer now submits every
+    // selected id.
     let deleteRootIds = rootItemIds
     try {
       const liveJobs = await application.get('JobManager').list({
@@ -513,16 +593,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         }
         const filtered: string[] = []
         for (const rootId of rootItemIds) {
-          let overlaps = liveCovered.has(rootId)
-          if (!overlaps) {
-            try {
-              const subtree = knowledgeItemService.getSubtreeItems(baseId, [rootId], { includeRoots: true })
-              overlaps = subtree.some((item) => liveCovered.has(item.id))
-            } catch {
-              overlaps = false
-            }
-          }
-          if (overlaps) {
+          if (liveCovered.has(rootId)) {
             logger.info('Skipping delete for root already under live cleanup', { baseId, rootItemId: rootId })
           } else {
             filtered.push(rootId)

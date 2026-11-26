@@ -1882,7 +1882,7 @@ describe('KnowledgeService', () => {
         [
           {
             type: 'file' as const,
-            data: { source: resolvePath('/docs/report.pdf'), path: resolvePath('/docs/report.pdf') }
+            data: { source: resolvePath('/docs/report.pdf'), path: resolvePath('/docs/report.pdf') as AbsoluteFilePath }
           }
         ],
         'replace'
@@ -1956,7 +1956,7 @@ describe('KnowledgeService', () => {
   it('counts pending unqueued reservations without double-counting enqueued rows', async () => {
     const service = new KnowledgeService()
     const ingestion = ingestionOf(service) as unknown as {
-      addPendingEnqueues: (baseId: string, count: number) => void
+      addPendingEnqueues: (baseId: string, itemIds: string[]) => void
     }
     // 4,990 queued reindexes on terminal rows (invisible to the DB check) plus
     // a prior 10-URL admission that created 10 rows but has not yet enqueued
@@ -1967,7 +1967,10 @@ describe('KnowledgeService', () => {
       Array.from({ length: 10 }, (_, index) => createNoteItem(`pending-${index}`, 'kb-1', null, 'processing'))
     )
     listMock.mockResolvedValue(Array.from({ length: 4990 }, (_, index) => ({ id: `reindex-${index}` })))
-    ingestion.addPendingEnqueues('kb-1', 10)
+    ingestion.addPendingEnqueues(
+      'kb-1',
+      Array.from({ length: 10 }, (_, index) => `pending-${index}`)
+    )
 
     await expect(
       service.addItems('kb-1', [{ type: 'note', data: { source: 'late-note', content: 'hello' } }])
@@ -2074,6 +2077,100 @@ describe('KnowledgeService', () => {
       { baseId: 'kb-1', rootItemIds: ['orphan-1'] },
       expect.any(Object)
     )
+  })
+
+  it('enqueues a parent folder while its child cleanup is still live', async () => {
+    const service = new KnowledgeService()
+    // Live cleanup for child-1 only: deleting the parent folder must still
+    // enqueue (the child job removes only its own subtree). The old overlap
+    // check treated the live child as covering the folder and returned
+    // success without recording the folder delete, leaving the folder and
+    // its other contents behind.
+    knowledgeItemGetOutermostSelectedItemIdsMock.mockReturnValueOnce(['folder-1'])
+    listMock.mockResolvedValueOnce([
+      {
+        id: 'delete-child-1',
+        status: 'running',
+        priority: 0,
+        queue: 'base.kb-1',
+        idempotencyKey: 'knowledge:kb-1:child-1:delete',
+        scheduleId: null,
+        scheduledAt: '2026-04-08T00:00:00.000Z',
+        startedAt: '2026-04-08T00:00:00.000Z',
+        finishedAt: null,
+        attempt: 1,
+        maxAttempts: 3,
+        input: { baseId: 'kb-1', rootItemIds: ['child-1'] },
+        output: null,
+        error: null,
+        parentId: null,
+        cancelRequested: false,
+        cancelRequestedAt: null,
+        metadata: {},
+        timeoutMs: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z',
+        type: 'knowledge.delete-subtree'
+      }
+    ])
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      (_baseId: string, rootIds: string[], options: { includeRoots?: boolean } = {}) => {
+        if (rootIds.length === 1 && rootIds[0] === 'child-1') {
+          return [createNoteItem('child-1', 'kb-1', null, 'deleting')]
+        }
+        if (rootIds.length === 1 && rootIds[0] === 'folder-1') {
+          return [
+            createNoteItem('folder-1', 'kb-1', null, 'deleting'),
+            createNoteItem('child-1', 'kb-1', null, 'deleting'),
+            createNoteItem('sibling-1', 'kb-1', null, 'deleting')
+          ]
+        }
+        return options.includeRoots ? rootIds.map((id) => createNoteItem(id, 'kb-1', null, 'completed')) : []
+      }
+    )
+
+    await service.deleteItems('kb-1', ['folder-1'])
+
+    expect(enqueueTxMock).toHaveBeenCalledTimes(1)
+    expect(enqueueTxMock).toHaveBeenCalledWith(
+      expect.anything(),
+      'knowledge.delete-subtree',
+      { baseId: 'kb-1', rootItemIds: ['folder-1'] },
+      expect.any(Object)
+    )
+  })
+
+  it('admits a waiter across a Replace publish handoff without double-counting', async () => {
+    const service = new KnowledgeService()
+    const ingestion = ingestionOf(service) as unknown as {
+      addPendingEnqueues: (baseId: string, itemIds: string[]) => void
+    }
+    // 4,997 queued reindexes plus a 2-item Replace mid-handoff: replace-1 is
+    // already visible in the queue but its pending entry has not been removed
+    // yet, replace-2 is still unqueued. Distinct active = 4,997 + 2 = 4,999,
+    // so a 1-item waiter fits exactly at 5,000. Counting the queue length
+    // plus the raw pending set would see 4,998 + 2 = 5,000 and reject the
+    // waiter to 5,001; reconciling by visible job identity admits it.
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
+    const reindexes = Array.from({ length: 4997 }, (_, index) => ({
+      id: `reindex-${index}`,
+      status: 'running',
+      type: 'knowledge.reindex-subtree',
+      input: { baseId: 'kb-1', rootItemIds: [`reindex-root-${index}`] }
+    }))
+    const publishedReplaceCopy = {
+      id: 'copy-replace-1',
+      status: 'running',
+      type: 'knowledge.copy-sources',
+      input: { baseId: 'kb-1', itemId: 'replace-1', copies: [] }
+    }
+    listMock.mockResolvedValue([...reindexes, publishedReplaceCopy])
+    ingestion.addPendingEnqueues('kb-1', ['replace-1', 'replace-2'])
+
+    await expect(
+      service.addItems('kb-1', [{ type: 'note', data: { source: 'waiter-1', content: 'hello' } }])
+    ).resolves.toEqual({ status: 'added' })
+    expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(1)
   })
 
   it('rolls back already-created addItems rows when a later create fails mid-batch', async () => {
