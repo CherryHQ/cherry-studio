@@ -1,6 +1,6 @@
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
 import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import type { DoctorSubjectRef } from '@shared/types/doctor'
 
 import type {
@@ -24,7 +24,7 @@ interface UseMessageListAdapterCapabilitiesOptions {
   topicName: string
   exportToObsidian: ExportMessagesToObsidian
   messages: MessageListItem[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers?: MessageStreamingLayers
   deleteMessage?: MessageListActions['deleteMessage']
   canDeleteMessage?: MessageListActions['canDeleteMessage']
@@ -52,7 +52,7 @@ export function useMessageListAdapterCapabilities({
   getDoctorSubject,
   selectAllPagination
 }: UseMessageListAdapterCapabilitiesOptions) {
-  const messageActivity = useMessageActivityState(topicId, partsByMessageId)
+  const messageActivity = useMessageActivityState(topicId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName, exportToObsidian })

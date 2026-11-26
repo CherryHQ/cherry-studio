@@ -128,16 +128,20 @@ export interface PersistAssistantInput {
   runtimeStats?: MessageRuntimeStatsInput
 }
 
-export interface PersistedAssistant {
-  messageId: string
-  messageRevision: string
-  historyRevision: string
+type SavedByBackend = {
+  sqlite: { messageId: string }
+  'agents-db': { messageId: string; messageRevision: string; historyRevision: string }
+  temp: undefined
 }
 
-export interface PersistenceBackend {
-  /** Tag for logging (e.g. "sqlite", "temp", "agents-db"). */
-  readonly kind: string
+export type PersistedAssistant<K extends 'sqlite' | 'agents-db' = 'sqlite' | 'agents-db'> = SavedByBackend[K]
 
+export type PersistenceBackend<K extends keyof SavedByBackend = keyof SavedByBackend> = {
+  [Kind in K]: {
+    readonly kind: Kind
+    persistAssistant(input: PersistAssistantInput): SavedByBackend[Kind] | Promise<SavedByBackend[Kind]>
+  }
+}[K] & {
   /**
    * True for backends that finalize a pre-created placeholder row. They must
    * still write terminal status when a stream is paused before producing chunks.
@@ -146,8 +150,6 @@ export interface PersistenceBackend {
 
   /** True only when an empty successful response is itself a valid terminal result. */
   readonly canPersistEmptySuccessTerminal?: boolean
-
-  persistAssistant(input: PersistAssistantInput): PersistedAssistant | void | Promise<PersistedAssistant | void>
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing

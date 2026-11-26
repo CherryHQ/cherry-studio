@@ -18,10 +18,11 @@ import type { AgentRuntimeConnection, AgentRuntimeEvent } from '@main/ai/runtime
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { AgentChildUpdate, AgentChildView } from '@shared/ai/agentChildProjection'
-import type { MessageProjectionUpdate } from '@shared/ai/messageProjection'
+import type { ProjectionNotification } from '@shared/ai/messageProjection'
 
 import { AgentSessionRuntimeService } from '../AgentSessionRuntimeService'
-import { savedChildView } from '../ChildThreadProjection'
+import { savedChildView } from '../childArchive'
+import { childTimelines } from '../childTimelines'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory, defaultServiceInstances } = await import('@test-mocks/main/application')
@@ -83,6 +84,7 @@ function fixture() {
   const ready = Promise.withResolvers<AgentRuntimeConnection>()
   const closed = Promise.withResolvers<void>()
   const connection: AgentRuntimeConnection = {
+    contextId: parent.id,
     events: {
       async *[Symbol.asyncIterator]() {
         await closed.promise
@@ -93,16 +95,7 @@ function fixture() {
     close: async () => {
       closed.resolve()
     },
-    reconcile: async () => 'current',
-    childProjection: async () => ({
-      snapshot: () => view,
-      subscribe: (listener) => {
-        listeners.add(listener)
-        return () => {
-          listeners.delete(listener)
-        }
-      }
-    })
+    reconcile: async () => 'current'
   }
   const connect = vi.fn(() => ready.promise)
   runtimeDriverRegistry.register({
@@ -161,6 +154,40 @@ it.each([false, true])('resolves MCP interactions from the initiating window (he
   await stream.stream.cancel()
 })
 
+it('sends to the archived child owner while another branch is selected', async () => {
+  const f = fixture()
+  const sessionId = 'root'
+  const root = contexts.context(f.context.parentContextId!)
+  const other = messages.saveMessage({
+    sessionId,
+    parentId: root.anchorMessageId!,
+    message: {
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'Different branch' }] }
+    }
+  })
+  contexts.reserveBranchTx(dbh.db, {
+    sessionId,
+    backendId: root.backendId,
+    nativeThreadId: 'other-native-root',
+    anchorMessageId: other.id
+  })
+  const sent: string[] = []
+  f.connection.messageChild = async (contextId, text) => {
+    sent.push(contextId, text)
+  }
+  f.ready.resolve(f.connection)
+  try {
+    await f.service.messageChild(sessionId, f.context.id, 'Continue the archived child')
+    expect(f.connect.mock.calls[0]).toMatchObject([{ sessionId, branchHead: root.anchorMessageId }])
+    expect(sent).toEqual([f.context.id, 'Continue the archived child'])
+    expect(f.service.inspect(sessionId)).toBeUndefined()
+    expect(messages.branchTip(sessionId, root.anchorMessageId!, dbh.db, root.id)).toBe(root.anchorMessageId)
+  } finally {
+    await f.service._doDestroy()
+  }
+})
+
 // Catches child IPC writing while backup holds admission, including overlapping pause owners.
 it('rejects child input until the final writer pause is released', async () => {
   const f = fixture()
@@ -169,7 +196,6 @@ it('rejects child input until the final writer pause is released', async () => {
     sent.push(text)
   }
   f.ready.resolve(f.connection)
-  await f.service.primeConnection('root')
   const first = f.service.pause('backup')
   const last = f.service.pause('restore')
   try {
@@ -194,7 +220,6 @@ it('rejects child input once shutdown begins', async () => {
     sent.push(text)
   }
   f.ready.resolve(f.connection)
-  await f.service.primeConnection('root')
   const stopping = f.service._doStop()
   await expect(f.service.messageChild('root', f.context.id, 'too late')).rejects.toThrow('paused')
   await stopping
@@ -218,7 +243,6 @@ it.each(['complete', 'reject'] as const)('drains admitted child input when it wi
     })
   }
   f.ready.resolve(f.connection)
-  await f.service.primeConnection('root')
   const sending = f.service.messageChild('root', f.context.id, 'continue')
   const result = sending.catch((error: unknown) => error)
   const hold = f.service.pause('backup')
@@ -266,7 +290,6 @@ it('drains child native work and archive writes after the input acknowledgement'
     })
   }
   f.ready.resolve(f.connection)
-  await f.service.primeConnection('root')
   const sending = f.service.messageChild('root', f.context.id, 'continue')
   const hold = f.service.pause('backup')
   try {
@@ -293,7 +316,8 @@ it('reports failed child write drains and allows the next drain to retry', async
     throw new Error('Archive unavailable')
   }
   f.ready.resolve(f.connection)
-  await f.service.primeConnection('root')
+  f.connection.messageChild = async () => {}
+  await f.service.messageChild('root', f.context.id, 'continue')
   const hold = f.service.pause('backup')
   try {
     expect(await f.service.drainInFlight({ timeoutMs: 100 })).toEqual({ stragglerIds: ['root'] })
@@ -304,92 +328,46 @@ it('reports failed child write drains and allows the next drain to retry', async
   }
 })
 
-// Catches attaching during prewarm returning an unavailable archive with no later subscription.
-it('waits for an in-flight prewarm and delivers child updates without another attach', async () => {
+it('keeps both passive viewers subscribed across child creation and never opens a runtime to browse', async () => {
   const f = fixture()
-  const priming = f.service.primeConnection('root')
-  await expect.poll(() => f.connect.mock.calls.length).toBe(1)
-  const received: MessageProjectionUpdate[] = []
-  const attaching = f.service.attachChild(f.sender, 'root', 'spawn', 'subscription', (update) => received.push(update))
-  f.ready.resolve(f.connection)
-  await priming
-  expect(await attaching).toEqual(f.view)
-  const update: AgentChildUpdate = {
-    kind: 'child',
-    contextId: f.context.id,
-    sessionId: f.context.sessionId,
-    canSubmit: false,
-    revision: 1,
-    patches: [{ type: 'append', messageId: replyId, part: 0, text: ' continued' }],
-    order: [replyId],
-    active: true,
-    available: true
-  }
-  for (const listener of f.listeners) listener(update)
-  expect(received).toEqual([update])
-  expect(f.connect.mock.calls).toHaveLength(1)
-  f.service.detachChild(f.sender, 'subscription')
-  expect(f.listeners.size).toBe(0)
-})
-
-// Catches a late connection installing a subscription after its requesting window has gone away.
-it.each(['detach', 'destroy', 'close'] as const)(
-  'does not attach after %s while the connection is pending',
-  async (action) => {
-    const f = fixture()
-    const priming = f.service.primeConnection('root')
-    await expect.poll(() => f.connect.mock.calls.length).toBe(1)
-    const attaching = f.service.attachChild(f.sender, 'root', 'spawn', 'subscription', () => {})
-    if (action === 'detach') f.service.detachChild(f.sender, 'subscription')
-    if (action === 'destroy') f.destroy()
-    const closing = action === 'close' ? f.service.closeSession('root') : undefined
-    f.ready.resolve(f.connection)
-    await priming
-    await closing
-    const view = await attaching
-    expect(view === null || ('available' in view && view.available === false)).toBe(true)
-    expect(f.listeners.size).toBe(0)
-  }
-)
-
-// Catches a late child projection subscribing a detached panel or a retired owner.
-it.each(['detach', 'destroy', 'close'] as const)(
-  'does not subscribe after %s while the child is opening',
-  async (action) => {
-    const f = fixture()
-    const reached = Promise.withResolvers<void>()
-    const ready = Promise.withResolvers<void>()
-    const project = f.connection.childProjection!.bind(f.connection)
-    vi.spyOn(f.connection, 'childProjection').mockImplementation(async (toolCallId) => {
-      reached.resolve()
-      await ready.promise
-      return project(toolCallId)
-    })
-    try {
-      f.ready.resolve(f.connection)
-      await f.service.primeConnection('root')
-      const attaching = f.service.attachChild(f.sender, 'root', 'spawn', 'subscription', () => {})
-      await reached.promise
-      if (action === 'detach') f.service.detachChild(f.sender, 'subscription')
-      if (action === 'destroy') f.destroy()
-      if (action === 'close') await f.service.closeSession('root')
-      ready.resolve()
-      expect(await attaching).toBeNull()
-      expect(f.listeners.size).toBe(0)
-    } finally {
-      ready.resolve()
-    }
-  }
-)
-
-// Catches losing readable persisted output when the native owner cannot be opened.
-it('returns the saved read-only child when connection fails', async () => {
-  const f = fixture()
-  const attaching = f.service.attachChild(f.sender, 'root', 'spawn', 'subscription', () => {})
-  f.ready.reject(new Error('Owner unavailable'))
-  expect(await attaching).toMatchObject({
+  const early: ProjectionNotification[] = []
+  const attach = (call: string, id: string, seen = early) =>
+    childTimelines.attach(f.sender, 'root', call, id, (value) => seen.push(value))
+  expect(await attach('future', 'first')).toBeNull()
+  expect(await attach('spawn', 'archive')).toMatchObject({
     available: false,
+    canSubmit: true,
     messages: [{ id: replyId, parts: [{ text: 'Saved answer' }] }]
   })
-  expect(f.listeners.size).toBe(0)
+  const { MessageProjection } = await import('@main/ai/messages/MessageProjection')
+  const second: ProjectionNotification[] = []
+  const attaching = attach('future', 'second', second)
+  const child = contexts.child(f.context.parentContextId!, 'future-native', 'future', 'Future child')
+  const baseline = savedChildView(child)
+  const live = new MessageProjection({ ...baseline, available: true, canSubmit: true })
+  const retire = childTimelines.publish(child, {
+    snapshot: () => live.snapshot(),
+    subscribe: (listener) => live.subscribe(listener),
+    getToolResult: () => undefined
+  })
+  onTestFinished(retire)
+  expect(early).toEqual([{ kind: 'source-changed' }])
+  expect(await attach('future', 'first')).toMatchObject({ available: true, messages: [] })
+  expect(await attaching).toMatchObject({ available: true, messages: [] })
+  live.updateAccepted(
+    {
+      ...baseline,
+      available: true,
+      canSubmit: true,
+      messages: [{ id: 'new', role: 'assistant', parts: [{ type: 'text', text: 'first output' }] }]
+    },
+    true
+  )
+  expect(early.slice(1)).toEqual(second)
+  expect(second).toMatchObject([{ patches: [{ type: 'message', message: { id: 'new' } }] }])
+  childTimelines.subscriptions.detach(f.sender, 'first')
+  f.destroy()
+  retire()
+  expect(second).toHaveLength(1)
+  expect(f.connect).not.toHaveBeenCalled()
 })
