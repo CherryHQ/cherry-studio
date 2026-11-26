@@ -24,9 +24,9 @@ import { withDurableShellTimeout } from './durableShellTimeout'
 export async function prepareDurableDesktop(
   input: AgentRuntimeConnectInput,
   emit: (event: AgentRuntimeEvent) => void,
-  namespace?: string,
-  isRoot?: (id: number) => boolean
+  root?: { contextId: string; namespace: string; isRoot(id: number): boolean }
 ) {
+  const namespace = root?.namespace
   const discovery = await capturePiConnectionSnapshot(
     input.sessionId,
     input.agentId,
@@ -138,10 +138,11 @@ export async function prepareDurableDesktop(
         hooks: [
           native.hook(native.GenerationTask, {
             async beforeRequest(request, api, context) {
-              if (!isRoot?.(api.conversationId)) return undefined
+              if (!root?.isRoot(api.conversationId)) return undefined
               const memory = await agentMemoryReference(
                 input.sessionId,
-                () => application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId),
+                () =>
+                  application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId, root?.contextId),
                 context.abortSignal
               )
               const [first, ...rest] = request.messages
@@ -194,7 +195,8 @@ export async function prepareDurableDesktop(
         workspacePath: cwd,
         agentDataPath,
         emit,
-        getInteractionState: () => application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId),
+        getInteractionState: () =>
+          application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId, root?.contextId),
         getPermissionMode: () => permissionMode,
         builtinRole: agent.configuration?.builtin_role,
         isDisabled,
