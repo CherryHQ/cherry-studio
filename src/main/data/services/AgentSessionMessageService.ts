@@ -2755,8 +2755,8 @@ export class AgentSessionMessageService {
         .run()
       replaceAgentSessionMessagePartsTx(tx, { sessionId, messageId: row.id, parts, timestampMs: row.updatedAt })
       setMessageProvenanceTx(tx, sessionId, row.id, provenance)
-      advanceAgentSessionHeadTx(tx, sessionId, parentId, row.id!)
-      parentId = row.id!
+      advanceAgentSessionHeadTx(tx, sessionId, parentId, row.id)
+      parentId = row.id
     }
   }
 
