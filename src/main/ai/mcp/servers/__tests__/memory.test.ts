@@ -39,6 +39,7 @@ describe('memory MCP server', () => {
 
     expect(graph.entities).toContainEqual({ name: 'Cherry', entityType: 'application', observations: [] })
     expect(graph.relations).toEqual([{ from: 'Cherry', to: 'Electron', relationType: 'built_with' }])
+    expect(JSON.parse(toolText(await call('read_graph')))).toEqual(graph)
   })
 
   it('reports an unknown entity as a tool error without changing the graph', async () => {

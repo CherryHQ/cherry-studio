@@ -8,9 +8,12 @@ import {
   EMPTY_CITATION_PARTS_REGISTRY,
   getPriorCitationParts
 } from '@renderer/utils/message/citations'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
+import type { ProjectionTarget } from '@shared/ai/messageProjection'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { PartsProvider } from './blocks/MessagePartsContext'
+import { SubagentStatusProvider } from './blocks/SubagentStatusContext'
 import type {
   MessageListActions,
   MessageListItem,
@@ -51,6 +54,7 @@ type MessageListDataValue = Pick<
   | 'topic'
   | 'beforeList'
   | 'afterMessages'
+  | 'messageHead'
   | 'messageTail'
   | 'activeTurnStatus'
   | 'isInitialLoading'
@@ -106,8 +110,7 @@ const MessageListCitationRegistryContext = createContext<CitationPartsRegistry |
  * parts layer (never the streaming overlay), so a streaming chunk does not
  * rebuild it; `previous` keeps the identity when nothing citable changed.
  */
-function useCitationPartsRegistry(state: MessageListState): CitationPartsRegistry {
-  const messageIds = useStableStringArray(useMemo(() => state.messages.map((message) => message.id), [state.messages]))
+function useCitationPartsRegistry(state: MessageListState, messageIds: readonly string[]): CitationPartsRegistry {
   const partsSource = state.streamingLayers?.historyPartsByMessageId ?? state.partsByMessageId
   const previousRef = useRef(EMPTY_CITATION_PARTS_REGISTRY)
   return useMemo(() => {
@@ -117,15 +120,28 @@ function useCitationPartsRegistry(state: MessageListState): CitationPartsRegistr
   }, [messageIds, partsSource])
 }
 
-export const MessageListProvider = ({ value, children }: { value: MessageListProviderValue; children: ReactNode }) => {
+export const MessageListProvider = ({
+  value,
+  taskRows,
+  taskTarget,
+  children
+}: {
+  value: MessageListProviderValue
+  taskRows?: MessagePartRows
+  taskTarget?: ProjectionTarget
+  children: ReactNode
+}) => {
   const { state, actions, meta } = value
-  const citationRegistry = useCitationPartsRegistry(state)
+  const defaultTarget = useMemo(() => ({ kind: 'topic' as const, topicId: state.topic.id }), [state.topic.id])
+  const messageIds = useStableStringArray(useMemo(() => state.messages.map((message) => message.id), [state.messages]))
+  const citationRegistry = useCitationPartsRegistry(state, messageIds)
 
   const data = useMemo<MessageListDataValue>(
     () => ({
       topic: state.topic,
       beforeList: state.beforeList,
       afterMessages: state.afterMessages,
+      messageHead: state.messageHead,
       messageTail: state.messageTail,
       activeTurnStatus: state.activeTurnStatus,
       isInitialLoading: state.isInitialLoading,
@@ -143,6 +159,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.topic,
       state.beforeList,
       state.afterMessages,
+      state.messageHead,
       state.messageTail,
       state.activeTurnStatus,
       state.isInitialLoading,
@@ -197,27 +214,32 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
   return (
     <MessageListDataContext value={data}>
       <MessageListMessagesContext value={state.messages}>
-        <PartsProvider value={state.partsByMessageId}>
-          <MessageListCitationRegistryContext value={citationRegistry}>
-            <MessageListActionsContext value={actions}>
-              <MessageListMetaContext value={meta}>
-                <MessageListRenderConfigContext value={state.renderConfig}>
-                  <MessageListSelectionContext value={state.selection}>
-                    <MessageListUiStaticContext value={uiStatic}>
-                      <MessageListUiSelectorsContext value={uiSelectors}>
-                        <MessageListActivityContext value={activity}>
-                          <MessageListEditingContext value={state.editingMessageId ?? null}>
-                            {children}
-                          </MessageListEditingContext>
-                        </MessageListActivityContext>
-                      </MessageListUiSelectorsContext>
-                    </MessageListUiStaticContext>
-                  </MessageListSelectionContext>
-                </MessageListRenderConfigContext>
-              </MessageListMetaContext>
-            </MessageListActionsContext>
-          </MessageListCitationRegistryContext>
-        </PartsProvider>
+        <SubagentStatusProvider
+          messageIds={messageIds}
+          rows={taskRows ?? state.partsByMessageId}
+          target={taskTarget ?? defaultTarget}>
+          <PartsProvider value={state.partsByMessageId}>
+            <MessageListCitationRegistryContext value={citationRegistry}>
+              <MessageListActionsContext value={actions}>
+                <MessageListMetaContext value={meta}>
+                  <MessageListRenderConfigContext value={state.renderConfig}>
+                    <MessageListSelectionContext value={state.selection}>
+                      <MessageListUiStaticContext value={uiStatic}>
+                        <MessageListUiSelectorsContext value={uiSelectors}>
+                          <MessageListActivityContext value={activity}>
+                            <MessageListEditingContext value={state.editingMessageId ?? null}>
+                              {children}
+                            </MessageListEditingContext>
+                          </MessageListActivityContext>
+                        </MessageListUiSelectorsContext>
+                      </MessageListUiStaticContext>
+                    </MessageListSelectionContext>
+                  </MessageListRenderConfigContext>
+                </MessageListMetaContext>
+              </MessageListActionsContext>
+            </MessageListCitationRegistryContext>
+          </PartsProvider>
+        </SubagentStatusProvider>
       </MessageListMessagesContext>
     </MessageListDataContext>
   )

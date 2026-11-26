@@ -3,6 +3,7 @@ import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq } from 'drizzle-orm'
 import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
+import { runtimeId } from '@cherrystudio/agent-runtime'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -12,6 +13,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { attachAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeEvent } from '@main/ai/runtime/types'
@@ -19,7 +21,9 @@ import type { StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManag
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { MessageSnapshot } from '@shared/data/types/message'
+import { IpcChannel } from '@shared/IpcChannel'
 import { AsyncEventQueue } from '@shared/utils/async'
 
 import { AgentSessionRuntimeService } from '../AgentSessionRuntimeService'
@@ -151,7 +155,7 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean; recovery?
         headless: opts.headless,
         messageSnapshot: snapshot
       })
-  await service.primeConnection('root')
+  await service['commandConnection']('root')
   await emit({ type: 'supported-commands', commands: [] })
   onTestFinished(async () => {
     suspended.resolve()
@@ -173,9 +177,10 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean; recovery?
     })
     if (source.kind !== 'messages') throw new Error('Expected message stream')
     const done = pipeMessageStream(
-      source.stream,
+      source,
       input.abortController.signal,
-      { id: input.request.messageId!, role: 'assistant', parts: [] },
+      { id: input.request.messageId!, role: 'assistant' },
+      () => {},
       () => {},
       () => {}
     )
@@ -296,6 +301,67 @@ function failReplyWrites() {
   )
 }
 
+it('delivers turn statistics before the first body without loading the root projection from SQLite', async () => {
+  const f = await fixture()
+  const finish = f.openB()
+  await vi.waitFor(() => expect(f.sent).toEqual([f.user.id]))
+  const readContext = vi.spyOn(contexts, 'context')
+  onTestFinished(() => readContext.mockRestore())
+  await f.emit({ type: 'message-metadata', messageMetadata: { stats: { outputTokens: 5 } } })
+  expect(readContext).not.toHaveBeenCalled()
+  await f.emit({ type: 'turn-complete' })
+  expect((await finish()).finalMessage?.metadata?.stats?.outputTokens).toBe(5)
+})
+
+it('preserves wake content received before stream attachment and after the last background task ends', async () => {
+  const f = await fixture()
+  const finish = f.openB()
+  await f.project('launch', 'Delegated review', ['spawn'])
+  await f.emit({ type: 'background-work-state', active: true })
+  await f.emit({ type: 'turn-complete' })
+  await finish()
+
+  await f.emit({
+    type: 'autonomous-turn-state',
+    state: 'started',
+    origin: { kind: 'background-work' },
+    sourceToolCallIds: ['spawn']
+  })
+  await f.emit({
+    type: 'message-projection',
+    projection: {
+      contextId: f.context.id,
+      messages: [{ id: 'report', role: 'assistant', parts: [] }],
+      live: ['report'],
+      replaces: {},
+      removed: []
+    }
+  })
+  const address = {
+    contextId: f.context.id,
+    ref: {
+      id: runtimeId<'item'>('report'),
+      session: { backendId: runtimeId<'backend'>('backend'), id: runtimeId<'thread'>('thread') }
+    },
+    part: 0
+  }
+  await f.emit({ ...address, type: 'message.text-open', kind: 'text' })
+  await f.emit({ ...address, type: 'message.text-append', text: 'First' })
+  await vi.waitFor(() => expect(f.starts).toHaveLength(1))
+  const finishWake = f.open(f.starts[0])
+  await f.emit({ ...address, type: 'message.text-append', text: ' second' })
+  await f.emit({ type: 'background-work-state', active: false })
+  await f.emit({ ...address, type: 'message.text-append', text: ' last' })
+  await f.emit({ ...address, type: 'message.text-finish' })
+  await f.emit({ type: 'autonomous-turn-state', state: 'finished' })
+  await f.emit({ type: 'turn-complete' })
+  const { finalMessage } = await finishWake()
+  const report = { type: 'text', text: 'First second last', state: 'done' }
+  expect(finalMessage?.parts).toContainEqual(report)
+  expect(messages.getSessionMessage('root', f.replyB.id).data.parts).toContainEqual(report)
+  expect(f.sent).toEqual([f.user.id])
+})
+
 it.each([false, true])(
   'appends a command notification without resending input or losing earlier charges (persistence blocked: %s)',
   async (blocked) => {
@@ -330,6 +396,12 @@ it.each([false, true])(
     ).toBe(true)
     const finishWake = f.open(f.starts[0])
     await f.project('command-summary', 'Command finished')
+    expect(
+      messages
+        .getSessionMessage('root', f.replyB.id)
+        .data.parts?.filter((part) => part.type === 'text')
+        .map((part) => part.text)
+    ).toEqual(['Command started', 'Command finished'])
     await f.emit({ type: 'response-start', responseId: 'command-summary-response' })
     f.record('command-summary-response')
     f.record('command-summary-response')
@@ -666,11 +738,10 @@ it('waits for final observations before close persists a failed reply, and retri
   await f.service.closeSession('root')
   await expect(f.service.drainInFlight({ timeoutMs: 100 })).resolves.toEqual({ stragglerIds: [] })
   hold.dispose()
-  const replies = dbh.db
-    .select()
-    .from(agentSessionMessageTable)
-    .where(eq(agentSessionMessageTable.role, 'assistant'))
-    .all()
+  const replies = attachAgentSessionMessagePartsTx(
+    dbh.db,
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.role, 'assistant')).all()
+  )
   const a = replies.find((row) => row.id !== f.replyB.id)
   expect(a?.data.parts).toEqual([{ type: 'text', text: 'FINAL_A_ONLY', state: 'done' }])
   expect(JSON.stringify(replies.find((row) => row.id === f.replyB.id)?.data.parts)).not.toContain('FINAL_A_ONLY')
@@ -694,12 +765,20 @@ it('retains a steer reply and early approval across preparation failure without 
   await f.emit({ type: 'steer-boundary', inputIds: [steer.id] })
   await f.persistenceEntered
   await f.emit({
-    type: 'chunk',
-    chunk: { type: 'tool-input-available', toolCallId: 's-tool', toolName: 'Bash', input: { command: 'pwd' } }
+    type: 'tool-input-available',
+    toolCallId: 's-tool',
+    toolName: 'Bash',
+    input: { command: 'pwd' }
   })
   await f.emit({
-    type: 'chunk',
-    chunk: { type: 'tool-approval-request', toolCallId: 's-tool', approvalId: 's-approval' }
+    type: 'tool-approval-request',
+    request: {
+      toolCallId: 's-tool',
+      approvalId: 's-approval',
+      toolName: 'Bash',
+      input: { command: 'pwd' },
+      presentation: 'stream'
+    }
   })
   f.record('response-S')
   await f.emit({ type: 'response-start', responseId: 'response-S' })
@@ -755,9 +834,27 @@ it('keeps queued input unwritten through nested pause holds, then sends it once 
   first.dispose()
   await Promise.resolve()
   expect(f.starts).toHaveLength(0)
+  const observed = new Map<string, string>()
+  MockApplicationUtils.setService('WindowManager', {
+    broadcast(channel: IpcChannel, effects: DataApiDataChangeEffect[]) {
+      if (channel !== IpcChannel.DataApi_DataChanged) return
+      if (
+        effects.some(
+          (effect) =>
+            effect.endpoint === '/agent-sessions/:sessionId/messages' &&
+            effect.kind === 'membership' &&
+            effect.routeParams?.sessionId === 'root'
+        )
+      ) {
+        for (const row of messages.listSessionMessages('root', { deferToolOutputs: true }).items)
+          observed.set(row.id, row.status)
+      }
+    }
+  })
   last.dispose()
   await vi.waitFor(() => expect(f.starts).toHaveLength(1))
   const reply = f.starts[0].request.messageId!
+  expect(observed.get(reply)).toBe('pending')
   expect(messages.getSessionMessage('root', reply).messageSnapshot).toEqual(snapshot)
   expect(
     dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, reply)).get()?.parentId
@@ -818,11 +915,10 @@ it('suppresses an autonomous reply before writing its placeholder and drops the 
   expect(f.starts).toHaveLength(0)
   expect(f.sent).toEqual([])
   expect(f.service.hasBusySessions()).toBe(false)
-  const replies = dbh.db
-    .select()
-    .from(agentSessionMessageTable)
-    .where(eq(agentSessionMessageTable.role, 'assistant'))
-    .all()
+  const replies = attachAgentSessionMessagePartsTx(
+    dbh.db,
+    dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.role, 'assistant')).all()
+  )
   expect(replies.some((row) => JSON.stringify(row.data.parts).includes('CLOSED_DURING_PAUSE'))).toBe(true)
 })
 
@@ -945,11 +1041,9 @@ it.each([false, true])(
     expect(messages.getSessionMessage('root', f.replyB.id).data.parts).toEqual([
       { type: 'text', text: 'PREDECESSOR_BODY', state: 'done' }
     ])
-    const a = dbh.db
-      .select()
-      .from(agentSessionMessageTable)
-      .all()
-      .find((row) => row.role === 'assistant' && row.id !== f.replyB.id)
+    const a = attachAgentSessionMessagePartsTx(dbh.db, dbh.db.select().from(agentSessionMessageTable).all()).find(
+      (row) => row.role === 'assistant' && row.id !== f.replyB.id
+    )
     expect(a?.data.parts).toEqual([{ type: 'text', text: 'AUTONOMOUS_BODY', state: 'done' }])
     expect(f.sent).toEqual([f.user.id])
     expect(f.service.isSessionBusy('root')).toBe(false)

@@ -172,9 +172,6 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly closingQueries = new Map<string, Set<Promise<void>>>()
   private readonly failedClosures = new Map<string, Set<WarmQueryEntry>>()
 
-  // `ai.agent.session.prewarm` / `ai.agent.session.close_warm` (IpcApi, validated by the router)
-  // delegate to the public methods below; this service registers no IPC of its own.
-
   async prewarmAgentSession(sessionId: string): Promise<void> {
     const preparing = this.prepareAgentSession(sessionId)
     const preparations = this.preparingSessions.get(sessionId) ?? new Set<Promise<void>>()
@@ -234,12 +231,6 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (!traceEnv) return request
 
     return { ...request, options: { ...request.options, env: { ...request.options.env, ...traceEnv } } }
-  }
-
-  closeAgentSessionWarm(sessionId: string): void {
-    void this.close(sessionId).catch((error) => {
-      logger.debug('Failed to close agent session warm query', { sessionId, error })
-    })
   }
 
   /**

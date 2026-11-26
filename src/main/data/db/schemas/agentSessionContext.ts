@@ -8,8 +8,8 @@ import { agentSessionTable } from './agentSession'
 export interface AgentSessionCheckpoints {
   fork?: Record<string, unknown>
   root?: {
-    version?: 2
-    sources: Record<string, { messageId: string; offset: number; count: number }>
+    version?: 2 | 3
+    sources: Record<string, { messageId: string } & ({ partIds: string[] } | { offset: number; count: number })>
     removed: string[]
   }
   child?: {

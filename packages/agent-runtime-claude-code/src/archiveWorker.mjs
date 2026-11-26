@@ -51,6 +51,10 @@ if (!info || info.sessionId !== sessionId) {
         const entries = batch.map((entry) => ({
           type: entry.type,
           uuid: entry.uuid,
+          ...(entry.type === 'user' &&
+            entry.parentUuid === null &&
+            entry.isSidechain === true &&
+            key.subpath === `subagents/agent-${entry.agentId}` && { childOpening: true }),
           supersedes: entry.supersedes,
           retracted_message_uuids: entry.retracted_message_uuids,
           isAbortedMidStream: entry.isAbortedMidStream,

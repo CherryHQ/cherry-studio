@@ -335,7 +335,7 @@ describe('idle driver', () => {
     const summarized = await w.fake.withCall(t, (ports) => ports.ledger.modelContext(t))
     w.fake.scriptSummary(t, reply('summary'))
     await w.fake.compact(t)
-    expect(summarized.map((message) => (message as { readonly text: string }).text)).not.toContain(round.text)
+    expect(summarized.map((message) => message.content)).not.toContain(round.text)
   })
 
   // Catches admission by position (R1): a round reserved before the person edited the goal must not count, and the
