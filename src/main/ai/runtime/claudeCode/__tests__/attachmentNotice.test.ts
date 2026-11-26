@@ -43,6 +43,7 @@ vi.mock('@main/ai/agentSession/ThreadMessageProjection', () => ({
   }
 }))
 vi.mock('../claudeContext', () => ({
+  claudeBranchQueryIdentity: () => ({ sessionId: '11111111-1111-4111-8111-111111111111' }),
   prepareClaudeBranch: () => ({
     id: 'context',
     backendId: 'backend',
