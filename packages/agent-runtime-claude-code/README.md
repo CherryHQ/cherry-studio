@@ -14,17 +14,16 @@ the backend namespace and must not create competing runtimes over the same files
 `onError` forwards diagnostics to the host's logger. No credentials are logged.
 
 `create(options)` requires an absolute `cwd` and reserves the native session ID
-before starting execution. Native permission mode defaults to `default`; explicit
-modes and native hooks/callbacks pass through. `open(thread)` validates the backend
+before starting execution. The CLI resolves its permission mode from the selected settings
+unless the host supplies an explicit mode. Native hooks and callbacks pass through. `open(thread)` validates the backend
 and existing native storage. Opening and observing do not run a model. The first
 root submission starts or resumes its Query. Concurrent opens share that owner.
 
 The host may supply a reserved `sessionId` to `create`. `claude.start()` initializes
 the connection without model input, optionally taking exclusive ownership of a
 matching SDK `WarmQuery` and its process-exit Promise. The host must match its
-captured configuration and credentials. Command discovery and
-permission-mode updates use typed native methods on `claude`, without exposing
-the Query iterator to a second reader.
+captured configuration and credentials. Command and model discovery, permission mode, and session effort use the same live
+Query. Clearing the effort override restores the model default. The runtime owns the Query iterator.
 
 `claudeThread(backendId, sessionId, agentId?)` constructs a reference from established
 native identity. Hosts store the opaque `Thread.id`; they do not parse its encoding.

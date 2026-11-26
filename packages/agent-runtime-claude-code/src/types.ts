@@ -134,6 +134,8 @@ export interface ClaudeThreadHandle extends ThreadHandle {
     /** Start the native connection without submitting input; a warm handoff transfers sole ownership. */
     start(warm?: { query: WarmQuery; exited: Promise<void> }): OperationResult<void>
     supportedCommands(): Promise<OperationResult<Awaited<ReturnType<Query['supportedCommands']>>>>
+    supportedModels(): Promise<OperationResult<Awaited<ReturnType<Query['supportedModels']>>>>
+    setEffort(effort: NonNullable<Options['effort']> | null): Promise<OperationResult<void>>
     setPermissionMode(mode: Parameters<Query['setPermissionMode']>[0]): Promise<OperationResult<void>>
     readonly input?: ThreadInput<ClaudeInput>
     observe(

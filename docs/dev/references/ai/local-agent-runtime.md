@@ -58,6 +58,11 @@ are preserved.
   discovery opens a temporary session, reads its reported catalog and closes it when
   supported. Settings connections expose no host files, terminals or browser MCP.
   Main owns the child process and reads conversation history from Cherry's archive.
+- Local Claude Code and built-in Claude Code share the Claude Agent SDK session reader,
+  incremental message projection and native history. Local sessions use the selected CLI,
+  workspace and account configuration. Permission mode and effort apply to the current
+  query. Settings reads the SDK initialization catalog without sending a message or
+  creating a transcript.
 - Streams use `runtime:<agent-id>` as execution identity. It belongs to the stream.
   Persisted messages retain author and native model attribution when available.
 - Cursor uses the bundled TypeScript SDK for login, model discovery and session recovery.
@@ -78,7 +83,8 @@ are preserved.
   (`plan` / `readOnly`) enforce read-only or disabled isolation; headless scheduled tasks
   and OpenClaw's ACP bridge (which rejects per-session `mcpServers`) omit browser
   injection, and injected `automation` tool calls auto-approve across Claude, Codex, and
-  ACP when host control is allowed.
+  ACP when host control is allowed. The bundled Pi ACP bridge receives the MCP descriptor.
+  Registering that descriptor with Pi on session creation and resume remains pending for `pi-acp@0.0.34`.
 
 ### Models and configuration
 

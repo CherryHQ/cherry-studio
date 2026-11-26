@@ -4,3 +4,7 @@ export async function createClaudeCodeRuntimeDriver(): Promise<AgentSessionRunti
   const { ClaudeCodeRuntimeDriver } = await import('./ClaudeCodeRuntimeDriver')
   return new ClaudeCodeRuntimeDriver()
 }
+
+export function loadLocalClaudeRuntime() {
+  return import('./LocalClaudeConnection')
+}

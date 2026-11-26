@@ -55,11 +55,12 @@ interface Input {
   state: ProductInputState
 }
 
-// Any explicit CLAUDE_CONFIG_DIR, even the CLI's own default, re-keys the macOS Keychain
-// credential and hides an existing `claude /login`, so only a non-default directory is passed.
+// An implicit default and an explicit CLAUDE_CONFIG_DIR can select different macOS Keychain accounts.
 function childEnvironment(env: ClaudeSessionOptions['env'], configDir: string) {
   const childEnv: Record<string, string | undefined> = { ...env, CLAUDE_CONFIG_DIR: configDir }
-  if (path.resolve(configDir) === path.join(homedir(), '.claude')) delete childEnv.CLAUDE_CONFIG_DIR
+  const home = (process.platform === 'win32' ? env?.USERPROFILE : env?.HOME) || homedir()
+  if (!env?.CLAUDE_CONFIG_DIR && path.resolve(configDir) === path.join(home, '.claude'))
+    delete childEnv.CLAUDE_CONFIG_DIR
   return childEnv
 }
 
@@ -229,7 +230,6 @@ export class ClaudeOwner {
           options: {
             ...this.config,
             env: childEnvironment(this.config.env, this.runtime.configDir),
-            permissionMode: this.config.permissionMode ?? 'default',
             sessionId: this.fresh ? this.activeSession : undefined,
             resume: this.fresh ? undefined : this.activeSession,
             persistSession: true,
@@ -622,7 +622,7 @@ export class ClaudeOwner {
         }
       }
     } else if (message.type === 'result') {
-      const content = projection.result(message)
+      const content = projection.result(message, !!commandInput)
       if (content.length) {
         events.push(...content)
       }

@@ -1,674 +1,295 @@
 import { randomUUID } from 'node:crypto'
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-import type { SDKMessage, SDKPartialAssistantMessage } from '@anthropic-ai/claude-agent-sdk'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { query, type SDKResultSuccess, type SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
+import { afterEach, expect, it, vi } from 'vitest'
 
-import { application } from '@application'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
-import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
-import { ClaudeConnection } from '../ClaudeConnection'
-import { observedParts } from './observedParts'
+import { assistantMessage, wireProcess } from '../../../../../../packages/agent-runtime-claude-code/tests/wireFixture'
+import { LocalClaudeConnection, probeLocalClaude } from '../../claudeCode/LocalClaudeConnection'
+import type { ClaudeCodeProcessDiagnostics } from '../../claudeCode/processExitDiagnostics'
+import type { AgentRuntimeEvent } from '../../types'
+import { acquireLocalAgentBrowserLease } from '../browserBridge'
+import { resolveLocalAgentLaunch, resolveLocalAgentModelLaunch } from '../launch'
 
-vi.mock('../localContext', () => ({
-  localContext: () => ({ id: 'local-context', backendId: 'local-backend' }),
-  bindLocalContext: (id: string, nativeThreadId: string) => ({ id, backendId: 'local-backend', nativeThreadId })
+vi.mock('@anthropic-ai/claude-agent-sdk', async (load) => {
+  const sdk = await load<typeof import('@anthropic-ai/claude-agent-sdk')>()
+  return { ...sdk, query: vi.fn(sdk.query) }
+})
+vi.mock(
+  '@cherrystudio/agent-runtime-claude-code',
+  () => import('../../../../../../packages/agent-runtime-claude-code/src')
+)
+vi.mock('../launch', () => ({ resolveLocalAgentLaunch: vi.fn(), resolveLocalAgentModelLaunch: vi.fn() }))
+vi.mock('../browserBridge', async (load) => ({
+  ...(await load<typeof import('../browserBridge')>()),
+  acquireLocalAgentBrowserLease: vi.fn()
 }))
 
-const sdk = vi.hoisted(() => ({
-  messages: [] as SDKMessage[],
-  openQueries: 0,
-  returning: false,
-  returnGate: undefined as Promise<void> | undefined,
-  queryOptions: [] as Array<Record<string, unknown>>
-}))
-vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  query: ({ options }: { options: Record<string, unknown> }) => {
-    sdk.openQueries++
-    sdk.queryOptions.push(options)
-    let closed = false
-    return {
-      supportedCommands: async () => [],
-      supportedModels: async () => [],
-      close() {
-        if (!closed) {
-          closed = true
-          sdk.openQueries--
-        }
-      },
-      async *[Symbol.asyncIterator]() {
-        try {
-          yield* sdk.messages
-        } finally {
-          sdk.returning = true
-          await sdk.returnGate
-        }
-      }
-    }
+const db = setupTestDatabase()
+const cleanups: (() => Promise<void>)[] = []
+afterEach(async () => {
+  for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
+  MockApplicationUtils.resetServices()
+  vi.resetAllMocks()
+})
+
+async function transport() {
+  const directory = await realpath(await mkdtemp(join(tmpdir(), 'cherry-local-claude-')))
+  cleanups.push(() => rm(directory, { recursive: true, force: true }))
+  const wire = wireProcess()
+  const executable = join(directory, process.platform === 'win32' ? 'claude.exe' : 'claude')
+  await writeFile(executable, '', { mode: 0o700 })
+  const launch = {
+    executable,
+    source: 'system' as const,
+    args: ['--verbose'],
+    env: { CLAUDE_CONFIG_DIR: join(directory, 'profile') }
   }
-}))
-vi.mock('../launch', () => ({ resolveLocalAgentLaunch: async () => ({ executable: 'claude', args: [], env: {} }) }))
+  vi.mocked(resolveLocalAgentLaunch).mockResolvedValue(launch)
+  vi.mocked(resolveLocalAgentModelLaunch).mockResolvedValue(launch)
+  const spawn = vi.fn((_options: SpawnOptions, diagnostics: ClaudeCodeProcessDiagnostics) => {
+    diagnostics.exited = new Promise<void>((resolve) => wire.process.once('exit', () => resolve()))
+    return wire.process
+  })
+  MockApplicationUtils.setService('ClaudeCodeProcessManager', { spawn })
+  return { directory, wire, launch, spawn }
+}
 
-const input = { message: { data: { parts: [{ type: 'text', text: 'hello' }] } } } as AgentRuntimeUserInput
+const config: LocalAgentConfiguration = { protocol: 'claude', enabled: true, args: [], env: {}, nativeModel: 'sonnet' }
 
-function result(overrides: Record<string, unknown> = {}): SDKMessage {
+async function session(headless = false, resumeToken?: string) {
+  const test = await transport()
+  const workspaceId = randomUUID()
+  const sessionId = randomUUID()
+  db.db
+    .insert(agentWorkspaceTable)
+    .values({ id: workspaceId, name: 'Work', type: 'user', path: test.directory, orderKey: 'a0' })
+    .run()
+  db.db.insert(agentSessionTable).values({ id: sessionId, workspaceId, name: 'Local', orderKey: 'a0' }).run()
+  if (resumeToken) {
+    const project = join(test.launch.env.CLAUDE_CONFIG_DIR, 'projects', test.directory.replace(/[^a-zA-Z0-9]/g, '-'))
+    await mkdir(project, { recursive: true })
+    const saved = {
+      uuid: randomUUID(),
+      sessionId: resumeToken,
+      type: 'user',
+      parentUuid: null,
+      isSidechain: false,
+      timestamp: new Date().toISOString(),
+      message: { role: 'user', content: [{ type: 'text', text: 'Saved in local profile' }] }
+    }
+    await writeFile(join(project, `${resumeToken}.jsonl`), JSON.stringify(saved) + '\n')
+  }
+  const connection = new LocalClaudeConnection(
+    { sessionId, agentId: 'agent', modelId: 'runtime:agent', headless, resumeToken },
+    config
+  )
+  const events: AgentRuntimeEvent[] = []
+  const drain = (async () => {
+    for await (const event of connection.events) events.push(event)
+  })()
+  cleanups.push(async () => {
+    await connection.close()
+    await drain
+  })
+  await connection.start(test.directory)
+  const options = vi.mocked(query).mock.calls.at(-1)![0].options!
+  const input = (text: string) => ({
+    message: messages.saveMessage({
+      sessionId,
+      message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text }] } }
+    })
+  })
+  return { ...test, connection, events, options, input }
+}
+
+function result(sessionId: string, userId: string, extra: Partial<SDKResultSuccess> = {}) {
   return {
     type: 'result',
     subtype: 'success',
-    is_error: false,
-    session_id: 'native-session',
-    usage: { input_tokens: 3, output_tokens: 5 },
+    uuid: randomUUID(),
+    session_id: sessionId,
+    user_message_uuid: userId,
     stop_reason: 'end_turn',
-    ...overrides
-  } as SDKMessage
+    is_error: false,
+    result: '',
+    modelUsage: {},
+    usage: { input_tokens: 3, output_tokens: 5 },
+    ...extra
+  } as SDKResultSuccess
 }
 
-function stream(event: SDKPartialAssistantMessage['event'], parent: string | null = null): SDKPartialAssistantMessage {
-  return { type: 'stream_event', parent_tool_use_id: parent, event, session_id: 'native-session', uuid: randomUUID() }
-}
+it('sends successive turns to the selected CLI in one SDK session with the local profile', async () => {
+  const { connection, options, directory, spawn, wire, launch, events, input } = await session()
+  expect(options).toMatchObject({
+    cwd: directory,
+    pathToClaudeCodeExecutable: launch.executable,
+    model: 'sonnet',
+    settingSources: ['user', 'project', 'local']
+  })
+  expect(spawn.mock.calls[0][0].env.CLAUDE_CONFIG_DIR).toBe(launch.env.CLAUDE_CONFIG_DIR)
+  expect(spawn.mock.calls[0][0].args.at(-1)).toBe('--verbose')
+  expect((await connection.getSupportedCommands())?.map((cmd) => cmd.name)).toContain('compact')
+  for (const text of ['first', 'second']) {
+    const turn = input(text)
+    await connection.send(turn)
+    await expect.poll(() => wire.inputs.at(-1)?.uuid).toBe(turn.message.id)
+    const sent = wire.inputs.at(-1)!
+    expect(sent.session_id).toBe(options.sessionId)
+    expect(sent.uuid).toBe(turn.message.id)
+    wire.send(assistantMessage(sent.session_id, [{ type: 'text', text, citations: null }]))
+    wire.send(result(sent.session_id, sent.uuid!, { stop_reason: 'max_tokens' }))
+    await expect.poll(() => events.filter((event) => event.type === 'turn-complete')).toHaveLength(wire.inputs.length)
+  }
+  expect(events).toContainEqual({ type: 'turn-complete', finishReason: 'length' })
+  expect(events).toContainEqual({ type: 'resume-token', token: options.sessionId })
+  expect(connection.localSessionInfo.activeModel?.id).toBeTruthy()
+  expect(spawn).toHaveBeenCalledTimes(1)
+  await connection.close()
+  await expect(connection.send(input('closed'))).rejects.toThrow('unavailable')
+  expect(wire.inputs).toHaveLength(2)
+})
 
-async function run(headless = false) {
-  const connection = new ClaudeConnection(
-    'session',
-    'agent',
-    {
-      protocol: 'claude',
-      enabled: true,
-      args: [],
-      env: {}
-    },
-    headless
+it('keeps a background result separate from the submitted turn and surfaces its native API failure', async () => {
+  const { connection, input, wire, events } = await session()
+  await connection.send(input('work'))
+  await expect.poll(() => wire.inputs.length).toBe(1)
+  const sent = wire.inputs[0]
+  wire.send(result(sent.session_id, randomUUID(), { origin: { kind: 'task-notification', runId: 'old-task' } }))
+  wire.send(result(sent.session_id, sent.uuid!, { api_error_status: 429, result: 'Rate limited' }))
+  await expect
+    .poll(() => events.find((event) => event.type === 'error'))
+    .toMatchObject({ error: { message: 'Rate limited' } })
+  expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
+})
+
+it('opens the transcript from the selected profile and resumes its original session ID', async () => {
+  const id = randomUUID()
+  const { options, events, connection, input, wire } = await session(false, id)
+  expect(options.resume).toBe(id)
+  expect(options.sessionId).toBeUndefined()
+  await expect
+    .poll(() =>
+      events.flatMap((event) =>
+        event.type === 'message-projection'
+          ? event.projection.messages.flatMap((source) =>
+              source.parts.flatMap((part) => (part.type === 'text' ? [part.text] : []))
+            )
+          : []
+      )
+    )
+    .toContain('Saved in local profile')
+  await connection.send(input('continue'))
+  await expect.poll(() => wire.inputs[0]?.session_id).toBe(id)
+})
+
+it('keeps scheduled execution read-only and fails a turn denied by the CLI', async () => {
+  const { options, events, connection, input, wire } = await session(true)
+  expect(options).toMatchObject({
+    permissionMode: 'dontAsk',
+    settingSources: [],
+    tools: ['Read', 'Glob', 'Grep'],
+    strictMcpConfig: true
+  })
+  expect(options.mcpServers).toBeUndefined()
+  await expect(connection.setMode('claude-mode', 'bypassPermissions')).rejects.toThrow('Scheduled')
+  await connection.send(input('scheduled task'))
+  await expect.poll(() => wire.inputs.length).toBe(1)
+  const sent = wire.inputs[0]
+  wire.send(
+    result(sent.session_id, sent.uuid!, {
+      permission_denials: [{ tool_use_id: 'write-1', tool_name: 'Write', tool_input: {} }]
+    })
   )
-  const events: AgentRuntimeEvent[] = []
-  const drained = (async () => {
-    for await (const event of connection.events) events.push(event)
-  })()
-  try {
-    await connection.start('/tmp')
-    await connection.send(input)
-  } finally {
-    await connection.close()
-    await drained
-  }
-  return {
-    events,
-    info: connection.localSessionInfo,
-    chunks: observedParts(events)
-  }
-}
-
-beforeEach(() => {
-  MockMainPreferenceServiceUtils.resetMocks()
-  sdk.openQueries = 0
-  sdk.messages = []
-  sdk.returning = false
-  sdk.returnGate = undefined
-  sdk.queryOptions = []
+  await expect
+    .poll(() => events.find((event) => event.type === 'error'))
+    .toMatchObject({ error: { providerErrorCategory: 'permission' } })
+  expect(events.some((event) => event.type === 'turn-complete' || event.type === 'tool-approval-request')).toBe(false)
 })
 
-afterEach(() => {
-  vi.restoreAllMocks()
+it('applies session permissions and effort on the active query and still asks interactive questions', async () => {
+  const { connection, options, events, spawn } = await session()
+  const canUseTool = options.canUseTool!
+  const signal = new AbortController().signal
+  async function approval(call: string) {
+    const event = await vi.waitFor(() => {
+      const found = events.find((e) => e.type === 'tool-approval-request' && e.request.toolCallId === call)
+      if (found?.type !== 'tool-approval-request') throw new Error('Waiting for native approval')
+      return found
+    })
+    return event.request.approvalId
+  }
+  const first = canUseTool(
+    'Bash',
+    { command: 'pwd' },
+    {
+      toolUseID: 'first',
+      signal,
+      suggestions: [{ type: 'addRules', rules: [{ toolName: 'Bash' }], behavior: 'allow', destination: 'userSettings' }]
+    }
+  )
+  toolApprovalRegistry.dispatch(await approval('first'), {
+    approved: true,
+    updatedInput: { localPermissionOption: 'allow_session' }
+  })
+  await expect(first).resolves.toMatchObject({
+    behavior: 'allow',
+    updatedInput: { command: 'pwd' },
+    updatedPermissions: [{ destination: 'session' }]
+  })
+  await expect(canUseTool('Bash', { command: 'pwd' }, { toolUseID: 'again', signal })).resolves.toEqual({
+    behavior: 'allow',
+    updatedInput: { command: 'pwd' }
+  })
+  await expect(connection.setMode('claude-mode', 'invalid')).rejects.toThrow()
+  await connection.setMode('claude-mode', 'bypassPermissions')
+  await connection.setThoughtLevel('claude-effort', 'high')
+  expect(connection.localSessionInfo.thoughtLevel?.currentValue).toBe('high')
+  await connection.setThoughtLevel('claude-effort', 'default')
+  const question = canUseTool('AskUserQuestion', {}, { signal, toolUseID: 'question' })
+  toolApprovalRegistry.dispatch(await approval('question'), { approved: true, updatedInput: { answer: 'yes' } })
+  await expect(question).resolves.toMatchObject({ behavior: 'allow', updatedInput: { answer: 'yes' } })
+  expect(spawn).toHaveBeenCalledTimes(1)
 })
 
-describe('native Claude protocol mapping', () => {
-  it('uses only read tools and no ambient settings or approval UI for scheduled turns', async () => {
-    sdk.messages = [result()]
-    await run(true)
-    expect(sdk.queryOptions.at(-1)).toMatchObject({
-      permissionMode: 'dontAsk',
-      tools: ['Read', 'Glob', 'Grep'],
-      settingSources: [],
-      strictMcpConfig: true
-    })
+it('binds browser permissions to the session mode and releases its lease', async () => {
+  const dispose = vi.fn(async () => {})
+  vi.mocked(acquireLocalAgentBrowserLease).mockResolvedValue({
+    url: 'http://localhost/mcp',
+    token: 'test',
+    headers: { Authorization: 'Bearer test' },
+    dispose
   })
+  const { connection, options } = await session()
+  const browser = vi.mocked(acquireLocalAgentBrowserLease).mock.calls[0][0]
+  expect(options.mcpServers?.automation).toMatchObject({ type: 'http', url: 'http://localhost/mcp' })
+  expect(browser.isReadOnly()).toBe(false)
+  await connection.setMode('claude-mode', 'plan')
+  expect(browser.isReadOnly()).toBe(true)
+  await connection.close()
+  expect(dispose).toHaveBeenCalledTimes(1)
+})
 
-  it('reports native permission denials in a successful SDK result as a scheduled execution failure', async () => {
-    sdk.messages = [result({ permission_denials: [{ tool_name: 'Glob', tool_use_id: 'blocked', tool_input: {} }] })]
-    const { events } = await run(true)
-    expect(events).toContainEqual(
-      expect.objectContaining({
-        type: 'error',
-        error: expect.objectContaining({ providerErrorCategory: 'permission' })
-      })
-    )
+it('reads the initialization catalog without submitting a prompt or creating a transcript', async () => {
+  const { wire, spawn, launch, directory } = await transport()
+  const catalog = await probeLocalClaude(config, directory, new AbortController())
+  expect(catalog.models).toEqual([])
+  expect(wire.inputs).toHaveLength(0)
+  expect(wire.process.exitCode).toBe(0)
+  expect(vi.mocked(query).mock.calls.at(-1)?.[0].options).toMatchObject({
+    pathToClaudeCodeExecutable: launch.executable,
+    tools: [],
+    persistSession: false
   })
-
-  it('does not allocate an SDK query after the connection closes during content preparation', async () => {
-    const connection = new ClaudeConnection('session', 'agent', {
-      protocol: 'claude',
-      enabled: true,
-      args: [],
-      env: {}
-    })
-    await connection.start('/tmp')
-    const sending = expect(connection.send(input)).rejects.toThrow('unavailable')
-    await connection.close()
-    await sending
-    expect(sdk.openQueries).toBe(0)
-  })
-
-  it('admits the next turn only after the previous SDK iterator has closed', async () => {
-    sdk.messages = [result()]
-    let release!: () => void
-    sdk.returnGate = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    const connection = new ClaudeConnection('session', 'agent', {
-      protocol: 'claude',
-      enabled: true,
-      args: [],
-      env: {}
-    })
-    const events: AgentRuntimeEvent[] = []
-    const drained = (async () => {
-      for await (const event of connection.events) events.push(event)
-    })()
-    try {
-      await connection.start('/tmp')
-      const first = connection.send(input)
-      await vi.waitFor(() => expect(sdk.returning).toBe(true))
-      expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(0)
-      release()
-      await first
-      await connection.send(input)
-      await vi.waitFor(() => expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(2))
-      expect(events.filter((event) => event.type === 'error')).toHaveLength(0)
-    } finally {
-      release()
-      await connection.close()
-      await drained
-    }
-  })
-
-  it('preserves thinking and child tool ownership without stamping a provider model identity', async () => {
-    sdk.messages = [
-      stream({
-        type: 'content_block_start',
-        index: 0,
-        content_block: { type: 'thinking', thinking: '', signature: '' }
-      }),
-      stream({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'Check first' } }),
-      stream({ type: 'content_block_stop', index: 0 }),
-      stream(
-        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '', citations: null } },
-        'parent-tool'
-      ),
-      stream(
-        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Child answer' } },
-        'parent-tool'
-      ),
-      stream({ type: 'content_block_stop', index: 0 }, 'parent-tool'),
-      {
-        type: 'assistant',
-        parent_tool_use_id: 'parent-tool',
-        message: {
-          model: 'child-model',
-          content: [{ type: 'tool_use', id: 'child-tool', name: 'Read', input: { path: '/tmp/file' } }]
-        }
-      } as SDKMessage,
-      {
-        type: 'assistant',
-        parent_tool_use_id: null,
-        message: { model: 'native-model', content: [{ type: 'text', text: 'Main answer' }] }
-      } as SDKMessage,
-      result()
-    ]
-    const { events, chunks, info } = await run()
-    expect(chunks).toContainEqual(expect.objectContaining({ type: 'append', kind: 'reasoning', text: 'Check first' }))
-    const childText = chunks.find(
-      (chunk) =>
-        chunk.type === 'open' &&
-        chunk.kind === 'text' &&
-        chunk.providerMetadata?.['claude-code']?.parentToolCallId === 'parent-tool'
-    )
-    expect(childText).toBeDefined()
-    expect(chunks).toContainEqual(
-      expect.objectContaining({
-        type: 'dynamic-tool',
-        state: 'input-streaming',
-        toolCallId: 'child-tool',
-        callProviderMetadata: expect.objectContaining({
-          'claude-code': expect.objectContaining({ parentToolCallId: 'parent-tool' })
-        })
-      })
-    )
-    expect(chunks).toContainEqual(expect.objectContaining({ type: 'append', kind: 'text', text: 'Main answer' }))
-    expect(info.activeModel).toEqual({ id: 'native-model' })
-
-    expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
-    for (const chunk of events) {
-      if (chunk.type === 'message-metadata') expect(chunk.messageMetadata).not.toHaveProperty('modelId')
-    }
-  })
-
-  it('continues past a resumed task notification and emits the actual user turn answer', async () => {
-    sdk.messages = [
-      result({ origin: { kind: 'task-notification' } }),
-      {
-        type: 'assistant',
-        parent_tool_use_id: null,
-        message: { model: 'native-model', content: [{ type: 'text', text: 'Actual answer' }] }
-      } as SDKMessage,
-      result({ stop_reason: 'max_tokens' })
-    ]
-    const { chunks, events } = await run()
-    expect(chunks).toContainEqual(expect.objectContaining({ type: 'append', kind: 'text', text: 'Actual answer' }))
-    expect(events).toContainEqual({ type: 'turn-complete', finishReason: 'length' })
-    expect(events.filter((event) => event.type === 'turn-complete')).toHaveLength(1)
-    expect(events).toContainEqual({ type: 'resume-token', token: 'native-session' })
-  })
-
-  it('reports SDK terminal API failures even when is_error is false', async () => {
-    sdk.messages = [result({ terminal_reason: 'api_error', api_error_status: 429, result: 'Rate limited' })]
-    const { events } = await run()
-    expect(events).toContainEqual({ type: 'error', error: expect.objectContaining({ message: 'Rate limited' }) })
-    expect(events.some((event) => event.type === 'turn-complete')).toBe(false)
-  })
-
-  it('exposes builtin slash commands on start before the first turn', async () => {
-    const connection = new ClaudeConnection('session', 'agent', {
-      protocol: 'claude',
-      enabled: true,
-      args: [],
-      env: {}
-    })
-    await connection.start('/tmp')
-    const commands = await connection.getSupportedCommands()
-    expect(commands?.map((cmd) => cmd.name)).toEqual(
-      expect.arrayContaining(['clear', 'compact', 'context', 'usage', 'goal'])
-    )
-    await connection.close()
-  })
-
-  it('exposes native Claude modes, switches permissionMode across turns, and syncs init mode when unset', async () => {
-    sdk.messages = [
-      {
-        type: 'system',
-        subtype: 'init',
-        permissionMode: 'acceptEdits',
-        session_id: 'native-session',
-        uuid: randomUUID()
-      } as unknown as SDKMessage,
-      result()
-    ]
-    const connection = new ClaudeConnection('session', 'agent', {
-      protocol: 'claude',
-      enabled: true,
-      args: [],
-      env: {}
-    })
-    const events: AgentRuntimeEvent[] = []
-    const drained = (async () => {
-      for await (const event of connection.events) events.push(event)
-    })()
-
-    try {
-      await connection.start('/tmp')
-      expect(connection.localSessionInfo.mode).toMatchObject({
-        id: 'claude-mode',
-        currentValue: 'default'
-      })
-      expect(connection.localSessionInfo.mode?.options.map((option) => option.value)).toEqual([
-        'default',
-        'acceptEdits',
-        'plan',
-        'auto',
-        'bypassPermissions'
-      ])
-
-      await connection.send(input)
-      expect(sdk.queryOptions.at(-1)?.permissionMode).toBeUndefined()
-      expect(connection.localSessionInfo.mode?.currentValue).toBe('acceptEdits')
-
-      await expect(connection.setMode('claude-mode', 'invalid')).rejects.toThrow('no longer available')
-      await expect(connection.setMode('wrong-id', 'plan')).rejects.toThrow('no longer available')
-
-      await connection.setMode('claude-mode', 'plan')
-      expect(connection.localSessionInfo.mode?.currentValue).toBe('plan')
-      await connection.send(input)
-      expect(sdk.queryOptions.at(-1)?.permissionMode).toBe('plan')
-      expect(sdk.queryOptions.at(-1)?.allowDangerouslySkipPermissions).toBeUndefined()
-      // User-selected override must not be overwritten by subsequent init messages.
-      expect(connection.localSessionInfo.mode?.currentValue).toBe('plan')
-
-      await connection.setMode('claude-mode', 'bypassPermissions')
-      await connection.send(input)
-      expect(sdk.queryOptions.at(-1)?.permissionMode).toBe('bypassPermissions')
-      expect(sdk.queryOptions.at(-1)?.allowDangerouslySkipPermissions).toBe(true)
-      expect(events.some((event) => event.type === 'local-session-info')).toBe(true)
-
-      expect(connection.localSessionInfo.thoughtLevel).toMatchObject({
-        id: 'claude-effort',
-        currentValue: 'default'
-      })
-      expect(sdk.queryOptions.at(-1)?.effort).toBeUndefined()
-      await expect(connection.setThoughtLevel('claude-effort', 'invalid')).rejects.toThrow('no longer available')
-      await expect(connection.setThoughtLevel('wrong-id', 'high')).rejects.toThrow('no longer available')
-
-      await connection.setThoughtLevel('claude-effort', 'high')
-      expect(connection.localSessionInfo.thoughtLevel?.currentValue).toBe('high')
-      await connection.send(input)
-      expect(sdk.queryOptions.at(-1)?.effort).toBe('high')
-
-      await connection.setThoughtLevel('claude-effort', 'default')
-      await connection.send(input)
-      expect(sdk.queryOptions.at(-1)?.effort).toBeUndefined()
-    } finally {
-      await connection.close()
-      await drained
-    }
-  })
-
-  it('auto-allows tools in bypassPermissions while still prompting for AskUserQuestion', async () => {
-    sdk.messages = [result()]
-    let release!: () => void
-    sdk.returnGate = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    const connection = new ClaudeConnection('session', 'agent', {
-      protocol: 'claude',
-      enabled: true,
-      args: [],
-      env: {}
-    })
-    const events: AgentRuntimeEvent[] = []
-    const drained = (async () => {
-      for await (const event of connection.events) events.push(event)
-    })()
-    try {
-      await connection.start('/tmp')
-      await connection.setMode('claude-mode', 'bypassPermissions')
-      const sending = connection.send(input)
-      await vi.waitFor(() => expect(sdk.returning).toBe(true))
-
-      const canUseTool = sdk.queryOptions.at(-1)?.canUseTool as (
-        name: string,
-        toolInput: Record<string, unknown>,
-        opts: { toolUseID: string; signal: AbortSignal; suggestions?: Array<Record<string, unknown>> }
-      ) => Promise<Record<string, unknown>>
-      const controller = new AbortController()
-
-      await expect(
-        canUseTool('Bash', { command: 'pwd' }, { toolUseID: 'bash-1', signal: controller.signal })
-      ).resolves.toEqual({ behavior: 'allow', updatedInput: { command: 'pwd' } })
-      expect(events.some((event) => event.type === 'tool-approval-request')).toBe(false)
-
-      const questionPromise = canUseTool(
-        'AskUserQuestion',
-        { questions: [{ id: 'q1', header: 'Choice', question: 'Proceed?' }] },
-        { toolUseID: 'ask-1', signal: controller.signal }
-      )
-      const approval = await vi.waitFor(() => {
-        const req = events.find((event) => event.type === 'tool-approval-request')
-        expect(req).toBeDefined()
-        return req!
-      })
-      if (approval.type !== 'tool-approval-request') throw new Error('Missing approval')
-      expect(approval.request.toolName).toBe('AskUserQuestion')
-      toolApprovalRegistry.dispatch(approval.request.approvalId, {
-        approved: true,
-        updatedInput: { answers: { q1: 'yes' } }
-      })
-      await expect(questionPromise).resolves.toEqual({
-        behavior: 'allow',
-        updatedInput: { answers: { q1: 'yes' } }
-      })
-      release()
-      await sending
-    } finally {
-      release()
-      await connection.close()
-      await drained
-    }
-  })
-
-  it('persists session-scoped Claude tool approvals from allow_session, rewrites suggestion destinations to session, and avoids leaking localPermissionOption', async () => {
-    sdk.messages = [result()]
-    let release!: () => void
-    sdk.returnGate = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    const connection = new ClaudeConnection('session', 'agent', {
-      protocol: 'claude',
-      enabled: true,
-      args: [],
-      env: {}
-    })
-    const events: AgentRuntimeEvent[] = []
-    const drained = (async () => {
-      for await (const event of connection.events) events.push(event)
-    })()
-    try {
-      await connection.start('/tmp')
-      const sending = connection.send(input)
-      await vi.waitFor(() => expect(sdk.returning).toBe(true))
-
-      const canUseTool = sdk.queryOptions.at(-1)?.canUseTool as (
-        name: string,
-        toolInput: Record<string, unknown>,
-        opts: { toolUseID: string; signal: AbortSignal; suggestions?: Array<Record<string, unknown>> }
-      ) => Promise<Record<string, unknown>>
-      const controller = new AbortController()
-
-      const bashPromise = canUseTool(
-        'Bash',
-        { command: 'echo 1' },
-        {
-          toolUseID: 'bash-1',
-          signal: controller.signal,
-          suggestions: [
-            { type: 'addRules', rules: [{ toolName: 'Bash' }], behavior: 'allow', destination: 'userSettings' }
-          ]
-        }
-      )
-      const bashApproval = await vi.waitFor(() => {
-        const req = events.find((event) => event.type === 'tool-approval-request')
-        expect(req).toBeDefined()
-        return req!
-      })
-      if (bashApproval.type !== 'tool-approval-request') throw new Error('Missing approval')
-      expect(bashApproval.request.input.localPermissionOptions).toContainEqual(
-        expect.objectContaining({ optionId: 'allow_session', label: 'allow_session', kind: 'allow_always' })
-      )
-      toolApprovalRegistry.dispatch(bashApproval.request.approvalId, {
-        approved: true,
-        updatedInput: { command: 'echo 1', localPermissionOption: 'allow_session' }
-      })
-      await expect(bashPromise).resolves.toEqual({
-        behavior: 'allow',
-        updatedInput: { command: 'echo 1' },
-        updatedPermissions: [
-          { type: 'addRules', rules: [{ toolName: 'Bash' }], behavior: 'allow', destination: 'session' }
-        ]
-      })
-
-      // Subsequent calls to Bash auto-approve with zero extra prompts.
-      await expect(
-        canUseTool('Bash', { command: 'echo 2' }, { toolUseID: 'bash-2', signal: controller.signal })
-      ).resolves.toEqual({ behavior: 'allow', updatedInput: { command: 'echo 2' } })
-      expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(1)
-
-      // Different tools still prompt and preserve denial.
-      const writePromise = canUseTool(
-        'Write',
-        { file_path: '/tmp/out.txt', content: 'hi' },
-        { toolUseID: 'write-1', signal: controller.signal }
-      )
-      await vi.waitFor(() => expect(events.filter((event) => event.type === 'tool-approval-request')).toHaveLength(2))
-      const writeApproval = events.filter((event) => event.type === 'tool-approval-request')[1]
-      if (writeApproval.type !== 'tool-approval-request') throw new Error('Missing write approval')
-      toolApprovalRegistry.dispatch(writeApproval.request.approvalId, {
-        approved: false,
-        reason: 'User declined'
-      })
-      await expect(writePromise).resolves.toEqual({ behavior: 'deny', message: 'User declined' })
-
-      release()
-      await sending
-    } finally {
-      release()
-      await connection.close()
-      await drained
-    }
-  })
-
-  it('stamps localAgentProtocol: claude on tool chunks while preserving claude-code parent metadata', async () => {
-    sdk.messages = [
-      {
-        type: 'assistant',
-        parent_tool_use_id: 'parent-tool',
-        message: {
-          model: 'native-model',
-          content: [
-            {
-              type: 'tool_use',
-              id: 'write-1',
-              name: 'Write',
-              input: { file_path: '/tmp/a.html', content: '<h1>hi</h1>' }
-            }
-          ]
-        }
-      } as SDKMessage,
-      {
-        type: 'user',
-        parent_tool_use_id: 'parent-tool',
-        message: {
-          role: 'user',
-          content: [{ type: 'tool_result', tool_use_id: 'write-1', content: 'Wrote file' }]
-        }
-      },
-      result()
-    ]
-
-    const { chunks } = await run()
-    expect(chunks).toContainEqual(
-      expect.objectContaining({
-        type: 'dynamic-tool',
-        state: 'input-available',
-        toolCallId: 'write-1',
-        toolName: 'Write',
-        callProviderMetadata: expect.objectContaining({
-          'claude-code': expect.objectContaining({ parentToolCallId: 'parent-tool' }),
-          cherry: expect.objectContaining({ localAgentProtocol: 'claude' })
-        })
-      })
-    )
-    expect(chunks).toContainEqual(
-      expect.objectContaining({
-        type: 'dynamic-tool',
-        state: 'output-available',
-        toolCallId: 'write-1',
-        resultProviderMetadata: expect.objectContaining({
-          'claude-code': expect.objectContaining({ parentToolCallId: 'parent-tool' }),
-          cherry: expect.objectContaining({ localAgentProtocol: 'claude' })
-        })
-      })
-    )
-  })
-
-  it('injects session-scoped browser MCP into query(), honors browser toggle, maps plan mode to read-only, and disposes on close', async () => {
-    const dispose = vi.fn().mockResolvedValue(undefined)
-    let issuedInput: { isReadOnly?: () => boolean } | undefined
-    const issueBrowserLease = vi.fn(async (inputArg: { isReadOnly?: () => boolean }) => {
-      issuedInput = inputArg
-      return {
-        url: 'http://127.0.0.1:43123/mcp/lease-1',
-        token: 'tok-claude',
-        headers: { Authorization: 'Bearer tok-claude' },
-        dispose
-      }
-    })
-    vi.spyOn(application, 'getExisting').mockImplementation(((name: string) => {
-      if (name === 'LocalAgentMcpBridgeService') return { issueBrowserLease }
-      if (name === 'PreferenceService') {
-        return {
-          get: (key: Parameters<typeof MockMainPreferenceServiceUtils.getPreferenceValue>[0]) =>
-            MockMainPreferenceServiceUtils.getPreferenceValue(key)
-        }
-      }
-      return undefined
-    }) as typeof application.getExisting)
-
-    sdk.messages = [result()]
-    const connection = new ClaudeConnection('session-c', 'agent-c', {
-      protocol: 'claude',
-      presetId: 'claude',
-      enabled: true,
-      args: [],
-      env: {}
-    })
-    const events: AgentRuntimeEvent[] = []
-    const drained = (async () => {
-      for await (const event of connection.events) events.push(event)
-    })()
-
-    try {
-      await connection.start('/tmp')
-      expect(issueBrowserLease).toHaveBeenCalledTimes(1)
-      expect(issuedInput?.isReadOnly?.()).toBe(false)
-      await connection.setMode('claude-mode', 'plan')
-      expect(issuedInput?.isReadOnly?.()).toBe(true)
-
-      await connection.send(input)
-      const options = sdk.queryOptions.at(-1) as {
-        mcpServers?: Record<string, unknown>
-        canUseTool?: (
-          name: string,
-          args: Record<string, unknown>,
-          opts: { toolUseID: string; signal: AbortSignal }
-        ) => Promise<unknown>
-      }
-      expect(options.mcpServers).toEqual({
-        automation: {
-          type: 'http',
-          url: 'http://127.0.0.1:43123/mcp/lease-1',
-          headers: { Authorization: 'Bearer tok-claude' }
-        }
-      })
-
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
-      await expect(
-        options.canUseTool?.(
-          'mcp__automation__js',
-          { code: '1' },
-          { toolUseID: 'call-1', signal: new AbortController().signal }
-        )
-      ).resolves.toEqual({ behavior: 'allow', updatedInput: { code: '1' } })
-
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', false)
-      await expect(
-        options.canUseTool?.(
-          'mcp__automation__reset',
-          {},
-          { toolUseID: 'call-2', signal: new AbortController().signal }
-        )
-      ).resolves.toEqual({ behavior: 'deny', message: 'Built-in browser control is disabled' })
-    } finally {
-      await connection.close()
-      await drained
-    }
-    expect(dispose).toHaveBeenCalledTimes(1)
-
-    issueBrowserLease.mockClear()
-    const headlessConn = new ClaudeConnection(
-      'session-h',
-      'agent-c',
-      { protocol: 'claude', presetId: 'claude', enabled: true, args: [], env: {} },
-      true
-    )
-    const disabledConn = new ClaudeConnection('session-d', 'agent-c', {
-      protocol: 'claude',
-      presetId: 'claude',
-      enabled: true,
-      browserControl: 'disabled',
-      args: [],
-      env: {}
-    })
-    await headlessConn.start('/tmp')
-    await disabledConn.start('/tmp')
-    expect(issueBrowserLease).not.toHaveBeenCalled()
-    await headlessConn.close()
-    await disabledConn.close()
-  })
+  expect(spawn.mock.calls[0][0].env.CLAUDE_CONFIG_DIR).toBe(launch.env.CLAUDE_CONFIG_DIR)
 })

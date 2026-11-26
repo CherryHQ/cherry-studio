@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
-import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 
 import type {
   InputDraft,
@@ -63,6 +63,11 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
   ): ClaudeThreadHandle => {
     let released = false
     const observations = new Set<Observation>()
+    const control = <T>(operation: string, invoke: (query: Query) => Promise<T>): Promise<OperationResult<T>> =>
+      released || agentId
+        ? Promise.resolve(rejected(operation, agentId ? 'child-control' : 'released'))
+        : owner.control(projection, operation, invoke)
+
     const observe: ClaudeThreadHandle['claude']['observe'] = async (sink, needsRecovery) => {
       if (released) return rejected('observe', 'released')
       try {
@@ -164,14 +169,10 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
           released || agentId
             ? rejected('start', agentId ? 'child-control' : 'released')
             : owner.connect(projection, warm),
-        supportedCommands: () =>
-          released || agentId
-            ? Promise.resolve(rejected('supportedCommands', agentId ? 'child-control' : 'released'))
-            : owner.control(projection, 'supportedCommands', (query) => query.supportedCommands()),
-        setPermissionMode: (mode) =>
-          released || agentId
-            ? Promise.resolve(rejected('setPermissionMode', agentId ? 'child-control' : 'released'))
-            : owner.control(projection, 'setPermissionMode', (query) => query.setPermissionMode(mode)),
+        supportedCommands: () => control('supportedCommands', (query) => query.supportedCommands()),
+        supportedModels: () => control('supportedModels', (query) => query.supportedModels()),
+        setEffort: (effort) => control('setEffort', (query) => query.applyFlagSettings({ effortLevel: effort })),
+        setPermissionMode: (mode) => control('setPermissionMode', (query) => query.setPermissionMode(mode)),
         input: bindInput<ClaudeInput>((draft) => draft.content),
         observe,
         archive: (options) =>

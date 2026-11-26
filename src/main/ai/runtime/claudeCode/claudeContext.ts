@@ -6,19 +6,28 @@ import { agentSessionContextService as contexts } from '@data/services/AgentSess
 import { ensureAgentSessionRootTx, getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 
-export function prepareClaudeBranch(sessionId: string, configDir: string, nativeId?: string, messageId?: string) {
+export function prepareClaudeBranch(
+  sessionId: string,
+  source: string | { agentId: string },
+  nativeId?: string,
+  messageId?: string
+) {
   agentSessionService.assertIndependentSession(sessionId)
   return application.get('DbService').withWriteTx((tx) => {
     const root = ensureAgentSessionRootTx(tx, sessionId)
     const anchor = messageId ?? getAgentSessionHead(tx, sessionId) ?? root
     const existing = contexts.branchTx(tx, sessionId, anchor)
+    const backend = contexts.ensureBackendTx(
+      tx,
+      typeof source === 'string'
+        ? { version: 1, kind: 'claude-code', configDir: source }
+        : { version: 1, kind: 'local', agentId: source.agentId },
+      'bound'
+    )
     if (existing && (!nativeId || existing.nativeThreadId === nativeId)) {
-      const backend = contexts.backendTx(tx, existing.backendId)
-      if (backend.locator.kind !== 'claude-code' || backend.locator.configDir !== configDir)
-        throw new Error('The selected branch belongs to another runtime backend')
+      if (existing.backendId !== backend.id) throw new Error('The selected branch belongs to another runtime backend')
       return existing
     }
-    const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'claude-code', configDir }, 'bound')
     return contexts.reserveBranchTx(tx, {
       sessionId,
       backendId: backend.id,

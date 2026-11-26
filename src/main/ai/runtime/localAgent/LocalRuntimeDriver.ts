@@ -9,6 +9,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
+import { loadLocalClaudeRuntime } from '../claudeCode'
 import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver } from '../types'
 import { acpError } from './acpError'
 import { AcpManagement } from './AcpManagement'
@@ -18,7 +19,6 @@ import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
 
 const nativeConnections = {
   cursor: async () => (await import('./CursorConnection')).CursorConnection,
-  claude: async () => (await import('./ClaudeConnection')).ClaudeConnection,
   codex: async () => (await import('./CodexConnection')).CodexConnection
 }
 
@@ -49,6 +49,18 @@ export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
       agentService.getAgent(input.agentId)?.configuration?.localRuntime
     )
     return withAntigravityFallback(config, async (selected) => {
+      if (selected.protocol === 'claude') {
+        const { LocalClaudeConnection } = await loadLocalClaudeRuntime()
+        const live = new LocalClaudeConnection(input, selected)
+        const startup = live.start(session.workspace.path)
+        try {
+          return await withConnectionTimeout(startup, () => live.cancelStartup())
+        } catch (error) {
+          await startup.catch(() => {})
+          await live.close()
+          throw error
+        }
+      }
       const Connection =
         selected.protocol === 'acp'
           ? (await import('./AcpConnection')).AcpConnection
@@ -90,9 +102,21 @@ async function cursorCatalog(config: LocalAgentConfiguration): Promise<LocalAgen
   return { models: await listCursorModels(await getCursorApiKey(config)) }
 }
 
+async function claudeCatalog(config: LocalAgentConfiguration, cwd: string) {
+  const { probeLocalClaude } = await loadLocalClaudeRuntime()
+  const abort = new AbortController()
+  const probe = probeLocalClaude(config, cwd, abort)
+  try {
+    return await withConnectionTimeout(probe, () => abort.abort())
+  } finally {
+    await probe.catch(() => {})
+  }
+}
+
 export async function listLocalAgentModels(config: LocalAgentConfiguration): Promise<LocalAgentModelCatalog> {
   if (config.protocol === 'cursor') return withConnectionTimeout(cursorCatalog(config))
   const cwd = application.getPath('cherry.bin')
+  if (config.protocol === 'claude') return claudeCatalog(config, cwd)
   const probe = { ...config, nativeModel: undefined }
   if (config.protocol === 'acp') {
     return withAntigravityFallback(probe, (selected) => withManagement(selected, (access) => access.listModels(cwd)))
@@ -118,6 +142,10 @@ export async function checkLocalAgent(config: LocalAgentConfiguration): Promise<
       return { ok: true, status: 'ready' }
     }
     const cwd = application.getPath('cherry.bin')
+    if (config.protocol === 'claude') {
+      await claudeCatalog(config, cwd)
+      return { ok: true, status: 'ready' }
+    }
     if (config.protocol === 'acp') {
       const protocolInfo = await withManagement(config, (access) => access.check(cwd))
       return { ok: true, status: 'ready', protocolInfo }
@@ -156,13 +184,16 @@ async function withManagement<T>(config: LocalAgentConfiguration, operation: (ac
   }
 }
 
-async function withConnectionTimeout<T>(operation: Promise<T>): Promise<T> {
+async function withConnectionTimeout<T>(operation: Promise<T>, cancel?: () => void): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
       operation,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error('Local agent connection timed out')), 30000)
+        timer = setTimeout(() => {
+          reject(new Error('Local agent connection timed out'))
+          cancel?.()
+        }, 30000)
       })
     ])
   } catch (error) {
