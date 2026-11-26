@@ -1547,7 +1547,7 @@ it.each([
     wire.send(
       assistantMessage(context.nativeThreadId!, [{ type: 'text', text: 'Last accepted answer', citations: null }])
     )
-    wire.send(successResult(context.nativeThreadId!, wire.inputs[0].uuid))
+    wire.send(successResult(context.nativeThreadId!, wire.inputs[0].uuid!))
     await paused.promise
     stderr.write('native process failed')
     wire.process.emit('exit', 7, null)
@@ -1624,7 +1624,7 @@ it('GATE hanging accept blocks failure and user close until released', async () 
   const p = g.pause()
   try {
     g.wire.send(assistantMessage(g.context.nativeThreadId!, [{ type: 'text', text: 'GATE HELD', citations: null }]))
-    g.wire.send(successResult(g.context.nativeThreadId!, g.wire.inputs[0].uuid))
+    g.wire.send(successResult(g.context.nativeThreadId!, g.wire.inputs[0].uuid!))
     await p.paused.promise
     g.fail()
     await gateDelay(1100)
