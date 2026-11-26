@@ -60,6 +60,8 @@ export interface RichEditorProps {
   enableSpellCheck?: boolean
   /** Accessible name for the editing surface, for editors with no visible label */
   ariaLabel?: string
+  /** Directory used to resolve relative image sources for display only. */
+  imageBaseDir?: string
   /** Whether users can insert images */
   enableImageInsertion?: boolean
   /** Toolbar and slash-menu commands hidden for this editor instance */

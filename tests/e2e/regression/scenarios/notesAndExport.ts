@@ -253,6 +253,21 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
       await expect(editor()).toContainText('MP11 completed answer')
       await expect(editor().locator('pre')).toHaveText(code)
       if (mode !== 'none') {
+        const srcPrefix = mode === 'embed' ? 'data:image/png;base64,' : 'file://'
+        await expect
+          .poll(() =>
+            editor()
+              .locator('img')
+              .evaluateAll(
+                (nodes, srcPrefix) =>
+                  nodes.map((node) => {
+                    const image = node as HTMLImageElement
+                    return [image.getAttribute('src')?.startsWith(srcPrefix), image.naturalWidth > 0]
+                  }),
+                srcPrefix
+              )
+          )
+          .toEqual([[true, true]])
         const images = await editor()
           .locator('img')
           .evaluateAll((nodes) =>
@@ -265,14 +280,6 @@ export async function notesAndExport(app: RegressionApp, initialPage: Page, test
           body: images.join('\n') || '(none)',
           contentType: 'text/plain'
         })
-        // The embedded export carries the pixels inline, so the editor paints them from the data URI.
-        // A folder export keeps them in a file next to the note and leaves the relative reference in
-        // the Markdown; that file is compared with the original image above.
-        expect(images).toHaveLength(1)
-        if (mode === 'embed') {
-          expect(images[0]).toContain('data:image/png;base64')
-          expect(images[0]).not.toContain('width=0')
-        }
       } else await expect(editor().locator('img')).toHaveCount(0)
       await screenshot(`MP-11 opened ${mode} export`)
     }

@@ -40,6 +40,8 @@ export function NotesEditorLoading({ label }: { label: string }) {
 
 interface NotesEditorProps {
   activeNodeId?: string
+  /** Directory used to resolve relative image sources for display only. */
+  imageBaseDir?: string
   voiceNoteId?: string
   currentContent: string
   readOnly?: boolean
@@ -54,6 +56,7 @@ interface NotesEditorProps {
 const NotesEditor: FC<NotesEditorProps> = memo(
   ({
     activeNodeId,
+    imageBaseDir,
     voiceNoteId,
     currentContent,
     readOnly = false,
@@ -256,6 +259,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                   key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
                   ref={setRichEditorRef}
                   initialContent={currentContent}
+                  imageBaseDir={imageBaseDir}
                   onMarkdownChange={tmpViewMode === 'preview' ? acceptMarkdown : undefined}
                   showToolbar={tmpViewMode === 'preview' && !readOnly}
                   editable={tmpViewMode === 'preview' && !readOnly}
