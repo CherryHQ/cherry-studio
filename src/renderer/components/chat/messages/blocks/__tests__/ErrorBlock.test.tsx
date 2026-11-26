@@ -911,6 +911,30 @@ required service tier.`
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
+  // #25526: Claude Code formats HTTP 400 rejections as `API Error: 400 {json}`; the upstream
+  // reason must remain visible instead of being stripped by container filtering.
+  it('surfaces the upstream message from a Claude Code JSON 400 error', () => {
+    mocks.translations.set('error.diagnosis.bad_request', enUS['error.diagnosis.bad_request'])
+    mocks.translations.set('error.http.400', enUS['error.http.400'])
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeResultError',
+          message:
+            'API Error: 400 {"code":"11-128","message":"Illegal API invocation from an unapproved channel","type":"error","error":{"code":"11-128","type":"invalid_request_error","message":"Illegal API invocation from an unapproved channel"}}',
+          stack: null,
+          statusCode: 400
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('Provider request failed (HTTP 400)')).toBeInTheDocument()
+    expect(screen.getByText(/Illegal API invocation from an unapproved channel/)).toBeInTheDocument()
+  })
+
   it('requires another click to diagnose in a changed app language', async () => {
     const user = userEvent.setup()
     const diagnoseMessageError = vi.fn().mockResolvedValueOnce('English summary').mockResolvedValueOnce('中文摘要')
