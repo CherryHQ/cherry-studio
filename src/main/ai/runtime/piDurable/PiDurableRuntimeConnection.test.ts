@@ -2268,13 +2268,13 @@ describe('desktop Pi Durable connection', () => {
         .messages.find((message) =>
           message.parts.some((part) => part.type === 'text' && part.text.startsWith('child prefix'))
         )
-    await expect.poll(answer).toMatchObject({
+    await expect.poll(answer, CHILD_WAIT).toMatchObject({
       metadata: { status: 'pending' },
       parts: expect.arrayContaining([{ type: 'text', text: 'child prefix', state: 'streaming' }])
     })
     const id = answer()!.id
     append()
-    await expect.poll(answer).toMatchObject({
+    await expect.poll(answer, CHILD_WAIT).toMatchObject({
       id,
       metadata: { status: 'pending' },
       parts: expect.arrayContaining([{ type: 'text', text: 'child prefix suffix', state: 'streaming' }])
