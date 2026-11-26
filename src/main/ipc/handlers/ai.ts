@@ -367,6 +367,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     }),
 
   // ── Agent session runtime queries & commands. ──
+  'ai.agent.session.compact': ({ sessionId, generation, instructions }) =>
+    application.get('AgentSessionRuntimeService').compactSession(sessionId, generation, instructions),
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {
     application.get('AgentSessionRuntimeService').refreshContextUsageOnDemand(sessionId)
   },

@@ -20,6 +20,7 @@
     "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-cursor/tsconfig.json"
   },
   "dependencies": {
+    "@cherrystudio/agent-runtime": "workspace:*",
     "@cursor/sdk": "1.5.0",
     "zod": "4.4.3"
   },

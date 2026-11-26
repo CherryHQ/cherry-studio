@@ -1101,8 +1101,9 @@ export class AgentSessionMessageService {
     return row
   }
 
-  releaseInputBindingTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string): void {
-    tx.update(sessionMessagesTable)
+  releaseInputBindingTx(tx: DbOrTx, sessionId: string, messageId: string, contextId: string): boolean {
+    const result = tx
+      .update(sessionMessagesTable)
       .set({ inputContextId: null })
       .where(
         and(
@@ -1115,6 +1116,7 @@ export class AgentSessionMessageService {
         )
       )
       .run()
+    return result.changes > 0
   }
 
   captureHead(sessionId: string): string {

@@ -3,17 +3,21 @@ import type {
   InitializeResponse,
   NewSessionResponse,
   PromptRequest,
-  PromptResponse
+  PromptResponse,
+  SessionUpdate
 } from '@agentclientprotocol/sdk'
 
 import type {
+  CompactThread,
   OperationResult,
+  ThreadInput,
   RuntimeEffortControl,
   RuntimeModelOption,
   ThreadContextUsage
 } from '@cherrystudio/agent-runtime'
 
 import type { AcpPermissionOption, AcpPermissionOptionDetails, AcpPermissionRequest } from './permissions'
+import type { AcpInputDraft } from './types'
 import type { AcpTurnUsage } from './usage'
 
 interface AcpPermissionQuestion {
@@ -26,7 +30,14 @@ export type AcpModelCatalogReader = (
   agent: Pick<ClientConnection['agent'], 'request'>
 ) => Promise<{ models: RuntimeModelOption[]; activeModel?: { id: string } } | undefined>
 
+export type AcpNativeTurn =
+  | { state: 'started'; sessionId: string; id: string }
+  | { state: 'finished'; sessionId: string; id: string; error?: string; cancelled?: true; usage?: AcpTurnUsage }
+
 export interface AcpHarnessSession {
+  readonly steer?: ThreadInput<AcpInputDraft>['steer']
+  readonly compact?: CompactThread
+  observeUpdate?(update: SessionUpdate): void
   readonly promptMeta?: PromptRequest['_meta']
   readonly legacyEffort?: {
     read(): RuntimeEffortControl | undefined
@@ -50,8 +61,9 @@ export interface AcpHarnessAdapter {
       handle: (params: P, signal: AbortSignal) => Promise<R>
     ) => void
   ): void
-  registerPromptUsage?(host: {
+  registerProtocol?(host: {
     onNotification<T>(method: string, schema: { parse(params: unknown): T }, handle: (params: T) => void): void
+    nativeTurn(event: AcpNativeTurn): void
   }): (sessionId: string) => {
     readonly metadata: NonNullable<PromptRequest['_meta']>
     read(response: PromptResponse): AcpTurnUsage | undefined
@@ -61,6 +73,7 @@ export interface AcpHarnessAdapter {
   bind?(input: {
     readonly agent: Pick<ClientConnection['agent'], 'request'>
     readonly agentCapabilities: InitializeResponse['agentCapabilities']
+    readonly initializeMetadata?: InitializeResponse['_meta']
     readonly sessionId: string
     readonly newSessionMetadata?: NewSessionResponse['_meta']
     readonly legacyModelState?: unknown

@@ -10,6 +10,8 @@ import {
   type SendOptions
 } from '@cursor/sdk'
 
+import type { CompactThread, InputDraft, SubmitInput } from '@cherrystudio/agent-runtime'
+
 import { cursorLoginMethod, type CursorPermissionMode } from './cli'
 
 export type { Run, SDKAgent, SDKUserMessage } from '@cursor/sdk'
@@ -153,4 +155,57 @@ export function sendCursorTurn(
     }
   }
   return agent.send(prompt, { mode: mode === 'plan' ? 'plan' : 'agent', onDelta, ...(model && { model }) })
+}
+
+export function bindCursorSteer(
+  run: Run,
+  onPlaced: (inputId: InputDraft['inputId']) => boolean
+): SubmitInput | undefined {
+  if (!run.steer) return
+  return async ({ inputId, text }) => {
+    const refused = () => ({
+      status: 'rejected' as const,
+      inputId,
+      error: { operation: 'steer', code: 'not-delivered', message: 'Cursor did not accept the input' }
+    })
+    if (run.status !== 'running') return refused()
+    try {
+      const result = await run.steer?.(text)
+      if (result === 'revert_to_followup') return refused()
+      if (result === 'complete_delivered')
+        return { status: 'acknowledged', inputId, facts: onPlaced(inputId) ? ['accepted', 'placed'] : ['accepted'] }
+      if (result?.outcome === 'queued') return { status: 'acknowledged', inputId, facts: ['accepted', 'queued'] }
+    } catch {
+      // Async SDK failure does not establish whether the run consumed the steer.
+    }
+    return {
+      status: 'unknown',
+      inputId,
+      error: { operation: 'steer', code: 'missing-receipt', message: 'Cursor did not confirm steer admission' }
+    }
+  }
+}
+
+export async function completeCursorCompaction(run: Run): ReturnType<CompactThread> {
+  let summaryCompleted = false
+  const observe = async () => {
+    for await (const message of run.stream()) {
+      if (message.type === 'summary' && message.run_id === run.id && message.status === 'completed')
+        summaryCompleted = true
+    }
+  }
+  const [terminal, summary] = await Promise.allSettled([run.wait(), observe()])
+  if (terminal.status === 'rejected') throw terminal.reason
+  const result = terminal.value
+  if (result.status === 'finished' && summary.status === 'fulfilled' && summaryCompleted)
+    return { status: 'confirmed', value: undefined }
+  const cancelled = result.status === 'cancelled'
+  return {
+    status: result.status === 'finished' ? 'unknown' : 'rejected',
+    error: {
+      operation: 'compact',
+      code: cancelled ? 'cancelled' : result.status === 'finished' ? 'missing-receipt' : 'failed',
+      message: result.error?.message ?? 'Cursor did not complete compaction'
+    }
+  }
 }

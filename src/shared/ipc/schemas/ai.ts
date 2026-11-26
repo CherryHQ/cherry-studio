@@ -682,6 +682,14 @@ export const aiRequestSchemas = {
   }),
 
   // ── Agent session runtime queries & commands ──
+  'ai.agent.session.compact': defineRoute({
+    input: z.strictObject({
+      sessionId: z.string().min(1),
+      generation: z.string().min(1),
+      instructions: z.string().trim().min(1).optional()
+    }),
+    output: z.boolean()
+  }),
   // Takes a fresh context-usage reading for a UI about to show it. Best-effort and throttled in main:
   // a session with no live connection keeps its last published value. The result arrives on the
   // session's shared-cache key, not here.

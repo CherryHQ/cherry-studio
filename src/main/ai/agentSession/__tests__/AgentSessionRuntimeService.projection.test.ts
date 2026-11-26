@@ -109,15 +109,25 @@ async function fixture(
         send: async ({ message }) => {
           connections.sent.push(message.id)
         },
-        redirect: ({ message }: { message: { id: string } }) => {
-          connections.steers.push(message.id)
-          return true
+        threadInput: {
+          steer: {
+            whenIdle: 'reject',
+            submit: async ({ inputId }) => {
+              connections.steers.push(inputId)
+              return { status: 'acknowledged', inputId, facts: ['accepted', 'queued'] }
+            }
+          },
+          ...(agentType === 'pi-durable' && {
+            followUp: {
+              persistence: 'durable',
+              submit: async ({ inputId }) => {
+                connections.followUps.push(inputId)
+                return { status: 'acknowledged' as const, inputId, facts: ['accepted', 'queued'] }
+              }
+            }
+          })
         },
         ...(agentType === 'pi-durable' && {
-          followUp: ({ message }: { message: { id: string } }) => {
-            connections.followUps.push(message.id)
-            return true
-          },
           lookupInput: async (_contextId: string, inputId: string) => {
             const input = recorded.get(inputId)
             return {

@@ -846,8 +846,39 @@ export async function createPiDurableRuntime(
       entry.admission = completed.then(() => {})
       return track(completed)
     }
+    async function compact(instructions?: string): Promise<OperationResult<{ compacted: boolean }>> {
+      if (unavailable()) return rejected('compact', 'closed')
+      try {
+        const task = await entry.conversation.compact(instructions, context)
+        const result = await native.waitForTask(task, context)
+        const outcome = result.state.outcome
+        if (outcome.status === 'aborted') return rejected('compact', 'cancelled')
+        if (outcome.status !== 'completed') {
+          return { status: 'rejected', error: error('compact', 'native-error', outcome.error?.message) }
+        }
+        if (outcome.result.submissionId) {
+          const submission = await native.submission(outcome.result.submissionId, context)
+          const placed = await submission?.wait(context)
+          if (placed?.status !== 'done') return rejected('compact', 'summary-not-placed')
+          return { status: 'confirmed', value: { compacted: true } }
+        }
+        return { status: 'confirmed', value: { compacted: outcome.result.entryId !== undefined } }
+      } catch (cause) {
+        report(cause)
+        return {
+          status: 'unknown',
+          error: error('compact', 'native-error', cause instanceof Error ? cause.message : undefined)
+        }
+      }
+    }
     return {
       thread: entry.ref,
+      ...(!entry.managedChild && {
+        async compact(instructions) {
+          const result = await compact(instructions)
+          return result.status === 'confirmed' ? { status: 'confirmed', value: undefined } : result
+        }
+      }),
       async contextUsage() {
         if (unavailable()) return rejected('contextUsage', 'released')
         try {
@@ -977,30 +1008,7 @@ export async function createPiDurableRuntime(
             context
           )
         },
-        async compact(instructions) {
-          if (unavailable()) return rejected('compact', 'closed')
-          try {
-            const task = await entry.conversation.compact(instructions, context)
-            const result = await native.waitForTask(task, context)
-            const outcome = result.state.outcome
-            if (outcome.status !== 'completed') {
-              return { status: 'rejected', error: error('compact', 'native-error', outcome.error?.message) }
-            }
-            if (outcome.result.submissionId) {
-              const submission = await native.submission(outcome.result.submissionId, context)
-              const placed = await submission?.wait(context)
-              if (placed?.status !== 'done') return rejected('compact', 'summary-not-placed')
-              return { status: 'confirmed', value: { compacted: true } }
-            }
-            return { status: 'confirmed', value: { compacted: outcome.result.entryId !== undefined } }
-          } catch (cause) {
-            report(cause)
-            return {
-              status: 'unknown',
-              error: error('compact', 'native-error', cause instanceof Error ? cause.message : undefined)
-            }
-          }
-        },
+        compact,
         async permissionModeChanged() {
           if (unavailable()) return rejected('permission-mode-changed', 'closed')
           if (behavior)

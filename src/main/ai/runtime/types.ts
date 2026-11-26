@@ -2,12 +2,14 @@ import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { FinishReason } from 'ai'
 
 import type {
+  CompactThread,
+  InputId,
   InputLookup,
   ProductInputState,
   LivePartInput,
   OperationResult,
-  SubmitResult,
-  ThreadContextUsage
+  ThreadContextUsage,
+  ThreadInput
 } from '@cherrystudio/agent-runtime'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
@@ -101,8 +103,6 @@ export interface AgentRuntimeConnectInput {
    * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
    */
   onSteerInjected?: (inputIds: readonly string[]) => void
-  /** Pins a pending product input before native admission can run synchronously. */
-  onInputPrepared?: (inputId: string, contextId: string) => void
 }
 
 export interface AgentRuntimeUserInput {
@@ -119,6 +119,8 @@ export type AgentRuntimeCommand = Pick<AgentRuntimeUserInput, 'message' | 'syste
   /** Model-only context; the original product message remains unchanged. */
   context?: CherryUIMessage['parts']
 }
+
+export type AgentRuntimeInput = ThreadInput<AgentRuntimeCommand & { readonly inputId: InputId }>
 
 /**
  * Runtime-neutral approval request. Drivers emit this instead of writing directly to a live
@@ -210,10 +212,6 @@ export type AgentRuntimeEvent =
       status?: 'paused'
       finishReason?: FinishReason
     }
-  /** The driver could not submit a pending input. The host requeues it for the next turn. */
-  | { type: 'steer-undelivered'; inputIds: readonly string[] }
-  /** The native turn discarded these inputs on interruption. Leave them available for manual resend. */
-  | { type: 'steer-withdrawn'; inputIds: readonly string[] }
   /** A steer was injected mid-turn (PreToolUse/PostToolBatch hook) and the model is about to emit its post-steer
    *  assistant message. Marks where the host should roll the assistant message: finalise the
    *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
@@ -221,7 +219,6 @@ export type AgentRuntimeEvent =
    *  A runtime with `followUp()` also emits it when it places a queued input, after the content before it;
    *  `followUp` marks that placement, which starts its own run and so never joins another reply. */
   | { type: 'steer-boundary'; inputIds: readonly string[]; followUp?: true }
-  | { type: 'input-submission'; contextId: string; result: SubmitResult }
   | { type: 'input-state'; contextId: string; input: ProductInputState }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
@@ -285,7 +282,7 @@ export interface AgentRuntimeConnection {
   /** Reused connections can carry another Run's settings and need reconciliation before the next admission. */
   preparedFor?(request: AgentRuntimeConnectInput): boolean
   /** Install the registered owner's callbacks on a reusable connection. */
-  bindInputs?(callbacks: Pick<AgentRuntimeConnectInput, 'onInputPrepared' | 'onSteerInjected'>): void
+  bindInputs?(callbacks: Pick<AgentRuntimeConnectInput, 'onSteerInjected'>): void
 
   predictPrompt?(signal: AbortSignal): Promise<string>
   readonly events: AsyncIterable<AgentRuntimeEvent>
@@ -303,23 +300,11 @@ export interface AgentRuntimeConnection {
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
   readonly usageCapture?: AgentSessionUsageCapture
   send(input: AgentRuntimeCommand): void | Promise<void>
+  readonly threadInput?: AgentRuntimeInput
+  readonly compact?: CompactThread
+  readonly compactWithInstructions?: true
   /** Reconcile the captured context without submitting or resuming native execution. */
   lookupInput?(contextId: string, inputId: string): Promise<OperationResult<InputLookup>>
-  /**
-   * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true
-   * when the message was stashed for injection (a turn is live) — the host then folds it into the
-   * current turn instead of opening a new one; if the turn ends before it is injected the connection
-   * emits `steer-undelivered`. Returns false when there is no live turn or the message cannot be
-   * injected by this driver, so the host queues it as the next turn. Omitted ⇒ no native steer ⇒
-   * host always queues.
-   */
-  redirect?(input: AgentRuntimeCommand): boolean
-  /**
-   * Submit a user message that waits behind running native work and persists natively at once.
-   * The connection emits `steer-boundary` when the runtime places it, so it gets its own reply;
-   * a refused submission reports `input-submission`. Returns false when no native work is running.
-   */
-  followUp?(input: AgentRuntimeCommand): boolean
   /**
    * Re-derive the session's desired config and reconcile the running connection against it.
    * Live-appliable tool-policy facts, permission mode included, are patched in place before the

@@ -73,7 +73,7 @@ An `aborted` outcome, including one caused by user Stop, settles the turn as pau
 `unanswered` outcomes report an error carrying their native reason.
 A message sent while native work runs is submitted with Durable's `follow-up` busy policy and
 persisted at once. The Work composer sends it immediately instead of holding it in its follow-up
-dock, because the descriptor declares `nativeFollowUp`; the connection has no single-submission gate and Main keeps no queue for it. Durable places it at the next run
+dock, when the connected runtime exposes its durable follow-up operation; the connection has no single-submission gate and Main keeps no queue for it. Durable places it at the next run
 boundary, in the same batch as the preceding answer. The connection announces the placement with
 `steer-boundary` after that batch's projection, so the preceding answer stays in its reply and Main
 opens a new one. The event marks the placement as a follow-up: Main holds it while the previous reply
@@ -82,15 +82,14 @@ its continuation. Durable reports the preceding input's outcome only when the ru
 settles that reply as answered at the boundary and replaces it if the outcome is not `completed`;
 cycle completion reads only the input that owns the current reply. A follow-up whose submission
 fails before it reaches Durable moves to Main's queue.
-`/compact` still waits in Main's queue, and input is refused while compacting.
 Product snapshots and headless policy stay on the Main session entry under the input ID, including
 unknown admission across connection replacement. The successor reconciles the original binding
 without resending, while generation checks reject stale callbacks.
 
-Manual compaction remains an active desktop submission until native work settles.
-Its completion card requires a committed summary; an idle snapshot or a declined
-summary cannot report successful compaction. Stop and shutdown retain their native
-cancellation and ownership semantics.
+The connected Composer invokes thread `compact()` while idle. Main holds the session
+until the native task settles and any summary submission is placed. The operation
+creates no chat input or reply. Automatic compaction can still attach its committed
+summary marker to the current reply.
 
 ## Stop, close and reopen
 

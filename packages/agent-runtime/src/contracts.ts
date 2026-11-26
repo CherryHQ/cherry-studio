@@ -47,7 +47,9 @@ export type SubmitResult =
       readonly nativeInput?: NativeInputRef
       readonly facts: readonly InputFact[]
     }
-  | { readonly status: 'rejected' | 'unsupported' | 'unknown'; readonly inputId: InputId; readonly error: RuntimeError }
+  | { readonly status: 'rejected'; readonly inputId: InputId; readonly error: RuntimeError }
+  | { readonly status: 'unsupported'; readonly inputId: InputId; readonly error: RuntimeError }
+  | { readonly status: 'unknown'; readonly inputId: InputId; readonly error: RuntimeError }
 export type InputState = (
   | { readonly inputId: InputId; readonly nativeInput?: NativeInputRef }
   | { readonly inputId?: InputId; readonly nativeInput: NativeInputRef }
@@ -228,10 +230,13 @@ export interface ThreadInput<D extends { readonly inputId: InputId } = InputDraf
   readonly steer?: { readonly whenIdle: 'reject' | 'may-start'; readonly submit: SubmitInput<D> }
   readonly followUp?: { readonly persistence: 'durable' | 'volatile' | 'unknown'; readonly submit: SubmitInput<D> }
 }
+export type CompactThread = (instructions?: string) => Promise<OperationResult<void>>
+
 export interface ThreadHandle {
   readonly thread: Thread
   contextUsage(): Promise<OperationResult<ThreadContextUsage>>
   readonly input?: ThreadInput
+  readonly compact?: CompactThread
   observe(sink: ObservationSink): Promise<OperationResult<Observation>>
   interrupt?: () => Promise<OperationResult<void>>
   release(): Promise<void>

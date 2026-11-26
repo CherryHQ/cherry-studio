@@ -5471,6 +5471,11 @@ describe('AgentComposer', () => {
     { steer: false, followUp: true },
     { steer: true, followUp: undefined }
   ])('sends a busy Pi Durable message at once (steer: $steer)', async ({ steer, followUp }) => {
+    MockUseCacheUtils.setSharedCacheValue('agent.session.runtime_controls.session-1', {
+      generation: 'generation-1',
+      compact: false,
+      durableFollowUp: true
+    })
     render(
       <AgentComposer
         agentId="agent-1"

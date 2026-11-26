@@ -12,7 +12,7 @@ export type AgentSessionCompactionAnchorData = CompactionAnchorData
 // Completed-run metrics use data-compaction-anchor; non-terminal failures stay visible in the cache.
 export type AgentSessionCompactionState =
   | { status: 'idle' }
-  | { status: 'failed'; error: string }
+  | { status: 'failed' | 'unknown'; error: string }
   | {
       status: 'compacting'
       startedAt: string

@@ -1,5 +1,7 @@
 import { expect, it, vi } from 'vitest'
 
+import { runtimeId, type SubmitResult } from '@cherrystudio/agent-runtime'
+
 import { CodexSession, listCodexBuiltinCommands, type CodexSessionEvent } from '../src/session'
 import { createPeer } from './peer'
 
@@ -347,8 +349,9 @@ it('uses native plan settings and distinguishes a consumed steer from an interru
     })
     peer.send({ id: turn.id, result: { turn: { id: 'native' } } })
     await planned
+    const receipts: Promise<SubmitResult>[] = []
     for (const id of ['used', 'dropped']) {
-      expect(session.steer(id, async () => [{ type: 'text', text: id }])).toBe(true)
+      receipts.push(session.steer(runtimeId(id), async () => [{ type: 'text', text: id }]))
       const request = await peer.read()
       expect(request).toMatchObject({
         method: 'turn/steer',
@@ -357,6 +360,19 @@ it('uses native plan settings and distinguishes a consumed steer from an interru
       peer.send({ id: request.id, result: { turnId: 'native' } })
     }
     expect(events.some((event) => event.type === 'steer-boundary')).toBe(false)
+    const preparation = Promise.withResolvers<readonly []>()
+    const preparing = session.steer(runtimeId('preparing'), () => preparation.promise)
+    const stopping = session.interrupt()
+    const interrupt = await peer.read()
+    expect(interrupt).toMatchObject({ method: 'turn/interrupt', params: { turnId: 'native' } })
+    await expect(preparing).resolves.toMatchObject({
+      status: 'rejected',
+      inputId: 'preparing',
+      error: { code: 'cancelled-before-dispatch' }
+    })
+    preparation.resolve([])
+    peer.send({ id: interrupt.id, result: {} })
+    await stopping
     peer.send({
       method: 'item/started',
       params: { threadId: 'thread', turnId: 'native', item: { type: 'userMessage', id: 'echo', clientId: 'used' } }
@@ -366,7 +382,35 @@ it('uses native plan settings and distinguishes a consumed steer from an interru
       params: { threadId: 'thread', turn: { id: 'native', status: 'interrupted' } }
     })
     expect(events).toContainEqual({ type: 'steer-boundary', inputIds: ['used'] })
-    expect(events).toContainEqual({ type: 'steer-withdrawn', inputIds: ['dropped'] })
+    await expect(Promise.all(receipts)).resolves.toMatchObject([
+      { status: 'acknowledged', inputId: 'used', facts: ['accepted', 'placed'] },
+      { status: 'unknown', inputId: 'dropped', error: { code: 'missing-echo' } }
+    ])
+  } finally {
+    peer.close()
+  }
+})
+
+it('confirms standalone compaction from its own item and turn without opening a chat turn', async () => {
+  const { peer, session, events } = await openSession()
+  try {
+    const compaction = session.compact()
+    const request = await peer.read()
+    expect(request).toMatchObject({ method: 'thread/compact/start', params: { threadId: 'thread' } })
+    peer.send({ id: request.id, result: {} })
+    peer.send({ method: 'turn/started', params: { threadId: 'thread', turn: { id: 'compact-turn' } } })
+    for (const method of ['item/started', 'item/completed']) {
+      peer.send({
+        method,
+        params: { threadId: 'thread', turnId: 'compact-turn', item: { id: 'compact-item', type: 'contextCompaction' } }
+      })
+    }
+    peer.send({
+      method: 'turn/completed',
+      params: { threadId: 'thread', turn: { id: 'compact-turn', status: 'completed' } }
+    })
+    await expect(compaction).resolves.toEqual({ status: 'confirmed', value: undefined })
+    expect(events.filter(({ type }) => type === 'native-start' || type === 'finished')).toEqual([])
   } finally {
     peer.close()
   }

@@ -23,6 +23,11 @@ function submissionDraft(message: AgentSessionMessageRecord, preparedText?: stri
   return { inputId: runtimeId(message.id), text }
 }
 
+function assertInputContent(message: AgentSessionMessageRecord, parts: AgentSessionMessageData['parts']): void {
+  if (JSON.stringify(message.data.parts) !== JSON.stringify(parts))
+    throw new Error('Native input content changed during preparation')
+}
+
 export function prepareNativeSubmission(
   sessionId: string,
   messageId: string,
@@ -31,9 +36,19 @@ export function prepareNativeSubmission(
 ): InputDraft {
   return application.get('DbService').withWriteTx((tx) => {
     const message = messages.bindInputContextTx(tx, sessionId, messageId, contextId)
-    if (prepared && JSON.stringify(message.data.parts) !== JSON.stringify(prepared.parts))
-      throw new Error('Native input content changed during preparation')
+    if (prepared) assertInputContent(message, prepared.parts)
     return submissionDraft(message, prepared?.text)
+  })
+}
+
+export function bindNativeInput(
+  sessionId: string,
+  contextId: string,
+  input: { id: string; data: { parts?: AgentSessionMessageData['parts'] } }
+): void {
+  application.get('DbService').withWriteTx((tx) => {
+    const message = messages.bindInputContextTx(tx, sessionId, input.id, contextId)
+    assertInputContent(message, input.data.parts)
   })
 }
 

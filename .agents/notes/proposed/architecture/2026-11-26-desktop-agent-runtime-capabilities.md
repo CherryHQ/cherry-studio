@@ -34,6 +34,10 @@ CLI launch preparation resolves the gateway route from the same configuration sn
 
 The harness adapter interprets native approval requests and options. The common ACP package translates standard option kinds. Main owns pending approvals, cancellation and Cherry-issued session grants. A selected response uses an option ID offered by the native request.
 
+The runtime reports native input admission independently of placement. Only a definitive refusal releases the binding and allows the existing scheduler to requeue an admitted input. The Composer keeps unsubmitted drafts and derives native follow-up from the connected owner. Manual compaction is an idle thread operation whose correlated native result settles occupancy and refreshes the context reading.
+
+Pi Durable, built-in Pi, Claude and Codex expose their existing native methods through the same desktop input and compaction entry points. Codex Stop can withdraw an input before dispatch. After dispatch, a missing native echo leaves delivery unknown and preserves its binding.
+
 ## Alternatives considered
 
 A provider-wide boolean cannot express read-only child access, a volatile queue or a model-specific writable option. A second desktop client for the installed Pi CLI would duplicate the bridge’s streaming, cancellation and restoration. A future native route needs a product operation or measured benefit that justifies maintaining it.
@@ -67,6 +71,8 @@ A provider-wide boolean cannot express read-only child access, a volatile queue 
 - AC25 — Reading idle controls does not open a native session. The Composer removes live controls when their connection closes. A model change withdraws the previous effort choices and rejects writes addressed to that model. ACP preserves advertised values, including Pi ACP's legacy thinking modes and Grok's legacy model metadata. Cursor takes levels from the SDK model catalog and applies the chosen value to the next send. (verification: unit and Electron)
 - AC26 — The model picker uses the selected installation's catalog before the first prompt. Each model carries only its reported effort choices. A standard ACP probe attaches session options to its reported current model and closes the probe. Grok can list models directly and falls back to the probe when its extension is absent. (verification: unit and Electron)
 - AC27 — Context readings use the native occupancy or last model request. Cursor keeps the accumulated run tokens in the usage record. The window comes from the runtime or the bound Cherry catalog model. A reading without a known window displays tokens without a percentage. (verification: unit and Electron)
+- AC28 — Native steer keeps the original input ID through acknowledgement, placement and refusal. Missing or ambiguous responses never cause fallback. A native continuation delivered in the same ACP batch as the preceding prompt response keeps its own content and terminal boundary. (verification: unit and Electron)
+- AC29 — Manual compaction reserves the thread until the native operation settles or the source terminates. Only matched completion refreshes the context reading. (verification: unit and Electron)
 
 ## Risks
 

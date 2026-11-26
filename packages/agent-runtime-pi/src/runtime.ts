@@ -85,7 +85,6 @@ export interface PiThreadHandle extends ThreadHandle {
     toolDefinition(name: string): ToolDefinition | undefined
     toolCallId(ref: CallRef): string | undefined
     cancelQueuedInputs(): OperationResult<readonly InputId[]>
-    compact(instructions?: string): Promise<OperationResult<void>>
     permissionModeChanged(): Promise<OperationResult<void>>
   }
 }
@@ -429,6 +428,44 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
         entry.projection.feed.publish({ type: 'context.changed', result })
         return result
       },
+      compact: entry.owner
+        ? (instructions) => {
+            const work = entry.admission.then(async (): Promise<OperationResult<void>> => {
+              if (unavailable()) return rejected('compact', 'closed')
+              if (entry.session.isStreaming) return rejected('compact', 'busy')
+              let compacted = false
+              let compactionFailure: PiRuntimeErrorContext['compactionFailure']
+              const unsubscribe = entry.session.subscribe((event) => {
+                if (event.type !== 'compaction_end' || event.reason !== 'manual') return
+                compacted = event.result !== undefined
+                if (!compacted && (event.aborted || event.errorMessage)) {
+                  compactionFailure = {
+                    aborted: event.aborted === true,
+                    ...(event.errorMessage && { errorMessage: event.errorMessage })
+                  }
+                }
+              })
+              try {
+                await entry.behavior.harness.compact(entry.ref.id, instructions)
+                if (!compacted) return rejected('compact', 'declined')
+                return { status: 'confirmed', value: undefined }
+              } catch (cause) {
+                report(cause, {
+                  operation: 'compact',
+                  thread: entry.ref,
+                  ...(compactionFailure && { compactionFailure })
+                })
+                if (compactionFailure)
+                  return rejected('compact', compactionFailure.aborted ? 'cancelled' : 'native-error')
+                return { status: 'unknown', error: error('compact', 'native-error') }
+              } finally {
+                unsubscribe()
+              }
+            })
+            entry.admission = work.then(() => {})
+            return work
+          }
+        : undefined,
       pi: {
         observe: (sink) => observeCaptured(() => entry.projection.observe(sink)),
         relation: () =>
@@ -511,41 +548,6 @@ export async function createPiRuntime(options: PiRuntimeOptions): Promise<Operat
           entry.session.clearQueue()
           for (const inputId of ids) entry.projection.recordInput({ inputId, facts: [], outcome: 'aborted' })
           return { status: 'confirmed', value: ids }
-        },
-        compact(instructions) {
-          const work = entry.admission.then(async (): Promise<OperationResult<void>> => {
-            if (unavailable()) return rejected('compact', 'closed')
-            if (!entry.owner) return rejected('compact', 'not-owner')
-            if (entry.session.isStreaming) return rejected('compact', 'busy')
-            let compacted = false
-            let compactionFailure: PiRuntimeErrorContext['compactionFailure']
-            const unsubscribe = entry.session.subscribe((event) => {
-              if (event.type !== 'compaction_end' || event.reason !== 'manual') return
-              compacted = event.result !== undefined
-              if (!compacted && (event.aborted || event.errorMessage)) {
-                compactionFailure = {
-                  aborted: event.aborted === true,
-                  ...(event.errorMessage && { errorMessage: event.errorMessage })
-                }
-              }
-            })
-            try {
-              await entry.behavior.harness.compact(entry.ref.id, instructions)
-              if (!compacted) return rejected('compact', 'declined')
-              return { status: 'confirmed', value: undefined }
-            } catch (cause) {
-              report(cause, {
-                operation: 'compact',
-                thread: entry.ref,
-                ...(compactionFailure && { compactionFailure })
-              })
-              return { status: 'unknown', error: error('compact', 'native-error') }
-            } finally {
-              unsubscribe()
-            }
-          })
-          entry.admission = work.then(() => {})
-          return work
         },
         async permissionModeChanged() {
           if (unavailable()) return rejected('permission-mode-changed', 'closed')

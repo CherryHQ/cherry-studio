@@ -129,6 +129,20 @@ are preserved.
   ACP when host control is allowed. The bundled Pi ACP bridge receives the MCP descriptor.
   Registering that descriptor with Pi on session creation and resume remains pending for `pi-acp@0.0.34`.
 
+When the active connection binds a native steer, the session scheduler saves the input
+against that connection's context before submitting it. Explicit refusal permits the
+same input to fall back to the next turn. Missing receipts retain the original binding.
+Codex confirms placement from its native user item echo. Stop withdraws input that
+is still being prepared. When Grok starts its own follow-up, Cherry preserves the
+order of its private turn events and standard ACP content.
+Composer holds unsent drafts and sends native follow-ups directly when the current
+connection offers a durable queue.
+
+The Composer routes `/compact` to the connected runtime's standalone compaction
+operation when available. Claude, built-in Pi and Pi Durable also accept instructions.
+The operation reserves the session until it receives a matching native outcome.
+Successful compaction refreshes context usage without creating a chat input.
+
 ### Models and configuration
 
 Agent Services offers native models and Cherry models through the unified gateway.

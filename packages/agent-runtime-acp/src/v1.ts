@@ -12,7 +12,7 @@ export {
   formatAcpError,
   type AcpManagementAgent
 } from './host'
-export type { AcpHarnessAdapter, AcpHarnessSession, AcpModelCatalogReader } from './harness'
+export type { AcpHarnessAdapter, AcpHarnessSession, AcpModelCatalogReader, AcpNativeTurn } from './harness'
 export type { AcpLiveEvents, AcpLiveSession } from './live'
 export { acpPermissionChoice, acpPermissionControl } from './permissionMode'
 export { mapAcpPermissionOptions, type AcpPermissionOption, type AcpPermissionRequest } from './permissions'

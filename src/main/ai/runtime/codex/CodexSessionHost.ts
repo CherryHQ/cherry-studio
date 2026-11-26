@@ -15,7 +15,7 @@ import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeServic
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection, type LocalSource } from '../LocalConnection'
 import { localContent } from '../localContent'
-import type { AgentRuntimeUserInput, AgentRuntimeCommand, AgentRuntimeConnectInput } from '../types'
+import type { AgentRuntimeUserInput, AgentRuntimeInput, AgentRuntimeConnectInput } from '../types'
 import { resolveCodexLaunch } from './codexLaunch'
 import { codexProcessHost } from './processHost'
 
@@ -26,7 +26,7 @@ export class CodexSessionHost extends LocalConnection {
     string,
     { part: number; source: LocalSource; streamed: boolean; phase?: string; kind: 'agentMessage' | 'plan' }
   >()
-  private callbacks?: Pick<AgentRuntimeConnectInput, 'onSteerInjected' | 'onInputPrepared'>
+  private callbacks?: Pick<AgentRuntimeConnectInput, 'onSteerInjected'>
   private branchHead?: string
   private planPart?: number
   private session?: CodexSession
@@ -146,30 +146,16 @@ export class CodexSessionHost extends LocalConnection {
       case 'steer-boundary':
         this.branchHead = event.inputIds.at(-1) ?? this.branchHead
         this.callbacks?.onSteerInjected?.(event.inputIds)
-        this.events.push({ type: event.type, inputIds: event.inputIds })
-        this.planPart = undefined
-        this.continueSource()
-        return
-      case 'steer-withdrawn':
-      case 'steer-undelivered':
-        this.events.push({ type: event.type, inputIds: event.inputIds })
-        return
-      case 'steer-unknown':
         if (this.contextId)
           for (const id of event.inputIds)
             this.events.push({
-              type: 'input-submission',
+              type: 'input-state',
               contextId: this.contextId,
-              result: {
-                status: 'unknown',
-                inputId: runtimeId(id),
-                error: {
-                  operation: 'turn/steer',
-                  code: 'missing-echo',
-                  message: 'Codex did not confirm input consumption'
-                }
-              }
+              input: { inputId: runtimeId(id), facts: ['accepted', 'placed'] }
             })
+        this.events.push({ type: event.type, inputIds: event.inputIds })
+        this.planPart = undefined
+        this.continueSource()
         return
       case 'text':
         return this.content(event.text)
@@ -260,16 +246,24 @@ export class CodexSessionHost extends LocalConnection {
     this.textItems.delete(event.itemId)
   }
 
-  bindInputs(callbacks: Pick<AgentRuntimeConnectInput, 'onSteerInjected' | 'onInputPrepared'>) {
+  bindInputs(callbacks: Pick<AgentRuntimeConnectInput, 'onSteerInjected'>) {
     this.callbacks = callbacks
   }
 
-  redirect(input: AgentRuntimeCommand) {
+  get threadInput(): AgentRuntimeInput | undefined {
     const session = this.session
-    if (!session || !this.active || !this.contextId) return false
-    const accepted = session.steer(input.message.id, () => localContent(input, session.info.images))
-    if (accepted) this.callbacks?.onInputPrepared?.(input.message.id, this.contextId)
-    return accepted
+    if (!session || !this.active || !this.contextId || this.headless) return
+    return {
+      steer: {
+        whenIdle: 'reject',
+        submit: ({ inputId, ...input }) => session.steer(inputId, () => localContent(input, session.info.images))
+      }
+    }
+  }
+
+  get compact() {
+    const session = this.session
+    return session && !this.headless ? () => session.compact() : undefined
   }
 
   private get connected() {

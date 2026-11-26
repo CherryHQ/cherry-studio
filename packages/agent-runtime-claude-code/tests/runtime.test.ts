@@ -349,21 +349,28 @@ it.each([false, true])(
   30000
 )
 
-it('retains product observation through compaction while the native archive selects the continuation view', async () => {
+it('compacts without admitting a product input and retains the native summary', async () => {
   const test = await fixture()
   try {
-    const root = confirmed(await test.runtime().create(test.options))
+    const root = confirmed(
+      await test.runtime().create({
+        ...test.options,
+        env: { ...test.options.env, CLAUDE_CODE_EMIT_SESSION_STATE_EVENTS: '1' }
+      })
+    )
     const view = await observe(root)
-    await root.input!.steer!.submit({ inputId: inputId(), text: 'Original context. '.repeat(500) })
+    const original = inputId()
+    await root.input!.steer!.submit({ inputId: original, text: 'Original context. '.repeat(500) })
     const request = await test.request()
     request.reply.block({ type: 'text', text: 'Original decision' })
     request.reply.finish()
     await view.event((event) => event.type === 'result')
-    await root.input!.followUp!.submit({ inputId: inputId(), text: '/compact Retain decision' })
+    const compacting = root.compact!('Retain decision')
     const compact = await test.request()
     compact.reply.block({ type: 'text', text: '<summary>Retained decision.</summary>' })
     compact.reply.finish()
-    await view.event((event) => event.type === 'system' && event.subtype === 'compact_boundary')
+    confirmed(await compacting)
+    expect(view.snapshot.inputs.flatMap((input) => input.inputId ?? [])).toEqual([original])
     const archive = confirmed(await root.claude.archive())
     expect(JSON.stringify(archive.content)).toContain('Retained decision.')
     expect(textOf(view.snapshot)).toContain('Original decision')

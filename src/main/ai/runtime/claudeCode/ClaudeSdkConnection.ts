@@ -55,6 +55,7 @@ import { isVisionModel } from '@shared/utils/model'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
+  AgentRuntimeInput,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
@@ -235,11 +236,9 @@ export abstract class ClaudeSdkConnection<
       text: JSON.stringify(sdkMessage.message.content),
       parts: input.message.data.parts
     })
-    this.input.onInputPrepared?.(input.message.id, contextId)
     const operation = this.handle?.claude.input?.followUp
     if (!operation) throw new Error('Claude follow-up is unavailable')
     const result = await operation.submit({ inputId: draft.inputId, content: sdkMessage.message.content })
-    this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
     if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
   }
@@ -257,40 +256,53 @@ export abstract class ClaudeSdkConnection<
     )
   }
 
-  redirect(input: AgentRuntimeCommand): boolean {
-    this.promptSuggestion.clear()
-    if (this.closing || !this.handle) return false
-    void this.submitSteer(input).catch((error) => {
-      logAiFailure(logger, 'Claude steer failed', error, 'agent.claude.steer', classifyClaudeFailure(error))
-      this.eventQueue.push({ type: 'error', error })
-    })
-    return true
+  get threadInput(): AgentRuntimeInput | undefined {
+    const handle = this.handle
+    const steer = handle?.claude.input?.steer
+    if (!handle || !steer || this.closing || this.input.headless) return
+    return {
+      steer: {
+        whenIdle: 'may-start',
+        submit: async ({ inputId, message, context, systemReminder }) => {
+          const reject = (code: string, message: string) => ({
+            status: 'rejected' as const,
+            inputId,
+            error: { operation: 'steer', code, message }
+          })
+          const epoch = this.interruptEpoch
+          const canSteer = () => !this.closing && this.handle === handle
+          if (!canSteer()) return reject('closed', 'Claude session is unavailable')
+          let sdkMessage: SDKUserMessage
+          try {
+            sdkMessage = await toSdkUserMessage(withAgentContext(message, context), this.resumeToken, systemReminder, {
+              supportsAttachmentReads: this.assistantFileToolsEnabled,
+              supportsImages: !isUniqueModelId(this.input.modelId) || resolveModelImageSupport(this.input.modelId)
+            })
+          } catch (error) {
+            return reject('not-dispatched', error instanceof Error ? error.message : String(error))
+          }
+          if (this.interruptEpoch !== epoch)
+            return reject('cancelled-before-dispatch', 'Claude stopped before dispatching the input')
+          if (!canSteer()) return reject('closed', 'Claude session is unavailable')
+          this.promptSuggestion.clear()
+          return steer.submit({ inputId, content: sdkMessage.message.content })
+        }
+      }
+    }
   }
 
-  private async submitSteer(input: AgentRuntimeCommand): Promise<void> {
-    const sdkMessage = await toSdkUserMessage(
-      withAgentContext(input.message, input.context),
-      this.resumeToken,
-      input.systemReminder,
-      {
-        supportsAttachmentReads: this.assistantFileToolsEnabled,
-        supportsImages: !isUniqueModelId(this.input.modelId) || resolveModelImageSupport(this.input.modelId)
-      }
-    )
-    if (this.closing) throw new Error('Claude session is unavailable')
-    const contextId = this.context!.id
-    const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, contextId, {
-      text: JSON.stringify(sdkMessage.message.content),
-      parts: input.message.data.parts
-    })
-    this.input.onInputPrepared?.(input.message.id, contextId)
-    const operation = this.handle?.claude.input?.steer
-    if (!operation) throw new Error('Claude steer is unavailable')
-    const result = await operation.submit({ inputId: draft.inputId, content: sdkMessage.message.content })
-    this.eventQueue.push({ type: 'input-submission', contextId, result })
-    applyNativeSubmissionResult(this.input.sessionId, contextId, result)
-    if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
+  readonly compactWithInstructions = true as const
+
+  get compact() {
+    const compact = this.handle?.compact
+    if (!compact || this.closing || this.input.headless) return
+    return (instructions?: string) => {
+      this.promptSuggestion.clear()
+      return compact(instructions)
+    }
   }
+
+  private interruptEpoch = 0
 
   async getContextUsage() {
     return this.handle
@@ -334,6 +346,7 @@ export abstract class ClaudeSdkConnection<
   }
 
   async interrupt(): Promise<void> {
+    this.interruptEpoch++
     this.promptSuggestion.clear()
     const interrupt = this.handle?.interrupt
     if (!interrupt) return

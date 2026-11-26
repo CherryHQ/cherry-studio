@@ -3,7 +3,12 @@ import { randomUUID } from 'node:crypto'
 import * as z from 'zod'
 
 import { acpConfigRecord, type AcpGatewayConfig, type TomlModelProfile } from '@cherrystudio/agent-runtime-acp/profile'
-import type { AcpHarnessAdapter, AcpModelCatalogReader, AcpTurnUsage } from '@cherrystudio/agent-runtime-acp/v1'
+import type {
+  AcpHarnessAdapter,
+  AcpHarnessSession,
+  AcpModelCatalogReader,
+  AcpTurnUsage
+} from '@cherrystudio/agent-runtime-acp/v1'
 
 import { setGrokAuxiliaryModels } from './cli'
 import { grokInteractions, type GrokInteractionHost } from './interactions'
@@ -38,7 +43,9 @@ const sessionNotification = z.object({
     sessionUpdate: z.string(),
     prompt_id: z.string().nullish(),
     promptId: z.string().nullish(),
-    usage: z.unknown().optional()
+    usage: z.unknown().optional(),
+    stop_reason: z.string().optional(),
+    agent_result: z.string().optional()
   })
 })
 
@@ -47,16 +54,41 @@ interface PendingPrompt {
   usage?: AcpTurnUsage
 }
 
-const registerPromptUsage: NonNullable<AcpHarnessAdapter['registerPromptUsage']> = (host) => {
+const registerProtocol: NonNullable<AcpHarnessAdapter['registerProtocol']> = (host) => {
   const pending = new Map<string, PendingPrompt>()
+  const ownPromptPrefix = `cherry-${randomUUID()}:`
+  host.onNotification(
+    '_x.ai/queue/changed',
+    z.object({
+      sessionId: z.string(),
+      runningPromptId: z.string().nullish(),
+      _meta: z.object({ isReplay: z.boolean().optional() }).nullish()
+    }),
+    ({ sessionId, runningPromptId, _meta }) => {
+      if (!_meta?.isReplay && runningPromptId && !runningPromptId.startsWith(ownPromptPrefix))
+        host.nativeTurn({ state: 'started', sessionId, id: runningPromptId })
+    }
+  )
 
   function onNotification({ sessionId, update, _meta }: z.infer<typeof sessionNotification>) {
     if (_meta?.isReplay || update.sessionUpdate !== 'turn_completed') return
     const promptId = update.prompt_id ?? update.promptId
-    const prompt = promptId ? pending.get(promptId) : undefined
+    if (!promptId) return
+    const usage = grokUsage.safeParse(update.usage).data
+    if (!promptId.startsWith(ownPromptPrefix)) {
+      host.nativeTurn({
+        state: 'finished',
+        sessionId,
+        id: promptId,
+        ...(usage && { usage }),
+        ...(update.stop_reason === 'cancelled' && { cancelled: true }),
+        ...(update.stop_reason === 'error' && { error: update.agent_result || 'Grok native turn failed' })
+      })
+      return
+    }
+    const prompt = pending.get(promptId)
     if (!prompt || prompt.sessionId !== sessionId) return
-    const parsed = grokUsage.safeParse(update.usage)
-    if (parsed.success) prompt.usage = parsed.data
+    if (usage) prompt.usage = usage
   }
 
   for (const method of ['_x.ai/session_notification', '_x.ai/session/update', 'x.ai/session_notification']) {
@@ -64,7 +96,7 @@ const registerPromptUsage: NonNullable<AcpHarnessAdapter['registerPromptUsage']>
   }
 
   return (sessionId) => {
-    const promptId = randomUUID()
+    const promptId = `${ownPromptPrefix}${randomUUID()}`
     const prompt: PendingPrompt = { sessionId }
     pending.set(promptId, prompt)
     return {
@@ -186,9 +218,77 @@ function bindLegacyEffort({
   }
 }
 
+const interjectionResponse = z.object({ status: z.literal('queued') })
+const compactResponse = z.record(z.string(), z.unknown())
+const rpcError = z.object({ code: z.number(), data: z.object({ kind: z.string() }).optional() })
+
+function bindGrokControls({
+  agent,
+  sessionId
+}: Parameters<NonNullable<AcpHarnessAdapter['bind']>>[0]): Pick<AcpHarnessSession, 'steer' | 'compact'> {
+  return {
+    steer: {
+      whenIdle: 'reject',
+      async submit({ inputId, content }) {
+        try {
+          const text = content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
+          const response = await agent.request('_x.ai/interject', {
+            sessionId,
+            text,
+            interjectionId: inputId,
+            ...(content.some((part) => part.type !== 'text') && { content })
+          })
+          if (interjectionResponse.safeParse(response).success)
+            return { status: 'acknowledged', inputId, facts: ['accepted', 'queued'] }
+        } catch (error) {
+          const code = rpcError.safeParse(error).data?.code
+          if (code === -32601 || code === -32602)
+            return {
+              status: 'rejected',
+              inputId,
+              error: { operation: 'steer', code: 'refused', message: 'Grok refused the interjection' }
+            }
+        }
+        return {
+          status: 'unknown',
+          inputId,
+          error: { operation: 'steer', code: 'missing-receipt', message: 'Grok did not confirm interjection admission' }
+        }
+      }
+    },
+    async compact() {
+      try {
+        const response = await agent.request('_x.ai/compact_conversation', { sessionId })
+        if (compactResponse.safeParse(response).success) return { status: 'confirmed', value: undefined }
+      } catch (error) {
+        const native = rpcError.safeParse(error).data
+        const kind = native?.data?.kind
+        if (
+          kind === 'compact_failed' ||
+          kind === 'compact_cancelled' ||
+          native?.code === -32601 ||
+          native?.code === -32602
+        )
+          return {
+            status: 'rejected',
+            error: {
+              operation: 'compact',
+              code: kind ?? 'refused',
+              message: error instanceof Error ? error.message : 'Grok refused compaction'
+            }
+          }
+      }
+      return {
+        status: 'unknown',
+        error: { operation: 'compact', code: 'missing-receipt', message: 'Grok did not confirm compaction' }
+      }
+    }
+  }
+}
+
 export function createGrokAcpAdapter(host: GrokInteractionHost): AcpHarnessAdapter {
   return {
-    registerPromptUsage,
+    registerProtocol,
     registerRequests: grokInteractions(host),
     bind(input) {
       const { agent, sessionId } = input
@@ -196,6 +296,7 @@ export function createGrokAcpAdapter(host: GrokInteractionHost): AcpHarnessAdapt
       let unavailable = false
       return {
         legacyEffort: bindLegacyEffort(input),
+        ...bindGrokControls(input),
         async predictPrompt(signal) {
           if (unavailable || signal.aborted) return ''
           const requested = ++generation

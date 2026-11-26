@@ -46,6 +46,7 @@ import {
   useOptionalQuickPanel
 } from '@renderer/components/QuickPanel'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -87,6 +88,7 @@ import {
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY } from '@shared/ai/agentSessionRuntimeControls'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { getLocalAgentProtocol } from '@shared/ai/localAgent'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -371,7 +373,20 @@ const AgentComposerRoot = ({
     enabled: isActiveTab && Boolean(session && agent && hasNewSessionShortcutAction)
   })
 
-  const sessionSlashCommands = useAgentSessionSlashCommands(sessionId)
+  const commands = useAgentSessionSlashCommands(sessionId)
+  const compact = useSharedCacheValue(AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY(sessionId ?? '__none__'))?.compact
+  const { t } = useTranslation()
+  const sessionSlashCommands = useMemo(() => {
+    if (!compact || commands?.some(({ command }) => command === '/compact')) return commands
+    return [
+      ...(commands ?? []),
+      {
+        command: '/compact',
+        description: t('chat.input.slash_commands.commands.compact'),
+        builtin: true
+      }
+    ]
+  }, [commands, compact, t])
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
     const accessiblePaths = toAccessiblePaths(session.workspace?.type === 'user' ? session.workspace.path : undefined)
@@ -729,7 +744,9 @@ const AgentComposerInner = ({
       lastNonPlanLocalModeRef.current = { sessionId, value: localPermissionSelection.currentValue }
     }
   }, [localPermissionSelection, localPlanOption, sessionId])
-  const nativeFollowUp = capabilities?.nativeFollowUp ?? false
+  const runtimeControls = useSharedCacheValue(AGENT_SESSION_RUNTIME_CONTROLS_CACHE_KEY(sessionId))
+  const hasDurableFollowUp = runtimeControls?.durableFollowUp ?? false
+  const inputDelivery = runtimeControls?.delivery?.status
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
   const releaseFollowupEditRef = useRef<() => void>(() => {})
@@ -1747,12 +1764,40 @@ const AgentComposerInner = ({
       const payload = buildQueuedPayload(draft)
       if (!payload) return
 
+      const compact = /^\/compact(?:\s+([\s\S]+))?$/.exec(payload.text.trim())
+      if (
+        runtimeControls?.compact &&
+        compact &&
+        (!compact[1] || runtimeControls.compactWithInstructions) &&
+        !payload.attachments?.length &&
+        !launchOptions?.editing
+      ) {
+        directSendInFlightRef.current = true
+        setIsDirectSending(true)
+        try {
+          if (
+            await ipcApi.request('ai.agent.session.compact', {
+              sessionId,
+              generation: runtimeControls.generation,
+              ...(compact[1] && { instructions: compact[1] })
+            })
+          )
+            clearCurrentDraft()
+        } catch (error) {
+          toast.errorFromException(error)
+        } finally {
+          directSendInFlightRef.current = false
+          setIsDirectSending(false)
+        }
+        return
+      }
+
       // Busy (streaming) → queue the follow-up; the head auto-drains when the session goes idle and
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
       // A runtime with a durable native queue receives the follow-up at once so it survives a crash.
       const followUp = isStreaming && !options?.steer && !steerWhileBusy
-      if (followUp && !nativeFollowUp) {
+      if (followUp && !hasDurableFollowUp) {
         enqueueFollowup(draft, payload)
         clearCurrentDraft()
         return
@@ -1775,7 +1820,10 @@ const AgentComposerInner = ({
       enqueueFollowup,
       isStreaming,
       model,
-      nativeFollowUp,
+      hasDurableFollowUp,
+      runtimeControls,
+      launchOptions?.editing,
+      sessionId,
       sendDisabled,
       sendQueuedPayload,
       steerWhileBusy,
@@ -2025,12 +2073,23 @@ const AgentComposerInner = ({
             <>
               {quotaExhaustion ? <CherryCloudQuotaNotice exhaustion={quotaExhaustion} /> : null}
               {showProviderQuotaNotice ? <ProviderQuotaNotice /> : null}
-              {compaction.status === 'failed' && (
+              {inputDelivery && (
+                <div role="status" className="mb-2 text-xs text-muted-foreground">
+                  {t(
+                    inputDelivery === 'accepted'
+                      ? 'agent.session_delivery.status.accepted'
+                      : inputDelivery === 'queued'
+                        ? 'agent.tasks.runSummary.queued'
+                        : 'common.unknown'
+                  )}
+                </div>
+              )}
+              {(compaction.status === 'failed' || compaction.status === 'unknown') && (
                 <Alert
                   type="warning"
                   showIcon
                   className="mb-2"
-                  message={t('chat.compaction.failed')}
+                  message={t(compaction.status === 'unknown' ? 'common.unknown' : 'chat.compaction.failed')}
                   description={compaction.error}
                 />
               )}

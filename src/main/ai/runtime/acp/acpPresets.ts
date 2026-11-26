@@ -30,6 +30,7 @@ import { attachOpenClawGateway, openClawPreset, openClawEnvironment } from '@che
 import {
   kiloGatewayOverlay,
   kiloModelProfile,
+  openCodeAcpAdapter,
   openCodeGatewayOverlay,
   openCodeModelProfile
 } from '@cherrystudio/agent-runtime-opencode-acp'
@@ -118,7 +119,7 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
         })
     }
   ],
-  ['opencode', { profile: openCodeModelProfile, gatewayOverlay: openCodeGatewayOverlay }],
+  ['opencode', { profile: openCodeModelProfile, gatewayOverlay: openCodeGatewayOverlay, protocol: openCodeAcpAdapter }],
   ['kilo', { profile: kiloModelProfile, gatewayOverlay: kiloGatewayOverlay }],
   ['glm-acp-agent', { profile: glmModelProfile, gateway: glmGateway }],
   ['kimi', { profile: kimiModelProfile, gateway: kimiGateway, installation: 'native-cli' }],

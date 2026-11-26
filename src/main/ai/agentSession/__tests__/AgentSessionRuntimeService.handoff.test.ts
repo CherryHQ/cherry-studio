@@ -125,7 +125,14 @@ async function fixture(opts: { headless?: boolean; redirect?: boolean; recovery?
       send: async (input) => {
         sent.push(input.message.id)
       },
-      redirect: () => opts.redirect === true,
+      ...(opts.redirect && {
+        threadInput: {
+          steer: {
+            whenIdle: 'reject',
+            submit: async ({ inputId }) => ({ status: 'acknowledged', inputId, facts: ['accepted', 'queued'] })
+          }
+        }
+      }),
       refreshTraceContext: async () => {
         if (blockTrace) {
           traceEntered.resolve()

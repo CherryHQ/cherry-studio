@@ -15,6 +15,7 @@ import {
   connectAcpStdio,
   mapAcpPermissionOptions,
   type AcpLiveSession,
+  type AcpTurnUsage,
   type AcpLiveEvents,
   type AcpClientCallbacks,
   type AcpMcpServer,
@@ -49,7 +50,7 @@ import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeServic
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection } from '../LocalConnection'
 import { stopLocalAgentProcess } from '../stdioProcess'
-import type { AgentRuntimeUserInput } from '../types'
+import type { AgentRuntimeInput, AgentRuntimeUserInput } from '../types'
 import { acpContent } from './acpContent'
 import { acpError } from './acpError'
 import { acpModelSelection, prepareAcpChatLaunch, resolveConfiguredAcpModel } from './acpLaunch'
@@ -127,6 +128,7 @@ export class AcpConnection extends LocalConnection {
       if (
         !this.active ||
         target.sessionId !== this.session?.id ||
+        this.session.awaitingNativeTurn ||
         turn.aborted ||
         this.abort.signal.aborted ||
         requestSignal.aborted
@@ -157,6 +159,31 @@ export class AcpConnection extends LocalConnection {
   private readonly toolInputs = new Map<string, LocalAcpTool>()
   private hasContextUsageReading = false
   private gatewayContextWindow?: number
+
+  get threadInput(): AgentRuntimeInput | undefined {
+    const steer = this.session?.steer
+    if (!steer || this.headless || !this.active) return
+    const turn = this.turnAbort.signal
+    return {
+      steer: {
+        whenIdle: steer.whenIdle,
+        submit: async ({ inputId, ...input }) => {
+          const content = await acpContent(input, this.promptCapabilities)
+          if (!this.active || turn.aborted || this.turnAbort.signal !== turn || this.closed)
+            return {
+              status: 'rejected',
+              inputId,
+              error: { operation: 'steer', code: 'no-active-turn', message: 'ACP turn already ended' }
+            }
+          return steer.submit({ inputId, content })
+        }
+      }
+    }
+  }
+
+  get compact() {
+    return this.headless || this.closed ? undefined : this.session?.compact
+  }
 
   get inspectContextUsage() {
     return this.session?.inspectContextUsage
@@ -345,7 +372,12 @@ export class AcpConnection extends LocalConnection {
         }
       },
       permission: async (params, { signal: requestSignal }) => {
-        if (!this.active || params.sessionId !== this.session?.id || this.abort.signal.aborted)
+        if (
+          !this.active ||
+          params.sessionId !== this.session?.id ||
+          this.session.awaitingNativeTurn ||
+          this.abort.signal.aborted
+        )
           return { outcome: { outcome: 'cancelled' } }
         if (this.headless) {
           this.denyUnattendedRequest()
@@ -872,6 +904,21 @@ export class AcpConnection extends LocalConnection {
       this.session = session
       this.readConfigOptions(configuration, session.legacyModels)
     },
+    nativeTurn: (event) => {
+      if (event.state === 'started') {
+        if (this.headless || this.active || !this.contextId || this.closed) return false
+        this.planPart = undefined
+        this.planId = undefined
+        this.events.push({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'native-turn' } })
+        this.begin(event.id)
+      } else {
+        if (event.usage)
+          this.publishTurnUsage(event.usage, event.sessionId, this.localSessionInfo.activeModel?.id ?? null)
+        this.finish(event.error ? new Error(event.error) : undefined, event.cancelled ? 'cancelled' : 'stop')
+        this.events.push({ type: 'autonomous-turn-state', state: 'finished' })
+      }
+      return true
+    },
     compaction: (event) => this.events.push(event),
     notice: (notice) => this.events.push({ type: 'notice', notice }),
     title: (title) => {
@@ -1073,27 +1120,7 @@ export class AcpConnection extends LocalConnection {
           }
         })
       }
-      if (usage) {
-        // ACP totals already include cached tokens.
-        const cachedRead = usage.cachedReadTokens ?? 0
-        const cachedWrite = usage.cachedWriteTokens ?? 0
-        const summary = LocalAgentTurnUsageSchema.safeParse({
-          nativeSessionId: this.session.id,
-          model,
-          reportedAt: Date.now(),
-          correlation: this.gatewayLease ? 'gateway' : 'unknown',
-          usage: {
-            inputTokens: usage.inputTokens,
-            outputTokens: usage.outputTokens,
-            totalTokens: usage.totalTokens,
-            noCacheTokens: Math.max(0, usage.inputTokens - cachedRead - cachedWrite),
-            ...(usage.thoughtTokens != null ? { reasoningTokens: usage.thoughtTokens } : {}),
-            ...(usage.cachedReadTokens != null ? { cacheReadTokens: usage.cachedReadTokens } : {}),
-            ...(usage.cachedWriteTokens != null ? { cacheWriteTokens: usage.cachedWriteTokens } : {})
-          }
-        })
-        if (summary.success) this.events.push({ type: 'local-turn-usage', summary: summary.data })
-      }
+      if (usage) this.publishTurnUsage(usage, this.session.id, model)
       if (!this.localSessionInfo.protocolInfo?.verified.includes('prompt'))
         this.localSessionInfo.protocolInfo?.verified.push('prompt')
       const truncated = stopReason === 'max_tokens' || stopReason === 'max_turn_requests'
@@ -1119,8 +1146,32 @@ export class AcpConnection extends LocalConnection {
       )
     } catch (error) {
       this.finish(error)
+    } finally {
+      this.session?.drainNativeTurn()
     }
   }
+  private publishTurnUsage(usage: AcpTurnUsage, nativeSessionId: string, model: string | null): void {
+    // ACP totals already include cached tokens.
+    const cachedRead = usage.cachedReadTokens ?? 0
+    const cachedWrite = usage.cachedWriteTokens ?? 0
+    const summary = LocalAgentTurnUsageSchema.safeParse({
+      nativeSessionId,
+      model,
+      reportedAt: Date.now(),
+      correlation: this.gatewayLease ? 'gateway' : 'unknown',
+      usage: {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        totalTokens: usage.totalTokens,
+        noCacheTokens: Math.max(0, usage.inputTokens - cachedRead - cachedWrite),
+        ...(usage.thoughtTokens != null ? { reasoningTokens: usage.thoughtTokens } : {}),
+        ...(usage.cachedReadTokens != null ? { cacheReadTokens: usage.cachedReadTokens } : {}),
+        ...(usage.cachedWriteTokens != null ? { cacheWriteTokens: usage.cachedWriteTokens } : {})
+      }
+    })
+    if (summary.success) this.events.push({ type: 'local-turn-usage', summary: summary.data })
+  }
+
   protected override finish(error?: unknown, finishReason: FinishReason | 'cancelled' = 'stop') {
     this.approvedWrites.length = 0
     if (this.active) {

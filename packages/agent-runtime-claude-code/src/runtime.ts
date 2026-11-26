@@ -100,6 +100,10 @@ export function createClaudeCodeRuntime(options: ClaudeCodeRuntimeOptions): Clau
     }
     return {
       thread: projection.thread,
+      compact: agentId
+        ? undefined
+        : async (instructions) =>
+            released ? rejected('compact', 'released') : owner.compact(projection, instructions),
       contextUsage: async () => {
         if (released) return rejected('contextUsage', 'released')
         if (agentId) return { status: 'unsupported', error: runtimeError('contextUsage', 'child-control') }

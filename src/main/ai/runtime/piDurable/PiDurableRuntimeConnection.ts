@@ -8,9 +8,8 @@ import {
   hasProductInputId,
   isPartBatch,
   runtimeId,
-  type InputDraft,
+  type CompactThread,
   type InputState,
-  type SubmitResult,
   type Observation,
   type Subagent
 } from '@cherrystudio/agent-runtime'
@@ -49,7 +48,8 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
-  AgentRuntimeCommand
+  AgentRuntimeCommand,
+  AgentRuntimeInput
 } from '../types'
 import type { DurableBackend, DurableRoot } from './DurableBackend'
 import type { prepareDurableBranch } from './durableContext'
@@ -71,9 +71,6 @@ type DurableChildResource = {
 function isCompactCommand(text: string) {
   return /^\/compact(?:\s|$)/.test(text.trim())
 }
-
-/** Durable answered the submission; the host already received it as `input-submission`. */
-class InputNotDispatched extends Error {}
 
 export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   get contextId(): string | undefined {
@@ -132,8 +129,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     return this.input === request
   }
 
-  bindInputs(callbacks: Pick<AgentRuntimeConnectInput, 'onInputPrepared' | 'onSteerInjected'>): void {
-    this.input.onInputPrepared = callbacks.onInputPrepared
+  bindInputs(callbacks: Pick<AgentRuntimeConnectInput, 'onSteerInjected'>): void {
     this.input.onSteerInjected = callbacks.onSteerInjected
   }
 
@@ -262,7 +258,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     try {
-      await this.submit(input, input.systemReminder ? wrapSteerReminder(text) : text, 'follow-up')
+      await this.submit(input, input.systemReminder ? wrapSteerReminder(text) : text)
     } catch (error) {
       if (!running) this.sending = false
       throw error
@@ -282,70 +278,90 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     )
   }
 
-  redirect(input: AgentRuntimeCommand): boolean {
-    if (!this.active || this.closing) return false
-    this.steers.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(buildAgentUserContent(input.message)), 'steer').catch((error) =>
-      this.fail(error)
-    )
-    return true
+  get threadInput(): AgentRuntimeInput | undefined {
+    const handle = this.handle
+    if (!handle || this.closing) return
+    const followUp = handle.input.followUp
+    const submit =
+      (kind: 'steer' | 'follow-up'): NonNullable<AgentRuntimeInput['submit']> =>
+      async ({ inputId, message }) => {
+        const native = kind === 'steer' ? handle.input.steer.submit : followUp?.submit
+        const text = buildAgentUserContent(message)
+        if (
+          !native ||
+          this.closing ||
+          this.compacting ||
+          this.handle !== handle ||
+          (kind === 'steer' ? !this.active : !this.sending) ||
+          isCompactCommand(text)
+        )
+          return {
+            status: 'rejected',
+            inputId,
+            error: { operation: kind, code: 'unavailable', message: 'Pi Durable cannot admit this input now' }
+          }
+        const inputs = kind === 'steer' ? this.steers : this.queued
+        inputs.add(inputId)
+        const submission = native({ inputId, text: wrapSteerReminder(text) })
+        this.admission = submission.catch(() => undefined)
+        const result = await submission.catch((error: unknown) => ({
+          status: 'unknown' as const,
+          inputId,
+          error: {
+            operation: kind,
+            code: 'missing-receipt',
+            message: error instanceof Error ? error.message : String(error)
+          }
+        }))
+        if (result.status === 'rejected' || result.status === 'unsupported') inputs.delete(inputId)
+        return result
+      }
+    return {
+      steer: { whenIdle: 'reject', submit: submit('steer') },
+      ...(followUp?.persistence === 'durable' && {
+        followUp: { persistence: 'durable', submit: submit('follow-up') }
+      })
+    }
   }
 
-  get followUp() {
-    return this.handle?.input.followUp?.persistence === 'durable' ? this.submitFollowUp : undefined
+  readonly compactWithInstructions = true as const
+
+  get compact(): CompactThread | undefined {
+    const handle = this.handle
+    const compact = handle?.compact
+    if (!compact || this.closing || this.input.headless) return
+    return async (instructions) => {
+      if (this.sending || this.active || this.closing || this.compacting || this.handle !== handle)
+        return {
+          status: 'rejected',
+          error: { operation: 'compact', code: 'busy', message: 'Pi Durable session is unavailable or busy' }
+        }
+      this.compacting = true
+      try {
+        return await compact(instructions)
+      } finally {
+        this.compacting = false
+      }
+    }
   }
 
-  private readonly submitFollowUp = (input: AgentRuntimeCommand): boolean => {
-    const text = buildAgentUserContent(input.message)
-    // `/compact` is a host command; it waits in the host queue and runs as compaction.
-    if (!this.sending || this.closing || this.compacting || isCompactCommand(text)) return false
-    this.queued.add(input.message.id)
-    void this.submit(input, wrapSteerReminder(text), 'follow-up').catch((error) => {
-      logger.warn('Durable follow-up submission failed', { sessionId: this.input.sessionId, error })
-      if (!(error instanceof InputNotDispatched)) return
-      // It never reached Durable's queue, so the host queues it instead.
-      this.queued.delete(input.message.id)
-      this.events.push({ type: 'steer-undelivered', inputIds: [input.message.id] })
-    })
-    return true
-  }
-
-  private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'follow-up' | 'steer') {
+  private async submit(input: AgentRuntimeCommand, text: string) {
     const submitted = (async () => {
       const handle = this.handle
-      const send = whenBusy === 'steer' ? handle?.input.steer.submit : handle?.input.followUp?.submit
-      if (!handle || !send) throw new InputNotDispatched('Pi Durable input operation is unavailable')
-      let draft: InputDraft
-      try {
-        if (input.context?.length)
-          await handle.durable.initializeContext(
-            buildAgentUserContent({ ...input.message, data: { parts: input.context } })
-          )
-        draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, {
-          text,
-          parts: input.message.data.parts
-        })
-        this.input.onInputPrepared?.(input.message.id, this.context!.id)
-      } catch (cause) {
-        throw new InputNotDispatched(cause instanceof Error ? cause.message : String(cause), { cause })
-      }
-      try {
-        return await send(draft)
-      } catch (cause) {
-        return {
-          status: 'unknown',
-          inputId: draft.inputId,
-          error: {
-            operation: 'submit',
-            code: 'missing-receipt',
-            message: cause instanceof Error ? cause.message : String(cause)
-          }
-        } satisfies SubmitResult
-      }
+      const send = handle?.input.followUp?.submit
+      if (!handle || !send) throw new Error('Pi Durable input operation is unavailable')
+      if (input.context?.length)
+        await handle.durable.initializeContext(
+          buildAgentUserContent({ ...input.message, data: { parts: input.context } })
+        )
+      const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, {
+        text,
+        parts: input.message.data.parts
+      })
+      return send(draft)
     })()
     this.admission = submitted.catch(() => undefined)
     const result = await submitted
-    this.events.push({ type: 'input-submission', contextId: this.context!.id, result })
     applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
     if (result.status !== 'acknowledged') {
       throw new Error(result.error.message)

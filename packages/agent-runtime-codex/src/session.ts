@@ -1,5 +1,7 @@
 import * as z from 'zod'
 
+import { runtimeId, type InputId, type OperationResult, type SubmitResult } from '@cherrystudio/agent-runtime'
+
 import { codexRequestHandlers, type RequestScope, type InteractionHost } from './approvals'
 import {
   CodexRequestError,
@@ -39,7 +41,7 @@ export type CodexSessionEvent =
   | { type: 'plan'; turnId: string; steps: { step: string; status: 'pending' | 'inProgress' | 'completed' }[] }
   | { type: 'native-start'; threadId: string }
   | { type: 'native-finish' }
-  | { type: 'steer-boundary' | 'steer-undelivered' | 'steer-withdrawn' | 'steer-unknown'; inputIds: string[] }
+  | { type: 'steer-boundary'; inputIds: string[] }
   | { type: 'tool'; itemId: string; name: string; input: unknown }
   | { type: 'tool-result'; itemId: string; output: unknown; failed: boolean }
   | { type: 'finished'; error?: Error; reason: 'stop' | 'cancelled' }
@@ -69,7 +71,12 @@ type ActiveTurn = {
   nativeStarted?: boolean
   expectsStart?: boolean
   interruptRequested?: boolean
-  steers?: Map<string, 'preparing' | 'sent'>
+  steers?: Map<InputId, { dispatched: boolean; settle(result: SubmitResult): void }>
+  manualCompaction?: {
+    settle(result: OperationResult<void>): void
+    itemId?: string
+    completed?: true
+  }
   compacting: boolean
   unattendedDenial?: Error
   usageBaseline?: TokenCounts
@@ -98,7 +105,7 @@ export class CodexSession {
     private readonly options: SessionOptions,
     private readonly thread: OpenThread,
     private readonly host: Omit<SessionHost, 'connect'>,
-    readonly close: CodexAppServerConnection['close']
+    private readonly closeTransport: CodexAppServerConnection['close']
   ) {
     this.skills = new CodexSkills(client, options.cwd)
   }
@@ -163,6 +170,11 @@ export class CodexSession {
   }
   get info() {
     return { ...this.thread.info, configOptions: this.controls.options() }
+  }
+
+  close() {
+    this.finish(undefined, 'stop', false)
+    return this.closeTransport()
   }
 
   private loadControls() {
@@ -304,6 +316,10 @@ export class CodexSession {
     }
     const turn = this.turn
     if (!turn || (params.turnId !== undefined && params.turnId !== turn.id)) return
+    if (turn.manualCompaction) {
+      this.observeManualCompaction(turn, method, params)
+      return
+    }
     switch (method) {
       case 'item/agentMessage/delta':
       case 'item/plan/delta':
@@ -350,11 +366,17 @@ export class CodexSession {
         if (
           item.type === 'userMessage' &&
           !complete &&
-          typeof item.clientId === 'string' &&
-          turn.steers?.delete(item.clientId)
+          params.turnId === turn.id &&
+          typeof item.clientId === 'string'
         ) {
-          this.host.emit({ type: 'steer-boundary', inputIds: [item.clientId] })
-          return
+          const inputId = runtimeId<'input'>(item.clientId)
+          const receipt = turn.steers?.get(inputId)
+          if (receipt?.dispatched) {
+            turn.steers?.delete(inputId)
+            this.host.emit({ type: 'steer-boundary', inputIds: [inputId] })
+            receipt.settle({ status: 'acknowledged', inputId, facts: ['accepted', 'placed'] })
+            return
+          }
         }
         if (item.type === 'agentMessage' || item.type === 'plan') {
           const identity = {
@@ -429,17 +451,35 @@ export class CodexSession {
     this.host.emit({ type: active ? 'compaction-start' : 'compaction-complete' })
   }
 
-  private finish(error?: Error, reason: 'stop' | 'cancelled' = 'stop') {
+  private finish(error?: Error, reason: 'stop' | 'cancelled' = 'stop', publish = true) {
     const turn = this.turn
     if (!turn) return
     this.turn = undefined
-    for (const [id, state] of turn.steers ?? []) {
-      const type =
-        reason === 'cancelled' ? 'steer-withdrawn' : state === 'preparing' ? 'steer-undelivered' : 'steer-unknown'
-      this.host.emit({ type, inputIds: [id] })
-    }
+    if (reason === 'cancelled') turn.interruptRequested = true
+    for (const [inputId, steer] of turn.steers ?? [])
+      steer.settle(
+        steer.dispatched
+          ? {
+              status: 'unknown',
+              inputId,
+              error: { operation: 'steer', code: 'missing-echo', message: 'Codex did not confirm input delivery' }
+            }
+          : endedSteer(turn, inputId)
+      )
     turn.steers?.clear()
     turn.controller.abort()
+    if (turn.manualCompaction) {
+      turn.manualCompaction.settle({
+        status: 'unknown',
+        error: {
+          operation: 'compact',
+          code: 'missing-receipt',
+          message: error?.message ?? 'Codex compaction ended without confirmation'
+        }
+      })
+      return
+    }
+    if (!publish) return
     this.host.emit({
       type: 'finished',
       error: error ?? (reason === 'stop' ? turn.unattendedDenial : undefined),
@@ -475,40 +515,138 @@ export class CodexSession {
     if (turn.interruptRequested) void this.interrupt().catch(() => {})
   }
 
-  steer(inputId: string, read: () => Promise<readonly Content[]>) {
+  async steer(inputId: InputId, read: () => Promise<readonly Content[]>): Promise<SubmitResult> {
     const turn = this.turn
     if (
       !turn?.id ||
       this.options.signal.aborted ||
       this.options.headless ||
       turn.compacting ||
-      turn.interruptRequested ||
+      turn.manualCompaction ||
       !this.client.atLeast(172)
     )
-      return false
+      return rejectedSteer(inputId, 'unavailable', 'Codex has no steerable turn')
+    if (turn.interruptRequested) return endedSteer(turn, inputId)
+
     const steers = (turn.steers ??= new Map())
-    if (steers.has(inputId)) return true
-    steers.set(inputId, 'preparing')
+    if (steers.has(inputId))
+      return {
+        status: 'unknown',
+        inputId,
+        error: { operation: 'steer', code: 'duplicate-input', message: 'Codex already has this input' }
+      }
+    const receipt = Promise.withResolvers<SubmitResult>()
+    const steer = { dispatched: false, settle: receipt.resolve }
     const expectedTurnId = turn.id
-    const undelivered = () => {
-      if (steers.delete(inputId)) this.host.emit({ type: 'steer-undelivered', inputIds: [inputId] })
-    }
-    void read().then(async (content) => {
-      if (this.turn !== turn || turn.interruptRequested) return undelivered()
+    steers.set(inputId, steer)
+    const dispatch = async () => {
       try {
-        steers.set(inputId, 'sent')
+        const input = (await read()).map(toNativeInput)
+        if (steers.get(inputId) !== steer) return
+        if (this.turn !== turn || turn.interruptRequested || this.options.signal.aborted) {
+          steers.delete(inputId)
+          receipt.resolve(endedSteer(turn, inputId))
+          return
+        }
+        steer.dispatched = true
         await this.client.request('turn/steer', {
           threadId: this.id,
           expectedTurnId,
           clientUserMessageId: inputId,
-          input: content.map(toNativeInput)
+          input
         })
       } catch (error) {
-        if (error instanceof CodexRequestError && error.message !== 'Request timeout' && !this.options.signal.aborted)
-          undelivered()
+        if (steers.get(inputId) !== steer) return
+        if (!steer.dispatched) {
+          steers.delete(inputId)
+          receipt.resolve(
+            rejectedSteer(inputId, 'not-dispatched', error instanceof Error ? error.message : String(error))
+          )
+          return
+        }
+        if (error instanceof CodexRequestError && (error.code === -32601 || error.code === -32602)) {
+          steers.delete(inputId)
+          receipt.resolve(rejectedSteer(inputId, 'refused', error.message))
+        }
       }
-    }, undelivered)
-    return true
+    }
+    void dispatch()
+    return receipt.promise
+  }
+
+  async compact(): Promise<OperationResult<void>> {
+    if (this.turn || this.options.signal.aborted || this.options.headless)
+      return {
+        status: 'rejected',
+        error: { operation: 'compact', code: 'unavailable', message: 'Codex is unavailable or busy' }
+      }
+    const turn: ActiveTurn = { controller: new AbortController(), compacting: false, approvalItems: new Map() }
+    this.turn = turn
+    try {
+      return await this.runManualCompaction(turn)
+    } finally {
+      if (this.turn === turn) {
+        this.turn = undefined
+        turn.controller.abort()
+      }
+    }
+  }
+
+  private async runManualCompaction(turn: ActiveTurn): Promise<OperationResult<void>> {
+    const terminal = Promise.withResolvers<OperationResult<void>>()
+    turn.expectsStart = true
+    turn.manualCompaction = { settle: terminal.resolve }
+    void this.client.request('thread/compact/start', { threadId: this.id }).catch((error: unknown) => {
+      const missing = isMissingRollout(error)
+      const refused = error instanceof CodexRequestError && (error.code === -32601 || error.code === -32602)
+      terminal.resolve({
+        status: missing || refused ? 'rejected' : 'unknown',
+        error: {
+          operation: 'compact',
+          code: missing ? 'empty-history' : refused ? 'refused' : 'missing-receipt',
+          message: error instanceof Error ? error.message : String(error)
+        }
+      })
+    })
+    try {
+      return await terminal.promise
+    } finally {
+      turn.manualCompaction = undefined
+      turn.expectsStart = false
+    }
+  }
+
+  private observeManualCompaction(turn: ActiveTurn, method: string, params: Record<string, unknown>): void {
+    const operation = turn.manualCompaction
+    if (!operation || params.threadId !== this.id) return
+    if (method === 'error' && params.willRetry !== true) {
+      const error = z.object({ message: z.string() }).parse(params.error)
+      operation.settle({
+        status: 'unknown',
+        error: { operation: 'compact', code: 'native-error', message: error.message }
+      })
+      return
+    }
+    if (turn.id && params.turnId === turn.id && (method === 'item/started' || method === 'item/completed')) {
+      const item = nativeItem.parse(params.item)
+      if (item.type !== 'contextCompaction') return
+      if (method === 'item/started') operation.itemId ??= item.id
+      else if (operation.itemId === item.id) operation.completed = true
+      return
+    }
+    if (method !== 'turn/completed') return
+    const event = completedTurn.parse(params.turn)
+    if (!turn.id || event.id !== turn.id) return
+    if (event.status === 'completed' && operation.completed) {
+      operation.settle({ status: 'confirmed', value: undefined })
+    } else {
+      const code =
+        event.status === 'interrupted' ? 'cancelled' : event.status === 'failed' ? 'failed' : 'missing-receipt'
+      operation.settle({
+        status: code === 'missing-receipt' ? 'unknown' : 'rejected',
+        error: { operation: 'compact', code, message: event.error?.message ?? 'Codex did not complete compaction' }
+      })
+    }
   }
 
   async send(content: readonly Content[], inputId?: string) {
@@ -599,24 +737,17 @@ export class CodexSession {
       description: 'Free up context by summarizing the conversation so far',
       argumentHint: '',
       async run(session, turn) {
-        turn.expectsStart = true
         session.compaction(turn, true)
-        try {
-          await session.client.request('thread/compact/start', { threadId: session.id })
-          return { running: true }
-        } catch (error) {
-          turn.controller.signal.throwIfAborted()
-          if (!isMissingRollout(error)) {
-            turn.compacting = false
-            session.host.emit({
-              type: 'compaction-error',
-              error: error instanceof Error ? error.message : String(error)
-            })
-            throw error
-          }
+        const result = await session.runManualCompaction(turn)
+        if (result.status === 'confirmed' || result.error.code === 'empty-history') {
           session.compaction(turn, false)
-          return 'Nothing to compact yet — send a message first.'
+          return result.status === 'confirmed'
+            ? 'Conversation context compacted.'
+            : 'Nothing to compact yet — send a message first.'
         }
+        turn.compacting = false
+        session.host.emit({ type: 'compaction-error', error: result.error.message })
+        throw new Error(result.error.message)
       }
     },
     {
@@ -813,8 +944,23 @@ export class CodexSession {
     }
     if (turn.interruptRequested && !turn.id) return
     turn.interruptRequested = true
+    for (const [inputId, steer] of turn.steers ?? []) {
+      if (steer.dispatched) continue
+      turn.steers?.delete(inputId)
+      steer.settle(endedSteer(turn, inputId))
+    }
     if (turn.id) await this.client.request('turn/interrupt', { threadId: this.id, turnId: turn.id })
   }
+}
+
+function rejectedSteer(inputId: InputId, code: string, message: string): SubmitResult {
+  return { status: 'rejected', inputId, error: { operation: 'steer', code, message } }
+}
+
+function endedSteer(turn: ActiveTurn, inputId: InputId): SubmitResult {
+  return turn.interruptRequested
+    ? rejectedSteer(inputId, 'cancelled-before-dispatch', 'Codex stopped before dispatching the input')
+    : rejectedSteer(inputId, 'turn-ended', 'The original Codex turn ended')
 }
 
 export const listCodexBuiltinCommands = CodexSession.listBuiltinCommands

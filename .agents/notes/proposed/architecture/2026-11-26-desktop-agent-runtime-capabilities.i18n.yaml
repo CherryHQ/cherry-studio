@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/architecture/2026-11-26-desktop-agent-runtime-capabilities.md
-2026-11-26-desktop-agent-runtime-capabilities.md: 2f38272c5025029c5f150909d61e42f3bfad5d92
-2026-11-26-desktop-agent-runtime-capabilities.zh.md: 7044c074a4926769faf1844462bc089d9a4e7fb7
+2026-11-26-desktop-agent-runtime-capabilities.md: a074fa3cf964b878d02e46c5661feb6b512e19d2
+2026-11-26-desktop-agent-runtime-capabilities.zh.md: a8a6e36f79cd272ccd21287de3b05727e5b11ccb

@@ -16,9 +16,12 @@ import {
 } from '@agentclientprotocol/sdk'
 import * as z from 'zod'
 
-import type { AcpHarnessAdapter, AcpModelCatalogReader } from './harness'
+import type { AcpHarnessAdapter, AcpNativeTurn, AcpModelCatalogReader } from './harness'
+import { deadline } from './result'
 import type { AcpClientCallbacks, AcpSessionConfiguration } from './types'
 import { readPromptUsage } from './usage'
+
+type WireMessage = Stream['readable'] extends ReadableStream<infer Message> ? Message : never
 
 const legacyModelsSchema = z.object({
   currentModelId: z.string(),
@@ -32,14 +35,27 @@ export interface AcpClientOptions {
   denyMutation?(sessionId: string): Error
   callbacks: AcpClientCallbacks
   update(notification: SessionNotification): void
+  nativeTurn?(event: AcpNativeTurn): void
   harness?: AcpHarnessAdapter
 }
 
 /** One reader for the supplied stream. Live notifications and prompt responses are delivered without retaining history. */
 export function connectAcpClient(stream: Stream, options: AcpClientOptions) {
   const { callbacks, harness, denyMutation } = options
+  const orderedNotifications = new Map<string, (params: unknown) => void>()
+  let pendingUpdates = 0
+  let flushedUpdates: PromiseWithResolvers<void> | undefined
   const app = client({ name: options.clientInfo.name })
-    .onNotification(methods.client.session.update, ({ params }) => options.update(params))
+    .onNotification(methods.client.session.update, ({ params }) => {
+      try {
+        options.update(params)
+      } finally {
+        if (orderedNotifications.size && --pendingUpdates === 0) {
+          flushedUpdates?.resolve()
+          flushedUpdates = undefined
+        }
+      }
+    })
     .onRequest(
       methods.client.session.requestPermission,
       ({ params, signal }) => callbacks.permission?.(params, { signal }) ?? { outcome: { outcome: 'cancelled' } }
@@ -69,12 +85,32 @@ export function connectAcpClient(stream: Stream, options: AcpClientOptions) {
   harness?.registerRequests?.((method, schema, handle) => {
     app.onRequest(method, schema, ({ params, signal }) => handle(params, signal))
   })
-  const beginPromptUsage = harness?.registerPromptUsage?.({
+  const beginPromptUsage = harness?.registerProtocol?.({
+    nativeTurn: (event) => options.nativeTurn?.(event),
     onNotification: (method, schema, handle) => {
-      app.onNotification(method, schema, ({ params }) => handle(params))
+      orderedNotifications.set(method, (params) => handle(schema.parse(params)))
     }
   })
-  const connection = app.connect(stream)
+  const readable = orderedNotifications.size
+    ? stream.readable.pipeThrough(
+        new TransformStream<WireMessage, WireMessage>({
+          async transform(message, controller) {
+            if (message && typeof message === 'object' && 'method' in message && !('id' in message)) {
+              if (message.method === methods.client.session.update) pendingUpdates++
+              const receive = typeof message.method === 'string' && orderedNotifications.get(message.method)
+              if (receive) {
+                // Private turn boundaries share wire order with validated ACP updates.
+                if (pendingUpdates) await deadline((flushedUpdates ??= Promise.withResolvers<void>()).promise)
+                receive('params' in message ? message.params : undefined)
+                return
+              }
+            }
+            controller.enqueue(message)
+          }
+        })
+      )
+    : stream.readable
+  const connection = app.connect({ readable, writable: stream.writable })
   const { agent } = connection
   async function sendPrompt(sessionId: string, prompt: PromptRequest['prompt'], metadata?: PromptRequest['_meta']) {
     const usage = beginPromptUsage?.(sessionId)
@@ -138,6 +174,7 @@ export function connectAcpClient(stream: Stream, options: AcpClientOptions) {
             harness?.bind?.({
               agent,
               agentCapabilities: capabilities,
+              initializeMetadata: response._meta,
               sessionId: id,
               newSessionMetadata,
               legacyModelState: configuration.configOptions?.length ? undefined : legacyModelState,

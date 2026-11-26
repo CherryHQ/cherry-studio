@@ -9,7 +9,7 @@ import type {
 } from '@agentclientprotocol/sdk'
 
 import type { AcpAgent, AcpSession } from './client'
-import type { AcpHarnessAdapter } from './harness'
+import type { AcpHarnessAdapter, AcpNativeTurn } from './harness'
 import type { AcpSessionConfiguration } from './types'
 
 type ConfigureSession = (session: Pick<AcpSession, 'setConfigOption' | 'legacyModels'>) => Promise<void>
@@ -20,6 +20,7 @@ type ToolPatch = {
 
 export interface AcpLiveEvents {
   opened(session: AcpLiveSession, configuration: AcpSessionConfiguration): void
+  nativeTurn?(event: AcpNativeTurn): boolean
   content(kind: 'text' | 'reasoning', block: ContentBlock, messageId?: string): void
   tool(id: string, patch: ToolPatch): void
   plan(entries: Plan['entries']): void
@@ -54,9 +55,45 @@ function setupUpdate(update: SessionUpdate, harness?: AcpHarnessAdapter) {
 
 function liveSession(session: AcpSession, events: AcpLiveEvents, currentModel: () => string | undefined) {
   const harness = session.bindHarness(currentModel)
+  const compact = harness?.compact
   const compactions = new Map<string, boolean>()
   let activeCompactions = 0
   let prompting = false
+  let compacting = false
+  let native:
+    | {
+        start: Extract<AcpNativeTurn, { state: 'started' }>
+        observing: boolean
+        updates: SessionUpdate[]
+        finished?: Extract<AcpNativeTurn, { state: 'finished' }>
+      }
+    | undefined
+
+  function drainNativeTurn() {
+    if (!native || prompting || compacting || native.observing) return
+    const turn = native
+    if (!events.nativeTurn?.(turn.start)) {
+      native = undefined
+      return
+    }
+    turn.observing = true
+    for (const update of turn.updates) receive(update)
+    turn.updates.length = 0
+    if (turn.finished) acceptNativeTurn(turn.finished)
+  }
+
+  function acceptNativeTurn(event: AcpNativeTurn) {
+    if (event.state === 'started') {
+      if (native) return
+      native = { start: event, observing: false, updates: [] }
+      drainNativeTurn()
+    } else if (native?.start.id === event.id) {
+      if (native.observing) {
+        native = undefined
+        events.nativeTurn?.(event)
+      } else native.finished ??= event
+    }
+  }
 
   function finish() {
     prompting = false
@@ -68,20 +105,34 @@ function liveSession(session: AcpSession, events: AcpLiveEvents, currentModel: (
   }
 
   function receive(update: SessionUpdate) {
+    if (native && !native.observing && !setupUpdate(update)) {
+      // Bound the overlap while the preceding prompt waits for its RPC response.
+      if (native.updates.length === 256) {
+        native.finished = {
+          state: 'finished',
+          sessionId: session.id,
+          id: native.start.id,
+          error: 'ACP native turn exceeded the pending update limit'
+        }
+      }
+      if (!native.finished) native.updates.push(update)
+      return
+    }
+    harness?.observeUpdate?.(update)
     switch (update.sessionUpdate) {
       case 'agent_message_chunk':
         if (update.content.type === 'text' && harness?.consumeAssistantText?.(update.content.text)) return
-        if (prompting) events.content('text', update.content, update.messageId ?? undefined)
+        if (prompting || native?.observing) events.content('text', update.content, update.messageId ?? undefined)
         return
       case 'agent_thought_chunk':
-        if (prompting) events.content('reasoning', update.content, update.messageId ?? undefined)
+        if (prompting || native?.observing) events.content('reasoning', update.content, update.messageId ?? undefined)
         return
       case 'plan':
-        if (prompting) events.plan(update.entries)
+        if (prompting || native?.observing) events.plan(update.entries)
         return
       case 'tool_call':
       case 'tool_call_update': {
-        if (!prompting) return
+        if (!prompting && !native?.observing) return
         const { title, name, kind, status, content, locations, rawInput, rawOutput } = update
         events.tool(update.toolCallId, {
           ...(title != null && { title }),
@@ -96,6 +147,7 @@ function liveSession(session: AcpSession, events: AcpLiveEvents, currentModel: (
         return
       }
       case 'compaction_update': {
+        if (compacting) return
         const { compactionId, status, error } = update
         if (status === 'in_progress') {
           if (compactions.has(compactionId)) return
@@ -124,7 +176,7 @@ function liveSession(session: AcpSession, events: AcpLiveEvents, currentModel: (
           })
         return
       case 'usage_update':
-        events.usage(update)
+        if (!compacting) events.usage(update)
         return
       case 'available_commands_update':
         events.commands(
@@ -152,8 +204,13 @@ function liveSession(session: AcpSession, events: AcpLiveEvents, currentModel: (
   return {
     receive,
     finish,
+    acceptNativeTurn,
     session: {
       id: session.id,
+      drainNativeTurn,
+      get awaitingNativeTurn() {
+        return native !== undefined && !native.observing
+      },
       cancel: session.cancel,
       close: session.close,
       legacyModels: session.legacyModels,
@@ -162,8 +219,25 @@ function liveSession(session: AcpSession, events: AcpLiveEvents, currentModel: (
       setConfigOption: session.setConfigOption,
       inspectContextUsage: harness?.inspectContextUsage,
       predictPrompt: harness?.predictPrompt,
+      steer: harness?.steer,
+      compact:
+        compact &&
+        (async () => {
+          if (prompting || compacting || native)
+            return {
+              status: 'rejected' as const,
+              error: { operation: 'compact', code: 'busy', message: 'ACP session is busy' }
+            }
+          compacting = true
+          try {
+            return await compact()
+          } finally {
+            compacting = false
+            drainNativeTurn()
+          }
+        }),
       async prompt(content: ContentBlock[], revision: string) {
-        if (prompting) throw new Error('ACP session already has a pending prompt')
+        if (prompting || compacting || native) throw new Error('ACP session is busy')
         prompting = true
         try {
           const { response, usage } = await session.prompt(content, harness?.promptMeta)
@@ -181,6 +255,7 @@ export type AcpLiveSession = ReturnType<typeof liveSession>['session']
 export class AcpLiveUpdates {
   private route?: (notification: SessionNotification) => void
   private finish?: () => void
+  private routeNativeTurn?: (event: AcpNativeTurn) => void
 
   constructor(
     private readonly events: AcpLiveEvents,
@@ -192,8 +267,13 @@ export class AcpLiveUpdates {
     this.route?.(notification)
   }
 
+  nativeTurn(event: AcpNativeTurn) {
+    this.routeNativeTurn?.(event)
+  }
+
   close() {
     this.route = undefined
+    this.routeNativeTurn = undefined
     this.finish?.()
     this.finish = undefined
   }
@@ -235,6 +315,9 @@ export class AcpLiveUpdates {
         await configure(live.session)
         signal.throwIfAborted()
         this.route = deliver
+        this.routeNativeTurn = (event) => {
+          if (event.sessionId === session.id) live.acceptNativeTurn(event)
+        }
         flush()
         return live.session
       } catch (error) {

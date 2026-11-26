@@ -128,25 +128,16 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        connection unless it declares `retainOnStop`; a retained connection stays open and emits
        `stop-confirmed` after the stopped turn's terminal event. Keep this separate from durable
        shutdown and recovery.
-     - `redirect(input)` — native mid-turn steering; without it the host
-       queues follow-ups as the next turn. If implemented, you must emit
-       `steer-boundary` with input IDs when native placement is evidenced. Keep original product
-       snapshots/headless policy on the existing session entry, including unknown admission across
-       replacement. Prepare the native binding before dispatch, fence stale callbacks by generation,
-       and reconcile retained inputs without automatically resending. Pi/Durable reserve the reply
-       synchronously before the next provider request; Claude command-start alone is not placement. A driver that returns unplaced inputs
-       for the next turn emits `steer-undelivered`; Pi instead records native queued
-       inputs as aborted when execution ends without placing them, without automatic resend.
-       Claude uses native next-priority admission across the turn boundary and never
-       returns an accepted input for host resend.
-     - `followUp(input)` — native admission for a message sent while native work runs. The
-       runtime persists the input in its own queue at once, so it survives a crash; the host
-       prefers `redirect` for an open turn, then `followUp`, then its own queue. Emit
-       `steer-boundary` with the input ID and `followUp: true` when the runtime places it, after
-       the content that answers the input before it, so each input gets its own reply. Report a
-       refused submission through `input-submission`, and emit `steer-undelivered` for one that
-       fails before it reaches the runtime. Return false when no native work runs or the text is a
-       host command such as `/compact`. Pi Durable implements it.
+     - `threadInput.steer.submit({ inputId, message })` binds native steering. Main saves the
+       input's context before dispatch. Return explicit rejection only when the input was not
+       admitted. A missing receipt keeps the original binding. Emit `steer-boundary` with input
+       IDs once native placement is evidenced.
+     - `threadInput.followUp` declares the queue's persistence and submits live follow-ups with
+       the same input contract. The Composer sends directly to a durable queue. When native work
+       places a follow-up, emit `steer-boundary` with `followUp: true` after the preceding answer
+       so the next input gets its own reply.
+     - `compact()` runs a standalone idle-thread operation. Report success from the matching
+       native outcome without creating a chat turn.
      - `retainWhileIdle` — keep an owned in-process runtime beyond the host idle TTL;
        explicit retirement and service shutdown still close it.
      - `background-work-state` — retain the connection while native background work exists.
@@ -259,5 +250,4 @@ These are the choices nothing enforces:
 - `pnpm build:check` for this broad cross-process change.
 - Manual smoke: create an agent of the new type (selector shows the label),
   open a session, run a turn with a mutating tool (approval prompt
-  appears), send a mid-turn follow-up (steers or queues per your `redirect` and
-  `followUp` support), restart the app and resume the session.
+  appears), send a mid-turn follow-up (steers or queues according to the bound `threadInput` operations), restart the app and resume the session.

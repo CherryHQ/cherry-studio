@@ -1,3 +1,4 @@
+import type { AgentSessionRuntimeControls } from '@shared/ai/agentSessionRuntimeControls'
 import type { LocalAgentSessionOverrides } from '@shared/ai/localAgent'
 import type { AiUsageRecordListSortBy, AiUsageRecordSortOrder } from '@shared/data/api/schemas/aiUsageRecords'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
@@ -321,6 +322,7 @@ export type SharedCacheSchema = {
   // Runtime-only opt-out shared across windows; resets when the app exits.
   'agent.model_switch_confirmation.skipped': boolean
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
+  'agent.session.runtime_controls.${sessionId}': AgentSessionRuntimeControls | null
   'agent.session.stream_topic.${sessionId}': string | null
   'agent.session.closing.${sessionId}': boolean
   'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
@@ -410,6 +412,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'network.online': true,
   'agent.model_switch_confirmation.skipped': false,
   'agent.session.compaction.${sessionId}': null,
+  'agent.session.runtime_controls.${sessionId}': null,
   'agent.session.stream_topic.${sessionId}': null,
   'agent.session.closing.${sessionId}': false,
   'agent.session.api_retry.${sessionId}': null,

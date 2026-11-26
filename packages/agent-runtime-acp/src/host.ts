@@ -28,6 +28,7 @@ export function connectAcpStdio(
         ? () => acpHostError.invalidRequest('Host writes and terminals are disabled')
         : undefined),
     update: (params) => updates.receive(params),
+    nativeTurn: (event) => updates.nativeTurn(event),
     sessionCapabilities: { configOptions: { boolean: {} }, notices: {}, compaction: {} }
   })
   client.signal.addEventListener('abort', () => updates.close(), { once: true })

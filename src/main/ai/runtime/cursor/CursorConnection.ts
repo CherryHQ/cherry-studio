@@ -1,4 +1,11 @@
-import { openCursorSession, sendCursorTurn, type Run, type SDKAgent } from '@cherrystudio/agent-runtime-cursor'
+import {
+  bindCursorSteer,
+  completeCursorCompaction,
+  openCursorSession,
+  sendCursorTurn,
+  type Run,
+  type SDKAgent
+} from '@cherrystudio/agent-runtime-cursor'
 import { CURSOR_PERMISSION_MODES } from '@cherrystudio/agent-runtime-cursor/cli'
 
 import { acquireLocalAgentBrowserLease } from '../../mcp/localAgentBrowserBridge'
@@ -6,7 +13,7 @@ import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeServic
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection } from '../LocalConnection'
 import { localContent } from '../localContent'
-import type { AgentRuntimeUserInput } from '../types'
+import type { AgentRuntimeInput, AgentRuntimeUserInput } from '../types'
 import { getCursorApiKey } from './cursorAccount'
 
 export class CursorConnection extends LocalConnection {
@@ -20,7 +27,26 @@ export class CursorConnection extends LocalConnection {
     )
   }
   private pendingRun?: Promise<Run>
+  private steerInput?: NonNullable<AgentRuntimeInput['steer']>
   private hasContextUsageReading = false
+
+  get threadInput(): AgentRuntimeInput | undefined {
+    return this.steerInput && { steer: this.steerInput }
+  }
+
+  get compact() {
+    const agent = this.agent
+    if (!agent?.summarize || this.headless || this.closed) return
+    return async () => {
+      if (this.pendingRun) throw new Error('Cursor already has an active run')
+      const run = (this.pendingRun = agent.summarize())
+      try {
+        return await completeCursorCompaction(await run)
+      } finally {
+        this.pendingRun = undefined
+      }
+    }
+  }
 
   async start(cwd: string, resume?: string): Promise<this> {
     const apiKey = await getCursorApiKey(this.config, this.abort.signal)
@@ -127,6 +153,34 @@ export class CursorConnection extends LocalConnection {
         effort && this.modelForEffort?.(effort.currentValue)
       )
       const run = await this.pendingRun
+      const steer = bindCursorSteer(run, (inputId) => {
+        const contextId = this.contextId
+        if (!this.active || signal.aborted || !contextId) return false
+        this.endContent()
+        this.events.push({ type: 'input-state', contextId, input: { inputId, facts: ['accepted', 'placed'] } })
+        this.events.push({ type: 'steer-boundary', inputIds: [inputId] })
+        this.continueSource()
+        return true
+      })
+      if (steer && !this.headless)
+        this.steerInput = {
+          whenIdle: 'reject',
+          submit: async ({ inputId, message }) => {
+            const parts = (message.data.parts ?? []).filter(({ type }) => type !== 'data-knowledge-scope')
+            if (signal.aborted || !parts.length || parts.some(({ type }) => type !== 'text'))
+              return {
+                status: 'rejected',
+                inputId,
+                error: {
+                  operation: 'steer',
+                  code: 'unavailable',
+                  message: 'Cursor steer requires a running turn and text input'
+                }
+              }
+            const text = parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
+            return steer({ inputId, text })
+          }
+        }
       const completed = await run.wait()
       const model = completed.model?.id ?? agent.model?.id ?? this.localSessionInfo.activeModel?.id ?? null
       if (completed.usage) {
@@ -175,6 +229,7 @@ export class CursorConnection extends LocalConnection {
       if (signal.aborted) this.finish(undefined, 'cancelled')
       else this.finish(error)
     } finally {
+      this.steerInput = undefined
       this.pendingRun = undefined
     }
   }

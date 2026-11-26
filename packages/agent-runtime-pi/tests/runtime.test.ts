@@ -152,7 +152,7 @@ it('keeps native command preflight, rejects busy prompts and acknowledges queued
     status: 'acknowledged',
     facts: ['locally-handled']
   })
-  expect(await handle.pi.compact()).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
+  expect(await handle.compact!()).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
   expect(await handle.input.submit!(input('rejected'))).toMatchObject({ status: 'rejected', error: { code: 'busy' } })
   expect(manager.buildSessionContext().messages.filter((message) => message.role === 'user')).toHaveLength(1)
   expect(await handle.input.followUp!.submit(input('later'))).toMatchObject({

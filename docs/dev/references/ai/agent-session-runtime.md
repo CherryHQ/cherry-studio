@@ -93,7 +93,7 @@ and history opening do not generate host predictions; a resident result can be r
 | `AgentSessionDeliveryService` | Owns durable cross-Session delivery admission, FIFO scheduling, recovery, finalization, and delivery quiescing. |
 | `AgentLifecycleService` | Coordinates archive, restore, purge, workspace deletion, and Agent-side backup quiescing; see [Agent Lifecycle](./agent-lifecycle.md). |
 | `AgentSessionRuntimeService` | Owns the selected runtime entry and any other Pi Durable roots recovering in the same session. Each entry owns its connection, event consumer, turns, input contexts, persistence and idle timeout. |
-| `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional `redirect` (mid-turn steer), `close`, and an event stream. |
+| `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, serialized `reconcile`, optional `threadInput` for native admission and `compact()` for manual compaction, `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
 | Runtime packages | Interpret native input, task, completion, content and invocation evidence once, and publish captured typed batches. |
@@ -286,7 +286,7 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 
 1. **Open normal user turn + a driver that can steer**, unless the input carries the follow-up
    intent described in case 2 — calls
-   `connection.redirect({ message, systemReminder: true })`. The driver
+   `connection.threadInput.steer.submit({ inputId, message, systemReminder: true })`. The driver
    submits the immutable input to the native queue. Claude Code uses SDK
    `priority: 'next'`: native admission either folds it into the running turn
    or starts a later turn. The host does not resend an accepted input. Its
@@ -296,13 +296,10 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    `started` alone is not placement evidence.
    Pi consumes its own queue: unplaced inputs remaining after stop/error
    receive native aborted evidence and are not automatically resent.
-2. **Other running native work, or a follow-up intent, + a driver with native admission** — calls
-   `connection.followUp(...)` for an interactive input on the current config. When the runtime
-   descriptor declares `nativeFollowUp`, the Work composer sends a busy-time Enter at once with
-   `followUp: true` instead of holding it in its follow-up dock; Main then skips `redirect` even
-   for an open turn. The steer shortcut still steers. Other runtimes keep busy-time Enter in the
-   dock until the turn ends. Pi Durable submits
-   it with its `follow-up` busy policy and persists it at once, so the queue survives a crash.
+2. **Follow-up intent with native admission** — calls `connection.threadInput.followUp.submit(...)`
+   for an interactive input on the current config. When the connected operation declares durable
+   persistence, the Composer sends Enter with `followUp: true` while busy. Other runtimes keep
+   the draft in the dock until idle. Pi Durable persists those submissions in its native queue.
    When Durable places the input, the driver emits `steer-boundary` after the preceding answer;
    the host gives the input its own reply. The event's `followUp` flag marks such a placement: the
    host holds it while a steer transition or reservation is pending, or while the current reply has
@@ -310,22 +307,22 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    continuation. The preceding reply settles as answered at the boundary; Durable reports its
    input's outcome when the run ends, and the host then replaces a reply whose input did not
    complete. An autonomous reply settles at that boundary, and a deferred user turn resumes
-   there. A refused submission, or one that throws before it reaches the runtime, falls back to the
-   host queue.
+   there. Only explicit refusal permits fallback to Main’s queue.
    An input queued before a restart has no entry-side context; the host reads its bound user
    message instead. If that input starts native work by itself, it also gets a new reply.
-3. **No redirect-eligible open normal turn, or a driver that cannot steer** —
+3. **No eligible native operation** —
    appends the message and its `steer` flag to the session entry's `runtimeState.queue`
    so the next turn can wrap it in a steer system-reminder
    and schedules it once runtime ownership returns to `idle`.
 
-Before dispatch, Main stores each pending steer's original message, snapshot and headless
-policy on the session entry. Drivers receive the native command and return input IDs. Pi and
-Durable placement callbacks reserve the reply synchronously before the next provider request.
-The later boundary transfers the complete input context once. Unknown admission survives
-disconnect on this entry. Its successor looks up the original context and product input ID. Connection generations fence stale callbacks, not the lifetime of unresolved input.
-Unavailable native evidence keeps the context unresolved. This retention covers a living
-process. Snapshot and headless attributes belong to the in-process pending steer.
+Before dispatch, Main writes the input's context binding and retains its message, snapshot and
+headless policy until ownership transfers. Pi and Durable placement callbacks reserve the reply
+before the next provider request. The later boundary transfers the captured attributes. An
+unknown receipt retains the binding without resending. A successor with native lookup checks the
+original context and input ID. Connection generations fence stale callbacks.
+
+Standalone compaction holds the connected thread idle for the duration of the native operation.
+Matching completion refreshes the context reading. No new chat input or reply is created.
 
 Background notification generations whose native source calls belong to an unfinished reply resume
 that reply and keep its assistant message ID. Main records intermediate native success but holds
@@ -337,7 +334,7 @@ The model still chooses foreground/background through the native tool arguments.
 can retain the connection without holding a reply open. A notification without proven ownership
 cannot reopen a settled reply.
 
-An independent receive-only autonomous generation never accepts a redirect. Follow-ups
+An independent receive-only autonomous generation cannot be steered. Follow-ups
 remain in `runtimeState.queue` until terminal persistence releases runtime ownership,
 unless the driver admits them natively (case 2 above).
 The runtime's `autonomous-turn-state: started` event names why it opened the turn
@@ -351,7 +348,7 @@ the user turn is relaunched afterwards with its admission preserved (no re-send)
 Content the runtime produces for the deferred turn before its stream reopens is
 retained by that exact reply and delivered when its stream reopens.
 A normal turn whose stream is not yet open queues follow-ups for the same reason;
-steering is only valid after that turn's stream is `open`. Redirect also requires
+steering is only valid after that turn's stream is `open`. Steering also requires
 both the current turn and incoming input to be interactive. Delivery, channel,
 scheduled, and other headless-owned work cannot absorb or be absorbed by a steer;
 it must wait for its own turn so attribution and authorization remain attached to

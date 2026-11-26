@@ -40,6 +40,7 @@ export type {
   ObservationSink,
   ProjectionEvents,
   Observation,
+  CompactThread,
   ThreadHandle,
   ThreadInput,
   AgentRuntime

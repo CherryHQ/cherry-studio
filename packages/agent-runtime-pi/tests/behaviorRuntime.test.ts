@@ -500,7 +500,7 @@ it('uses native manual compaction and preserves identity on reopen', async () =>
   const events = await observe(root)
   await root.input.submit!(draft('question'))
   await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
-  confirmed(await root.pi.compact('keep paths'))
+  confirmed(await root.compact!('keep paths'))
   expect(JSON.stringify(provider.calls[1].messages)).toContain('keep paths')
   expect(
     root.pi.history().some((entry) => entry.type === 'compaction' && entry.summary.includes('native summary'))
@@ -535,7 +535,7 @@ it.each(['interrupt', 'shutdown'] as const)('cancels a standalone manual compact
   const events = await observe(root)
   await root.input.submit!(draft('question'))
   await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
-  const compacting = root.pi.compact()
+  const compacting = root.compact!()
   const signal = await summaryStarted
   try {
     const stopping = action === 'interrupt' ? root.interrupt!() : runtime.shutdown()
@@ -557,7 +557,7 @@ it('rejects an empty native summary without changing the compacted history', asy
   const events = await observe(root)
   await root.input.submit!(draft('question'))
   await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
-  expect((await root.pi.compact()).status).not.toBe('confirmed')
+  expect((await root.compact!()).status).not.toBe('confirmed')
   expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(false)
   expect(provider.calls).toHaveLength(2)
 })
@@ -571,7 +571,7 @@ it('associates a failed native compaction with its exact owner and original erro
   const events = await observe(root)
   await root.input.submit!(draft('question'))
   await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
-  expect((await root.pi.compact()).status).not.toBe('confirmed')
+  expect((await root.compact!()).status).not.toBe('confirmed')
   expect(errorReports).toHaveLength(1)
   expect(errorReports[0]).toEqual([
     expect.any(Error),
@@ -611,7 +611,7 @@ it('keeps an unexpected onCompacted failure distinct from a failed native compac
   const events = await observe(root)
   await root.input.submit!(draft('question'))
   await expect.poll(() => inputs(events, 'question').at(-1)?.outcome).toBe('completed')
-  expect((await root.pi.compact()).status).not.toBe('confirmed')
+  expect((await root.compact!()).status).not.toBe('confirmed')
   expect(root.pi.history().some((entry) => entry.type === 'compaction')).toBe(true)
   expect(errorReports).toEqual([[failure, { operation: 'compact', thread: root.thread }]])
 })

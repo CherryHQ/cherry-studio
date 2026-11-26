@@ -853,7 +853,7 @@ describe('native Pi through the production gateway', () => {
       compaction: { enabled: false, reserveTokens: 16_384, keepRecentTokens: 1 }
     })
     await sendUser('Conversation to summarize')
-    confirmed(await session.pi.compact())
+    confirmed(await session.compact!())
     expect(session.pi.history().some((entry) => entry.type === 'compaction')).toBe(true)
     const charges = dbh.db.select().from(aiUsageRecordTable).all()
     expect(charges).toHaveLength(2)

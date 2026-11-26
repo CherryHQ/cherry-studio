@@ -12,7 +12,8 @@ vi.mock('../../../agentSession/localContext', () => ({
   bindLocalContext: (id: string, nativeThreadId: string) => ({ id, backendId: 'local-backend', nativeThreadId })
 }))
 
-vi.mock('@cherrystudio/agent-runtime-cursor', () => ({
+vi.mock('@cherrystudio/agent-runtime-cursor', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@cherrystudio/agent-runtime-cursor')>()),
   openCursorSession: vi.fn(),
   sendCursorTurn: vi.fn()
 }))
