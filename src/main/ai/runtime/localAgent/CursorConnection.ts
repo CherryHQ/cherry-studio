@@ -106,13 +106,13 @@ export class CursorConnection extends LocalConnection {
         append: (kind, text) => {
           if (!signal.aborted) this.content(text, kind)
         },
-        browserTool: (id, name, args) => {
+        toolStarted: (id, name, args) => {
           if (!signal.aborted && !this.tools.has(id)) {
             this.endContent()
             this.tool(id, name, args)
           }
         },
-        browserResult: (id, output, failed) => {
+        toolCompleted: (id, output, failed) => {
           if (!signal.aborted) this.result(id, output, failed)
         }
       })

@@ -79,7 +79,7 @@ it.each([undefined, 'saved-cursor-agent'])('isolates the native tool surface for
   const file = path.join(cwd, 'private.txt')
   await writeFile(file, 'host file')
   const capture = async (options?: Partial<AgentOptions>): Promise<never> => {
-    expect(options?.tools).toEqual(['mcp'])
+    expect(new Set(options?.tools)).toEqual(new Set(['read', 'grep', 'mcp']))
     expect(options?.mcpServers).toEqual({})
     expect(options?.local?.settingSources).toEqual([])
     const fs = options?.local?.fs

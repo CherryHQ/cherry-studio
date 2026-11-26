@@ -60,10 +60,11 @@ are preserved.
   Main owns the child process and reads conversation history from Cherry's archive.
 - Streams use `runtime:<agent-id>` as execution identity. It belongs to the stream.
   Persisted messages retain author and native model attribution when available.
-- Cursor uses the local TypeScript SDK for new chats. The bundled SDK owns login, the model catalog and session recovery.
-  Cherry passes an empty virtual filesystem, no ambient settings, and the MCP-only
-  tool list on both create and resume. Per-turn host tools read the selected
-  workspace. Writes, edits and commands require approval of the individual call.
+- Cursor uses the bundled TypeScript SDK for login, model discovery and session recovery.
+  The Agent stores the selected SDK model ID and passes it to both create and resume.
+  The SDK mounts each run's private `/tmp` over an empty virtual filesystem. Native
+  Read and Grep can read MCP output stored there. Cherry's host tools operate on the
+  selected workspace. Writes, edits and commands require approval of the individual call.
   Plan mode blocks those operations after a mode change as well as before approval.
   The optional browser endpoint keeps its session-scoped lease. Session recovery uses the SDK agent ID. [Cursor SDK documentation](https://cursor.com/docs/api/sdk/typescript)
 - For CLI-backed routes the CLI owns authentication, project settings, MCP and Skills. Local turns use

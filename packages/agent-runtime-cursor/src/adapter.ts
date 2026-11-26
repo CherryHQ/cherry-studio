@@ -39,7 +39,7 @@ export function openCursorSession(input: {
   const options: AgentOptions = {
     apiKey: input.apiKey,
     model: { id: input.model },
-    tools: ['mcp'],
+    tools: ['mcp', 'read', 'grep'],
     mcpServers: input.browser ? { automation: input.browser } : {},
     local: { cwd: input.cwd, fs: emptyFs(), settingSources: [] }
   }
@@ -53,8 +53,8 @@ export function sendCursorTurn(
   customTools: Record<string, SDKCustomTool>,
   host: {
     append(kind: 'text' | 'reasoning', text: string): void
-    browserTool(id: string, name: string, args: Record<string, unknown>): void
-    browserResult(id: string, output: unknown, failed: boolean): void
+    toolStarted(id: string, name: string, args: Record<string, unknown>): void
+    toolCompleted(id: string, output: unknown, failed: boolean): void
   }
 ) {
   const onDelta: NonNullable<SendOptions['onDelta']> = ({ update }) => {
@@ -62,14 +62,19 @@ export function sendCursorTurn(
     if (update.type === 'thinking-delta') host.append('reasoning', update.text)
     if (update.type !== 'tool-call-started' && update.type !== 'tool-call-completed') return
     const tool = update.toolCall
-    if (tool.type !== 'mcp' || tool.args.providerIdentifier !== 'automation' || !tool.args.toolName) return
-    host.browserTool(update.callId, `mcp__automation__${tool.args.toolName}`, tool.args.args ?? {})
+    if (tool.type === 'read' || tool.type === 'grep') {
+      host.toolStarted(update.callId, tool.type === 'read' ? 'Read' : 'Grep', tool.args)
+    } else if (tool.type === 'mcp' && tool.args.providerIdentifier === 'automation' && tool.args.toolName) {
+      host.toolStarted(update.callId, `mcp__automation__${tool.args.toolName}`, tool.args.args ?? {})
+    } else {
+      return
+    }
     if (update.type === 'tool-call-completed' && tool.result) {
       const result = tool.result
-      host.browserResult(
+      host.toolCompleted(
         update.callId,
         result.status === 'success' ? result.value : result.error,
-        result.status === 'error' || result.value.isError
+        result.status === 'error' || ('isError' in result.value && result.value.isError === true)
       )
     }
   }
