@@ -119,6 +119,30 @@ function current(events: ObservationPayload[]) {
 }
 
 describe('Pi Durable runtime contract', () => {
+  it.each([
+    [new Error('Storage is read-only'), ' — Storage is read-only'],
+    [new Error('[SQLITE_BUSY] database is locked'), ' — [SQLITE_BUSY] database is locked'],
+    ['Storage is locked', ' — Storage is locked'],
+    [{ internal: 'opaque' }, '']
+  ])('keeps available storage failure text in the runtime initialization diagnosis (%s)', async (cause, detail) => {
+    const result = await createPiDurableRuntime({
+      backendId: runtimeId('test-durable'),
+      openStorage: async () => {
+        throw cause
+      },
+      harness: { models: createModels(), registry: createRegistry() }
+    })
+
+    expect(result).toEqual({
+      status: 'unknown',
+      error: {
+        operation: 'initialize',
+        code: 'native-error',
+        message: `Pi Durable initialize: native-error${detail}`
+      }
+    })
+  })
+
   it('initializes hidden reference context once across SQLite reopen without starting a model run', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'durable-reference-'))
     onTestFinished(() => rm(dir, { recursive: true, force: true }))

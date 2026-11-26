@@ -279,11 +279,14 @@ the listener fails, it remains unbound and the command reports an error.
 
 ### Internal listener for Cherry consumers
 
-Agent runtimes and PDF translation reach models through a second listener that
+Claude Code and PDF translation reach models through a second listener that
 `ApiGatewayService` starts on `127.0.0.1` with an ephemeral port the first time
 it is needed. It is independent of the user's `enabled` preference and stays up
-until the service stops. Its keys live only in memory and are never persisted or
-shown: `ensureInternalGateway` returns one unrestricted key, and
+until the service stops. Its keys live only in memory. `ensureInternalGateway`
+issues Claude Code a credential bound to its Agent session. The listener
+verifies that credential against the claimed session before opening its replay
+checkpoint. Calling `ensureInternalGateway` without a session ID returns the
+general internal key, which grants no checkpoint access.
 `createScopedCredential({ path, model })` issues a key for a single consumer run
 that only calls that path with that model and is revoked by `dispose`. The
 internal listener accepts only those keys, sent in a header, and the public
@@ -292,8 +295,8 @@ are listed and served by the public gateway as `cherryai-subscription:<apiModelI
 including in Code Mate's gateway model picker. Requests use the signed-in CherryAI
 account and its subscription quota; the provider refreshes model entitlements
 before sending, and the server enforces quota. Internal consumers still apply
-their feature-specific model selection rules. Gateway requests run without Cherry's retries or
-fallback models, so a request is served only by the model it named.
+their feature-specific model selection rules. Gateway requests run without
+Cherry's retries or fallback models.
 
 Internal Anthropic requests prefer Anthropic Messages when the model declares
 that endpoint and the provider configures it. This preserves native thinking
@@ -663,6 +666,12 @@ Public gateway clients continue to receive the sanitized errors above.
   window messages, or run summary compaction. Protocol conversion and provider
   serialization still run normally. Prompt assembly, deferred-tool discovery,
   and Responses system-message removal apply only to Cherry-owned context.
+- **Claude Code provider state.** For authenticated Claude Code Agent sessions,
+  the gateway records upstream replay state in the Agent session checkpoint and
+  matches it to assistant blocks that occur exactly once in the returned history.
+  The AI SDK applies route compatibility to matched state. When a pending tool
+  continuation requires its original route, the gateway resolves that route
+  directly, even if the newly requested model is disabled.
 - **Caller-owned loop.** Gateway requests use single-step SDK `streamText` /
   `generateText`, without `ToolLoopAgent`, local tool execution, AI tool repair,
   or model fallback. HTTP gateway requests disable SDK request retries. Internal Pi object

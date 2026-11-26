@@ -1,5 +1,6 @@
+import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
 import { act, render, renderHook, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MessageHeader from '@renderer/components/chat/messages/frame/MessageHeader'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
@@ -8,6 +9,7 @@ import type {
   MessageListProviderValue,
   MessageListRuntime
 } from '@renderer/components/chat/messages/types'
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Topic } from '@renderer/types/topic'
@@ -47,7 +49,8 @@ const useMessageErrorActionsMock = vi.hoisted(() =>
 )
 const dataApiMocks = vi.hoisted(() => ({
   get: vi.fn(),
-  patch: vi.fn()
+  patch: vi.fn(),
+  onDataChanged: vi.fn(() => () => {})
 }))
 const leafCapabilitiesMock = vi.hoisted(() => ({
   previewFile: vi.fn(),
@@ -78,7 +81,18 @@ const eventMocks = vi.hoisted(() => ({
   listenerCount: vi.fn(() => 1)
 }))
 
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcApiRequest } }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: async (...args: unknown[]) => {
+      if (typeof args[0] === 'string' && args[0].startsWith('ai.projection.')) {
+        const result = await window.api.ipcApi.request(...(args as Parameters<typeof window.api.ipcApi.request>))
+        return (result as { ok?: boolean; data?: unknown })?.ok ? (result as { data?: unknown }).data : result
+      }
+      return ipcApiRequest(...args)
+    },
+    on: (...args: Parameters<typeof window.api.ipcApi.on>) => window.api.ipcApi.on(...args)
+  }
+}))
 
 vi.mock('@data/hooks/useCache', () => ({
   useCache: (key: string) => {
@@ -209,6 +223,100 @@ describe('useAgentMessageListProviderValue', () => {
       modifiedAt: 0,
       mime: 'application/octet-stream'
     })
+  })
+
+  it('allows fork only at the final display segment and addresses the durable Run', async () => {
+    const topic = { id: 'agent-session:fork-timeline', name: 'Timeline' } as Topic
+    const run: CherryUIMessage = {
+      id: 'run',
+      role: 'assistant',
+      metadata: { status: 'success', stats: { totalTokens: 20 } },
+      partIds: ['before', 'after'],
+      partPositions: [1, 3],
+      parts: [
+        { type: 'text', text: 'Before' },
+        { type: 'text', text: 'After' }
+      ]
+    }
+    const steer: CherryUIMessage = {
+      id: 'steer',
+      role: 'user',
+      timeline: { pos: 2 },
+      parts: [{ type: 'text', text: 'Steer' }]
+    }
+    const { result } = renderHook(() =>
+      useAgentMessageListProviderValue({
+        topic,
+        messages: [run, steer],
+        partsByMessageId: { run: run.parts, steer: steer.parts },
+        historyActions: { run: { fork: null, edit: 'busy' } },
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+    )
+    const [before, , after] = result.current.state.messages
+    expect(result.current.actions.forkSession?.availability(before)).toMatchObject({ enabled: false })
+    expect(result.current.actions.forkSession?.availability(after)).toMatchObject({ enabled: true })
+    expect(before.stats).toBeUndefined()
+    expect(after.stats?.totalTokens).toBe(20)
+    expect(messagePartsAt(result.current.state.partsByMessageId, after.id)).toEqual([{ type: 'text', text: 'After' }])
+    ipcApiRequest.mockResolvedValueOnce({ sessionId: 'forked' })
+    await result.current.actions.forkSession?.run(after.id)
+    expect(ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.fork', {
+      sourceSessionId: 'fork-timeline',
+      messageId: 'run'
+    })
+  })
+
+  it('routes an approval on a later display segment to its original Run', async () => {
+    const topic = { id: 'agent-session:approval-timeline', name: 'Timeline' } as Topic
+    const tool = {
+      type: 'dynamic-tool',
+      toolName: 'Write',
+      toolCallId: 'write',
+      state: 'approval-requested',
+      input: {},
+      approval: { id: 'approval' }
+    } as const
+    const run: CherryUIMessage = {
+      id: 'run',
+      role: 'assistant',
+      metadata: { status: 'pending' },
+      partIds: ['before', 'approval'],
+      partPositions: [1, 3],
+      parts: [{ type: 'text', text: 'Before' }, tool]
+    }
+    const steer: CherryUIMessage = {
+      id: 'steer',
+      role: 'user',
+      timeline: { pos: 2 },
+      parts: [{ type: 'text', text: 'Steer' }]
+    }
+    const respond = vi.fn(async () => {})
+    const { result } = renderHook(() =>
+      useAgentMessageListProviderValue({
+        topic,
+        messages: [run, steer],
+        partsByMessageId: { run: run.parts, steer: steer.parts },
+        respondToolApproval: respond,
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+    )
+    const after = result.current.state.messages.at(-1)!
+    await result.current.actions.respondToolApproval?.({
+      approved: true,
+      match: {
+        messageId: after.id,
+        toolCallId: 'write',
+        approvalId: 'approval',
+        state: 'approval-requested',
+        part: tool
+      }
+    })
+    expect(respond).toHaveBeenCalledWith(
+      expect.objectContaining({ match: expect.objectContaining({ messageId: 'run' }), approved: true })
+    )
   })
 
   it('keys Agent lists by session topic while keeping tool steps collapsed', () => {
@@ -1053,5 +1161,110 @@ describe('useAgentMessageListProviderValue', () => {
     unbindCapture?.()
     unbindVisibleRebound?.()
     unbindVisible?.()
+  })
+
+  describe('live projection part preservation', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+    async function setupProjectedRow(topicId: string, messageId: string) {
+      const ipc = projectionIpc()
+      const target = { kind: 'topic', topicId } as const
+      const release = messageProjectionService.subscribe(target, () => {})
+      try {
+        const attachment = ipc.attachments[0]
+        attachment.resolve({
+          kind: 'topic',
+          topicId,
+          revision: 0,
+          executions: [],
+          messages: [{ id: messageId, role: 'assistant', parts: [], partIds: [] }]
+        })
+        await flush()
+
+        ipc.emit(attachment.subscriptionId, {
+          kind: 'topic',
+          type: 'parts',
+          revision: 1,
+          patches: [
+            { type: 'part-open', messageId, partId: 'reason-1', kind: 'reasoning', pos: 1 },
+            { type: 'part-append', partId: 'reason-1', text: 'Agent reasoning' },
+            { type: 'part-finish', partId: 'reason-1' },
+            { type: 'part-open', messageId, partId: 'text-1', kind: 'text', pos: 2 },
+            { type: 'part-append', partId: 'text-1', text: 'Agent answer' },
+            { type: 'part-finish', partId: 'text-1' }
+          ]
+        })
+
+        return { shellParts: messageProjectionService.getSnapshot(target).view!.messages[0].parts, release }
+      } catch (error) {
+        release()
+        throw error
+      }
+    }
+
+    it('preserves messageProjectionService-owned parts across terminal success without injecting a fallback error', async () => {
+      const { shellParts, release } = await setupProjectedRow('agent_session_session-1', 'assistant-live')
+      try {
+        const message: CherryUIMessage = {
+          id: 'assistant-live',
+          role: 'assistant',
+          parts: [],
+          metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'success' }
+        }
+        const { result } = renderHook(() =>
+          useAgentMessageListProviderValue({
+            topic: { id: 'agent-session:session-1', name: 'Session', messages: [] } as unknown as Topic,
+            messages: [message],
+            partsByMessageId: { 'assistant-live': shellParts },
+            isLoading: false,
+            messageNavigation: 'none'
+          })
+        )
+
+        const displayParts = messagePartsAt(result.current.state.partsByMessageId, 'assistant-live')
+        expect(displayParts).toBe(shellParts)
+        expect(messageProjectionService.ownsRowParts(displayParts!)).toBe(true)
+        expect(messageProjectionService.readParts(displayParts!)).toEqual([
+          { type: 'reasoning', text: 'Agent reasoning', state: 'done' },
+          { type: 'text', text: 'Agent answer', state: 'done' }
+        ])
+      } finally {
+        release()
+      }
+    })
+
+    it('keeps live reasoning and text parts when appending a fallback data-error for a failed turn', async () => {
+      const { shellParts, release } = await setupProjectedRow('agent_session_session-2', 'assistant-failed')
+      try {
+        const message: CherryUIMessage = {
+          id: 'assistant-failed',
+          role: 'assistant',
+          parts: [],
+          metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'error' }
+        }
+        const { result } = renderHook(() =>
+          useAgentMessageListProviderValue({
+            topic: { id: 'agent-session:session-2', name: 'Session', messages: [] } as unknown as Topic,
+            messages: [message],
+            partsByMessageId: { 'assistant-failed': shellParts },
+            isLoading: false,
+            messageNavigation: 'none'
+          })
+        )
+
+        const displayParts = messagePartsAt(result.current.state.partsByMessageId, 'assistant-failed')
+        expect(displayParts).toEqual([
+          { type: 'reasoning', text: 'Agent reasoning', state: 'done' },
+          { type: 'text', text: 'Agent answer', state: 'done' },
+          expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ name: 'AgentRuntimeError' }) })
+        ])
+      } finally {
+        release()
+      }
+    })
   })
 })

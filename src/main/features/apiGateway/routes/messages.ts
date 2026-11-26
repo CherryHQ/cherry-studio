@@ -54,13 +54,21 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     '/count_tokens',
     async ({ body, status, request }) => {
       if (!body.model) return status(400, invalidRequest('model parameter is required'))
-      const isInternalRequest = application.get('ApiGatewayService').isInternalRequest(request.headers)
-      return {
-        input_tokens: await estimateAnthropicRequestTokens(
-          body as unknown as MessageCreateParams,
-          request.signal,
-          isInternalRequest
-        )
+      const gateway = application.get('ApiGatewayService')
+      const isInternalRequest = gateway.isInternalRequest(request.headers)
+      const release = gateway.getAgentSessionId(request.headers)
+        ? await gateway.acquireInternalRequestBudget(request.headers, request.signal)
+        : undefined
+      try {
+        return {
+          input_tokens: await estimateAnthropicRequestTokens(
+            body as unknown as MessageCreateParams,
+            request.signal,
+            isInternalRequest
+          )
+        }
+      } finally {
+        release?.()
       }
     },
     {

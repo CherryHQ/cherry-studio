@@ -93,6 +93,7 @@ export type AgentSessionMessageStoredData = Omit<MessageData, 'parts'> & {
   nativeSessionId?: string
   deliveryReplyAnchor?: string
   detachedFileEntryIds?: string[]
+  nativePlaced?: true
   locallyHandled?: boolean
 }
 

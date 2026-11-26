@@ -1,12 +1,25 @@
+import type { SharedV3ProviderMetadata } from '@ai-sdk/provider'
 import { sql } from 'drizzle-orm'
 import { type AnySQLiteColumn, check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+
+import type { EndpointType } from '@shared/data/types/model'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentRuntimeBackendTable } from './agentRuntimeBackend'
 import { agentSessionTable } from './agentSession'
 
+export interface ClaudeCodeReplayState {
+  modelAddress: string
+  endpointType?: EndpointType
+  metadata: SharedV3ProviderMetadata
+}
+
+export type ClaudeCodeReplayEntry = ClaudeCodeReplayState | 'ambiguous' | null
+
 export interface AgentSessionCheckpoints {
+  referenceHistory?: true
   fork?: Record<string, unknown>
+  claudeCodeReplay?: Record<string, ClaudeCodeReplayEntry>
   root?: {
     version?: 2 | 3
     sources: Record<string, { messageId: string } & ({ partIds: string[] } | { offset: number; count: number })>
