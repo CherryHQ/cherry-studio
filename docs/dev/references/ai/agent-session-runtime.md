@@ -1366,9 +1366,12 @@ A genuinely silent foreground tool running for 30 minutes also fails; there is n
 
 This execution bound is separate from the five-minute idle-resource TTL below and the existing
 120-minute `CHAT_STREAM_IDLE_TIMEOUT_MS` product-stream backstop. Stop, close, entry replacement,
-shutdown, destruction and terminal persistence handoff clear the watchdog. Native connection close
-remains asynchronous and retains its existing 20-second bound, close barrier and failure tracking;
-a hanging close cannot delay the visible inactivity/EOF error. Neither failure automatically retries.
+shutdown, destruction and terminal persistence handoff clear the watchdog. Inactivity and unexpected
+EOF release host waiters for any pending startup, so an explicit retry or session close can proceed
+while the original driver call is still pending. If that call eventually returns an unowned connection,
+the host closes it without installing it or acquiring a session close barrier. An installed connection
+still closes asynchronously with the existing 20-second bound, close barrier and failure tracking.
+A hanging close cannot delay the visible inactivity/EOF error. Neither failure automatically retries.
 
 After a turn reaches terminal state, the runtime entry becomes `idle`.
 For a short idle window it keeps:

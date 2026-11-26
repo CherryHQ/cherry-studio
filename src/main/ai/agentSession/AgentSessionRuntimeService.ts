@@ -28,7 +28,8 @@ import {
   type Event,
   Injectable,
   Phase,
-  ServicePhase
+  ServicePhase,
+  Signal
 } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { topicNamingService } from '@main/services/TopicNamingService'
@@ -539,7 +540,7 @@ export class AgentSessionRuntimeService extends BaseService {
   /** Async connection resources live outside the pure state; attempt ids reject stale completions. */
   private readonly connectionAttempts = new Map<
     AgentSessionRuntimeEntry,
-    { id: string; promise: Promise<boolean>; interrupt?: boolean }
+    { id: string; promise: Promise<boolean | 'retired'>; retirement: Signal<'retired'>; interrupt?: boolean }
   >()
   /** Promise resources for a rebuild-blocked connection; the state only owns the blocked phase. */
   private readonly backgroundWorkWaiters = new Map<
@@ -2416,14 +2417,15 @@ export class AgentSessionRuntimeService extends BaseService {
       // fresh one passes the reconcile above.
       const existingAttempt = this.connectionAttempts.get(entry)
       if (existingAttempt) {
-        await existingAttempt.promise.catch(() => false)
+        if ((await existingAttempt.promise.catch(() => false)) === 'retired') return false
         continue
       }
 
       const attemptId = crypto.randomUUID()
       entry.connectionGeneration = attemptId
       this.applyRuntimeStateEvent(entry, { type: 'connection-started', attemptId })
-      const connecting = this.connect(entry, target, attemptId).finally(() => {
+      const retirement = new Signal<'retired'>()
+      const connecting = Promise.race([this.connect(entry, target, attemptId, retirement), retirement]).finally(() => {
         if (this.connectionAttempts.get(entry)?.id === attemptId) {
           this.connectionAttempts.delete(entry)
         }
@@ -2435,8 +2437,9 @@ export class AgentSessionRuntimeService extends BaseService {
           this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected' })
         }
       })
-      this.connectionAttempts.set(entry, { id: attemptId, promise: connecting })
+      this.connectionAttempts.set(entry, { id: attemptId, promise: connecting, retirement })
       const connected = await connecting
+      if (connected === 'retired') return false
       if (connected) return true
     }
 
@@ -2446,7 +2449,8 @@ export class AgentSessionRuntimeService extends BaseService {
   private async connect(
     entry: AgentSessionRuntimeEntry,
     target: AgentSessionConnectionTarget,
-    attemptId: string
+    attemptId: string,
+    retirement: Signal<'retired'>
   ): Promise<boolean> {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
@@ -2471,6 +2475,19 @@ export class AgentSessionRuntimeService extends BaseService {
       ...this.inputCallbacks(entry, attemptId)
     }
     const connection = await driver.connect(request)
+    if (retirement.isResolved) {
+      // Late cleanup must not take the successor's session close barrier or close a reused owner.
+      void Promise.resolve()
+        .then(() => {
+          const owner = this.entryForContext(entry.sessionId, connection.contextId)
+          if (owner && this.currentConnection(owner) === connection) return
+          return connection.closeForEdit ? connection.closeForEdit() : connection.close()
+        })
+        .catch((error) =>
+          logger.warn('Retired agent runtime connection close failed', { sessionId: entry.sessionId, error })
+        )
+      return false
+    }
     const attempt = this.connectionAttempts.get(entry)
     const interrupt = attempt?.id === attemptId && attempt.interrupt
     const owner = connection.contextId && this.entryForContext(entry.sessionId, connection.contextId)
@@ -4190,7 +4207,14 @@ export class AgentSessionRuntimeService extends BaseService {
       if (!reply || ['awaiting-persistence', 'settled'].includes(reply.delivery.kind)) continue
       this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', turn, outcome: { status: 'error', error } })
     }
-    if (this.currentConnection(entry) === connection) this.closeConnection(entry)
+    if (this.currentConnection(entry) === connection) {
+      const attempt = this.connectionAttempts.get(entry)
+      this.connectionAttempts.delete(entry)
+      this.closeConnection(entry)
+      if (entry.runtimeState.connection.kind === 'connecting')
+        this.applyRuntimeStateEvent(entry, { type: 'connection-disconnected' })
+      attempt?.retirement.resolve('retired')
+    }
     void this.closeRuntimeConnection(connection, entry)
   }
 

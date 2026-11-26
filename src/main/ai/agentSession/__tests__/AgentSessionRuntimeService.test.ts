@@ -7154,17 +7154,19 @@ describe('AgentSessionRuntimeService', () => {
 
     async function openReply(connectGate?: Promise<AgentRuntimeConnection>, assistantMessageId = 'assistant-1') {
       const events = createAsyncQueue<AgentRuntimeEvent>()
+      const sent = createDeferred<AgentRuntimeUserInput>()
       const connection = {
         contextId,
         events: events.iterable,
-        send: vi.fn(),
+        send: vi.fn((input: AgentRuntimeUserInput) => sent.resolve(input)),
         close: events.close,
         reconcile: vi.fn().mockResolvedValue('current')
       }
+      const connect = vi.fn(async () => connectGate ?? connection)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
         validateSession() {},
-        connect: async () => connectGate ?? connection
+        connect
       })
       const handle = service.beginTurn({ ...baseTurnInput, assistantMessageId, userMessage: userMessage('user-1') })
       const source = service.openTurnStream({
@@ -7190,7 +7192,51 @@ describe('AgentSessionRuntimeService', () => {
         terminalListener(handle).onError({ isTopicDone: true })
         expect(service.isSessionBusy('session-1')).toBe(false)
       }
-      return { entry, turn, handle, source, connection, events, observed, errors, push, consumed, acknowledgeError }
+      return {
+        entry,
+        turn,
+        handle,
+        source,
+        connect,
+        connection,
+        events,
+        observed,
+        errors,
+        push,
+        consumed,
+        sent: sent.promise,
+        acknowledgeError
+      }
+    }
+
+    async function withinDeadline<T>(operation: Promise<T>, action: string): Promise<T> {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const deadline = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${action} exceeded 1000 ms`)), 1_000)
+      })
+      try {
+        const [result] = await Promise.all([Promise.race([operation, deadline]), vi.advanceTimersByTimeAsync(1_000)])
+        return result
+      } finally {
+        clearTimeout(timer)
+      }
+    }
+
+    async function expectReplyFailure(fixture: Awaited<ReturnType<typeof openReply>>, message: string) {
+      const completion = fixture.consumed.then(() => {
+        const [failure] = fixture.errors()
+        if (failure) throw failure.error
+      })
+      await expect(withinDeadline(completion, 'failed reply delivery')).rejects.toThrow(message)
+      await fixture.acknowledgeError()
+    }
+
+    async function finishRetry(retry: Awaited<ReturnType<typeof openReply>>) {
+      await retry.push({ type: 'turn-complete' })
+      await expect(withinDeadline(retry.consumed, 'retry reply completion')).resolves.toBeUndefined()
+      expect(retry.errors()).toEqual([])
+      terminalListener(retry.handle).onDone({})
+      expect(service.isSessionBusy('session-1')).toBe(false)
     }
 
     async function holdSuccess(fixture: Awaited<ReturnType<typeof openReply>>, unknown = false) {
@@ -7543,6 +7589,105 @@ describe('AgentSessionRuntimeService', () => {
       expect(f.connection.send).not.toHaveBeenCalled()
       expect(f.entry.connection).toBeUndefined()
     })
+
+    it('completes an explicit retry while the timed-out startup is pending and discards its late connection', async () => {
+      const gate = createDeferred<AgentRuntimeConnection>()
+      const f = await openReply(gate.promise)
+      const lateClose = createDeferred<void>()
+      try {
+        await vi.advanceTimersByTimeAsync(N)
+        await expectReplyFailure(f, 'No runtime activity for 30 minutes')
+        expect(f.connect).toHaveBeenCalledTimes(1)
+
+        const retry = await openReply(undefined, 'assistant-retry')
+        await expect(withinDeadline(retry.sent, 'retry input delivery')).resolves.toMatchObject({
+          message: { id: 'user-1' }
+        })
+        expect(retry.entry).toBe(f.entry)
+        expect(retry.connect).toHaveBeenCalledTimes(1)
+
+        f.connection.close.mockImplementationOnce(() => lateClose.promise)
+        f.events.push({ type: 'turn-complete', status: 'paused' })
+        gate.resolve(f.connection)
+        await vi.advanceTimersByTimeAsync(0)
+        expect(f.connection.close).toHaveBeenCalledTimes(1)
+        expect(f.connection.send).not.toHaveBeenCalled()
+        expect(retry.entry.connection).toBe(retry.connection)
+        expect(service.isSessionBusy('session-1')).toBe(true)
+        await finishRetry(retry)
+        await expect(withinDeadline(service.closeSession('session-1'), 'session close')).resolves.toBeUndefined()
+      } finally {
+        gate.resolve(f.connection)
+        lateClose.resolve()
+        f.events.end()
+      }
+    })
+
+    it.each(['resolves', 'rejects'] as const)(
+      'closes the session while the timed-out startup is pending and the driver later %s',
+      async (outcome) => {
+        const gate = createDeferred<AgentRuntimeConnection>()
+        const f = await openReply(gate.promise)
+        try {
+          await vi.advanceTimersByTimeAsync(N)
+          await expectReplyFailure(f, 'No runtime activity for 30 minutes')
+          await expect(withinDeadline(service.closeSession('session-1'), 'session close')).resolves.toBeUndefined()
+          expect(getEntry(service)).toBeUndefined()
+
+          if (outcome === 'resolves') gate.resolve(f.connection)
+          else gate.reject(new Error('late startup failure'))
+          await vi.advanceTimersByTimeAsync(0)
+          if (outcome === 'resolves') expect(f.connection.close).toHaveBeenCalledTimes(1)
+          expect(f.connection.send).not.toHaveBeenCalled()
+          expect(getEntry(service)).toBeUndefined()
+          expect(service.hasBusySessions()).toBe(false)
+          expect(f.errors()).toHaveLength(1)
+        } finally {
+          gate.resolve(f.connection)
+        }
+      }
+    )
+
+    it.each([
+      { failure: 'inactivity with pending results', unknown: false, eof: false },
+      { failure: 'inactivity with unknown results', unknown: true, eof: false },
+      { failure: 'unexpected EOF with pending results', unknown: false, eof: true }
+    ])(
+      'releases startup reconciliation for retry and close after held success fails on $failure',
+      async ({ unknown, eof }) => {
+        const gate = createDeferred<AgentRuntimeConnection>()
+        const f = await openReply(gate.promise)
+        const lookup = createDeferred<{ status: 'confirmed'; value: { found: false } }>()
+        const lookupInput = vi.fn(() => lookup.promise)
+        Object.assign(f.connection, { lookupInput })
+        f.entry.pendingInputs = new Map([['old-input', { input: { message: userMessage('old-input') }, contextId }]])
+        try {
+          gate.resolve(f.connection)
+          await vi.advanceTimersByTimeAsync(0)
+          expect(lookupInput).toHaveBeenCalledWith(contextId, 'old-input')
+          await holdSuccess(f, unknown)
+          expect(f.entry.runtimeState.execution.reply.terminal.status).toBe('success')
+          expect(f.entry.runtimeState.execution.reply.pendingResultToolCallIds).toEqual(
+            unknown ? undefined : ['task-call']
+          )
+
+          if (eof) f.events.end()
+          await vi.advanceTimersByTimeAsync(eof ? 0 : N)
+          await expectReplyFailure(f, eof ? 'connection ended unexpectedly' : 'No runtime activity for 30 minutes')
+
+          const retry = await openReply(undefined, 'assistant-retry')
+          await expect(withinDeadline(retry.sent, 'retry input delivery')).resolves.toMatchObject({
+            message: { id: 'user-1' }
+          })
+          await finishRetry(retry)
+          await expect(withinDeadline(service.closeSession('session-1'), 'session close')).resolves.toBeUndefined()
+          expect(retry.connection.close).toHaveBeenCalledTimes(1)
+        } finally {
+          gate.resolve(f.connection)
+          lookup.resolve({ status: 'confirmed', value: { found: false } })
+        }
+      }
+    )
 
     it('does not wait for a hanging native close before failing visibly', async () => {
       const f = await openReply()
