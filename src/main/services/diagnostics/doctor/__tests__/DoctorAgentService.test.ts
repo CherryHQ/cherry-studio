@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import type * as DoctorWrites from '@main/ai/agents/doctor/doctorWrites'
-import type { StreamListener } from '@main/ai/streamManager'
+import type * as StreamManager from '@main/ai/streamManager'
 import { BaseService } from '@main/core/lifecycle'
 import type { DoctorReport } from '@shared/types/doctor'
 import { doctorAgentKey, doctorAgentStateCacheKey, doctorStateCacheKey } from '@shared/utils/doctor'
@@ -34,7 +34,10 @@ vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { cr
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getModel } }))
 vi.mock('@data/services/ProviderService', () => ({ providerService: { getByProviderId: mocks.getProvider } }))
 vi.mock('@main/ai/agents/ensureBuiltinAgent', () => ({ loadBuiltinAgentEnsureInput: () => ({}) }))
-vi.mock('@main/ai/streamManager', () => ({ startAgentSessionRun: mocks.startRun }))
+vi.mock('@main/ai/streamManager', async (importOriginal) => ({
+  ...(await importOriginal<typeof StreamManager>()),
+  startAgentSessionRun: mocks.startRun
+}))
 vi.mock('@main/i18n', () => ({ getAppLanguage: () => 'en-US' }))
 vi.mock('@main/ai/messages/readConversation', () => ({ readConversation: mocks.readConversation }))
 vi.mock('@data/services/TemporaryChatService', () => ({ temporaryChatService: { hasTopic: () => false } }))
@@ -74,7 +77,7 @@ const report: DoctorReport = {
 const agentState = () => application.get('CacheService').getShared(doctorAgentStateCacheKey('global'))
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-let listener: StreamListener | undefined
+let listener: StreamManager.StreamListener | undefined
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -93,7 +96,7 @@ beforeEach(() => {
   })
   mocks.getProvider.mockReturnValue({ id: 'openai', isEnabled: true })
   mocks.createSession.mockReturnValue({ id: 'session-1' })
-  mocks.startRun.mockImplementation(async (input: { listeners: StreamListener[] }) => {
+  mocks.startRun.mockImplementation(async (input: { listeners: StreamManager.StreamListener[] }) => {
     listener = input.listeners[0]
     return { mode: 'started' }
   })
@@ -137,12 +140,11 @@ describe('DoctorAgentService.start', () => {
 
   it('replaces withdrawn native output before publishing and settling the diagnostic reply', async () => {
     await startedService()
-    listener!.onMessage?.(
+    listener!.content?.snapshot(
       { id: 'answer', role: 'assistant', parts: [{ type: 'text', text: 'Withdrawn' }] },
-      undefined,
       'messages'
     )
-    listener!.onMessage?.(
+    listener!.content?.snapshot(
       {
         id: 'answer',
         role: 'assistant',
@@ -158,7 +160,6 @@ describe('DoctorAgentService.start', () => {
           }
         ]
       },
-      undefined,
       'messages'
     )
     await wait(250)

@@ -222,9 +222,16 @@ test('shows the provider fallback notice after a real search dispatch', async ({
     await expect(notice).toBeVisible()
     await expect(notice).toHaveText(noticeText)
     await notifications.hover()
-    const processed = page.getByText('Processed', { exact: true })
-    await processed.first().click()
-    await processed.last().click()
+    const completedTrigger = page.getByTestId('completed-process-trigger')
+    await expect(completedTrigger).toBeVisible({ timeout: 60_000 })
+    if ((await completedTrigger.getAttribute('aria-expanded')) !== 'true') {
+      await completedTrigger.click()
+    }
+    const childTrigger = page.getByTestId('child-tool-group').getByRole('button').first()
+    await expect(childTrigger).toBeVisible({ timeout: 60_000 })
+    if ((await childTrigger.getAttribute('aria-expanded')) !== 'true') {
+      await childTrigger.click()
+    }
     const card = page.getByText(query)
     await expect(card).toBeVisible()
     await expect(page.getByText('1 search result(s)')).toBeVisible()

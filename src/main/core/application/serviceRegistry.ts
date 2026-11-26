@@ -15,6 +15,7 @@ import { AsrInferenceService } from '@main/ai/localModel'
 import { EmbeddingInferenceService } from '@main/ai/localModel'
 import { LocalModelService } from '@main/ai/localModel'
 import { OcrInferenceService } from '@main/ai/localModel'
+import { McpAppViewService } from '@main/ai/mcp/McpAppViewService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
@@ -202,6 +203,7 @@ export const services = {
   MemoryMigrationService,
   MemoryEditorService,
   McpCatalogService,
+  McpAppViewService,
   BinaryManager,
   OpenClawService,
   PdfTranslationService,

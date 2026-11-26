@@ -14,6 +14,13 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * tool.call_progress / server.log events are emitted by the services, not here.
  */
 export const mcpHandlers: IpcHandlersFor<typeof mcpRequestSchemas> = {
+  'mcp.app.open': async (input, { senderId }) => {
+    if (!senderId) throw new Error('MCP App requires a managed window')
+    return application.get('McpAppViewService').open(senderId, input)
+  },
+  'mcp.app.close': async ({ id }, { senderId }) => {
+    if (senderId) await application.get('McpAppViewService').close(senderId, id)
+  },
   'mcp.catalog.observe': async ({ serverId, requestId }, { senderId }) => {
     if (!senderId) throw new Error('MCP catalog observation requires a managed window')
     application.get('McpRuntimeService').observeDesktopCatalog(senderId, requestId, serverId)
