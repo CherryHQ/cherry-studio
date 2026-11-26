@@ -78,6 +78,7 @@ it('keeps the original delivery pending when its captured Durable target cannot 
     onTurnTerminal: () => ({ dispose() {} }),
     onRuntimeIdle: () => ({ dispose() {} }),
     isSessionBusy: () => false,
+    whenStartupRecoverySettles: async () => {},
     recoverPendingReplies
   })
   MockApplicationUtils.setService('AiStreamManager', {
@@ -92,6 +93,7 @@ it('keeps the original delivery pending when its captured Durable target cannot 
   })
 
   await service._doInit()
+  await service._doAllReady()
 
   await service.drainSessionQueues(['target'])
   expect(recoverPendingReplies).toHaveBeenCalledWith({
