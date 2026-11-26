@@ -12,6 +12,7 @@ The separate [on-demand QA controller](../ondemand/README.md) reuses the ref, in
 | `cases.ts` | Case IDs, titles, task tags, phases, required capabilities, and selection |
 | `cli.ts`, `phases.ts` | CLI entry points and one Playwright invocation per selected phase |
 | `installation.ts`, `artifacts.ts` | Release installation, asset selection, and hashing |
+| `installationEvidence.ts` | Artifact identity record written by both run modes, plus its archive assertion |
 | `macRuntime.ts` | Isolated Developer ID signing for macOS development notification tests |
 | `windowsNotificationShortcut.ts` | Register the SDK shortcut with the Windows shell and remove the unchanged owned copy |
 | `lifecycle.ts` | Start, reuse, restart, and stop the owned application |
@@ -208,6 +209,14 @@ assembly, or upload fails, temporary artifacts are retained for diagnosis.
 When the platform jobs succeeded, an aggregate-only rerun can recover missing
 temporary artifacts from the previous bundle. Failed platform jobs never fall
 back to old evidence. Rerunning a job replaces its same-named artifact.
+
+Every run must publish `evidence/<platform>/release/installation.json`, the record of the
+binary that was exercised: `release-installer` for a tag run (installer name, SHA-256,
+installed executable) and `source-checkout` for a branch run (commit, ref, target checkout).
+Without it a verdict cannot be attributed to an artifact, so `verify-evidence --run-dir`
+fails the platform job before its upload, and `verify-evidence --aggregate-root` fails the
+aggregate job before `test-report` is published. Both run as their own steps so the
+evidence upload still happens and the incomplete bundle stays downloadable for triage.
 
 Each phase retains a blob report with a platform/phase-specific filename. The aggregate
 job uses Playwright's built-in `merge-reports` with an explicit test root for cross-OS

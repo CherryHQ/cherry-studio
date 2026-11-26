@@ -238,11 +238,14 @@ export function WebdavBackupManager({
       toast.success(t('settings.data.webdav.backup.manager.restore.success'))
       onClose() // 关闭模态框
     } catch (error) {
-      toast.error(
-        getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.restore.error', {
+      void popup.error({
+        title: t('settings.data.webdav.backup.manager.restore.error'),
+        content: getLocalizedBackupErrorMessage(error, 'settings.data.webdav.backup.manager.restore.error', {
           tlsCertificateHint
-        })
-      )
+        }),
+        centered: true,
+        maskClosable: false
+      })
     } finally {
       setRestoring(false)
     }

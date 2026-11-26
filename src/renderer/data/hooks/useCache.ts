@@ -481,43 +481,45 @@ function useCacheKeysSelector<Values, Selection>(
   // not reference. A content/order change is a snapshot-shape change: it
   // rebuilds the subscription set and the snapshot closure together, keeping
   // the subscription set and the snapshot read set the same by construction.
-  const keysDep = keys.join(CACHE_KEYS_DEP_SEPARATOR)
+  const keysDep = useMemo(() => keys.join(CACHE_KEYS_DEP_SEPARATOR), [keys])
   const stableKeys = useMemo<readonly string[]>(
     () => [...keys],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keysDep is the content identity of `keys`
     [keysDep]
   )
 
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => {
-      const disposers = stableKeys.map((key) => subscribeKey(key, onStoreChange))
-      return () => disposers.forEach((dispose) => dispose())
-    },
-    [stableKeys, subscribeKey]
-  )
+  const { subscribe, getSnapshot } = useMemo(() => {
+    let cached: readonly unknown[] | undefined
+    let subscribed = false
+    let dirty = true
 
-  // Idempotent base snapshot: reuse the same tuple while every entry is
-  // Object.is-unchanged, create a new tuple as soon as any entry changed.
-  // This satisfies getSnapshot's caching contract (no "getSnapshot should be
-  // cached" warnings) without a store-level version counter.
-  const getSnapshot = useMemo(() => {
-    let cachedValues: readonly unknown[] | undefined
-
-    return () => {
-      const nextValues = stableKeys.map((key) => readKey(key))
-      const prevValues = cachedValues
-      if (
-        prevValues !== undefined &&
-        nextValues.length === prevValues.length &&
-        nextValues.every((value, index) => Object.is(value, prevValues[index]))
-      ) {
-        return prevValues
+    function getSnapshot(): Values {
+      if (!subscribed || dirty || !cached) {
+        const values = stableKeys.map(readKey)
+        const previous = cached
+        if (!previous || !values.every((value, i) => Object.is(value, previous[i]))) cached = values
+        dirty = false
       }
-
-      cachedValues = nextValues
-      return nextValues
+      return cached as Values
     }
-  }, [stableKeys, readKey]) as () => Values
+
+    function subscribe(notify: () => void) {
+      const onChange = () => {
+        dirty = true
+        notify()
+      }
+      const disposers = stableKeys.map((key) => subscribeKey(key, onChange))
+      subscribed = true
+      // A key may have changed between rendering the snapshot and attaching its listener.
+      dirty = true
+      return () => {
+        subscribed = false
+        disposers.forEach((dispose) => dispose())
+      }
+    }
+
+    return { subscribe, getSnapshot }
+  }, [stableKeys, readKey, subscribeKey])
 
   return useSyncExternalStoreWithSelector(subscribe, getSnapshot, getSnapshot, selector, isEqual)
 }
