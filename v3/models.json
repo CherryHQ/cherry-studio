@@ -7103,135 +7103,6 @@
     },
     {
       "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "audio-recognition",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 1048576,
-      "family": "ling",
-      "id": "inkling",
-      "inputModalities": [
-        "text",
-        "image",
-        "audio"
-      ],
-      "maxOutputTokens": 256000,
-      "metadata": {},
-      "name": "Inkling",
-      "openWeights": true,
-      "outputModalities": [
-        "text"
-      ],
-      "ownedBy": "bailing",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.17
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": [
-              "none",
-              "minimal",
-              "low",
-              "medium",
-              "high",
-              "xhigh",
-              "max"
-            ]
-          }
-        ],
-        "supportedEfforts": [
-          "none",
-          "minimal",
-          "low",
-          "medium",
-          "high",
-          "xhigh",
-          "max"
-        ]
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "audio-recognition",
-        "file-input"
-      ],
-      "contextWindow": 1048576,
-      "family": "ling",
-      "id": "inkling-small",
-      "inputModalities": [
-        "text",
-        "image",
-        "audio"
-      ],
-      "maxOutputTokens": 1000000,
-      "metadata": {},
-      "name": "Inkling Small",
-      "openWeights": true,
-      "outputModalities": [
-        "text"
-      ],
-      "ownedBy": "bailing",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.2
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": [
-              "none",
-              "minimal",
-              "low",
-              "medium",
-              "high",
-              "xhigh",
-              "max"
-            ]
-          }
-        ],
-        "supportedEfforts": [
-          "none",
-          "minimal",
-          "low",
-          "medium",
-          "high",
-          "xhigh",
-          "max"
-        ]
-      }
-    },
-    {
-      "capabilities": [
         "function-call"
       ],
       "contextWindow": 128000,
@@ -17552,6 +17423,42 @@
     },
     {
       "capabilities": [
+        "image-recognition",
+        "image-generation"
+      ],
+      "id": "muse-image",
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "metadata": {},
+      "name": "Meta: Muse Image",
+      "outputModalities": [
+        "image"
+      ],
+      "ownedBy": "meta"
+    },
+    {
+      "capabilities": [
+        "image-recognition",
+        "image-generation",
+        "file-input"
+      ],
+      "family": "muse-image",
+      "id": "muse-image-1-0",
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "metadata": {},
+      "name": "Muse Image 1.0",
+      "outputModalities": [
+        "image"
+      ],
+      "ownedBy": "meta"
+    },
+    {
+      "capabilities": [
         "function-call",
         "reasoning",
         "image-recognition",
@@ -17771,6 +17678,40 @@
       ],
       "metadata": {},
       "name": "MicrosoftAI: MAI-Image-2.6 Flash",
+      "outputModalities": [
+        "image"
+      ],
+      "ownedBy": "microsoft"
+    },
+    {
+      "capabilities": [
+        "image-recognition",
+        "image-generation"
+      ],
+      "id": "mai-image-2-7",
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "metadata": {},
+      "name": "Microsoft AI: MAI-Image-2.7",
+      "outputModalities": [
+        "image"
+      ],
+      "ownedBy": "microsoft"
+    },
+    {
+      "capabilities": [
+        "image-recognition",
+        "image-generation"
+      ],
+      "id": "mai-image-2-7-flash",
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "metadata": {},
+      "name": "Microsoft AI: MAI-Image-2.7 Flash",
       "outputModalities": [
         "image"
       ],
@@ -27975,6 +27916,106 @@
     {
       "capabilities": [
         "function-call",
+        "reasoning",
+        "structured-output"
+      ],
+      "contextWindow": 262144,
+      "family": "flint",
+      "id": "flint-v1-0",
+      "inputModalities": [
+        "text"
+      ],
+      "maxOutputTokens": 262144,
+      "metadata": {},
+      "name": "Flint",
+      "openWeights": true,
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "recursive",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ],
+        "supportedEfforts": [
+          "low",
+          "medium",
+          "high"
+        ]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "structured-output"
+      ],
+      "contextWindow": 1048576,
+      "family": "beam",
+      "id": "beam",
+      "inputModalities": [
+        "text"
+      ],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "Beam 1.0",
+      "openWeights": true,
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "reflection",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ],
+        "supportedEfforts": [
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
         "image-recognition",
         "video-recognition",
         "structured-output"
@@ -28077,6 +28118,282 @@
         "video"
       ],
       "ownedBy": "runway"
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1000000,
+      "family": "fugu-max",
+      "id": "fugu-max",
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Fugu Max",
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "sakana",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": [
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ],
+        "supportedEfforts": [
+          "high",
+          "xhigh",
+          "max"
+        ]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1000000,
+      "family": "fugu-ultra",
+      "id": "fugu-ultra",
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "maxOutputTokens": 1000000,
+      "metadata": {},
+      "name": "Fugu Ultra",
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "sakana",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": [
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ],
+        "supportedEfforts": [
+          "high",
+          "xhigh",
+          "max"
+        ]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1000000,
+      "family": "fugu-ultra",
+      "id": "fugu-ultra-v2",
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Fugu Ultra v2",
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "sakana",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": [
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ],
+        "supportedEfforts": [
+          "high",
+          "xhigh",
+          "max"
+        ]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 262144,
+      "family": "sakana-namazu",
+      "id": "namazu",
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Sakana Namazu",
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "sakana",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.95
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ],
+        "supportedEfforts": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      }
+    },
+    {
+      "capabilities": [
+        "structured-output"
+      ],
+      "contextWindow": 1000000,
+      "id": "scaledown-extract-1",
+      "inputModalities": [
+        "text"
+      ],
+      "maxOutputTokens": 1000000,
+      "metadata": {},
+      "name": "Extract-1",
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "scaledown",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      }
+    },
+    {
+      "capabilities": [],
+      "contextWindow": 1000000,
+      "id": "scaledown-summarize-1",
+      "inputModalities": [
+        "text"
+      ],
+      "maxOutputTokens": 1000,
+      "metadata": {},
+      "name": "Summarize-1",
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "scaledown",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      }
     },
     {
       "capabilities": [
@@ -29238,6 +29555,261 @@
     },
     {
       "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "audio-recognition"
+      ],
+      "contextWindow": 1048576,
+      "family": "inkling",
+      "id": "inkling",
+      "inputModalities": [
+        "text",
+        "image",
+        "audio"
+      ],
+      "maxOutputTokens": 256000,
+      "metadata": {},
+      "name": "Inkling",
+      "openWeights": true,
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "thinkingmachines",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.17
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.05
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ],
+        "supportedEfforts": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "inkling",
+      "id": "inkling-2-mini",
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Inkling 2 Mini",
+      "openWeights": true,
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "thinkingmachines",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.015
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ],
+        "supportedEfforts": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "inkling",
+      "id": "inkling-2-small",
+      "inputModalities": [
+        "text",
+        "image"
+      ],
+      "maxOutputTokens": 262144,
+      "metadata": {},
+      "name": "Inkling 2 Small",
+      "openWeights": true,
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "thinkingmachines",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ],
+        "supportedEfforts": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "inkling",
+      "id": "inkling-small",
+      "inputModalities": [
+        "text",
+        "image",
+        "audio"
+      ],
+      "maxOutputTokens": 1000000,
+      "metadata": {},
+      "name": "Inkling Small",
+      "openWeights": true,
+      "outputModalities": [
+        "text"
+      ],
+      "ownedBy": "thinkingmachines",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.45
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": [
+              "none",
+              "minimal",
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          }
+        ],
+        "supportedEfforts": [
+          "none",
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ]
+      }
+    },
+    {
+      "capabilities": [
         "function-call"
       ],
       "contextWindow": 128000,
@@ -29489,43 +30061,6 @@
     },
     {
       "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 1000000,
-      "family": "fugu",
-      "id": "fugu-ultra",
-      "inputModalities": [
-        "text",
-        "image"
-      ],
-      "maxOutputTokens": 1000000,
-      "metadata": {},
-      "name": "Fugu Ultra",
-      "outputModalities": [
-        "text"
-      ],
-      "ownedBy": "vercel",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 30
-        }
-      }
-    },
-    {
-      "capabilities": [
         "reasoning",
         "image-recognition"
       ],
@@ -29668,25 +30203,6 @@
           "perMillionTokens": 1.9
         }
       }
-    },
-    {
-      "capabilities": [
-        "image-recognition",
-        "image-generation",
-        "file-input"
-      ],
-      "family": "muse",
-      "id": "muse-image-1-0",
-      "inputModalities": [
-        "text",
-        "image"
-      ],
-      "metadata": {},
-      "name": "Muse Image 1.0",
-      "outputModalities": [
-        "image"
-      ],
-      "ownedBy": "vercel"
     },
     {
       "capabilities": [
@@ -29870,42 +30386,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.2
-        }
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 262144,
-      "id": "namazu",
-      "inputModalities": [
-        "text",
-        "image"
-      ],
-      "maxOutputTokens": 256000,
-      "metadata": {},
-      "name": "Sakana Namazu",
-      "outputModalities": [
-        "text"
-      ],
-      "ownedBy": "vercel",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.95
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 4
         }
       }
     },
@@ -33729,5 +34209,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "e98a117a45be6403"
+  "version": "f64353c4e0a0ad82"
 }
