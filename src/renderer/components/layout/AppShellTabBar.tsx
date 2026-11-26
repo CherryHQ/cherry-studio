@@ -935,6 +935,8 @@ export const AppShellTabBar = ({
         ref={tabBarRef}
         data-ui="app.tab-bar"
         style={{
+          // The revealed macOS menu and title bars cover the top of the fullscreen window.
+          marginTop: isMac && isFullscreen ? '72px' : undefined,
           minHeight: isWin ? 'env(titlebar-area-height, 0px)' : undefined,
           paddingLeft:
             (isMac || hasLeadingWindowControls) && !isFullscreen

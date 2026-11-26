@@ -140,7 +140,7 @@ export async function resolveAssistantMcpToolIds(assistantId: string): Promise<s
           timeoutMs: WARM_TOOLS_TIMEOUT_MS
         })
       }
-      const tools = catalog.listTools(server.id)
+      const tools = catalog.listTools(server.id, { audience: 'model' })
       return tools.filter((tool) => !isToolDisabled(server, tool)).map((tool) => tool.id)
     })
   )
