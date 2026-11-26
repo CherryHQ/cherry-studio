@@ -1627,6 +1627,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Nhúng (OpenAI)",
   "endpoint_type.openai-response": "Phản hồi của OpenAI",
+  "error.agent_task_timeout": "Tác vụ đã lên lịch bị quá thời gian.",
+  "error.agent_task_timeout_detail": "Đã dừng sau {{minutes}} phút vì tác vụ đạt giới hạn thời gian đã cấu hình.",
   "error.api_gateway_required": "Mô hình này phải được cầu nối qua Máy chủ API cục bộ của Cherry Studio, nhưng máy chủ hiện đang bị tắt. Bật nó lên để chạy Agent này.",
   "error.availableProviders": "Nhà cung cấp có sẵn",
   "error.availableTools": "Công cụ có sẵn",

@@ -1627,6 +1627,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Ενσωματώσεις (OpenAI)",
   "endpoint_type.openai-response": "Απάντηση OpenAI",
+  "error.agent_task_timeout": "Έληξε το χρονικό όριο της προγραμματισμένης εργασίας.",
+  "error.agent_task_timeout_detail": "Διακόπηκε μετά από {{minutes}} λεπτό(ά) επειδή η εργασία έφτασε στο ρυθμισμένο χρονικό όριο.",
   "error.api_gateway_required": "Αυτό το μοντέλο πρέπει να γεφυρωθεί μέσω του τοπικού Διακομιστή API του Cherry Studio, ο οποίος είναι προς το παρόν απενεργοποιημένος. Ενεργοποιήστε τον για να εκτελέσετε αυτόν τον πράκτορα.",
   "error.availableProviders": "Διαθέσιμοι πάροχοι",
   "error.availableTools": "Διαθέσιμα εργαλεία",

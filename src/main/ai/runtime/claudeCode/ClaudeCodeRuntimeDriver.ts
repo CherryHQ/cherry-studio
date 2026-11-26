@@ -155,6 +155,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     | { state: 'attached' | 'closing'; resource: ClaudeChildResource }
   >()
   private runActive = false
+  private interrupting = false
   private closing = false
   private closePromise?: Promise<void>
   /** Keep the effective child environment for native checkpoint capture. */
@@ -321,6 +322,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   async send(input: AgentRuntimeCommand): Promise<void> {
     this.promptSuggestion.clear()
+    this.interrupting = false
     this.currentSources.clear()
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
@@ -342,10 +344,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     })
     this.input.onInputPrepared?.(input.message.id, contextId)
     this.runActive = true
-    const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'follow-up')
-    this.eventQueue.push({ type: 'input-submission', contextId, result })
-    applyNativeSubmissionResult(this.input.sessionId, contextId, result)
-    if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
+    try {
+      const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'follow-up')
+      this.eventQueue.push({ type: 'input-submission', contextId, result })
+      applyNativeSubmissionResult(this.input.sessionId, contextId, result)
+      if (result.status !== 'acknowledged') throw new Error(result.error?.message ?? result.status)
+    } catch (error) {
+      this.runActive = false
+      this.interrupting = false
+      throw error
+    }
   }
 
   lookupInput(contextId: string, inputId: string) {
@@ -507,6 +515,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.promptSuggestion.clear()
     const interrupt = this.handle?.interrupt
     if (!interrupt) return
+    if (this.runActive) this.interrupting = true
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const result = await Promise.race([
@@ -541,7 +550,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async closeQuery(): Promise<void> {
     this.promptSuggestion.clear()
     this.closing = true
+    if (this.processDiagnostics) this.processDiagnostics.expectedExit = true
     if (this.parkedQuery) {
+      this.parkedQuery.processDiagnostics.expectedExit = true
       await this.parkedQuery.warmQuery[Symbol.asyncDispose]()
       await this.parkedQuery.processDiagnostics.exited
       this.parkedQuery = undefined
@@ -688,6 +699,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     reason: string,
     metadata: ClaudeMessageMetadata
   ): AgentRuntimeEvent {
+    const interruptedByHost = this.interrupting
+    this.interrupting = false
+    this.runActive = false
+    if (interruptedByHost) {
+      logger.debug('Claude Code connection closed after host-initiated interruption', {
+        sessionId: this.input.sessionId,
+        reason
+      })
+      return { type: 'turn-complete', status: 'paused' }
+    }
     const error = this.nativeError ?? new Error(`Claude observation ended: ${reason}`)
     const surfaced =
       isClaudeCodeProcessFailure(error, this.processDiagnostics) && this.processDiagnostics
@@ -760,8 +781,20 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       logger.warn(control.message, { detail: control.detail })
     } else if (control.type === 'result') {
       if (control.sessionId !== this.handle?.claude.sessionId) return
-      if (control.terminal || control.failure) this.runActive = false
+      const interruptedByHost = this.interrupting || this.closing
+      if (control.terminal || control.failure) {
+        this.runActive = false
+        this.interrupting = false
+      }
       if (control.failure) {
+        if (interruptedByHost) {
+          logger.debug('Ignoring Claude Code result failure after host-initiated interruption', {
+            sessionId: this.input.sessionId,
+            subtype: control.failure.subtype,
+            terminalReason: control.failure.terminalReason
+          })
+          return this.closing ? undefined : { type: 'turn-complete', status: 'paused' }
+        }
         const error = new ClaudeCodeResultError(control.failure)
         logAiFailure(logger, 'Claude Code result failed', error, 'agent.claude.prompt', classifyClaudeFailure(error))
         return { type: 'error', error }

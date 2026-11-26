@@ -361,6 +361,44 @@ required service tier.`
     expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['en-US', enUS],
+    ['zh-CN', zhCN]
+  ] as const)('renders localized scheduled-task timeout without network/proxy guidance (%s)', (language, catalog) => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { diagnoseMessageError, navigateErrorTarget }
+    mocks.language = language
+    mocks.translations = new Map(Object.entries(catalog))
+    mocks.i18nKeys.add('error.agent_task_timeout')
+    mocks.i18nKeys.add('error.agent_task_timeout_detail')
+
+    const serialized = JSON.parse(
+      JSON.stringify(
+        serializeError(
+          Object.assign(new Error('Task timed out after 2 minute(s)'), {
+            name: 'TimeoutError',
+            errorSource: 'local',
+            i18nKey: 'agent_task_timeout',
+            detailI18nKey: 'agent_task_timeout_detail',
+            detailI18nValues: { minutes: '2' }
+          })
+        )
+      )
+    )
+
+    const { container } = render(
+      <ErrorBlock partId="message-1-part-0" error={serialized} message={{ ...message, status: 'error' }} />
+    )
+
+    expect(container).toHaveTextContent(catalog['error.agent_task_timeout'])
+    expect(container).toHaveTextContent(catalog['error.agent_task_timeout_detail'].replace('{{minutes}}', '2'))
+    expect(screen.queryByText(catalog['error.diagnosis.network'])).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: GO_TO_SETTINGS_LABEL })).toBeNull()
+    expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
   it('hides mutation and detail affordances when capabilities are unavailable', () => {
     render(
       <ErrorBlock partId="message-1-part-0" error={{ name: 'Error', message: 'boom', stack: null }} message={message} />

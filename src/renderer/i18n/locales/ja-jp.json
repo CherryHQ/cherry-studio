@@ -1627,6 +1627,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "埋め込み（OpenAI）",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_task_timeout": "スケジュールされたタスクがタイムアウトしました。",
+  "error.agent_task_timeout_detail": "設定されたタイムアウト（{{minutes}} 分）に達したため停止しました。",
   "error.api_gateway_required": "このモデルはCherry StudioのローカルAPIサーバーを通してブリッジする必要がありますが、現在は無効です。このエージェントを実行するには有効化してください。",
   "error.availableProviders": "利用可能なプロバイダー",
   "error.availableTools": "利用可能なツール",

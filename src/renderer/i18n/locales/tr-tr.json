@@ -1627,6 +1627,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Vektör Gömmeleri (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_task_timeout": "Zamanlanmış görev zaman aşımına uğradı.",
+  "error.agent_task_timeout_detail": "Görev yapılandırılan zaman aşımına ulaştığı için {{minutes}} dakika sonra durduruldu.",
   "error.api_gateway_required": "Bu model, şu anda devre dışı olan Cherry Studio'nun yerel API Ağ Geçidi'ni kullanarak köprülenmelidir. Bu ajanı çalıştırmak için etkinleştirin.",
   "error.availableProviders": "Kullanılabilir Sağlayıcılar",
   "error.availableTools": "Kullanılabilir Araçlar",

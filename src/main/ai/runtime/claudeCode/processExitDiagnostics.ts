@@ -10,6 +10,7 @@ export interface ClaudeCodeProcessDiagnostics {
   exitCode?: number
   exitSignal?: NodeJS.Signals
   spawnFailed?: true
+  expectedExit?: true
 }
 
 export function createClaudeCodeProcessDiagnostics(reference: string = randomUUID()): ClaudeCodeProcessDiagnostics {
@@ -22,6 +23,7 @@ export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcess
   delete diagnostics.exitCode
   delete diagnostics.exitSignal
   delete diagnostics.spawnFailed
+  delete diagnostics.expectedExit
 }
 
 /** CLI stderr carries no structured status, so the status is recovered from the text itself. */

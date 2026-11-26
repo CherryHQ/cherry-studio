@@ -7,6 +7,7 @@ import { omit } from 'es-toolkit'
 import { application } from '@application'
 import { cloneObservationValue } from '@cherrystudio/agent-runtime'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
+import { executionFailureSchema } from '@cherrystudio/remote-protocol/failure'
 import { loggerService } from '@logger'
 import { CHAT_STREAM_IDLE_TIMEOUT_MS } from '@main/ai/constants'
 import { logAiFailure } from '@main/ai/errorReporting'
@@ -1435,7 +1436,7 @@ export class AiStreamManager extends BaseService {
   // ── Public: abort ─────────────────────────────────────────────────
 
   /** Abort all executions in a topic. */
-  abort(topicId: string, reason: string): void {
+  abort(topicId: string, reason: string, options?: { terminalError?: Error }): void {
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) {
       if (isAgentSessionTopic(topicId)) {
@@ -1449,6 +1450,7 @@ export class AiStreamManager extends BaseService {
     for (const exec of stream.executions.values()) {
       if (exec.status === 'streaming') {
         exec.status = 'aborted'
+        if (options?.terminalError) exec.terminalAbortError = options.terminalError
         exec.abortController.abort(reason)
       }
     }
@@ -1645,8 +1647,10 @@ export class AiStreamManager extends BaseService {
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'streaming') return
+    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'streaming' || exec.settled)
+      return
 
+    exec.settled = true
     exec.status = 'done'
     exec.runtimeTiming.closeOpenToolSpans()
     if ((exec.pendingApprovalToolCallIds?.size ?? 0) === 0) {
@@ -1714,7 +1718,9 @@ export class AiStreamManager extends BaseService {
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'aborted') return
+    if (!exec || (expectedExecution && exec !== expectedExecution) || exec.status !== 'aborted' || exec.settled) return
+
+    exec.settled = true
 
     // Mixed done/aborted topics resolve to done, but cancelled work cannot complete a notification batch.
     this.markCompletionFailed(topicId, exec.attemptId)
@@ -1770,8 +1776,17 @@ export class AiStreamManager extends BaseService {
     if (!stream) return
 
     const exec = stream.executions.get(modelId)
-    if (!exec || (expectedExecution && exec !== expectedExecution)) return
+    if (
+      !exec ||
+      (expectedExecution && exec !== expectedExecution) ||
+      exec.status === 'done' ||
+      exec.status === 'error' ||
+      exec.settled
+    ) {
+      return
+    }
 
+    exec.settled = true
     exec.status = 'error'
     exec.error = error
     endRootSpan(exec, 'error', error)
@@ -2338,6 +2353,11 @@ export class AiStreamManager extends BaseService {
         }
       })
     } catch (err) {
+      if (signal.aborted && exec.terminalAbortError) {
+        logger.debug('Execution startup aborted with terminal error', { topicId, modelId, reason: signal.reason, err })
+        await this.settleTerminalAbortError(topicId, modelId, exec, exec.terminalAbortError)
+        return
+      }
       if (signal.aborted && (err === signal.reason || isAbortError(err))) {
         if (exec.status === 'streaming') exec.status = 'aborted'
         await this.onExecutionPaused(topicId, modelId, exec)
@@ -2438,6 +2458,16 @@ export class AiStreamManager extends BaseService {
     }
 
     if (result.threw !== undefined) {
+      if (signal.aborted && exec.terminalAbortError) {
+        logger.debug('Execution aborted with terminal error', {
+          topicId,
+          modelId,
+          reason: signal.reason,
+          err: result.threw.error
+        })
+        await this.settleTerminalAbortError(topicId, modelId, exec, exec.terminalAbortError)
+        return
+      }
       const abortShaped = signal.aborted && (result.threw.error === signal.reason || isAbortError(result.threw.error))
       if (abortShaped) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
@@ -2473,6 +2503,10 @@ export class AiStreamManager extends BaseService {
     }
 
     if (signal.aborted) {
+      if (exec.terminalAbortError) {
+        await this.settleTerminalAbortError(topicId, modelId, exec, exec.terminalAbortError)
+        return
+      }
       // The idle-timeout path aborts `exec.abortController` directly (via `withIdleTimeout`)
       // without going through `abort()`, so `exec.status` is still 'streaming' on this clean
       // exit. Promote it so the truncated reply is persisted as `paused`, not `success`
@@ -2496,6 +2530,20 @@ export class AiStreamManager extends BaseService {
     } else {
       await this.onExecutionDone(topicId, modelId, exec)
     }
+  }
+
+  private async settleTerminalAbortError(
+    topicId: string,
+    modelId: UniqueModelId,
+    exec: StreamExecution,
+    terminalError: Error
+  ): Promise<void> {
+    const serialized = serializeError(terminalError)
+    serialized.reportingHandled = true
+    if (!executionFailureSchema.safeParse(serialized.executionFailure).success) {
+      serialized.executionFailure = toExecutionFailure(serialized, modelId, 'host')
+    }
+    await this.onExecutionError(topicId, modelId, serialized, exec, terminalError)
   }
 
   /** Broadcast done for a single execution to all topic listeners. */

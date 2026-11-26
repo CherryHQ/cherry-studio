@@ -43,7 +43,8 @@ async function fixture(
   retainOnStop = false,
   agentType: 'pi' | 'pi-durable' | 'claude-code' = 'pi',
   lastPos = 0,
-  onPartAppend: Parameters<typeof pipeMessageStream>[5] = () => {}
+  onPartAppend: Parameters<typeof pipeMessageStream>[5] = () => {},
+  openStream = true
 ) {
   dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
   dbh.db
@@ -150,21 +151,24 @@ async function fixture(
     userMessage: user,
     shouldAutoName: true
   })
-  const source = service.openTurnStream({
-    sessionId: 'root',
-    turnId: handle.turnId,
-    signal: handle.abortController.signal
-  })
-  if (source.kind !== 'messages') throw new Error('Agent turns must expose messages')
   const views: CherryUIMessage[] = []
-  const done = pipeMessageStream(
-    source,
-    handle.abortController.signal,
-    { id: reply.id, role: 'assistant' },
-    (message) => views.push(message),
-    () => {},
-    onPartAppend
-  )
+  let done: ReturnType<typeof pipeMessageStream> = Promise.resolve({ broadcastCompletedAt: 0 })
+  if (openStream) {
+    const source = service.openTurnStream({
+      sessionId: 'root',
+      turnId: handle.turnId,
+      signal: handle.abortController.signal
+    })
+    if (source.kind !== 'messages') throw new Error('Agent turns must expose messages')
+    done = pipeMessageStream(
+      source,
+      handle.abortController.signal,
+      { id: reply.id, role: 'assistant' },
+      (message) => views.push(message),
+      () => {},
+      onPartAppend
+    )
+  }
   const project = (native: CherryUIMessage[], extra: Partial<RuntimeMessageProjection> = {}) =>
     emit({
       type: 'message-projection',
@@ -177,7 +181,7 @@ async function fixture(
         ...extra
       }
     })
-  await project([])
+  if (openStream) await project([])
   onTestFinished(async () => {
     await service.closeSession('root')
     runtimeDriverRegistry.clearForTest()
@@ -1635,3 +1639,120 @@ it('persists a terminal compaction marker when closing and reopening during comp
     })
   )
 })
+
+it('keeps an aborted reply paused when the runtime emits a teardown error during close', async () => {
+  MockApplicationUtils.setService('AiStreamManager', {
+    drainRuntimeReply: async () => {},
+    pauseRuntimeTurn: () => false
+  })
+  const f = await fixture(
+    async (emit) => {
+      await emit({ type: 'error', error: new Error('Claude Code result failed') })
+    },
+    false,
+    'claude-code'
+  )
+  await f.project([text('partial', 'Partial answer')])
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toEqual(text('', 'Partial answer').parts))
+  f.handle.abortController.abort('user-cancelled')
+  const paused: StreamPausedResult = { status: 'paused', isTopicDone: true, finalMessage: (await f.done).finalMessage }
+  await f.handle.listeners[0].onPaused(paused)
+  await f.service.closeSession('root', true)
+
+  const saved = messages.getSessionMessage('root', f.reply.id)
+  expect(saved.status).toBe('paused')
+  expect(saved.data.parts).toEqual(text('', 'Partial answer').parts)
+})
+
+it('surfaces genuine Pi Durable errors emitted while the session is closing', async () => {
+  MockApplicationUtils.setService('AiStreamManager', {
+    drainRuntimeReply: async () => {},
+    pauseRuntimeTurn: () => false
+  })
+  const f = await fixture(
+    async (emit) => {
+      await emit({ type: 'error', error: new Error('Durable observation failed') })
+    },
+    false,
+    'pi-durable'
+  )
+  await f.project([text('partial', 'Partial answer')])
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toEqual(text('', 'Partial answer').parts))
+  await f.service.closeSession('root', true)
+
+  const saved = messages.getSessionMessage('root', f.reply.id)
+  expect(saved.status).toBe('error')
+  expect(saved.data.parts).toEqual(text('', 'Partial answer').parts)
+})
+
+it.each([true, false] as const)(
+  'preserves error status, partial output, and one data-error across racing paused teardown and repeated closes (projected=%s)',
+  async (hasProjection) => {
+    const drain = Promise.withResolvers<void>()
+    MockApplicationUtils.setService('AiStreamManager', {
+      drainRuntimeReply: () => drain.promise,
+      pauseRuntimeTurn: () => false
+    })
+    const f = await fixture(
+      async (emit) => {
+        await emit({ type: 'turn-complete', status: 'paused' })
+      },
+      false,
+      'claude-code',
+      0,
+      () => {},
+      hasProjection
+    )
+    if (hasProjection) {
+      await f.project([text('partial', 'Partial answer')])
+      await vi.waitFor(() => expect(f.views.at(-1)?.parts).toEqual(text('', 'Partial answer').parts))
+    }
+    f.handle.abortController.abort('Task timed out after 2 minute(s)')
+    const closing = f.service.closeSession('root', true)
+    await f.handle.listeners[0].onError({
+      status: 'error',
+      isTopicDone: true,
+      anchorMessageId: f.reply.id,
+      error: {
+        name: 'TimeoutError',
+        message: 'Task timed out after 2 minute(s)',
+        stack: null,
+        errorSource: 'local',
+        i18nKey: 'agent_task_timeout',
+        detailI18nKey: 'agent_task_timeout_detail',
+        detailI18nValues: { minutes: '2' },
+        executionFailure: {
+          message: 'Task timed out after 2 minute(s)',
+          retryable: false,
+          failure: { version: 1, reasonCode: 'timeout', source: { layer: 'host' }, context: {} }
+        }
+      },
+      finalMessage: hasProjection ? f.views.at(-1) : { id: f.reply.id, role: 'assistant', parts: [] }
+    })
+    drain.resolve()
+    await closing
+    await f.service.closeSession('root', true)
+
+    const saved = messages.getSessionMessage('root', f.reply.id)
+    expect(saved.status).toBe('error')
+    const errorParts = (saved.data.parts ?? []).filter((part) => part.type === 'data-error')
+    expect(errorParts).toHaveLength(1)
+    expect(errorParts[0]).toMatchObject({
+      type: 'data-error',
+      data: {
+        name: 'TimeoutError',
+        message: 'Task timed out after 2 minute(s)',
+        i18nKey: 'agent_task_timeout',
+        executionFailure: {
+          failure: { reasonCode: 'timeout', source: { layer: 'host' } }
+        }
+      }
+    })
+    if (hasProjection) {
+      expect(saved.data.parts).toHaveLength(2)
+      expect(saved.data.parts?.[0]).toEqual(text('', 'Partial answer').parts[0])
+    } else {
+      expect(saved.data.parts).toHaveLength(1)
+    }
+  }
+)

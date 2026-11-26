@@ -1627,6 +1627,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "嵌入 (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_task_timeout": "定时任务执行超时。",
+  "error.agent_task_timeout_detail": "任务已达到配置的 {{minutes}} 分钟超时上限，已停止执行。",
   "error.api_gateway_required": "该模型需要通过 Cherry Studio 的本地 API Gateway 桥接,但网关当前已禁用。启用后才能运行该智能体。",
   "error.availableProviders": "可用提供商",
   "error.availableTools": "可用工具",

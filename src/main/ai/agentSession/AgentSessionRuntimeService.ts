@@ -266,6 +266,7 @@ type AgentSessionRun = {
   trustedNotifyChannels?: readonly NotifyChannel[]
   /** A background run continued this reply after its input ended; Stop then ends that run, not the input. */
   continuedInBackground?: boolean
+  persistedStatus?: AgentSessionTerminalStatus
 }
 
 type QueuedAgentSessionInput = {
@@ -3503,6 +3504,15 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
     this.clearApiRetry(entry)
+    const abortedTurn = getAgentSessionRuntimeNativeTurn(entry.runtimeState) ?? this.currentTurn(entry)
+    if (entry.agentType === 'claude-code' && entry.closing && abortedTurn?.abortController.signal.aborted) {
+      logger.debug('Ignoring Claude Code teardown error for aborted turn during session close', {
+        sessionId: entry.sessionId,
+        turnId: abortedTurn.turnId,
+        error
+      })
+      return
+    }
     const compaction = application.get('CacheService').getShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId))
     if (
       isAgentSessionRuntimeCompacting(entry.runtimeState) ||
@@ -4128,7 +4138,8 @@ export class AgentSessionRuntimeService extends BaseService {
         projection: () =>
           currentTurn.projection ? this.rootCheckpoint(entry, currentTurn.projection, currentTurn.runId) : undefined,
         partPlacement: (messageId) => currentTurn.projection?.partPlacement(messageId),
-        onPersisted: () => {
+        onPersisted: (status) => {
+          currentTurn.persistedStatus = status
           currentTurn.projection?.committedReply(assistantMessageId)
           ;(entry.persistedMessageIds ??= new Set()).add(assistantMessageId)
           entry.usageAttribution?.flush(assistantMessageId)
@@ -4203,21 +4214,27 @@ export class AgentSessionRuntimeService extends BaseService {
       const reply = getAgentSessionRuntimeReply(entry.runtimeState, turn)
       if (
         !turn.projection &&
-        !['reserved', 'unopened', 'attaching', 'suspending', 'failed'].includes(reply?.delivery.kind ?? '')
+        (entry.persistedMessageIds?.has(turn.runId) ||
+          !['reserved', 'unopened', 'attaching', 'suspending', 'failed'].includes(reply?.delivery.kind ?? ''))
       )
         continue
       if (reply?.delivery.kind === 'failed') this.applyRuntimeStateEvent(entry, { type: 'retry-reply', turn })
       if (reply?.delivery.kind === 'reserved' || reply?.delivery.kind === 'failed') this.saveReply(entry, turn)
+      const baseParts = turn.projection?.parts(turn.runId) ?? []
+      const hasErrorPart = baseParts.some((part) => part.type === 'data-error')
       const status =
-        reply?.deliveryFailure || reply?.terminal?.status === 'error'
+        reply?.deliveryFailure ||
+        reply?.terminal?.status === 'error' ||
+        turn.persistedStatus === 'error' ||
+        hasErrorPart
           ? 'error'
           : reply?.delivery.kind === 'settled'
             ? reply.delivery.status
-            : (reply?.terminal?.status ?? 'paused')
+            : (reply?.terminal?.status ?? turn.persistedStatus ?? 'paused')
       const message: CherryUIMessage = {
         id: turn.runId,
         role: 'assistant',
-        parts: turn.projection?.parts(turn.runId) ?? []
+        parts: baseParts
       }
       new AgentSessionMessageBackend({
         sessionId: entry.sessionId,
@@ -4227,7 +4244,8 @@ export class AgentSessionRuntimeService extends BaseService {
         forkAnchor: () => turn.forkAnchor,
         projection: () => (turn.projection ? this.rootCheckpoint(entry, turn.projection, turn.runId) : undefined),
         partPlacement: (messageId) => turn.projection?.partPlacement(messageId),
-        onPersisted: () => {
+        onPersisted: (persistedStatus) => {
+          turn.persistedStatus = persistedStatus
           turn.projection?.committedReply(turn.runId)
           ;(entry.persistedMessageIds ??= new Set()).add(turn.runId)
           entry.usageAttribution?.flush(turn.runId)

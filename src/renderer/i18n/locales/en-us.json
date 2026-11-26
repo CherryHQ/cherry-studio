@@ -1627,6 +1627,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Embeddings (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_task_timeout": "Scheduled task timed out.",
+  "error.agent_task_timeout_detail": "Stopped after {{minutes}} minute(s) because the task reached its configured timeout.",
   "error.api_gateway_required": "This model must be bridged through Cherry Studio's local API Gateway, which is currently disabled. Enable it to run this agent.",
   "error.availableProviders": "Available Providers",
   "error.availableTools": "Available Tools",

@@ -1651,6 +1651,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Эмбеддинги (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_task_timeout": "Время выполнения запланированной задачи истекло.",
+  "error.agent_task_timeout_detail": "Выполнение остановлено через {{minutes}} мин., так как задача достигла заданного тайм-аута.",
   "error.api_gateway_required": "Эта модель должна быть подключена через локальный API Gateway Cherry Studio, который сейчас отключён. Включите его для запуска этого агента.",
   "error.availableProviders": "Доступные провайдеры",
   "error.availableTools": "Доступные инструменты",

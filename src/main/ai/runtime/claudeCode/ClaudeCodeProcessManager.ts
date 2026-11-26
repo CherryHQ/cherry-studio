@@ -63,8 +63,12 @@ function logClaudeCodeProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics):
   })
 }
 
-function recordSynchronousSpawnFailure(diagnostics: ClaudeCodeProcessDiagnostics, error: unknown): void {
-  if (!(error instanceof Error)) return
+function recordSynchronousSpawnFailure(
+  diagnostics: ClaudeCodeProcessDiagnostics,
+  signal: AbortSignal,
+  error: unknown
+): void {
+  if (!(error instanceof Error) || signal.aborted || diagnostics.expectedExit) return
   recordClaudeCodeSpawnError(diagnostics, error)
   logClaudeCodeProcessFailure(diagnostics)
 }
@@ -81,12 +85,14 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
   private readonly events = new EventEmitter()
   private stderrTail = ''
   private stderrClosed = false
-  private pendingExit?: { code: number | null; signal: NodeJS.Signals | null }
+  private terminatedByCaller = false
+  private pendingExit?: { code: number | null; signal: NodeJS.Signals | null; expected: boolean }
   private drainTimer?: ReturnType<typeof setTimeout>
 
   constructor(
     private readonly child: SpawnedChildProcess,
-    private readonly diagnostics: ClaudeCodeProcessDiagnostics
+    private readonly diagnostics: ClaudeCodeProcessDiagnostics,
+    private readonly signal: AbortSignal
   ) {
     const decoder = new StringDecoder('utf8')
     child.stderr.on('data', (chunk: Buffer | string) => this.appendStderr(decoder.write(Buffer.from(chunk))))
@@ -100,7 +106,7 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
       this.deliverExit()
     })
     child.once('exit', (code, signal) => {
-      this.pendingExit = { code, signal }
+      this.pendingExit = { code, signal, expected: this.isExpectedTermination() }
       if (this.stderrClosed) return this.deliverExit()
       this.drainTimer = setTimeout(() => {
         child.stderr.destroy()
@@ -109,8 +115,10 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
       this.drainTimer.unref?.()
     })
     child.once('error', (error) => {
-      recordClaudeCodeSpawnError(diagnostics, error)
-      logClaudeCodeProcessFailure(diagnostics)
+      if (!this.isExpectedTermination()) {
+        recordClaudeCodeSpawnError(diagnostics, error)
+        logClaudeCodeProcessFailure(diagnostics)
+      }
       this.events.emit('error', error)
     })
   }
@@ -140,6 +148,7 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
   }
 
   kill(signal: NodeJS.Signals): boolean {
+    this.terminatedByCaller = true
     // Windows has no signal-driven process-group cleanup, so a plain kill orphans the CLI's descendants.
     if (process.platform === 'win32' && this.child.pid !== undefined) {
       killProcessTree(this.child as unknown as ChildProcess)
@@ -170,13 +179,19 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
     this.stderrTail = utf8Tail(`${this.stderrTail}${text}`)
   }
 
+  private isExpectedTermination(): boolean {
+    return this.terminatedByCaller || this.signal.aborted || this.diagnostics.expectedExit === true
+  }
+
   private deliverExit(): void {
     const exit = this.pendingExit
     if (!exit) return
     this.pendingExit = undefined
     if (this.drainTimer) clearTimeout(this.drainTimer)
     recordClaudeCodeProcessExit(this.diagnostics, exit.code, exit.signal, this.stderrTail)
-    if (exit.code !== 0) logClaudeCodeProcessFailure(this.diagnostics)
+    if (exit.code !== 0 && !exit.expected) {
+      logClaudeCodeProcessFailure(this.diagnostics)
+    }
     this.events.emit('exit', exit.code, exit.signal)
   }
 }
@@ -210,7 +225,7 @@ export class ClaudeCodeProcessManager extends BaseService {
     } catch (error) {
       const uid = macOsForkFallbackUid(error)
       if (uid === undefined) {
-        recordSynchronousSpawnFailure(diagnostics, error)
+        recordSynchronousSpawnFailure(diagnostics, options.signal, error)
         throw error
       }
 
@@ -220,7 +235,7 @@ export class ClaudeCodeProcessManager extends BaseService {
       try {
         rawChild = this.spawnProcess(options.command, options.args, { ...spawnOptions, uid })
       } catch (retryError) {
-        recordSynchronousSpawnFailure(diagnostics, retryError)
+        recordSynchronousSpawnFailure(diagnostics, options.signal, retryError)
         throw retryError
       }
     }
@@ -230,7 +245,7 @@ export class ClaudeCodeProcessManager extends BaseService {
         if (rawChild.pid === undefined) resolve()
       })
     })
-    const child = new ManagedClaudeCodeProcess(rawChild, diagnostics) as TrackedSpawnedProcess
+    const child = new ManagedClaudeCodeProcess(rawChild, diagnostics, options.signal) as TrackedSpawnedProcess
     this.processes.add(child)
     // Untracked on the raw exit, not the wrapper's — no reason to hold a dead handle through the drain.
     rawChild.once('exit', () => this.processes.delete(child))

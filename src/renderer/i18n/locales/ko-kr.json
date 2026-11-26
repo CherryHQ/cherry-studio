@@ -1627,6 +1627,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "임베딩(OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_task_timeout": "예약된 작업 시간이 초과되었습니다.",
+  "error.agent_task_timeout_detail": "설정한 제한 시간({{minutes}}분)에 도달하여 작업을 중지했습니다.",
   "error.api_gateway_required": "이 모델은 현재 비활성화된 Cherry Studio 로컬 API 게이트웨이를 통해 연결해야 합니다. 이 에이전트를 실행하려면 게이트웨이를 활성화하세요.",
   "error.availableProviders": "사용 가능한 제공자",
   "error.availableTools": "사용 가능한 도구",

@@ -1627,6 +1627,8 @@
   "endpoint_type.openai": "OpenAI",
   "endpoint_type.openai-embeddings": "Embedding (OpenAI)",
   "endpoint_type.openai-response": "OpenAI-Response",
+  "error.agent_task_timeout": "Tempo scaduto per l’attività pianificata.",
+  "error.agent_task_timeout_detail": "Interrotta dopo {{minutes}} minuto/i perché l’attività ha raggiunto il timeout configurato.",
   "error.api_gateway_required": "Questo modello richiede il gateway API locale di Cherry Studio, attualmente disattivato. Attivalo per eseguire questo agente.",
   "error.availableProviders": "Fornitori disponibili",
   "error.availableTools": "Strumenti disponibili",
