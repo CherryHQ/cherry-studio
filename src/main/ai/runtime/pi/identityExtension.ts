@@ -4,7 +4,11 @@ import { application } from '@application'
 import { PromptBuilder } from '@main/ai/agents/prompt/promptContext'
 import { agentMemoryReference } from '@main/ai/memory/memoryPrompt'
 
-export function createPiIdentityExtension(agentDataPath: string, sessionId?: string): ExtensionFactory {
+export function createPiIdentityExtension(
+  agentDataPath: string,
+  sessionId?: string,
+  contextId?: string
+): ExtensionFactory {
   const builder = new PromptBuilder()
   return (pi) => {
     pi.on('before_agent_start', async (event) => {
@@ -20,7 +24,7 @@ export function createPiIdentityExtension(agentDataPath: string, sessionId?: str
       const identity = await builder.buildMemoriesSection(agentDataPath, !migrated)
       const memory = await agentMemoryReference(
         sessionId,
-        () => application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
+        () => application.get('AgentSessionRuntimeService').getInteractionState(sessionId, contextId),
         ctx.signal
       )
       const messages = event.messages.map((message) => {

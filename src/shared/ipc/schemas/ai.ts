@@ -6,7 +6,7 @@ import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/age
 import { AgentConfigChangePreviewSchema } from '@shared/ai/agentConfigToolOutput'
 import { agentImportSnapshotSchema, type AgentImportSnapshot } from '@shared/ai/agentImport'
 import type { ClaudeCodeBinaryStatus } from '@shared/ai/claudeCodeBinary'
-import type { MessageProjectionUpdate, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
+import type { ProjectionNotification, MessageProjectionView, ProjectionTarget } from '@shared/ai/messageProjection'
 import { ProfileStarterModeSchema, ProfileStartersSchema } from '@shared/ai/profileStarters'
 import type {
   AiStreamAttachResponse,
@@ -390,12 +390,19 @@ export const aiRequestSchemas = {
   // (AiStreamManager holds the live output, AiService applies the decision) —
   // the subtree groups by domain, not by service.
   'ai.tool.get_result': defineRoute({
-    // Mirrors AiToolResultRequest (z.ZodType pins exact-shape drift here, not in a test).
-    input: z.strictObject({
-      topicId: z.string().min(1),
-      messageId: z.string().min(1),
-      toolCallId: z.string().min(1)
-    }) satisfies z.ZodType<AiToolResultRequest>,
+    input: z.intersection(
+      z.object({
+        topicId: z.string().min(1),
+        messageId: z.string().min(1),
+        toolCallId: z.string().min(1),
+        partId: z.string().min(1).optional()
+      }),
+      z.discriminatedUnion('purpose', [
+        z.object({ purpose: z.literal('preview') }),
+        z.object({ purpose: z.literal('text-range'), cursor: z.number().int().nonnegative().optional() }),
+        z.object({ purpose: z.literal('full') })
+      ])
+    ) satisfies z.ZodType<AiToolResultRequest>,
     output: z.custom<AiToolResultResponse>()
   }),
   'ai.tool.respond_approval': defineRoute({
@@ -457,7 +464,7 @@ export const aiRequestSchemas = {
     input: z.strictObject({ skillId: z.string().min(1) }),
     output: z.strictObject({ sessionId: z.string().min(1) })
   }),
-  'ai.agent.session.prewarm': defineRoute({
+  'ai.agent.session.commands': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
   }),
@@ -471,6 +478,22 @@ export const aiRequestSchemas = {
   'ai.agent.session.edit_target': defineRoute({
     input: z.strictObject({ sessionId: z.uuid(), messageId: z.uuid() }),
     output: z.strictObject({ messageId: z.uuid(), version: z.string(), parts: z.array(z.custom<CherryMessagePart>()) })
+  }),
+  'ai.agent.session.change_followups': defineRoute({
+    input: z.strictObject({
+      topicId: z.string().min(1),
+      change: z.discriminatedUnion('type', [
+        z.strictObject({
+          type: z.literal('edit'),
+          inputId: z.uuid(),
+          revision: z.int().nonnegative(),
+          text: z.string()
+        }),
+        z.strictObject({ type: z.literal('reorder'), before: z.array(z.uuid()), after: z.array(z.uuid()) }),
+        z.strictObject({ type: z.literal('withdraw'), inputId: z.uuid() })
+      ])
+    }),
+    output: z.boolean()
   }),
   'ai.agent.session.set_pending_input_count': defineRoute({
     input: z.strictObject({ sessionId: z.uuid(), count: z.number().int().nonnegative() }),
@@ -486,10 +509,6 @@ export const aiRequestSchemas = {
       fastMode: z.boolean().optional()
     }),
     output: z.custom<AiStreamOpenResponse>()
-  }),
-  'ai.agent.session.close_warm': defineRoute({
-    input: z.strictObject({ sessionId: z.string().min(1) }),
-    output: z.void()
   }),
   'ai.agent.session.delete': defineRoute({
     input: z.strictObject({
@@ -598,7 +617,7 @@ export const aiRequestSchemas = {
  */
 export type AiEventSchemas = {
   'ai.agent.import.progress': AgentImportSnapshot
-  'ai.projection.changed': { subscriptionId: string; update: MessageProjectionUpdate }
+  'ai.projection.changed': { subscriptionId: string; update: ProjectionNotification }
   'ai.claude_code.binary.changed': ClaudeCodeBinaryStatus
   'ai.agent.attachment_selections.changed': { sessionId: string }
   'ai.stream.chunk': StreamChunkPayload

@@ -1148,7 +1148,7 @@ describe('utils/image', () => {
       }
     })
 
-    it('restores viewBox dimensions on a responsive SVG preview without mutating the live node', async () => {
+    it('restores upscaled viewBox dimensions on a responsive SVG preview without mutating the live node', async () => {
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
       svg.setAttribute('viewBox', '0 0 960 480')
       svg.setAttribute('width', '100%')
@@ -1161,11 +1161,37 @@ describe('utils/image', () => {
       expect(svg.hasAttribute('height')).toBe(false)
 
       const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
-      expect(previewSvg.getAttribute('width')).toBe('960')
-      expect(previewSvg.getAttribute('height')).toBe('480')
+      expect(previewSvg.getAttribute('width')).toBe('2880')
+      expect(previewSvg.getAttribute('height')).toBe('1440')
       expect(previewSvg.getAttribute('viewBox')).toBe('0 0 960 480')
       expect(previewSvg.textContent).toContain('First line')
       expect(previewSvg.textContent).toContain('Second line')
+      // Responsive inline constraints must not shrink the standalone preview image.
+      expect((previewSvg as unknown as SVGElement).style?.maxWidth ?? '').toBe('')
+    })
+
+    it('upscales a small Mermaid-size viewBox so the dialog no longer shrinks', async () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 200 80')
+      svg.setAttribute('width', '100%')
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe('2400')
+      expect(previewSvg.getAttribute('height')).toBe('960')
+    })
+
+    it('caps an oversized viewBox upscale to bound preview memory', async () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 3000 2000')
+      svg.setAttribute('width', '100%')
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe('4096')
+      expect(previewSvg.getAttribute('height')).toBe('2731')
     })
 
     it('preserves an SVG that already has positive intrinsic dimensions', async () => {
@@ -1199,7 +1225,7 @@ describe('utils/image', () => {
       expect(previewSvg.getAttribute('height')).toBe(height)
     })
 
-    it('replaces a non-finite SVG length with finite viewBox dimensions', async () => {
+    it('replaces a non-finite SVG length with upscaled viewBox dimensions', async () => {
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
       svg.setAttribute('viewBox', '0 0 800 400')
       svg.setAttribute('width', '1e309px')
@@ -1207,8 +1233,8 @@ describe('utils/image', () => {
       await imageInputToPreviewUrl(svg, { format: 'svg' })
 
       const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
-      expect(previewSvg.getAttribute('width')).toBe('800')
-      expect(previewSvg.getAttribute('height')).toBe('400')
+      expect(previewSvg.getAttribute('width')).toBe('2400')
+      expect(previewSvg.getAttribute('height')).toBe('1200')
     })
 
     it.each(['NaN 0 800 400', '0 Infinity 800 400'])(

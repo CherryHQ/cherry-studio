@@ -14,7 +14,8 @@ export function withPrivateMemoryRead(
   sessionId: string,
   agentId: string,
   agentDataPath: string,
-  canRead: (conversationId: number) => boolean
+  canRead: (conversationId: number) => boolean,
+  contextId?: string
 ): ReadTool {
   return {
     ...nativeRead,
@@ -27,7 +28,7 @@ export function withPrivateMemoryRead(
         return nativeRead.execute(args, api, context)
 
       const turn = agentMemoryTurn(
-        () => application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
+        () => application.get('AgentSessionRuntimeService').getInteractionState(sessionId, contextId),
         context.abortSignal
       )
       const authority = agentMemoryAuthority(sessionId, 'private', {

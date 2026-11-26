@@ -3,8 +3,7 @@ import { Worker } from 'node:worker_threads'
 
 import type { SessionMessage, SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
 
-export type NativeArchiveEntry = Pick<SessionStoreEntry, 'type' | 'uuid'> &
-  Partial<
+export type NativeArchiveEntry = Pick<SessionStoreEntry, 'type' | 'uuid'> & { childOpening?: true } & Partial<
     Pick<
       SessionStoreEntry,
       'supersedes' | 'retracted_message_uuids' | 'isAbortedMidStream' | 'isApiErrorMessage' | 'parentAgentId'

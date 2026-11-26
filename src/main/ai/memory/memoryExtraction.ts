@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { application } from '@application'
@@ -6,7 +6,12 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import type { DbOrTx } from '@data/db/types'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import {
+  type AgentSessionMessageRecord,
+  attachAgentSessionMessagePartsTx
+} from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicService } from '@data/services/TopicService'
 import { MemoryCandidateSchema, type MemoryExtractionRange } from '@shared/types/memory'
@@ -27,7 +32,16 @@ export class InvalidExtractionSource extends DreamingError {
   }
 }
 
-type SourceRow = typeof messageTable.$inferSelect | typeof agentSessionMessageTable.$inferSelect
+type SourceRow = typeof messageTable.$inferSelect | AgentSessionMessageRecord
+
+function readAgentSourceRow(db: DbOrTx, sessionId: string, id: string): AgentSessionMessageRecord | undefined {
+  const row = db
+    .select()
+    .from(agentSessionMessageTable)
+    .where(and(eq(agentSessionMessageTable.sessionId, sessionId), eq(agentSessionMessageTable.id, id)))
+    .get()
+  return row && attachAgentSessionMessagePartsTx(db, [row])[0]
+}
 
 function turnHash(user: SourceRow, response: SourceRow, entityKey: string): string {
   return memoryHash(Buffer.from(JSON.stringify({ user, response, entityKey })))
@@ -38,7 +52,7 @@ export function readExtractionSource(input: ExtractionInput, allowOversized = fa
   const db = application.get('DbService').getDb()
   const turn = { assertActive: (): undefined => undefined, isHeadless: () => false }
   let entityKey: string
-  let user: typeof messageTable.$inferSelect | typeof agentSessionMessageTable.$inferSelect | undefined
+  let user: SourceRow | undefined
   let response: typeof user
   let authority: ReturnType<typeof assistantMemoryAuthority>
   if (input.kind === 'assistant') {
@@ -64,8 +78,8 @@ export function readExtractionSource(input: ExtractionInput, allowOversized = fa
     const session = agentSessionService.getConversationById(input.sessionId)
     authority = agentMemoryAuthority(session.id, 'shared', turn)
     entityKey = `agent/${session.agentId}`
-    response = db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, input.responseId)).get()
-    user = db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, input.userMessageId)).get()
+    response = readAgentSourceRow(db, session.id, input.responseId)
+    user = readAgentSourceRow(db, session.id, input.userMessageId)
     if (
       !user ||
       !response ||
@@ -210,7 +224,7 @@ export function readExtractionRange(
     const row =
       range.source.kind === 'assistant'
         ? db.select().from(messageTable).where(eq(messageTable.id, id)).get()
-        : db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, id)).get()
+        : readAgentSourceRow(db, range.source.sessionId, id)
     const admittedAt = row?.role === 'user' ? admissionsByUser.get(row.id)?.createdAt : undefined
     const sourceTime = admittedAt ?? row?.createdAt ?? 0
     if (

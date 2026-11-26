@@ -53,6 +53,10 @@ The fixture uses short runtime paths for Chromium's macOS socket limit; speciali
 Cleanup closes Electron within 15 seconds or terminates the owned process and fails the test, then removes owned runtime directories.
 Reports and screenshots remain in the configured output directory for review.
 
+For a focused hosted smoke run, dispatch `E2E Regression Test` with `suite=smoke` and set
+`smoke_specs` to comma-separated spec names such as `agentAvatar,assistantAvatar`.
+Omit `smoke_specs` to run every standalone smoke spec on both platforms.
+
 #### Prerequisites
 
 1. Install dependencies: `pnpm install`
