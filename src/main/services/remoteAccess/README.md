@@ -147,6 +147,8 @@ ignores responses superseded by later pairing events or a stopped LAN listener.
 
 The file module owns checkpoint-based recovery and retention. Selection is disposable presentation; new sends carry
 explicit upload references. Intake/draft tables and their unpublished development migrations were removed.
+Closing a connection removes its unsent selections from the desktop. A selection presented again on a newer
+connection stays visible, and a submitted selection follows its command receipt until the message is visible.
 
 `FileIntakeService` owns durable staging under `feature.files.intakes`; `RemoteUploads`
 binds its operations to the current device grant.

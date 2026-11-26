@@ -52,6 +52,33 @@ describe('disposable attachment presentation', () => {
     expect(vi.getTimerCount()).toBe(0)
     await service._doStop()
   })
+  it('removes only unsent selections last presented by the closing connection and notifies the renderer', async () => {
+    vi.useFakeTimers()
+    const service = new AttachmentPresenceService()
+    await service._doInit()
+    try {
+      const first = service.connection()
+      service.present(owner, auth, first, { ...input, selectionId: 'abandoned' })
+      service.present(owner, auth, first, { ...input, selectionId: 'reconnected' })
+      const second = service.connection()
+      service.present(owner, auth, second, { ...input, selectionId: 'reconnected' })
+      await vi.advanceTimersByTimeAsync(100)
+      const broadcast = vi.mocked(application.get('IpcApiService').broadcast)
+      broadcast.mockClear()
+
+      service.disconnect(first)
+      await vi.advanceTimersByTimeAsync(100)
+
+      expect((await service.list(input.sessionId)).map((row) => row.selectionId)).toEqual(['reconnected'])
+      expect(broadcast.mock.calls).toEqual([['ai.agent.attachment_selections.changed', { sessionId: input.sessionId }]])
+      service.disconnect(second)
+      await vi.advanceTimersByTimeAsync(100)
+      expect(await service.list(input.sessionId)).toEqual([])
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      await service._doStop()
+    }
+  })
   it('does not allow an old connection or selection snapshot to restore removed attachments', async () => {
     const service = new AttachmentPresenceService()
     const first = service.connection()

@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockFileIntakeUtils } from '@test-mocks/main/FileIntakeService'
 import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
@@ -211,6 +212,7 @@ function makeChannel(remoteIdentity: string, notifications: unknown[]): SecureCh
 
 describe('remote agent access', () => {
   const dbh = setupTestDatabase()
+  let presence: AttachmentPresenceService
   let hub: RemoteAgentHub
   let service: RemoteAccessService
   function seedModel(providerId: string, modelId: string, name: string) {
@@ -320,6 +322,8 @@ describe('remote agent access', () => {
   afterEach(async () => {
     connection.dispose()
     await service._doStop()
+    await presence._doStop()
+    MockApplicationUtils.resetServices()
     BaseService.resetInstances()
     vi.useRealTimers()
   })
@@ -330,6 +334,9 @@ describe('remote agent access', () => {
     fake.onStarted = undefined
     notifications.length = 0
     fake.runtime.respondToolApproval.mockClear()
+    presence = new AttachmentPresenceService()
+    MockApplicationUtils.setService('AttachmentPresenceService', presence)
+    await presence._doInit()
     service = new RemoteAccessService()
     hub = service['hub']
     await service._doInit()
@@ -609,6 +616,29 @@ describe('remote agent access', () => {
     }
   })
 
+  it('clears a verified attachment abandoned before send when its connection closes', async () => {
+    const uploadId = randomUUID()
+    const selectionId = randomUUID()
+    vi.mocked(application.get('FileIntakeService').get).mockResolvedValueOnce({
+      uploadId,
+      state: 'ready',
+      committedOffset: '12',
+      writerEpoch: '0',
+      expiresAt: '2099-01-01T00:00:00Z'
+    })
+    await call('agent.attachments.present', {
+      sessionId,
+      selectionId,
+      sequence: '1',
+      items: [{ attachmentId: randomUUID(), uploadId, filename: 'report.txt', mediaType: 'text/plain', byteLength: 12 }]
+    })
+    expect(await presence.list(sessionId)).toMatchObject([{ selectionId, items: [{ upload: { state: 'ready' } }] }])
+
+    connection.dispose()
+
+    expect(await presence.list(sessionId)).toEqual([])
+  })
+
   it('sends the managed file directly without a second entry and deduplicates after staging is removed', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'agent-attachment-'))
     const paths = vi
@@ -640,9 +670,6 @@ describe('remote agent access', () => {
       fake.files.getUrl.mockImplementation((id) => pathToFileURL(fake.files.getPhysicalPath(id)).href)
       const bytes = Buffer.from('managed attachment')
       const uploadId = randomUUID()
-      const presence = new AttachmentPresenceService()
-      for (const name of ['present', 'submitting', 'list'] as const)
-        Object.assign(application.get('AttachmentPresenceService'), { [name]: presence[name].bind(presence) })
       const selectionId = randomUUID()
       await call('agent.attachments.present', {
         selectionId,
@@ -726,6 +753,8 @@ describe('remote agent access', () => {
       const before = vi.mocked(startAgentSessionRun).mock.calls.length
       expect(await call('agent.messages.send', params)).toEqual(receipt)
       expect(vi.mocked(startAgentSessionRun).mock.calls.length).toBe(before)
+      connection.dispose()
+      expect((await presence.list(sessionId))[0].messageId).toBe(message.messageId)
     } finally {
       await intake.drain()
       paths.mockRestore()

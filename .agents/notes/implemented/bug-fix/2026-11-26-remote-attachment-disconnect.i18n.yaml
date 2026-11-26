@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-26-remote-attachment-disconnect.md
+2026-11-26-remote-attachment-disconnect.md: f3b484de6b803bc2369a99fb9e892e4bf8b9121f
+2026-11-26-remote-attachment-disconnect.zh.md: 2758b8e23eac02dbe4b8978d0d1a766be8991bc8
