@@ -934,7 +934,7 @@ it('routes parented SDK partial messages without agent_id to the known child acr
       uuid: randomUUID(),
       session_id: test.sessionId,
       compact_metadata: { trigger: 'manual', pre_tokens: 1 }
-    } as SDKMessage)
+    })
     const answer = '<analysis>Literal child example</analysis> Required output'
     partial({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: answer } })
     partial({ type: 'content_block_stop', index: 0 })
