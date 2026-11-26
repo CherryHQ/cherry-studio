@@ -6,7 +6,7 @@ Status: proposed
 
 ## 问题
 
-用户在 Cherry Studio 之外使用 Claude Code、Codex、OpenCode 和 WorkBuddy，积累了会话历史。用户需要查看这些历史，并在原工作目录中继续任务。
+用户在 Cherry Studio 之外使用 Claude Code、Codex、OpenCode、WorkBuddy 和 DeepSeek Harness（DSH），积累了会话历史。用户需要查看这些历史，并在原工作目录中继续任务。
 
 [Issue #22728](https://github.com/CherryHQ/cherry-studio/issues/22728) 描述了这一来源导入能力。用户选择已有智能体作为导入目标。每段原会话保存为独立的智能体会话，工作目录也按会话绑定。预览和目录映射与 [#19002](https://github.com/CherryHQ/cherry-studio/issues/19002) 存在交集；本方案不恢复外部工具的权限、待执行动作或文件快照。
 
@@ -28,6 +28,7 @@ Status: proposed
 | Codex | 用户选择的已有智能体 | 每个选中的原会话创建一个智能体会话 |
 | OpenCode | 用户选择的已有智能体 | 每个选中的原会话创建一个智能体会话 |
 | WorkBuddy | 用户选择的已有智能体 | 每个选中的原会话创建一个智能体会话 |
+| DSH | 用户选择的已有 Pi Durable 智能体 | 每个选中的原会话创建一个智能体会话 |
 
 每批导入都要求用户选择一个已有智能体。选中的原会话分别创建独立会话，统一归入该智能体。不同来源可以选择同一个目标智能体。使用智能体的稳定 ID，不按名称或来源名称匹配。导入器不创建智能体，不修改其名称、指令、模型、权限或其他配置。
 
@@ -62,7 +63,7 @@ Status: proposed
 | [AgentWorkspaceService](../../../../src/main/data/services/AgentWorkspaceService.ts) | 复用 `findOrCreateByPathTx` 和 `createSystemWorkspaceForSessionTx` |
 | [AgentSessionMessageService](../../../../src/main/data/services/AgentSessionMessageService.ts) | 增加用于历史时间、来源身份和顺序的专用批量导入契约 |
 
-首版保留原时间。消息来源存入 app_state，读取时补到消息模型上。WorkBuddy 使用 `provenance.sourceOrder` 保持导入历史的固定前缀；续聊按 `createdAt, id` 接在后面。分页、定位、编辑与分支边界、导出和 Pi 初始化使用同一顺序。其他来源保留现有排序和时间拒绝规则。已观察的倒退样本不能证明倒退发生频率。
+首版保留原时间。消息来源存入 app_state，读取时补到消息模型上。WorkBuddy 和 DSH 使用 `provenance.sourceOrder` 保持导入历史的固定前缀；续聊按 `createdAt, id` 接在后面。分页、定位、编辑与分支边界、导出和 Pi 初始化使用同一顺序。其他来源保留现有排序和时间拒绝规则。已观察的倒退样本不能证明倒退发生频率。
 
 未来来源时间在预览和提交写入前拒绝。检查全部消息的最大时间，不再只看最后一条。最大时间等于当前毫秒时，在事务外等待并复查。显示、日期筛选和全局搜索使用原时间。预览取最小与最大时间；导入会话活动时间取最大值。
 
@@ -73,7 +74,7 @@ Status: proposed
 每个来源使用一个适配器，由主进程统一编排导入：
 
 ```ts
-type Source = 'claude-code' | 'codex' | 'opencode' | 'workbuddy'
+type Source = 'claude-code' | 'codex' | 'opencode' | 'workbuddy' | 'dsh'
 
 interface HistorySourceAdapter {
   source: Source
@@ -117,6 +118,7 @@ interface NormalizedSession {
 | Codex | 从 `session_index.jsonl` 获取标题，在 `CODEX_HOME` 或 `~/.codex` 的 `sessions`、`archived_sessions` 中发现支持的历史 | 索引不是完整清单；区分消息和事件，只支持已验证的历史布局 |
 | OpenCode | 只读打开选定的 `opencode.db`，在一致读事务中读取会话、消息、内容块和 directory | 探测结构与版本，包含 WAL 中已提交数据；禁止迁移、checkpoint、修改 journal 模式或创建来源侧文件 |
 | WorkBuddy | 将桌面端 `workbuddy.db` 会话索引与 `projects/<project-key>/<session-id>.jsonl` 关联；读取记录中的 cwd | 初步证据来自 Windows 桌面端 5.9.3 及观察到的 2.165.0 运行时；只有云端索引不能导入；顺序问题仍需先解决 |
+| DSH | 只读解压多个连续帧中的 JSONL，使用会话头中的 ID 和工作目录 | 已观察到归档格式 v0、v3、v4，以完整归档验证兼容性 |
 
 Claude Code 提供[会话存储说明](https://code.claude.com/docs/en/agent-sdk/sessions)和 [SDK 会话读取接口](https://code.claude.com/docs/en/agent-sdk/typescript#getsessionmessages)。每条原始记录都归类为消息、元数据、已知非消息事件，或有明确诊断的不支持与损坏记录。
 
@@ -217,9 +219,19 @@ WorkBuddy 导入需同时支持 Windows、macOS 和 Linux。逐项记录已测�
 
 按观察到的数据库结构和受支持记录类型建立合成夹具。覆盖缺少正文、只有云索引、索引与正文变化、重复 ID、仿冒包装、工具错误、中断历史、自动工作目录和五处时间倒退。附件、分支和子历史的未支持范围单独声明。实现后再验证现有 Pi 续聊和渲染路径；本轮研究没有执行这些产品检查。
 
+### DeepSeek Harness 本地归档
+
+设计读取器时检查的 Windows 样本包含 8 个归档，对应 5 个会话 ID。其中 3 个 ID 有对话事件，另外 2 个只有设置或生命周期记录。同一 ID 下可同时出现三种已观察到的归档格式：v0（`session.jsonl.zstd`）、v3 和 v4（`session.v3.jsonl.zstd` 和 `session.v4.jsonl.zstd`）。每个归档以会话头开头，包含多个 Zstandard 压缩帧。支持连续帧的解码器从这些副本中共读出 1,827 条 JSONL 记录。本机 Node 24.14.0 的 `createZstdDecompress()` 在每个样本中只读到会话头。打包运行时须用多帧对照样本核对最后一条事件。
+
+默认复用已有路径 `external.deepseek_harness.config`（通常为 `~/.dsh`），也允许手选根目录。扫描根目录下的 `sessions/<project>/<session>/`。派生缓存 `storages/session_projcache` 缺失时仍读取归档。以会话头中的 ID 和 `cwd` 确定身份和工作目录。按会话 ID 归集副本，按来源顺序比较转换后的可见历史，包括工具结果和继承的上下文。一份完整且受支持的副本覆盖其余副本时，只选这一份。不同副本的历史有分歧时，对该会话提示冲突。仅凭文件名的版本号无法确定哪一份历史完整。
+
+标题优先取 `session/title`，缺失时沿用共用回退规则。保留 `user/message` 中真实的用户内容和完整的 `assistant/message`，包括可读思考。最终消息缺失时保留能还原的流式片段。根据来源 ID 和轮次、步骤边界，把片段归入对应消息，把 `tool/result` 归入对应的 `tool/call`。同一任务的回答和静态工具记录归为一组，附件保留引用。带有 `parentSession` 的派生会话按 `session/end-seed` 边界和事件引用，只保留一次在该会话里可见的继承内容。排除父会话或同级会话中无关的事件。请求快照、权限设置和标题生成请求归为运行元数据。
+
+连续解码直到归档结尾。对压缩输入、解压后的 JSONL 和转换结果分别应用共用上限，读取中可取消。未知记录中可读的对话内容降级为带标记的历史文本，分别统计跳过和降级的记录。归档截断或身份冲突时，只阻止该会话，不占用其来源 ID。提交前重新校验参与选择的副本，归档变化后重新预览。同批其他有效会话可提交，修复来源后可重试。DSH 设置入口复用共用导入窗口，目标为已有 Pi Durable 智能体。DeepSeek 账号导出的 ZIP 继续使用独立入口。
+
 ### 过滤非对话会话
 
-在显示导入候选前，过滤已确认的内部审查和纯设置会话。这是来源会话的导入资格规则，与导入后隐藏开头上下文分开处理。首批范围为 Codex Guardian review，以及没有真实用户任务的 Claude Code 历史。保留已有导入会话和来源文件。
+在显示导入候选前，过滤已确认的内部审查和纯设置会话。这是来源会话的导入资格规则，与导入后隐藏开头上下文分开处理。首批范围为 Codex Guardian review、没有真实用户任务的 Claude Code 历史，以及只有已知设置或生命周期事件的 DSH 历史。保留已有导入会话和来源文件。
 
 分类分为三种：保留候选、附带原因的排除、待判断。待判断会话保留在列表中，继续使用现有校验提示。缺少元数据、未知版本、坏记录、父链不完整或读取超限，都不能证明会话没有用户任务。不能按标题、消息数量、正文长度或工具占比过滤。
 
@@ -227,6 +239,7 @@ WorkBuddy 导入需同时支持 Windows、macOS 和 Linux。逐项记录已测�
 |---|---|---|
 | Codex Guardian review | 校验后的 `session_meta.payload.source.subagent.other` 等于 `guardian` | 按 `codex_guardian_review` 排除；改名或包含合成的用户角色消息也不改变结果 |
 | Claude Code 纯设置历史 | 完整读取且结构已识别；所有可还原分支都没有真实用户任务，全部用户角色记录均已分类 | 按 `claude_no_user_task` 排除 |
+| DSH 纯设置归档 | 完整解码，并核对同一 ID 的副本，确认只有设置或生命周期事件 | 过滤该会话，计入来源排除数量 |
 | 证据不确定或混合 | 只有标题匹配、内容未识别、物理副本冲突或分支未确定 | 保留候选并正常校验，不能猜测排除 |
 
 Codex 标题中的“Guardian review”不足以证明内部审查。普通同名对话和普通 `thread_spawn` 子代理仍保留。先按来源 ID 汇集物理文件，再判断是否过滤。副本的来源类型不一致时，保留冲突提示，不能丢掉一个副本让另一个显得有效。仅对已验证的元数据布局应用规则。本地只读核对的 86 个 rollout 文件中，有 39 个带 Guardian 标识，版本均为 `0.164.0-alpha.11.1`。该证据只覆盖此布局，不代表所有 Codex 版本。
@@ -337,7 +350,7 @@ interface MessageProvenance {
 
 数据改动归属上文中的智能体会话、消息和工作目录服务；智能体服务负责目标校验。同步扩展会话 schema 和消息来源类型。原生历史初始化归属运行时主入口及所选运行时适配器。路径注册、模块管理的状态、备份兼容和提交后通知随所属改动交付。
 
-本中英文方案是底层文档 PR。当前方案版本获得明确人工 Approval 后，通过 gh-stack 顺序实现四个来源：
+本中英文方案是底层文档 PR。最新方案获得明确人工批准后，按以下 gh-stack 顺序实施，DSH 位于现有四层之上。
 
 ```text
 main
@@ -346,6 +359,7 @@ main
   <- codex/local-history-import/codex
   <- codex/local-history-import/opencode
   <- codex/local-history-import/workbuddy
+  <- codex/local-history-import/dsh
 ```
 
 | 层 | 来源 | 完整功能范围 | 回归范围 |
@@ -353,9 +367,10 @@ main
 | 1 | Claude Code | 共用界面与契约、目标智能体选择、目录规则、app_state 存储、原子写入、受支持目标运行时的历史初始化和 Claude 读取器 | 完整导入与续聊，确认前零写入，无重复 |
 | 2 | Codex | 索引与历史版本、事件去重、线程身份和 cwd | Codex 及受影响的 Claude 行为 |
 | 3 | OpenCode | 结构探测、一致只读数据库读取、顺序和 directory | OpenCode 及受影响的前序来源 |
-| 4 | WorkBuddy | 已验证的桌面索引与正文关联、记录和目录映射，并先解决顺序问题 | WorkBuddy 与完整四来源契约 |
+| 4 | WorkBuddy | 已验证的桌面索引与正文关联、记录和目录映射，并先解决顺序问题 | WorkBuddy 及受影响的前序来源 |
+| 5 | DSH | 连续帧解码、同 ID 副本选择、消息和派生上下文转换 | DSH 实际归档、共用流程和 Pi Durable 首次续聊 |
 
-通用基础随第一层交付，不另加第五个实现层。保留方案 PR #23406 和草稿实现 PR #23441、#23442、#23443、#23626。先更新方案，再在 #23441 修改共享存储，各来源回所属层适配。通过 gh-stack 向上重基并更新 PR 描述。不关闭重建，也不增加栈顶撤销层。2026-11-06 本次请求只更新文档，代码另行实施。
+共用基础归属第一层。先更新文档 PR #23406，再同步草稿实现 PR #23441、#23442、#23443、#23626。DSH 实现以同步后的 WorkBuddy 分支为父分支，另开草稿 PR。
 
 每个实现 PR 以紧邻下层分支为目标，并将已验证的 AC ID 关联到本方案。共享底层改动回到其所属层，再向上 rebase 并运行受影响验证。方案实质变化需重新获得 Approval。使用 `gh stack view --json` 检查层级。累计证据覆盖全部 AC 前，文档保持 proposed；最后一层再转为 implemented。
 
@@ -386,7 +401,7 @@ main
 - AC6 — 目录缺失、不可访问或属于其他平台时，要求映射或跳过，不能静默降级。只有映射能使会话可导入时才提供该操作；不可恢复的失败不显示无效的目录选择。（验证：unit, renderer and Electron directory fixtures）
 - AC7 — 已有导入身份阻止重复或并发导入，跨目标智能体和已归档状态同样适用。来源路径或版本变化仍提示已导入。永久删除后释放身份。智能体名称不影响归属。（验证：unit concurrency, archive/restore, deletion, and changed-copy fixtures）
 - AC8 — 空输入、取消预览、全部重复和事务失败时，不遗留空会话或工作目录，不新建或改写智能体配置。（验证：unit state and source-directory comparisons）
-- AC9 — 保留原时间，来源顺序存入 app_state。WorkBuddy 历史排在原生续聊之前；其他来源保留时间排序规则。持久化、分页、定位、分支、导出和重开顺序一致，不新增表、列或索引。预览和提交按全部消息最大时间拒绝未来记录。（验证：controlled-time adapter and database fixtures, renderer paging/reload）
+- AC9 — 保留原时间，来源顺序存入 app_state。WorkBuddy 和 DSH 历史排在原生续聊之前；其他来源保留时间排序规则。持久化、分页、定位、分支、导出和重开顺序一致，不新增表、列或索引。预览和提交按全部消息最大时间拒绝未来记录。（验证：controlled-time adapter and database fixtures, renderer paging/reload）
 - AC10 — 坏 JSON 和未知记录有可定位的原因，其余可还原消息仍可导入。独立错误弹窗按会话展示失败。确认无法导入的会话只显示不可恢复的原因，不提供无关的分支、目录选择或重试；没有可恢复的选择时，只提供“关闭”。（验证：unit mixed-record fixtures, renderer error/recovery cases and Electron）
 - AC11 — 失败会话完整回滚，同批有效会话仍保存。只重试未成功且可恢复的选择，不复制成功项。取消时保留已提交会话，且不启动后续会话。（验证：unit fault injection/cancellation and renderer mixed-batch retry）
 - AC12 — 首次导入时，来源或目录变化、目标更换或删除、运行时不兼容、预览过期都要求重新选择或预览。拒绝其他窗口的令牌和替换的目标 ID。已导入身份跳过内容版本比较。（验证：unit and renderer boundary checks）
@@ -397,8 +412,8 @@ main
 - AC17 — 首次续聊使用目标智能体配置，模型输入中导入历史位于新用户消息之前，包含已接受的时钟偏差场景；导入前说明不支持的目标运行时，初始化失败可重试且不重复历史。（验证：unit captured model input with controlled time, target-runtime compatibility, and recovery faults）
 - AC18 — 保留原生搜索、编辑、单条删除、分支、回收和恢复。分支按新 ID 复制消息来源，不复制会话导入身份。编辑保留仍存在消息的来源；消息、尾部、会话或智能体删除在事务内清理关联状态。初始化重试不能恢复已删内容。（验证：unit existing data-service integration, native edit/fork and initialization-retry fixtures）
 - AC19 — 最终导入实现不引入结构迁移。现有完整及精简备份保留必要的 app_state 记录、消息、归属和工作目录。缺少原生历史时可靠重建或明确阻止续聊。旧草稿 profile 保持原样，不承诺其备份直接转换。（验证：schema-diff check, populated-database import and backup/restore fixtures）
-- AC20 — 所有已启用来源均满足 Windows、macOS 和 Linux 的路径映射和只读访问要求，区分模拟与实机证据。WorkBuddy 按声明的系统或发行版、架构和来源版本组合，同时交付三平台支持。各平台验证来源发现、SQLite/WAL 只读访问、打包原生模块加载、导入和重开、Pi 续聊。合成测试不能替代实机证据；任一平台未验证时，该来源仍未完成。（验证：unit platform cases, real source-layout checks, and platform-native packaged Electron）
-- AC21 — 方案之后按 Claude Code、Codex、OpenCode、WorkBuddy 顺序形成四个 gh-stack 实现层，各层差异范围明确。（验证：docs gate and gh stack topology/diff inspection）
+- AC20 — 所有已启用来源均满足 Windows、macOS 和 Linux 的路径映射和只读访问要求，区分模拟与实机证据。WorkBuddy 按声明的系统或发行版、架构和来源版本组合，同时交付三平台支持。各平台验证来源发现、SQLite/WAL 只读访问、打包原生模块加载、导入和重开、Pi 续聊。合成测试不能替代实机证据；任一平台未验证时，该来源仍未完成。DSH 正式入口也须在声明支持的三平台组合通过实机验证，覆盖打包后读取连续压缩帧、导入、重开与首次 Pi Durable 续聊。（验证：unit platform cases, real source-layout checks, and platform-native packaged Electron）
+- AC21 — 方案之后按 Claude Code、Codex、OpenCode、WorkBuddy、DSH 顺序形成五个 gh-stack 实现层，各层差异范围明确。（验证：docs gate and gh stack topology/diff inspection）
 - AC22 — 导入的助手消息显示当前目标智能体的名称和头像，旧导入记录和智能体改名后也适用，同时保留来源模型。不把来源会话标题当作作者；Cherry 普通消息的作者快照不变。（验证：renderer author/provenance/capture cases and Electron）
 - AC23 — 加载到真正的历史开头并找到首条真实用户消息后，仅隐藏此前导入的准备记录。部分页面、后续记录、存储历史和续聊上下文保持完整。图片导出使用相同规则。（验证：renderer paging/projection/capture cases and Electron）
 - AC24 — 带有已验证 Guardian 来源标识的 Codex 会话在候选显示前被排除，旧选择也不能绕过过滤。改名不改变分类；只有标题匹配的对话、普通子代理和存在冲突的副本不被静默排除。（验证：versioned adapter fixtures and coordinator revalidation）
@@ -408,6 +423,10 @@ main
 - AC28 — WorkBuddy 保留用户与助手正文、可读引用、来源思考、静态工具调用与结果顺序，以及中断和错误状态。字面标签、重复展示副本、元数据和快照不能删掉用户正文、生成重复消息或触发可执行动作。（验证：adapter normalization, renderer projection, and Pi captured-input fixtures）
 - AC29 — 选中的 WorkBuddy 索引行和聊天文件共同参与预览指纹。相关变化使预览失效，无关行变化不影响。来源不被修改，已提交 WAL 数据可读，取消和超限不产生半个导入会话。（验证：read-only SQLite/file fixtures and coordinator state checks）
 - AC30 — WorkBuddy 在来源链有效时接受已观察的工具时间倒退，不改原时间。共用读取、分页、分支、导出和 Pi 续聊通过消息读取模型使用 app_state 中的顺序。新导入缺失祖先或链路不明确时阻止写入。平台证据仍是独立启用条件。（验证：ordering fixtures, renderer, Pi captured history, and Electron）
+- AC31 — 无论项目缓存是否存在，均按会话头 ID 归集受支持的 DSH 归档。同一会话的迁移副本只产生一个候选。只过滤已确认的纯设置历史。无法解释的副本差异保留为该会话的诊断。（验证：版本化发现夹具和真实归档清点）
+- AC32 — DSH 按来源顺序保留可读正文、思考、工具调用及结果。完整消息和对应流式片段只展示一份。派生会话内可见的继承内容也只展示一次。运行记录不转为用户任务。（验证：适配器夹具和消息分页回读）
+- AC33 — 多帧 DSH 夹具的最后一条事件能导入。混有未知记录时保留可读历史，并准确报告降级或跳过。归档截断、副本变化或身份冲突不会写入半个会话。修复后可重试，同批已提交会话保持一份。（验证：多帧读取、预览复核和事务重试夹具）
+- AC34 — 导入的 DSH 会话可在所选 Pi Durable 智能体下重开，保留标题、映射后的工作目录、可用的原时间和分页顺序。首次续聊的输入含此前问答及工具结果，历史工具不执行。（验证：在隔离的 Electron 实例中导入真实工具对话和派生会话，重开分页并捕获首次模型输入）
 
 数据库用例使用 `setupTestDatabase()`，每层按明确路径运行受影响测试。平台模拟不能替代实机验证。这些标准是未来产品验收要求，不是本文档 PR 已完成的验证证据。
 
@@ -416,7 +435,7 @@ main
 | 风险或未定选择 | 处理要求 |
 |---|---|
 | 目标运行时兼容性 | 使用所选智能体的运行时，完成并验证历史初始化后才允许选择，不静默修改智能体配置 |
-| 时间回拨或来源时钟超前 | WorkBuddy 保留来源顺序；其他来源保留倒退拒绝。提交前拒绝未来时间 |
+| 时间回拨或来源时钟超前 | WorkBuddy 和 DSH 保留来源顺序；其他来源保留倒退拒绝。提交前拒绝未来时间 |
 | 目录缺失 | 写消息前解决，因为现有带消息会话不能更换工作目录 |
 | 原生文件与数据库一致性 | 使用持久初始化标记、稳定原生身份、验证后的输出和重试恢复 |
 | WorkBuddy 与上游变化 | 已有初步 Windows 桌面证据；启用前补齐合成边界夹具和平台证据 |
@@ -427,6 +446,6 @@ main
 | 大输入 | 开放导入前通过夹具确定单行、会话和批次上限 |
 | app_state 保存必要来源信息 | 由一个模块管理，保留备份并在事务中清理。检查查询计划，避免逐消息查询 |
 | 备份恢复 | 现有完整及精简备份保留来源身份；不新增合并能力 |
-| 与 #19002 的交集 | 在合适位置复用预览和目录映射能力，保持四来源实现顺序 |
+| 与 #19002 的交集 | 在合适位置复用预览和目录映射能力，保持五来源实现顺序 |
 
 首版固定为 Pi 目标、保留原时间、静态工具和现有备份恢复。会话身份与消息来源顺序移到 app_state。重导入跳过活动与归档副本；永久删除后允许重导入。保留原生编辑、删除和分支。增量同步另行设计。本修订更新原方案和堆叠，不替换 PR。Spec 保持 proposed；平台证据补齐前，WorkBuddy 正式入口保持禁用；#22728 保持未完成。
