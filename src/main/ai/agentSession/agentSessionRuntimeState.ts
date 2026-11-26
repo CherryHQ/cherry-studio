@@ -1,6 +1,5 @@
-import type { UIMessageChunk } from 'ai'
-
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import type { AgentControlChunk } from '@main/ai/runtime/types'
 
 import type { AgentRuntimeConnection } from '../runtime/types'
 
@@ -60,7 +59,7 @@ export interface AgentSessionRuntimeReply<TTurn> {
   turn: TTurn
   delivery: AgentSessionReplyDelivery
   admission: AgentSessionRuntimeAdmissionPhase
-  buffer: UIMessageChunk[]
+  buffer: AgentControlChunk[]
   terminal?: AgentSessionTerminalOutcome
   pendingResultToolCallIds: readonly string[] | undefined
   deliveryFailure?: { error: unknown }
@@ -105,7 +104,7 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn> =
     }
   | { type: 'reply-delivery-failed'; turn: TTurn; error: unknown }
   | { type: 'retry-reply'; turn: TTurn }
-  | { type: 'buffer-chunk'; turn: TTurn; chunk: UIMessageChunk }
+  | { type: 'buffer-chunk'; turn: TTurn; chunk: AgentControlChunk }
   | { type: 'reply-results'; turn: TTurn; toolCallIds: readonly string[] | undefined }
   | { type: 'runtime-terminal'; turn: TTurn; outcome: AgentSessionTerminalOutcome }
   | { type: 'turn-terminal'; turn: TTurn; status: AgentSessionTerminalStatus }
@@ -130,7 +129,7 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn> =
 export type AgentSessionRuntimeStateEffect<TTurn> =
   | { type: 'schedule-launch'; target: AgentSessionRuntimeLaunchTarget<TTurn> }
   | { type: 'suspend-turn'; turn: TTurn }
-  | { type: 'deliver-buffer'; turn: TTurn; chunks: UIMessageChunk[] }
+  | { type: 'deliver-buffer'; turn: TTurn; chunks: AgentControlChunk[] }
   | { type: 'settle-turn'; turn: TTurn; outcome: AgentSessionTerminalOutcome }
   | { type: 'report-delivery-failure'; turn: TTurn; error: unknown }
   | { type: 'release-background-waiter'; connection?: AgentRuntimeConnection }

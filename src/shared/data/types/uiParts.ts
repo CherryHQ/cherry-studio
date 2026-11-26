@@ -296,6 +296,7 @@ const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
   description: z.string().optional(),
   index: z.number(),
   textOffset: z.number(),
+  sourceMessageId: z.string().optional(),
   promptText: z.string().optional(),
   payload: ComposerMessageFileTokenPayloadSchema.optional()
 })
@@ -498,6 +499,7 @@ export interface ComposerMessageToken {
   description?: string
   index: number
   textOffset: number
+  sourceMessageId?: string
   promptText?: string
   payload?: ComposerMessageTokenPayload
 }

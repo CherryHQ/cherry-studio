@@ -9,6 +9,7 @@ import type { StreamListener } from '../../types'
 import type { MainDispatchRequest } from '../dispatch'
 
 const mocks = vi.hoisted(() => ({
+  broadcast: vi.fn(),
   getSession: vi.fn(),
   ensureTraceIdTx: vi.fn(),
   getAgent: vi.fn(),
@@ -30,8 +31,7 @@ const mocks = vi.hoisted(() => ({
   runtimeValidateSession: vi.fn(),
   setEditRuntimeTx: vi.fn(),
   reserveDurableBranchTx: vi.fn(),
-  getModelNames: vi.fn(() => new Map<string, string>()),
-  notifyDataApiDataChange: vi.fn()
+  getModelNames: vi.fn(() => new Map<string, string>())
 }))
 
 vi.mock('../../../runtime/claudeCode/claudeContext', () => ({ reserveClaudeBranchTx: vi.fn() }))
@@ -70,10 +70,6 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     hasSessionMessages: mocks.hasSessionMessages,
     setEditRuntimeTx: mocks.setEditRuntimeTx
   }
-}))
-
-vi.mock('@data/dataApiDataChange', () => ({
-  notifyDataApiDataChange: mocks.notifyDataApiDataChange
 }))
 
 vi.mock('@main/services/TopicNamingService', () => ({
@@ -173,6 +169,7 @@ describe('AgentChatContextProvider', () => {
     mocks.getAgentSessionHead.mockReturnValue('branch-head')
     mocks.branchTip.mockImplementation((_sessionId, messageId) => messageId)
     mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'WindowManager') return { broadcast: mocks.broadcast }
       if (name === 'AgentSessionRuntimeService') {
         return {
           prepareBranch: async () => {},
@@ -195,7 +192,7 @@ describe('AgentChatContextProvider', () => {
     mocks.runtimeIsSessionBusy.mockReturnValue(false)
     storedEditParts = []
     mocks.runtimeEditSession.mockImplementation(async (_sessionId, _target, fn) =>
-      fn({}, 'native-session-1', undefined, storedEditParts)
+      fn({}, 'native-session-1', undefined, undefined, storedEditParts)
     )
     // clearAllMocks preserves return values: re-seed the name map so override
     // tests can't leak state into later cases.
@@ -265,6 +262,12 @@ describe('AgentChatContextProvider', () => {
       expect.objectContaining({ id: 'session-1', workspace: { path: '/tmp' } }),
       { headless: false }
     )
+    expect(mocks.broadcast.mock.calls.flatMap(([, effects]) => effects)).toContainEqual({
+      endpoint: '/agent-sessions/:sessionId/messages',
+      kind: 'membership',
+      routeParams: { sessionId: 'session-1' },
+      entityIds: prepared.reservedMessages!.map(({ id }) => id)
+    })
     expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(provider.isPersistentConversation).toBe(true)
@@ -559,7 +562,7 @@ describe('AgentChatContextProvider', () => {
         updatedAt: '2026-01-01T00:00:00.000Z'
       })
       mocks.runtimeEditSession.mockImplementation(async (_sessionId, _target, fn) =>
-        fn({}, 'native-session', nativeContextId, [])
+        fn({}, 'native-session', nativeContextId, undefined, [])
       )
       await provider.prepareDispatch(makeSubscriber(), {
         ...openReq({ userMessageParts: [{ type: 'text', text: 'edited' }] }),

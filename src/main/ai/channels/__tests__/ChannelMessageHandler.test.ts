@@ -5,7 +5,6 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
@@ -14,10 +13,10 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
+import type { StreamListener } from '@main/ai/streamManager'
 import { BaseService } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { FileManager } from '@main/services/file'
-import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -53,12 +52,16 @@ vi.mock('../security/OutputSanitizer', () => ({
   sanitizeChannelOutputSilently: vi.fn((text: string) => ({ text, redactedPatterns: [] }))
 }))
 
-// The global mock (tests/main.setup.ts) wires the default service set, which omits
-// AiStreamManager; the abort path reads it, so override locally with a captured spy.
-const { mockStreamAbort } = vi.hoisted(() => ({ mockStreamAbort: vi.fn() }))
+const { mockStreamAbort, listSessionCommands } = vi.hoisted(() => ({
+  mockStreamAbort: vi.fn(),
+  listSessionCommands: vi.fn()
+}))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({ AiStreamManager: { abort: mockStreamAbort } } as never)
+  return mockApplicationFactory({
+    AiStreamManager: { abort: mockStreamAbort },
+    AgentSessionRuntimeService: { listSessionCommands }
+  } as never)
 })
 
 vi.mock('@data/services/AgentService', () => ({
@@ -130,11 +133,7 @@ function simulateStream(parts: Array<{ type: string; delta?: string }>) {
       onPersist
     }: {
       onPersist?: () => void
-      listeners: Array<{
-        id: string
-        onMessage?: (message: CherryUIMessage) => void
-        onDone: (result: { status: string; finalMessage: CherryUIMessage }) => void | Promise<void>
-      }>
+      listeners: Pick<StreamListener, 'content' | 'onDone'>[]
     }) => {
       onPersist?.()
       for (const listener of listeners) {
@@ -145,7 +144,7 @@ function simulateStream(parts: Array<{ type: string; delta?: string }>) {
             part.type === 'text-delta' ? [{ type: 'text' as const, text: part.delta ?? '' }] : []
           )
         }
-        listener.onMessage?.(finalMessage)
+        listener.content?.snapshot(finalMessage, 'messages')
         await listener.onDone({ status: 'success', finalMessage })
       }
       return { mode: 'started' }
@@ -768,27 +767,24 @@ describe('ChannelMessageHandler', () => {
     vi.mocked(agentService.getAgent).mockResolvedValueOnce({ name: 'TestAgent', description: '' } as any)
     persistedChannelSessions.bindings.set('channel-1:chat-merge', 'session-xyz')
     persistedChannelSessions.sessions.set('session-xyz', { id: 'session-xyz', agentId: 'agent-1' })
-    MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-xyz'), [
+    listSessionCommands.mockResolvedValueOnce([
       { name: 'deploy', description: 'Deploy the app', argumentHint: '' },
       // Collides with the control command — control description must win, session dup dropped.
       { name: 'compact', description: 'session dup', argumentHint: '' }
     ])
 
-    try {
-      await channelMessageHandler.handleCommand(adapter, {
-        chatId: 'chat-merge',
-        userId: 'user-1',
-        userName: 'User',
-        command: 'help'
-      })
+    await channelMessageHandler.handleCommand(adapter, {
+      chatId: 'chat-merge',
+      userId: 'user-1',
+      userName: 'User',
+      command: 'help'
+    })
 
-      const helpText = adapter.sendMessage.mock.calls[0][1] as string
-      expect(helpText).toContain('/deploy - Deploy the app')
+    const helpText = adapter.sendMessage.mock.calls[0][1] as string
+    expect(helpText).toContain('/deploy - Deploy the app')
 
-      expect(helpText).not.toContain('session dup')
-    } finally {
-      MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-xyz'), null)
-    }
+    expect(helpText).not.toContain('session dup')
+    expect(listSessionCommands).toHaveBeenCalledWith('session-xyz')
   })
 
   it('handleCommand /help ignores a channel session that belongs to another agent', async () => {
@@ -796,24 +792,21 @@ describe('ChannelMessageHandler', () => {
     vi.mocked(agentService.getAgent).mockResolvedValueOnce({ name: 'TestAgent', description: '' } as any)
     persistedChannelSessions.bindings.set('channel-1:chat-stale', 'stale-session')
     persistedChannelSessions.sessions.set('stale-session', { id: 'stale-session', agentId: 'other-agent' })
-    MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('stale-session'), [
+    listSessionCommands.mockResolvedValue([
       { name: 'leak', description: 'commands from the wrong agent', argumentHint: '' }
     ])
 
-    try {
-      await channelMessageHandler.handleCommand(adapter, {
-        chatId: 'chat-stale',
-        userId: 'user-1',
-        userName: 'User',
-        command: 'help'
-      })
+    await channelMessageHandler.handleCommand(adapter, {
+      chatId: 'chat-stale',
+      userId: 'user-1',
+      userName: 'User',
+      command: 'help'
+    })
 
-      const helpText = adapter.sendMessage.mock.calls[0][1] as string
-      expect(helpText).not.toContain('/leak')
-      // Control commands are still listed — only the foreign session catalog is withheld.
-    } finally {
-      MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('stale-session'), null)
-    }
+    const helpText = adapter.sendMessage.mock.calls[0][1] as string
+    expect(helpText).not.toContain('/leak')
+    // Control commands are still listed — only the foreign session catalog is withheld.
+    expect(listSessionCommands).not.toHaveBeenCalled()
   })
 
   it('handleCommand /whoami sends the current chat ID', async () => {

@@ -4,13 +4,13 @@ import { lstat, mkdir, rm } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
-import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessage'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService } from '@data/services/AgentSessionContextService'
 import { AgentSessionEditError } from '@data/services/AgentSessionEditError'
 import { AgentSessionForkSourceError, agentSessionForkService } from '@data/services/AgentSessionForkService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { type AgentSessionMessageRecord, getAgentSessionHead } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { getRetiredAgentSessionMigration } from '@data/services/retiredAgentRuntimeMigration'
@@ -83,6 +83,7 @@ export class AgentSessionForkOperations {
       tx: DbOrTx,
       nativeSessionId: string,
       nativeContextId: string | undefined,
+      sourceBackendId: string | undefined,
       storedUserParts: CherryMessagePart[]
     ) => T
   ): Promise<T> {
@@ -106,6 +107,7 @@ export class AgentSessionForkOperations {
       tx: DbOrTx,
       nativeSessionId: string,
       nativeContextId: string | undefined,
+      sourceBackendId: string | undefined,
       storedUserParts: CherryMessagePart[]
     ) => T
   ): Promise<T> {
@@ -118,7 +120,15 @@ export class AgentSessionForkOperations {
     const agent = source.session.agentId ? agentService.getAgent(source.session.agentId) : undefined
     const driver = agent ? runtimeDriverRegistry.getAgentSessionDriver(agent.type) : undefined
     const facts = agentSessionForkService.readHistoryBoundaries(sessionId, [target.messageId])[0]
-    const editFailure = facts ? getEditFailure(driver, facts, facts.parent) : 'invalid_target'
+    const editFailure = facts
+      ? getEditFailure(
+          driver?.fork && driver.isForkCheckpoint
+            ? { type: driver.type, isForkCheckpoint: driver.isForkCheckpoint.bind(driver) }
+            : undefined,
+          facts,
+          facts.parent
+        )
+      : 'invalid_target'
     if (editFailure) throw new AgentSessionEditError(editFailure)
     // oxlint-disable-next-line no-restricted-globals -- Fork once: detach the selected prefix before rewriting IDs and metadata.
     const prefix = structuredClone(source.prefix)
@@ -181,8 +191,13 @@ export class AgentSessionForkOperations {
           JSON.stringify(bindings)
         )
           throw new AgentSessionEditError('history_changed')
+        // The first Claude binding can be anchored to the reply being deleted below.
+        const sourceHead = agent?.type === 'claude-code' && prefix.length === 0 && getAgentSessionHead(tx, sessionId)
+        const sourceBackendId = sourceHead
+          ? agentSessionContextService.branchTx(tx, sessionId, sourceHead)?.backendId
+          : undefined
         const storedUserParts = agentSessionMessageService.replaceEditBranchTx(tx, sessionId, target)
-        const result = persist(tx, nativeSessionId, nativeContextId, storedUserParts)
+        const result = persist(tx, nativeSessionId, nativeContextId, sourceBackendId, storedUserParts)
         if (resources) {
           const checkpointMapping = Object.fromEntries(
             prefix.flatMap((row) => {
@@ -488,7 +503,7 @@ export class AgentSessionForkOperations {
 type ForkBinding = ReturnType<typeof agentSessionForkService.readBindingsTx>[number]
 interface NativeHistoryGroup {
   context: ForkBinding
-  rows: AgentSessionMessageRow[]
+  rows: AgentSessionMessageRecord[]
 }
 interface PreparedContext {
   group: NativeHistoryGroup
@@ -496,7 +511,7 @@ interface PreparedContext {
 }
 
 function groupNativeHistory(
-  rows: AgentSessionMessageRow[],
+  rows: AgentSessionMessageRecord[],
   contexts: ForkBinding[],
   driver: AgentSessionRuntimeDriver | undefined
 ): NativeHistoryGroup[] {
@@ -522,7 +537,7 @@ function groupNativeHistory(
   return [...groups.values()]
 }
 
-function remapNativeHistory(rows: AgentSessionMessageRow[], prepared: PreparedContext[]): void {
+function remapNativeHistory(rows: AgentSessionMessageRecord[], prepared: PreparedContext[]): void {
   const checkpoints = new Map<string, RuntimeForkCheckpoint>()
   const tokens = new Map<string | null, string>()
   for (const { group, result } of prepared) {
@@ -544,10 +559,10 @@ function remapNativeHistory(rows: AgentSessionMessageRow[], prepared: PreparedCo
 }
 
 function cloneMessages(
-  rows: readonly AgentSessionMessageRow[],
+  rows: readonly AgentSessionMessageRecord[],
   targetSessionId: string,
   prepared: PreparedContext[]
-): AgentSessionMessageRow[] {
+): AgentSessionMessageRecord[] {
   // Preserve the existing (createdAt, id) order even when several source rows share a timestamp.
   const newIds = rows.map(() => randomUUID()).sort()
   const ids = new Map(rows.map((row, index) => [row.id, newIds[index]]))
