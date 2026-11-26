@@ -44,6 +44,20 @@ function message(sessionId: string, parentUuid: string | null, text: string) {
   }
 }
 
+it('reads only observed messages until native history is explicitly restored', async () => {
+  const { cwd, configDir, id, file } = await transcript()
+  const row = message(id, null, 'Only on disk')
+  await appendFile(file, JSON.stringify(row) + '\n')
+  const runtime = createClaudeCodeRuntime({ backendId: runtimeId('claude'), configDir })
+  cleanups.push(() => runtime.shutdown())
+  const handle = confirmed(await runtime.create({ cwd, sessionId: id }))
+  cleanups.push(() => handle.release())
+
+  expect(confirmed(await handle.claude.archive({ refresh: false })).content).toEqual([])
+  expect(confirmed(await handle.claude.archive()).content.map((item) => item.id)).toEqual([row.uuid])
+  expect(confirmed(await handle.claude.archive({ refresh: false })).content.map((item) => item.id)).toEqual([row.uuid])
+})
+
 it('restores ordered history across byte chunks and isolates archive and observation data', async () => {
   const { cwd, configDir, id, file } = await transcript()
   const expected = createHash('sha256')

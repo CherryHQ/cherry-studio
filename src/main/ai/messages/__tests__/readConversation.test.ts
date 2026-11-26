@@ -132,17 +132,19 @@ describe('readConversation', () => {
       name: 'Agent history',
       workspace: { type: 'user', workspaceId: workspace.id }
     })
-    const [agentMessage] = agentSessionMessageService.saveMessages({
-      sessionId: session.id,
-      messages: [
-        {
-          id: crypto.randomUUID(),
-          role: 'user',
-          data: { parts: [{ type: 'text', text: 'agent message' }] },
-          status: 'success'
-        }
-      ]
-    })
+    const [agentMessage] = dbh.db.transaction((tx) =>
+      agentSessionMessageService.saveMessagesTx(tx, {
+        sessionId: session.id,
+        messages: [
+          {
+            id: crypto.randomUUID(),
+            role: 'user',
+            data: { parts: [{ type: 'text', text: 'agent message' }] },
+            status: 'success'
+          }
+        ]
+      })
+    )
     const agentResult = readConversation({ sessionId: session.id, messageId: agentMessage.id })
     expect(agentResult).toMatchObject({ source: 'agent', message: { id: agentMessage.id, sessionId: session.id } })
 
@@ -297,10 +299,12 @@ describe('readConversation', () => {
         updatedAt: now
       })
       .run()
-    const [message] = agentSessionMessageService.saveMessages({
-      sessionId: session.id,
-      messages: [{ id: crypto.randomUUID(), role: 'assistant', data: persistedToolData(fileId), status: 'success' }]
-    })
+    const [message] = dbh.db.transaction((tx) =>
+      agentSessionMessageService.saveMessagesTx(tx, {
+        sessionId: session.id,
+        messages: [{ id: crypto.randomUUID(), role: 'assistant', data: persistedToolData(fileId), status: 'success' }]
+      })
+    )
     fileManager.read.mockResolvedValue({ content: 'legacy full output' })
 
     await expect(findPersistedToolOutput(`agent-session:${session.id}`, message.id, 'call-1')).resolves.toEqual({
@@ -341,10 +345,12 @@ describe('readConversation', () => {
       name: 'Handoff source',
       workspace: { type: 'user', workspaceId: workspace.id }
     })
-    agentSessionMessageService.saveMessages({
-      sessionId: session.id,
-      messages: [{ role: 'user', data: { parts: [{ type: 'text', text: 'Agent source' }] }, status: 'success' }]
-    })
+    dbh.db.transaction((tx) =>
+      agentSessionMessageService.saveMessagesTx(tx, {
+        sessionId: session.id,
+        messages: [{ role: 'user', data: { parts: [{ type: 'text', text: 'Agent source' }] }, status: 'success' }]
+      })
+    )
     const agentMaterial = readAllConversationMessages({ sessionId: session.id })
     expect(agentMaterial.source).toBe('agent')
     expect(agentMaterial.messages.length).toBe(1)
