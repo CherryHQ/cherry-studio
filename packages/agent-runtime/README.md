@@ -32,13 +32,27 @@ native contract, not application-wide cancellation.
 
 `RuntimeMessage` specializes AI SDK `UIMessage` with native completeness, optional placed-input metadata and
 message-local model-response errors in `metadata.error`.
-`ThreadSnapshot.messages`, `message.upsert`, and `message.remove` expose whole native messages.
-Ordered parts retain text, reasoning, files, and tools; results and preliminary output update the
-originating tool part. Activity, input outcomes, and child relationships remain separate facts.
+`ThreadSnapshot.messages` installs the thread baseline. `message.reconcile` installs or corrects one
+native source, including metadata changes and explicit aliases in `replaces`. `message.remove` removes
+one source by reference. Activity, input outcomes, and child relationships remain separate facts.
+
+`message.parts` carries ordered edits at known native part positions. Text and reasoning use `open`,
+`append`, and `finish`. A `correct` edit replaces the text and state of one known block when the native source revises it.
+`put` carries a changed file or tool part, including replacement of preliminary
+tool output. Adapters can publish proven individual text mutations and output-only updates through the
+dedicated native part events. A new baseline includes the accepted text and tool updates.
+Accepted JSON tool parts and their payloads are deeply frozen and shared across isolated delivery
+containers. Text updates reuse settled payloads without copying or comparing their bodies.
 
 `RuntimeMessageStream` uses the pinned `ai@6.0.185` reader once per streaming native message,
-before observer fanout. Adapters with authoritative snapshots publish message values directly.
+before observer fanout. Adapters receiving cumulative messages extract edits for the affected source.
 The reader is not seeded from a partial snapshot: SDK parser state must come from native deltas.
+
+`ProductInputState` carries the ID from the submitted draft. A raw `InputState` can also
+describe autonomous work with only a native reference. A driver forwards a product input
+change when its source identifies the product ID. Input lookup takes the original thread
+and product ID. Pi and Claude can answer while their owner retains evidence. Pi Durable
+also supports lookup against its stored submissions.
 
 `ThreadFeed` is a protocol utility: one normalized snapshot, ordered per-observer delivery,
 bounded pending frames, explicit overflow gaps, and observer error isolation. It owns no native
@@ -58,6 +72,12 @@ An unrecoverable control backlog closes the observation with a gap instead of in
 `Observation.drain()` joins delivery and callbacks through the facts already published when it is called.
 Seal native production before the final drain and archive flush. `stop()` discards queued delivery; it is not
 a write barrier. Detach and release only after the final flush, and keep backup pauses write-free until resume.
+
+Pi projection facets use `observeProjection`. The feed owns event selection and the facet
+supplies metadata for that revision. Text-only edits can be delivered as individual native operations.
+Mixed edits stay in their original order in one `message.parts` event. The feed validates the addressed
+positions together before notifying observers. A rejected batch leaves the source and its revision intact.
+Explicit snapshot and reconciliation reads materialize the accepted source when needed.
 
 Pi-specific APIs previously in this package live in `@cherrystudio/agent-runtime-pi`. Pi Durable
 has a separate adapter in `@cherrystudio/agent-runtime-pi-durable`; both are wired into the desktop.

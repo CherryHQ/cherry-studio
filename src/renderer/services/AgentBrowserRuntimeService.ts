@@ -2,6 +2,7 @@ import type { WebviewTag } from 'electron'
 
 import { cacheService } from '@renderer/data/CacheService'
 import { getBrowserStartPageUrl, rememberBrowserPageUrl } from '@renderer/services/browserStartPage'
+import { AGENT_SESSION_STREAM_TOPIC_CACHE_KEY } from '@shared/ai/agentSessionStreamTopic'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { classifyTurn } from '@shared/ai/transport'
 import { normalizeBrowserEntryUrl } from '@shared/utils/browserUrl'
@@ -210,13 +211,23 @@ export class AgentBrowserRuntimeService {
   private releaseUnowned(sessionId: string): void {
     if (this.owners.get(sessionId)?.size) return
     if (this.scope === 'agent') {
-      const key = `topic.stream.statuses.${buildAgentSessionTopicId(sessionId)}` as const
+      const routeKey = AGENT_SESSION_STREAM_TOPIC_CACHE_KEY(sessionId)
+      const topicId = cacheService.getShared(routeKey) ?? buildAgentSessionTopicId(sessionId)
+      const key = `topic.stream.statuses.${topicId}` as const
       if (classifyTurn(cacheService.getShared(key)?.status).isTurnActive) {
         if (!this.turnSubscriptions.has(sessionId)) {
-          this.turnSubscriptions.set(
-            sessionId,
-            cacheService.subscribe(key, () => this.releaseUnowned(sessionId))
-          )
+          const update = () => this.releaseUnowned(sessionId)
+          let offStatus = cacheService.subscribe(key, update)
+          const offTopic = cacheService.subscribe(routeKey, () => {
+            offStatus()
+            const selected = cacheService.getShared(routeKey) ?? buildAgentSessionTopicId(sessionId)
+            offStatus = cacheService.subscribe(`topic.stream.statuses.${selected}`, update)
+            update()
+          })
+          this.turnSubscriptions.set(sessionId, () => {
+            offTopic()
+            offStatus()
+          })
         }
         return
       }

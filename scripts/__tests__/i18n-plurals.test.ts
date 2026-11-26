@@ -36,8 +36,14 @@ describe('localeKeySpec', () => {
     expect(spec.sourceKey.get('days_many')).toBe('days_other')
   })
 
-  it('allows but does not require extra forms for locales not yet complete', () => {
+  it('requires every Russian plural form', () => {
     const spec = localeKeySpec(base, 'ru-ru.json')
+    expect(spec.required.has('days_few')).toBe(true)
+    expect(spec.required.has('days_many')).toBe(true)
+  })
+
+  it('allows but does not require extra forms for locales not yet complete', () => {
+    const spec = localeKeySpec(base, 'cs-cz.json')
     expect(spec.required.has('days_few')).toBe(false)
     expect(spec.allowed.has('days_few')).toBe(true)
   })
@@ -72,5 +78,25 @@ describe('Polish renderer catalog', () => {
     expect(i18n.t('settings.data.trash.retention.days', { count: 30 })).toBe('30 dni')
     expect(i18n.t('message.tools.units.file', { count: 3 })).toBe('3 pliki')
     expect(i18n.t('message.tools.units.file', { count: 12 })).toBe('12 plików')
+  })
+})
+
+describe('Russian renderer catalog', () => {
+  it('resolves every plural count to Russian text instead of the English fallback', async () => {
+    const read = (name: string) =>
+      JSON.parse(fs.readFileSync(path.join(__dirname, '../../src/renderer/i18n/locales', name), 'utf-8'))
+    const i18n = createInstance()
+    await i18n.init({
+      lng: 'ru-RU',
+      fallbackLng: 'en-US',
+      keySeparator: false,
+      resources: { 'ru-RU': { translation: read('ru-ru.json') }, 'en-US': { translation: read('en-us.json') } }
+    })
+
+    expect(i18n.t('settings.data.trash.retention.days', { count: 1 })).toBe('1 день')
+    expect(i18n.t('settings.data.trash.retention.days', { count: 3 })).toBe('3 дня')
+    expect(i18n.t('settings.data.trash.retention.days', { count: 30 })).toBe('30 дней')
+    expect(i18n.t('message.tools.units.file', { count: 21 })).toBe('21 файл')
+    expect(i18n.t('message.tools.units.file', { count: 12 })).toBe('12 файлов')
   })
 })

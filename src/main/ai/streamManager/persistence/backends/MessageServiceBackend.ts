@@ -18,7 +18,7 @@ export interface MessageServiceBackendOptions {
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
 }
 
-export class MessageServiceBackend implements PersistenceBackend {
+export class MessageServiceBackend implements PersistenceBackend<'sqlite'> {
   readonly kind = 'sqlite'
   readonly canPersistEmptyTerminal = true
   readonly afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
@@ -27,13 +27,13 @@ export class MessageServiceBackend implements PersistenceBackend {
     this.afterPersist = opts.afterPersist
   }
 
-  async persistAssistant(input: PersistAssistantInput): Promise<void> {
+  async persistAssistant(input: PersistAssistantInput): Promise<{ messageId: string }> {
     const { finalMessage, status, runtimeStats } = input
     // Offload oversized tool outputs BEFORE the synchronous finalize tx (the
     // FileManager write is async); the tx then writes the envelope data and
     // its tool_output file refs together.
     const parts = await trimOversizedToolOutputs(finalMessage?.parts ?? [], this.opts.contextSettingsOverride)
-    messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
+    const saved = messageService.finalizeAssistantMessage(this.opts.assistantMessageId, {
       data: {
         parts,
         ...(this.opts.turnOptions ? { turnOptions: this.opts.turnOptions } : {})
@@ -41,10 +41,11 @@ export class MessageServiceBackend implements PersistenceBackend {
       status,
       runtimeStats
     })
+    return { messageId: saved.id }
   }
 
   /** Best-effort: flip the placeholder to `error` so a failed persist doesn't leave a frozen `pending` row. */
   markTerminalError(): void {
-    messageService.update(this.opts.assistantMessageId, { status: 'error' })
+    messageService.markAssistantMessageTerminalError(this.opts.assistantMessageId)
   }
 }

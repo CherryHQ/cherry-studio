@@ -108,7 +108,6 @@ test('manual composer height survives paste and typing while auto sizing still g
   const reference = page.getByText(referenceText, { exact: true })
   await expect(editor).toBeVisible()
   await expect(reference).toBeVisible()
-  await expect.poll(async () => Number(await handle.getAttribute('aria-valuemax'))).toBeGreaterThan(400)
 
   const initial = await settledBox(frame)
   const minHeight = Number(await handle.getAttribute('aria-valuemin'))

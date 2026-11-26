@@ -101,6 +101,10 @@ const activeNodeId = pages[0]?.activeNodeId ?? null  // top-level metadata, no c
 const items = useInfiniteFlatItems(pages, { reversePages: true })
 ```
 
+If a decision depends on a successful server read, await `refresh({ throwOnError: true })`. A failed revalidation keeps cached pages visible and rejects this call. For a projection change with known message IDs, chat reads each changed row and uses `useWriteInfinitePage` to update its loaded page. Agent history can reuse older pages after verifying an append against the selected branch. Other membership and order changes revalidate the list.
+
+To publish pages assembled from a server response and a cache snapshot, pass the original pages as the second argument to `useWriteInfiniteCache`'s writer. It updates the page entries and their aggregate only when that snapshot is still current and there is no revalidation in flight.
+
 `useInfiniteQuery` rejects offset-paginated paths at compile time — the path
 generic is constrained via `CursorPaginatedPath`. `pages` is reference-stable
 across rerenders when SWR's underlying data is unchanged, so

@@ -13,6 +13,7 @@ export const ERROR_CATEGORIES = [
   'quota',
   'rate_limit',
   'context_length',
+  'prefill_memory',
   'payload',
   'network',
   'proxy',
@@ -220,6 +221,15 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
   // Rate limit (429 / "too many requests")
   if (status === 429 || /rate[_ -]?limit/.test(msg) || msg.includes('too many requests')) {
     return 'rate_limit'
+  }
+
+  // oMLX can reject prefill within the model's context window when the memory budget is exhausted.
+  if (
+    (status === undefined || status === 400) &&
+    (msg.includes('omlx prefill memory guard rejected this prompt:') ||
+      /(?:^|\n|"(?:code|omlx_code)"\s*:\s*")prefill_memory_exceeded(?=\n|$|")/.test(msg))
+  ) {
+    return 'prefill_memory'
   }
 
   // Context length exceeded

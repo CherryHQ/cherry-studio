@@ -16,7 +16,7 @@ const LOCATE_SUBSCRIBER_WAIT_FRAMES = 120
  * Without a runtime the event is emitted immediately for non-virtualized hosts.
  */
 export function dispatchLocateMessage(
-  runtime: MessageListRuntime | null,
+  runtime: Pick<MessageListRuntime, 'locateMessage'> | null,
   messageId: string,
   highlight?: boolean
 ): void {
