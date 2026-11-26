@@ -1,6 +1,5 @@
 const { execFileSync } = require('node:child_process')
 const fs = require('node:fs')
-const path = require('node:path')
 
 const CREATE_COMMIT_MUTATION =
   'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url}}}'
@@ -24,7 +23,10 @@ function buildRegistrySyncRequest({
 }) {
   const additions = additionPaths.map((filePath) => ({
     path: filePath,
-    contents: fs.readFileSync(path.resolve(rootDirectory, filePath)).toString('base64')
+    contents: execFileSync('git', ['cat-file', 'blob', `:0:${filePath}`], {
+      cwd: rootDirectory,
+      maxBuffer: Infinity
+    }).toString('base64')
   }))
   const deletions = deletionPaths.map((filePath) => ({ path: filePath }))
 

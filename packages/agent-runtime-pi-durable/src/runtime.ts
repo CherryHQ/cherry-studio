@@ -323,7 +323,12 @@ export async function createPiDurableRuntime(
     } catch (cleanupError) {
       report(cleanupError)
     }
-    return { status: 'unknown', error: error('initialize', 'native-error') }
+    const failure = error('initialize', 'native-error')
+    const detail = cause instanceof Error ? cause.message : typeof cause === 'string' ? cause : ''
+    return {
+      status: 'unknown',
+      error: detail.trim() ? { ...failure, message: `${failure.message} — ${detail.trim()}` } : failure
+    }
   }
   const committedStorage = storage
   const native = harness
@@ -550,6 +555,7 @@ export async function createPiDurableRuntime(
               }
             }
             const states: InputState[] = []
+            const answers: { inputId: InputId; entryId: string }[] = []
             do {
               const page = await committed.scanSubmissions({ conversationId: conversation.id }, 256, cursor, context)
               for (const record of page.items) {
@@ -561,12 +567,15 @@ export async function createPiDurableRuntime(
                 rememberInput(record, logicalId)
                 const answer =
                   record.status === 'done' ? (await committed.entry(record.answer, context))?.entry : undefined
-                states.push(submissionState(refFor(conversation.id), record, answer, logicalId))
+                const state = submissionState(refFor(conversation.id), record, answer, logicalId)
+                states.push(state)
+                if (logicalId && state.outcome === 'completed' && record.status === 'done')
+                  answers.push({ inputId: logicalId, entryId: String(record.answer) })
               }
               cursor = page.next
             } while (cursor)
             publishFollowups(view)
-            projection.update(view, { type: 'snapshot', inputs: states }, fold.history)
+            projection.update(view, { type: 'snapshot', inputs: states, answers }, fold.history)
             let currentView = view
             let publishedView = view
             let pendingPreview: { from: typeof view; ops: Op[] } | undefined
@@ -604,6 +613,7 @@ export async function createPiDurableRuntime(
                   publishFollowups(after)
                 }
                 const changed: InputState[] = []
+                const answers: { inputId: InputId; entryId: string }[] = []
                 const records = publication.changes.flatMap((change) => (change.type === 'entry' ? [change.value] : []))
                 for (const change of publication.changes) {
                   if (change.type === 'entry' && change.value.conversationId === conversation.id) {
@@ -634,7 +644,10 @@ export async function createPiDurableRuntime(
                       ? (records.find((entry) => entry.id === record.answer) ??
                         after.entries.find((entry) => entry.id === record.answer))
                       : undefined
-                  changed.push(submissionState(refFor(conversation.id), record, answer, logicalId))
+                  const state = submissionState(refFor(conversation.id), record, answer, logicalId)
+                  changed.push(state)
+                  if (logicalId && state.outcome === 'completed' && record.status === 'done')
+                    answers.push({ inputId: logicalId, entryId: String(record.answer) })
                 }
                 const previous = publishedView
                 publishedView = after
@@ -660,7 +673,11 @@ export async function createPiDurableRuntime(
                   projection.commitToolResult(previous, after, records[0], publication.seq, toolSlot)
                 )
                   return
-                projection.update(after, { type: 'commit', revision: publication.seq, changes: changed }, fold.history)
+                projection.update(
+                  after,
+                  { type: 'commit', revision: publication.seq, changes: changed, answers },
+                  fold.history
+                )
               },
               end() {}
             }).detach

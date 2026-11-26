@@ -382,7 +382,7 @@ it('recovers interleaved native parts by ID and admits a newly discovered source
   const timeline = { lastPos: 8 }
   expect(
     messages.settleRecoveredReply(
-      { sessionId, runId, contextId: f.context.id, inputIds: [user.id], timeline },
+      { sessionId, runId, contextId: f.context.id, inputIds: [user.id], placedInputIds: [user.id], timeline },
       'success',
       [text('previously-unseen', 'D'), { ...native, parts: [...text('', 'A2').parts, ...text('', 'B2').parts] }]
     )
@@ -1047,4 +1047,28 @@ it('builds an approval card from the approval input when no tool source was proj
       approval: { id: 'approval-1' }
     })
   ])
+})
+
+it('updates a live compaction marker in place and saves its stable identity only on completion', () => {
+  const f = fixture()
+  const id = f.reply()
+  const started = f.projection.control(id, {
+    type: 'data-compaction-anchor',
+    id: 'fold',
+    data: { phase: 'agent-session', status: 'compacting' }
+  })
+  if (!started || started === 'reconcile') throw new Error('Missing marker insertion')
+  expect(started.completed).toBeUndefined()
+  const initial = f.projection.replyEntries(id)![0]
+  const completed = f.projection.control(id, {
+    type: 'data-compaction-anchor',
+    id: 'fold',
+    data: { phase: 'agent-session', status: 'done' }
+  })
+  if (!completed || completed === 'reconcile') throw new Error('Missing marker completion')
+  expect(completed.patch).toMatchObject({ type: 'part-put', partId: initial.partId })
+  expect(completed.completed).toMatchObject({ partId: initial.partId, pos: initial.pos })
+  expect(f.projection.replyEntries(id)).toHaveLength(1)
+  f.save(id)
+  expect(messages.getStoredMessagePartFacts(f.sessionId, id).map((part) => part.partId)).toEqual([initial.partId])
 })
