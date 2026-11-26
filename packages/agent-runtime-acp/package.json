@@ -18,7 +18,7 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "2.4.0",
     "@cherrystudio/agent-runtime": "workspace:*",
-    "zod": "4.4.3"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@types/node": "^24.10.4",
