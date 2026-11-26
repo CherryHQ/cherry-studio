@@ -772,7 +772,7 @@ export class MemoryStore {
       })
     )
       return
-    this.protectEntries(changes, scope, 'recovery')
+    this.protectEntries(changes, scope, batch)
   }
 
   private recoveryPlanHash(
@@ -806,7 +806,7 @@ export class MemoryStore {
   private protectEntries(
     changes: MemoryFileChange[],
     scope: Map<string, Buffer | null>,
-    mode: 'ordinary' | 'clear' | 'recovery',
+    mode: 'ordinary' | 'clear' | RecoveryBatch,
     revised: ReadonlySet<string> = new Set(),
     afterClear: ReadonlySet<string> = new Set()
   ): void {
@@ -835,7 +835,7 @@ export class MemoryStore {
       const before = parse(change.before)
       const oldEntries = entriesIn(before)
       let after = parse(change.after)
-      if (mode === 'recovery') {
+      if (typeof mode === 'object') {
         const facts = after
           .filter((part): part is string => typeof part === 'string')
           .join('')
@@ -894,7 +894,10 @@ export class MemoryStore {
         )
           invalidEntries()
       } else {
-        if (protectedEntries.length && after.some((part) => typeof part === 'string' && part.trim())) invalidEntries()
+        const blocksOriginalText = protectedEntries.some(
+          (entry) => mode.source !== 'controlled' || entry.clearedAt === undefined || entry.clearedAt >= mode.createdAt
+        )
+        if (blocksOriginalText && after.some((part) => typeof part === 'string' && part.trim())) invalidEntries()
         const localProtected = oldEntries.filter((entry) => entry.status !== 'active')
         after = after.map((part) => {
           if (typeof part === 'string') return part
