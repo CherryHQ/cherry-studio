@@ -1,7 +1,7 @@
 import { chmod, mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'path'
 
-import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -88,7 +88,7 @@ describe('AgentSessionService', () => {
   }
 
   async function insertSessionMessage(sessionId: string, id: string) {
-    await dbh.db.insert(agentSessionMessageTable).values({
+    insertAgentSessionMessages(dbh.db, {
       parentId: seedSessionRoot(dbh.db, sessionId),
       id,
       sessionId,
@@ -2566,18 +2566,15 @@ describe('AgentSessionService', () => {
       })
       const lookupIds = [...ids, systemSession.id]
       const lastTaskSessionId = ids[SESSION_COUNT - 1]
-      dbh.db
-        .insert(agentSessionMessageTable)
-        .values({
-          id: crypto.randomUUID(),
-          sessionId: lastTaskSessionId,
-          parentId: seedSessionRoot(dbh.db, lastTaskSessionId),
-          role: 'assistant',
-          status: 'success',
-          data: { parts: [{ type: 'text', text: 'Last run' }] },
-          runtimeResumeToken: 'native-last-run'
-        })
-        .run()
+      insertAgentSessionMessages(dbh.db, {
+        id: crypto.randomUUID(),
+        sessionId: lastTaskSessionId,
+        parentId: seedSessionRoot(dbh.db, lastTaskSessionId),
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'Last run' }] },
+        runtimeResumeToken: 'native-last-run'
+      })
 
       expect(agentSessionService.listSystemWorkspaceSessions(lookupIds).map((row) => row.id)).toEqual([
         systemSession.id
@@ -2831,7 +2828,10 @@ describe('task session ownership migration', () => {
     applyMigrations(dbh.db, resolveMigrationsPath())
     expect(
       dbh.sqlite.prepare('SELECT session_id, data FROM agent_session_message WHERE id = ?').get('message')
-    ).toEqual({ session_id: 'sticky', data: '{"parts":[{"type":"text","text":"preserved"}]}' })
+    ).toEqual({ session_id: 'sticky', data: '{}' })
+    expect(
+      dbh.sqlite.prepare('SELECT payload FROM agent_session_message_part WHERE message_id = ?').all('message')
+    ).toEqual([{ payload: '{"type":"text","text":"preserved"}' }])
     expect(dbh.sqlite.prepare('SELECT owner_session_id FROM agent_session WHERE id = ?').get('metadata')).toEqual({
       owner_session_id: 'sticky'
     })

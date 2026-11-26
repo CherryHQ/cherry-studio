@@ -35,7 +35,7 @@ Path: [Settings] → [General] → [Context Management]. These settings apply to
 
 | Setting | Product Default | Recommended Start | Function | Use Case | Notes |
 | -------- | -------- | ------- | ------------- | ------------- | --------------- |
-| Recent messages kept | Unlimited | Keep Unlimited | Sends only the most recent messages to the model | Short tasks with a fixed window | Too small a value may cause the model to forget still-valid requirements |
+| Recent messages kept | Unlimited | Keep Unlimited | Sends only the most recent messages to the model | Short tasks with a fixed window | Too small a value may cause the model to forget still-valid requirements; a divider in the conversation marks the messages no longer sent |
 | Enable Context Management | On | Keep On | Manages overly long tool results and history compression | Long conversations, tasks with many tool calls | Disabling this makes large results more likely to fill the context |
 | Tool Output Truncation Threshold | 50,000 characters | Keep Default | Stores large results and lets the model read them in segments | Web pages, logs, long document tool results | Does not delete the original result |
 | Auto-Compression | On | Keep On | Summarizes earlier history when approaching the window limit | Continuous multi-turn work | Compression is a summary and does not guarantee retaining every detail |

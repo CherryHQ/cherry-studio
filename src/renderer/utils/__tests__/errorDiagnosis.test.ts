@@ -1,81 +1,62 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
+import { preferenceService } from '@data/PreferenceService'
+import enUS from '@renderer/i18n/locales/en-us.json'
 import type { SerializedError } from '@renderer/types/error'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-
-vi.mock('@renderer/utils/aiGeneration', () => ({
-  fetchGenerate: vi.fn()
-}))
-
-vi.mock('@renderer/i18n/resolver', () => ({
-  default: { t: () => 'Free diagnosis model is unavailable' }
-}))
-
-// `readDefaultModel` now reads from preferenceService + dataApiService, not Redux.
-// Mock the boundary directly so tests can stage the value without rewiring v2 data.
-vi.mock('@renderer/utils/model', () => ({
-  readDefaultModel: vi.fn().mockResolvedValue(undefined)
-}))
-
-// Mock logger
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn()
-    })
-  }
-}))
-
-import { fetchGenerate } from '@renderer/utils/aiGeneration'
-import { readDefaultModel } from '@renderer/utils/model'
+import type { InputFor } from '@shared/ipc/types'
 
 import { classifyErrorByAI, diagnoseError } from '../errorDiagnosis'
 
-const mockFetchGenerate = vi.mocked(fetchGenerate)
-const mockReadDefaultModel = vi.mocked(readDefaultModel)
+vi.mock('@renderer/i18n/resolver', () => ({
+  default: { t: (key: keyof typeof enUS) => enUS[key] }
+}))
+
+const { mockIpcRequest } = vi.hoisted(() => ({ mockIpcRequest: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mockIpcRequest }
+}))
+
+const unavailable = enUS['error.diagnosis.default_model_unavailable']
+const diagnosisUnavailable = enUS['error.diagnosis.free_model_unavailable']
+const defaultModel = { id: 'custom-provider::custom-model', providerId: 'custom-provider', isEnabled: true }
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
 }
 
-const { mockGetDiagnosisModel, mockIpcRequest } = vi.hoisted(() => ({
-  mockGetDiagnosisModel: vi.fn(),
-  mockIpcRequest: vi.fn()
-}))
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: { get: mockGetDiagnosisModel }
-}))
+function respondWith(text: string) {
+  mockIpcRequest.mockResolvedValue({ text })
+}
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mockIpcRequest }
-}))
+function requestInput(): InputFor<'ai.text.generate'> {
+  return mockIpcRequest.mock.calls[0][1]
+}
 
-describe('ErrorDiagnosisService', () => {
-  beforeEach(() => {
+describe('Error diagnosis', () => {
+  beforeEach(async () => {
     vi.clearAllMocks()
-    mockGetDiagnosisModel.mockResolvedValue({
-      id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
-      name: 'Qwen',
-      providerId: 'cherryai',
-      apiModelId: 'qwen'
+    await preferenceService.set('app.privacy.data_collection.enabled', true)
+    await preferenceService.set('chat.default_model_id', defaultModel.id)
+    vi.mocked(dataApiService.get).mockImplementation(async (path) => {
+      if (path === `/models/${defaultModel.id}`) return defaultModel
+      if (path === `/providers/${defaultModel.providerId}`) return { isEnabled: true }
+      return undefined
     })
   })
 
   describe('diagnoseError', () => {
     it('selects request-size guidance for a status-less request buffer rejection', async () => {
       const message = '413 Failed to buffer the request body: length limit exceeded'
-      mockFetchGenerate.mockResolvedValue(
+      respondWith(
         JSON.stringify({ summary: 'Request too large', category: 'payload', explanation: 'Too large', steps: [] })
       )
       await diagnoseError(makeError({ message }), 'en')
-      const args = mockFetchGenerate.mock.calls[0][0]
-      const context = args.prompt.split('## Context\n')[1]?.split('\n')[0]
+      const args = requestInput()
+      const context = args.system?.split('## Context\n')[1]?.split('\n')[0]
       expect(context).toContain('request payload is too large')
       expect(context).toContain('removing large attachments')
-      expect(JSON.parse(args.content).message).toBe(message)
+      expect(JSON.parse(args.prompt as string).message).toBe(message)
     })
 
     it.each([
@@ -87,12 +68,10 @@ required service tier.`,
       ],
       ['insufficient_quota', true]
     ] as const)('gives the correct Context for %s', async (message, quota) => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'permission', explanation: 'x', steps: [] })
-      )
+      respondWith(JSON.stringify({ summary: 'x', category: 'permission', explanation: 'x', steps: [] }))
       await diagnoseError(makeError({ message, statusCode: 400 }), 'en', { providerId: 'groq' })
-      const prompt = mockFetchGenerate.mock.calls[0][0].prompt
-      const context = prompt.split('## Context\n')[1]?.split('\n')[0]
+      const prompt = requestInput().system
+      const context = prompt?.split('## Context\n')[1]?.split('\n')[0]
       if (quota) {
         expect(context).toBe(
           "The user's quota or account balance is exhausted on groq. Suggest checking billing on the provider's website, topping up, or switching to a different provider. DO NOT suggest waiting or retrying - this is not a transient issue."
@@ -112,7 +91,7 @@ required service tier.`,
         explanation: 'Your API key is invalid.',
         steps: [{ text: 'Check your API key', nav: '/settings/provider' }]
       }
-      mockFetchGenerate.mockResolvedValue(JSON.stringify(mockResult))
+      respondWith(JSON.stringify(mockResult))
 
       const result = await diagnoseError(makeError(), 'en')
       expect(result.summary).toBe('Auth error')
@@ -127,64 +106,30 @@ required service tier.`,
         explanation: 'Connection refused.',
         steps: [{ text: 'Check proxy' }]
       }
-      mockFetchGenerate.mockResolvedValue('```json\n' + JSON.stringify(mockResult) + '\n```')
+      respondWith('```json\n' + JSON.stringify(mockResult) + '\n```')
 
       const result = await diagnoseError(makeError(), 'en')
       expect(result.summary).toBe('Network error')
     })
 
-    it('shows the free-model unavailable error on empty response', async () => {
-      mockFetchGenerate.mockResolvedValue('')
-      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Free diagnosis model is unavailable')
+    it('explains that diagnosis needs an available default model when it returns an empty response', async () => {
+      respondWith('')
+      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow(unavailable)
     })
 
-    it('shows the free-model unavailable error on invalid JSON', async () => {
-      mockFetchGenerate.mockResolvedValue('not valid json')
-      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Free diagnosis model is unavailable')
+    it.each(['not valid JSON', '{"foo":"bar"}'])('reports malformed diagnosis output (%s)', async (text) => {
+      respondWith(text)
+      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow(diagnosisUnavailable)
     })
 
-    it('shows the free-model unavailable error on missing required fields', async () => {
-      mockFetchGenerate.mockResolvedValue(JSON.stringify({ foo: 'bar' }))
-      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Free diagnosis model is unavailable')
-    })
+    it('uses the configured default model for a detailed diagnosis', async () => {
+      respondWith(JSON.stringify({ summary: 'Error', explanation: 'Something went wrong.', steps: [] }))
 
-    it('uses persisted Qwen without falling back to the default model', async () => {
-      const defaultModel = { id: 'dashscope::deepseek-v3', name: 'DeepSeek V3', providerId: 'dashscope' }
-      mockReadDefaultModel.mockResolvedValueOnce(defaultModel as any)
-
-      const mockResult = {
-        summary: 'Error',
-        category: 'unknown',
-        explanation: 'Something went wrong.',
-        steps: []
-      }
-      mockFetchGenerate.mockResolvedValue(JSON.stringify(mockResult))
-
-      await diagnoseError(makeError(), 'en')
-      expect(mockGetDiagnosisModel).toHaveBeenCalledWith(`/models/${CHERRYAI_DEFAULT_UNIQUE_MODEL_ID}`)
-      expect(mockFetchGenerate).toHaveBeenCalledTimes(1)
-      expect(mockFetchGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }),
-          throwOnError: true
-        })
+      await expect(diagnoseError(makeError(), 'en')).resolves.toMatchObject({ summary: 'Error' })
+      expect(mockIpcRequest).toHaveBeenCalledExactlyOnceWith(
+        'ai.text.generate',
+        expect.objectContaining({ uniqueModelId: defaultModel.id, requestOptions: { maxRetries: 0 } })
       )
-      expect(mockFetchGenerate).not.toHaveBeenCalledWith(expect.objectContaining({ model: defaultModel }))
-      expect(mockReadDefaultModel).not.toHaveBeenCalled()
-      expect(mockIpcRequest).not.toHaveBeenCalled()
-    })
-
-    it('does not fall back when persisted Qwen is missing', async () => {
-      mockGetDiagnosisModel.mockResolvedValueOnce(undefined)
-      mockReadDefaultModel.mockResolvedValueOnce({
-        id: 'dashscope::deepseek-v3',
-        name: 'DeepSeek V3',
-        providerId: 'dashscope'
-      } as any)
-
-      await expect(diagnoseError(makeError(), 'en')).rejects.toThrow('Free diagnosis model is unavailable')
-      expect(mockFetchGenerate).not.toHaveBeenCalled()
-      expect(mockReadDefaultModel).not.toHaveBeenCalled()
     })
 
     it('includes context in error info', async () => {
@@ -194,7 +139,7 @@ required service tier.`,
         explanation: 'Something went wrong.',
         steps: []
       }
-      mockFetchGenerate.mockResolvedValue(JSON.stringify(mockResult))
+      respondWith(JSON.stringify(mockResult))
 
       await diagnoseError(makeError({ statusCode: 401 }), 'zh-CN', {
         errorSource: 'chat',
@@ -202,14 +147,14 @@ required service tier.`,
         modelId: 'gpt-4'
       })
 
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.content).toContain('openai')
-      expect(callArgs.content).toContain('gpt-4')
-      expect(callArgs.content).toContain('401')
+      const callArgs = requestInput()
+      expect(callArgs.prompt).toContain('openai')
+      expect(callArgs.prompt).toContain('gpt-4')
+      expect(callArgs.prompt).toContain('401')
     })
 
     it('defaults category to unknown when missing', async () => {
-      mockFetchGenerate.mockResolvedValue(
+      respondWith(
         JSON.stringify({
           summary: 'Error',
           explanation: 'Something went wrong.',
@@ -222,21 +167,17 @@ required service tier.`,
     })
 
     it('forwards responseBody and uses its quota signal in the prompt', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] })
-      )
+      respondWith(JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] }))
       const providerJson = '{"error":{"type":"insufficient_quota","code":"billing_hard_limit_reached"}}'
 
       await diagnoseError(makeError({ statusCode: 429, responseBody: providerJson }), 'en')
 
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.content).toContain('billing_hard_limit_reached')
+      const callArgs = requestInput()
+      expect(callArgs.prompt).toContain('billing_hard_limit_reached')
     })
 
     it('gives payload-too-large errors actionable context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'payload', explanation: 'x', steps: [] })
-      )
+      respondWith(JSON.stringify({ summary: 'x', category: 'payload', explanation: 'x', steps: [] }))
 
       await diagnoseError(
         makeError({
@@ -247,87 +188,110 @@ required service tier.`,
         'en'
       )
 
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('request payload is too large')
-      expect(callArgs.prompt).toContain('new topic')
-      expect(callArgs.prompt).toContain('attachments')
-      expect(callArgs.prompt).toContain('summarize')
+      const callArgs = requestInput()
+      expect(callArgs.system).toContain('request payload is too large')
+      expect(callArgs.system).toContain('new topic')
+      expect(callArgs.system).toContain('attachments')
+      expect(callArgs.system).toContain('summarize')
     })
 
     it('routes a Chromium DNS failure to network/proxy context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'network', explanation: 'x', steps: [] })
-      )
+      respondWith(JSON.stringify({ summary: 'x', category: 'network', explanation: 'x', steps: [] }))
 
       await diagnoseError(makeError({ message: 'net::ERR_NAME_NOT_RESOLVED' }), 'en')
 
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('Network or proxy error')
+      const callArgs = requestInput()
+      expect(callArgs.system).toContain('Network or proxy error')
     })
 
     it('routes a Chromium connection reset to network/proxy context', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'stream', explanation: 'x', steps: [] })
-      )
+      respondWith(JSON.stringify({ summary: 'x', category: 'stream', explanation: 'x', steps: [] }))
 
       await diagnoseError(makeError({ message: 'net::ERR_CONNECTION_RESET' }), 'en')
 
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.prompt).toContain('Network or proxy error')
+      const callArgs = requestInput()
+      expect(callArgs.system).toContain('Network or proxy error')
     })
 
     it('forwards finishReason for safety-blocked responses', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'content', explanation: 'x', steps: [] })
-      )
+      respondWith(JSON.stringify({ summary: 'x', category: 'content', explanation: 'x', steps: [] }))
 
       await diagnoseError(makeError({ name: 'AI_NoObjectGeneratedError', finishReason: 'SAFETY' }), 'en')
 
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.content).toContain('SAFETY')
+      const callArgs = requestInput()
+      expect(callArgs.prompt).toContain('SAFETY')
     })
 
     it('forwards structured data as serialized JSON', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
-      )
+      respondWith(JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] }))
 
       await diagnoseError(makeError({ data: { error: { code: 'invalid_api_key', message: 'Key revoked' } } }), 'en')
 
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.content).toContain('invalid_api_key')
-      expect(callArgs.content).toContain('Key revoked')
+      const callArgs = requestInput()
+      expect(callArgs.prompt).toContain('invalid_api_key')
+      expect(callArgs.prompt).toContain('Key revoked')
     })
 
     // The inline card classifies 403 as `permission`; the prompt must not then tell the user
     // their key is invalid. Region and quota keep winning, matching `classifyError`.
 
     it('falls back to provider and model fields on the error', async () => {
-      mockFetchGenerate.mockResolvedValue(
-        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
-      )
+      respondWith(JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] }))
 
       await diagnoseError(makeError({ providerId: 'anthropic', modelId: 'claude-sonnet-4-5' }), 'en')
 
-      const callArgs = mockFetchGenerate.mock.calls[0][0]
-      expect(callArgs.content).toContain('anthropic')
-      expect(callArgs.content).toContain('claude-sonnet-4-5')
+      const callArgs = requestInput()
+      expect(callArgs.prompt).toContain('anthropic')
+      expect(callArgs.prompt).toContain('claude-sonnet-4-5')
     })
   })
 
-  describe('classifyErrorByAI', () => {
-    it('returns an empty result instead of falling back when free Qwen fails', async () => {
-      mockFetchGenerate.mockRejectedValue(new Error('network unavailable'))
+  it('blocks both diagnosis entry points when data collection is off', async () => {
+    await preferenceService.set('app.privacy.data_collection.enabled', false)
 
-      await expect(classifyErrorByAI(makeError(), 'en')).resolves.toBe('')
-      expect(mockFetchGenerate).toHaveBeenCalledTimes(1)
-      expect(mockFetchGenerate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: expect.objectContaining({ id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }),
-          throwOnError: true
-        })
-      )
-      expect(mockReadDefaultModel).not.toHaveBeenCalled()
+    await expect(classifyErrorByAI(makeError(), 'en')).rejects.toThrow(diagnosisUnavailable)
+    await expect(diagnoseError(makeError(), 'en')).rejects.toThrow(diagnosisUnavailable)
+    expect(mockIpcRequest).not.toHaveBeenCalled()
+  })
+
+  it('blocks a diagnosis if data collection is turned off during model resolution', async () => {
+    vi.mocked(dataApiService.get).mockImplementationOnce(async () => {
+      await preferenceService.set('app.privacy.data_collection.enabled', false)
+      return defaultModel
     })
+
+    await expect(classifyErrorByAI(makeError(), 'en')).rejects.toThrow(diagnosisUnavailable)
+    expect(mockIpcRequest).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['not configured', null],
+    ['deleted', 'custom-provider::deleted-model']
+  ])('does not send when the default model is %s', async (_, modelId) => {
+    await preferenceService.set('chat.default_model_id', modelId)
+
+    await expect(classifyErrorByAI(makeError(), 'en')).rejects.toThrow(unavailable)
+    expect(mockIpcRequest).not.toHaveBeenCalled()
+  })
+
+  it.each(['model', 'provider'])('does not send when the default %s is disabled', async (kind) => {
+    vi.mocked(dataApiService.get).mockImplementation(async (path) => {
+      if (path === `/models/${defaultModel.id}`) return { ...defaultModel, isEnabled: kind !== 'model' }
+      if (path === `/providers/${defaultModel.providerId}`) return { isEnabled: kind !== 'provider' }
+      return undefined
+    })
+
+    await expect(classifyErrorByAI(makeError(), 'en')).rejects.toThrow(unavailable)
+    expect(mockIpcRequest).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a default-model error when the request fails', async () => {
+    mockIpcRequest.mockRejectedValue(new Error('network unavailable'))
+
+    await expect(classifyErrorByAI(makeError(), 'en')).rejects.toThrow(unavailable)
+    expect(mockIpcRequest).toHaveBeenCalledExactlyOnceWith(
+      'ai.text.generate',
+      expect.objectContaining({ uniqueModelId: defaultModel.id, requestOptions: { maxRetries: 0 } })
+    )
   })
 })
