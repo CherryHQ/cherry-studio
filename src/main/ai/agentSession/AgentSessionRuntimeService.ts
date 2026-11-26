@@ -304,6 +304,7 @@ type PendingNativeInput = {
   input: AgentRuntimeUserInput
   generation?: string
   contextId?: string
+  skipRequeue?: boolean
   turnOptions?: Pick<
     QueuedAgentSessionInput,
     'reasoningEffort' | 'serviceTier' | 'fastMode' | 'permissionModeOverride' | 'trustedNotifyChannels'
@@ -370,14 +371,14 @@ type AgentSessionRuntimeEntry = {
   timeline?: { lastPos: number }
   idleTimer?: ReturnType<typeof setTimeout>
   replyInactivityWatchdog?: {
-    turn: AgentSessionTurn
+    turn: AgentSessionRun
     connection?: AgentRuntimeConnection
     generation?: string
     deadline: number
     paused: boolean
     timer?: ReturnType<typeof setTimeout>
   }
-  stoppedReply?: AgentSessionTurn
+  stoppedReply?: AgentSessionRun
   observedApprovals?: Map<string, { connection: AgentRuntimeConnection; generation?: string }>
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
   lastContextUsageRefreshAt?: number
@@ -2619,6 +2620,7 @@ export class AgentSessionRuntimeService extends BaseService {
         return
       }
     }
+    if (pending.skipRequeue) return
     if (!agentSessionMessageService.hasSessionMessage(entry.sessionId, inputId)) {
       logger.warn('Dropping unrecoverable pending native input whose message no longer exists', {
         sessionId: entry.sessionId,
@@ -4241,6 +4243,7 @@ export class AgentSessionRuntimeService extends BaseService {
         case 'compaction-error':
         case 'api-retry':
         case 'steer-boundary':
+        case 'run-started':
           renew = true
           break
         case 'input-state':
@@ -4259,6 +4262,7 @@ export class AgentSessionRuntimeService extends BaseService {
         case 'context-usage':
         case 'supported-commands':
         case 'resume-token':
+        case 'run-checkpoint':
         case 'followup-queue':
         case 'input-submission':
         case 'steer-undelivered':
@@ -4352,8 +4356,9 @@ export class AgentSessionRuntimeService extends BaseService {
   ): void {
     this.clearReplyInactivityWatchdog(entry)
     entry.deferredPlacements = undefined
+    // Pending native inputs still reconcile, but recovery must not requeue withdrawn work.
+    for (const pending of entry.pendingInputs?.values() ?? []) pending.skipRequeue = true
     this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
-    this.applyRuntimeStateEvent(entry, { type: 'clear-steer-reservation' })
     for (const turn of getAgentSessionRuntimeTurns(entry.runtimeState)) {
       const reply = getAgentSessionRuntimeReply(entry.runtimeState, turn)
       if (!reply || ['awaiting-persistence', 'settled'].includes(reply.delivery.kind)) continue

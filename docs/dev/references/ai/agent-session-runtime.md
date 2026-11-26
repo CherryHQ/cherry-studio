@@ -1393,12 +1393,12 @@ sessions of their runtime. See
 `REPLY_INACTIVITY_TIMEOUT_MS` bounds the currently executing reply to 30 minutes without
 qualifying runtime events, starting when its stream opens, including connection setup. Message
 content/projections, response metadata and usage, tool input/output, retries, background task and
-result activity, autonomous ownership, compaction and steer boundaries renew it. `input-state`
+result activity, autonomous ownership, compaction, steer boundaries and `run-started` renew it. `input-state`
 renews only for the current connection context with placement or an outcome. Held `turn-complete`
 success renews it; terminal handoff disarms it. Unknown pending results remain held until confirmed
 drainage or an error; timeout never fabricates drainage.
 
-Context usage reads, command catalogs, resume tokens, admission-only input facts, queue edits,
+Context usage reads, command catalogs, resume tokens, `run-checkpoint`, admission-only input facts, queue edits,
 renderer attachment, outbound commands and status publication do not renew the deadline. Only the
 native execution owner is supervised; suspended/deferred replies and idle background occupancy
 have no independent timer. Entry, reply, watchdog and connection-generation fences reject stale

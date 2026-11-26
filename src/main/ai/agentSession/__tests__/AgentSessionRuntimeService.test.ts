@@ -7478,7 +7478,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.advanceTimersByTimeAsync(N - 1)
       expect(f.errors()).toEqual([])
       await vi.advanceTimersByTimeAsync(1)
-      expect(f.entry.currentTurn.assistantMessageId).toBe('assistant-1')
+      expect(f.entry.currentTurn.runId).toBe('assistant-1')
       expect(f.entry.currentTurn.projection.parts('assistant-1')).toContainEqual({ type: 'text', text: 'Kept output' })
       expect(f.entry.runtimeState.execution.reply.pendingResultToolCallIds).toEqual(['task-call'])
       expect(f.entry.runtimeState.execution.reply.terminal.status).toBe('error')
