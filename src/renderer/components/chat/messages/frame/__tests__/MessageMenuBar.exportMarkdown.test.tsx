@@ -1,3 +1,4 @@
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { projectionIpc } from '@test-mocks/renderer/ProjectionIpc'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -252,6 +253,37 @@ describe('MessageMenuBar Markdown export', () => {
     } finally {
       release()
     }
+  })
+
+  it('exports the full original history text before the preview has been expanded', async () => {
+    const topicId = 'agent-session:session'
+    const message: MessageListItem = {
+      id: 'msg',
+      role: 'assistant',
+      topicId,
+      parentId: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    }
+    const text = 'Full text ' + 'x'.repeat(32 * 1024) + ' original tail'
+    MockDataApiUtils.setCustomResponse('/agent-sessions/session/messages/msg/parts/body', 'GET', { type: 'text', text })
+    const parts: CherryMessagePart[] = [
+      {
+        type: 'data-deferred-history-part',
+        data: {
+          sessionId: 'session',
+          messageId: 'msg',
+          partId: 'body',
+          partType: 'text',
+          excerpt: 'Full text',
+          updatedAt: 1
+        }
+      }
+    ]
+    render(<MenuBarExportHarness topicId={topicId} message={message} parts={parts} />)
+
+    await selectExportMenuOption(en['chat.topics.export.md.label'])
+    await waitFor(() => expect(saveFile.mock.calls[0]?.[1]).toContain(text))
   })
 
   it('preserves Chat mode Markdown export behavior with and without reasoning', async () => {

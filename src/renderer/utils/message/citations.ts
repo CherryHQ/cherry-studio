@@ -120,6 +120,10 @@ function citableCherryToolName(wireName: string): string | null {
  * to share a name are deliberately excluded.
  */
 function resolveCitableToolName(part: CherryMessagePart): string | null {
+  if (part.type === 'data-deferred-history-part') {
+    const toolName = part.data.citation?.toolName
+    return toolName && CITABLE_TOOL_NAMES.has(toolName) ? toolName : null
+  }
   if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) return null
   const toolPart = part as unknown as ToolResponsePart
   if (toolPart.state !== 'output-available') return null
@@ -129,7 +133,9 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
     if (part.type !== 'dynamic-tool') return rawName
 
     const partMetadata = readCherryMeta(part)?.tool
-    const outputMetadata = extractOutputMetadata((toolPart as { output?: unknown }).output).metadata
+    const outputMetadata = extractOutputMetadata(
+      unwrapCitableOutput((toolPart as { output?: unknown }).output)
+    ).metadata
     const belongsToCherryTools = (metadata: ToolMetadata | typeof partMetadata | undefined) =>
       metadata?.serverId === CHERRY_TOOLS_MCP_SERVER || metadata?.serverName === CHERRY_TOOLS_MCP_SERVER
     return belongsToCherryTools(partMetadata) || belongsToCherryTools(outputMetadata) ? rawName : null
@@ -295,7 +301,10 @@ export function resolveMessageCitations(
   const addToolPart = (part: CherryMessagePart) => {
     const toolName = resolveCitableToolName(part)
     if (!toolName) return
-    const rawOutput = unwrapCitableOutput((part as { output?: unknown }).output)
+    const rawOutput =
+      part.type === 'data-deferred-history-part'
+        ? part.data.citation?.skeleton
+        : unwrapCitableOutput((part as { output?: unknown }).output)
     const output = normalizeToolOutputResponse(rawOutput)
 
     if (toolName === KB_SEARCH_TOOL_NAME) {

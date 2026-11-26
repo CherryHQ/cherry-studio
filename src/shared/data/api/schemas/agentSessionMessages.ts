@@ -8,6 +8,7 @@ import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
 import { agentSessionEditFailureReasons } from '@shared/ai/agentSessionEdit'
 import { AGENT_SESSION_FORK_FAILURE_REASONS } from '@shared/ai/agentSessionFork'
 import {
+  type CherryMessagePart,
   type CherryUIMessage,
   ContentMessageRoleSchema,
   MessageDataSchema,
@@ -110,6 +111,12 @@ export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMess
 export const SelectAgentSessionBranchSchema = z.strictObject({ messageId: z.string().min(1) })
 
 export type AgentSessionMessageSchemas = {
+  '/agent-sessions/:sessionId/messages/:messageId/parts/:partId': {
+    GET: {
+      params: { sessionId: string; messageId: string; partId: string }
+      response: CherryMessagePart
+    }
+  }
   '/agent-sessions/:sessionId/children/:toolCallId/history': {
     GET: {
       params: { sessionId: string; toolCallId: string }

@@ -19,9 +19,25 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { ExportMessages, MessageExportTarget } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
+import { readVerbatimHistoryParts } from '@renderer/utils/message/deferredHistoryPart'
+import { type MessagePartRows, messagePartsAt, PartOverrides } from '@renderer/utils/message/messagePartRows'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 const logger = loggerService.withContext('useMessageSelectionController')
+
+function readSelectedHistoryParts(ids: readonly string[], rows: MessagePartRows): Promise<MessagePartRows> | undefined {
+  const deferred = new Map<string, CherryMessagePart[]>()
+  for (const id of ids) {
+    const parts = messagePartsAt(rows, id)
+    if (parts?.some((part) => part.type === 'data-deferred-history-part')) deferred.set(id, parts)
+  }
+  return deferred.size ? resolve() : undefined
+
+  async function resolve() {
+    for (const [id, parts] of deferred) deferred.set(id, await readVerbatimHistoryParts(parts))
+    return new PartOverrides(rows, deferred)
+  }
+}
 
 interface UseMessageSelectionControllerParams {
   topicId: string
@@ -257,14 +273,14 @@ export function useMessageSelectionController({
       if (!ids) return
 
       const latest = latestExportDataRef.current
-      const richContent = latest.copyRichContent
-        ? getSelectedMessagesRichClipboardContent(ids, latest.messages, latest.partsByMessageId)
-        : null
-      const contentToCopy =
-        richContent?.plainText ?? getSelectedMessagesPlainText(ids, latest.messages, latest.partsByMessageId)
-      if (!contentToCopy) return
-
       try {
+        const pendingParts = readSelectedHistoryParts(ids, latest.partsByMessageId)
+        const parts = pendingParts ? await pendingParts : latest.partsByMessageId
+        const richContent = latest.copyRichContent
+          ? getSelectedMessagesRichClipboardContent(ids, latest.messages, parts)
+          : null
+        const contentToCopy = richContent?.plainText ?? getSelectedMessagesPlainText(ids, latest.messages, parts)
+        if (!contentToCopy) return
         if (richContent && latest.copyRichContent) {
           await latest.copyRichContent(richContent, { successMessage: t('message.copied') })
         } else {
@@ -291,17 +307,18 @@ export function useMessageSelectionController({
       }
 
       const { messages: latestMessages, partsByMessageId: latestPartsByMessageId } = latestExportDataRef.current
-      const exportMessages = createSelectedMessageExportViews(ids, latestMessages, latestPartsByMessageId)
-      const contentToSave = exportMessages.length
-        ? await import('@renderer/services/ExportService').then(({ messagesToMarkdown }) =>
-            messagesToMarkdown(exportMessages)
-          )
-        : getSelectedMessagesPlainText(ids, latestMessages, latestPartsByMessageId)
-
-      if (!contentToSave) return
-
-      const fileName = `chat_export_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.md`
       try {
+        const pendingParts = readSelectedHistoryParts(ids, latestPartsByMessageId)
+        const parts = pendingParts ? await pendingParts : latestPartsByMessageId
+        const exportMessages = createSelectedMessageExportViews(ids, latestMessages, parts)
+        const contentToSave = exportMessages.length
+          ? await import('@renderer/services/ExportService').then(({ messagesToMarkdown }) =>
+              messagesToMarkdown(exportMessages)
+            )
+          : getSelectedMessagesPlainText(ids, latestMessages, parts)
+        if (!contentToSave) return
+
+        const fileName = `chat_export_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.md`
         const savedPath = await saveTextFile(fileName, contentToSave)
         if (savedPath === null) return
 
@@ -321,15 +338,16 @@ export function useMessageSelectionController({
       if (!ids) return
 
       const { messages: latestMessages, partsByMessageId: latestPartsByMessageId } = latestExportDataRef.current
-      const exportViews = createSelectedMessageExportViews(ids, latestMessages, latestPartsByMessageId)
-      if (exportViews.length === 0) {
-        toast.warning(t('chat.multiple.select.empty'))
-        return
-      }
-
       const exportEpoch = exportSelectionEpochRef.current
 
       try {
+        const pendingParts = readSelectedHistoryParts(ids, latestPartsByMessageId)
+        const parts = pendingParts ? await pendingParts : latestPartsByMessageId
+        const exportViews = createSelectedMessageExportViews(ids, latestMessages, parts)
+        if (exportViews.length === 0) {
+          toast.warning(t('chat.multiple.select.empty'))
+          return
+        }
         const succeeded = await exportMessages?.(exportViews, target)
         if (!succeeded) return
         if (exportEpoch === exportSelectionEpochRef.current) {

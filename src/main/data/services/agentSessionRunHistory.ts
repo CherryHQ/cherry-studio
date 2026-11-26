@@ -2,7 +2,7 @@ import type { AgentSessionMessageRow } from '@data/db/schemas/agentSessionMessag
 
 type HistoryRow = Pick<
   AgentSessionMessageRow,
-  'id' | 'role' | 'replyId' | 'pos' | 'inputContextId' | 'nativeInputId' | 'data' | 'parentId' | 'status'
+  'id' | 'role' | 'replyId' | 'pos' | 'inputContextId' | 'nativeInputId' | 'data' | 'parentId' | 'status' | 'delivery'
 >
 
 function unplacedAgentRunInputs(rows: readonly HistoryRow[]): Set<string> {
@@ -78,22 +78,22 @@ interface RunForkPlan {
   readonly messageIds: readonly string[]
 }
 
-function boundary(row: AgentSessionMessageRow): RunHistoryBoundary {
+function boundary(row: HistoryRow): RunHistoryBoundary {
   return { id: row.id, role: row.role, status: row.status, anchor: row.data.runtimeAnchor }
 }
 
 class AgentSessionRunHistory {
-  private readonly rows: AgentSessionMessageRow[]
-  private readonly byId: Map<string, AgentSessionMessageRow>
+  private readonly rows: HistoryRow[]
+  private readonly byId: Map<string, HistoryRow>
   private readonly unplaced: Set<string>
   private readonly edits = new Map<string, RunEditResolution>()
 
-  constructor(rows: readonly AgentSessionMessageRow[]) {
+  constructor(rows: readonly HistoryRow[]) {
     this.rows = orderAgentSessionRuns(rows)
     this.byId = new Map(rows.map((row) => [row.id, row]))
     this.unplaced = unplacedAgentRunInputs(rows)
     const firstInputs = new Set<string>()
-    let previous: AgentSessionMessageRow | undefined
+    let previous: HistoryRow | undefined
     for (const row of this.rows) {
       const predecessor =
         previous?.role === 'user' && previous.replyId ? (this.byId.get(previous.replyId) ?? previous) : previous
@@ -166,6 +166,6 @@ class AgentSessionRunHistory {
   }
 }
 
-export function resolveAgentSessionRunHistory(rows: readonly AgentSessionMessageRow[]) {
+export function resolveAgentSessionRunHistory(rows: readonly HistoryRow[]) {
   return new AgentSessionRunHistory(rows)
 }

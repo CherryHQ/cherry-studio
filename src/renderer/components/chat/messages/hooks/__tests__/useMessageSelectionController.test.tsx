@@ -1,3 +1,4 @@
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCache } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -154,6 +155,37 @@ describe('useMessageSelectionController', () => {
 
     expect(copyRichContent).not.toHaveBeenCalled()
     expect(writeText).toHaveBeenCalledWith('plain')
+  })
+
+  it('copies the original deferred text in message order without expanding it first', async () => {
+    writeText.mockResolvedValue(undefined)
+    const text = 'start ' + 'x'.repeat(32 * 1024) + ' tail'
+    MockDataApiUtils.setCustomResponse('/agent-sessions/session/messages/a/parts/part', 'GET', { type: 'text', text })
+    const { result } = renderHook(() =>
+      useMessageSelectionController({
+        topicId: 'agent-session:session',
+        messages: [message('a'), message('b')],
+        partsByMessageId: {
+          a: [
+            {
+              type: 'data-deferred-history-part',
+              data: {
+                sessionId: 'session',
+                messageId: 'a',
+                partId: 'part',
+                partType: 'text',
+                excerpt: 'start',
+                updatedAt: 1
+              }
+            }
+          ],
+          b: [{ type: 'text', text: 'second' }]
+        }
+      })
+    )
+
+    await act(() => result.current.actions.copySelectedMessages?.(['b', 'a']))
+    expect(writeText).toHaveBeenCalledWith(text + '\n\n---\n\nsecond')
   })
 
   it('keeps action identities stable while reading the latest streamed message data', async () => {

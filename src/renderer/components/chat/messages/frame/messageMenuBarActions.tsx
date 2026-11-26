@@ -39,6 +39,7 @@ import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
+import { readVerbatimHistoryParts } from '@renderer/utils/message/deferredHistoryPart'
 import { getTranslationFromParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
@@ -63,6 +64,7 @@ export interface MessageMenuBarActionContext {
   messageForExport: MessageExportView
   messageContainerRef: RefObject<HTMLDivElement>
   acquireMessageCaptureLease?: (messageId: string) => () => void
+  showCaptureParts?: (parts: CherryMessagePart[]) => () => void
   getRenderedMessageElement?: (messageId: string) => HTMLElement | null
   mainTextContent: string
   selection?: MessageListSelectionState
@@ -189,11 +191,18 @@ function getMessageCaptureRef(context: MessageMenuBarActionContext): RefObject<H
   }
 }
 
-async function withMessageCaptureLease<T>(context: MessageMenuBarActionContext, capture: () => Promise<T>): Promise<T> {
+async function withMessageCaptureLease(
+  context: MessageMenuBarActionContext,
+  capture: (context: MessageMenuBarActionContext) => Promise<void>
+) {
   const release = context.acquireMessageCaptureLease?.(context.message.id)
+  let restore: (() => void) | undefined
   try {
-    return await capture()
+    const full = await withVerbatimHistoryParts(context)
+    if (full.messageParts !== context.messageParts) restore = context.showCaptureParts?.(full.messageParts)
+    await capture(full)
   } finally {
+    restore?.()
     release?.()
   }
 }
@@ -235,7 +244,26 @@ function withLiveMessageParts(context: MessageMenuBarActionContext): MessageMenu
   }
 }
 
-registerCommand('message.copy', async ({ actions, messageParts, setCopied, t }) => {
+async function withVerbatimHistoryParts(context: MessageMenuBarActionContext): Promise<MessageMenuBarActionContext> {
+  const parts = await readVerbatimHistoryParts(context.messageParts)
+  const exportParts =
+    context.messageForExport.parts === context.messageParts
+      ? parts
+      : await readVerbatimHistoryParts(context.messageForExport.parts)
+  if (parts === context.messageParts && exportParts === context.messageForExport.parts) return context
+  return {
+    ...context,
+    messageParts: parts,
+    messageForExport: { ...context.messageForExport, parts: exportParts },
+    mainTextContent: getComposerTextFromParts(parts)
+  }
+}
+
+function registerContentCommand(id: string, run: (context: MessageMenuBarActionContext) => void | Promise<void>) {
+  registerCommand(id, async (context) => run(await withVerbatimHistoryParts(context)))
+}
+
+registerContentCommand('message.copy', async ({ actions, messageParts, setCopied, t }) => {
   const richContent = actions.copyRichContent ? createComposerRichClipboardContentFromParts(messageParts) : null
   if (richContent) {
     // Match the plain copy path's text/plain normalization; the private fragment
@@ -255,7 +283,7 @@ registerCommand('message.copy', async ({ actions, messageParts, setCopied, t }) 
   setCopied(true)
 })
 
-registerCommand('message.readAloud', async ({ message, messageParts }) => {
+registerContentCommand('message.readAloud', async ({ message, messageParts }) => {
   const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
 
   await readMessageAloud({
@@ -309,20 +337,20 @@ registerCommand('message.deleteAbove', async ({ actions, message }) => {
   await actions.deleteMessagesBefore?.(message.id)
 })
 
-registerCommand('message.saveFile', async ({ actions, mainTextContent, message }) => {
+registerContentCommand('message.saveFile', async ({ actions, mainTextContent, message }) => {
   const fileName = dayjs(message.createdAt).format('YYYYMMDDHHmm') + '.md'
   await actions.saveTextFile?.(fileName, mainTextContent)
 })
 
-registerCommand('message.saveKnowledge', async ({ actions, messageForExport }) => {
+registerContentCommand('message.saveKnowledge', async ({ actions, messageForExport }) => {
   await actions.saveToKnowledge?.(messageForExport)
 })
 
-registerCommand('message.exportNotes', async ({ actions, messageForExport }) => {
+registerContentCommand('message.exportNotes', async ({ actions, messageForExport }) => {
   await actions.exportToNotes?.(messageForExport)
 })
 
-registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }) => {
+registerContentCommand('message.copyPlainText', async ({ actions, messageForExport, t }) => {
   const { messageToPlainText } = await import('@renderer/utils/export')
   await actions.copyText?.(await messageToPlainText(messageForExport), {
     successMessage: t('message.copy.success')
@@ -330,7 +358,7 @@ registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }
 })
 
 registerCommand('message.copyImage', async (context) => {
-  await withMessageCaptureLease(context, async () => {
+  await withMessageCaptureLease(context, async (context) => {
     const { exportService } = await import('@renderer/services/ExportService')
     const messageContainerRef = getMessageCaptureRef(context)
     await exportService.captureScrollableAsBlob(
@@ -346,7 +374,7 @@ registerCommand('message.copyImage', async (context) => {
 })
 
 registerCommand('message.exportImage', async (context) => {
-  await withMessageCaptureLease(context, async () => {
+  await withMessageCaptureLease(context, async (context) => {
     const { exportService, getMessageTitle } = await import('@renderer/services/ExportService')
     const imageData = await exportService.captureScrollableAsDataUrl(
       getMessageCaptureRef(context),
@@ -370,38 +398,38 @@ registerCommand('message.exportImage', async (context) => {
   })
 })
 
-registerCommand('message.exportMarkdown', async ({ actions, messageForExport }) => {
+registerContentCommand('message.exportMarkdown', async ({ actions, messageForExport }) => {
   await actions.exportMessageAsMarkdown?.(messageForExport)
 })
 
-registerCommand('message.exportMarkdownReason', async ({ actions, messageForExport }) => {
+registerContentCommand('message.exportMarkdownReason', async ({ actions, messageForExport }) => {
   await actions.exportMessageAsMarkdown?.(messageForExport, true)
 })
 
-registerCommand('message.exportWord', async ({ actions, messageForExport }) => {
+registerContentCommand('message.exportWord', async ({ actions, messageForExport }) => {
   const { getMessageTitle, messageToMarkdown } = await import('@renderer/services/ExportService')
   const markdown = await messageToMarkdown(messageForExport)
   const title = await getMessageTitle(messageForExport)
   await actions.exportToWord?.(markdown, title)
 })
 
-registerCommand('message.exportNotion', async ({ actions, messageForExport }) => {
+registerContentCommand('message.exportNotion', async ({ actions, messageForExport }) => {
   await actions.exportToNotion?.(messageForExport)
 })
 
-registerCommand('message.exportYuque', async ({ actions, messageForExport }) => {
+registerContentCommand('message.exportYuque', async ({ actions, messageForExport }) => {
   await actions.exportToYuque?.(messageForExport)
 })
 
-registerCommand('message.exportObsidian', async ({ actions, messageForExport }) => {
+registerContentCommand('message.exportObsidian', async ({ actions, messageForExport }) => {
   await actions.exportToObsidian?.(messageForExport)
 })
 
-registerCommand('message.exportJoplin', async ({ actions, messageForExport }) => {
+registerContentCommand('message.exportJoplin', async ({ actions, messageForExport }) => {
   await actions.exportToJoplin?.(messageForExport)
 })
 
-registerCommand('message.exportSiyuan', async ({ actions, messageForExport }) => {
+registerContentCommand('message.exportSiyuan', async ({ actions, messageForExport }) => {
   await actions.exportToSiyuan?.(messageForExport)
 })
 
@@ -432,7 +460,11 @@ registerToolbarAction({
   icon: <Volume2 className="size-4.5" strokeWidth={1.75} />,
   availability: ({ isAssistantMessage, isProcessing, message, messageParts }) => {
     const visible =
-      isAssistantMessage && message.status === 'success' && !isProcessing && hasTextParts(readLiveParts(messageParts))
+      isAssistantMessage &&
+      message.status === 'success' &&
+      !isProcessing &&
+      (hasTextParts(readLiveParts(messageParts)) ||
+        messageParts.some((part) => part.type === 'data-deferred-history-part' && part.data.partType === 'text'))
     return { visible, enabled: visible }
   }
 })

@@ -18,6 +18,12 @@ import {
 import type { HandlersFor } from '@shared/data/api/types'
 
 export const agentSessionMessageHandlers: HandlersFor<AgentSessionMessageSchemas> = {
+  '/agent-sessions/:sessionId/messages/:messageId/parts/:partId': {
+    GET: async ({ params: { sessionId, messageId, partId } }) => {
+      agentSessionService.getConversationById(sessionId)
+      return agentSessionMessageService.getSessionMessagePart(sessionId, messageId, partId)
+    }
+  },
   '/agent-sessions/:sessionId/children/:toolCallId/history': {
     GET: async ({ params, query }) => {
       agentSessionService.getConversationById(params.sessionId)

@@ -116,12 +116,13 @@ archives follow the same appended migration path. Startup seeding only backfills
 legacy delivery reply anchors. Previously deleted tails cannot
 be recovered.
 
-Message pages select IDs before loading payloads. With `deferToolOutputs`, each
-assistant message is projected as it is loaded, so raw oversized outputs do not
-accumulate across the page. Default reads retain the complete stored payload,
-and cursor ordering is unchanged. The initial window uses the 50/200 default/maximum
-limits; a page expands through an older Run referenced by its inputs, with the cursor
-following that expanded boundary.
+Message pages select IDs before loading payloads. With `deferToolOutputs`,
+stored parts over 32 KiB carry a bounded excerpt and a reference to the full part.
+Expansion reads the part by its Session, message, and part IDs. Default reads
+return the complete payload, including archived tool outputs. Pagination uses a
+default of 50 messages and accepts limits up to 200. When inputs reference an
+older Run, the page extends through that Run and its cursor follows the extended
+boundary.
 
 ## Ownership and dependencies
 

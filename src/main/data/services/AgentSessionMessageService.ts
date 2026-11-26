@@ -6,6 +6,7 @@ import {
   asc,
   desc,
   eq,
+  getTableColumns,
   gt,
   gte,
   inArray,
@@ -115,6 +116,7 @@ import {
   ensureAgentSessionRootTx,
   getAgentSessionHead,
   hydrateAgentSessionMessageDataTx,
+  hydrateAgentSessionMessagePartTx,
   hydrateAgentSessionMessageRowsTx,
   orderAgentSessionPath,
   readAgentSessionAncestry,
@@ -1445,7 +1447,18 @@ export class AgentSessionMessageService {
     const activeHead = getAgentSessionHead(tx, sessionId)
     const metadata = (head: string) =>
       tx
-        .select()
+        .select({
+          id: sessionMessagesTable.id,
+          parentId: sessionMessagesTable.parentId,
+          role: sessionMessagesTable.role,
+          status: sessionMessagesTable.status,
+          data: sessionMessagesTable.data,
+          pos: sessionMessagesTable.pos,
+          replyId: sessionMessagesTable.replyId,
+          inputContextId: sessionMessagesTable.inputContextId,
+          nativeInputId: sessionMessagesTable.nativeInputId,
+          delivery: sessionMessagesTable.delivery
+        })
         .from(sessionMessagesTable)
         .where(
           and(
@@ -1895,8 +1908,8 @@ export class AgentSessionMessageService {
     const rows = database
       .select({
         id: sessionMessagesTable.id,
-        parentId: sessionMessagesTable.parentId,
-        createdAt: sessionMessagesTable.createdAt
+        createdAt: sessionMessagesTable.createdAt,
+        replyId: sessionMessagesTable.replyId
       })
       .from(sessionMessagesTable)
       .where(and(...filters))
@@ -1904,15 +1917,8 @@ export class AgentSessionMessageService {
       .limit(limit + 1)
       .all()
 
-    const hasNext = rows.length > limit
-    const pageRows = hasNext ? rows.slice(0, limit) : rows
-    const readRow = database
-      .select()
-      .from(sessionMessagesTable)
-      .where(eq(sessionMessagesTable.id, sql.placeholder('id')))
-      .prepare()
-    let selectedRows = pageRows.map(({ id }) => readRow.get({ id })!)
-    const ownerIds = [...new Set(selectedRows.flatMap((row) => (row.replyId ? [row.replyId] : [])))]
+    const pageRows = rows.slice(0, limit)
+    const ownerIds = [...new Set(pageRows.flatMap((row) => (row.replyId ? [row.replyId] : [])))]
     const owner = ownerIds.length
       ? database
           .select({
@@ -1928,29 +1934,60 @@ export class AgentSessionMessageService {
           .get()
       : undefined
     const pageTail = pageRows.at(-1)
-    if (
+    const ownerBeforePage =
       owner &&
       pageTail &&
       (owner.createdAt < pageTail.createdAt || (owner.createdAt === pageTail.createdAt && owner.id < pageTail.id))
-    ) {
-      selectedRows = database
-        .select()
-        .from(sessionMessagesTable)
-        .where(
-          and(
-            ...filters,
-            or(
-              gt(sessionMessagesTable.createdAt, owner.createdAt),
-              and(eq(sessionMessagesTable.createdAt, owner.createdAt), gte(sessionMessagesTable.id, owner.id))
+        ? owner
+        : undefined
+
+    const deferToolOutputs = options.deferToolOutputs === true
+    const pageColumns = {
+      ...getTableColumns(sessionMessagesTable),
+      searchableText: deferToolOutputs ? sql<string>`''` : sessionMessagesTable.searchableText
+    }
+    const selectedRows = ownerBeforePage
+      ? database
+          .select(pageColumns)
+          .from(sessionMessagesTable)
+          .where(
+            and(
+              ...filters,
+              or(
+                gt(sessionMessagesTable.createdAt, ownerBeforePage.createdAt),
+                and(
+                  eq(sessionMessagesTable.createdAt, ownerBeforePage.createdAt),
+                  gte(sessionMessagesTable.id, ownerBeforePage.id)
+                )
+              )
             )
           )
-        )
-        .orderBy(...ordering.orderBy)
-        .all()
-    }
-    const storedRows = attachAgentSessionMessagePartsTx(database, selectedRows, options.deferToolOutputs)
-    const items = this.toHistoryMessages(database, sessionId, storedRows, options.deferToolOutputs)
+          .orderBy(...ordering.orderBy)
+          .all()
+      : pageRows.length
+        ? database
+            .select(pageColumns)
+            .from(sessionMessagesTable)
+            .where(
+              inArray(
+                sessionMessagesTable.id,
+                pageRows.map(({ id }) => id)
+              )
+            )
+            .orderBy(...ordering.orderBy)
+            .all()
+        : []
+    const storedRows = attachAgentSessionMessagePartsTx(database, selectedRows, deferToolOutputs ? 'deferred' : false)
+    const items = this.toHistoryMessages(database, sessionId, storedRows, deferToolOutputs)
     const tail = selectedRows.at(-1)
+    const hasNext = ownerBeforePage
+      ? !!database
+          .select({ id: sessionMessagesTable.id })
+          .from(sessionMessagesTable)
+          .where(and(...filters, ordering.where({ key: ownerBeforePage.createdAt, id: ownerBeforePage.id })))
+          .limit(1)
+          .get()
+      : rows.length > limit
     const nextCursor = hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
 
     return { items, nextCursor }
@@ -2047,10 +2084,18 @@ export class AgentSessionMessageService {
   ): AgentSessionMessageEntity {
     const database = application.get('DbService').getDb()
     this.assertActiveSession(database, sessionId)
-    const row = this.findExistingMessageRow(database, sessionId, messageId, options.deferToolOutputs)
+    const row = this.findExistingMessageRow(database, sessionId, messageId, options.deferToolOutputs === true)
     if (!row || row.role === 'root') throw DataApiErrorFactory.notFound('Message', messageId)
     if (options.deferToolOutputs) return this.toHistoryMessages(database, sessionId, [row], true)[0]
     return this.rowToEntity(hydrateAgentSessionMessageRowsTx(database, [row])[0])
+  }
+
+  getSessionMessagePart(sessionId: string, messageId: string, partId: string): CherryMessagePart {
+    const database = application.get('DbService').getDb()
+    this.assertActiveSession(database, sessionId)
+    const part = this.findStoredMessagePart(database, sessionId, messageId, partId)
+    if (!part) throw DataApiErrorFactory.notFound('Message part', partId)
+    return hydrateAgentSessionMessagePartTx(database, messageId, part)
   }
 
   /** Reads the stored parts and their IDs without bringing sidecar output into the live projection. */
@@ -2082,13 +2127,17 @@ export class AgentSessionMessageService {
 
   getStoredMessagePart(sessionId: string, messageId: string, partId: string): CherryMessagePart | undefined {
     const database = application.get('DbService').getDb()
+    const part = this.findStoredMessagePart(database, sessionId, messageId, partId)
+    return part ? this.bindStoredPart(part, buildAgentSessionTopicId(sessionId), messageId, partId) : undefined
+  }
+
+  private findStoredMessagePart(db: DbOrTx, sessionId: string, messageId: string, partId: string) {
     const parts = sessionMessagePartsTable
-    const row = database
+    return db
       .select({ payload: parts.payload })
       .from(parts)
       .where(and(eq(parts.id, partId), eq(parts.messageId, messageId), eq(parts.sessionId, sessionId)))
-      .get()
-    return row ? this.bindStoredPart(row.payload, buildAgentSessionTopicId(sessionId), messageId, partId) : undefined
+      .get()?.payload
   }
 
   findStoredToolOwners(sessionId: string, toolCallId: string) {
@@ -2661,16 +2710,19 @@ export class AgentSessionMessageService {
     db: DbOrTx,
     sessionId: string,
     messageId: string,
-    includePartIds = false
+    deferToolOutputs = false
   ): SessionMessage | null {
     const rows = db
-      .select()
+      .select({
+        ...getTableColumns(sessionMessagesTable),
+        searchableText: deferToolOutputs ? sql<string>`''` : sessionMessagesTable.searchableText
+      })
       .from(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
       .limit(1)
       .all()
 
-    return attachAgentSessionMessagePartsTx(db, rows, includePartIds)[0] ?? null
+    return attachAgentSessionMessagePartsTx(db, rows, deferToolOutputs ? 'deferred' : false)[0] ?? null
   }
 
   private withParts(db: DbOrTx, row: SessionMessageRow): SessionMessage {

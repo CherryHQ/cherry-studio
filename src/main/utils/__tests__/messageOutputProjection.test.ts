@@ -10,6 +10,7 @@ import {
   DEFER_TOOL_OUTPUT_BYTES,
   projectAgentNonTextPart,
   projectMessagePartForRenderer,
+  projectOversizedHistoryToolPart,
   projectStreamChunkForRenderer
 } from '../messageOutputProjection'
 
@@ -411,5 +412,196 @@ describe('message tool-output projection', () => {
     expect(new TextEncoder().encode(JSON.stringify(projected.output)).length).toBeLessThanOrEqual(
       DEFER_TOOL_OUTPUT_BYTES
     )
+  })
+
+  describe('projectOversizedHistoryToolPart', () => {
+    const ref = { topicId: TOPIC_ID, messageId: MESSAGE_ID, partId: 'part-1', toolCallId: TOOL_CALL_ID }
+    const makeFallback =
+      (part: CherryMessagePart) =>
+      (citation?: { toolName: string; skeleton: unknown }): CherryMessagePart => ({
+        type: 'data-deferred-history-part',
+        data: {
+          sessionId: 'session-1',
+          messageId: MESSAGE_ID,
+          partId: 'part-1',
+          partType: part.type,
+          excerpt: 'excerpt',
+          updatedAt: 1,
+          ...(citation && { citation: citation as never })
+        }
+      })
+
+    it('keeps a threshold-mismatch citable tool part as a bounded projected tool part', () => {
+      const part: CherryMessagePart = {
+        type: 'dynamic-tool',
+        toolName: 'mcp__cherry-tools__web_search',
+        toolCallId: TOOL_CALL_ID,
+        state: 'output-available',
+        input: { query: 'mismatch' },
+        output: {
+          content: [{ id: '3f2a1b9c-1', title: 'Example', url: 'https://example.com', content: '' }],
+          metadata: largeAgentWebSearch.metadata
+        }
+      }
+      const emptyBytes = Buffer.byteLength(JSON.stringify((part as { output: unknown }).output))
+      ;(part as { output: { content: Array<{ content: string }> } }).output.content[0].content = 'a'.repeat(
+        32_674 - emptyBytes
+      )
+      expect(Buffer.byteLength(JSON.stringify((part as { output: unknown }).output))).toBe(32_674)
+      expect(Buffer.byteLength(JSON.stringify(part))).toBeGreaterThan(DEFER_TOOL_OUTPUT_BYTES)
+
+      const projected = projectOversizedHistoryToolPart(part, ref, DEFER_TOOL_OUTPUT_BYTES, makeFallback(part))
+      expect(projected.type).toBe('dynamic-tool')
+      expect(Buffer.byteLength(JSON.stringify(projected))).toBeLessThanOrEqual(DEFER_TOOL_OUTPUT_BYTES)
+      expect(projected).toMatchObject({
+        toolCallId: TOOL_CALL_ID,
+        output: {
+          $deferredToolResult: ref,
+          skeleton: {
+            content: [{ id: '3f2a1b9c-1', title: 'Example', url: 'https://example.com' }],
+            metadata: { type: 'mcp', name: 'web_search', serverId: 'cherry-tools' }
+          }
+        }
+      })
+    })
+
+    it('trims an already-deferred large skeleton so the whole part stays under the byte budget', () => {
+      const preDeferred = projectMessagePartForRenderer(
+        {
+          type: 'dynamic-tool',
+          toolName: 'mcp__cherry-tools__web_search',
+          toolCallId: TOOL_CALL_ID,
+          state: 'output-available',
+          input: { query: 'many' },
+          output: manyAgentWebSearch
+        },
+        TOPIC_ID,
+        MESSAGE_ID,
+        undefined,
+        'part-1'
+      )
+      expect(Buffer.byteLength(JSON.stringify(preDeferred))).toBeGreaterThan(DEFER_TOOL_OUTPUT_BYTES)
+
+      const projected = projectOversizedHistoryToolPart(
+        preDeferred,
+        ref,
+        DEFER_TOOL_OUTPUT_BYTES,
+        makeFallback(preDeferred)
+      )
+      expect(projected.type).toBe('dynamic-tool')
+      expect(Buffer.byteLength(JSON.stringify(projected))).toBeLessThanOrEqual(DEFER_TOOL_OUTPUT_BYTES)
+      const output = (projected as { output: { skeleton?: { content: unknown[] } } }).output
+      expect(isDeferredToolOutput(output)).toBe(true)
+      expect(output.skeleton?.content.length).toBeGreaterThan(0)
+      expect(output.skeleton?.content.length).toBeLessThan(manyAgentWebSearch.content.length)
+    })
+
+    it('projects an oversized persisted entities envelope into a bounded deferred tool part', () => {
+      const part: CherryMessagePart = {
+        type: 'tool-web_search' as never,
+        toolCallId: TOOL_CALL_ID,
+        state: 'output-available',
+        input: { query: 'persisted' },
+        output: {
+          $persistedToolOutput: {
+            shape: 'entities',
+            skeleton: manyAgentWebSearch.content,
+            blobRefs: [blob('/0/content', 1)]
+          }
+        }
+      } as unknown as CherryMessagePart
+
+      const projected = projectOversizedHistoryToolPart(part, ref, DEFER_TOOL_OUTPUT_BYTES, makeFallback(part))
+      expect(projected.type).toBe('tool-web_search')
+      expect(Buffer.byteLength(JSON.stringify(projected))).toBeLessThanOrEqual(DEFER_TOOL_OUTPUT_BYTES)
+      expect(projected).toMatchObject({
+        output: {
+          $deferredToolResult: ref,
+          excerpt: { head: 'head-1', tail: 'tail-1', totalChars: 1000, totalLines: 10 },
+          skeleton: expect.arrayContaining([expect.objectContaining({ id: 'many-1' })])
+        }
+      })
+    })
+
+    it('falls back to a deferred wrapper with bounded citation metadata when input alone exceeds the limit', () => {
+      const part: CherryMessagePart = {
+        type: 'dynamic-tool',
+        toolName: 'tool_call',
+        toolCallId: TOOL_CALL_ID,
+        state: 'output-available',
+        input: { name: 'mcp__cherry-tools__web_search', params: { query: 'x'.repeat(64 * 1024) } },
+        output: manyAgentWebSearch
+      }
+
+      const projected = projectOversizedHistoryToolPart(part, ref, DEFER_TOOL_OUTPUT_BYTES, makeFallback(part))
+      expect(Buffer.byteLength(JSON.stringify(projected))).toBeLessThanOrEqual(DEFER_TOOL_OUTPUT_BYTES)
+      expect(projected).toMatchObject({
+        type: 'data-deferred-history-part',
+        data: {
+          partId: 'part-1',
+          citation: {
+            toolName: 'web_search',
+            skeleton: {
+              content: expect.arrayContaining([expect.objectContaining({ id: 'many-1' })])
+            }
+          }
+        }
+      })
+    })
+
+    it('falls back to a plain deferred wrapper without citation metadata for non-citable or third-party tools', () => {
+      const thirdPartyBare: CherryMessagePart = {
+        type: 'dynamic-tool',
+        toolName: 'web_search',
+        toolCallId: TOOL_CALL_ID,
+        state: 'output-available',
+        input: { query: 'q' },
+        output: {
+          ...largeAgentWebSearch,
+          metadata: { type: 'mcp', name: 'web_search', serverName: 'other-server', serverId: 'other-server' }
+        }
+      }
+      const errorPayload: CherryMessagePart = {
+        type: 'dynamic-tool',
+        toolName: 'mcp__cherry-tools__web_search',
+        toolCallId: TOOL_CALL_ID,
+        state: 'output-available',
+        input: { query: 'q' },
+        output: { content: 'x'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1), metadata: largeAgentWebSearch.metadata }
+      }
+      const legacyKbReadNoId: CherryMessagePart = {
+        type: 'dynamic-tool',
+        toolName: 'mcp__cherry-tools__kb_read',
+        toolCallId: TOOL_CALL_ID,
+        state: 'output-available',
+        input: { baseId: 'b', conceptId: 'doc.md' },
+        output: {
+          content: {
+            conceptId: 'doc.md',
+            title: 'Doc',
+            type: 'file',
+            totalChars: 40_000,
+            charStart: 0,
+            charEnd: 40_000,
+            content: 'x'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1),
+            truncated: true
+          },
+          metadata: { type: 'mcp', name: 'kb_read', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+        }
+      }
+
+      for (const candidate of [thirdPartyBare, errorPayload, legacyKbReadNoId]) {
+        const projected = projectOversizedHistoryToolPart(
+          candidate,
+          ref,
+          DEFER_TOOL_OUTPUT_BYTES,
+          makeFallback(candidate)
+        )
+        expect(projected.type).toBe('data-deferred-history-part')
+        if (projected.type === 'data-deferred-history-part') {
+          expect(projected.data.citation).toBeUndefined()
+        }
+      }
+    })
   })
 })
