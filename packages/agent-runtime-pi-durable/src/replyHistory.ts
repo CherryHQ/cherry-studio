@@ -60,7 +60,14 @@ export async function readDurableReply(
       cursor = page.next
     } while (cursor && !nextInput)
   }
-  return { outcome, messages: content.seal().filter((message) => message.role === 'assistant') }
+  return {
+    outcome,
+    placedInputIds: records.flatMap((record, index) =>
+      submissionState(thread, record, answer || undefined).facts.includes('placed') ? [inputs[index].inputId] : []
+    ),
+    ...(outcome.outcome === 'completed' && primary.answer !== undefined && { answerEntryId: String(primary.answer) }),
+    messages: content.seal().filter((message) => message.role === 'assistant')
+  }
 }
 
 /** A pre-submit crash is recoverable only when every input can be ruled out on its idle root. */

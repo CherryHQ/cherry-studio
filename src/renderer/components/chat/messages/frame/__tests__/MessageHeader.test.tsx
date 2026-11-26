@@ -105,6 +105,19 @@ describe('MessageHeader', () => {
     providerState.meta = {}
   })
 
+  it('keeps the body DOM and focus when the Run identity slot becomes visible', () => {
+    const message = createMessage('assistant', { messageSnapshot: { id: 'agent', name: 'Run author' } })
+    const body = <button type="button">Tool approval</button>
+    const view = render(<MessageHeader message={message} showHeader={false} contentSlot={body} />)
+    const tool = screen.getByRole('button', { name: 'Tool approval' })
+    tool.focus()
+    expect(screen.queryByText('Run author')).not.toBeInTheDocument()
+    view.rerender(<MessageHeader message={message} showHeader contentSlot={body} />)
+    expect(screen.getByText('Run author')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Tool approval' })).toBe(tool)
+    expect(tool).toHaveFocus()
+  })
+
   it('updates historical author avatars and restores the snapshot after deletion', () => {
     const message = createMessage('assistant', {
       messageSnapshot: { id: 'agent-1', name: 'Original name', emoji: '🎓' }

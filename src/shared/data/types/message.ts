@@ -238,6 +238,8 @@ export interface CherryUIMessageMetadata {
 export type CherryUIMessage = UIMessage<CherryUIMessageMetadata, CherryDataPartTypes> & {
   /** Stable IDs parallel to parts, for live Agent projection packets. */
   partIds?: readonly string[]
+  partPositions?: readonly (number | null)[]
+  timeline?: { pos?: number | null; replyId?: string | null }
 }
 
 /** Cherry Studio's UIMessageChunk — inferred from CherryUIMessage. */

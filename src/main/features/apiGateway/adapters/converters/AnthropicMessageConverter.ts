@@ -222,23 +222,30 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       const parts: CherryUIMessage['parts'] = []
 
       for (const block of msg.content) {
+        const replay = role === 'assistant' ? this.caches.getReplayMetadata?.(block) : undefined
         if (block.type === 'text') {
-          const part: TextUIPart = { type: 'text', text: block.text, providerMetadata: cacheProviderOptions(block) }
+          const part: TextUIPart = {
+            type: 'text',
+            text: block.text,
+            providerMetadata: replay ? { ...cacheProviderOptions(block), ...replay } : cacheProviderOptions(block)
+          }
           parts.push(part)
         } else if (block.type === 'thinking') {
+          if (replay === null) continue
           // Preserve the signature (even '') — @ai-sdk/anthropic drops reasoning
           // parts without one, so thinking blocks would never replay upstream (#18150).
           const part: ReasoningUIPart = {
             type: 'reasoning',
             text: block.thinking,
-            providerMetadata: { anthropic: { signature: block.signature } }
+            providerMetadata: replay ?? { anthropic: { signature: block.signature } }
           }
           parts.push(part)
         } else if (block.type === 'redacted_thinking') {
+          if (replay === null) continue
           const part: ReasoningUIPart = {
             type: 'reasoning',
             text: '',
-            providerMetadata: { anthropic: { redactedData: block.data } }
+            providerMetadata: replay ?? { anthropic: { redactedData: block.data } }
           }
           parts.push(part)
         } else if (block.type === 'image') {
@@ -249,8 +256,10 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
         } else if (block.type === 'tool_use') {
           const toolName = this.toProviderToolName(block.name)
           const callProviderMetadata = {
-            ...this.buildToolCallProviderOptions(params.model, block.id),
-            ...cacheProviderOptions(block)
+            ...cacheProviderOptions(block),
+            ...(replay === null
+              ? { cherry: { omitGeminiThoughtSignature: true } }
+              : (replay ?? this.buildToolCallProviderOptions(params.model, block.id)))
           }
           const result = toolResults.get(block.id)
           const base = {

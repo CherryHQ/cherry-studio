@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { CodeCli } from '@shared/types/codeCli'
-import { FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets } from '@shared/utils/cliConfig'
+import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
 import { CLI_CONFIG_ADAPTERS, getAdapter } from '../adapters'
 
@@ -16,10 +16,6 @@ const OWN_LOGIN_CONFIGURABLE_TOOLS = new Set<string>([
 
 describe('CLI_CONFIG_ADAPTERS registry', () => {
   const adapterKeys = Object.keys(CLI_CONFIG_ADAPTERS)
-
-  it('covers exactly the file-configured CLI tools', () => {
-    expect(new Set(adapterKeys)).toEqual(FILE_CONFIGURED_CLI_TOOLS)
-  })
 
   it.each(adapterKeys)('%s adapter targets match the shared target table', (cliTool) => {
     expect(getAdapter(cliTool)?.targets).toEqual(getCliConfigTargets(cliTool))

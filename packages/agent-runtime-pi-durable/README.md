@@ -59,6 +59,11 @@ normal completion does not discard accepted input. Explicit interruption still f
 the native cancellation scope. Read captured input facts to distinguish
 acceptance from placement and completion.
 
+The desktop mirrors the ordered native follow-up inbox after attachment and on inbox commits.
+Editing and reordering check the still-waiting entries inside a native transaction. An edit takes
+its native content and product text part to placement under the original submission ID. The desktop
+can reapply that part on reopen. Withdrawing one entry uses the native submission abort operation.
+
 Several inputs can share a native answer. Native `done` alone is insufficient: Durable also uses it for truncated output
 and tool-only termination. The adapter reads the actual assistant stop reason before reporting
 `completed`; truncation becomes `unanswered` with `output-truncated`. Native aborted submissions
@@ -71,7 +76,10 @@ Each attempt remains in history after later retries. Input outcomes come from na
 independently of these message-local errors. Live observations and archive reads use the same projection.
 
 `durable.observe` captures content, inputs, aliases, live provenance, `backgroundResults` and foreground
-completion from one native `ConversationView` revision. Completion includes the last visible committed entry ID for desktop fork checkpoints. A history fold of the lineage's entries and tool
+completion from one native `ConversationView` revision. Successful native submissions also retain their exact
+`answer` entry IDs, keyed by product input ID. These facts are retained across observer delivery and
+replayed from committed submissions after reopening; they do not wait for overall inactivity.
+Foreground completion retains the last visible committed entry ID as a fallback for work without a product input. A history fold of the lineage's entries and tool
 tasks, fed by the opening scan and by commit notifications, supplies result origins without retaining
 entry bodies; continuation records identify the current triggering call. Pending results
 include undelivered reports and unfinished notification generation, including the gap before it starts.
@@ -212,7 +220,7 @@ identity files, skill catalog entries and tool schemas expose individual estimat
 from tool registration, including codemode-only tools listed as deferred. Reads never rerender sections
 or reload files. These partial estimates are separate from native billable usage records.
 
-The runtime `durable.commit` facet shares the existing native mutation line; desktop fork operations retain the backend while using it. The thread `durable` facet exposes native configuration, compaction, behavior facts,
+The runtime `durable.commit` and `durable.observeCommits` facets share the existing native mutation line; desktop fork operations and deferred retired-desktop reclamation retain the backend while using them. The thread `durable` facet exposes native configuration, compaction, behavior facts,
 provider session identity and tool-call resolution for the desktop adapter. These stay
 outside the harness-neutral Runtime contract. `onInputPlaced(inputId, thread)` runs synchronously at
 native placement so the host reserves input attribution before the next model request; native-only

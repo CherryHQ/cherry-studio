@@ -3,8 +3,8 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-11-14T13:12:37.981Z
- * Total icons: 187
+ * Generated at: 2026-11-26T20:21:17.193Z
+ * Total icons: 195
  */
 export { AceIcon as Ace } from './ace'
 export { AdobeIcon as Adobe } from './adobe'
@@ -100,6 +100,8 @@ export { Gpt5NanoIcon as Gpt5Nano } from './gpt-5-nano'
 export { Gpt5ProIcon as Gpt5Pro } from './gpt-5-pro'
 export { Gpt61SolIcon as Gpt61Sol } from './gpt-6-1-sol/gpt-6-1-sol'
 export { Gpt61TerraIcon as Gpt61Terra } from './gpt-6-1-terra/gpt-6-1-terra'
+export { Gpt62AstraIcon as Gpt62Astra } from './gpt-6-2-astra/gpt-6-2-astra'
+export { Gpt62SolIcon as Gpt62Sol } from './gpt-6-2-sol/gpt-6-2-sol'
 export { Gpt6AstraIcon as Gpt6Astra } from './gpt-6-astra/gpt-6-astra'
 export { Gpt6CyberIcon as Gpt6Cyber } from './gpt-6-cyber/gpt-6-cyber'
 export { Gpt6LunaIcon as Gpt6Luna } from './gpt-6-luna/gpt-6-luna'
@@ -139,6 +141,7 @@ export { IbmIcon as Ibm } from './ibm'
 export { IdeogramIcon as Ideogram } from './ideogram'
 export { InceptionIcon as Inception } from './inception'
 export { InflectionIcon as Inflection } from './inflection'
+export { InklingIcon as Inkling } from './inkling/inkling'
 export { InternlmIcon as Internlm } from './internlm'
 export { JimengIcon as Jimeng } from './jimeng'
 export { JinaIcon as Jina } from './jina'
@@ -151,6 +154,7 @@ export { LingIcon as Ling } from './ling'
 export { LiquidIcon as Liquid } from './liquid'
 export { LlavaIcon as Llava } from './llava'
 export { LongcatIcon as Longcat } from './longcat'
+export { MaiIcon as Mai } from './mai/mai'
 export { MenloIcon as Menlo } from './menlo'
 export { MetaIcon as Meta } from './meta'
 export { MicrosoftIcon as Microsoft } from './microsoft'
@@ -172,8 +176,12 @@ export { PhindIcon as Phind } from './phind'
 export { PoolsideIcon as Poolside } from './poolside'
 export { QiniuIcon as Qiniu } from './qiniu'
 export { QwenIcon as Qwen } from './qwen'
+export { RecursiveIcon as Recursive } from './recursive/recursive'
+export { ReflectionIcon as Reflection } from './reflection/reflection'
 export { RelaceIcon as Relace } from './relace'
 export { RwkvIcon as Rwkv } from './rwkv'
+export { SakanaIcon as Sakana } from './sakana/sakana'
+export { ScaledownIcon as Scaledown } from './scaledown/scaledown'
 export { SensenovaIcon as Sensenova } from './sensenova'
 export { SkyworkIcon as Skywork } from './skywork'
 export { SoraIcon as Sora } from './sora'
