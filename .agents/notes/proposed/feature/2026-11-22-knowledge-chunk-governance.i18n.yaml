@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-22-knowledge-chunk-governance.md
+2026-11-22-knowledge-chunk-governance.md: 9ce32bd90894a5a6ee7e554a4b3c74d062d32cf5
+2026-11-22-knowledge-chunk-governance.zh.md: 61e5cc55cb5ce1d88a93641de48f517e80f4ebfa
