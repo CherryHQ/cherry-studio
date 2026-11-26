@@ -353,7 +353,11 @@ export async function toModelMessages(
     const parts = message.parts.filter((part) => {
       if (message.role === 'assistant' && part.type === 'text') return part.text.trim().length > 0
       if (part.type !== 'reasoning' || part.text.trim().length > 0) return true
-      return preserveEmptyAnthropicThinking || typeof part.providerMetadata?.anthropic?.signature !== 'string'
+      return (
+        preserveEmptyAnthropicThinking ||
+        typeof part.providerMetadata?.cherry?.replayRouteId === 'string' ||
+        typeof part.providerMetadata?.anthropic?.signature !== 'string'
+      )
     })
     return parts.length === message.parts.length ? message : { ...message, parts }
   })

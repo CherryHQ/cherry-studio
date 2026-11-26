@@ -317,6 +317,8 @@ describe('useMessageSelectionController', () => {
       const messages: MessageListItem[] = [
         message('u1'),
         { ...message('divider'), isContextBoundary: true },
+        { ...message('compact'), presentation: 'marker' },
+        { ...message('interrupted'), presentation: 'interrupted' },
         message('u2'),
         message('u3')
       ]
@@ -591,6 +593,8 @@ describe('useMessageSelectionController', () => {
       const messages: MessageListItem[] = [
         message('u1'),
         { ...message('divider'), isContextBoundary: true },
+        { ...message('compact'), presentation: 'marker' },
+        { ...message('interrupted'), presentation: 'interrupted' },
         { ...message('a-active'), role: 'assistant' as const, siblingsGroupId: 1, isActiveBranch: true },
         { ...message('a-hidden'), role: 'assistant' as const, siblingsGroupId: 1, isActiveBranch: false },
         message('u2')

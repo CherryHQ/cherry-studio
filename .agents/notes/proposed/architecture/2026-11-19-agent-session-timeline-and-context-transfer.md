@@ -39,6 +39,41 @@ The timeline contains input references and output parts. An input item reference
 
 Root and child use the same contract. Each child archive has its own order and revision. Migration keeps existing message IDs, branch and fork anchors, attachment references, and saved part IDs. It identifies legacy run membership using existing reply and composition evidence; when evidence is incomplete, preserve the existing boundaries. Read an existing branch from its selected ancestry and preserve its recorded boundary. Preserve the original tool-result owner while resolving old archive references to part IDs.
 
+#### Execution, content and display have different lifetimes
+
+At `931d854cb87d30bc45d99fcfeba488ac2eb05b27`, #24051, #24100 and #25406 provide independent part storage, completion writes, addressed publication and keyed subscriptions. They do not complete the Run cutover: `AgentSessionTurn` still combines execution and reply delivery, and `reserveSteerContinuation()` still reserves another assistant row. Treat these as delivered prerequisites, not evidence for AC1.
+
+| Unit | Identity and lifetime | Changes that notify it |
+| --- | --- | --- |
+| Run | The existing assistant row ID, from native placement of its trigger through native execution terminal | Execution status, pending interactions and usage |
+| Input | The persisted user row ID; acceptance, queueing, placement and outcome are separate facts | Its own delivery/placement/outcome |
+| Part | The existing persisted part ID and owner Run; position is fixed on admission | Its addressed body/state edit |
+| Display segment | Derived contiguous timeline items; a Run can appear on both sides of an input | Segment membership and presentation classification |
+| Delivery attempt | Existing `turnId`/attempt guards for stream attachment and callbacks | Transport attachment and stale-callback handling |
+
+`runId` is the domain name for an assistant record's existing ID; it is not another generated ID, table or service. Existing `turnId` must not define durable execution ownership. Keep it only where a real delivery attempt needs correlation; remove redundant aliases when callers migrate. Reserve a pending assistant record before dispatch if the existing admission path needs one, but do not describe reservation as a running native execution. Unknown admission recovers through the existing input/context identity rather than allocating another Run.
+
+One native execution may accept multiple inputs and emit multiple native assistant messages. Individual input outcomes, model-message ends, part finishes and successful history reads cannot settle its Run. The adapter reports whether placement joins an active execution or begins a new one; the composer mode, `followUp` spelling or session-wide busy flag cannot decide that boundary. Background wake starts a new Run only when native evidence establishes a new execution after the previous Run settled. Compaction and approval wait retain the current Run.
+
+#### Placement and settlement transition contract
+
+| Existing fact | Required Run operation | Timeline and persistence |
+| --- | --- | --- |
+| Input accepted or queued | Retain the input ID; no active-Run association is inferred | Save existing acceptance/queue state; no placed `pos` is fabricated |
+| Trigger placed into a new execution | Activate its reserved Run, or create one under the existing recovery path | Bind input `replyId` and its position before publishing that placement |
+| Steer placed into the active execution | Link this input to the same Run; reserve no continuation | Keep every existing part owner/ID/position; later new parts receive new positions |
+| Queued follow-up placed after native terminal | Start a new Run | Retain the queued input ID and allocate its actual placement |
+| Part finished or an input outcome arrived | Update that part/input only | Reuse completed-part commits; do not settle Run status or repeat usage settlement |
+| Compaction, approval wait, or observer detach | Preserve the executing Run | Update existing controls/markers; detach never cancels execution |
+| Stop requested | Invoke the existing native Stop path for the active execution | Retain received parts; do not invent a successful native terminal |
+| Native terminal, or existing confirmed connection-failure outcome | Settle the matching Run once after required writes succeed | Flush unfinished received parts and settle statistics; stale/duplicate callbacks cannot settle another Run |
+
+Use the existing synchronous transaction for the placement's input link, position and required checkpoint association. Publish after commit. Do not add an event archive or a second admission state machine. The adapter's placement/terminal contract must identify the executing context and existing execution owner; if native evidence is ambiguous, use the current recovery/error path instead of guessing from the newest user row.
+
+The runtime cutover removes `reserveSteerContinuation`, `reserve-steer`, and the `steer-transition` source/reply pair for same-execution steer. `AgentSessionRuntimeService` remains the lifecycle owner. Separate the Run's native lifetime from the existing stream delivery state; a view handoff closes or replaces observation, not execution. A source registered before steer continues to route late updates to the same Run and part. Output ownership, usage, approvals and tool-result lookup must not follow the newest display segment.
+
+Renderer derives display segments from input and part positions. A segment key comes from its stable leading item, never a transport revision or an array index. An existing part stays under its compatible parent when a later input is added; later new output forms a segment after that input. An already-open text part or tool retains its original position while updating. This decision does not promise that every byte arriving after a click appears below that click. Immediate local input display, if enabled, needs a preallocated input identity and an explicit unplaced state; native placement remains authoritative. Do not manufacture a continuation assistant record or move a running tool to simulate it.
+
 #### Table relationships and fields
 
 The following names use the TypeScript schema convention. **Existing** fields describe the current stack. **Required** fields are part of the Agent timeline cutover. **History** fields ship with incremental history reads.
@@ -98,6 +133,11 @@ The same part ID addresses the current tool result in Main, SQLite and renderer 
 `agent_session_context` owns the native binding and native fork recovery. The Timeline owner maintains source-to-part associations, positions and removal state. New Timeline writes use those associations in place of the root array ranges and child composition. Read old `checkpointMapping.root` and `checkpointMapping.child` for legacy recovery. A fork publish owns only `checkpointMapping.fork` and preserves other recovery sections in the same transaction. The current [fork publish](../../../../src/main/data/services/AgentSessionContextService.ts) replaces the whole mapping, so this preservation needs a regression test.
 
 New forks start only at supported boundaries after successfully completed Runs. A same-harness native fork requires a checkpoint for that exact boundary. Renderer offers Fork only at eligible boundaries, and Main rejects steer messages and positions inside a Run before preparing a fork.
+
+Fork and edit share one Run history projection over the selected branch's existing assistant IDs, input `replyId` links and admitted `pos` values. Group each Run with its original input and placed steers, and order Runs by their first admitted input. Message ancestry selects the branch but does not define execution order or native cutoffs. Fork copies whole Runs through the selected boundary and excludes bound, unplaced inputs; positionless legacy rows without admission evidence remain readable. Edit rejects in-Run steer inputs, takes the preceding Run's checkpoint, and atomically reconnects the selected path in Run order before replacing the target Run and later descendants. Preserve earlier Run IDs, linked inputs, checkpoints and sibling branches.
+
+The Main history resolver owns admission classification, predecessor selection and cutoff membership. Its public surface exposes resolved targets and readonly, opaque fork/edit plans rather than an ordered row array. Edit capability checks consume the same resolution as native preparation. The product commit accepts only the read phase's version-bound edit plan and rejects changed history before applying its planned parent changes and replacement boundary. Known unplaced or withdrawn inputs stay in product history but cannot supply a native predecessor or enter a fork prefix; an admitted steer cannot produce an edit plan. Resolve an addressed nonactive branch against its own path. Fork selects retained IDs from metadata before loading parts and archived tool results. Native recovery persists confirmed placement independently of Run success, so an error or paused Run's admitted input is not mistaken for an undelivered queue entry. No new Run table or parallel event store is required.
+
 
 An explicit native source replacement resolves its alias to the existing `partId` and position. A user deletion persists a suppression record for the canonical source in the deletion transaction, so replay cannot restore its content. Retain that record until the source can no longer be replayed. A history cursor reset refreshes the read view. Replay suppression separately protects the Timeline writer.
 
@@ -265,14 +305,20 @@ The reference supplies model context only. It adds no product transcript rows or
 
 ### 7. Delivery order
 
-1. This Spec at the stack bottom, with the runtime contract amendment.
-2. Storage: use the part table of #24051, save the assigned position and Run ownership with each body, and migrate the sidecar binding without rewriting shipped migrations.
-3. Cut over the Agent timeline in one delivery: accept root and child operations, use completion persistence from #24100, migrate keyed publication and subscriptions, and remove the Agent whole-message hot path.
-4. Validate the migrated consumers and measure Markdown separately.
-5. Fresh-context initialization, binding and old-runtime release, with session runtime binding amended in its own branch.
-6. Electron acceptance. Only this layer moves the note to implemented.
+The part storage and addressed-update prerequisites are already on `main`; do not reimplement them or describe their completion as Run acceptance. Deliver the remaining changes in the following reviewable units. The runtime and renderer units are dependent and become user-visible together; do not retain a permanent old/new execution mode.
 
-#23873 and #23909 keep their tool-result scope. Apply the new tool-part address to the Agent callers in the cutover. Message-list subscriptions is amended in its own layer to defer to this note for steer placement, part identity and the cursor.
+| Unit | Concrete change and removal boundary | Verification before the next unit |
+| --- | --- | --- |
+| 1. Execution facts and identity | Trace trigger, steer, queued follow-up, Stop and terminal facts through each adapter; make the existing assistant ID the explicit Run owner. Keep only necessary delivery attempt IDs. | Adapter traces identify one execution across steer and distinguish the next queued execution; no UI timing inference (AC1, AC3) |
+| 2. Main Run lifecycle | Make placed steer inputs share `replyId`; remove continuation allocation and same-execution source/reply transition. Route parts, usage, approvals and terminal callbacks through the stable Run. | Deterministic runtime and SQLite tests assert one assistant record, stable owner IDs, atomic input placement and exactly-once settlement (AC1, AC3, AC13) |
+| 3. Timeline display | Derive segments independently from Run ownership using admitted positions. Preserve part keys and compatible parents; subscribe Run controls separately from bodies. | Mounted input/ack/steer tests count mounts and notifications, preserve tool disclosure/approval/focus, and reproduce order after reconnect (AC2, AC5, AC11) |
+| 4. Recovery and consumers | Audit delivery recovery, background wake, child archives, usage, fork, copy/export, search and tool-result readers. Keep ambiguous legacy boundaries rather than merging them by time. | Populated migration/restart and source replay cover late events, duplicate terminal, Stop/save failure and supported Run-boundary fork (AC12, AC13, AC15, AC16, AC18) |
+| 5. Real steer acceptance | Exercise the matrix below on Claude Code, Pi and Pi Durable; record SDK placement/terminal facts beside DOM keys and viewport movement. | Real Electron evidence distinguishes model response delay, natural growth, remount and unexpected scroll; do not infer smoothness from unit tests (AC11, AC14, AC19) |
+| 6. Independent remaining capabilities | Incremental history cursor, fresh-context initialization and old-runtime release retain their own scoped implementation and evidence. | AC4 and AC7–AC10, AC17, AC20 are verified separately; only complete cumulative coverage moves this note to implemented |
+
+The steer matrix includes: text open; tool running and approval waiting; repeated steer and a subsequent queued input; compaction-time input; external-session delivery; Stop while an input is unplaced and after placement; observer detach/reconnect; native terminal followed by queued placement; and native background wake. Each trace records input ID, Run ID, part ID/position and native execution boundary. Count Run settlement and usage once. A queued input gets no fabricated placed timeline item; existing open parts keep their earlier positions. Real failures must retain readable output without replaying input or tools.
+
+#23873 and #23909 retain their tool-result scope. Reuse #24051, #24100 and #25406 rather than adding another body accumulator or publisher. The existing detailed incremental-path checks below remain regression requirements; a passed performance check does not satisfy the Run lifecycle contract.
 
 #### Implementing and checking the incremental path
 
@@ -307,7 +353,7 @@ A mounted root opens a text part after reasoning with 20 or 20,000 settled sibli
 
 ## Acceptance criteria
 
-- AC1 — A steer accepted during a run attaches to that run through `replyId`; no continuation row is created and the run settles once at its native terminal (verification: unit; Main runtime owner)
+- AC1 — A placed steer joins the active native execution through the same assistant-row Run ID and `replyId`, without allocating another assistant record or delivery-owned execution. Multiple steers, compaction and approval wait preserve that owner; individual input outcomes do not settle it. The matching native terminal settles the Run and usage once, and a later queued execution gets a new Run (verification: adapter contract, runtime state and SQLite tests; Main runtime owner)
 - AC2 — Inputs and parts render in `pos` order. A part admitted before a steer stays above it while streaming and after it commits, even when the steer commits first. Attaching a second window, reloading a window or reconnecting to the same Main process reproduces the live order (verification: unit and Electron; projection and renderer owners)
 - AC3 — An admitted part keeps its ID on reconnect and snapshot replacement in the same Main process. A committed part keeps its ID on restart and on a replay with a known native source on Claude Code, Pi and Pi Durable. New writes add no offset/count composition and legacy rows stay readable (verification: harness contract and setupTestDatabase unit; runtime owners)
 - AC4 — Every committed row change raises `rev`; a reader at cursor N receives exactly the rows changed after N, and deletion or branch switching returns a fresh snapshot (verification: setupTestDatabase unit; Main data owner)

@@ -1,4 +1,4 @@
-export { defaultFilterFn, defaultSortFn } from './defaultStrategies'
+export { calculateMatchScore, defaultFilterFn, defaultSortFn } from './defaultStrategies'
 export {
   firstQuickPanelSelectableIndex,
   initialQuickPanelFocusIndex,
