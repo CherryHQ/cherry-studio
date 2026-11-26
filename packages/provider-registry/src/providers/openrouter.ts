@@ -78,7 +78,12 @@ export default defineProvider({
         input: { currency: CURRENCY.USD, perMillionTokens: 0 },
         output: { currency: CURRENCY.USD, perMillionTokens: 0 }
       },
-      capabilities: { remove: ['structured-output'] }
+      capabilities: { remove: ['structured-output'] },
+      reasoningContracts: {
+        'openai-chat-completions': {
+          support: { controls: [{ kind: 'toggle' }], supportedEfforts: ['none', 'auto'] }
+        }
+      }
     }
   ],
   modelTemplates: [

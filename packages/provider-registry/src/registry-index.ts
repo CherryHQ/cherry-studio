@@ -4,14 +4,23 @@ import {
   colonVariantTagToHyphen,
   extractParameterSize,
   normalizeModelId,
-  normalizeVersionSeparators
+  normalizeVersionSeparators,
+  stripDateSnapshot
 } from './utils/normalize'
 
 function canonicalVariantPriority(override: ProviderModelOverride): number {
   const { apiModelId, modelId } = override
-  if (!apiModelId || apiModelId === modelId) return 2
-  const apiName = apiModelId.slice(apiModelId.lastIndexOf('/') + 1).toLowerCase()
-  return normalizeVersionSeparators(apiName) === modelId ? 1 : 0
+  if (!apiModelId || apiModelId === modelId) return 3
+  const apiName = normalizeVersionSeparators(apiModelId.slice(apiModelId.lastIndexOf('/') + 1).toLowerCase())
+  if (apiName === modelId) return 2
+  return stripDateSnapshot(apiName) === modelId ? 1 : 0
+}
+
+function prefersCanonicalOffer(candidate: ProviderModelOverride, current: ProviderModelOverride | undefined): boolean {
+  if (!current) return true
+  const priority = canonicalVariantPriority(candidate) - canonicalVariantPriority(current)
+  if (priority !== 0) return priority > 0
+  return (candidate.apiModelId ?? candidate.modelId) < (current.apiModelId ?? current.modelId)
 }
 
 export class ModelIndex {
@@ -67,9 +76,7 @@ export class ProviderModelIndex {
         continue
       }
       const key = `${pm.providerId}::${pm.modelId}`
-      const priority = canonicalVariantPriority(pm)
-      const current = this.overrideByKey.get(key)
-      if (!current || priority > canonicalVariantPriority(current)) {
+      if (prefersCanonicalOffer(pm, this.overrideByKey.get(key))) {
         this.overrideByKey.set(key, pm)
       }
       const normKey = `${pm.providerId}::${normalizeModelId(pm.modelId)}`
@@ -77,8 +84,7 @@ export class ProviderModelIndex {
         this.overrideByNormKey.set(normKey, pm)
       }
       const sizedNormKey = `${pm.providerId}::${normalizeModelId(pm.modelId, { keepParameterSize: true })}`
-      const sizedCurrent = this.overrideBySizedNormKey.get(sizedNormKey)
-      if (!sizedCurrent || priority > canonicalVariantPriority(sizedCurrent)) {
+      if (prefersCanonicalOffer(pm, this.overrideBySizedNormKey.get(sizedNormKey))) {
         this.overrideBySizedNormKey.set(sizedNormKey, pm)
       }
       if (pm.apiModelId) {

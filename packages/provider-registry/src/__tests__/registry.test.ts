@@ -83,6 +83,18 @@ describe('portable registry', () => {
     }
   )
 
+  it.each([false, true])('prefers the untagged dated offer on canonical lookup (reverse=%s)', (reverse) => {
+    const dated = { providerId: '302ai', modelId: 'claude-opus-4-1', apiModelId: 'claude-opus-4-1-20250805' }
+    const thinking = { ...dated, apiModelId: 'claude-opus-4-1-20250805-thinking' }
+    const registry = createRegistry({
+      ...catalog(),
+      providerModels: { version: 'v1', overrides: reverse ? [thinking, dated] : [dated, thinking] }
+    })
+
+    expect(registry.findOverride(dated.providerId, dated.modelId)?.apiModelId).toBe(dated.apiModelId)
+    expect(registry.findOverride(thinking.providerId, thinking.apiModelId)?.apiModelId).toBe(thinking.apiModelId)
+  })
+
   it('creates independent views when an application activates a new snapshot', () => {
     const original = createRegistry(catalog())
     const replacement = createRegistry({
