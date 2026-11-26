@@ -273,7 +273,14 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
   it('onError folds the error into finalMessage.parts and persists as status=error', async () => {
     const listener = makeListener()
 
-    const err: SerializedError = { name: 'Error', message: 'boom', stack: null }
+    const err: SerializedError = {
+      name: 'Error',
+      message: 'boom',
+      stack: null,
+      i18nKey: 'diagnosis.payload',
+      detailI18nKey: 'image_payload_rejection_detail',
+      detailI18nValues: { reason: 'Downloaded image content cannot exceed 30MB' }
+    }
     const finalMessage = {
       id: 'partial-id',
       role: 'assistant',
@@ -289,7 +296,13 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     // error part; the backend just persists whatever `parts` it receives.
     const parts = payload.data.parts as Array<{ type: string }>
     expect(parts.some((p) => p.type === 'text')).toBe(true)
-    expect(parts.some((p) => p.type === 'data-error')).toBe(true)
+    expect(parts.find((p) => p.type === 'data-error')).toMatchObject({
+      data: {
+        i18nKey: 'diagnosis.payload',
+        detailI18nKey: 'image_payload_rejection_detail',
+        detailI18nValues: { reason: 'Downloaded image content cannot exceed 30MB' }
+      }
+    })
   })
 
   it('terminalizes interrupted reasoning before composing error stats', async () => {

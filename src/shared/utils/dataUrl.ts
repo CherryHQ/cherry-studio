@@ -7,6 +7,8 @@ export interface DataUrlParts {
   data: string
 }
 
+const DATA_URL_SCHEME = 'data:'
+
 /**
  * Parses a data URL into its component parts without using regex on the data portion.
  * This is memory-safe for large data URLs (e.g., 4K images) as it uses indexOf instead of regex.
@@ -27,7 +29,7 @@ export interface DataUrlParts {
  * // null
  */
 export function parseDataUrl(url: string): DataUrlParts | null {
-  if (!url.startsWith('data:')) {
+  if (url.slice(0, DATA_URL_SCHEME.length).toLowerCase() !== DATA_URL_SCHEME) {
     return null
   }
 
@@ -36,7 +38,7 @@ export function parseDataUrl(url: string): DataUrlParts | null {
     return null
   }
 
-  const header = url.slice(5, commaIndex)
+  const header = url.slice(DATA_URL_SCHEME.length, commaIndex)
   const [rawMediaType, ...parameters] = header.split(';')
 
   const isBase64 = parameters.some((parameter) => parameter.trim().toLowerCase() === 'base64')
@@ -54,7 +56,7 @@ export function parseDataUrl(url: string): DataUrlParts | null {
  * @returns true if the string is a valid data URL
  */
 export function isDataUrl(url: string): boolean {
-  return url.startsWith('data:') && url.includes(',')
+  return url.slice(0, DATA_URL_SCHEME.length).toLowerCase() === DATA_URL_SCHEME && url.includes(',')
 }
 
 /**
@@ -65,5 +67,5 @@ export function isDataUrl(url: string): boolean {
  */
 export function isBase64ImageDataUrl(url: string): boolean {
   const parsed = parseDataUrl(url)
-  return parsed?.mediaType?.startsWith('image/') === true && parsed.isBase64
+  return parsed?.mediaType?.toLowerCase().startsWith('image/') === true && parsed.isBase64
 }

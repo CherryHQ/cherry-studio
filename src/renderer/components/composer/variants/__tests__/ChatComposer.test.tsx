@@ -14,10 +14,11 @@ import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedCo
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import type { CherryCloudQuotaExhaustion } from '@renderer/hooks/useCherryCloudQuotaExhaustion'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
+import english from '@renderer/i18n/locales/en-us.json'
 import { toast } from '@renderer/services/toast'
 import { voiceTargetManager } from '@renderer/services/voice'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { createUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 import type * as SharedModelUtils from '@shared/utils/model'
@@ -61,6 +62,7 @@ const mocks = vi.hoisted(() => ({
   knowledgeBasesLoading: false,
   assistant: undefined as any,
   model: undefined as Model | undefined,
+  models: undefined as Model[] | undefined,
   assistantLoading: false,
   modelPending: false,
   modelMissing: undefined as boolean | undefined,
@@ -214,6 +216,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         : props.sendAccessory
     return (
       <div>
+        {props.topContent}
         <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter, unifiedPanelControl)}</div>
         <div data-testid="composer-below-controls">
           {props.renderBelowControls?.(inputAdapter, unifiedPanelControl)}
@@ -546,7 +549,8 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModelById: (modelId?: string) => ({ model: modelId ? { ...model, id: modelId, contextWindow: 100 } : undefined }),
   useModels: (...args: unknown[]) => {
     mocks.modelHookArgs.push(args)
-    return { models: [mocks.model ?? model, modelB] }
+    const options = args[1] as { fetchEnabled?: boolean } | undefined
+    return { models: options?.fetchEnabled === false ? [] : (mocks.models ?? [mocks.model ?? model, modelB]) }
   }
 }))
 
@@ -644,6 +648,9 @@ vi.mock('react-i18next', async (importOriginal) => {
     useTranslation: () => ({
       t: (key: string, options?: Record<string, unknown>) => {
         if (key === 'common.selectedItems') return `${options?.count ?? 0} selected`
+        if (key === 'chat.input.image_budget' || key === 'chat.input.image_budget_exceeded') {
+          return english[key].replace('{{limit}}', String(options?.limit))
+        }
         return String(options?.defaultValue ?? key)
       },
       i18n: { resolvedLanguage: 'en-US' }
@@ -698,12 +705,22 @@ const StartEditingWithLockedModelsOnMount = ({
   return null
 }
 
-const StartEditingButton = ({ message, parts }: { message: any; parts: any }) => {
+const StartEditingButton = ({
+  message,
+  parts,
+  options,
+  label = 'start editing'
+}: {
+  message: any
+  parts: any
+  options?: { lockedMentionedModels?: Model[]; inheritedModelIds?: UniqueModelId[] }
+  label?: string
+}) => {
   const { startEditing } = useMessageEditing()
 
   return (
-    <button type="button" onClick={() => startEditing(message, parts)}>
-      start editing
+    <button type="button" onClick={() => startEditing(message, parts, options)}>
+      {label}
     </button>
   )
 }
@@ -831,6 +848,7 @@ describe('ChatComposer', () => {
       knowledgeBaseIds: []
     }
     mocks.model = model
+    mocks.models = undefined
     mocks.assistantLoading = false
     mocks.modelPending = false
     mocks.modelMissing = undefined
@@ -949,6 +967,157 @@ describe('ChatComposer', () => {
     rerender(<ChatComposer topic={topic} onSend={vi.fn()} providerQuotaExhausted />)
     expect(queueHasNotice()).toBe(false)
   })
+  it('shows the image budget only when at least one submitted model receives native images', () => {
+    mocks.files = [{ fileTokenSourceId: 'scan', name: 'scan.jpg', type: 'image', size: 31_000_000 }]
+    mocks.mentionedModels = [model, modelB]
+    const onSend = vi.fn()
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    expect(screen.queryByText(/Chat image budget:/)).not.toBeInTheDocument()
+
+    const visionModelB = { ...modelB, inputModalities: ['text', 'image'] as Model['inputModalities'] }
+    mocks.mentionedModels = [model, visionModelB]
+    mocks.models = [model, visionModelB]
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+    expect(screen.getByText(/Your new images alone exceed it/)).toBeVisible()
+  })
+
+  it('shows the image budget when editing an assistant-less turn that inherits a vision reply while the selector is text-only', async () => {
+    const user = userEvent.setup()
+    const visionModel: Model = {
+      ...model,
+      id: 'provider::vision',
+      apiModelId: 'vision',
+      name: 'Vision Model',
+      inputModalities: ['text', 'image']
+    }
+    mocks.assistant = undefined
+    mocks.model = visionModel
+    mocks.models = [visionModel, modelB]
+    mocks.selectedModel = modelB
+    mocks.files = [{ fileTokenSourceId: 'draft-scan', name: 'draft-scan.jpg', type: 'image', size: 31_000_000 }]
+
+    const userMessage = {
+      id: 'user-edit-vision',
+      role: 'user',
+      topicId: unlinkedTopic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const editedParts = [
+      {
+        type: 'text',
+        text: 'Inspect scan',
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [
+                {
+                  id: 'file:scan-edit',
+                  kind: 'file',
+                  label: 'scan.jpg',
+                  index: 0,
+                  textOffset: 0,
+                  payload: {
+                    size: 31_000_000,
+                    type: 'image',
+                    ext: '.jpg',
+                    name: 'scan.jpg',
+                    origin_name: 'scan.jpg'
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        type: 'file',
+        mediaType: 'image/jpeg',
+        url: 'file:///scan.jpg',
+        filename: 'scan.jpg',
+        providerMetadata: { cherry: { fileTokenSourceId: 'scan-edit' } }
+      }
+    ] as any[]
+    const strippedLockedModels: Model[] = [
+      { ...visionModel, capabilities: [], inputModalities: undefined },
+      { ...modelB, capabilities: [], inputModalities: undefined }
+    ]
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton
+          message={userMessage as any}
+          parts={editedParts}
+          options={{ inheritedModelIds: [visionModel.id] }}
+          label="start single-reply editing"
+        />
+        <StartEditingButton
+          message={{ ...userMessage, id: 'user-edit-multi' } as any}
+          parts={editedParts}
+          options={{ lockedMentionedModels: strippedLockedModels }}
+          label="start multi-reply editing"
+        />
+        <ChatComposer topic={unlinkedTopic} onSend={vi.fn()} useMentionedModelSelector />
+      </MessageEditingProvider>
+    )
+
+    await user.click(screen.getByText('select model 2'))
+    expect(screen.queryByText(/Chat image budget:/)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'start single-reply editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('user-edit-vision'))
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-disabled', 'false')
+    expect(screen.getByText(/Your new images alone exceed it/)).toBeVisible()
+
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(screen.queryByText(/Chat image budget:/)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'start multi-reply editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('user-edit-multi'))
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-disabled', 'true')
+    expect(screen.getByText(/Your new images alone exceed it/)).toBeVisible()
+  })
+
+  it('updates the image budget notice when Vision is enabled on the same model ID while the composer stays mounted', async () => {
+    const user = userEvent.setup()
+    mocks.files = [{ fileTokenSourceId: 'scan', name: 'scan.jpg', type: 'image', size: 31_000_000 }]
+    mocks.model = model
+    mocks.models = [model, modelB]
+    mocks.selectedModel = modelB
+    const view = render(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    await waitFor(() => expect(screen.getByTestId('selected-models-trigger')).toHaveTextContent('Model A'))
+    expect(screen.queryByText(/Chat image budget:/)).not.toBeInTheDocument()
+
+    const visionModelA: Model = { ...model, capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }
+    mocks.model = visionModelA
+    mocks.models = [visionModelA, modelB]
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    expect(screen.getByText(/Your new images alone exceed it/)).toBeVisible()
+
+    await user.click(screen.getByText('select model 2'))
+    expect(screen.queryByText(/Chat image budget:/)).not.toBeInTheDocument()
+
+    const visionModelB: Model = { ...modelB, capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] }
+    mocks.model = model
+    mocks.models = [model, visionModelB]
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    expect(screen.getByText(/Your new images alone exceed it/)).toBeVisible()
+
+    mocks.models = [model, modelB]
+    view.rerender(<ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />)
+
+    expect(screen.queryByText(/Chat image budget:/)).not.toBeInTheDocument()
+  })
+
   it('appends a screenshot and its message to the draft without sending', async () => {
     const onSend = vi.fn()
     const metadata = {

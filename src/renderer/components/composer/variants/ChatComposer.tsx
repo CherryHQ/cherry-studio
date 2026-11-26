@@ -59,6 +59,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
 import { isOpenAIWebSearchModel, resolveReasoningEffortForModel } from '@renderer/utils/model'
+import { CHAT_IMAGE_BUDGET_BYTES, CHAT_IMAGE_BUDGET_MB } from '@shared/ai/chatImageBudget'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -72,6 +73,7 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { FILE_TYPE } from '@shared/types/file'
 import { imageExts } from '@shared/utils/file'
 import { isGPT5SeriesReasoningModel, isVisionModel } from '@shared/utils/model'
 
@@ -130,6 +132,7 @@ const CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
 const CHAT_NEW_CONVERSATION_TOOL_ID = 'composer:new-conversation'
 const CHAT_CLEAR_CONTEXT_TOOL_ID = 'composer:clear-context'
 const EMPTY_MODELS: Model[] = []
+const EMPTY_MODEL_IDS: UniqueModelId[] = []
 const openChatMcpStatusPanel = ({
   unifiedPanelControl
 }: {
@@ -797,6 +800,58 @@ const ChatComposerInner = ({
   // snapshot so the next turn cannot fall back to stale assistant state.
   const submittedMentionedModels =
     assistant && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
+  const rawImageAttachmentBytes = files.reduce(
+    (total, file) => total + (file.type === FILE_TYPE.IMAGE ? file.size : 0),
+    0
+  )
+  const editingInheritedModelIds =
+    editingMessageForCurrentTopic?.inheritedModelIds ??
+    editingMessageForCurrentTopic?.lockedMentionedModels?.map((item) => item.id) ??
+    EMPTY_MODEL_IDS
+  const imageBudgetTargetEntries = useMemo<readonly { id: UniqueModelId; fallback?: Model }[]>(() => {
+    if (editingMessageForCurrentTopic) {
+      if (editingMessageForCurrentTopic.message.role === 'assistant') return []
+      const shouldPreserveInheritedModelIds =
+        editingInheritedModelIds.length > 1 || (!assistantId && editingInheritedModelIds.length === 1)
+      if (shouldPreserveInheritedModelIds) {
+        return editingInheritedModelIds.map((id) => ({
+          id,
+          fallback: editingMessageForCurrentTopic.lockedMentionedModels?.find((item) => item.id === id)
+        }))
+      }
+      return runtimeModel ? [{ id: runtimeModel.id, fallback: runtimeModel }] : []
+    }
+    const targetModels =
+      submittedMentionedModels.length > 0
+        ? submittedMentionedModels
+        : runtimeModel
+          ? [runtimeModel]
+          : selectedModelForUnlinkedHome
+            ? [selectedModelForUnlinkedHome]
+            : EMPTY_MODELS
+    return targetModels.map((item) => ({ id: item.id, fallback: item }))
+  }, [
+    assistantId,
+    editingInheritedModelIds,
+    editingMessageForCurrentTopic,
+    runtimeModel,
+    selectedModelForUnlinkedHome,
+    submittedMentionedModels
+  ])
+  const shouldLoadImageBudgetModels = rawImageAttachmentBytes > 0 && imageBudgetTargetEntries.length > 0
+  const { models: liveImageBudgetModels } = useModels(undefined, { fetchEnabled: shouldLoadImageBudgetModels })
+  const imageBudgetModelsById = useMemo(
+    () => new Map(liveImageBudgetModels.map((candidate) => [candidate.id, candidate])),
+    [liveImageBudgetModels]
+  )
+  const imageAttachmentBytes =
+    rawImageAttachmentBytes > 0 &&
+    imageBudgetTargetEntries.some(({ id, fallback }) => {
+      const currentModel = imageBudgetModelsById.get(id) ?? (runtimeModel?.id === id ? runtimeModel : fallback)
+      return currentModel ? isVisionModel(currentModel) : false
+    })
+      ? rawImageAttachmentBytes
+      : 0
   // Without an assistant, persistent request controls have no owner. Keep per-turn Fast available.
   const speedControlModel = useMemo(
     () =>
@@ -1914,6 +1969,15 @@ const ChatComposerInner = ({
           focusOnTabActivation
           markdownLivePreview={renderInputMessageAsMarkdown}
           showAiDisclaimer
+          topContent={
+            imageAttachmentBytes > 0 ? (
+              <p className="px-3 pt-1 text-xs text-muted-foreground">
+                {imageAttachmentBytes > CHAT_IMAGE_BUDGET_BYTES
+                  ? t('chat.input.image_budget_exceeded', { limit: CHAT_IMAGE_BUDGET_MB })
+                  : t('chat.input.image_budget', { limit: CHAT_IMAGE_BUDGET_MB })}
+              </p>
+            ) : undefined
+          }
           voiceTarget={{ targetId: `composer:chat:${streamScopeKey}`, sourceEntityId: streamScopeKey }}
           text={text}
           onTextChange={handleTextChange}

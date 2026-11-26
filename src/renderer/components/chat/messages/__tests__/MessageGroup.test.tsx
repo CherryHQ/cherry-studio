@@ -1153,10 +1153,60 @@ describe('MessageGroup', () => {
         lockedMentionedModels: [
           expect.objectContaining({ id: 'provider-a::model-a', name: 'Model A', providerId: 'provider-a' }),
           expect.objectContaining({ id: 'provider-b::model-b', name: 'Model B', providerId: 'provider-b' })
-        ]
+        ],
+        inheritedModelIds: ['provider-a::model-a', 'provider-b::model-b']
       })
     )
     expect(startEditing.mock.calls[0][2].lockedMentionedModels).toHaveLength(2)
+  })
+
+  it('passes single-reply inheritedModelIds into the editing snapshot without locking the selector', async () => {
+    const startEditing = vi.fn()
+    let runtime: { startEditing: () => void } | undefined
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      deleteMessageGroup: vi.fn(),
+      editMessage: vi.fn(),
+      startEditing,
+      regenerateMessage: vi.fn(),
+      updateMessageUiState: vi.fn(),
+      bindMessageRuntime: vi.fn((_id, nextRuntime) => {
+        runtime = nextRuntime as { startEditing: () => void }
+        return vi.fn()
+      })
+    })
+    const userMessage = {
+      ...createMessage('user-1', 0, 'vertical'),
+      parentId: 'root',
+      role: 'user'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    const singleReplyModel = {
+      id: 'provider-a::vision-model',
+      name: 'Vision Model',
+      providerId: 'provider-a',
+      apiModelId: 'vision-model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } satisfies Model
+
+    render(
+      <MessageGroup
+        directAssistantModelsByUserId={new Map([['user-1', [singleReplyModel]]])}
+        messages={[userMessage]}
+      />
+    )
+    await waitFor(() => expect(runtime).toBeDefined())
+
+    act(() => {
+      runtime?.startEditing()
+    })
+
+    expect(startEditing).toHaveBeenCalledWith(userMessage, expect.any(Array), {
+      lockedMentionedModels: undefined,
+      inheritedModelIds: ['provider-a::vision-model']
+    })
   })
 
   it('does not start editing an assistant reply while its translation is active', async () => {

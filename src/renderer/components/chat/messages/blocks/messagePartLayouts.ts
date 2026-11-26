@@ -150,7 +150,11 @@ function isVisibleProcessPart(part: CherryMessagePart): boolean {
 
 export function isInlineLayoutPart(part: CherryMessagePart): boolean {
   if (isToolUIPart(part)) return !isProcessToolPart(part)
-  return part.type === 'data-agent-session-fork' || (part.type !== 'text' && isSubstantiveAnswerPart(part))
+  return (
+    part.type === 'data-agent-session-fork' ||
+    part.type === 'data-image-payload-reduced' ||
+    (part.type !== 'text' && isSubstantiveAnswerPart(part))
+  )
 }
 
 function projectOrderedMessageParts(

@@ -844,7 +844,7 @@ export class AiService extends BaseService {
     })
     agentRef.current = agent
 
-    return { kind: 'chunks', stream: agent.stream(preparedMessages, signal) }
+    return { kind: 'chunks', stream: agent.stream(preparedMessages, signal, request.contextOwner !== 'caller') }
   }
 
   private async withRuntimeActivity<T>(reason: string, operation: () => Promise<T>): Promise<T> {

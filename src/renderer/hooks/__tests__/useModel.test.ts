@@ -130,6 +130,31 @@ describe('useModelMutations', () => {
     expect(mockTrigger).toHaveBeenCalledWith({ body: [dto] })
   })
 
+  it('refreshes both /models and /models/* after row or bulk model updates', () => {
+    const refreshCalls: Array<{ method: string; path: string; refresh: unknown }> = []
+    mockUseMutation.mockImplementation((method: string, path: string, options?: { refresh?: unknown }) => {
+      refreshCalls.push({ method, path, refresh: options?.refresh })
+      return {
+        trigger: vi.fn(),
+        isLoading: false,
+        error: undefined
+      }
+    })
+
+    renderHook(() => useModelMutations())
+
+    expect(refreshCalls).toContainEqual({
+      method: 'PATCH',
+      path: '/models/:uniqueModelId*',
+      refresh: ['/models', '/models/*']
+    })
+    expect(refreshCalls).toContainEqual({
+      method: 'PATCH',
+      path: '/models',
+      refresh: ['/models', '/models/*']
+    })
+  })
+
   it('should log and rethrow createModel errors', async () => {
     const error = new Error('Create failed')
     mockUseMutation.mockImplementation((_method: string, path: string) => ({

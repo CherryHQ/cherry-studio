@@ -95,6 +95,7 @@ import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
+import ImagePayloadReducedBlock from './ImagePayloadReducedBlock'
 import { ImportedStatusBlock } from './ImportedStatusBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import MessageCompactionStatus from './MessageCompactionStatus'
@@ -734,6 +735,9 @@ function visiblePart(part: CherryMessagePart, id: string): boolean {
     return !!toolResponse && (canRenderMessageTool(toolResponse) || isReportArtifactsToolResponse(toolResponse))
   }
   if (partType === 'file') return !!(part as { url?: string }).url
+  if (part.type === 'data-image-payload-reduced') {
+    return !!part.data && (part.data.reducedCount > 0 || part.data.omittedCount > 0)
+  }
   if (partType === 'data-video' || partType === 'data-error') return 'data' in part && !!part.data
   return true
 }
@@ -865,6 +869,9 @@ function renderPart(
 
     case 'data-conversation-reset':
       return <ConversationResetBlock key={partId} />
+
+    case 'data-image-payload-reduced':
+      return <ImagePayloadReducedBlock key={partId} data={part.data} />
 
     case 'data-agent-session-fork':
       return <AgentSessionForkBlock key={partId} sourceSessionId={part.data.sourceSessionId} />

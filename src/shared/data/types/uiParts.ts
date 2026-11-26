@@ -16,6 +16,7 @@
  * - data-video (video blocks)
  * - data-compact (compact/summary blocks)
  * - data-compaction-anchor (timeline anchor for completed runtime compaction)
+ * - data-image-payload-reduced (notice when images were re-encoded or omitted to fit a provider request)
  * - data-agent-task-event (Claude Agent SDK task lifecycle event)
  * - data-knowledge-scope (knowledge bases available to this user turn)
  * - data-clear (context boundary marker)
@@ -65,6 +66,12 @@ export interface CompactPartData {
 
 /** Compaction anchor data — marks where a runtime context compaction completed. */
 export type CompactionAnchorPartData = CompactionAnchorData
+
+/** Earlier turns' images were resized or omitted before sending so the request stayed within the image size budget. */
+export interface ImagePayloadReducedPartData {
+  reducedCount: number
+  omittedCount: number
+}
 
 /** Claude Agent SDK task lifecycle event data. Hidden inline state consumed by agent status panels. */
 export interface AgentTaskEventPartData {
@@ -144,6 +151,7 @@ export type CherryDataPartTypes = {
   video: VideoPartData
   compact: CompactPartData
   'compaction-anchor': CompactionAnchorPartData
+  'image-payload-reduced': ImagePayloadReducedPartData
   'conversation-reset': ConversationResetPartData
   'agent-task-event': AgentTaskEventPartData
   'agent-session-fork': { sourceSessionId: string }

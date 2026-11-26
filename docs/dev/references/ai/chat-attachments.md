@@ -21,10 +21,9 @@ input, send the **native file**; otherwise send its **extracted text**, inlined
 and capped. The `read_file` tool only exists to page the overflow of large
 text — it is never the *only* way the model sees content.
 
-This is deliberate: visibility must not depend on the model choosing to call a
-tool. A weak (or non-tool-calling) model still sees every attachment, and a
-provider that handles a modality natively keeps doing so — no capability
-regression.
+Attachment routing gives even models without tool calling direct access to
+attachments. Home chat can reduce or omit earlier inline images when replay
+would exceed its image budget.
 
 ## Routing matrix
 
@@ -100,7 +99,24 @@ conservative decoder too. Binary bytes or legacy encodings too ambiguous to
 decode safely produce a short unsupported-type note (see the routing matrix
 above).
 
-## The cap (the only context guard)
+## Home chat image budget
+
+Home chat budgets 30 MB (30,000,000 decoded bytes) for each provider request,
+including follow-up requests in the same tool loop. The budget covers both
+attachments and tool-result images. When the total exceeds the budget, it
+tries progressively smaller, lower-quality JPEGs for earlier attachments
+and tool images before omitting images. These copies may lose animation,
+transparency, or metadata. Images whose size is still unknown at dispatch
+are omitted. The assistant turn shows the number of images re-encoded or
+omitted for each affected request. Original messages and stored attachments
+retain their original images.
+
+The composer shows the budget alongside selected images and flags selections
+that already exceed it. The current user's attachments stay intact. If they
+alone exceed the budget, the provider may reject the request and show its
+image-size error. Providers can enforce different limits.
+
+## Extracted text cap
 
 Extracted text is bounded so multi-turn context stays in control:
 

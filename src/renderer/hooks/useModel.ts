@@ -121,13 +121,13 @@ export function useModelMutations() {
     trigger: updateTrigger,
     isLoading: isUpdating,
     error: updateError
-  } = useMutation('PATCH', '/models/:uniqueModelId*', { refresh: ['/models'] })
+  } = useMutation('PATCH', '/models/:uniqueModelId*', { refresh: ['/models', '/models/*'] })
 
   const {
     trigger: bulkUpdateTrigger,
     isLoading: isBulkUpdating,
     error: bulkUpdateError
-  } = useMutation('PATCH', '/models', { refresh: ['/models'] })
+  } = useMutation('PATCH', '/models', { refresh: ['/models', '/models/*'] })
 
   const createModel = useCallback(
     async (dto: CreateModelDto) => {
