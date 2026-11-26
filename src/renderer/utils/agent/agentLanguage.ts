@@ -26,10 +26,3 @@ export function validateAgentLanguageInput(raw: unknown): AgentLanguageValidatio
   if (SINGLE_LINE_PATTERN.test(value)) return { ok: false, errorKey: 'settings.agent.language.error.multiline' }
   return { ok: true, value }
 }
-
-export function normalizeAgentLanguageInput(raw: unknown): string | null {
-  const result = validateAgentLanguageInput(raw)
-  return result.ok ? result.value : null
-}
-
-export type AgentLanguageMode = 'inherit' | 'off' | 'custom'

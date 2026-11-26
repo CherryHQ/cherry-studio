@@ -51,7 +51,7 @@ vi.mock('@tanstack/react-router', () => ({
 Element.prototype.scrollIntoView = vi.fn()
 
 vi.mock('@renderer/utils/platform', async (importOriginal) => {
-  const actual = (await importOriginal()) as typeof RendererConstantModule
+  const actual = await importOriginal<typeof RendererConstantModule>()
 
   return {
     ...actual,
@@ -85,7 +85,7 @@ vi.mock('@data/PreferenceService', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
 
   return {
     ...actual,

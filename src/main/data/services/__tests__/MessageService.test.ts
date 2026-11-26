@@ -442,9 +442,16 @@ describe('MessageService', () => {
       expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:02.000Z')
 
       now.mockReturnValue(3_000)
+      notifyDataApiDataChangeMock.mockClear()
       messageService.finalizeAssistantMessage(assistant.id, {
         data: mainText('projection rewrite'),
         status: 'success'
+      })
+      expect(notifyDataApiDataChangeMock.mock.calls.flatMap(([effects]) => effects)).toContainEqual({
+        endpoint: '/topics/:topicId/messages',
+        kind: 'projection',
+        routeParams: { topicId: 'topic-activity' },
+        entityIds: [assistant.id]
       })
       topicService.update('topic-activity', { name: 'Renamed' })
 
@@ -805,6 +812,13 @@ describe('MessageService', () => {
         '1970-01-01T00:00:00.200Z',
         '1970-01-01T00:00:00.100Z'
       ])
+      const scopedPage = messageService.listLiveCreatedInRangeMetadataPage({
+        fromMs: 100,
+        toMs: 300,
+        topicId: 'topic-range-a',
+        limit: 10
+      })
+      expect(scopedPage.items.map((message) => message.id)).toEqual(['range-tie-a', 'range-start'])
       for (const metadata of [...firstPage.items, ...secondPage.items]) {
         const entity = messageService.getById(metadata.id)
         expect(metadata).not.toHaveProperty('data')

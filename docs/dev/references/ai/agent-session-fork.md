@@ -76,7 +76,8 @@ before connecting; an active connection prevents a cross-branch send.
 
 Claude Code **Edit and resend** reserves the replacement's native identity in the same
 transaction as its input. Editing the first input starts an empty native
-session under that reserved identity. Startup resumes only a verified native
+session under that reserved identity in the backend captured before the original
+reply is removed. Startup resumes only a verified native
 history token from the captured branch; an allocated identity alone is not proof
 that native history exists. Other edits publish their verified native fork before
 startup, and switching the UI selection does not change the captured branch.
@@ -169,12 +170,15 @@ all artifacts prepared or published by the operation.
 The public checkpoint envelope knows only `runtime`; all other checkpoint fields
 are opaque to the host and data layer. Native schemas live in each adapter's
 `forkCheckpoint.ts` and validate capture, fork input, and remapped results. Public
-message reads strip `runtimeAnchor`. The child uses the existing
+message reads strip `runtimeAnchor`. Remote MCP skills have no activation state to inherit;
+supporting files are read on demand against the current manifest. See [MCP Skills Client](./mcp-skills-client.md). The child uses the existing
 `runtimeResumeToken` persistence and normal runtime resume path.
 
-The message-list API composes Main-authored `historyActions` alongside the visible rows.
-`AgentSessionRuntimeService` obtains current-page boundary facts from `AgentSessionForkService`,
-including parents outside the page, and applies the shared fork-domain rules. Ordinary
+The message-list API and single-message GET with `deferToolOutputs: true` return
+Main-authored `historyActions` and sibling IDs alongside compact message content.
+The single-message GET looks up the addressed row directly. Both handlers use
+`readHistoryActions` to obtain the requested messages and their parent boundary facts
+from `AgentSessionForkService` and apply the shared fork-domain rules. Ordinary
 `AgentSessionMessageService.listSessionMessages()` reads neither compute these actions nor
 accept runtime callbacks. Raw anchors stay in Main.
 Fork requires a successful native-backed assistant boundary; editing requires either
@@ -192,6 +196,8 @@ Fork publication uses existing session/message tables and native context binding
 without an `app_state` fork record. Cherry does not
 generate a summary, reconstruct model context from UI messages, or apply Chat
 compression settings to Agent forks.
+
+Legacy DeepSeek imports that prepared native history retain their native entry IDs. When reading such a Fork/Edit prefix, `AgentSessionMessageService` rebases their conversation ID to the selected product branch's native conversation in the same backend. This preserves the corresponding ancestor path without a quadratic checkpoint map. Current imports create no historical native checkpoints; answers produced after continuation use normal runtime checkpoints.
 
 ## Native adapter paths
 

@@ -1,6 +1,10 @@
 import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
+import { isQwen35to39Model, isSupportedThinkingTokenQwenModel } from '@shared/utils/model'
+import { isOllamaProvider, isSupportEnableThinkingProvider } from '@shared/utils/provider'
+
+import type { RequestFeature } from '../feature'
 
 /**
  * Qwen Thinking Middleware
@@ -54,11 +58,6 @@ const createQwenThinkingPlugin = (enableThinking: boolean) =>
       context.middlewares.push(createQwenThinkingMiddleware(enableThinking))
     }
   })
-
-import { isQwen35to39Model, isSupportedThinkingTokenQwenModel } from '@shared/utils/model'
-import { isOllamaProvider, isSupportEnableThinkingProvider } from '@shared/utils/provider'
-
-import type { RequestFeature } from '../feature'
 
 /** Qwen thinking toggle for providers that don't support the native
  *  `enable_thinking` parameter (e.g. non-Ollama Qwen serving). */

@@ -3,7 +3,7 @@ import { defineExtension, defineTool } from '@earendil-works/pi-durable'
 import { bool, obj } from '@earendil-works/pi-schema'
 import { expect, it } from 'vitest'
 
-import { conversationId, lineageEntries } from '../src/behavior/history'
+import { conversationId, pages } from '../src/behavior/history'
 import { openDurableHarness } from './behaviorHarness'
 
 it('preserves image positions, structured program output and UI details through text offload and reopen', async () => {
@@ -60,7 +60,15 @@ it('preserves image positions, structured program output and UI details through 
   await h.harness.sendUser(thread, 'Run mixed')
   await h.harness.settle()
   async function verify() {
-    const entries = await h.native().commit((tx) => lineageEntries(tx, conversationId(thread)), context)
+    const entries = await h
+      .native()
+      .commit(
+        (tx) =>
+          pages((cursor) =>
+            tx.scanEntries({ conversationId: conversationId(thread), order: 'ascending' }, 256, cursor)
+          ),
+        context
+      )
     const result = entries.flatMap((entry) => entry.model ?? []).find((message) => message.role === 'toolResult')
     expect(result).toMatchObject({
       content: [image, { type: 'text', text: 'stored:first' }, image, { type: 'text', text: 'stored:last' }],

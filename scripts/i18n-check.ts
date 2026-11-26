@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 import { checkTranslationValues } from './i18n-check-values'
+import { checkTranslationKeyFormat } from './i18n-key-format'
 import { collectMainTranslationKeys } from './i18n-main-keys'
 import { type LocaleKeySpec, localeKeySpec } from './i18n-plurals'
 import { sortedObjectByKeys } from './sort'
@@ -62,6 +63,7 @@ function readI18N(filePath: string): I18N {
  */
 function checkCatalog(label: string, baseFilePath: string, files: string[]): I18N {
   const baseJson = readI18N(baseFilePath)
+  checkTranslationKeyFormat(Object.keys(baseJson))
 
   if (!isSortedI18N(baseJson)) {
     throw new Error(`[${label}] 主模板 ${path.basename(baseFilePath)} 的键值未按字典序排序。`)
@@ -70,6 +72,7 @@ function checkCatalog(label: string, baseFilePath: string, files: string[]): I18
   for (const filePath of files) {
     if (path.resolve(filePath) === path.resolve(baseFilePath)) continue
     const targetJson = readI18N(filePath)
+    checkTranslationKeyFormat(Object.keys(targetJson))
     if (!isSortedI18N(targetJson)) {
       throw new Error(`[${label}] 翻译文件 ${path.basename(filePath)} 的键值未按字典序排序。`)
     }
