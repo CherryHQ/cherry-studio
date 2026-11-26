@@ -82,7 +82,7 @@
     "@cherrystudio/ai-sdk-provider": "workspace:*",
     "@openrouter/ai-sdk-provider": "^2.10.0",
     "quick-lru": "^5.1.1",
-    "zod": "4.4.3"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@cherrystudio/ai-sdk-provider": "workspace:*",
