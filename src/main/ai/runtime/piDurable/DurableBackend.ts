@@ -5,15 +5,17 @@ import type { ConversationId, EntryId, AgentChange, ModelRef, Registry, Storage 
 import { application } from '@application'
 import type { HostPorts, BehaviorEvent, CallRef } from '@cherrystudio/agent-behavior'
 import { runtimeId, type ThreadId } from '@cherrystudio/agent-runtime'
-import type { DurableRecoveryWork, PiDurableRuntime } from '@cherrystudio/agent-runtime-pi-durable'
+import type { DurableFollowup, DurableRecoveryWork, PiDurableRuntime } from '@cherrystudio/agent-runtime-pi-durable'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { openDurableStorage, prepareDurableRoot } from '@main/ai/agentSession/durableNativeContext'
 import { createPiTelemetry } from '@main/ai/observability'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
@@ -38,6 +40,7 @@ export interface DurableRoot {
     usage: Parameters<typeof createPiGatewayModelBinding>[3]
     retry: Parameters<typeof createPiGatewayModelBinding>[5]
     placed(input: string | undefined): void
+    followups(queue: readonly DurableFollowup[]): void
   }
 }
 const logger = loggerService.withContext('DurableBackend')
@@ -109,7 +112,7 @@ export class DurableBackend {
         backendId: runtimeId(context.backendId),
         openStorage: async () => root.storage,
         harness: {
-          settings: { retry: { enabled: false } },
+          settings: { retry: { enabled: false, resumeInterrupted: true } },
           telemetry: createPiTelemetry({
             isEnabled: () => application.get('PreferenceService').get('app.developer_mode.enabled'),
             getParent: (attributes) => {
@@ -142,6 +145,17 @@ export class DurableBackend {
           }
         },
         onInputPlaced: (id, thread) => owner.forThread(thread).sink?.placed(id),
+        onFollowupsChanged: (thread, queue) => {
+          const root = owner.forThread(thread)
+          if (root.context.nativeThreadId !== thread) return
+          for (const { inputId, textPart } of queue)
+            if (textPart !== undefined) projectFollowupEdit(root.context, inputId, textPart)
+          root.sink?.followups(queue)
+        },
+        onFollowupEdit: (thread, inputId, textPart) => {
+          const root = owner.forThread(thread)
+          if (root.context.nativeThreadId === thread) projectFollowupEdit(root.context, inputId, textPart)
+        },
         // A diagnostic only: Durable keeps its work and records a real failure as the input's outcome.
         onError: (error) => logger.error('Durable backend failed', { backendId: context.backendId, error })
       })
@@ -351,4 +365,10 @@ export class DurableBackend {
   private async closeHosts() {
     for (const root of [...this.roots.values(), ...this.retired]) await root.desktop.close()
   }
+}
+
+function projectFollowupEdit(context: AgentSessionContextRow, messageId: string, serialized: string): void {
+  const part = JSON.parse(serialized) as Extract<CherryMessagePart, { type: 'text' }>
+  if (part?.type !== 'text' || typeof part.text !== 'string') throw new Error('Invalid Durable follow-up text part')
+  agentSessionMessageService.applyNativeFollowupEdit(context.sessionId, context.id, messageId, part)
 }

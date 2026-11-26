@@ -74,13 +74,15 @@ export function nativeOutcomeTerminal(
   }
 }
 
+export function releaseNativeInputBinding(sessionId: string, contextId: string, inputId: string): void {
+  application.get('DbService').withWriteTx((tx) => messages.releaseInputBindingTx(tx, sessionId, inputId, contextId))
+}
+
 export function applyNativeSubmissionResult(sessionId: string, contextId: string, result: SubmitResult): void {
   if (result.status === 'acknowledged' && result.facts.includes('locally-handled'))
     markLocalInput(sessionId, contextId, result.inputId)
   else if (result.status === 'rejected' || result.status === 'unsupported')
-    application
-      .get('DbService')
-      .withWriteTx((tx) => messages.releaseInputBindingTx(tx, sessionId, result.inputId, contextId))
+    releaseNativeInputBinding(sessionId, contextId, result.inputId)
 }
 
 /** Read only the original native binding; absence is not proof of non-admission. */
