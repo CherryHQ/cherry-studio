@@ -28,8 +28,8 @@ export function buildTelemetry(scope: RequestScope): TelemetrySettings | undefin
   const modelName = scope.model.name ?? scope.model.id
   return {
     isEnabled: true,
-    recordInputs: true,
-    recordOutputs: true,
+    recordInputs: false,
+    recordOutputs: false,
     tracer: new AdapterTracer(trace.getTracer(TRACER_NAME), topicId, modelName, parentContext),
     functionId: `ai-request-${scope.requestContext.requestId}`,
     metadata: {

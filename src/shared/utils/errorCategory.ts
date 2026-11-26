@@ -13,6 +13,7 @@ export const ERROR_CATEGORIES = [
   'quota',
   'rate_limit',
   'context_length',
+  'prefill_memory',
   'payload',
   'network',
   'proxy',
@@ -37,11 +38,16 @@ export function isErrorCategory(value: unknown): value is ErrorCategory {
 
 /**
  * Recover an HTTP status from free text. Only for sources without a structured status
- * (CLI stderr); callers holding a real status field must pass that instead.
+ * (CLI stderr, stored job errors); callers holding a real status field must pass that instead.
+ * The number must sit in HTTP syntax (`HTTP 429`, `API Error: 403`, `Request rejected (429)`,
+ * `API error (401)`, or a leading `403:`), so durations are ignored.
  */
 export function extractHttpStatus(text: string): number | undefined {
-  const match = /\b([45]\d\d)\b/.exec(text)
-  return match ? Number(match[1]) : undefined
+  const match =
+    /(?:\bHTTP(?:\/\d+(?:\.\d+)?)?\s+|\bAPI Error:\s*)([45]\d{2})\b|\b(?:Request rejected|API error) \(([45]\d{2})\)|^\s*([45]\d{2}):/i.exec(
+      text
+    )
+  return match ? Number(match[1] ?? match[2] ?? match[3]) : undefined
 }
 
 // Groq's entitlement response links to billing; the host confines this exception
@@ -61,6 +67,7 @@ function isQuotaExhaustionMessage(message: string): boolean {
     message.includes('insufficient balance') ||
     message.includes('insufficient_credit') ||
     message.includes('insufficient credit') ||
+    message.includes('credit balance is running low') ||
     message.includes('billing_hard_limit_reached') ||
     message.includes('余额不足')
   )
@@ -216,13 +223,27 @@ export function classifyErrorCategory({ text, status, finishReason }: ErrorCateg
     return 'rate_limit'
   }
 
+  // oMLX can reject prefill within the model's context window when the memory budget is exhausted.
+  if (
+    (status === undefined || status === 400) &&
+    (msg.includes('omlx prefill memory guard rejected this prompt:') ||
+      /(?:^|\n|"(?:code|omlx_code)"\s*:\s*")prefill_memory_exceeded(?=\n|$|")/.test(msg))
+  ) {
+    return 'prefill_memory'
+  }
+
   // Context length exceeded
   if (isContextOverflowMessage(msg)) {
     return 'context_length'
   }
 
   // Payload too large (413)
-  if (status === 413 || msg.includes('payload too large') || msg.includes('request entity too large')) {
+  if (
+    status === 413 ||
+    msg.includes('payload too large') ||
+    msg.includes('request entity too large') ||
+    msg.includes('failed to buffer the request body: length limit exceeded')
+  ) {
     return 'payload'
   }
 

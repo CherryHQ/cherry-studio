@@ -181,6 +181,12 @@ describe('projectLiveMessageParts', () => {
     expect(emptyReasoning).toEqual([])
   })
 
+  it('keeps an addressed open text row mounted before the first suffix arrives', () => {
+    const entry = { part: { type: 'text', text: '', state: 'streaming' }, index: 0, partId: 'reply' } as const
+    expect(projectLiveMessageParts([entry])).toEqual([{ kind: 'part', key: 'reply', entry }])
+    expect(projectLiveMessageParts([{ ...entry, part: { ...entry.part, state: 'done' } }])).toEqual([])
+  })
+
   it('does not let empty settled text or reasoning split a continuous tool run', () => {
     const layout = projectLiveMessageParts(
       entries([
@@ -549,4 +555,33 @@ describe('projectCompletedMessageParts', () => {
     expect(indexes(layout.resultEntries)).toEqual([1, 3])
     expect(indexes(layout.reportEntries)).toEqual([2])
   })
+})
+
+// Imported tools must remain between the reasoning steps that surround them.
+it('preserves imported reasoning and tool chronology outside the answer lane', () => {
+  const parts = entries([
+    { type: 'reasoning', text: 'First thought', state: 'done' },
+    {
+      type: 'dynamic-tool',
+      toolName: 'deepseek_search',
+      toolCallId: 'search',
+      state: 'output-available',
+      input: { queries: ['question'] },
+      output: { results: [], status: 'FINISHED' }
+    },
+    { type: 'reasoning', text: 'Second thought', state: 'done' },
+    {
+      type: 'dynamic-tool',
+      toolName: 'deepseek_open',
+      toolCallId: 'open',
+      state: 'output-available',
+      input: { url: 'https://example.com' },
+      output: { status: 'FINISHED' }
+    },
+    { type: 'text', text: 'Final answer' },
+    { type: 'data-imported-status', data: { status: 'INCOMPLETE' } }
+  ])
+  const layout = projectCompletedMessageParts(parts, { keepIntermediateAssistantText: true })
+  expect(indexes(layout.historyEntries)).toEqual([0, 1, 2, 3])
+  expect(indexes(layout.resultEntries)).toEqual([4, 5])
 })

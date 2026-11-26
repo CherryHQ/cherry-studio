@@ -20,7 +20,13 @@ import { serply } from '../providers/serply'
 import { tavily } from '../providers/tavily'
 import { yuanbao } from '../providers/yuanbao'
 import { zhipu } from '../providers/zhipu'
-import type { WebSearchCall, WebSearchHttpRequest, WebSearchProviderModule, WebSearchTransport } from '../types'
+import type {
+  WebSearchCall,
+  WebSearchHttpRequest,
+  WebSearchKeywordsCall,
+  WebSearchProviderModule,
+  WebSearchTransport
+} from '../types'
 import { WebSearchTransportError } from '../WebSearchError'
 
 function fixture(name: string): string {
@@ -45,7 +51,7 @@ function setup(provider: WebSearchProviderModule, body: string, status = 200) {
   }
 }
 
-function search(providerId: WebSearchCall['providerId']): WebSearchCall {
+function search(providerId: WebSearchCall['providerId']): WebSearchKeywordsCall {
   return {
     providerId,
     capability: 'searchKeywords',

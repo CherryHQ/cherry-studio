@@ -23,18 +23,24 @@ export function prepareClaudeBranch(sessionId: string, configDir: string, native
       sessionId,
       backendId: backend.id,
       nativeThreadId: nativeId ?? uuid(),
-      anchorMessageId: existing ? anchor : root
+      anchorMessageId: anchor
     })
   })
 }
 
-export function reserveClaudeBranchTx(tx: DbOrTx, sessionId: string, anchor: string, nativeId: string) {
-  const parent = contexts.branchTx(tx, sessionId, anchor)
-  if (!parent || contexts.backendTx(tx, parent.backendId).locator.kind !== 'claude-code')
+export function reserveClaudeBranchTx(
+  tx: DbOrTx,
+  sessionId: string,
+  anchor: string,
+  nativeId: string,
+  sourceBackendId?: string
+) {
+  const backendId = contexts.branchTx(tx, sessionId, anchor)?.backendId ?? sourceBackendId
+  if (!backendId || contexts.backendTx(tx, backendId).locator.kind !== 'claude-code')
     throw new Error('Claude edit requires an existing native backend')
   return contexts.reserveBranchTx(tx, {
     sessionId,
-    backendId: parent.backendId,
+    backendId,
     anchorMessageId: anchor,
     nativeThreadId: nativeId
   })

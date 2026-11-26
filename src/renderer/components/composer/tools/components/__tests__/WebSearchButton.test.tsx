@@ -142,13 +142,7 @@ vi.mock('@renderer/utils/model', () => {
   return {
     canModelUseAssistantWebSearch,
     hasModelBuiltinWebSearch,
-    isFunctionCallingModel,
-    isGemini3Model: () => false,
-    isGeminiModel: () => false,
-    isGPT5SeriesReasoningModel: () => false,
     isOpenAIWebSearchModel: () => false,
-    isSupportedReasoningEffortModel: () => false,
-    isSupportedThinkingTokenModel: () => false,
     isServerToolModelEligible
   }
 })

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.2.2",
+    "version": "2.2.3",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -431,6 +431,20 @@
           "Shift",
           "C"
         ]
+      }
+    },
+    {
+      "id": "chat.message.quote_selection",
+      "titleKey": "chat.message.quote",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "Y"
+        ],
+        "when": "!input.focused && !webview.focused"
       }
     },
     {
@@ -877,7 +891,7 @@
     }
   ],
   "providers": {
-    "version": "a6291a3a00ded246",
+    "version": "5179a16fddc562d9",
     "count": 68,
     "entries": [
       {
@@ -1184,6 +1198,11 @@
       "value": "ja-JP",
       "flag": "🇯🇵",
       "label": "日本語"
+    },
+    {
+      "value": "ko-KR",
+      "flag": "🇰🇷",
+      "label": "한국어"
     },
     {
       "value": "ru-RU",

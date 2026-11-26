@@ -1,3 +1,5 @@
+import type { JSONValue } from 'ai'
+
 import type { RuntimeMessage } from './contracts'
 
 export interface NestedToolRecord {
@@ -13,7 +15,10 @@ export interface NestedToolRecord {
 }
 
 /** Retained native evidence, including explicit absence of legacy or over-budget payloads. */
-export function projectNestedTool(record: NestedToolRecord): RuntimeMessage['parts'][number] {
+export function projectNestedTool(
+  record: NestedToolRecord,
+  errorResult: (value: unknown) => JSONValue
+): Extract<RuntimeMessage['parts'][number], { type: 'dynamic-tool' }> {
   const metadata = {
     pi: {
       parentToolCallId: record.parentToolCallId ?? '',
@@ -41,7 +46,7 @@ export function projectNestedTool(record: NestedToolRecord): RuntimeMessage['par
         errorText:
           record.error || (record.status === 'unfinished' ? 'Tool execution was interrupted.' : 'Tool failed.'),
         ...(record.result !== undefined && {
-          resultProviderMetadata: { pi: { result: JSON.parse(JSON.stringify(record.result)) } }
+          resultProviderMetadata: { pi: { result: errorResult(record.result) } }
         })
       }
 }
