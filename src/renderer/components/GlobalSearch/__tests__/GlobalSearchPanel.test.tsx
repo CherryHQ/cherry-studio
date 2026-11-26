@@ -605,10 +605,14 @@ import { toast } from '@renderer/services/toast'
 import { GlobalSearchPanel } from '../GlobalSearchPanel'
 import { getGlobalSearchOptionDomId, GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID } from '../useGlobalSearchKeyboard'
 // The hook suite owns the real debounce interval. Keep the async commit in this panel suite.
-vi.mock(import('../useImeAwareDebouncedValue'), async (importOriginal) => ({
-  ...(await importOriginal()),
-  GLOBAL_SEARCH_QUERY_DEBOUNCE_MS: 0
-}))
+vi.mock(import('../useImeAwareDebouncedValue'), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    useImeAwareDebouncedValue: (value, _delayMs, onCompositionEndCommit) =>
+      actual.useImeAwareDebouncedValue(value, 0, onCompositionEndCommit)
+  }
+})
 
 afterEach(() => {
   cleanup()

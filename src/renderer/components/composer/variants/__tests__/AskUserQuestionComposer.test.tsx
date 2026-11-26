@@ -46,7 +46,9 @@ const questions = [
   }
 ]
 
-function makeRequest(requestQuestions = questions): AskUserQuestionComposerRequest {
+function makeRequest(
+  requestQuestions: AskUserQuestionComposerRequest['input']['questions'] = questions
+): AskUserQuestionComposerRequest {
   const part = {
     type: 'tool-AskUserQuestion',
     toolCallId: 'call-1',
