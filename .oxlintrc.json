@@ -5,7 +5,13 @@
     "es2022": true
   },
   "globals": {},
-  "jsPlugins": ["@shadcn/lint", "./scripts/lint/scroll-area.mjs", "./scripts/lint/import-layout.mjs"],
+  "jsPlugins": [
+    "@shadcn/lint",
+    "./scripts/lint/copy.mjs",
+    "./scripts/lint/scroll-area.mjs",
+    "./scripts/lint/import-layout.mjs",
+    "./scripts/lint/incremental-projection.mjs"
+  ],
   "ignorePatterns": [
     "node_modules/**",
     "build/**",
@@ -28,8 +34,291 @@
   },
   "overrides": [
     {
+      "files": [
+        "src/main/ai/agentSession/childTimelines.ts",
+        "src/main/ai/agentSession/childArchive.ts",
+        "src/main/ai/agentSession/fork/readHistoryActions.ts",
+        "src/main/data/api/handlers/agentSessionMessages.ts",
+        "src/main/ai/messages/ProjectionSubscriptions.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)(application|@application|AgentSessionRuntimeService|durableNativeContext|recoverDurableReplies|PiDurableRuntimeDriver|DurableBackend|pi-durable)(/|$)|/runtime/(pi|claudeCode|piDurable)/",
+                "message": "Archive reads and subscriptions only access product history, checkpoints and projection sources."
+              },
+              {
+                "regex": ".*",
+                "importNames": ["application", "runtimeDriverRegistry", "createPiDurableRuntime", "openDurableStorage"],
+                "message": "History readers receive only the read capability."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "packages/agent-runtime/src/textPartUpdates.ts",
+        "packages/agent-runtime-pi-durable/src/previewTextAppends.ts",
+        "packages/agent-runtime-pi-durable/src/toolOutputOps.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)(pi-durable|content|projection|runtime|observation|messageObservation|ThreadMessageProjection|RootMessageProjection|ChildThreadProjection)([/.]|$)",
+                "message": "Preview decoding takes native operations only. Use the projection owner for snapshots and reconciliation."
+              },
+              {
+                "regex": ".*",
+                "importNames": [
+                  "ThreadFeed",
+                  "ThreadSnapshot",
+                  "RuntimeMessage",
+                  "CherryUIMessage",
+                  "MessageProjection",
+                  "messageObservation",
+                  "applyMessageParts"
+                ],
+                "message": "A part operation takes one target. Reconcile a source in its owner."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/agent-runtime/src/stagePartUpdate.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              { "group": ["**", "!ai", "!./contracts", "!./acceptedToolPart", "!./immutable", "!./textPartUpdates"] }
+            ],
+            "paths": [
+              { "name": "ai", "allowImportNames": ["isToolUIPart"] },
+              { "name": "./contracts", "allowImportNames": ["LivePartInput", "RuntimePart", "RuntimePartEdit"] },
+              { "name": "./acceptedToolPart", "allowImportNames": ["snapshotToolPart"] },
+              { "name": "./immutable", "allowImportNames": ["immutable"] },
+              { "name": "./textPartUpdates", "allowImportNames": ["partEdits"] }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/agent-runtime/src/observation.ts"],
+      "rules": {
+        "incremental-projection/addressed-writes": ["error", ["publishPart"]]
+      }
+    },
+    {
+      "files": ["packages/agent-runtime-claude-code/src/observation.ts"],
+      "rules": { "incremental-projection/addressed-writes": ["error", ["publish"]] }
+    },
+    {
+      "files": ["src/main/ai/agentSession/ThreadMessageProjection.ts"],
+      "rules": { "incremental-projection/addressed-writes": ["error", ["stageParts"]] }
+    },
+    {
+      "files": ["src/main/ai/streamManager/TopicMessageProjection.ts"],
+      "rules": { "incremental-projection/addressed-writes": ["error", ["relayAgentPart"]] }
+    },
+    {
+      "files": ["packages/agent-runtime-claude-code/src/projection.ts"],
+      "rules": { "incremental-projection/addressed-writes": ["error", ["partial", "applyResult", "deny", "spawnCall"]] }
+    },
+    {
+      "files": ["packages/agent-runtime-pi/src/runtimeProjection.ts"],
+      "rules": { "incremental-projection/addressed-writes": ["error", ["delta", "result", "nested"]] }
+    },
+    {
+      "files": ["packages/agent-runtime-pi-durable/src/projection.ts"],
+      "rules": {
+        "incremental-projection/addressed-writes": [
+          "error",
+          ["appendPreview", "updatePreviewParts", "previewTools", "commitToolResult"]
+        ]
+      }
+    },
+    {
+      "files": ["src/main/ai/agentSession/RootMessageProjection.ts"],
+      "rules": { "incremental-projection/addressed-writes": ["error", ["changePart"]] }
+    },
+    {
+      "files": ["src/main/ai/agentSession/ChildThreadProjection.ts"],
+      "rules": { "incremental-projection/addressed-writes": ["error", ["applyParts"]] }
+    },
+    {
+      "files": ["src/main/ai/messages/MessageProjection.ts"],
+      "rules": {
+        "incremental-projection/addressed-writes": ["error", ["queuePart", "publishParts"]]
+      }
+    },
+    {
+      "files": ["packages/agent-runtime/src/textPartUpdates.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [{ "group": ["**", "!./contracts"] }],
+            "paths": [
+              {
+                "name": "./contracts",
+                "allowImportNames": [
+                  "LivePartInput",
+                  "MessageObservation",
+                  "NativePartUpdate",
+                  "RuntimePartEdit",
+                  "ObservationPayload",
+                  "ProjectionEvents"
+                ]
+              }
+            ]
+          }
+        ],
+        "no-restricted-properties": [
+          "error",
+          { "property": "snapshot" },
+          { "property": "readMessage" },
+          { "property": "materialize" },
+          { "property": "message" }
+        ]
+      }
+    },
+    {
+      "files": ["src/renderer/hooks/useHistoryReplies.ts", "src/renderer/hooks/useHistoryRowUpdates.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)(swr|DataApiService|useDataApi|useTopicMessages|useAgentSessionParts|useConversationHistoryQuery)(/|$)",
+                "message": "Terminal handoff reads one committed reply through ReplyHistory."
+              }
+            ]
+          }
+        ],
+        "no-restricted-properties": ["error", { "property": "refresh" }, { "property": "mutate" }]
+      }
+    },
+    {
+      "files": ["src/renderer/services/aiTransport/MessageProjectionService.ts"],
+      "rules": { "incremental-projection/addressed-writes": ["error", ["commitParts"]] }
+    },
+    {
+      "files": ["src/renderer/components/chat/messages/blocks/MessagePartsRenderer.tsx"],
+      "rules": {
+        "incremental-projection/addressed-writes": [
+          "error",
+          ["useAddressedMessageParts", "AddressedProcessHistory", "AddressedHistoryRun", "ToolPartView"]
+        ]
+      }
+    },
+    {
+      "files": ["src/renderer/services/aiTransport/applyLiveParts.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "**",
+                  "!@renderer/types/message",
+                  "!@shared/ai/messageProjection",
+                  "!@shared/data/types/message"
+                ]
+              }
+            ],
+            "paths": [
+              { "name": "@renderer/types/message", "allowImportNames": ["MessageTextChange"] },
+              {
+                "name": "@shared/ai/messageProjection",
+                "allowImportNames": ["LivePartPatch", "PartPlacement", "updatedPartValue"]
+              },
+              { "name": "@shared/data/types/message", "allowImportNames": ["CherryMessagePart"] }
+            ]
+          }
+        ],
+        "no-restricted-properties": [
+          "error",
+          { "property": "snapshot" },
+          { "property": "readMessage" },
+          { "property": "materialize" }
+        ]
+      }
+    },
+    {
+      "files": ["src/renderer/hooks/agent/useProjectionPart.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [{ "group": ["**", "!react", "!@renderer/types/message", "!@shared/data/types/message"] }],
+            "paths": [
+              { "name": "@renderer/types/message", "allowImportNames": ["ProjectionPartReader"] },
+              {
+                "name": "react",
+                "allowImportNames": ["createContext", "useCallback", "use", "useSyncExternalStore"]
+              },
+              { "name": "@shared/data/types/message", "allowImportNames": ["CherryMessagePart"] }
+            ]
+          }
+        ],
+        "no-restricted-properties": [
+          "error",
+          { "property": "snapshot" },
+          { "property": "readMessage" },
+          { "property": "materialize" }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/renderer/pages/agents/useAgentChatRuntimeState.ts",
+        "src/renderer/services/voice/AutoReadService.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)MessageProjectionService(\\.[cm]?[jt]s)?$",
+                "message": "Subscribe to execution snapshots and text appends through the overlay."
+              },
+              {
+                "regex": ".*",
+                "importNames": ["MessageProjectionService", "messageProjectionService"],
+                "message": "Subscribe to execution snapshots and text appends through the overlay."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["**/*.test.*", "**/*.spec.*", "**/__tests__/**"],
       "rules": { "import/first": "off" }
+    },
+    {
+      "files": [
+        "**/*.test.*",
+        "**/*.spec.*",
+        "**/__tests__/**",
+        "**/tests/**",
+        "packages/provider-registry/compat/*-validator.mjs"
+      ],
+      "rules": { "copy/no-json-roundtrip": "off" }
     },
     {
       "files": [
@@ -115,6 +404,7 @@
   ],
   "plugins": ["unicorn", "typescript", "oxc", "import"],
   "rules": {
+    "copy/no-json-roundtrip": "error",
     "import/first": "error",
     "import-layout/no-block-comments-between-imports": "error",
     "no-array-constructor": "off",

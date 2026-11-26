@@ -259,9 +259,7 @@ test('persists an uploaded assistant avatar and freezes past message avatars aft
   await expect(picker).toBeVisible()
   await screenshot(page, testInfo, 'avatar-editor')
   await picker.click()
-  await expect(page.getByRole('button', { name: 'Image Upload', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Emoji Picker', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Reset avatar', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Upload image', exact: true })).toBeVisible()
   const fixture = testInfo.outputPath('avatar.png')
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
     <rect width="128" height="128" fill="#ff2d9b" />
@@ -270,14 +268,18 @@ test('persists an uploaded assistant avatar and freezes past message avatars aft
   </svg>`
   await sharp(Buffer.from(svg)).png().toFile(fixture)
   await testInfo.attach('avatar-fixture', { path: fixture, contentType: 'image/png' })
-  const input = page.locator('input[type="file"]').first()
+  const input = dialog.locator('input[type="file"]')
   await expect
     .poll(async () => (await input.getAttribute('accept'))?.split(',').map((type) => type.trim()))
     .toEqual(expect.arrayContaining(['image/png', 'image/jpeg', 'image/gif', 'image/webp']))
-  await expect(input).toHaveAttribute('aria-label', 'Image Upload')
+  await expect(input).toHaveAttribute('aria-label', 'Upload image')
   await input.setInputFiles(fixture)
+  await page
+    .getByRole('dialog', { name: 'Crop avatar', exact: true })
+    .getByRole('button', { name: 'Confirm', exact: true })
+    .click()
   await expectDecodedImage(picker.locator('img'))
-  await expect(page.getByRole('button', { name: 'Reset avatar', exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Remove image', exact: true })).toBeHidden()
   const uploaded = await readAssistant(page, assistant.name)
   expect(uploaded.avatarFileId).toMatch(/^[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}$/i)
   expect(uploaded.avatarSrc).toMatch(/^file:\/\/\/.+/)
@@ -314,11 +316,11 @@ test('persists an uploaded assistant avatar and freezes past message avatars aft
 
   const resetDialog = await openEditor(page, assistant.name)
   await resetDialog.getByRole('button', { name: 'Choose avatar', exact: true }).first().click()
-  await page.getByRole('button', { name: 'Reset avatar', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove image', exact: true }).click()
   await expect.poll(async () => (await readAssistant(page, assistant.name)).avatarFileId).toBeUndefined()
-  await expect(page.getByRole('button', { name: 'Reset avatar', exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Remove image', exact: true })).toBeHidden()
   expect((await readAssistant(page, assistant.name)).emoji).toBe('🦊')
-  await page.keyboard.press('Escape')
+  await resetDialog.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(resetDialog).toBeHidden()
   await expectEmoji(leadingSlot(page, assistant.name), '🦊')
   await expectDecodedImage(messageAvatar(page, 'avatar turn').locator('img'))
