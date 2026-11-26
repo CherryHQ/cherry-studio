@@ -1,4 +1,3 @@
-import type { UIMessagePart } from 'ai'
 import { isToolUIPart } from 'ai'
 
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
@@ -9,6 +8,7 @@ import {
   type ToolResponseLike
 } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
+import { messagePartEntries, type MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { CommandApprovalDetails } from '@shared/data/types/uiParts'
 
@@ -101,61 +101,52 @@ function getCommandPolicy(part: PermissionToolPart): CommandApprovalDetails | un
   return undefined
 }
 
+export function isPendingApprovalPart(part: CherryMessagePart): boolean {
+  if (!isToolUIPart(part) || !part.approval?.id) return false
+  // Some provider-executed tools carry an unresolved id before reporting approval-requested.
+  return (
+    part.state === APPROVAL_REQUESTED || (!RESOLVED_TOOL_STATES.has(part.state) && part.approval.approved === undefined)
+  )
+}
+
+function permissionSource(rows: MessagePartRows, toolCallId: string): PermissionRequestComposerRequest['source'] {
+  let parentTitle: string | undefined
+  let eventTitle: string | undefined
+  let isBackgrounded: boolean | undefined
+  for (const [, parts] of messagePartEntries(rows)) {
+    for (const part of parts) {
+      if (isToolUIPart(part) && part.toolCallId === toolCallId) {
+        parentTitle ??= getStringField(part.input, ['description', 'title', 'prompt'])
+      } else if (part.type === 'data-agent-task-event' && part.data.toolUseId === toolCallId) {
+        if (part.data.title) eventTitle = part.data.title
+        isBackgrounded = part.data.isBackgrounded ?? isBackgrounded
+      }
+    }
+  }
+  return { toolCallId, title: eventTitle ?? parentTitle, isBackgrounded }
+}
+
 export function findNextPendingPermissionRequest(
-  partsByMessageId: Record<string, CherryMessagePart[]>,
+  partsByMessageId: MessagePartRows,
   sourcePartsByMessageId = partsByMessageId
 ): PermissionRequestComposerRequest | null {
-  const messages = Object.entries(partsByMessageId)
+  const messages = [...messagePartEntries(partsByMessageId)]
   for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
     const [messageId, parts] = messages[messageIndex]
 
     for (const part of parts) {
-      if (!isToolUIPart(part as UIMessagePart<never, never>)) continue
+      if (!isPendingApprovalPart(part)) continue
 
       const toolPart = part as PermissionToolPart
       const toolName = getToolName(toolPart)
       const approvalId = toolPart.approval?.id
       if (toolName === AgentToolsType.AskUserQuestion || !approvalId) continue
-      // A provider-executed dynamic tool part can carry the approval id while its state never
-      // reaches `approval-requested`; an unresolved approval still needs a person to decide.
-      const partState = toolPart.state ?? ''
-      const awaitingApproval =
-        partState === APPROVAL_REQUESTED ||
-        (!RESOLVED_TOOL_STATES.has(partState) && toolPart.approval?.approved === undefined)
-      if (!awaitingApproval) continue
-
       const toolResponse = buildToolResponseFromPart(part)
       if (!toolResponse) continue
 
       const parentToolCallId = getPartParentToolCallId(part)
-      const allParts = Object.values(sourcePartsByMessageId).flat()
-      const parent = parentToolCallId
-        ? allParts.find((candidate) => isToolUIPart(candidate) && candidate.toolCallId === parentToolCallId)
-        : undefined
-      const taskEvents = parentToolCallId
-        ? allParts.flatMap((candidate) =>
-            candidate.type === 'data-agent-task-event' && candidate.data.toolUseId === parentToolCallId
-              ? [candidate.data]
-              : []
-          )
-        : []
-
       return {
-        ...(parentToolCallId
-          ? {
-              source: {
-                toolCallId: parentToolCallId,
-                title:
-                  taskEvents.findLast((event) => event.title)?.title ??
-                  getStringField(parent && 'input' in parent ? parent.input : undefined, [
-                    'description',
-                    'title',
-                    'prompt'
-                  ]),
-                isBackgrounded: taskEvents.findLast((event) => event.isBackgrounded !== undefined)?.isBackgrounded
-              }
-            }
-          : {}),
+        ...(parentToolCallId && { source: permissionSource(sourcePartsByMessageId, parentToolCallId) }),
         commandPolicy: getCommandPolicy(toolPart),
         messageId,
         toolCallId: toolPart.toolCallId,
@@ -164,7 +155,7 @@ export function findNextPendingPermissionRequest(
         toolResponse,
         match: {
           part,
-          state: partState,
+          state: toolPart.state ?? '',
           toolCallId: toolPart.toolCallId,
           messageId,
           approvalId,

@@ -1,15 +1,18 @@
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { eq } from 'drizzle-orm'
 import { beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 
 import { application } from '@application'
 import { runtimeId } from '@cherrystudio/agent-runtime'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessagePartTable, agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
+import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode'
 import { ClaudeCodeSessionStateService } from '@main/ai/runtime/claudeCode/ClaudeCodeSessionStateService'
 import { surfaceExitPlanModeInput } from '@main/ai/runtime/claudeCode/hooks'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
@@ -17,10 +20,11 @@ import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import type { AgentRuntimeEvent, RuntimeMessageProjection } from '@main/ai/runtime/types'
 import type { StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManager'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
-import type { StreamDoneResult, StreamPausedResult } from '@main/ai/streamManager/types'
+import type { AgentPartChange, StreamDoneResult, StreamPausedResult } from '@main/ai/streamManager/types'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { AsyncEventQueue } from '@shared/utils/async'
 
@@ -36,7 +40,9 @@ beforeEach(() => {
 async function fixture(
   interrupt?: (emit: (event: AgentRuntimeEvent) => Promise<void>) => Promise<void>,
   retainOnStop = false,
-  agentType: 'pi' | 'pi-durable' = 'pi'
+  agentType: 'pi' | 'pi-durable' | 'claude-code' = 'pi',
+  lastPos = 0,
+  onPartAppend: Parameters<typeof pipeMessageStream>[5] = () => {}
 ) {
   dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
   dbh.db
@@ -61,9 +67,9 @@ async function fixture(
     .run()
   dbh.db
     .insert(agentSessionTable)
-    .values({ id: 'root', agentId: 'agent', workspaceId: 'workspace', name: 'Root', orderKey: 'a0' })
+    .values({ id: 'root', agentId: 'agent', workspaceId: 'workspace', name: 'Root', orderKey: 'a0', lastPos })
     .run()
-  const context = preparePiBranch('root')
+  const context = agentType === 'claude-code' ? prepareClaudeBranch('root', '/test/claude') : preparePiBranch('root')
   const user = messages.saveMessage({
     sessionId: 'root',
     message: { role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Prompt' }] } }
@@ -151,11 +157,12 @@ async function fixture(
   if (source.kind !== 'messages') throw new Error('Agent turns must expose messages')
   const views: CherryUIMessage[] = []
   const done = pipeMessageStream(
-    source.stream,
+    source,
     handle.abortController.signal,
-    { id: reply.id, role: 'assistant', parts: [] },
+    { id: reply.id, role: 'assistant' },
     (message) => views.push(message),
-    () => {}
+    () => {},
+    onPartAppend
   )
   const project = (native: CherryUIMessage[], extra: Partial<RuntimeMessageProjection> = {}) =>
     emit({
@@ -180,7 +187,7 @@ async function fixture(
     queue.close()
     await closed.promise
     queue = new AsyncEventQueue()
-    await service.primeConnection('root')
+    await service['commandConnection']('root')
   }
   return { service, handle, context, user, reply, emit, project, views, done, reconnect, connections }
 }
@@ -188,6 +195,318 @@ const text = (id: string, value: string): CherryUIMessage => ({
   id,
   role: 'assistant',
   parts: [{ type: 'text', text: value, state: 'done' }]
+})
+
+const reply = (parts: CherryUIMessage['parts']): CherryUIMessage => ({ id: 'native', role: 'assistant', parts })
+const storedParts = (messageId: string) =>
+  dbh.db
+    .select({ id: agentSessionMessagePartTable.id, updatedAt: agentSessionMessagePartTable.updatedAt })
+    .from(agentSessionMessagePartTable)
+    .where(eq(agentSessionMessagePartTable.messageId, messageId))
+    .orderBy(agentSessionMessagePartTable.seq)
+    .all()
+
+it('saves each completed part before the reply completes and writes nothing for deltas', async () => {
+  const f = await fixture()
+  const answer = { type: 'text' as const, text: 'Answer', state: 'done' as const }
+  const call = { type: 'dynamic-tool' as const, toolCallId: 'call', toolName: 'bash', input: { command: 'ls' } }
+  await f.project([reply([{ type: 'text', text: 'Ans', state: 'streaming' }])])
+  await f.project([reply([{ type: 'text', text: 'Answe', state: 'streaming' }])])
+  expect(storedParts(f.reply.id)).toEqual([])
+
+  await f.project([reply([answer, { ...call, state: 'input-available' }])])
+  const [saved] = storedParts(f.reply.id)
+  // Marks the committed row so any later rewrite of it is observable.
+  dbh.db
+    .update(agentSessionMessagePartTable)
+    .set({ updatedAt: 1 })
+    .where(eq(agentSessionMessagePartTable.id, saved.id))
+    .run()
+  await f.project([reply([answer, { ...call, state: 'output-available', output: 'listing' }])])
+  expect(messages.getSessionMessage('root', f.reply.id)).toMatchObject({
+    status: 'pending',
+    data: { parts: [answer, { ...call, state: 'output-available', output: 'listing' }] }
+  })
+
+  await f.project([
+    reply([
+      answer,
+      { ...call, state: 'output-available', output: 'listing' },
+      { type: 'text', text: 'Tail', state: 'done' }
+    ])
+  ])
+  await f.emit({ type: 'turn-complete' })
+  const completed: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  await f.handle.listeners[0].onDone(completed)
+  expect(messages.getSessionMessage('root', f.reply.id).status).toBe('success')
+  const settled = storedParts(f.reply.id)
+  expect(settled).toHaveLength(3)
+  expect(settled[0]).toEqual({ id: saved.id, updatedAt: 1 })
+})
+
+it('saves the unfinished part with its received content when the reply is stopped', async () => {
+  const f = await fixture()
+  await f.project([reply([{ type: 'text', text: 'Partial', state: 'streaming' }])])
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toHaveLength(1))
+  expect(storedParts(f.reply.id)).toEqual([])
+  f.handle.abortController.abort()
+  const stopped = await f.done
+  await f.handle.listeners[0].onPaused({ status: 'paused', finalMessage: stopped.finalMessage })
+  expect(messages.getSessionMessage('root', f.reply.id)).toMatchObject({
+    status: 'paused',
+    data: { parts: [{ type: 'text', text: 'Partial', state: 'done' }] }
+  })
+})
+
+it('delivers a native suffix under the same part ID and saves it once on stop', async () => {
+  const appends: AgentPartChange[] = []
+  const f = await fixture(undefined, false, 'pi-durable', 0, (change) => {
+    appends.push(change)
+    return true
+  })
+  await f.project([text('previous', 'Earlier'), reply([{ type: 'text', text: 'Partial', state: 'streaming' }])])
+  await vi.waitFor(() => expect(f.views.at(-1)?.partIds).toHaveLength(2))
+  const partId = f.views.at(-1)!.partIds![1]
+  await f.emit({
+    type: 'message.text-append',
+    contextId: f.context.id,
+    ref: { id: runtimeId('native'), session: { backendId: runtimeId('backend'), id: runtimeId('thread') } },
+    part: 0,
+    text: ' answer'
+  })
+  await vi.waitFor(() => expect(appends).toEqual([{ type: 'part-append', partId, text: ' answer' }]))
+  expect(storedParts(f.reply.id)).toHaveLength(1)
+  f.handle.abortController.abort()
+  const stopped = await f.done
+  await f.handle.listeners[0].onPaused({ status: 'paused', finalMessage: stopped.finalMessage })
+  expect(storedParts(f.reply.id)[1]?.id).toBe(partId)
+  expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual([
+    { type: 'text', text: 'Earlier', state: 'done' },
+    { type: 'text', text: 'Partial answer', state: 'done' }
+  ])
+})
+
+it('keeps SDK backoff through an empty projection and clears it when the reply resumes', async () => {
+  const f = await fixture()
+  await f.project([reply([{ type: 'text', text: 'First', state: 'streaming' }])])
+  const cache = application.get('CacheService')
+  const key = AGENT_SESSION_API_RETRY_CACHE_KEY('root')
+  await f.emit({
+    type: 'api-retry',
+    retry: { attempt: 2, maxRetries: 3, retryDelayMs: 1000, errorStatus: 503, errorCategory: 'server_error' }
+  })
+  expect(cache.getShared(key)?.status).toBe('retrying')
+  await f.project([])
+  expect(cache.getShared(key)?.status).toBe('retrying')
+  await f.project([reply([{ type: 'text', text: 'First resumed', state: 'streaming' }])])
+  expect(cache.getShared(key)?.status).toBe('idle')
+})
+
+it.each(['claude-code', 'pi', 'pi-durable'] as const)(
+  'keeps a compaction boundary in admission order on %s',
+  async (harness) => {
+    const changes: AgentPartChange[] = []
+    const f = await fixture(undefined, false, harness, 10, (change) => changes.push(change))
+    await f.project([reply([{ type: 'text', text: 'A', state: 'streaming' }])])
+    await f.emit({ type: 'compaction-complete', anchor: { phase: 'agent-session', status: 'done' } })
+    const ref = {
+      id: runtimeId<'item'>('native'),
+      session: { backendId: runtimeId<'backend'>('backend'), id: runtimeId<'thread'>('thread') }
+    }
+    await f.emit({ type: 'message.text-open', contextId: f.context.id, ref, part: 1, kind: 'text' })
+    await f.emit({ type: 'message.text-append', contextId: f.context.id, ref, part: 1, text: 'B' })
+    await f.emit({ type: 'message.text-append', contextId: f.context.id, ref, part: 0, text: '1' })
+    expect(changes).toMatchObject([
+      { type: 'part-add', placement: { messageId: f.reply.id, pos: 12 }, part: { type: 'data-compaction-anchor' } },
+      { type: 'part-open', messageId: f.reply.id, pos: 13 },
+      { type: 'part-append', text: 'B' },
+      { type: 'part-append', text: '1' }
+    ])
+    f.handle.abortController.abort()
+    const { finalMessage } = await f.done
+    expect(finalMessage?.parts).toMatchObject([{ text: 'A1' }, { type: 'data-compaction-anchor' }, { text: 'B' }])
+    await f.handle.listeners[0].onPaused({ status: 'paused', finalMessage })
+    expect(messages.getStoredMessageParts('root', f.reply.id).map(({ partId, pos }) => [partId, pos])).toEqual(
+      finalMessage!.partIds!.map((id, i) => [id, 11 + i])
+    )
+  }
+)
+
+it('admits, appends and commits a native reasoning block at one part ID', async () => {
+  const changes: AgentPartChange[] = []
+  const f = await fixture(undefined, false, 'pi-durable', 0, (change) => {
+    changes.push(change)
+    return true
+  })
+  await f.project([text('earlier', 'Earlier'), reply([])])
+  await vi.waitFor(() => expect(f.views.at(-1)?.partIds).toHaveLength(1))
+  const address = {
+    contextId: f.context.id,
+    ref: {
+      id: runtimeId<'item'>('native'),
+      session: { backendId: runtimeId<'backend'>('backend'), id: runtimeId<'thread'>('thread') }
+    },
+    part: 0
+  }
+  await f.emit({ ...address, type: 'message.text-open', kind: 'reasoning' })
+  await f.emit({ ...address, type: 'message.text-append', text: 'Working' })
+  await vi.waitFor(() => expect(changes).toHaveLength(2))
+  const partId = changes[0].partId
+  expect(changes).toEqual([
+    { type: 'part-open', messageId: f.reply.id, partId, pos: 2, kind: 'reasoning' },
+    { type: 'part-append', partId, text: 'Working' }
+  ])
+  expect(storedParts(f.reply.id)).toHaveLength(1)
+
+  const following = { ...address, part: 1 }
+  await f.emit({ ...following, type: 'message.text-open', kind: 'text' })
+  await f.emit({ ...following, type: 'message.text-append', text: 'Answer' })
+  await f.emit({ ...following, type: 'message.text-finish' })
+  await vi.waitFor(() => expect(changes).toHaveLength(5))
+  const followingId = changes[2].partId
+  expect(storedParts(f.reply.id)[1]?.id).toBe(followingId)
+
+  await f.emit({ ...address, type: 'message.text-finish' })
+  await vi.waitFor(() => expect(changes.at(-1)).toEqual({ type: 'part-finish', partId }))
+  expect(storedParts(f.reply.id)[1]?.id).toBe(partId)
+  f.handle.abortController.abort()
+  const stopped = await f.done
+  expect(stopped.finalMessage?.parts[1]).toMatchObject({ type: 'reasoning', text: 'Working', state: 'done' })
+  await f.handle.listeners[0].onPaused({ status: 'paused', finalMessage: stopped.finalMessage })
+  expect(storedParts(f.reply.id)[1]?.id).toBe(partId)
+  expect(storedParts(f.reply.id)[2]?.id).toBe(followingId)
+})
+
+it('updates the tool of its native source and saves only final output at the original timeline position', async () => {
+  const changes: AgentPartChange[] = []
+  const f = await fixture(undefined, false, 'pi-durable', 30, (change) => changes.push(change))
+  const call = { type: 'dynamic-tool' as const, toolName: 'shell', toolCallId: 'call', input: {} }
+  await f.project([text('earlier-source', 'Earlier'), reply([{ ...call, state: 'input-available' }])])
+  const emitOutput = (output: string, preliminary: boolean) =>
+    f.emit({
+      type: 'message.tool-output',
+      contextId: f.context.id,
+      ref: { id: runtimeId('native'), session: { backendId: runtimeId('backend'), id: runtimeId('thread') } },
+      part: 0,
+      tool: { ...call, state: 'output-available', output, preliminary }
+    })
+  await emitOutput('working', true)
+  await vi.waitFor(() =>
+    expect(changes.at(-1)).toMatchObject({
+      type: 'part-put',
+      archiveMessageId: f.reply.id,
+      part: { output: 'working', preliminary: true }
+    })
+  )
+  expect(storedParts(f.reply.id)).toHaveLength(1)
+
+  const output = 'result'.repeat(7000)
+  await emitOutput(output, false)
+  const row = dbh.db
+    .select({ id: agentSessionMessagePartTable.id, pos: agentSessionMessagePartTable.pos })
+    .from(agentSessionMessagePartTable)
+    .where(eq(agentSessionMessagePartTable.messageId, f.reply.id))
+    .orderBy(agentSessionMessagePartTable.seq)
+    .all()[1]
+  expect(row?.pos).toBe(32)
+  expect(messages.getSessionToolOutput('root', f.reply.id, call.toolCallId)).toEqual({ found: true, output })
+  await emitOutput('late preview', true)
+  expect(messages.getSessionToolOutput('root', f.reply.id, call.toolCallId)).toEqual({ found: true, output })
+  await emitOutput('corrected', false)
+  expect(storedParts(f.reply.id)[1].id).toBe(row.id)
+  expect(messages.getSessionToolOutput('root', f.reply.id, call.toolCallId)).toEqual({
+    found: true,
+    output: 'corrected'
+  })
+})
+
+it('saves Durable input and part positions in admission order, including on Stop', async () => {
+  const f = await fixture(undefined, false, 'pi-durable', 30)
+  const place = async (id: string) => {
+    application.get('DbService').withWriteTx((tx) => {
+      messages.bindInputContextTx(tx, 'root', id, f.context.id)
+    })
+    await f.emit({
+      type: 'input-state',
+      contextId: f.context.id,
+      input: { inputId: runtimeId(id), facts: ['accepted', 'queued'] }
+    })
+    const native = { id: `native-${id}`, role: 'user' as const, parts: [] }
+    await f.project([native], { inputs: { [native.id]: id } })
+    expect(savedPosition(id)).toBeNull()
+    await f.emit({ type: 'input-state', contextId: f.context.id, input: { inputId: runtimeId(id), facts: ['placed'] } })
+  }
+  const savedPosition = (id: string) =>
+    dbh.db
+      .select({ pos: agentSessionMessageTable.pos })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, id))
+      .get()?.pos
+  const positions = () =>
+    dbh.db
+      .select({ id: agentSessionMessagePartTable.id, pos: agentSessionMessagePartTable.pos })
+      .from(agentSessionMessagePartTable)
+      .where(eq(agentSessionMessagePartTable.messageId, f.reply.id))
+      .orderBy(agentSessionMessagePartTable.seq)
+      .all()
+
+  await place(f.user.id)
+  await f.project([reply([{ type: 'text', text: 'A', state: 'streaming' }])])
+  expect(positions()).toEqual([])
+  const input = messages.saveMessage({
+    sessionId: 'root',
+    message: { role: 'user', data: { parts: [{ type: 'text', text: 'Steer' }] } }
+  })
+  await place(input.id)
+  expect(savedPosition(f.user.id)).toBe(31)
+  expect(savedPosition(input.id)).toBe(33)
+  expect(positions()).toEqual([])
+
+  const answer = { type: 'text' as const, text: 'Answer', state: 'done' as const }
+  await f.project([{ ...reply([answer, { type: 'text', text: 'Tail', state: 'streaming' }]), id: 'committed' }], {
+    replaces: { native: 'committed' }
+  })
+  const [saved] = positions()
+  expect(saved?.pos).toBe(32)
+  expect(positions()).toHaveLength(1)
+  await vi.waitFor(() => expect(f.views.at(-1)?.parts).toHaveLength(2))
+  f.handle.abortController.abort()
+  await f.handle.listeners[0].onPaused({ status: 'paused', finalMessage: (await f.done).finalMessage })
+
+  expect(positions()[0]).toEqual(saved)
+  expect(positions().map(({ pos }) => pos)).toEqual([32, 34])
+  expect(dbh.db.select({ pos: agentSessionTable.lastPos }).from(agentSessionTable).get()?.pos).toBe(34)
+})
+
+it('persists a Claude tool-result retraction on its settled reply', async () => {
+  const f = await fixture(undefined, false, 'claude-code')
+  const call = { type: 'dynamic-tool' as const, toolCallId: 'call', toolName: 'Read', input: { path: '/a' } }
+  const output = 'withdrawn'.repeat(8192)
+  await f.project([reply([{ ...call, state: 'output-available', output }])])
+  await f.emit({ type: 'turn-complete' })
+  const result: StreamDoneResult = { status: 'success', finalMessage: (await f.done).finalMessage }
+  for (const listener of f.handle.listeners) await listener.onDone(result)
+  const [saved] = storedParts(f.reply.id)
+  expect(messages.getSessionToolOutput('root', f.reply.id, call.toolCallId)).toEqual({ found: true, output })
+
+  await f.emit({
+    type: 'message.parts',
+    contextId: f.context.id,
+    ref: { id: runtimeId('native'), session: { backendId: runtimeId('backend'), id: runtimeId('thread') } },
+    changes: [{ type: 'put', part: 0, value: { ...call, state: 'input-available' } }]
+  })
+  expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual([{ ...call, state: 'input-available' }])
+  expect(storedParts(f.reply.id).map((part) => part.id)).toEqual([saved.id])
+  expect(messages.getSessionToolOutput('root', f.reply.id, call.toolCallId)).toEqual({ found: false })
+})
+
+it('does not recreate a deleted reply from a late completed part', async () => {
+  const f = await fixture()
+  await f.project([reply([{ type: 'text', text: 'Draft', state: 'streaming' }])])
+  messages.deleteSessionMessage('root', f.reply.id)
+  await f.project([reply([{ type: 'text', text: 'Draft done', state: 'done' }])])
+  expect(messages.hasSessionMessage('root', f.reply.id)).toBe(false)
+  expect(storedParts(f.reply.id)).toEqual([])
 })
 
 async function settleFirstTurn(f: Awaited<ReturnType<typeof fixture>>) {
@@ -250,9 +569,10 @@ it('continues a session after deleting a completed projected reply and reconnect
   })
   if (source.kind !== 'messages') throw new Error('Expected message projections')
   const done = pipeMessageStream(
-    source.stream,
+    source,
     handle.abortController.signal,
-    { id: reply.id, role: 'assistant', parts: [] },
+    { id: reply.id, role: 'assistant' },
+    () => {},
     () => {},
     () => {}
   )
@@ -367,9 +687,10 @@ it('continues a resumed Durable input in its original reply', async () => {
   })
   if (source.kind !== 'messages') throw new Error('Expected message source')
   const done = pipeMessageStream(
-    source.stream,
+    source,
     next!.abortController!.signal,
-    { id: left.reply.id, role: 'assistant', parts: [] },
+    { id: left.reply.id, role: 'assistant' },
+    () => {},
     () => {},
     () => {}
   )
@@ -454,38 +775,17 @@ it('continues a resumed input in its linked reply when an earlier reply sits bel
   expect(messages.getSessionMessage('root', a2.id).status).toBe('success')
 })
 
-// AC6: the reply never reached terminal persistence; reopening rebuilds it from Durable's record.
-it.each([
-  { outcome: 'completed', status: 'success' },
-  { outcome: 'aborted', status: 'paused' },
-  { outcome: 'failed', status: 'error' }
-] as const)('settles an unfinished reply from its Durable $outcome outcome on reopen', async ({ outcome, status }) => {
+it('keeps an orphan pending when live events cannot prove its archived native reply', async () => {
   const f = await fixture(undefined, false, 'pi-durable')
   await settleFirstTurn(f)
   const left = unsettledInput(f.reply.id)
-  const terminals: Array<{ assistantMessageId: string; status: string }> = []
-  f.service.onTurnTerminal((event) => terminals.push(event))
-
   await f.emit({
     type: 'input-state',
     contextId: f.context.id,
-    input: {
-      inputId: runtimeId(left.user.id),
-      facts: ['accepted', 'placed'],
-      outcome,
-      ...(outcome === 'failed' && { error: { operation: 'run', code: 'provider-error', message: 'Provider failed' } })
-    }
+    input: { inputId: runtimeId(left.user.id), facts: ['accepted', 'placed'], outcome: 'completed' }
   })
-  await f.project([left.native, text('answer', 'Recovered answer')], { live: [], inputs: left.inputs })
-
-  const saved = messages.getSessionMessage('root', left.reply.id)
-  expect(saved.status).toBe(status)
-  expect(saved.data.parts?.[0]).toEqual(text('', 'Recovered answer').parts[0])
-  if (status === 'error')
-    expect(saved.data.parts).toContainEqual(
-      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: 'Provider failed' }) })
-    )
-  expect(terminals).toContainEqual(expect.objectContaining({ assistantMessageId: left.reply.id, status }))
+  await f.project([left.native, text('answer', 'Unverified answer')], { live: [], inputs: left.inputs })
+  expect(messages.getSessionMessage('root', left.reply.id).status).toBe('pending')
   expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual(text('', 'First answer').parts)
 })
 
@@ -519,34 +819,6 @@ it('keeps a reply paused when Stop ends its background continuation', async () =
   await stopped
 
   expect(messages.getSessionMessage('root', f.reply.id).status).toBe('paused')
-})
-
-// A truncated answer rebuilt on reopen must show the same output-limit card as a live turn.
-it('keeps the output-limit classification for a truncated Durable outcome on reopen', async () => {
-  const f = await fixture(undefined, false, 'pi-durable')
-  await settleFirstTurn(f)
-  const left = unsettledInput(f.reply.id)
-
-  await f.emit({
-    type: 'input-state',
-    contextId: f.context.id,
-    input: {
-      inputId: runtimeId(left.user.id),
-      facts: ['accepted', 'placed'],
-      outcome: 'unanswered',
-      error: { operation: 'run', code: 'output-truncated', message: 'Output limit reached' }
-    }
-  })
-  await f.project([left.native, text('answer', 'Truncated answer')], { live: [], inputs: left.inputs })
-
-  const saved = messages.getSessionMessage('root', left.reply.id)
-  expect(saved.status).toBe('error')
-  expect(saved.data.parts).toContainEqual(
-    expect.objectContaining({
-      type: 'data-error',
-      data: expect.objectContaining({ finishReason: 'length', i18nKey: 'output_token_limit_reached' })
-    })
-  )
 })
 
 // The run completed natively before the user's Stop landed; the reply keeps Durable's outcome.
@@ -633,9 +905,10 @@ async function answerSuccessor(f: Awaited<ReturnType<typeof fixture>>, next: Sta
   })
   if (source.kind !== 'messages') throw new Error('Expected message source')
   const done = pipeMessageStream(
-    source.stream,
+    source,
     next.abortController!.signal,
-    { id: next.request.messageId!, role: 'assistant', parts: [] },
+    { id: next.request.messageId!, role: 'assistant' },
+    () => {},
     () => {},
     () => {}
   )
@@ -712,9 +985,10 @@ it('gives a Durable placement its own reply when it arrives before the previous 
   if (source.kind !== 'messages') throw new Error('Expected message source')
   let streamed: Awaited<ReturnType<typeof pipeMessageStream>> | undefined
   void pipeMessageStream(
-    source.stream,
+    source,
     launched[0].abortController!.signal,
-    { id: launched[0].request.messageId!, role: 'assistant', parts: [] },
+    { id: launched[0].request.messageId!, role: 'assistant' },
+    () => {},
     () => {},
     () => {}
   ).then((value) => (streamed = value))
@@ -865,10 +1139,11 @@ it('retains a reserved steer reply until its stream takes ownership', async () =
   if (source.kind !== 'messages') throw new Error('Expected message source')
   const views: CherryUIMessage[] = []
   const done = pipeMessageStream(
-    source.stream,
+    source,
     next!.abortController!.signal,
-    { id: next!.request.messageId!, role: 'assistant', parts: [] },
+    { id: next!.request.messageId!, role: 'assistant' },
     (message) => views.push(message),
+    () => {},
     () => {}
   )
   await vi.waitFor(() => expect(views.at(-1)?.parts).toEqual(text('', 'Continuation before handoff').parts))
@@ -906,13 +1181,34 @@ it('hands late source changes from an open stream to terminal persistence and id
   expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual(text('', 'B after reconnect').parts)
   await f.project([], { removed: ['b'] })
   expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual([])
-  const restored = new RootMessageProjection(f.context.id)
+  const restored = new RootMessageProjection(f.context.id, { lastPos: messages.lastTimelinePosition('root') })
   expect(
     restored.accept(
       { contextId: f.context.id, messages: [text('b', 'stale')], live: ['b'], removed: [], replaces: {} },
       f.reply.id
     ).size
   ).toBe(0)
+})
+
+it('publishes the tool input when approval arrives before the native tool part', async () => {
+  const f = await fixture()
+  const input = { questions: [{ question: 'Choose a database' }] }
+  await f.emit({
+    type: 'tool-approval-request',
+    request: {
+      approvalId: 'approval-live',
+      toolCallId: 'tool-call-live',
+      toolName: 'AskUserQuestion',
+      input,
+      presentation: 'stream'
+    }
+  })
+  await vi.waitFor(() =>
+    expect(f.views.at(-1)).toMatchObject({
+      partIds: [expect.any(String)],
+      parts: [{ type: 'dynamic-tool', toolCallId: 'tool-call-live', input, state: 'approval-requested' }]
+    })
+  )
 })
 
 // ExitPlanMode can supply display input before native content; a completed native card must stay withdrawn.
@@ -926,13 +1222,13 @@ it.each(['output-available', 'output-denied'] as const)(
     const holder = sessionState.getToolApprovalEmitterHolder('root')
     let inputDelivered = Promise.resolve()
     holder.emitInput = (value) => {
-      inputDelivered = f.emit({ type: 'chunk', chunk: { type: 'tool-input-available', ...value, dynamic: true } })
+      inputDelivered = f.emit({ type: 'tool-input-available', ...value, dynamic: true })
     }
     surfaceExitPlanModeInput('root', 'ExitPlanMode', input, 'plan')
     await inputDelivered
     await f.emit({
-      type: 'chunk',
-      chunk: { type: 'tool-approval-request', toolCallId: 'plan', approvalId: 'approval' }
+      type: 'tool-approval-request',
+      request: { toolCallId: 'plan', approvalId: 'approval', toolName: 'ExitPlanMode', input, presentation: 'stream' }
     })
     await vi.waitFor(() =>
       expect(f.views.at(-1)?.parts).toContainEqual(
@@ -959,8 +1255,10 @@ it.each([false, true])('retains approval=%s through native results, persistence 
   const input = { path: '/test/result.txt', content: 'owned' }
   const call = { type: 'dynamic-tool' as const, toolCallId, toolName: 'write', input }
   await f.project([{ id: 'native-write', role: 'assistant', parts: [{ ...call, state: 'input-available' }] }])
-  await f.emit({ type: 'chunk', chunk: { type: 'tool-input-available', toolCallId, toolName: 'write', input } })
-  await f.emit({ type: 'chunk', chunk: { type: 'tool-approval-request', toolCallId, approvalId } })
+  await f.emit({
+    type: 'tool-approval-request',
+    request: { toolCallId, approvalId, toolName: 'write', input, presentation: 'stream' }
+  })
   MockApplicationUtils.setService('AiStreamManager', { resolveToolApproval: () => {} })
   const decision = Promise.withResolvers<{ approved: boolean }>()
   toolApprovalRegistry.register({
@@ -991,7 +1289,7 @@ it.each([false, true])('retains approval=%s through native results, persistence 
   await f.handle.listeners[0].onDone(result)
   await f.handle.listeners[1].onDone(result)
   expect(messages.getSessionMessage('root', f.reply.id).data.parts).toEqual([expected])
-  const restored = new RootMessageProjection(f.context.id)
+  const restored = new RootMessageProjection(f.context.id, { lastPos: messages.lastTimelinePosition('root') })
   restored.accept({
     contextId: f.context.id,
     messages: [native],

@@ -8,9 +8,9 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
   DEFER_TOOL_OUTPUT_BYTES,
+  projectAgentNonTextPart,
   projectMessagePartForRenderer,
-  projectStreamChunkForRenderer,
-  shouldDeferToolOutput
+  projectStreamChunkForRenderer
 } from '../messageOutputProjection'
 
 const TOPIC_ID = 'agent-session:session-1'
@@ -19,6 +19,26 @@ const TOOL_CALL_ID = 'call-1'
 
 const small = { content: 'x'.repeat(16) }
 const large = { content: 'x'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1) }
+it('publishes and invalidates the same archive address for an already-deferred result', () => {
+  const { patch, ref } = projectAgentNonTextPart(TOPIC_ID, {
+    type: 'part-put',
+    archiveMessageId: MESSAGE_ID,
+    partId: 'part',
+    part: {
+      type: 'dynamic-tool',
+      state: 'output-available',
+      toolName: 'read',
+      toolCallId: TOOL_CALL_ID,
+      input: {},
+      output: {
+        $deferredToolResult: { topicId: 'old-topic', toolCallId: 'old-call', messageId: MESSAGE_ID, partId: 'part' }
+      }
+    }
+  })
+  expect(ref).toEqual({ topicId: TOPIC_ID, toolCallId: TOOL_CALL_ID, messageId: MESSAGE_ID, partId: 'part' })
+  expect(patch.part).toMatchObject({ output: { $deferredToolResult: ref } })
+})
+
 const largeAgentWebSearch = {
   content: [
     {
@@ -70,21 +90,59 @@ const blob = (key: string, n: number) => ({
 })
 
 describe('message tool-output projection', () => {
-  it('delivers a large replacement on the same call with a fresh cache identity', () => {
+  it('retains the App affordance without sending the full input or result for deferred tool output', () => {
+    const text = 'result'.repeat(10_000)
+    const metadata = {
+      type: 'mcp',
+      app: { serverId: 'server', serverKey: 'key', toolName: 'tool', resourceUri: 'ui://example/view' },
+      appInput: { privateInput: 'do not project this' }
+    }
+    const outputs = [
+      { metadata, content: [{ type: 'text', text }] },
+      {
+        $persistedToolOutput: {
+          fileEntryId: 'entry-1',
+          vfsFilename: 'vfs_1234.txt',
+          head: text.slice(0, 10),
+          tail: text.slice(-10),
+          totalChars: text.length,
+          totalLines: 1,
+          shape: 'mcp-content',
+          metadata
+        }
+      }
+    ]
+    for (const output of outputs) {
+      const projected = projectMessagePartForRenderer(partWith(output), TOPIC_ID, MESSAGE_ID)
+      if (!('output' in projected) || !isDeferredToolOutput(projected.output))
+        throw new Error('Expected deferred output')
+      expect(projected.output.hasMcpApp).toBe(true)
+      const bytes = JSON.stringify(projected.output)
+      expect(bytes).not.toContain(metadata.appInput.privateInput)
+      expect(Buffer.byteLength(bytes)).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
+    }
+  })
+
+  it('keeps latest-value references stable and invalidates details on replacement', () => {
     const parts = (value: string) => [projectMessagePartForRenderer(partWith(value), TOPIC_ID, MESSAGE_ID)]
     const first = { id: MESSAGE_ID, role: 'assistant' as const, parts: parts('a'.repeat(64 * 1024)) }
     const state: TopicProjectionState = { kind: 'topic', topicId: TOPIC_ID, executions: [] }
     const projection = new MessageProjection({ ...state, messages: [first] })
     let view = projection.snapshot()
     projection.subscribe((update) => {
+      if (update.type === 'parts') throw new Error('Expected a structural update')
       view = applyMessageProjectionUpdate(view, update)!
     })
     const replacement = { ...first, parts: parts('b'.repeat(64 * 1024)) }
-    projection.update({ ...state, messages: [replacement] }, true)
+    const revision = view.revision
+    projection.updateAccepted({ ...state, messages: [replacement] }, true, [
+      { topicId: TOPIC_ID, messageId: MESSAGE_ID, toolCallId: TOOL_CALL_ID }
+    ])
+    expect(view.revision).toBe(revision + 1)
+    expect(view.messages[0]).toEqual(first)
     expect(view.messages[0]).toEqual(replacement)
-    expect(view.messages[0]).not.toEqual(first)
     expect(parts('b'.repeat(64 * 1024))).toEqual(replacement.parts)
-    projection.update({ ...state, messages: [{ ...first, parts: [] }] }, true)
+    projection.updateAccepted({ ...state, messages: [{ ...first, parts: [] }] }, true)
     expect(view.messages[0].parts).toEqual([])
     projection.dispose()
   })
@@ -106,13 +164,12 @@ describe('message tool-output projection', () => {
       $deferredToolResult: {
         topicId: TOPIC_ID,
         messageId: MESSAGE_ID,
-        toolCallId: TOOL_CALL_ID,
-        revision: expect.any(String)
+        toolCallId: TOOL_CALL_ID
       }
     })
   })
 
-  it.each(['stored', 'live'])('serializes an oversized %s output once for its reference revision', (source) => {
+  it.each(['stored', 'live'])('serializes an oversized %s output once for its deferred reference', (source) => {
     let serialized = false
     const output = {
       toJSON() {
@@ -131,8 +188,7 @@ describe('message tool-output projection', () => {
         $deferredToolResult: {
           topicId: TOPIC_ID,
           messageId: MESSAGE_ID,
-          toolCallId: TOOL_CALL_ID,
-          revision: 'f99105333335ffd61379190d826704fc729bff3bff5108aace70af36fe80d670'
+          toolCallId: TOOL_CALL_ID
         }
       }
     })
@@ -270,7 +326,6 @@ describe('message tool-output projection', () => {
       output: unknown
     }
     expect(projected.output).toBe(deep)
-    expect(shouldDeferToolOutput(deep)).toBe(false)
   })
 
   it('does nothing without a message id to address the result by', () => {
@@ -305,8 +360,7 @@ describe('message tool-output projection', () => {
       $deferredToolResult: {
         topicId: TOPIC_ID,
         messageId: MESSAGE_ID,
-        toolCallId: TOOL_CALL_ID,
-        revision: expect.any(String)
+        toolCallId: TOOL_CALL_ID
       },
       excerpt: { head: 'first lines', tail: 'last lines', totalChars: 200_000, totalLines: 5_000 }
     })
@@ -329,8 +383,7 @@ describe('message tool-output projection', () => {
       $deferredToolResult: {
         topicId: TOPIC_ID,
         messageId: MESSAGE_ID,
-        toolCallId: TOOL_CALL_ID,
-        revision: expect.any(String)
+        toolCallId: TOOL_CALL_ID
       },
       excerpt: { head: 'head-1', tail: 'tail-1', totalChars: 1000, totalLines: 10 }
     })

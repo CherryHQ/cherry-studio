@@ -18,6 +18,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { readStoredAgentSessionPath, replaceAgentSessionMessagePartsTx } from '@data/services/agentSessionMessageTree'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { getImportedHistoryState } from '@data/services/importedSessionHistory'
 import { ensureImportedSessionHistory } from '@main/ai/runtime/pi/importedSessionHistory'
@@ -383,11 +384,7 @@ describe('local history atomic import', () => {
         accepted.items.map((item) => item.ref)
       )
       expect(outcome).toMatchObject({ status: 'imported', initialization: 'ready', agentId: 'pi' })
-      const stored = dbh.db
-        .select()
-        .from(agentSessionMessageTable)
-        .where(ne(agentSessionMessageTable.role, 'root'))
-        .all()
+      const stored = readStoredAgentSessionPath(dbh.db, outcome.sessionId!)
       expect(stored[0].data.parts).toEqual([{ type: 'text', text: 'changed' }])
       expect(agentSessionMessageService.getSessionMessage(outcome.sessionId!, stored[0].id).provenance?.source).toBe(
         'opencode'
@@ -421,9 +418,15 @@ describe('local history atomic import', () => {
     }
     dbh.db
       .update(agentSessionMessageTable)
-      .set({ data, role: 'system' })
+      .set({ role: 'system' })
       .where(eq(agentSessionMessageTable.id, stored.id))
       .run()
+    replaceAgentSessionMessagePartsTx(dbh.db, {
+      sessionId: stored.sessionId,
+      messageId: stored.id,
+      parts: data.parts,
+      timestampMs: stored.updatedAt
+    })
     const visible = agentSessionMessageService.getSessionMessage(outcome.sessionId!, stored.id)
     expect(visible.role).toBe('assistant')
     expect(visible.data.parts).toEqual([
@@ -435,8 +438,8 @@ describe('local history atomic import', () => {
     ])
     expect(JSON.stringify(visible.data)).not.toContain('tool_use_id')
     expect(
-      dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, stored.id)).get()!.data
-    ).toEqual(data)
+      readStoredAgentSessionPath(dbh.db, stored.sessionId).find((row) => row.id === stored.id)?.data.parts
+    ).toEqual(data.parts)
   })
   function counts() {
     return [agentSessionTable, agentSessionMessageTable, agentWorkspaceTable, appStateTable].map((table) =>
