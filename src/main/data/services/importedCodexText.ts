@@ -1,5 +1,7 @@
 import { stripVTControlCharacters } from 'node:util'
 
+import * as z from 'zod'
+
 import type { MessageData } from '@shared/data/types/message'
 
 const toolTypes = new Set([
@@ -90,7 +92,35 @@ export function isCodexContextMessage(data: MessageData): boolean {
   )
 }
 
-export function formatCodexHistoryText(text: string): string {
+const questionReplies = z.array(z.object({ question: z.string(), answer: z.string() })).nonempty()
+
+function formatQuestionReply(text: string): string {
+  const reply = /^\s*<send_user_message_question_reply>([\s\S]*)<\/send_user_message_question_reply>\s*$/.exec(text)
+  if (!reply) return text
+  try {
+    const items = questionReplies.safeParse(JSON.parse(reply[1]))
+    if (items.success)
+      return items.data
+        .map(({ question, answer }) => '> ' + question.replace(/\r?\n/g, '\n> ') + '\n\n' + answer)
+        .join('\n\n')
+  } catch {
+    // Keep an incomplete or unrecognized reply readable as originally recorded.
+  }
+  return text
+}
+
+function formatReferenceList(text: string): string {
+  const header = '[Historical references]'
+  const index = text.lastIndexOf(header)
+  if (index < 0 || (index > 0 && text[index - 1] !== '\n')) return text
+  const body = text.slice(index + header.length)
+  if (!/^\r?\n/.test(body)) return text
+  const lines = body.trim().split(/\r?\n/)
+  if (!lines.every((line) => /^\S[^\r\n]*:\d+(?:-\d+)?(?: — .*)?$/.test(line))) return text
+  return text.slice(0, index) + '**References**\n\n' + lines.map((line) => '- ' + line).join('\n')
+}
+
+export function formatCodexHistoryText(text: string, role: string): string {
   const clean = stripVTControlCharacters(text)
   const legacy = /^\[Historical tool activity\]\n(\{[\s\S]*\})$/.exec(clean)
   if (legacy) {
@@ -117,17 +147,22 @@ export function formatCodexHistoryText(text: string): string {
   if (appContext) return '[Historical app context]\n\n' + appContext[1].trim()
   if (isContext && /^# AGENTS\.md instructions(?: for [^\r\n]+)?\r?\n/.test(clean))
     return '[Historical project instructions]\n\n' + clean.replace(/<\/?INSTRUCTIONS>/g, '').trim()
-  return clean.replace(/<oai-mem-citation>([\s\S]*?)<\/oai-mem-citation>/g, (original, body: string) => {
+  if (role === 'user') return formatQuestionReply(clean)
+  if (role !== 'assistant') return clean
+  const references = clean.replace(/<oai-mem-citation>([\s\S]*?)<\/oai-mem-citation>/g, (original, body: string) => {
     const entries = /<citation_entries>([\s\S]*?)<\/citation_entries>/.exec(body)?.[1].trim()
     return entries ? '[Historical references]\n\n' + entries.replace(/\|note=\[([^\]]*)\]/g, ' — $1') : original
   })
+  return formatReferenceList(references)
 }
 
-export function presentCodexHistory(data: MessageData): MessageData {
+export function presentCodexHistory(data: MessageData, role: string): MessageData {
   return {
     ...data,
     parts: data.parts?.map((part) =>
-      part.type === 'text' || part.type === 'reasoning' ? { ...part, text: formatCodexHistoryText(part.text) } : part
+      part.type === 'text' || part.type === 'reasoning'
+        ? { ...part, text: formatCodexHistoryText(part.text, role) }
+        : part
     )
   }
 }

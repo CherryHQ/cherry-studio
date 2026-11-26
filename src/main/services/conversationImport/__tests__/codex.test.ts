@@ -1,7 +1,8 @@
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, writeFile, rm, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { codexAdapter } from '../codex'
@@ -36,6 +37,70 @@ async function discover() {
 }
 
 describe('Codex raw rollout contract', () => {
+  it('keeps rollout candidates when the neighboring history database is unreadable', async () => {
+    await writeFile(path.join(root, 'thread_history_1.sqlite'), 'damaged')
+    await file('rollout-usable.jsonl', [meta('usable'), message('Keep this')])
+    expect((await discover()).map((ref) => ref.originalSessionId)).toEqual(['usable'])
+  })
+  it('discovers checkpointed SQLite history once and rechecks only the selected thread', async () => {
+    const dbPath = path.join(root, 'thread_history_1.sqlite')
+    const db = new Database(dbPath)
+    db.pragma('journal_mode = WAL')
+    db.exec(
+      'CREATE TABLE thread_items(thread_id TEXT, item_id TEXT, rollout_ordinal INTEGER, created_at_ms INTEGER, item_json TEXT)'
+    )
+    const insert = db.prepare('INSERT INTO thread_items VALUES(?, ?, ?, ?, ?)')
+    for (const thread of ['shared', 'database']) {
+      insert.run(thread, 'answer', 8, 1000, JSON.stringify({ type: 'agentMessage', text: 'Answer' }))
+      insert.run(
+        thread,
+        'question',
+        3,
+        2000,
+        JSON.stringify({ type: 'userMessage', content: [{ type: 'text', text: 'Question' }] })
+      )
+    }
+    db.close()
+    await file('rollout-shared.jsonl', [meta('shared'), message('In both')])
+    const refs = await discover()
+    expect(refs.map((r) => r.originalSessionId)).toEqual(['shared', 'database'])
+    const ref = refs[1]
+    const session = await codexAdapter.read(ref, signal())
+    expect(session.messages.map((m) => [m.role, m.timestamp, m.data.parts])).toEqual([
+      ['user', 2000, [{ type: 'text', text: 'Question' }]],
+      ['assistant', 1000, [{ type: 'text', text: 'Answer' }]]
+    ])
+    expect(await readdir(root)).not.toContain('thread_history_1.sqlite-wal')
+    const writer = new Database(dbPath)
+    try {
+      const edit = writer.prepare('UPDATE thread_items SET item_json=? WHERE thread_id=? AND item_id=?')
+      const updated = JSON.stringify({ type: 'agentMessage', text: 'Updated' })
+      edit.run(updated, 'shared', 'answer')
+      expect((await codexAdapter.read(ref, signal())).sourceFingerprint).toBe(session.sourceFingerprint)
+      edit.run(updated, 'database', 'answer')
+      expect((await codexAdapter.read(ref, signal())).sourceFingerprint).not.toBe(session.sourceFingerprint)
+    } finally {
+      writer.close()
+    }
+  })
+  it('imports structured question replies as one user turn followed by the referenced answer', async () => {
+    const replies = [
+      { questionItemId: 'internal', question: 'Which file?', answer: 'first.md\nsecond.md' },
+      { questionItemId: 'next', question: 'When?', answer: 'Now' }
+    ]
+    const p = await file('rollout-questions.jsonl', [
+      meta(),
+      message(
+        '<send_user_message_question_reply>\n' + JSON.stringify(replies) + '\n</send_user_message_question_reply>'
+      ),
+      message('Done\n\n[Historical references]\n\nfirst.md:1-2 — files', 'assistant')
+    ])
+    const result = await codexAdapter.read({ path: p }, signal())
+    expect(result.messages.map(({ role, data }) => [role, data.parts])).toEqual([
+      ['user', [{ type: 'text', text: '> Which file?\n\nfirst.md\nsecond.md\n\n> When?\n\nNow' }]],
+      ['assistant', [{ type: 'text', text: 'Done\n\n**References**\n\n- first.md:1-2 — files' }]]
+    ])
+  })
   it('uses the latest index name without importing mirrored events or source policy', async () => {
     await file('session_index.jsonl', [
       { id: 'thread', thread_name: 'old' },
