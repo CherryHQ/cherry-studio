@@ -1175,8 +1175,10 @@ export class AiService extends BaseService {
     // canonical bag to each provider's wire — a registered profile for the
     // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
     // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
-    const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
-    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
+    const wireProviderId =
+      sdkConfig.providerId === 'newapi' && sdkConfig.providerOptionsKey === 'google' ? 'google' : sdkConfig.providerId
+    const registration = WIRE_REGISTRY[wireProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
+    const imageProviderOptions = buildVendorProviderOptions(wireProviderId, params, registration, vendorBag)
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
     // native binding's `map` (in `splitParamValues`).

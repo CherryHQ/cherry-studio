@@ -1,10 +1,23 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
-import { createAssistantMessageEventStream, type AssistantMessage, type Usage } from '@earendil-works/pi-ai'
-import { AgentDoc, configure, createSession, type ConversationId } from '@earendil-works/pi-durable'
+import {
+  createAssistantMessageEventStream,
+  createModels,
+  type AssistantMessage,
+  type Usage
+} from '@earendil-works/pi-ai'
+import {
+  AgentDoc,
+  configure,
+  createRegistry,
+  createSession,
+  Harness,
+  type ConversationId
+} from '@earendil-works/pi-durable'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { childTimeline } from '@test-helpers/childTimeline'
@@ -38,7 +51,7 @@ import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionD
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { savedChildView } from '@main/ai/agentSession/childArchive'
 import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjection'
-import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
+import { createDurableBackend, openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
 import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { lookupNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
@@ -403,6 +416,63 @@ describe('desktop Pi Durable connection', () => {
     expect(last.systemPrompt).toContain('Edited brief after switching away and back')
     expect(JSON.stringify(last.messages)).toContain('Remember native mango history')
   })
+
+  it.each(['store', 'conversation', 'binding'])(
+    'continues from product history after losing the native %s',
+    async (missing) => {
+      const reserved = prepareDurableBranch(input.sessionId)
+      const backend = await createDurableBackend(reserved.backendId)
+      if (backend.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+      const path = application.getPath('feature.agents.durable.stores', backend.locator.fileName)
+      const emptyStore = readFileSync(path)
+
+      const first = await connect()
+      const previous = message('Remember the blue notebook')
+      await first.connection.send({ message: previous })
+      const answer = await savedAnswer(first)
+      messages.saveMessage({
+        sessionId: input.sessionId,
+        parentId: previous.id,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Sibling branch' }] } }
+      })
+      await first.connection.close()
+      if (missing === 'binding') {
+        application.get('DbService').withWriteTx((tx) => contexts.detachBranchTx(tx, reserved.id))
+      } else {
+        if (missing === 'store') unlinkSync(path)
+        else writeFileSync(path, emptyStore)
+      }
+
+      messages.selectBranch(input.sessionId, answer.id)
+      input.branchHead = answer.id
+      if (missing !== 'binding') await expect(driver.connect(input)).rejects.toThrow()
+      input.headless = false
+      setScript([assistantReply('Recovered answer')])
+      const recovered = await connect()
+      expect(recovered.connection.contextId).not.toBe(first.connection.contextId)
+      expect(script.calls).toHaveLength(0)
+      const followup = message('What did I ask you to remember?')
+      await recovered.connection.send({
+        message: followup,
+        context: await readSessionHistory(input.sessionId, followup.id, recovered.connection.contextId)
+      })
+      const recoveredAnswer = await savedAnswer(recovered)
+      const request = JSON.stringify(script.calls[0].messages.filter((message) => message.role !== 'system'))
+      expect(request).toContain('Remember the blue notebook')
+      expect(request).toContain('Hello world')
+      expect(request).not.toContain('Sibling branch')
+      if (missing === 'store') expect(existsSync(path)).toBe(false)
+      if (missing === 'conversation') expect(readFileSync(path)).toEqual(emptyStore)
+
+      await recovered.connection.close()
+      input.branchHead = recoveredAnswer.id
+      const reopened = await connect()
+      expect(reopened.connection.contextId).toBe(recovered.connection.contextId)
+      const next = message('Continue after reopening')
+      expect(await readSessionHistory(input.sessionId, next.id, reopened.connection.contextId)).toBeUndefined()
+    }
+  )
+
   it.each([false, true])('materializes the captured model name for headless=%s', async (headless) => {
     const { buildAgentPrompt } = await vi.importActual<typeof AgentPrompt>('@main/ai/agents/prompt/buildAgentPrompt')
     mocks.prompt.mockImplementation(buildAgentPrompt)
@@ -1542,6 +1612,28 @@ describe('desktop Pi Durable connection', () => {
       .filter((message) => message.role === 'assistant')
       .flatMap((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])))
       .join('')
+  it('preserves a bracketed native initialization cause through desktop serialization', async () => {
+    const runtimeRequire = createRequire(
+      createRequire(import.meta.url).resolve('@cherrystudio/agent-runtime-pi-durable')
+    )
+    const { Harness } = await import(runtimeRequire.resolve('@earendil-works/pi-durable'))
+    vi.spyOn(Harness, 'open').mockRejectedValueOnce(new Error('[SQLITE_BUSY] database is locked; apiKey=private-key'))
+    let failure: unknown
+    try {
+      await connect()
+    } catch (error) {
+      failure = error
+    }
+
+    expect(failure).toBeInstanceOf(Error)
+    const serialized = serializeError(failure)
+    expect(serialized).toMatchObject({
+      errorSource: 'local',
+      message: 'Pi Durable initialize: native-error — [SQLITE_BUSY] database is locked; apiKey="<redacted>"'
+    })
+    expect(JSON.stringify(serialized)).not.toContain('private-key')
+  })
+
   it('preserves output truncation through the desktop error boundary', async () => {
     const response = assistantReply('', 'length')
     response.content = [{ type: 'thinking', thinking: 'Partial reasoning' }]
@@ -3348,6 +3440,51 @@ describe('desktop Pi Durable connection', () => {
     expect(nativeInputs.findLast((state) => state.inputId === second.id)).toMatchObject({ outcome: 'aborted' })
     expect(text(events)).not.toContain('second answer')
     expect(events).not.toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+  })
+
+  it('recovers an unsent message when native withdrawal committed before the desktop projection', async () => {
+    const held = answerByInput()
+    const { connection, handle } = await connect()
+    const active = message('first')
+    await connection.send({ message: active })
+    await held.reached
+    const queued = message('second')
+    connection.followUp({ message: queued, systemReminder: true })
+    await expect.poll(() => handle.durable.followups().map(({ inputId }) => inputId)).toEqual([queued.id])
+    const [{ submissionId }] = handle.durable.followups()
+    const context = contexts.context(connection.contextId!)
+    const threadId = Number(context.nativeThreadId) as ConversationId
+    await connection.close()
+
+    // Commit through the SDK with no desktop observer to model the gap before the product write.
+    const backend = contexts.backend(context.backendId)
+    const harness = await Harness.open(
+      await openDurableStorage(backend),
+      {
+        models: createModels(),
+        registry: createRegistry()
+      },
+      BACKGROUND_CONTEXT
+    )
+    try {
+      expect(await harness.abortSubmission(submissionId, BACKGROUND_CONTEXT, threadId)).toBe('aborted')
+      await (await harness.conversation(threadId, BACKGROUND_CONTEXT))!.abort(BACKGROUND_CONTEXT)
+      expect((await harness.commit((tx) => tx.submission(submissionId), BACKGROUND_CONTEXT))?.status).toBe('unanswered')
+    } finally {
+      await harness.close(BACKGROUND_CONTEXT)
+    }
+    expect(messages.getSessionMessage(input.sessionId, queued.id).status).toBe('success')
+    expect(contexts.backend(backend.id).needsRecoveryCheck).toBe(true)
+
+    const reopened = new PiDurableRuntimeDriver()
+    await reopened.recoverWork()
+    const restored = messages.getSessionMessage(input.sessionId, queued.id)
+    expect(restored).toMatchObject({ status: 'paused', data: { parts: [{ type: 'text', text: 'second' }] } })
+    expect(messages.replyTo(input.sessionId, queued.id)).toBeUndefined()
+    expect(messages.getSessionMessage(input.sessionId, active.id).status).toBe('success')
+    contexts.markRecoveryCheck(backend.id, true)
+    await reopened.recoverWork()
+    expect(messages.getSessionMessage(input.sessionId, queued.id).updatedAt).toBe(restored.updatedAt)
   })
 
   // A follow-up that fails before reaching Durable is in no queue; handing it back lets the host send it.

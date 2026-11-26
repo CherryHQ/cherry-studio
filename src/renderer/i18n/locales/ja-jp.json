@@ -857,6 +857,7 @@
   "chat.input.followup_queue.pause": "自動送信を一時停止",
   "chat.input.followup_queue.remove": "削除",
   "chat.input.followup_queue.resume": "自動送信を再開",
+  "chat.input.followup_queue.stale": "キューが変更されました。現在のキューを確認して、もう一度お試しください。",
   "chat.input.followup_queue.steer": "現在のターンに送る",
   "chat.input.followup_queue.title": "キューに追加済み（{{count}}）",
   "chat.input.generate_image": "画像を生成する",

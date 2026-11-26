@@ -857,6 +857,7 @@
   "chat.input.followup_queue.pause": "Pozastavit automatické odesílání",
   "chat.input.followup_queue.remove": "Odebrat",
   "chat.input.followup_queue.resume": "Obnovit automatické odesílání",
+  "chat.input.followup_queue.stale": "Fronta se změnila. Zkontrolujte ji a zkuste to znovu.",
   "chat.input.followup_queue.steer": "vložit zprávu",
   "chat.input.followup_queue.title": "Ve frontě ({{count}})",
   "chat.input.generate_image": "Generovat obrázek",

@@ -62,6 +62,13 @@ import { DurableFolds, HistoryFold, historyOf, pages, readFacts } from './behavi
 import { meteredModels } from './behavior/models'
 import { ContentProjection } from './content'
 import { readContextUsage } from './contextUsage'
+import {
+  changeFollowups,
+  followupEdit,
+  readFollowups,
+  type DurableFollowup,
+  type DurableFollowupChange
+} from './followups'
 import { productInputId, readDurableInput, submissionState } from './inputLookup'
 import { previewContentIndices, previewTextAppends } from './previewTextAppends'
 import { DurableProjection, type DurableObservation } from './projection'
@@ -83,6 +90,8 @@ export interface PiDurableRuntimeOptions {
   readonly behavior?: PiDurableRuntimeBehavior
   /** Synchronous placement notification before the scheduler can issue the next model request. */
   readonly onInputPlaced?: (inputId: InputId | undefined, thread: ThreadId) => void
+  readonly onFollowupsChanged?: (thread: ThreadId, queue: readonly DurableFollowup[]) => void
+  readonly onFollowupEdit?: (thread: ThreadId, inputId: InputId, textPart: string) => void
   readonly onError?: (error: unknown) => void
 }
 export interface PiDurableRuntimeBehavior {
@@ -96,6 +105,8 @@ export type PiDurableSessionOptions = ConversationCreateOptions
 export interface PiDurableThreadHandle extends ThreadHandle {
   readonly input: ThreadInput
   readonly durable: {
+    followups(): readonly DurableFollowup[]
+    changeFollowups(change: DurableFollowupChange): Promise<boolean>
     observe(
       sink: (batch: DurableObservation) => void | Promise<void>,
       knownSources?: readonly string[]
@@ -145,6 +156,7 @@ interface Entry {
   ref: Thread
   conversation: Conversation
   projection: DurableProjection
+  followups(): readonly DurableFollowup[]
   admission: Promise<void>
   contextEpoch: number
   contextRead?: Promise<void>
@@ -311,7 +323,12 @@ export async function createPiDurableRuntime(
     } catch (cleanupError) {
       report(cleanupError)
     }
-    return { status: 'unknown', error: error('initialize', 'native-error') }
+    const failure = error('initialize', 'native-error')
+    const detail = cause instanceof Error ? cause.message : typeof cause === 'string' ? cause : ''
+    return {
+      status: 'unknown',
+      error: detail.trim() ? { ...failure, message: `${failure.message} — ${detail.trim()}` } : failure
+    }
   }
   const committedStorage = storage
   const native = harness
@@ -489,6 +506,7 @@ export async function createPiDurableRuntime(
       const projection = new DurableProjection(refFor(conversation.id), report)
       let detach: (() => void) | undefined
       let detachCommits: (() => void) | undefined
+      let followups: readonly DurableFollowup[] = []
       try {
         const attached = await conversationViews(native).attach(
           conversation.id,
@@ -517,6 +535,25 @@ export async function createPiDurableRuntime(
               if (record.status === 'done' || record.status === 'unanswered') activeInputIds.delete(record.id)
               else if (inputId) activeInputIds.set(record.id, inputId)
             }
+            function restoreEdit(source: { kind: string; data?: unknown } | undefined) {
+              if (!options.onFollowupEdit || source?.kind !== 'cherry.user-input') return
+              const id = productInputId(source.data)
+              const { textPart } = followupEdit(source.data)
+              if (!id || textPart === undefined) return
+              try {
+                options.onFollowupEdit(refFor(conversation.id).id, id, textPart)
+              } catch (cause) {
+                report(cause)
+              }
+            }
+            function publishFollowups(view: ConversationView) {
+              followups = readFollowups(view.docs['pi.inbox'] as InboxState | undefined)
+              try {
+                options.onFollowupsChanged?.(refFor(conversation.id).id, followups)
+              } catch (cause) {
+                report(cause)
+              }
+            }
             const states: InputState[] = []
             do {
               const page = await committed.scanSubmissions({ conversationId: conversation.id }, 256, cursor, context)
@@ -524,6 +561,7 @@ export async function createPiDurableRuntime(
                 if (record.type !== 'input') continue
                 const source =
                   record.entry === undefined ? undefined : (await committed.entry(record.entry, context))?.entry
+                restoreEdit(source)
                 const logicalId = productInputId(source?.data) ?? queuedInputId(view, record)
                 rememberInput(record, logicalId)
                 const answer =
@@ -532,6 +570,7 @@ export async function createPiDurableRuntime(
               }
               cursor = page.next
             } while (cursor)
+            publishFollowups(view)
             projection.update(view, { type: 'snapshot', inputs: states }, fold.history)
             let currentView = view
             let publishedView = view
@@ -559,11 +598,23 @@ export async function createPiDurableRuntime(
                 )
                   return
                 const after = currentView
+                if (
+                  publication.changes.some(
+                    (change) =>
+                      change.type === 'document' &&
+                      change.conversationId === conversation.id &&
+                      change.record.kind === 'pi.inbox'
+                  )
+                ) {
+                  publishFollowups(after)
+                }
                 const changed: InputState[] = []
                 const records = publication.changes.flatMap((change) => (change.type === 'entry' ? [change.value] : []))
                 for (const change of publication.changes) {
-                  if (change.type === 'entry' && change.value.conversationId === conversation.id)
+                  if (change.type === 'entry' && change.value.conversationId === conversation.id) {
                     fold.addEntry(change.value)
+                    restoreEdit(change.value)
+                  }
                   if (
                     change.type === 'task' &&
                     change.value.conversationId === conversation.id &&
@@ -675,6 +726,7 @@ export async function createPiDurableRuntime(
           ref: refFor(conversation.id),
           conversation,
           projection,
+          followups: () => followups,
           admission: Promise.resolve(),
           contextEpoch: 0,
           handles: 0,
@@ -756,6 +808,11 @@ export async function createPiDurableRuntime(
         }
       },
       durable: {
+        followups: entry.followups,
+        changeFollowups: (change) =>
+          unavailable()
+            ? Promise.resolve(false)
+            : track(changeFollowups(native, entry.conversation.id, change, context)),
         observe: (sink, knownSources) => observeCaptured(() => entry.projection.observe(sink, knownSources)),
         relation: () =>
           track(

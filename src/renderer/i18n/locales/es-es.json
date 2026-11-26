@@ -857,6 +857,7 @@
   "chat.input.followup_queue.pause": "Pausar envío automático",
   "chat.input.followup_queue.remove": "Eliminar",
   "chat.input.followup_queue.resume": "Reanudar envío automático",
+  "chat.input.followup_queue.stale": "La cola ha cambiado. Revísala e inténtalo de nuevo.",
   "chat.input.followup_queue.steer": "Enviar al turno actual",
   "chat.input.followup_queue.title": "En cola ({{count}})",
   "chat.input.generate_image": "Generar imagen",

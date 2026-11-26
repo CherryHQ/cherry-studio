@@ -298,10 +298,10 @@ Stop is now the only abort source). `enqueueUserMessage()`:
 2. **Other running native work, or a follow-up intent, + a driver with native admission** — calls
    `connection.followUp(...)` for an interactive input on the current config. When the runtime
    descriptor declares `nativeFollowUp`, the Work composer sends a busy-time Enter at once with
-   `followUp: true` instead of holding it in its follow-up dock; Main then skips `redirect` even
-   for an open turn. The steer shortcut still steers. Other runtimes keep busy-time Enter in the
-   dock until the turn ends. Pi Durable submits
-   it with its `follow-up` busy policy and persists it at once, so the queue survives a crash.
+   `followUp: true`; Main skips `redirect` even for an open turn. The steer shortcut still steers.
+   Other runtimes keep busy-time Enter in the dock until the turn ends. Pi Durable submits the input
+   with its `follow-up` busy policy and persists it at once. Its dock reflects the native waiting order
+   and offers text editing, reordering, and withdrawal while the input is still queued.
    When Durable places the input, the driver emits `steer-boundary` after the preceding answer;
    the host gives the input its own reply. The event's `followUp` flag marks such a placement: the
    host holds it while a steer transition or reservation is pending, or while the current reply has
@@ -710,15 +710,17 @@ a saved `nativeInputId` for lookup on the same conversation. Explicit non-admiss
 the attempted target. Uncertain inputs retain their target. Native snapshots establish the content
 baseline. Only pending product replies need their native outcomes at attachment.
 A bound or previously submitted context requires exactly one existing native file with the expected
-ID. A missing or ambiguous file is an error, not permission to recreate from display history.
+ID. Missing or ambiguous history is reported to the driver before input dispatch. The driver can
+open a replacement context with the selected branch's reference history.
 Only a never-submitted intent can stay unflushed; local commands persist their native state before
 acknowledgement, even without a model prompt. Resume tokens are published after native persistence.
 On startup, the runtime owner terminalizes abandoned Pi product placeholders without clearing native
 identities or replaying their inputs. Rows owned by persisted delivery turns remain with delivery recovery.
 `pi-durable` placeholders stay `pending`: when the Session reopens, Durable continues a resumed input
 in the reply its `replyId` names, and an input that already has a Durable outcome rebuilds its reply from
-committed entries with that outcome. Delivery recovery ends a recovered delivery turn as an error
-when its Session cannot connect, because no runtime can then resume it.
+committed entries with that outcome. Delivery recovery retains the original target when reconnection
+fails and native admission is uncertain. A delivery whose unavailable context has been detached
+can reach an error outcome.
 
 For Claude Code, the resume token is the SDK `session_id`. The driver
 maps it to `options.resume`. This is separate from the SDK's file
@@ -1128,8 +1130,8 @@ its archive cannot open as an independent writable root. Public projection code 
 
 `PiDurableRuntimeDriver` owns one native backend per store and connections borrow root accesses. `DurableBackend` installs the same `agent-behavior` rules and routes host ports by the native conversation ownership tree through `agent-runtime-pi-durable`. It reuses gateway model routing, approval facts,
 question cards and tool rendering. Native SQLite owns execution history and task state;
-the existing backend/context tables bind it to product sessions. Strict identity checks
-prevent a missing store from silently becoming a fresh conversation.
+the existing backend/context tables bind it to product sessions. Reopen validates the existing
+native identity. A new turn can start a fresh context when the bound history is missing.
 Pi Durable renders the Pi SDK's global and workspace-ancestor context files before each
 model request, so changes and removals replace the previously shown project instructions.
 
@@ -1244,9 +1246,14 @@ prefixes. A Main-only `locallyHandled` acknowledgement retains native ownership 
 excluding the local input and reply from model history. The product prefix remains available
 for the next model submission after a local command or reopening. Once native model input
 has been submitted, subsequent inputs and reopening reuse the ordinary native conversation.
-Known native identities follow their existing recovery rules; a missing native store is
-never silently replaced with product history. This path creates no native-history files,
-rebuild state or historical checkpoints and does not inspect import provenance.
+A branch with a missing or unusable native context can use the same prefix. The
+driver detaches the failed binding and reserves a new native context at the branch
+anchor in one transaction. Pi Durable also allocates a new backend. The branch's
+replacement binding takes precedence over resume tokens stored on historical
+messages. An input submitted to the replacement may drop its previous native input
+identity once its original context is detached. Historical messages remain available
+for display. Reference history creates no historical checkpoints and does not depend
+on import provenance.
 
 ## DeepSeek Agent history import
 
@@ -1333,15 +1340,19 @@ callers can intentionally use assistant prefill.
 
 ## Native resume failures
 
-Claude Code surfaces native resume failures, including missing conversations and
-duplicate tool-use IDs. The adapter does not discard the resume token and replay
-the pending input into a fresh conversation. Native history and its recovery
-semantics belong to the harness.
+Claude Code and Pi first try the selected branch's binding. If the binding is
+missing, a resume token persisted on the branch can reconnect an existing native
+transcript. The driver uses the [reference history](#first-submission-without-native-history)
+when no original transcript can be opened by a trusted identity. Pi also rebuilds
+when multiple files claim that identity and preserves those files. Claude Code
+distinguishes a missing transcript from a read failure. Backend or storage access
+failures propagate to the caller. These checks run before the new input is submitted.
 
-Forked sessions use the same persisted native resume-token path as other Agent
-sessions. Cherry does not rebuild their context from visible messages when native
-history is unavailable. See [Agent Session Fork](./agent-session-fork.md) for the
-separate publication and file-resource recovery path.
+For Pi Durable, a new turn rebuilds when the bound store or conversation is missing.
+An idle reopen of a missing bound context reports the failure and preserves uncertain native
+admission. Forked sessions use the same resume rules as other
+sessions of their runtime. See
+[Agent Session Fork](./agent-session-fork.md) for publication and file-resource recovery.
 
 ## Idle and shutdown
 

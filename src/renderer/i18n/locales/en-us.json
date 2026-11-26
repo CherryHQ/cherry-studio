@@ -857,6 +857,7 @@
   "chat.input.followup_queue.pause": "Pause auto-send",
   "chat.input.followup_queue.remove": "Remove",
   "chat.input.followup_queue.resume": "Resume auto-send",
+  "chat.input.followup_queue.stale": "The queue changed. Check the current queue and try again.",
   "chat.input.followup_queue.steer": "steer",
   "chat.input.followup_queue.title": "Queued ({{count}})",
   "chat.input.generate_image": "Generate image",
