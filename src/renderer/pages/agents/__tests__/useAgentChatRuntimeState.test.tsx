@@ -742,6 +742,41 @@ describe('useAgentChatRuntimeState', () => {
     })
   })
 
+  it.each([true, undefined])('carries a composer follow-up intent (%s) to the stream request', async (followUp) => {
+    const { useConversationTurnController } = await vi.importActual<typeof TurnControllerModule>(
+      '@renderer/hooks/useConversationTurnController'
+    )
+    mocks.controllerOptions.mockImplementation(useConversationTurnController)
+    mocks.streamOpen.mockImplementationOnce(async (request: { followUp?: boolean }) => {
+      expect(request.followUp).toBe(followUp)
+      return { mode: 'injected', activeExecutions: [], reservedMessages: [] }
+    })
+    const { result } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        agentType: 'pi-durable',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+
+    await act(async () => {
+      expect(
+        await result.current.sendMessage(
+          { text: 'Next input' },
+          {
+            body: {
+              agentId: 'agent-1',
+              sessionId: 'session-1',
+              userMessageParts: [{ type: 'text', text: 'Next input' }],
+              ...(followUp ? { followUp } : {})
+            }
+          }
+        )
+      ).toBe(true)
+    })
+  })
+
   it('reports a blocked stream open as not sent', async () => {
     mocks.sendTurn.mockResolvedValueOnce(false)
     const { result } = renderHook(() =>

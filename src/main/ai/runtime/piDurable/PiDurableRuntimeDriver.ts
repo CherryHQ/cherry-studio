@@ -1,9 +1,12 @@
+import type { Cursor } from '@earendil-works/pi-durable'
+
 import { application } from '@application'
 import type { DurableRecoveryWork } from '@cherrystudio/agent-runtime-pi-durable'
 import type { AgentRuntimeBackendRow } from '@data/db/schemas/agentRuntimeBackend'
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
+import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -107,6 +110,30 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
       let root: AgentSessionContextRow
       let request: AgentRuntimeConnectInput
       try {
+        let cursor: Cursor | undefined
+        let blockedWithdrawal = false
+        do {
+          const page = await storage.scanSubmissions({ status: 'unanswered' }, 128, cursor, BACKGROUND_CONTEXT)
+          if (!canWrite()) return
+          for (const record of page.items) {
+            if (
+              record.type !== 'input' ||
+              record.status !== 'unanswered' ||
+              record.reason !== 'aborted' ||
+              record.entry !== undefined ||
+              !record.requestId
+            )
+              continue
+            const root = contexts.rootForThread(backend.id, String(record.conversationId))
+            if (!root || messages.inputBinding(root.sessionId, record.requestId)?.contextId !== root.id) continue
+            if (blockedSessions.has(root.sessionId)) {
+              blockedWithdrawal = true
+            } else if (!messages.replyTo(root.sessionId, record.requestId)) {
+              messages.markUserMessageUnsent(root.sessionId, record.requestId, root.id)
+            }
+          }
+          cursor = page.next
+        } while (cursor)
         work = await DurableBackend.readWork(backend.id, storage)
         const roots = [...new Set(work.roots.values())].map((id) => contexts.rootForThread(backend.id, id))
         if (!roots.length) {
@@ -124,7 +151,7 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
               await session.close(BACKGROUND_CONTEXT)
             }
           }
-          if (canWrite()) contexts.markRecoveryCheck(backend.id, false)
+          if (!blockedWithdrawal && canWrite()) contexts.markRecoveryCheck(backend.id, false)
           return
         }
         if (roots.some((binding) => !binding || blockedSessions.has(binding.sessionId))) return

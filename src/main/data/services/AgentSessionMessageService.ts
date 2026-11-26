@@ -2272,8 +2272,36 @@ export class AgentSessionMessageService {
     if (changed.changes > 0) this.publishDeliveryChange(sessionId, messageId, 'projection')
   }
 
+  applyNativeFollowupEdit(
+    sessionId: string,
+    contextId: string,
+    messageId: string,
+    text: Extract<CherryMessagePart, { type: 'text' }>
+  ): void {
+    const changed = application.get('DbService').withWriteTx((tx) => {
+      const row = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (row?.role !== 'user' || row.inputContextId !== contextId || row.delivery) return false
+      const parts = [...(row.data.parts ?? [])]
+      const index = parts.findIndex((part) => part.type === 'text')
+      if (index < 0 || JSON.stringify(parts[index]) === JSON.stringify(text)) return false
+      parts[index] = text
+      const updatedAt = Date.now()
+      this.invalidateForkPrefixTx(tx, sessionId, messageId)
+      tx.update(sessionMessagesTable).set({ updatedAt }).where(eq(sessionMessagesTable.id, messageId)).run()
+      replaceAgentSessionMessagePartsTx(tx, {
+        sessionId,
+        messageId,
+        parts,
+        partIds: readAgentSessionMessagePartIdsTx(tx, messageId),
+        timestampMs: updatedAt
+      })
+      return true
+    })
+    if (changed) this.publishDeliveryChange(sessionId, messageId, 'projection')
+  }
+
   /** A `paused` user message is one the runtime withdrew before the agent received it. */
-  markUserMessageUnsent(sessionId: string, messageId: string): void {
+  markUserMessageUnsent(sessionId: string, messageId: string, contextId?: string): void {
     const changed = application.get('DbService').withWriteTx((tx) =>
       tx
         .update(sessionMessagesTable)
@@ -2283,7 +2311,14 @@ export class AgentSessionMessageService {
             eq(sessionMessagesTable.sessionId, sessionId),
             eq(sessionMessagesTable.id, messageId),
             eq(sessionMessagesTable.role, 'user'),
-            eq(sessionMessagesTable.status, 'success')
+            eq(sessionMessagesTable.status, 'success'),
+            contextId
+              ? and(
+                  eq(sessionMessagesTable.inputContextId, contextId),
+                  isNull(sessionMessagesTable.replyId),
+                  isNull(sessionMessagesTable.deliveryStatus)
+                )
+              : undefined
           )
         )
         .run()

@@ -31,6 +31,7 @@ import { getMessageListItemModel, toMessageListItem } from '@renderer/components
 import { useProfilePaneToggle } from '@renderer/components/chat/panes/profile'
 import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailModal'
 import { ipcApi } from '@renderer/ipc'
+import { messageProjectionService } from '@renderer/services/aiTransport'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { ExportMessagesToObsidian } from '@renderer/types/messageExport'
@@ -79,23 +80,26 @@ function withTerminalErrorFallback(
     if (message.role !== 'assistant') continue
     const status = message.metadata?.status
     const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts ?? []
-    const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
+    const resolvedParts = messageProjectionService.ownsRowParts(parts)
+      ? messageProjectionService.readParts(parts)
+      : parts
+    const hasVisiblePart = resolvedParts.some((part) => !isHiddenPart(part))
     if (message.metadata?.importedHistory) {
       if (status === 'error' || !hasVisiblePart) {
         replacements.set(message.id, [
-          ...parts,
+          ...resolvedParts,
           { type: 'data-imported-status', data: { status: message.metadata.importedHistory.status } }
         ])
       }
       continue
     }
     const needsFallback =
-      (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
+      (status === 'error' && !resolvedParts.some((part) => part.type === 'data-error')) ||
       (status === 'success' && !hasVisiblePart)
     if (!needsFallback) continue
 
     replacements.set(message.id, [
-      ...parts,
+      ...resolvedParts,
       {
         type: 'data-error',
         data: { name: 'AgentRuntimeError', message: noResponseMessage, stack: null }

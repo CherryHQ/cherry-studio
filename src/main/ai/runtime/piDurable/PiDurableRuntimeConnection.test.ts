@@ -4,8 +4,20 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
-import { createAssistantMessageEventStream, type AssistantMessage, type Usage } from '@earendil-works/pi-ai'
-import { AgentDoc, configure, createSession, type ConversationId } from '@earendil-works/pi-durable'
+import {
+  createAssistantMessageEventStream,
+  createModels,
+  type AssistantMessage,
+  type Usage
+} from '@earendil-works/pi-ai'
+import {
+  AgentDoc,
+  configure,
+  createRegistry,
+  createSession,
+  Harness,
+  type ConversationId
+} from '@earendil-works/pi-durable'
 import { trace } from '@opentelemetry/api'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { childTimeline } from '@test-helpers/childTimeline'
@@ -3386,6 +3398,51 @@ describe('desktop Pi Durable connection', () => {
     expect(nativeInputs.findLast((state) => state.inputId === second.id)).toMatchObject({ outcome: 'aborted' })
     expect(text(events)).not.toContain('second answer')
     expect(events).not.toContainEqual(expect.objectContaining({ type: 'steer-boundary', inputIds: [second.id] }))
+  })
+
+  it('recovers an unsent message when native withdrawal committed before the desktop projection', async () => {
+    const held = answerByInput()
+    const { connection, handle } = await connect()
+    const active = message('first')
+    await connection.send({ message: active })
+    await held.reached
+    const queued = message('second')
+    connection.followUp({ message: queued, systemReminder: true })
+    await expect.poll(() => handle.durable.followups().map(({ inputId }) => inputId)).toEqual([queued.id])
+    const [{ submissionId }] = handle.durable.followups()
+    const context = contexts.context(connection.contextId!)
+    const threadId = Number(context.nativeThreadId) as ConversationId
+    await connection.close()
+
+    // Commit through the SDK with no desktop observer to model the gap before the product write.
+    const backend = contexts.backend(context.backendId)
+    const harness = await Harness.open(
+      await openDurableStorage(backend),
+      {
+        models: createModels(),
+        registry: createRegistry()
+      },
+      BACKGROUND_CONTEXT
+    )
+    try {
+      expect(await harness.abortSubmission(submissionId, BACKGROUND_CONTEXT, threadId)).toBe('aborted')
+      await (await harness.conversation(threadId, BACKGROUND_CONTEXT))!.abort(BACKGROUND_CONTEXT)
+      expect((await harness.commit((tx) => tx.submission(submissionId), BACKGROUND_CONTEXT))?.status).toBe('unanswered')
+    } finally {
+      await harness.close(BACKGROUND_CONTEXT)
+    }
+    expect(messages.getSessionMessage(input.sessionId, queued.id).status).toBe('success')
+    expect(contexts.backend(backend.id).needsRecoveryCheck).toBe(true)
+
+    const reopened = new PiDurableRuntimeDriver()
+    await reopened.recoverWork()
+    const restored = messages.getSessionMessage(input.sessionId, queued.id)
+    expect(restored).toMatchObject({ status: 'paused', data: { parts: [{ type: 'text', text: 'second' }] } })
+    expect(messages.replyTo(input.sessionId, queued.id)).toBeUndefined()
+    expect(messages.getSessionMessage(input.sessionId, active.id).status).toBe('success')
+    contexts.markRecoveryCheck(backend.id, true)
+    await reopened.recoverWork()
+    expect(messages.getSessionMessage(input.sessionId, queued.id).updatedAt).toBe(restored.updatedAt)
   })
 
   // A follow-up that fails before reaching Durable is in no queue; handing it back lets the host send it.
