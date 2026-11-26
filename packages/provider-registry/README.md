@@ -124,7 +124,10 @@ loader.invalidate()
 
 The Node loader reads lazily, shares the portable lookup indexes, and releases cached
 data after its idle timeout. `readModelRegistry`, `readProviderRegistry`, and
-`readProviderModelRegistry` remain available for one-shot reads.
+`readProviderModelRegistry` remain available for one-shot reads. When the loader
+receives in-memory `fallbacks`, it retries a failed file on the first access after
+`idleTtlMs`. The optional `onFallback` and `onDiskLoad` hooks report fallback
+attempts and successful reads from disk, respectively.
 
 ## Compatibility and platform boundaries
 

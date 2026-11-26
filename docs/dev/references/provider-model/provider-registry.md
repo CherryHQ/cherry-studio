@@ -168,7 +168,8 @@ Cached, indexed access to registry JSON with idle auto-expiry.
 - **Pre-computed indexes**: Model and override indexes are built on first load for O(1) lookups
 - **Idle TTL**: Auto-invalidates after 30s of no access
 - **Touch on access**: Every `findModel/findOverride/loadModels` resets the timer
-- **Service-scoped cache**: `ProviderRegistryService` shares one loader across its queries; the provider seeder creates its own loader
+- **Fallback retry**: A file served from the in-bundle catalog is retried on its first access after 30s, even while other cached files stay active.
+- **Downloaded snapshots**: `ProviderRegistryService` validates both model files before serving either. If either fails, both come from the bundled directory until the downloaded pair can be read again. Provider routing stays bundled, and the provider seeder owns its own loader.
 
 ### Indexes
 

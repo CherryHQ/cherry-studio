@@ -55,6 +55,7 @@ function isPartDone(part: Part): boolean {
   if (part.type === 'text' || part.type === 'reasoning') return part.state !== 'streaming' && part.text.trim() !== ''
   if (isToolUIPart(part))
     return TERMINAL_TOOL_STATES.has(part.state) && !(part.state === 'output-available' && part.preliminary)
+  if (part.type === 'data-compaction-anchor') return part.data.status === 'done'
   if (part.type === 'data-agent-task-event') return part.data.status !== 'in_progress'
   return part.type !== 'data-retry'
 }
@@ -595,7 +596,7 @@ export class RootMessageProjection {
         ...pending,
         ...(chunk.type === 'tool-input-available' ? { input: chunk } : { approvalId: chunk.approvalId })
       })
-    } else if (chunk.type === 'data-compaction-anchor') {
+    } else if (chunk.type === 'data-compaction-anchor' && chunk.id === undefined) {
       return this.addDataPart(messageId, chunk)
     } else {
       return this.putDataPart(messageId, chunk)
@@ -625,10 +626,7 @@ export class RootMessageProjection {
     }
   }
 
-  private putDataPart(
-    messageId: string,
-    part: Exclude<HostDataPart, { type: 'data-compaction-anchor' }>
-  ): AcceptedRootPart {
+  private putDataPart(messageId: string, part: HostDataPart): AcceptedRootPart {
     const previous = this.extras.get(messageId)?.find((entry) => {
       const { type, dataId } = sourcePartFacts(entry)
       return type === part.type && dataId === part.id

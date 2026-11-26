@@ -46,7 +46,7 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, 
       content={<TooltipLabelWithShortcut label={sendLabel} shortcutLabel={shortcutLabel} />}>
       <i
         data-ui="chat.composer.action.send"
-        className="iconfont icon-ic_send"
+        className="iconfont icon-ic_send flex size-7.5 shrink-0 items-center justify-center leading-none"
         onMouseDown={(event) => {
           // Pointer submission should keep focus in the composer.
           if (event.button === 0) event.preventDefault()
@@ -61,9 +61,7 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, 
           cursor: disabled ? 'not-allowed' : 'pointer',
           color: disabled ? 'var(--foreground-disabled)' : 'var(--primary)',
           fontSize: 22,
-          transition: 'all 0.2s',
-          marginTop: 1,
-          marginRight: 2
+          transition: 'color 0.2s'
         }}
       />
     </Tooltip>
