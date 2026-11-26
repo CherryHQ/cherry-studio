@@ -5,6 +5,7 @@
  * and highlights come only from mounted DOM. Multi-model replies stay at group
  * granularity so search never takes ownership of their selected branch.
  */
+
 import type { FC, RefObject } from 'react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
@@ -13,7 +14,7 @@ import { FindBar, type FindBarRef, type FindBarState, INITIAL_FIND_BAR_STATE } f
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { findRangesInScope, supportsCustomHighlights } from '@renderer/utils/contentSearch'
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 
 import type { MessageListItem } from '../types'
 import { computeMessageSearchMatches, type MessageSearchMatch, type MessageTextSearchMatch } from './messageSearch'
@@ -31,7 +32,7 @@ const CURRENT_HIGHLIGHT = 'message-search-current'
 interface Props {
   /** Loaded messages in chronological order, including any live tail. */
   messages: MessageListItem[]
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   renderUserTextAsMarkdown: boolean
   keepIntermediateAssistantText?: boolean
   excludedMessageIds: ReadonlySet<string>

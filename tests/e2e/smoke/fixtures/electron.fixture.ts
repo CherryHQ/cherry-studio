@@ -113,7 +113,7 @@ export const test = base.extend<ElectronFixtures & { isolatedEnvironment: void }
           if (value === undefined) delete process.env[key]
           else process.env[key] = value
         }
-        await rm(runtimeRoot, { recursive: true, force: true })
+        await rm(runtimeRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
       }
     },
     { auto: true }

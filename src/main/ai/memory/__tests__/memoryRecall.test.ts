@@ -6,7 +6,7 @@ import path from 'node:path'
 import type { HookInput } from '@anthropic-ai/claude-agent-sdk'
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { McpServer } from '@modelcontextprotocol/server'
-import { setupTestDatabase } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase } from '@test-helpers/db'
 import { connectMcpTestClient } from '@test-helpers/mcp/client'
 import { MockApplicationUtils } from '@test-mocks/main/application'
 import { eq } from 'drizzle-orm'
@@ -138,12 +138,9 @@ describe('FTS conversation recall in memory references', () => {
         .run()
       dbh.db
         .insert(agentSessionMessageTable)
-        .values({ id: root, sessionId: id, role: 'root', status: 'success', data: { parts: [] } })
+        .values({ id: root, sessionId: id, role: 'root', status: 'success', data: {} })
         .run()
-      dbh.db
-        .insert(agentSessionMessageTable)
-        .values({ ...values, sessionId: id })
-        .run()
+      insertAgentSessionMessages(dbh.db, { ...values, sessionId: id })
     }
     return { id, message, root }
   }
@@ -166,11 +163,7 @@ describe('FTS conversation recall in memory references', () => {
           .insert(messageTable)
           .values({ ...values, topicId: source.id })
           .run()
-      else
-        dbh.db
-          .insert(agentSessionMessageTable)
-          .values({ ...values, sessionId: source.id })
-          .run()
+      else insertAgentSessionMessages(dbh.db, { ...values, sessionId: source.id })
       ids.push(id)
     }
     if (kind === 'assistant')
@@ -441,11 +434,7 @@ describe('FTS conversation recall in memory references', () => {
         .insert(messageTable)
         .values({ ...sibling, topicId: source.id })
         .run()
-    else
-      dbh.db
-        .insert(agentSessionMessageTable)
-        .values({ ...sibling, sessionId: source.id })
-        .run()
+    else insertAgentSessionMessages(dbh.db, { ...sibling, sessionId: source.id })
     const items = excerpts(await recall(kind, 'needle'))
     expect(items.map((item) => item.messageId)).toEqual([source.message, source.ids[2]])
     if (kind === 'assistant')

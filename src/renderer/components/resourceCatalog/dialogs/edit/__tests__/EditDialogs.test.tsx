@@ -2178,6 +2178,33 @@ describe('edit dialogs', () => {
     expect(updateAgentMock).not.toHaveBeenCalled()
   })
 
+  it('adds two Pi Durable built-in rows to the summary while a knowledge base is linked', async () => {
+    const user = userEvent.setup()
+    const agent: AgentDetail = {
+      ...PI_AGENT,
+      type: 'pi-durable',
+      knowledgeBaseIds: ['kb-1'],
+      disabledTools: ['mcp__cherry-tools__kb_search']
+    }
+    render(<AgentEditDialog open resource={agent} onOpenChange={vi.fn()} />)
+
+    const toolSummary = () => screen.getByRole('button', { name: /^Built-in tools:/ }).getAttribute('aria-label')
+    const [, enabled, total] = toolSummary()?.match(/Enabled (\d+) \/ (\d+)$/) ?? []
+    expect(Number(enabled)).toBe(Number(total) - 1)
+    await openSubPage(user, 'Built-in tools')
+    expect(screen.getByRole('switch', { name: 'Knowledge Search' })).not.toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Manage Knowledge' })).toBeChecked()
+
+    await back(user)
+    await openSubPage(user, 'Knowledge')
+    await user.click(screen.getByRole('switch', { name: 'Knowledge One' }))
+    await back(user)
+    expect(toolSummary()).toBe(`Built-in tools: Enabled ${Number(enabled) - 1} / ${Number(total) - 2}`)
+    await openSubPage(user, 'Built-in tools')
+    expect(screen.queryByRole('switch', { name: 'Knowledge Search' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'Manage Knowledge' })).not.toBeInTheDocument()
+  })
+
   it('preserves a knowledge-base re-selection made while its removal is saving', async () => {
     let resolveFirstSave: (() => void) | undefined
     updateAgentMock.mockImplementationOnce(
