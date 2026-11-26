@@ -1,4 +1,5 @@
 import { caseDefinition } from '../../../../scripts/e2e/regression/cases'
+import { agentWorkdir } from '../agentWorkdir'
 import { expect, test } from '../fixture'
 import {
   builtinAssistantAgent,
@@ -135,4 +136,9 @@ test(...caseDefinition('MP-152'), async ({ app, mainWindow }, testInfo) => {
 test(...caseDefinition('MP-58'), async ({ app, mainWindow }, testInfo) => {
   test.setTimeout(8 * 60_000)
   await scheduledTasks(app, mainWindow, testInfo)
+})
+
+test(...caseDefinition('MP-49'), async ({ app, mainWindow }, testInfo) => {
+  test.setTimeout(5 * 60_000)
+  await agentWorkdir(app, mainWindow, testInfo)
 })
