@@ -88,3 +88,39 @@ describe('structuredClone restrictions in the repository lint gate', () => {
     ).toBe(0)
   })
 })
+
+describe('JSON round trips in the repository lint gate', () => {
+  it('rejects copying through the global JSON methods, including qualified and computed calls', () => {
+    const result = lint(
+      [
+        'export const a = JSON.parse(JSON.stringify(input))',
+        "export const b = globalThis.JSON['parse'](JSON.stringify(input, null, 2))",
+        "export const c = JSON.parse(window.JSON?.['stringify']?.(input), undefined)",
+        'export const d = JSON.parse(JSON.stringify(input) as string)'
+      ].join('\n')
+    )
+    expect(result.status).toBe(1)
+    const copies = result.diagnostics.filter((d: { code: string }) => d.code === 'copy(no-json-roundtrip)')
+    expect(copies).toMatchObject([1, 2, 3, 4].map((line) => ({ labels: [{ span: { line } }] })))
+  })
+
+  it('allows encoding, decoding, JSON transformations and local codecs', () => {
+    const result = lint(
+      [
+        'export const encode = JSON.stringify(input)',
+        'export const decode = JSON.parse(body)',
+        'export const clean = JSON.parse(JSON.stringify(input, redact))',
+        'export const projected = JSON.parse(JSON.stringify(input, ["name"]))',
+        'export const revived = JSON.parse(JSON.stringify(input), revive)',
+        'export const fromArgs = JSON.parse(JSON.stringify(...args))',
+        'export function local(JSON) { return JSON.parse(JSON.stringify(input)) }',
+        'export function qualified(window) { return window.JSON.parse(window.JSON.stringify(input)) }'
+      ].join('\n')
+    )
+    expect(result.diagnostics).toEqual([])
+  })
+
+  it('allows tests to exercise JSON wire semantics', () => {
+    expect(lint('export const replay = JSON.parse(JSON.stringify(input))', 'wire.test.ts').status).toBe(0)
+  })
+})

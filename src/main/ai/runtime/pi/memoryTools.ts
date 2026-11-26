@@ -21,7 +21,7 @@ export const PI_MEMORY_FILE_TOOLS: ReadonlySet<string> = new Set(['read', 'write
 
 export function createPiMemoryTools(
   pi: Awaited<ReturnType<typeof loadPiSdk>>,
-  context: PiApprovalContext & { emit(event: AgentRuntimeEvent): void },
+  context: PiApprovalContext & { contextId?: string; emit(event: AgentRuntimeEvent): void },
   nativeApprovalHandled = false
 ) {
   async function authorize(name: string, toolCallId: string, input: Record<string, unknown>, signal?: AbortSignal) {
@@ -40,6 +40,7 @@ export function createPiMemoryTools(
     const answer = await requestPiToolApproval({
       id: randomUUID(),
       sessionId: context.sessionId,
+      contextId: context.contextId,
       toolCallId,
       name,
       args,
