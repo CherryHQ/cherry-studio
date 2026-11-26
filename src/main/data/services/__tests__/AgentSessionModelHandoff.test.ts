@@ -8,6 +8,7 @@ import { agentSessionMessagePartTable, agentSessionMessageTable } from '@data/db
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { resolveAgentSessionRunHistory } from '@data/services/agentSessionRunHistory'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { modelService } from '@data/services/ModelService'
@@ -127,6 +128,49 @@ describe('model-switch handoff persistence and generation', () => {
     expect(agentSessionService.getModelSwitchHandoff(sessionId, input.sourceHead)).toBeUndefined()
     expect(agentSessionService.getModelSwitchHandoff(sessionId, null)).toBeUndefined()
     expect(agentSessionMessageService.getLastRuntimeResumeToken(sessionId)).toBe('native-original')
+  })
+
+  it('uses the completed native run before a placed steer and consecutive model handoffs', () => {
+    const [user, assistant] = rows().filter((row) => row.role !== 'root')
+    const run = {
+      ...assistant,
+      id: 'run',
+      role: 'assistant' as const,
+      status: 'success' as const,
+      parentId: user.id,
+      pos: 2,
+      data: { ...assistant.data, runtimeAnchor: { checkpoint: 'native-run' } }
+    }
+    const first = { ...user, replyId: run.id, pos: 1 }
+    const steer = {
+      ...user,
+      id: 'steer',
+      replyId: run.id,
+      parentId: run.id,
+      pos: 3,
+      data: { ...user.data, nativePlaced: true }
+    }
+    const handoff = {
+      ...assistant,
+      id: 'handoff',
+      role: 'system' as const,
+      parentId: steer.id,
+      pos: 4,
+      data: { modelSwitchHandoff: { previousModel, nextModel, sourceHead: steer.id } }
+    }
+    const secondHandoff = { ...handoff, id: 'handoff-2', parentId: handoff.id, pos: 5 }
+    const next = { ...user, id: 'next', replyId: null, parentId: secondHandoff.id, pos: 6 }
+    const history = resolveAgentSessionRunHistory([first, run, steer, handoff, secondHandoff, next])
+    expect(history.inspect(steer.id)?.edit).toEqual({ kind: 'steer' })
+    expect(history.inspect(next.id)?.edit).toMatchObject({
+      kind: 'ready',
+      boundary: {
+        id: run.id,
+        role: 'assistant',
+        status: 'success',
+        anchor: run.data.runtimeAnchor
+      }
+    })
   })
 
   it('rejects a stale branch and does not append or change the selected model', () => {

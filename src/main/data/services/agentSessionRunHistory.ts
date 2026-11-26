@@ -85,7 +85,8 @@ function boundary(row: AgentSessionMessageRow): RunHistoryBoundary {
 // Model-switch handoffs stay in the product history, but native history ends at the checkpoint before them.
 function nativePredecessor(
   row: AgentSessionMessageRow | undefined,
-  placed: readonly AgentSessionMessageRow[]
+  placed: readonly AgentSessionMessageRow[],
+  byId: ReadonlyMap<string, AgentSessionMessageRow>
 ): AgentSessionMessageRow | undefined {
   let index = row ? placed.lastIndexOf(row) : -1
   while (row && row.role === 'system' && row.data.modelSwitchHandoff) {
@@ -93,7 +94,7 @@ function nativePredecessor(
     row = placed[index]
     if (!row) return undefined
   }
-  return row
+  return row?.role === 'user' && row.replyId ? (byId.get(row.replyId) ?? row) : row
 }
 
 class AgentSessionRunHistory {
@@ -112,7 +113,7 @@ class AgentSessionRunHistory {
     for (const row of this.rows) {
       const predecessor =
         previous?.role === 'user' && previous.replyId ? (this.byId.get(previous.replyId) ?? previous) : previous
-      const nativeBoundary = nativePredecessor(predecessor, placed)
+      const nativeBoundary = nativePredecessor(predecessor, placed, this.byId)
       if (row.role === 'user') {
         const kind = row.delivery
           ? 'invalid'
