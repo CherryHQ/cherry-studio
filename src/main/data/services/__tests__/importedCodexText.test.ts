@@ -23,8 +23,8 @@ describe('Codex imported text presentation', () => {
     ]) {
       const data = { parts: [{ type: 'text' as const, text }] }
       expect(isCodexContextMessage(data)).toBe(false)
-      expect(isCodexContextMessage(presentCodexHistory(data))).toBe(false)
-      expect(presentCodexHistory(data).parts).toEqual(data.parts)
+      expect(isCodexContextMessage(presentCodexHistory(data, 'user'))).toBe(false)
+      expect(presentCodexHistory(data, 'user').parts).toEqual(data.parts)
     }
   })
   it('recognizes generated context in old imports without classifying real user text as context', () => {
@@ -33,7 +33,7 @@ describe('Codex imported text presentation', () => {
       { type: 'text' as const, text: '[Historical environment]\n\ncwd: D:/project' }
     ]
     expect(isCodexContextMessage({ parts })).toBe(true)
-    expect(isCodexContextMessage(presentCodexHistory({ parts }))).toBe(false)
+    expect(isCodexContextMessage(presentCodexHistory({ parts }, 'user'))).toBe(false)
     for (const label of ['environment', 'project instructions', 'plugin context', 'app context']) {
       const text = '[Historical ' + label + ']\n\ncwd: D:/project\nWhat is the charging power?'
       expect(isCodexContextMessage({ parts: [{ type: 'text', text }] })).toBe(false)
@@ -43,7 +43,7 @@ describe('Codex imported text presentation', () => {
     )
     expect(isCodexContextMessage({ parts: [] })).toBe(false)
     expect(
-      formatCodexHistoryText('<external_codex_apps_open_page>{"page_id":null}</external_codex_apps_open_page>')
+      formatCodexHistoryText('<external_codex_apps_open_page>{"page_id":null}</external_codex_apps_open_page>', 'user')
     ).toBe('[Historical app context]\n\n{"page_id":null}')
   })
   it('shows command input instead of serialized tool metadata', () => {
@@ -92,31 +92,55 @@ describe('Codex imported text presentation', () => {
         }
       ]
     }
-    const formatted = presentCodexHistory(data)
+    const formatted = presentCodexHistory(data, 'system')
     expect(formatted.parts?.[0]).toEqual({ type: 'text', text: '[Historical tool result]\n\nold\nresult' })
     expect(data.parts[0].text).toContain('custom_tool_call_output')
   })
   it('turns generated context and memory-reference markup into historical text', () => {
     expect(
       formatCodexHistoryText(
-        '<environment_context><cwd>D:/project</cwd><shell>powershell</shell><filesystem>policy</filesystem></environment_context>'
+        '<environment_context><cwd>D:/project</cwd><shell>powershell</shell><filesystem>policy</filesystem></environment_context>',
+        'system'
       )
     ).toBe('[Historical environment]\n\ncwd: D:/project\nshell: powershell')
-    expect(formatCodexHistoryText('<recommended_plugins>Plugin list</recommended_plugins>')).toBe(
+    expect(formatCodexHistoryText('<recommended_plugins>Plugin list</recommended_plugins>', 'system')).toBe(
       '[Historical plugin context]\n\nPlugin list'
     )
     const references = formatCodexHistoryText(
-      'Answer\n<oai-mem-citation><citation_entries>notes.md:2-3|note=[context]</citation_entries><rollout_ids>opaque</rollout_ids></oai-mem-citation>'
+      'Answer\n<oai-mem-citation><citation_entries>notes.md:2-3|note=[context]</citation_entries><rollout_ids>opaque</rollout_ids></oai-mem-citation>',
+      'assistant'
     )
-    expect(references).toContain('notes.md:2-3 — context')
+    expect(references).toBe('Answer\n**References**\n\n- notes.md:2-3 — context')
     expect(references).not.toContain('<oai-mem-citation>')
     expect(references).not.toContain('opaque')
+  })
+  it('presents stored references without changing literal user prompts or unrecognized entries', () => {
+    const text = 'Answer\r\n\r\n[Historical references]\r\n\r\na.md:1-3 — context\r\nb.md:8 — next'
+    const data = { parts: [{ type: 'text' as const, text }] }
+    expect(presentCodexHistory(data, 'assistant').parts?.[0]).toEqual({
+      type: 'text',
+      text: 'Answer\r\n\r\n**References**\n\n- a.md:1-3 — context\n- b.md:8 — next'
+    })
+    expect(presentCodexHistory(data, 'user')).toEqual(data)
+    const literal = '[Historical references]\n\nPlease explain this heading.'
+    expect(formatCodexHistoryText(literal, 'assistant')).toBe(literal)
+  })
+  it('keeps malformed and quoted question replies intact', () => {
+    for (const body of ['{broken', '[{"question":"Q"}]', '[]']) {
+      const text = '<send_user_message_question_reply>' + body + '</send_user_message_question_reply>'
+      expect(formatCodexHistoryText(text, 'user')).toBe(text)
+    }
+    const example =
+      'Example: <send_user_message_question_reply>[{"question":"Q","answer":"A"}]</send_user_message_question_reply>'
+    expect(formatCodexHistoryText(example, 'user')).toBe(example)
   })
   it('preserves ordinary JSON output and examples of markup', () => {
     const json = '{"output":"ordinary data","other":true}'
     expect(formatCodexTool({ type: 'function_call_output', output: json })).toContain(json)
     const text = 'Example: <environment_context>keep this</environment_context>'
-    expect(formatCodexHistoryText(text)).toBe(text)
-    expect(formatCodexHistoryText('[Historical tool activity]\n{broken')).toBe('[Historical tool activity]\n{broken')
+    expect(formatCodexHistoryText(text, 'user')).toBe(text)
+    expect(formatCodexHistoryText('[Historical tool activity]\n{broken', 'system')).toBe(
+      '[Historical tool activity]\n{broken'
+    )
   })
 })

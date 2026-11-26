@@ -9,10 +9,10 @@ import { hasImportedMessageOrder, messageProvenanceSql } from './importedSession
 import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
 type Boundary = Pick<AgentSessionMessageRow, 'id' | 'createdAt'> & { provenance?: MessageProvenance | null }
-/** Imported Claude and WorkBuddy rows form a fixed prefix; native continuation keeps its existing ordering. */
+/** Source-ordered imported rows form a fixed prefix; native continuation keeps its existing ordering. */
 export function sessionMessageOrdering(db: DbOrTx, sessionId: string, direction: 'asc' | 'desc' = 'asc') {
   const provenance = messageProvenanceSql()
-  const imported = sql`json_extract(${provenance}, '$.source') IN ('workbuddy', 'claude-code')`
+  const imported = sql`json_extract(${provenance}, '$.source') IN ('workbuddy', 'claude-code', 'codex')`
   const band = sql<number>`CASE WHEN ${imported} THEN 0 ELSE 1 END`
   const position = sql<number>`CASE WHEN ${imported} THEN json_extract(${provenance}, '$.sourceOrder') ELSE ${messages.createdAt} END`
 
@@ -22,7 +22,9 @@ export function sessionMessageOrdering(db: DbOrTx, sessionId: string, direction:
   const compare = direction === 'asc' ? gt : lt
   const compareInclusive = direction === 'asc' ? gte : lte
   const key = (row: Boundary) =>
-    row.provenance?.source === 'workbuddy' || row.provenance?.source === 'claude-code'
+    row.provenance?.source === 'workbuddy' ||
+    row.provenance?.source === 'claude-code' ||
+    row.provenance?.source === 'codex'
       ? { band: 0, position: row.provenance.sourceOrder, id: row.id }
       : { band: 1, position: row.createdAt, id: row.id }
   const boundary = (value: ReturnType<typeof key>, inclusive = false) =>

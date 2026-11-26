@@ -2303,7 +2303,7 @@ export class AgentSessionMessageService {
       row.provenance?.source === 'claude-code'
         ? presentClaudeHistory(row.data)
         : row.provenance?.source === 'codex'
-          ? presentCodexHistory(row.data)
+          ? presentCodexHistory(row.data, role)
           : row.data
     const presented = row.provenance
       ? presentImportedTools(row.provenance.source, row.id, role, formatted, row.status)
