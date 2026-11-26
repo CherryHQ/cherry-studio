@@ -812,7 +812,11 @@ models and same-provider background model slots. The subprocess receives only
 the gateway credential and provider-prefixed model IDs. Provider execution owns
 upstream credentials, headers, key rotation and billing; editing those upstream
 settings does not invalidate a warm Query's gateway identity. Explicit external
-CLI subscription login retains native authentication. See the gateway's
+CLI subscription login retains native authentication. Built-in Agent sessions
+also set `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`: the CLI keeps its credentials for
+model calls, but the Bash commands, command hooks and stdio MCP servers it starts
+do not receive `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` or
+`ANTHROPIC_CUSTOM_HEADERS`. See the gateway's
 [internal endpoint policy](../api-gateway/README.md#internal-listener-for-cherry-consumers).
 
 `RootMessageProjection` resolves sources to parts and applies live changes. Pi and Pi Durable
