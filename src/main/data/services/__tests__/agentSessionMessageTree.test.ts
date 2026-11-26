@@ -162,10 +162,10 @@ describe('Agent message tree', () => {
     service.selectBranch(sessionId, original.id)
     const target = {
       messageId: original.id,
-      version: service.readEditSnapshotTx(dbh.db, sessionId, original.id).version
+      plan: service.readEditSnapshotTx(dbh.db, sessionId, original.id).plan
     }
     const replacement = dbh.db.transaction((tx) => {
-      service.replaceEditBranchTx(tx, sessionId, target)
+      service.replaceEditBranchTx(tx, sessionId, target.plan)
       return service.saveMessagesTx(tx, {
         sessionId,
         messages: [{ role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'Replacement' }] } }]
@@ -177,6 +177,16 @@ describe('Agent message tree', () => {
     expect(service.listSessionMessages(sessionId).items[0].siblings).toEqual([sibling.id, replacement.id])
     service.selectBranch(sessionId, sibling.id)
     expect(visibleIds()).toEqual([prefix.id, sibling.id])
+  })
+
+  it('rejects a captured edit plan after history changes without deleting any rows', () => {
+    const original = append('Original')
+    const plan = service.readEditSnapshotTx(dbh.db, sessionId, original.id).plan
+    const later = append('Later')
+    expect(() => dbh.db.transaction((tx) => service.replaceEditBranchTx(tx, sessionId, plan))).toThrow(
+      'history_changed'
+    )
+    expect(visibleIds()).toEqual([original.id, later.id])
   })
 
   it('rejects an edit while an outgoing delivery still needs its original reply anchor', () => {
