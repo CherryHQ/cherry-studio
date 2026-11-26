@@ -1,13 +1,22 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { netFetchMock, getCatalogVersionMock, notifyDataChangeMock, readActiveManifestMock, writeSnapshotMock } =
-  vi.hoisted(() => ({
-    netFetchMock: vi.fn(),
-    getCatalogVersionMock: vi.fn(),
-    notifyDataChangeMock: vi.fn(),
-    readActiveManifestMock: vi.fn(),
-    writeSnapshotMock: vi.fn()
-  }))
+const {
+  netFetchMock,
+  getCatalogVersionMock,
+  getRegistryFallbacksMock,
+  notifyDataChangeMock,
+  probeOverrideSnapshotMock,
+  readActiveManifestMock,
+  writeSnapshotMock
+} = vi.hoisted(() => ({
+  netFetchMock: vi.fn(),
+  getCatalogVersionMock: vi.fn(),
+  getRegistryFallbacksMock: vi.fn(),
+  notifyDataChangeMock: vi.fn(),
+  probeOverrideSnapshotMock: vi.fn(),
+  readActiveManifestMock: vi.fn(),
+  writeSnapshotMock: vi.fn()
+}))
 
 vi.mock('@main/services/AppUpdaterService', () => ({ RELEASE_HISTORY_URL: 'https://updates.example' }))
 vi.mock('@main/services/cherryCloud/CherryCloudService', () => ({
@@ -39,10 +48,14 @@ vi.mock('@application', async () => {
 })
 vi.mock('@main/utils/systemInfo', () => ({ generateUserAgent: () => 'test-ua' }))
 vi.mock('@main/data/services/ProviderRegistryService', () => ({
-  providerRegistryService: { getCatalogVersion: getCatalogVersionMock }
+  providerRegistryService: {
+    getCatalogVersion: getCatalogVersionMock,
+    getRegistryFallbacks: getRegistryFallbacksMock
+  }
 }))
 vi.mock('@main/data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataChangeMock }))
 vi.mock('@main/data/services/utils/registryDataPaths', () => ({
+  probeOverrideSnapshot: probeOverrideSnapshotMock,
   readActiveOverrideManifest: readActiveManifestMock
 }))
 vi.mock('@main/services/providerRegistrySnapshot', () => ({
@@ -69,6 +82,7 @@ vi.mock('electron', () => ({
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 
 import { REGISTRY_SCHEMA_VERSION } from '@cherrystudio/provider-registry/node'
+import type { providerRegistryService as RealProviderRegistryService } from '@main/data/services/ProviderRegistryService'
 
 import { builtinEndpoints } from '../network/endpoints'
 import {
@@ -124,8 +138,10 @@ describe('ProviderRegistryUpdaterService.check', () => {
   beforeEach(() => {
     netFetchMock.mockReset()
     getCatalogVersionMock.mockReset()
+    getRegistryFallbacksMock.mockReset().mockReturnValue([])
     MockMainCacheServiceUtils.resetMocks()
     notifyDataChangeMock.mockReset()
+    probeOverrideSnapshotMock.mockReset().mockReturnValue(null)
     readActiveManifestMock.mockReset()
     writeSnapshotMock.mockReset()
     getCatalogVersionMock.mockReturnValue('v1') // current on-disk catalog is at v1
@@ -283,14 +299,28 @@ describe('ProviderRegistryUpdaterService.check', () => {
     expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/models.json'), expect.anything())
   })
 
-  it('rejects a snapshot revision that is not newer than the active override', async () => {
-    readActiveManifestMock.mockReturnValue({ revision: 3 })
+  it.each([3, 4])('rejects revision 3 when the healthy override is at revision %i', async (revision) => {
+    readActiveManifestMock.mockReturnValue({ revision })
     mockRemote({ revision: 3, dataVersion: 'v2' })
 
     await service.check()
 
     expect(writeSnapshotMock).not.toHaveBeenCalled()
     expect(netFetchMock).not.toHaveBeenCalledWith(expect.stringContaining('/models.json'), expect.anything())
+  })
+
+  it('re-downloads the current revision when the service has fallen back from an unreadable override', async () => {
+    readActiveManifestMock.mockReturnValue({ revision: 3 })
+    getCatalogVersionMock.mockReturnValue('v2')
+    getRegistryFallbacksMock.mockReturnValue([{ namespace: 'override' }])
+    mockRemote({ revision: 3, dataVersion: 'v2' })
+
+    await service.check()
+
+    expect(writeSnapshotMock).toHaveBeenCalledWith(
+      { 'models.json': '{"version":"v2"}', 'provider-models.json': '{"version":"v2"}' },
+      expect.any(String)
+    )
   })
 
   it.each(['US', 'CN', null])('diagnoses the updater mirror with a cold country cache (%s)', async (country) => {
@@ -323,4 +353,140 @@ describe('ProviderRegistryUpdaterService.check', () => {
       expect.anything()
     )
   })
+})
+
+describe('ProviderRegistryUpdaterService.check (real filesystem)', () => {
+  let fixtureRoot: string
+  let bundledRoot: string
+  let overrideRoot: string
+  let realRegistryService: typeof RealProviderRegistryService
+
+  afterEach(async () => {
+    realRegistryService?.clearCache()
+    vi.restoreAllMocks()
+    if (fixtureRoot) {
+      const { rmSync } = await import('node:fs')
+      rmSync(fixtureRoot, { recursive: true, force: true })
+    }
+  })
+
+  it.each(['missing', 'corrupt'] as const)(
+    'repairs a rejected override snapshot (%s) even with bundled fallbacks and matching catalog versions, then becomes a no-op',
+    async (mode) => {
+      const { mkdirSync, mkdtempSync, statSync, utimesSync, writeFileSync } = await import('node:fs')
+      const os = await import('node:os')
+      const path = await import('node:path')
+
+      vi.resetModules()
+      vi.doUnmock('@main/data/services/ProviderRegistryService')
+      vi.doUnmock('@main/data/services/utils/registryDataPaths')
+      vi.doUnmock('@main/services/providerRegistrySnapshot')
+      vi.doUnmock('@cherrystudio/provider-registry/node')
+
+      const { application: realApp } = await import('@application')
+      const { bundledCatalog } = await import('@cherrystudio/provider-registry/data')
+      const {
+        readModelRegistry,
+        readProviderModelRegistry,
+        REGISTRY_SCHEMA_VERSION: schemaVersion
+      } = await import('@cherrystudio/provider-registry/node')
+      const { providerRegistryService } = await import('@main/data/services/ProviderRegistryService')
+      const { probeOverrideSnapshot, readActiveOverrideManifest } =
+        await import('@main/data/services/utils/registryDataPaths')
+      const { ProviderRegistryUpdaterService: RealUpdaterService } = await import('../ProviderRegistryUpdaterService')
+      realRegistryService = providerRegistryService
+
+      fixtureRoot = mkdtempSync(path.join(os.tmpdir(), 'updater-real-fs-'))
+      bundledRoot = path.join(fixtureRoot, 'bundled')
+      overrideRoot = path.join(fixtureRoot, 'override')
+      mkdirSync(bundledRoot, { recursive: true })
+      mkdirSync(overrideRoot, { recursive: true })
+
+      vi.spyOn(realApp, 'getPath').mockImplementation((key: string, filename = '') =>
+        path.join(key === 'feature.provider_registry.override' ? overrideRoot : bundledRoot, filename)
+      )
+
+      const versions = {
+        'models.json': bundledCatalog.models.version,
+        'provider-models.json': bundledCatalog.providerModels.version
+      }
+      const manifestPayload = {
+        minAppVersion: '1.0.0',
+        sourceAppVersion: '2.0.0',
+        revision: 2,
+        schemaVersion,
+        files: versions
+      }
+
+      // Seed an on-disk override that has a complete manifest + models.json but
+      // missing or corrupt provider-models.json while bundled files are unreadable.
+      writeFileSync(path.join(overrideRoot, 'manifest.json'), JSON.stringify(manifestPayload))
+      writeFileSync(
+        path.join(overrideRoot, 'models.json'),
+        JSON.stringify({ version: versions['models.json'], models: [] })
+      )
+      if (mode === 'corrupt') {
+        writeFileSync(path.join(overrideRoot, 'provider-models.json'), '{')
+      }
+
+      expect(realRegistryService.getCatalogVersion('models.json')).toBe(versions['models.json'])
+      expect(realRegistryService.getCatalogVersion('provider-models.json')).toBe(versions['provider-models.json'])
+      const initialFallbacks = realRegistryService.getRegistryFallbacks()
+      expect(initialFallbacks.length).toBeGreaterThan(0)
+      expect(initialFallbacks.every(({ namespace }) => namespace === 'bundled')).toBe(true)
+      expect(readActiveOverrideManifest()).toBeNull()
+
+      netFetchMock.mockImplementation(async (url: string) => {
+        if (url.startsWith('https://api.ipinfo.io/')) {
+          return { ok: true, json: async () => ({ country_code: 'US' }) }
+        }
+        if (url.endsWith('/manifest.json')) {
+          return response(
+            JSON.stringify({
+              ...manifestPayload,
+              files: { ...versions, 'providers.json': bundledCatalog.providers.version }
+            })
+          )
+        }
+        if (url.endsWith('/models.json')) {
+          return response(JSON.stringify({ version: versions['models.json'], models: [] }))
+        }
+        if (url.endsWith('/provider-models.json')) {
+          return response(JSON.stringify({ version: versions['provider-models.json'], overrides: [] }))
+        }
+        return response('', false)
+      })
+
+      const updater = new RealUpdaterService()
+      await updater.check()
+
+      expect(probeOverrideSnapshot()).toBeNull()
+      expect(readActiveOverrideManifest()?.revision).toBe(2)
+      expect(readModelRegistry(path.join(overrideRoot, 'models.json')).version).toBe(versions['models.json'])
+      expect(readProviderModelRegistry(path.join(overrideRoot, 'provider-models.json')).version).toBe(
+        versions['provider-models.json']
+      )
+      expect(realRegistryService.getCatalogVersion('models.json')).toBe(versions['models.json'])
+      expect(realRegistryService.getCatalogVersion('provider-models.json')).toBe(versions['provider-models.json'])
+      expect(realRegistryService.getRegistryFallbacks()).toEqual([])
+
+      // Pin mtimes in the past and record inodes so a second check proves no disk rewrite happens.
+      const sentinelTime = new Date(1_700_000_000_000)
+      const snapshotFiles = ['manifest.json', 'models.json', 'provider-models.json'].map((name) =>
+        path.join(overrideRoot, name)
+      )
+      const initialInodes = snapshotFiles.map((filePath) => {
+        utimesSync(filePath, sentinelTime, sentinelTime)
+        return statSync(filePath).ino
+      })
+
+      await updater.check()
+
+      snapshotFiles.forEach((filePath, index) => {
+        const stats = statSync(filePath)
+        expect(stats.mtimeMs).toBe(sentinelTime.getTime())
+        expect(stats.ino).toBe(initialInodes[index])
+      })
+    }
+  )
 })

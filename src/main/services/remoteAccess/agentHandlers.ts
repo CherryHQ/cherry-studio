@@ -69,7 +69,7 @@ export function registerAgentMethods(
   access: AgentAccess,
   hub: RemoteAgentHub,
   subscriptions: AgentSubscriptions
-): void {
+): () => void {
   const on = <M extends AgentMethod>(
     name: M,
     handler: (params: AgentParams<M>, auth: Auth) => AgentResult<M> | Promise<AgentResult<M>>
@@ -377,4 +377,5 @@ export function registerAgentMethods(
     subscriptions.close(subscriptionId)
     return { closed: true as const }
   })
+  return () => presence.disconnect(generation)
 }

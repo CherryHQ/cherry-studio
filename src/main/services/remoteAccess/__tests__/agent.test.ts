@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockApplicationUtils } from '@test-mocks/main/application'
 import { MockFileIntakeUtils } from '@test-mocks/main/FileIntakeService'
 import type { UIMessageChunk } from 'ai'
 import { eq } from 'drizzle-orm'
@@ -641,7 +642,7 @@ describe('remote agent access', () => {
       const bytes = Buffer.from('managed attachment')
       const uploadId = randomUUID()
       const presence = new AttachmentPresenceService()
-      for (const name of ['present', 'submitting', 'list'] as const)
+      for (const name of ['present', 'submitting', 'list', 'disconnect'] as const)
         Object.assign(application.get('AttachmentPresenceService'), { [name]: presence[name].bind(presence) })
       const selectionId = randomUUID()
       await call('agent.attachments.present', {
@@ -727,6 +728,103 @@ describe('remote agent access', () => {
       expect(await call('agent.messages.send', params)).toEqual(receipt)
       expect(vi.mocked(startAgentSessionRun).mock.calls.length).toBe(before)
     } finally {
+      await intake.drain()
+      paths.mockRestore()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('clears abandoned presented attachments when a remote connection disconnects without sending', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'agent-attachment-disconnect-'))
+    const paths = vi
+      .spyOn(application, 'getPath')
+      .mockImplementation((key, filename) => path.join(root, key, filename ?? ''))
+    const intake = new FileIntakeService()
+    MockFileIntakeUtils.setImplementation(intake)
+    const files = new FileManager()
+    Object.assign(application.get('FileManager'), { intakes: files.intakes })
+    fake.files.publishIntake.mockImplementation((input) => files.publishIntake(input))
+    fake.files.getById.mockImplementation((id) => files.getById(id))
+    const presence = new AttachmentPresenceService()
+    MockApplicationUtils.setService('AttachmentPresenceService', presence)
+    let remote: RemoteConnection | undefined
+    try {
+      await mkdir(application.getPath('feature.files.data'), { recursive: true })
+      const { device, authorization } = apiGatewayPairedDeviceService.approveRemote({
+        name: 'Disconnect Phone',
+        platform: 'ios',
+        peerIdentity: 'disconnect-phone',
+        capabilities: ['agent']
+      })
+      remote = new RemoteConnection(
+        makeChannel('disconnect-phone', []),
+        new RemotePairing(),
+        new RemoteTokens(),
+        () => {},
+        hub,
+        async () => ({ desktopIdentity: 'desktop', endpoints: [] })
+      )
+      const request = async (method: string, params: unknown): Promise<any> => {
+        const response = (await remote!.rpc.receive(
+          { jsonrpc: '2.0', id: randomUUID(), method, params },
+          undefined
+        )) as {
+          result?: unknown
+          error?: unknown
+        }
+        if (response.error)
+          throw Object.assign(new Error(), response.error, { message: `${method}: ${JSON.stringify(response.error)}` })
+        return response.result
+      }
+      await request('connection.hello', { protocolVersions: [1] })
+      await request('connection.authenticate', { deviceId: device.id })
+      const bytes = Buffer.from('abandoned attachment')
+      const uploadId = randomUUID()
+      await request('agent.uploads.prepare', {
+        uploadId,
+        filename: 'abandoned.txt',
+        mediaType: 'text/plain',
+        byteLength: bytes.length
+      })
+      await remote.receiveUpload({
+        kind: 'upload',
+        requestId: randomUUID(),
+        uploadId,
+        writerEpoch: '0',
+        offset: '0',
+        bytes
+      })
+      await request('agent.uploads.complete', { uploadId, writerEpoch: '0' })
+      await expect.poll(async () => (await request('agent.uploads.get', { uploadId })).state).toBe('ready')
+      await request('agent.attachments.present', {
+        selectionId: randomUUID(),
+        sessionId,
+        sequence: '1',
+        items: [
+          {
+            attachmentId: uploadId,
+            uploadId,
+            filename: 'abandoned.txt',
+            mediaType: 'text/plain',
+            byteLength: bytes.length
+          }
+        ]
+      })
+      expect(await presence.list(sessionId)).toMatchObject([
+        { sessionId, items: [{ uploadId, upload: { state: 'ready' } }] }
+      ])
+
+      remote.dispose()
+      expect(await presence.list(sessionId)).toEqual([])
+      const scope = hub.uploads.scope({
+        deviceId: device.id,
+        grantId: authorization.grants[0].grantId,
+        peerIdentity: 'disconnect-phone'
+      })
+      expect((await intake.get(scope, uploadId)).state).toBe('ready')
+    } finally {
+      remote?.dispose()
+      MockApplicationUtils.resetServices()
       await intake.drain()
       paths.mockRestore()
       await rm(root, { recursive: true, force: true })

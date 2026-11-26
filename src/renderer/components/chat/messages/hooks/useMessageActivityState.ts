@@ -65,24 +65,26 @@ export class KeyedMessageActivityStore implements MessageActivityStore {
   private topicId: string | undefined
 
   getSnapshot = (message: MessageListItem): MessageActivityState => {
-    const isApprovalAnchor = this.approvalMessageIds.has(message.id)
+    const sourceId = message.sourceMessageId ?? message.id
+    const isApprovalAnchor = this.approvalMessageIds.has(sourceId)
     return deriveMessageActivityState(
       message,
-      this.activeMessageIds.has(message.id),
+      this.activeMessageIds.has(sourceId),
       isApprovalAnchor,
       this.topicStreamStatus
     )
   }
 
   subscribe = (message: MessageListItem, listener: () => void) => {
-    const listeners = this.listeners.get(message.id) ?? new Map<() => void, MessageActivitySubscription>()
+    const id = message.sourceMessageId ?? message.id
+    const listeners = this.listeners.get(id) ?? new Map<() => void, MessageActivitySubscription>()
     listeners.set(listener, { message, snapshot: this.getSnapshot(message) })
-    this.listeners.set(message.id, listeners)
+    this.listeners.set(id, listeners)
 
     return () => {
       listeners.delete(listener)
       if (listeners.size === 0) {
-        this.listeners.delete(message.id)
+        this.listeners.delete(id)
       }
     }
   }

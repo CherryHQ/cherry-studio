@@ -6,14 +6,8 @@ import { isDeepSeekModel } from '@shared/utils/model'
 
 import type { RequestFeature } from '../feature'
 
-/**
- * DeepSeek's Responses dialect requires reasoning passed back on replayed
- * assistant turns ("must be passed back to the API", #18150). Gateway clients
- * echo reasoning as plain text, which `@ai-sdk/openai` would otherwise drop
- * ("Non-OpenAI reasoning parts"). Tag those parts so the patched serializer
- * emits them as raw `reasoning_text` content; parts that already carry an
- * OpenAI `itemId`/`reasoningEncryptedContent` keep their native round-trip.
- */
+// Older callers can replay untyped thinking for DeepSeek (#18150).
+// A decoded Responses text kind or ciphertext takes precedence.
 function createDeepseekResponsesReasoningReplayMiddleware(): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
@@ -29,7 +23,7 @@ function createDeepseekResponsesReasoningReplayMiddleware(): LanguageModelMiddle
             content: message.content.map((part) => {
               if (part.type !== 'reasoning') return part
               const openai = part.providerOptions?.openai
-              if (openai?.reasoningEncryptedContent != null) return part
+              if (openai?.rawReasoningContent != null || openai?.reasoningEncryptedContent != null) return part
               return {
                 ...part,
                 providerOptions: {

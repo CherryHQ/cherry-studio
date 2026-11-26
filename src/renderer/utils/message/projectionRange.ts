@@ -1,4 +1,4 @@
-import type { ProjectionLayoutNode, ProjectionLayoutSlot } from '@renderer/types/message'
+import type { ProjectionLayoutNode, ProjectionLayoutSlot, ProjectionRowReader } from '@renderer/types/message'
 
 export type Range<T> =
   | { key: string; size: 1; item: T }
@@ -36,4 +36,19 @@ export function foldLayout<T>(
     return result
   }
   return fold
+}
+
+/** A segment reads the same addressed leaves while retaining its own membership. */
+export function filterProjectionRow(row: ProjectionRowReader, partIds: readonly string[]): ProjectionRowReader {
+  const ids = new Set(partIds)
+  const empty: ProjectionLayoutNode = { slots: [] }
+  const select = foldLayout<ProjectionLayoutNode | null>(
+    (slot) => (ids.has(slot.partId) ? { slots: [slot] } : null),
+    (left, right) => (left && right ? { children: [left, right] } : (left ?? right)),
+    null
+  )
+  return {
+    getSnapshot: () => select(row.getSnapshot()) ?? empty,
+    subscribe: (listener) => row.subscribe(listener)
+  }
 }
