@@ -10,7 +10,6 @@ export const antigravityCli = {
   modelEndpoints: ['google-generate-content'],
   terminalArgs: [],
   loginArgs: ['acp', '--login'],
-  sessionModel: true,
   auth: {
     catalogRequiresLogin: true,
     methods: [

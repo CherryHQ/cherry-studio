@@ -35,7 +35,6 @@ import { zcodeCli } from '@cherrystudio/agent-runtime-zcode-acp/cli'
 import {
   parseBooleanLoginStatus,
   type CliAccountProbe,
-  type CliAuthOption,
   type CliComponent,
   type CliLoginDeclaration,
   type PermissionModeApplication,
@@ -43,9 +42,7 @@ import {
   type PermissionModeChoice,
   type RuntimeAccountDeclaration
 } from '@cherrystudio/agent-runtime/cli'
-import { UniqueModelIdSchema } from '@shared/data/types/model'
-
-export type { CliAuthOption } from '@cherrystudio/agent-runtime/cli'
+import { ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 
 export const LocalAgentBrowserControlModeSchema = z.enum(['inherit', 'readonly', 'disabled'])
 export type LocalAgentBrowserControlMode = z.infer<typeof LocalAgentBrowserControlModeSchema>
@@ -54,7 +51,6 @@ export type LocalAgentProtocol = 'acp' | 'claude' | 'codex' | 'cursor'
 
 interface LocalAgentCliOptions extends CliComponent, CliLoginDeclaration {
   auth?: AcpLoginProfile
-  sessionModel?: true
   minimumAcpVersion?: string
   registryId?: string
   placeholderTitle?: RegExp
@@ -237,26 +233,8 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   { ...poolsideCli, retired: true }
 ]
 
-export function getLocalAgentPreset(presetId: string | undefined):
-  | (LocalAgentPreset & {
-      authStatusArgs?: readonly string[]
-      cliLogin?: readonly (CliAuthOption & { hintKey: string })[]
-    })
-  | undefined {
-  const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
-  if (!preset) return undefined
-  // The current settings client gates its auth-status request on this field.
-  const authStatusArgs = preset.accountProbe?.args ?? (preset.account?.canReadAccount ? [] : undefined)
-  if (preset.protocol === 'cursor') return { ...preset, authStatusArgs }
-  return {
-    ...preset,
-    authStatusArgs,
-    cliLogin: preset.cliLogin?.map((option) => ({
-      ...option,
-      hintKey:
-        option.hintKey ?? (option.kind === 'browser' ? 'local_agents.auth_open_browser' : 'settings.models.api_key')
-    }))
-  }
+export function getLocalAgentPreset(presetId: string | undefined): LocalAgentPreset | undefined {
+  return LOCAL_AGENT_PRESETS.find((preset) => preset.id === presetId)
 }
 
 export function getLocalAgentProtocol(presetId: string | undefined): LocalAgentProtocol {
@@ -340,6 +318,11 @@ export const LocalAgentModelCatalogSchema = z.object({
     z.object({
       id: z.string().min(1),
       name: z.string(),
+      description: z.string().optional(),
+      _meta: z.record(z.string(), z.unknown()).optional(),
+      registryModel: ModelSchema.pick({ capabilities: true, inputModalities: true })
+        .extend({ id: z.string() })
+        .optional(),
       effort: z
         .object({
           options: z.array(z.object({ value: z.string(), name: z.string(), description: z.string().optional() })),
@@ -410,6 +393,7 @@ export type LocalAgentConfigOption = {
 )
 
 export interface LocalAgentSessionInfo extends LocalAgentModelCatalog {
+  modelSelection?: 'selectable' | 'current-only' | 'empty' | 'unsupported' | 'sign-in-required'
   configOptions?: LocalAgentConfigOption[]
   mode?: LocalAgentSelection
   thoughtLevel?: RuntimeEffortControl

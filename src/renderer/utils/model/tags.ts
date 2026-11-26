@@ -78,8 +78,19 @@ export function modelMatchesDisplayTag(
     return provider ? isBuiltinWebSearchAvailable(model as Model, provider) : false
   }
 
+  return modelMatchesDisplayCapabilityTag(model, tag)
+}
+
+function modelMatchesDisplayCapabilityTag(
+  model: Pick<Model, 'capabilities' | 'inputModalities'>,
+  tag: ModelDisplayCapabilityTag
+) {
   const inputModality = INPUT_MODALITY_BY_DISPLAY_TAG[tag]
   return model.capabilities.includes(tag) || Boolean(inputModality && model.inputModalities?.includes(inputModality))
+}
+
+export function getModelDisplayCapabilityTags(model: Pick<Model, 'capabilities' | 'inputModalities'>) {
+  return MODEL_DISPLAY_CAPABILITY_TAGS.filter((tag) => modelMatchesDisplayCapabilityTag(model, tag))
 }
 
 export function getModelDisplayTags(

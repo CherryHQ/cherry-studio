@@ -13,7 +13,7 @@ vi.unmock('@renderer/services/toast')
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: vi.fn((route, ...args) =>
-      route === 'ai.local_agents.auth_status'
+      route === 'ai.local_agents.read_account'
         ? statusRequest(LocalAgentConfigurationSchema.parse(args[0]))
         : request(...args)
     )
@@ -31,7 +31,7 @@ const { request, statusRequest, ipcHandlers } = vi.hoisted(() => ({
 beforeEach(() => {
   clearLocalAgentAuthStatusCache()
   request.mockReset()
-  statusRequest.mockReset().mockResolvedValue('unsupported')
+  statusRequest.mockReset().mockResolvedValue({ status: 'unsupported' })
   ipcHandlers.clear()
   vi.mocked(ipcApi.request).mockClear()
 })
@@ -43,10 +43,64 @@ const checked = {
   protocolInfo: { authMethods: [{ id: 'native-google', name: 'Google account', type: 'agent' }] }
 }
 
+describe('Cursor sign-in', () => {
+  it('keeps the key masked and saves it only after verification succeeds', async () => {
+    statusRequest.mockResolvedValue({ status: 'signed-out' })
+    request.mockRejectedValueOnce(new Error('Invalid API key')).mockResolvedValueOnce(undefined)
+    const saved = vi.fn().mockResolvedValue(undefined)
+    render(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, presetId: 'cursor', env: { KEEP: 'value' } }}
+        authMethods={[]}
+        onAuthenticated={saved}
+      />
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    expect(screen.getByRole('button', { name: 'Cursor · 登录' })).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: 'Cursor API 密钥' }))
+    const input = screen.getByLabelText('API 密钥')
+    expect(input).toHaveAttribute('type', 'password')
+    await userEvent.type(input, 'invalid-key')
+    await userEvent.click(screen.getByRole('button', { name: /^登录$/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Invalid API key')
+    expect(saved).not.toHaveBeenCalled()
+
+    await userEvent.clear(screen.getByLabelText('API 密钥'))
+    await userEvent.type(screen.getByLabelText('API 密钥'), '  valid-key  ')
+    await userEvent.click(screen.getByRole('button', { name: /^登录$/ }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(saved).toHaveBeenCalledWith({
+      ...config,
+      presetId: 'cursor',
+      env: { KEEP: 'value', CURSOR_API_KEY: 'valid-key' }
+    })
+  })
+
+  it('removes the saved key when switching to browser login', async () => {
+    statusRequest.mockResolvedValue({ status: 'signed-out' })
+    request.mockResolvedValue(undefined)
+    const saved = vi.fn().mockResolvedValue(undefined)
+    render(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, presetId: 'cursor', env: { KEEP: 'value', CURSOR_API_KEY: 'expired-key' } }}
+        authMethods={[]}
+        onAuthenticated={saved}
+      />
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cursor · 登录' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(saved).toHaveBeenCalledWith({ ...config, presetId: 'cursor', env: { KEEP: 'value' } })
+  })
+})
+
 describe('ACP sign-in', () => {
   it.each([
     ['glm-acp-agent', ['z-ai-api-key', 'z_ai_api_key']],
-    ['zcode', ['zcode-credentials']],
     ['qwen', ['openai']],
     ['deepseek-harness', []]
   ] as const)('hides sign-in when %s only uses externally configured credentials', (presetId, ids) => {
@@ -96,7 +150,7 @@ describe('ACP sign-in', () => {
         onAuthenticated={async () => {}}
       />
     )
-    await userEvent.click(screen.getByRole('button', { name: '登录' }))
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
     expect(screen.getByRole('button', { name: 'Company SSO' })).toBeVisible()
     await userEvent.click(screen.getByRole('button', { name: '微信' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
@@ -104,6 +158,25 @@ describe('ACP sign-in', () => {
       'ai.local_agents.authenticate',
       expect.objectContaining({ methodId: 'internal' })
     )
+  })
+
+  it('keeps a completed CodeBuddy sign-in visible when the model catalog is unavailable', async () => {
+    request.mockResolvedValue(undefined)
+    statusRequest.mockResolvedValue({ status: 'signed-out' })
+    const loginProps = {
+      ...props,
+      config: { ...config, presetId: 'codebuddy-code' },
+      authMethods: [{ id: 'internal', name: 'Login with WeChat', type: 'agent' as const }],
+      onAuthenticated: async () => {
+        statusRequest.mockResolvedValue({ status: 'signed-in', account: { displayName: 'Example User' } })
+      }
+    }
+    const { unmount } = render(<LocalAgentLogin {...loginProps} />)
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    expect(await screen.findByRole('button', { name: '已登录' })).toBeVisible()
+    unmount()
+    render(<LocalAgentLogin {...loginProps} />)
+    expect(screen.getByRole('button', { name: '已登录' })).toBeVisible()
   })
 
   it('ignores authentication that completes after cancellation and does not persist credentials', async () => {
@@ -254,7 +327,7 @@ const props = {
 
 describe('external authentication', () => {
   it('lets a signed-in Codex user switch to terminal reauthentication', async () => {
-    statusRequest.mockResolvedValue('signed-in')
+    statusRequest.mockResolvedValue({ status: 'signed-in' })
     const onTerminalLogin = vi.fn().mockResolvedValue(undefined)
     render(
       <LocalAgentLogin
@@ -467,7 +540,7 @@ describe('external authentication', () => {
   })
 
   it('detects an existing login without authentication, rechecks on focus and clears stale success on failure', async () => {
-    statusRequest.mockResolvedValue('signed-in')
+    statusRequest.mockResolvedValue({ status: 'signed-in' })
     render(
       <LocalAgentLogin
         {...props}
@@ -484,10 +557,10 @@ describe('external authentication', () => {
   })
 
   it('rechecks native status after authentication instead of remembering success', async () => {
-    statusRequest.mockResolvedValue('signed-out')
+    statusRequest.mockResolvedValue({ status: 'signed-out' })
     request.mockResolvedValue(undefined)
     const onAuthenticated = async () => {
-      statusRequest.mockResolvedValue('signed-in')
+      statusRequest.mockResolvedValue({ status: 'signed-in' })
     }
     render(
       <LocalAgentLogin
@@ -515,8 +588,28 @@ describe('external authentication', () => {
     expect(request).not.toHaveBeenCalled()
   })
 
+  it('shows Amp as signed in when returning from a successful terminal login', async () => {
+    statusRequest.mockResolvedValue({ status: 'signed-out' })
+    render(
+      <LocalAgentLogin
+        {...props}
+        config={{ ...config, presetId: 'amp-acp' }}
+        authMethods={[]}
+        onTerminalLogin={async () => {}}
+      />
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+    expect(screen.getByRole('button', { name: '登录' })).toBeEnabled()
+    statusRequest.mockResolvedValue({ status: 'signed-in', account: { email: 'current@example.test' } })
+    fireEvent(window, new Event('focus'))
+
+    await userEvent.click(await screen.findByRole('button', { name: '已登录' }))
+    expect(screen.getByText('current@example.test')).toBeVisible()
+  })
+
   it('ignores a late status response for a different program', async () => {
-    let resolve!: (status: string) => void
+    let resolve!: (result: { status: 'signed-in' }) => void
     statusRequest.mockImplementationOnce(
       () =>
         new Promise((done) => {
@@ -530,7 +623,7 @@ describe('external authentication', () => {
     }
     const { rerender } = render(<LocalAgentLogin {...loginProps} />)
     rerender(<LocalAgentLogin {...loginProps} config={{ ...loginProps.config, executableOverride: '/other/agent' }} />)
-    await act(async () => resolve('signed-in'))
+    await act(async () => resolve({ status: 'signed-in' }))
     expect(screen.getByRole('button', { name: '登录' })).toBeVisible()
     expect(screen.queryByRole('button', { name: /已登录/ })).not.toBeInTheDocument()
   })

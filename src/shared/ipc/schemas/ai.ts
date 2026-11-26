@@ -472,6 +472,10 @@ export const aiRequestSchemas = {
   }),
 
   // ── Agent session warm-connection lifecycle ──
+  'ai.local_agents.select_session_model': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), modelId: z.string().min(1) }),
+    output: z.custom<LocalAgentSessionInfo>()
+  }),
   'ai.local_agents.set_config_option': defineRoute({
     input: z.strictObject({
       sessionId: z.string().min(1),
@@ -567,10 +571,6 @@ export const aiRequestSchemas = {
       z.object({ status: z.literal('unavailable') })
     ]) satisfies z.ZodType<SubscriptionUsageResult>
   }),
-  'ai.local_agents.auth_status': defineRoute({
-    input: LocalAgentConfigurationSchema,
-    output: z.enum(['signed-in', 'signed-out', 'unknown', 'unsupported'])
-  }),
   'ai.local_agents.read_account': defineRoute({
     input: LocalAgentConfigurationSchema,
     output: z.discriminatedUnion('status', [
@@ -602,6 +602,10 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
   'ai.local_agents.cancel_auth': defineRoute({ input: z.strictObject({ requestId: z.uuid() }), output: z.void() }),
+  'ai.local_agents.respond_auth_consent': defineRoute({
+    input: z.strictObject({ requestId: z.uuid(), promptId: z.uuid(), decision: z.enum(['accept', 'decline']) }),
+    output: z.void()
+  }),
   'ai.local_agents.select_model': defineRoute({
     input: z.strictObject({
       agentId: z.string().min(1),
@@ -814,6 +818,7 @@ export const aiRequestSchemas = {
  */
 export type AiEventSchemas = {
   'ai.local_agents.auth_prompt': { requestId: string; url?: string; code?: string }
+  'ai.local_agents.auth_consent': { requestId: string; promptId: string; prompt?: { url: string; message: string } }
   'ai.local_agents.notice': { sessionId: string; notice: LocalAgentNotice }
   'ai.local_agents.session_updated': LocalAgentSessionView & {
     sessionId: string

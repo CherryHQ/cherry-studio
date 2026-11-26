@@ -8,15 +8,21 @@ import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService } from '@main/core/lifecycle'
 import type * as ShellEnv from '@main/utils/shellEnv'
-import { type LocalAgentConfiguration, LocalPermissionOptionsSchema } from '@shared/ai/localAgent'
+import {
+  type LocalAgentConfiguration,
+  LocalAgentModelCatalogSchema,
+  LocalPermissionOptionsSchema
+} from '@shared/ai/localAgent'
 
 import { LocalAgentAuthService } from '../../../services/LocalAgentAuthService'
 import { AcpConnection } from '../acp/AcpConnection'
 import { isInjectedAcpAutomationTool } from '../acp/acpPermissionPolicy'
 import { CodexSessionHost } from '../codex/CodexSessionHost'
+import { enrichLocalAgentModels } from '../localAgentModelMetadata'
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { checkLocalAgent, listLocalAgentModels } from '../LocalRuntimeDriver'
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
@@ -37,6 +43,13 @@ vi.mock('@application', async () => {
 vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
   ...(await importOriginal<typeof ShellEnv>()),
   getRawShellEnv: async () => ({ ...process.env })
+}))
+vi.mock(import('@cherrystudio/agent-runtime-cursor'), async (importOriginal) => ({
+  ...(await importOriginal()),
+  listCursorModels: async () => [
+    { id: 'opus-5.5', name: 'Claude Opus 5.5', description: 'Native description' },
+    { id: 'composer-2.5', name: 'Composer 2.5' }
+  ]
 }))
 
 const fixture = fileURLToPath(new URL('./fixtures/localAgent.mjs', import.meta.url))
@@ -753,11 +766,25 @@ describe('local protocol processes', () => {
   it('selects legacy ACP models and prefers config options when both interfaces exist', async () => {
     const legacy = create('acp', 'legacy-models', 'legacy-model')
     await legacy.connection.start(cwd)
-    expect(legacy.connection.localSessionInfo.models).toEqual([{ id: 'legacy-model', name: 'Legacy model' }])
+    expect(legacy.connection.localSessionInfo.models).toEqual([
+      {
+        id: 'legacy-model',
+        name: 'Legacy model',
+        description: 'Legacy model description',
+        _meta: { fixture: { modalities: ['text'] } }
+      }
+    ])
     expect(legacy.connection.localSessionInfo.activeModel?.id).toBe('legacy-model')
     const modern = create('acp', 'both-models', 'fixture-model')
     await modern.connection.start(cwd)
-    expect(modern.connection.localSessionInfo.models).toEqual([{ id: 'fixture-model', name: 'Fixture model' }])
+    expect(modern.connection.localSessionInfo.models).toEqual([
+      {
+        id: 'fixture-model',
+        name: 'Fixture model',
+        description: 'Live model description',
+        _meta: { fixture: { modalities: ['image'] } }
+      }
+    ])
     const wire = await readWire()
     expect(
       wire.filter((message) => message.method === 'session/set_model').map((message) => message.params.modelId)
@@ -1207,11 +1234,13 @@ describe('local protocol processes', () => {
 
   it('reads setup model updates for the queried ACP session without granting host access', async () => {
     const catalog = await listLocalAgentModels(fixtureConfig('acp', 'close-management-catalog'))
-    expect(catalog).toMatchObject({
+    expect(LocalAgentModelCatalogSchema.parse(catalog)).toMatchObject({
       models: [
         {
           id: 'updated-model',
           name: 'Updated model',
+          description: 'Updated model description',
+          _meta: { fixture: { modalities: ['text', 'image'] } },
           effort: { options: [{ value: 'balanced' }, { value: 'deep' }] }
         },
         { id: 'alternate-model', name: 'Alternate model' }
@@ -1237,11 +1266,68 @@ describe('local protocol processes', () => {
       {
         id: 'grok-reasoning',
         name: 'Grok Reasoning',
+        description: 'Grok model description',
+        _meta: { reasoningEfforts: [{ value: 'high', label: 'High', default: true }], fixture: { fast: true } },
         effort: { defaultValue: 'high', options: [{ value: 'high', name: 'High' }] }
       },
       { id: 'grok-basic', name: 'Grok Basic' }
     ])
     expect((await readWire()).map(({ method }) => method)).toEqual(['initialize', '_x.ai/models/list'])
+  })
+
+  it('matches subscription model aliases for display while preserving the native model identity', async () => {
+    vi.mocked(application.getPath).mockImplementation((key, filename) =>
+      key === 'feature.provider_registry.data' && filename
+        ? path.resolve('packages/provider-registry/data', filename)
+        : path.join(cwd, filename ?? '')
+    )
+    providerRegistryService.clearCache()
+    const id = 'kimi-code/kimi-for-coding'
+    const hint = { fixture: { tier: 'subscription' } }
+    const models = [
+      { id, name: 'K2.8 Preview', _meta: hint },
+      { id: 'kimi-code/k3-256k', name: 'K3-256k' },
+      { id, name: 'Different release' }
+    ]
+    try {
+      const [preview, restricted, unknown] = enrichLocalAgentModels(models, 'kimi')
+      expect(preview).toMatchObject({
+        id,
+        name: 'K2.8 Preview',
+        _meta: hint,
+        registryModel: {
+          id: 'kimi-k2-8-preview',
+          capabilities: expect.arrayContaining(['reasoning', 'function-call'])
+        }
+      })
+      expect(restricted).toMatchObject({ id: 'kimi-code/k3-256k', registryModel: { id: 'kimi-k3' } })
+      expect(unknown).toEqual(models[2])
+      const [oss, orchestrator] = enrichLocalAgentModels(
+        [
+          { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B (Medium)' },
+          { id: 'gemini-pro-orchestrator-neon', name: 'Orchestrator (Neon)' }
+        ],
+        'antigravity-acp'
+      )
+      expect(oss).toMatchObject({
+        id: 'gpt-oss-120b-medium',
+        registryModel: { id: 'gpt-oss-120b', capabilities: expect.arrayContaining(['reasoning', 'function-call']) }
+      })
+      expect(orchestrator.registryModel).toBeUndefined()
+
+      const cursor = await listLocalAgentModels({ presetId: 'cursor', enabled: true, args: [], env: {} })
+      expect(cursor.models[0]).toMatchObject({
+        id: 'opus-5.5',
+        description: 'Native description',
+        registryModel: {
+          id: 'claude-opus-5-5',
+          capabilities: expect.arrayContaining(['reasoning', 'function-call'])
+        }
+      })
+      expect(cursor.models[1].registryModel).toBeUndefined()
+    } finally {
+      providerRegistryService.clearCache()
+    }
   })
 
   it('loads Antigravity models from the official agy ACP command', async () => {

@@ -7,6 +7,11 @@ export interface RuntimeLoginRequest {
 export interface RuntimeLoginHost {
   showPrompt(prompt: { url?: string; code?: string }): void
   openBrowser(url: string): Promise<void>
+  /** Ask the user before opening the displayed URL. */
+  confirmBrowser?(
+    prompt: { url: string; message: string },
+    signal: AbortSignal
+  ): Promise<'accept' | 'decline' | 'cancel'>
 }
 
 export interface RuntimeAccountIdentity {

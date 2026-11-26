@@ -1,6 +1,6 @@
 import '@data/services/AgentGlobalSkillService'
 import { readFileSync } from 'node:fs'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -73,13 +73,27 @@ describe('global local agent model selection', () => {
     expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toEqual(config)
   })
 
-  it('saves the same default to native config and the Agent, including concurrent selections', async () => {
-    const config = { presetId: 'codex', enabled: true, args: [], env: {} }
-    const agent = createLocalAgent('local-codex', 'Codex', config)
-    await Promise.all([selectLocalAgentModel(agent.id, 'first'), selectLocalAgentModel(agent.id, 'second')])
-    expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toEqual({ ...config, nativeModel: 'second' })
-    expect(await readFile(path.join(home, '.codex/config.toml'), 'utf8')).toContain('model = "second"')
-  })
+  it.each([
+    ['claude', '.claude/settings.json', '{"model":"sonnet","env":{"ANTHROPIC_MODEL":"sonnet"}}\n'],
+    ['codex', '.codex/config.toml', 'model = "gpt-5.4"\n']
+  ] as const)(
+    'changes and clears the %s chat override without editing native model configuration',
+    async (presetId, file, original) => {
+      const filename = path.join(home, file)
+      await mkdir(path.dirname(filename), { recursive: true })
+      await writeFile(filename, original)
+      const config = { presetId, enabled: true, args: [], env: {} }
+      const agent = createLocalAgent(`local-${presetId}`, presetId, config)
+
+      await selectLocalAgentModel(agent.id, 'explicit')
+      expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBe('explicit')
+      expect(await readFile(filename, 'utf8')).toBe(original)
+
+      await selectLocalAgentModel(agent.id)
+      expect(agentService.getAgent(agent.id)?.configuration?.localRuntime).toEqual(config)
+      expect(await readFile(filename, 'utf8')).toBe(original)
+    }
+  )
 
   it('applies Code Mate provider changes to the existing chat Agent', () => {
     const agent = createLocalAgent('provider-agent', 'Pi', {
@@ -258,7 +272,13 @@ describe('global local agent model selection', () => {
     platform.isWin = true
     vi.mocked(getRawShellEnv).mockResolvedValue({ codex_home: '/terminal/home' })
     try {
-      await expect(selectLocalAgentModel(agent.id, 'next')).rejects.toThrow(t('code_cli.model.environment_mismatch'))
+      await expect(
+        selectLocalAgentModel(agent.id, undefined, {
+          sourceModelId: createUniqueModelId('provider', 'model'),
+          sourceModelViaGateway: true,
+          files: [{ target: 'codex-config', content: 'model = "next"' }]
+        })
+      ).rejects.toThrow(t('code_cli.model.environment_mismatch'))
       expect(agentService.getAgent(agent.id)?.configuration?.localRuntime?.nativeModel).toBeUndefined()
     } finally {
       platform.isWin = process.platform === 'win32'

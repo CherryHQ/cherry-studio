@@ -1,3 +1,9 @@
+export const CURSOR_AUTO_MODEL_ID = 'auto'
+
+export function resolveCursorModelId(modelId?: string): string {
+  return !modelId || modelId === 'default' ? CURSOR_AUTO_MODEL_ID : modelId
+}
+
 export const cursorLoginMethod = {
   id: 'cursor_login',
   type: 'agent',

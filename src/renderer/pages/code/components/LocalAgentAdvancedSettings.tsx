@@ -220,6 +220,11 @@ export function LocalAgentAdvancedSettings({
         )}
         <div className="space-y-2">
           <Label htmlFor="local-agent-env">{t('local_agents.environment')}</Label>
+          {preset?.credentialEnvironment && (
+            <p className="break-words font-mono text-xs text-muted-foreground">
+              {preset.credentialEnvironment.join(' · ')}
+            </p>
+          )}
           <Textarea.Input
             id="local-agent-env"
             className="min-h-24 font-mono text-xs"

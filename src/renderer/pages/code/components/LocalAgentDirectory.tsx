@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useEffectEvent, useRef, useState, type ComponentProps, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { gt, valid } from 'semver'
 
 import {
   Badge,
@@ -38,9 +39,9 @@ import { usePreference } from '@data/hooks/usePreference'
 import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
 import {} from '@renderer/components/icons/CliIcon'
 import { LocalAgentIcon } from '@renderer/components/icons/LocalAgentIcon'
-import { AgentServiceCard } from '@renderer/components/localAgent/AgentServiceCard'
 import { AgentUpgradeControl } from '@renderer/components/localAgent/AgentUpgradeControl'
 import { LocalAgentModelList } from '@renderer/components/localAgent/LocalAgentModelList'
+import { modelSettingsDetailClasses } from '@renderer/components/modelSettingsStyles'
 import { useDataChange, useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgents, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useLocalAgentModelCatalog } from '@renderer/hooks/agent/useLocalAgentModelCatalog'
@@ -141,6 +142,12 @@ const DEFAULT_AGENT_ORDER = new Map(
 const LOCAL_AGENTS_FEEDBACK_ISSUE_URL = 'https://github.com/CherryHQ/cherry-studio/issues/24976'
 
 const logger = loggerService.withContext('LocalAgentDirectory')
+
+function presetDisplayName(preset: LocalAgentPreset, savedName?: string) {
+  if ((preset.id === 'qoder' || preset.id === 'qoder-global') && (savedName === 'Qoder' || savedName === 'Qoder CN'))
+    return preset.name
+  return savedName ?? preset.name
+}
 
 function missingChatExecutable(detection?: LocalAgentDetection, config?: LocalAgentConfiguration) {
   if (config?.executableOverride || Object.keys(config?.env ?? {}).some((key) => key.toUpperCase() === 'PATH'))
@@ -243,12 +250,10 @@ export function LocalAgentDirectory({
     agentOrder.map((id, index) => [id === 'cli:deepseek-harness' || id === 'cli:openclaw' ? id.slice(4) : id, index])
   )
   const entries = [
-    ...LOCAL_AGENT_PRESETS.map((preset) => ({
-      id: preset.id,
-      name: localAgents.find((a) => a.configuration?.localRuntime?.presetId === preset.id)?.name ?? preset.name,
-      preset,
-      agent: localAgents.find((a) => a.configuration?.localRuntime?.presetId === preset.id)
-    })),
+    ...LOCAL_AGENT_PRESETS.filter((preset) => !preset.retired).map((preset) => {
+      const agent = localAgents.find((a) => a.configuration?.localRuntime?.presetId === preset.id)
+      return { id: preset.id, name: presetDisplayName(preset, agent?.name), preset, agent }
+    }),
     ...localAgents
       .filter((a) => !a.configuration?.localRuntime?.presetId)
       .map((agent) => ({ id: agent.id, name: agent.name, preset: undefined, agent }))
@@ -393,13 +398,13 @@ export function LocalAgentDirectory({
                   const detection = detections.find((d) => d.presetId === e.id)
                   const executableOverride = e.agent?.configuration?.localRuntime?.executableOverride
                   const sdk = e.preset?.protocol === 'cursor'
-                  const notInstalled =
+                  const unavailable =
                     !sdk &&
                     !!detection &&
                     (!detection.path || !!missingChatExecutable(detection, e.agent?.configuration?.localRuntime)) &&
                     !executableOverride
-                  const status = notInstalled
-                    ? t('local_agents.not_installed')
+                  const status = unavailable
+                    ? t(detection.incompatiblePath ? 'local_agents.incompatible' : 'local_agents.not_installed')
                     : enabled
                       ? t('local_agents.enabled')
                       : executableOverride
@@ -449,9 +454,11 @@ export function LocalAgentDirectory({
                           />
                           <span className="min-w-0 truncate text-sm leading-[1.35] text-foreground">{e.name}</span>
                         </span>
-                        {notInstalled ? (
-                          <span className="ml-1 shrink-0 text-xs font-normal text-foreground-tertiary">
-                            {t('local_agents.not_installed')}
+                        {unavailable ? (
+                          <span
+                            className="ml-1 max-w-[45%] shrink-0 truncate text-xs font-normal text-foreground-tertiary"
+                            title={status}>
+                            {status}
                           </span>
                         ) : (
                           enabled &&
@@ -473,7 +480,7 @@ export function LocalAgentDirectory({
                       )}
                       {hasMenu && (
                         <div className="absolute top-1/2 right-[7px] size-5 -translate-y-1/2">
-                          {enabled && !notInstalled && !menuOpen && (
+                          {enabled && !unavailable && !menuOpen && (
                             <span
                               aria-hidden
                               className="pointer-events-none absolute top-1/2 right-1.5 size-1.5 -translate-y-1/2 rounded-full bg-success transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0"
@@ -588,17 +595,19 @@ export function LocalAgentDetails({
   agent?: AgentEntity
   detection?: LocalAgentDetection
   onSaved: (id: string, refreshInstallations?: boolean) => Promise<void>
-  modelList?: ComponentProps<typeof LocalAgentModelList>
+  modelList?: Omit<ComponentProps<typeof LocalAgentModelList>, 'scrollElement' | 'presetId'>
   renderActions?: (config: LocalAgentConfiguration, disabled: boolean) => ReactNode
   children?: ReactNode
 }) {
   const { t } = useTranslation()
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const { updateAgent } = useUpdateAgent()
   const invalidate = useInvalidateCache()
   const closeConversationTabs = useCloseConversationTabs()
   const tabs = useOptionalTabsContext()
   const currentTabId = useCurrentTabId()
   const archived = !!agent?.deletedAt
+  const displayName = preset ? presetDisplayName(preset, agent?.name) : (agent?.name ?? t('local_agents.custom'))
   const initial: LocalAgentConfiguration = agent?.configuration?.localRuntime
     ? { ...agent.configuration.localRuntime, enabled: !archived && agent.configuration.localRuntime.enabled }
     : { presetId: preset?.id, enabled: false, args: [], env: {} }
@@ -609,6 +618,8 @@ export function LocalAgentDetails({
   const protocol = getLocalAgentProtocol(initial.presetId)
   const sdk = protocol === 'cursor'
   const available = sdk || (!!(detection?.path || initial.executableOverride) && !missing)
+  const incompatiblePath = initial.executableOverride ? undefined : detection?.incompatiblePath
+  const detectedPath = detection?.path ?? incompatiblePath
   const {
     catalog,
     freshCatalog,
@@ -617,7 +628,12 @@ export function LocalAgentDetails({
     refresh: refreshModels
   } = useLocalAgentModelCatalog(preset?.id ?? agent?.id ?? 'custom-new', initial, !modelList && available)
   const modelSelection = useLocalAgentModelSelection(initial, catalog?.models ?? [])
-  const version = useLocalAgentVersion(sdk || initial.executableOverride ? undefined : preset?.id, detection?.path)
+  const version = useLocalAgentVersion(sdk || initial.executableOverride ? undefined : preset?.id, detectedPath)
+  const currentVersion = valid(version?.current)
+  const latestVersion = valid(version?.latest)
+  const updateVersion =
+    upgradeTargetVersion ??
+    (currentVersion && latestVersion && gt(latestVersion, currentVersion) ? latestVersion : undefined)
   const [openingChat, setOpeningChat] = useState(false)
   const installationUnknown = !!preset && !detection && !initial.executableOverride
   const busy = installing || busyAction !== undefined || openingChat
@@ -984,6 +1000,7 @@ export function LocalAgentDetails({
   }
   const feedbackMessage = result.message
   const classifiedError = feedbackMessage ? classifyLocalAgentError(feedbackMessage) : undefined
+  const needsAuthentication = !result.ok && classifiedError?.kind === 'authentication'
   const feedback = feedbackMessage && (
     <div
       role="status"
@@ -991,11 +1008,15 @@ export function LocalAgentDetails({
         'flex items-start gap-2 rounded-lg border p-3 text-xs',
         result.ok
           ? 'border-success-border bg-success-subtle text-success-subtle-foreground'
-          : 'border-error-border bg-error-subtle text-error-subtle-foreground'
+          : needsAuthentication
+            ? 'border-border-subtle bg-background-subtle text-muted-foreground'
+            : 'border-error-border bg-error-subtle text-error-subtle-foreground'
       )}>
       {result.ok ? <CheckCircle2 className="size-4 shrink-0" /> : <CircleAlert className="size-4 shrink-0" />}
       <p className="min-w-0 whitespace-pre-wrap break-words">
-        {result.modelRefreshFailed && <span className="block">{t('settings.models.manage.sync_pull_failed')}</span>}
+        {result.modelRefreshFailed && !needsAuthentication && (
+          <span className="block">{t('settings.models.manage.sync_pull_failed')}</span>
+        )}
         {classifiedError?.kind === 'authentication'
           ? t('local_agents.sign_in_required')
           : classifiedError?.kind === 'region'
@@ -1013,20 +1034,83 @@ export function LocalAgentDetails({
         )}
     </div>
   )
+  const displayVersion = initial.executableOverride ? connection?.peerVersion : (version?.current ?? detection?.version)
   return (
     <>
       {preset?.terminalArgs && (
         <LocalAgentTerminalDialog
           open={terminalOpen}
           preset={preset}
-          name={agent?.name ?? preset.name}
+          name={displayName}
           onClose={() => setTerminalOpen(false)}
           onLaunch={openTerminal}
         />
       )}
-      <div className={cn('flex min-h-0 flex-1 flex-col', modelSavingClass)}>
-        <div className="shrink-0 overflow-y-hidden px-6 pt-3 pb-3">
-          <div className="mx-auto w-full max-w-5xl space-y-2.5">
+      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden', modelSavingClass)}>
+        <div className={modelSettingsDetailClasses.headerPad}>
+          <div className={cn(modelSettingsDetailClasses.headerContentMaxWidth, 'flex min-h-7 items-center gap-3')}>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <LocalAgentIcon presetId={preset?.id} size={26} variant="card" />
+              <h1 className="truncate text-[15px] leading-tight font-semibold text-foreground">
+                {preset ? (
+                  <a className="text-inherit no-underline" href={preset.helpUrl} target="_blank" rel="noreferrer">
+                    {displayName}
+                  </a>
+                ) : (
+                  displayName
+                )}
+              </h1>
+              <div className="flex min-w-0 items-center gap-1.5">
+                {displayVersion && (
+                  <span className="truncate font-mono text-xs text-muted-foreground">
+                    {displayVersion.startsWith('v') ? displayVersion : `v${displayVersion}`}
+                  </span>
+                )}
+                {updateVersion && (
+                  <AgentUpgradeControl
+                    latestVersion={updateVersion}
+                    upgrading={upgradeTargetVersion !== undefined}
+                    disabled={busy}
+                    onUpgrade={
+                      version?.canUpgrade || upgradeTargetVersion !== undefined
+                        ? () => void install(version?.latest)
+                        : undefined
+                    }
+                  />
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {cliConfigEntry}
+                <Tooltip content={t('common.advanced_settings')} asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 shrink-0 rounded-lg text-foreground-tertiary hover:text-foreground"
+                    aria-label={t('common.advanced_settings')}
+                    disabled={busy || (archived && !!preset)}
+                    onClick={openEditor}>
+                    <Settings2 className="lucide-custom size-3.5 text-muted-foreground" />
+                  </Button>
+                </Tooltip>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {busyAction === 'toggle' && (
+                <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
+              )}
+              <Switch
+                aria-label={t('local_agents.enable')}
+                checked={initial.enabled}
+                disabled={busy || (!preset && !agent) || (!initial.enabled && !available)}
+                onCheckedChange={(enabled) => void save({ enabled }, agent?.name ?? preset?.name ?? '', 'toggle')}
+              />
+            </div>
+          </div>
+        </div>
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportProps={{ ref: setScrollElement, className: modelSettingsDetailClasses.scrollViewport }}>
+          <div className={modelSettingsDetailClasses.sectionStack}>
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border-subtle bg-muted/30 px-3.5 py-2 text-xs text-muted-foreground">
               <div className="flex min-w-0 items-center gap-2">
                 <Info className="lucide-custom size-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -1041,268 +1125,203 @@ export function LocalAgentDetails({
                 <ExternalLink className="lucide-custom size-3" aria-hidden />
               </a>
             </div>
-            <AgentServiceCard
-              title={
-                preset ? (
-                  <a className="text-inherit no-underline" href={preset.helpUrl} target="_blank" rel="noreferrer">
-                    {agent?.name ?? preset.name}
-                  </a>
-                ) : (
-                  (agent?.name ?? t('local_agents.custom'))
-                )
-              }
-              icon={
-                preset ? (
-                  <a
-                    className="shrink-0 rounded-full"
-                    href={preset.helpUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={agent?.name ?? preset.name}>
-                    <LocalAgentIcon presetId={preset.id} size={36} variant="card" />
-                  </a>
-                ) : (
-                  <LocalAgentIcon size={36} variant="card" />
-                )
-              }
-              version={initial.executableOverride ? connection?.peerVersion : (version?.current ?? detection?.version)}
-              versionAction={
-                (version?.canUpgrade || upgradeTargetVersion !== undefined) && (
-                  <AgentUpgradeControl
-                    latestVersion={upgradeTargetVersion ?? version?.latest}
-                    upgrading={upgradeTargetVersion !== undefined}
-                    disabled={busy}
-                    onUpgrade={() => void install(version?.latest)}
-                  />
-                )
-              }
-              controls={
-                <>
-                  {cliConfigEntry}
-                  <Tooltip content={t('common.advanced_settings')} asChild>
+            <div className="flex flex-wrap items-center gap-2">
+              {(sdk || initial.executableOverride || detectedPath || preset?.executable) && (
+                <InputGroup
+                  aria-label={sdk ? undefined : t('local_agents.installation_location')}
+                  onMouseEnter={() => setProgramHovered(true)}
+                  onMouseLeave={() => setProgramHovered(false)}
+                  className={cn(
+                    'h-8 min-w-[min(100%,12rem)] flex-1 rounded-lg border-border-subtle bg-muted/30 shadow-none transition-colors motion-reduce:transition-none',
+                    connection?.status === 'ready' && 'border-success-border bg-success-subtle',
+                    connection?.status === 'authentication-required' && 'border-warning-border bg-warning-subtle',
+                    connection &&
+                      !['ready', 'authentication-required'].includes(connection.status) &&
+                      'border-error-border bg-error-subtle'
+                  )}>
+                  {sdk ? (
+                    <span className="min-w-0 flex-1 truncate px-2.5 font-mono text-xs">@cursor/sdk</span>
+                  ) : (
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="size-7 shrink-0 rounded-lg text-foreground-tertiary hover:text-foreground"
-                      aria-label={t('common.advanced_settings')}
-                      disabled={busy || (archived && !!preset)}
-                      onClick={openEditor}>
-                      <Settings2 className="lucide-custom size-3.5 text-muted-foreground" />
-                    </Button>
-                  </Tooltip>
-                </>
-              }
-              trailing={
-                <>
-                  {busyAction === 'toggle' && (
-                    <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
-                  )}
-                  {
-                    <Switch
-                      aria-label={t('local_agents.enable')}
-                      checked={initial.enabled}
-                      disabled={busy || (!preset && !agent) || (!initial.enabled && !available)}
-                      onCheckedChange={(enabled) => void save({ enabled }, agent?.name ?? preset?.name ?? '', 'toggle')}
-                    />
-                  }
-                </>
-              }
-              actions={
-                <>
-                  {!available && detection?.terminalPath && terminalButton}
-                  {available ? (
-                    <>
-                      {(sdk || protocol === 'acp' || preset?.loginArgs) && (
-                        <LocalAgentLogin
-                          config={initial}
-                          authMethods={protocol === 'acp' ? (freshCatalog?.authMethods ?? catalog?.authMethods) : []}
-                          modelsLoading={modelsLoading}
-                          freshCatalog={freshCatalog}
-                          authenticationError={modelsRefreshError ?? (freshCatalog ? undefined : result.message)}
-                          onRefresh={refreshModels}
-                          available={available}
-                          disabled={busy || archived}
-                          helpUrl={preset?.helpUrl}
-                          onTerminalLogin={
-                            preset?.loginArgs
-                              ? async (provider) => {
-                                  const response = await ipcApi.request('ai.local_agents.open_terminal', {
-                                    ...initial,
-                                    login: provider ? { provider } : true
-                                  })
-                                  if (!response.success) throw new Error(response.message ?? t('common.error'))
-                                }
-                              : undefined
-                          }
-                          onAuthenticated={async (localRuntime) => {
-                            setConnection(undefined)
-                            clearResult()
-                            if (JSON.stringify(localRuntime.env) !== JSON.stringify(initial.env)) {
-                              const updated = await persistLocalRuntime({ env: localRuntime.env })
-                              if (!updated) throw new Error(t('common.error'))
-                              await onSaved(updated.id)
-                            } else void loadModels()
-                            toast.success(t('local_agents.signed_in'))
-                          }}
-                        />
-                      )}
-                      {renderActions?.(initial, busy)}
-                      <LocalAgentWebUiActions config={initial} disabled={busy || !available} />
-                      {terminalButton}
-                      <Tooltip content={chatDisabledReason} asChild>
-                        <span className="inline-flex" tabIndex={chatDisabledReason ? 0 : undefined}>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
-                            disabled={!!chatDisabledReason}
-                            onClick={() => void goToChat()}>
-                            <MessageSquare className="lucide-custom size-3.5 text-muted-foreground" />
-                            {t('title.chat')}
-                          </Button>
-                        </span>
-                      </Tooltip>
-                    </>
-                  ) : preset && !installationUnknown ? (
-                    <Button
-                      size="sm"
-                      className="h-8 shrink-0 rounded-lg border border-transparent text-xs shadow-none"
                       disabled={busy}
-                      onClick={() => void install()}>
-                      {installing ? (
-                        <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
-                      ) : (
-                        <Download className="size-3.5" />
-                      )}
-                      {t(installing ? 'local_agents.installing' : 'code.install')}
+                      onClick={openEditor}
+                      aria-label={t('local_agents.installation_location')}
+                      className="h-full min-w-0 flex-1 justify-start rounded-lg px-2.5 text-left font-normal hover:bg-transparent">
+                      <span dir="rtl" className="min-w-0 truncate text-left font-mono text-xs text-foreground">
+                        <bdi dir="ltr">{initial.executableOverride ?? detectedPath ?? preset?.executable}</bdi>
+                      </span>
                     </Button>
-                  ) : !agent ? (
-                    <Button size="sm" onClick={openEditor}>
-                      {t('common.settings')}
-                    </Button>
-                  ) : null}
-                </>
-              }>
-              <div className="flex items-start justify-end gap-2">
-                {(sdk || initial.executableOverride || detection?.path || preset?.executable) && (
-                  <InputGroup
-                    aria-label={sdk ? undefined : t('local_agents.installation_location')}
-                    onMouseEnter={() => setProgramHovered(true)}
-                    onMouseLeave={() => setProgramHovered(false)}
-                    className={cn(
-                      'h-8 min-w-0 flex-1 rounded-lg border-border-subtle bg-muted/30 shadow-none transition-colors motion-reduce:transition-none',
-                      connection?.status === 'ready' && 'border-success-border bg-success-subtle',
-                      connection?.status === 'authentication-required' && 'border-warning-border bg-warning-subtle',
-                      connection &&
-                        !['ready', 'authentication-required'].includes(connection.status) &&
-                        'border-error-border bg-error-subtle'
-                    )}>
-                    {sdk ? (
-                      <span className="min-w-0 flex-1 truncate px-2.5 font-mono text-xs">@cursor/sdk</span>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        disabled={busy}
-                        onClick={openEditor}
-                        aria-label={t('local_agents.installation_location')}
-                        className="h-full min-w-0 flex-1 justify-start rounded-lg px-2.5 text-left font-normal hover:bg-transparent">
-                        <span dir="rtl" className="min-w-0 truncate text-left font-mono text-xs text-foreground">
-                          <bdi dir="ltr">{initial.executableOverride ?? detection?.path ?? preset?.executable}</bdi>
-                        </span>
-                      </Button>
-                    )}
-                    <InputGroupAddon align="inline-end" className="shrink-0 gap-1 py-0 pr-1">
-                      <span
-                        role="status"
-                        aria-live="polite"
-                        className="flex items-center gap-1 whitespace-nowrap text-xs">
-                        {connection ? (
-                          <span
-                            className={cn(
-                              'flex items-center gap-1',
-                              connection.status === 'ready'
-                                ? 'text-success-subtle-foreground'
-                                : connection.status === 'authentication-required'
-                                  ? 'text-warning-subtle-foreground'
-                                  : 'text-error-subtle-foreground'
-                            )}>
-                            {connection.status === 'ready' ? (
-                              <CheckCircle2 className="lucide-custom size-3" />
-                            ) : (
-                              <CircleAlert className="lucide-custom size-3" />
-                            )}
-                            {connection.status === 'ready'
-                              ? t('agent.channels.connected')
+                  )}
+                  <InputGroupAddon align="inline-end" className="shrink-0 gap-1 py-0 pr-1">
+                    <span
+                      role="status"
+                      aria-live="polite"
+                      className="flex items-center gap-1 whitespace-nowrap text-xs">
+                      {connection ? (
+                        <span
+                          className={cn(
+                            'flex items-center gap-1',
+                            connection.status === 'ready'
+                              ? 'text-success-subtle-foreground'
                               : connection.status === 'authentication-required'
-                                ? t('local_agents.login_required')
-                                : t('local_agents.check_failed')}
-                            {connection.status === 'ready' &&
-                              connection.peerVersion &&
-                              ` · ${/^\d/.test(connection.peerVersion) ? `v${connection.peerVersion}` : connection.peerVersion}`}
-                          </span>
-                        ) : (
-                          <Badge variant="secondary" className="px-1.5 py-0 text-xs text-muted-foreground">
-                            {initial.executableOverride
-                              ? t('settings.provider.not_checked')
-                              : missing
-                                ? `${missing} · ${t('local_agents.not_installed')}`
-                                : sdk
-                                  ? t('settings.dependencies.source.bundled')
-                                  : detection?.path
-                                    ? t('local_agents.detected')
+                                ? 'text-warning-subtle-foreground'
+                                : 'text-error-subtle-foreground'
+                          )}>
+                          {connection.status === 'ready' ? (
+                            <CheckCircle2 className="lucide-custom size-3" />
+                          ) : (
+                            <CircleAlert className="lucide-custom size-3" />
+                          )}
+                          {connection.status === 'ready'
+                            ? t('agent.channels.connected')
+                            : connection.status === 'authentication-required'
+                              ? t('local_agents.login_required')
+                              : t('local_agents.check_failed')}
+                          {connection.status === 'ready' &&
+                            connection.peerVersion &&
+                            ` · ${/^\d/.test(connection.peerVersion) ? `v${connection.peerVersion}` : connection.peerVersion}`}
+                        </span>
+                      ) : (
+                        <Badge variant="secondary" className="px-1.5 py-0 text-xs text-muted-foreground">
+                          {initial.executableOverride
+                            ? t('settings.provider.not_checked')
+                            : missing
+                              ? `${missing} · ${t('local_agents.not_installed')}`
+                              : sdk
+                                ? t('settings.dependencies.source.bundled')
+                                : detection?.path
+                                  ? t('local_agents.detected')
+                                  : incompatiblePath
+                                    ? t('local_agents.incompatible')
                                     : installationUnknown
                                       ? t('settings.provider.not_checked')
                                       : t('local_agents.not_installed')}
-                          </Badge>
-                        )}
-                      </span>
-                      {available && (
-                        <Tooltip content={t('local_agents.check')}>
-                          <InputGroupButton
-                            size="icon-xs"
-                            aria-label={t('local_agents.check')}
-                            disabled={busy || (!preset && !agent)}
-                            onClick={() => void check()}>
-                            {busyAction === 'check' ? (
-                              <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
-                            ) : (
-                              <PlugZap className="lucide-custom size-3.5 text-muted-foreground" />
-                            )}
-                          </InputGroupButton>
-                        </Tooltip>
+                        </Badge>
                       )}
-                    </InputGroupAddon>
-                  </InputGroup>
-                )}
+                    </span>
+                    {available && (
+                      <Tooltip content={t('local_agents.check')}>
+                        <InputGroupButton
+                          size="icon-xs"
+                          aria-label={t('local_agents.check')}
+                          disabled={busy || (!preset && !agent)}
+                          onClick={() => void check()}>
+                          {busyAction === 'check' ? (
+                            <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
+                          ) : (
+                            <PlugZap className="lucide-custom size-3.5 text-muted-foreground" />
+                          )}
+                        </InputGroupButton>
+                      </Tooltip>
+                    )}
+                  </InputGroupAddon>
+                </InputGroup>
+              )}
+              <div className="flex flex-wrap items-center gap-2 empty:hidden">
+                {!available && detection?.terminalPath && terminalButton}
+                {available ? (
+                  <>
+                    {preset?.credentialScope !== 'provider' && (sdk || protocol === 'acp' || preset?.loginArgs) && (
+                      <LocalAgentLogin
+                        config={initial}
+                        authMethods={protocol === 'acp' ? (freshCatalog?.authMethods ?? catalog?.authMethods) : []}
+                        modelsLoading={modelsLoading}
+                        freshCatalog={freshCatalog}
+                        authenticationError={modelsRefreshError ?? (freshCatalog ? undefined : result.message)}
+                        onRefresh={refreshModels}
+                        available={available}
+                        disabled={busy || archived}
+                        helpUrl={preset?.helpUrl}
+                        onConfigureCredentials={preset?.credentialEnvironment?.length ? openEditor : undefined}
+                        onTerminalLogin={
+                          preset?.loginArgs
+                            ? async (provider) => {
+                                const response = await ipcApi.request('ai.local_agents.open_terminal', {
+                                  ...initial,
+                                  login: provider ? { provider } : true
+                                })
+                                if (!response.success) throw new Error(response.message ?? t('common.error'))
+                              }
+                            : undefined
+                        }
+                        onAuthenticated={async (localRuntime) => {
+                          setConnection(undefined)
+                          clearResult()
+                          if (JSON.stringify(localRuntime.env) !== JSON.stringify(initial.env)) {
+                            const updated = await persistLocalRuntime({ env: localRuntime.env })
+                            if (!updated) throw new Error(t('common.error'))
+                            await onSaved(updated.id)
+                          } else void loadModels()
+                          toast.success(t('local_agents.signed_in'))
+                        }}
+                      />
+                    )}
+                    {renderActions?.(initial, busy)}
+                    <LocalAgentWebUiActions config={initial} disabled={busy || !available} />
+                    {terminalButton}
+                    <Tooltip content={chatDisabledReason} asChild>
+                      <span className="inline-flex" tabIndex={chatDisabledReason ? 0 : undefined}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 shrink-0 rounded-lg border-border-subtle text-xs shadow-none"
+                          disabled={!!chatDisabledReason}
+                          onClick={() => void goToChat()}>
+                          <MessageSquare className="lucide-custom size-3.5 text-muted-foreground" />
+                          {t('title.chat')}
+                        </Button>
+                      </span>
+                    </Tooltip>
+                  </>
+                ) : incompatiblePath ? null : preset && !installationUnknown ? (
+                  <Button
+                    size="sm"
+                    className="h-8 shrink-0 rounded-lg border border-transparent text-xs shadow-none"
+                    disabled={busy}
+                    onClick={() => void install()}>
+                    {installing ? (
+                      <Loader2 className="lucide-custom size-3.5 animate-spin text-muted-foreground" />
+                    ) : (
+                      <Download className="size-3.5" />
+                    )}
+                    {t(installing ? 'local_agents.installing' : 'code.install')}
+                  </Button>
+                ) : !agent ? (
+                  <Button size="sm" onClick={openEditor}>
+                    {t('common.settings')}
+                  </Button>
+                ) : null}
               </div>
-            </AgentServiceCard>
-          </div>
-        </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
-          {!editing && feedback && (
-            <div className="shrink-0 px-6">
-              <div className="mx-auto w-full max-w-5xl">{feedback}</div>
             </div>
-          )}
-          {modelList ? (
-            <LocalAgentModelList {...modelList} disabled={busy || archived || modelList.disabled} />
-          ) : (
-            (preset || agent) && (
+            {!editing && feedback}
+            {modelList ? (
               <LocalAgentModelList
-                models={modelSelection.models}
-                sourceRestrictions={modelSelection.sourceRestrictions}
-                groupFallback={agent?.name ?? preset?.name}
-                value={modelSelection.value}
-                disabled={busy || archived}
-                loading={modelsLoading}
-                loaded={!!catalog}
-                loadDisabled={!available}
-                onLoad={loadModels}
-                onSelect={selectModel}
+                {...modelList}
+                presetId={preset?.id}
+                scrollElement={scrollElement}
+                disabled={busy || archived || modelList.disabled}
               />
-            )
-          )}
-        </div>
+            ) : (
+              (preset || agent) && (
+                <LocalAgentModelList
+                  models={modelSelection.models}
+                  followCliLabel={modelSelection.followCliLabel}
+                  sourceRestrictions={modelSelection.sourceRestrictions}
+                  presetId={preset?.id}
+                  scrollElement={scrollElement}
+                  value={modelSelection.value}
+                  disabled={busy || archived}
+                  loading={modelsLoading}
+                  loaded={!!catalog}
+                  loadDisabled={!available}
+                  onLoad={loadModels}
+                  onSelect={selectModel}
+                />
+              )
+            )}
+          </div>
+        </ScrollArea>
       </div>
       {children}
       {editing && (

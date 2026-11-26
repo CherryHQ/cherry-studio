@@ -98,8 +98,18 @@ beforeEach(() => {
 
 it('offers only native models and Cherry models through the gateway', () => {
   const { result } = renderHook(() =>
-    useLocalAgentModelSelection(agent.configuration!.localRuntime, [{ id: 'anthropic/native', name: 'Native' }])
+    useLocalAgentModelSelection(agent.configuration!.localRuntime, [
+      {
+        id: 'anthropic/native',
+        name: 'Native',
+        registryModel: { id: 'registry-id', capabilities: ['function-call'], inputModalities: ['text', 'image'] }
+      }
+    ])
   )
+  expect(result.current.models.find((option) => option.id === 'anthropic/native')?.tags).toEqual([
+    'image-recognition',
+    'function-call'
+  ])
   const gatewayOption = result.current.models.find((option) => option.source === 'gateway')
   expect(gatewayOption?.group).toBe('Custom Provider')
   expect(gatewayOption?.tags).toEqual(['reasoning', 'function-call'])

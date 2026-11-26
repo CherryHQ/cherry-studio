@@ -7,6 +7,6 @@ export const dimcodeCli = {
   npmPackage: 'dimcode',
   args: ['acp'],
   terminalArgs: [],
-  loginArgs: [],
+  loginArgs: ['auth', 'login'],
   helpUrl: 'https://dimagent.cn/docs/acp'
 } as const

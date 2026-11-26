@@ -16,6 +16,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import { prepareAgentSessionWorkspaceDirectory } from './agentSessionWorkspace'
+import { enrichLocalAgentModels } from './localAgentModelMetadata'
 import { LocalAgentSessionRestoreError } from './LocalAgentSessionRestoreError'
 import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver } from './types'
 
@@ -67,7 +68,8 @@ export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
 
 export async function listLocalAgentModels(config: LocalAgentConfiguration): Promise<LocalAgentModelCatalog> {
   const adapter = await localRuntimeAdapters[getLocalAgentProtocol(config.presetId)]()
-  return adapter.listModels(config)
+  const catalog = await adapter.listModels(config)
+  return { ...catalog, models: enrichLocalAgentModels(catalog.models, config.presetId) }
 }
 
 export async function checkLocalAgent(config: LocalAgentConfiguration): Promise<LocalAgentCheckResult> {

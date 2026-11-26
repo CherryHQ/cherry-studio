@@ -41,5 +41,5 @@ export const codexCli = {
   npmPackage: '@openai/codex',
   args: ['app-server'],
   helpUrl: 'https://developers.openai.com/codex/cli',
-  modelConfig: { target: 'codex-config', field: 'model', overrides: ['CODEX_HOME'] }
+  modelConfig: { target: 'codex-config', field: 'model', overrides: ['CODEX_HOME'], nativeSelection: 'agent' }
 } as const

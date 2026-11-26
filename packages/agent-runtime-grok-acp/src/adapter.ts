@@ -122,16 +122,17 @@ const modelState = z.object({
     z.object({
       modelId: z.string(),
       name: z.string().optional(),
+      description: z.string().nullish().catch(undefined),
       hidden: z.boolean().optional(),
       user_selectable: z.boolean().optional(),
       userSelectable: z.boolean().optional(),
       _meta: z
-        .object({
+        .looseObject({
           supportsReasoningEffort: z.boolean().optional(),
           reasoningEffort: z.string().optional(),
           reasoningEfforts: z
             .array(
-              z.object({
+              z.looseObject({
                 id: z.string().optional(),
                 value: z.string().optional(),
                 label: z.string().optional(),
@@ -171,9 +172,15 @@ export const readGrokModelCatalog: AcpModelCatalogReader = async (agent) => {
   return {
     models: availableModels
       .filter((model) => !model.hidden && model.user_selectable !== false && model.userSelectable !== false)
-      .map(({ modelId, name, _meta }) => {
+      .map(({ modelId, name, description, _meta }) => {
         const effort = grokEffort(_meta)
-        return { id: modelId, name: name || modelId, ...(effort && { effort }) }
+        return {
+          id: modelId,
+          name: name || modelId,
+          ...(description != null && { description }),
+          ...(_meta != null && { _meta }),
+          ...(effort && { effort })
+        }
       }),
     activeModel: currentModelId ? { id: currentModelId } : undefined
   }

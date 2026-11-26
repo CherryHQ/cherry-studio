@@ -256,6 +256,8 @@ export interface RuntimeEffortControl<Value extends string = string> {
 export interface RuntimeModelOption {
   id: string
   name: string
+  description?: string
+  _meta?: Record<string, unknown>
   effort?: {
     options: RuntimeEffortControl['options']
     defaultValue?: string

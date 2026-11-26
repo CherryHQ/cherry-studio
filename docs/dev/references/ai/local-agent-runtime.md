@@ -82,8 +82,9 @@ are preserved.
   Opening history reads known session capabilities. A command request or send can
   acquire a connection.
 - CLI-backed adapters share executable and environment resolution in `runtime/cli`.
-  The Code CLI service uses it for discovery and installation. Each adapter
-  supplies the launch policy for its own protocol.
+  The Code CLI service uses the same installation discovery. Runtime packages
+  declare the native command rules, and Main provides the installed components,
+  resolved environment, and platform operations.
 - ACP chat and Settings use separate entries in `@cherrystudio/agent-runtime-acp/v1`.
   Chat binds prompt, configuration, cancel and close to the native session ID. Checks
   and sign-in only perform the handshake and the requested authentication. Model
@@ -110,6 +111,11 @@ are preserved.
 - Streams use `runtime:<agent-id>` as execution identity. It belongs to the stream.
   Persisted messages retain author and native model attribution when available.
 - Cursor uses the bundled TypeScript SDK for login, model discovery and session recovery.
+  In the Cursor agent settings, sign in through the browser or enter a Cursor API key.
+  Cherry verifies the key before saving it as `CURSOR_API_KEY` in the local agent
+  configuration. Model discovery and sessions use the configured key ahead of
+  the shell environment and SDK browser credentials. A successful browser sign-in
+  removes the key saved in the agent settings.
   The Agent stores the selected SDK model ID and passes it to both create and resume.
   Both use the session workspace as the SDK's local working directory. Cursor supplies the
   selected model's standard tools and enforces their native permissions, including file
@@ -157,6 +163,14 @@ the Cherry model ID separately from the native ID and inject only Cherry gateway
 credentials. Switching back removes Cherry-owned configuration while preserving
 user settings and credentials.
 
+Claude Code and Codex native model selections are Cherry chat overrides.
+Use native configuration clears the override and lets the runtime resolve the
+model for the next connection. Claude's native Default entry remains a selectable
+model alias. Cursor displays its `auto` and `default` aliases as one Auto option.
+An Agent without a model override uses Auto. The separate Cursor Router
+(`auto-smart`) retains its catalog entry. Gateway selections that manage CLI
+files retain their file configuration workflow.
+
 For a local launch, Main reads the files needed for startup and gateway binding
 in one batch. The harness interprets the same snapshot for both operations.
 When the launch can inject credentials, Main verifies the resolved route and
@@ -169,7 +183,7 @@ configuration gives the summary a dedicated Chat Completions endpoint, including
 when the primary conversation uses Responses. Existing installations pick up the
 binding the next time the model configuration is applied.
 
-New chats, terminal sessions and managed WebUIs use the native default. Model
+Without a Cherry chat override, new chats, terminal sessions and managed WebUIs use the native default. Model
 arguments, environment and project settings can override it. Open sessions keep
 their current model. Antigravity applies the saved ACP model when opening or
 resuming chat and retains a separate terminal default. Cline uses the active provider
@@ -221,14 +235,26 @@ own executable names, arguments and package sources.
   and logs and DataApi devtools redact argument and environment values.
 - Agent Services uses system package managers, official installers or registry
   archives. It rejects package manager targets inside Cherry-managed paths.
+  Version checks include installations below the runtime's ACP minimum. A newer
+  package release is shown even when the active package manager cannot upgrade
+  the detected executable in place.
   Existing mise installations can be reused and removed. See
   [BinaryManager discovery rules](../binary-manager/README.md).
 - CodeBuddy installs its published `@tencent-ai/codebuddy-code` package and uses
-  its `--acp` entry point. Pi uses a bundled ACP adapter and the installed native CLI. OMP requires
-  Bun 1.4.4 or newer. Amp chat requires both `amp-acp` and `amp`. Its terminal and CLI sign-in use `amp` directly. ZCode requires a separate native executable.
-  Antigravity uses the official `agy` CLI for its terminal entry and can run
-  `agy acp` when no standalone ACP adapter is installed. Discovery keeps the
-  standalone adapter first when both are present. DeepAgents checks its Anthropic
+  its `--acp` entry point. The Pi package assembles the bundled bridge command with
+  the installed `pi` executable. Pi terminal sign-in uses `pi` directly. OMP requires
+  Bun 1.4.4 or newer. Amp chat requires both `amp-acp` and `amp`. Amp terminal,
+  CLI sign-in, and subscription usage use `amp` directly. ZCode requires a separate native executable.
+  The [DimAgent package](../../../../packages/agent-runtime-dimcode-acp/src/cli.ts)
+  declares the `dimcode` npm distribution and the `dim acp` command.
+  Sign in with `dim auth login`. Configure a custom model provider in the
+  native terminal with `/connect`.
+  Muse Code installs the official binary for the host platform from the ACP
+  Registry and runs `muse acp` with the runtime's ACP flag. Sign in from Settings
+  by confirming the device sign-in link, run `muse login` in a terminal, or
+  provide `META_API_KEY`.
+  Antigravity requires the official CLI with ACP support (v1.5.0 or later).
+  Chat, connection checks and model discovery use `agy acp`. DeepAgents checks its Anthropic
   and OpenAI provider packages even when reusing its adapter. Kiro supplies
   its official installer and executable identity. Mistral Vibe supplies its
   `uv` install plan. Installation fails
@@ -258,23 +284,41 @@ clean up unused scripts.
 
 ### CLI sign-in
 
-Agent Services uses native account-status commands where available and rechecks
-on focus. Antigravity can infer sign-in from a successful live session. Cached
-models and a handshake alone do not verify authentication. Background checks
-stay quiet and explicit errors remain visible.
+Agent Services reads the native account where the runtime supports an account
+query. It repeats the query after sign-in and when the window regains focus. The
+account menu shows any identity or workspace returned by the runtime.
+Antigravity uses a successful authenticated live session as its sign-in signal.
 
-The sign-in dialog uses a built-in CLI login method or an advertised ACP method
-after user action, then refreshes the catalog on success. Credentials remain
-CLI-owned. Only environment overrides explicitly entered for sign-in are saved. Terminal-only and external API-key setup
-remain in the native CLI flow. For Pi sign-in, the user selects or enters a provider.
-Antigravity can fall back from the standalone adapter to `agy acp` with existing
-terminal credentials. Explicit overrides retain their command.
+The sign-in dialog offers the runtime's supported CLI and ACP flows, then
+refreshes the catalog on success. The CLI owns its native credentials. Cherry
+saves environment overrides explicitly entered for the selected Agent. A
+credential that belongs to a model provider is configured through that provider.
+Qoder and Qoder CN each use their own installation and account.
+TRAE CN signs in through `traecli login`. TRAE CLI 2.0 requires the TRAE
+Enterprise Flagship plan. Copilot, Command Code, and Auggie use their native
+terminal login commands. MiniMax waits for `mcode login` to complete. Vibe
+checks the active credential through its ACP status operation. ZCode signs in
+through the native CLI selected by the bridge.
+Antigravity can sign in from the terminal with `agy acp --login` and reuses the
+CLI's saved credentials in ACP sessions. Explicit overrides retain their command.
 
-The five-minute timeout, cancellation, program changes, panel closure and app
+Login prompts are sent to the window that started the request. The five-minute timeout, cancellation, program changes, panel closure and app
 shutdown release the owned login process. Late results cannot save credentials or
 report success. A failed post-login catalog refresh is shown on the Agent card
 and can be retried. Errors from a Cherry gateway provider retain that provider's
 recovery link.
+
+### Subscription usage
+
+Agent Services can read subscription limits on demand using the saved Agent
+configuration. The settings account menu shows account identity and login actions.
+Amp reads its native balance command. Factory reads billing limits
+with a configured Factory key. OpenCode Go uses the installed CLI's active
+service account key when a Go model is selected.
+
+The probe checks the selected account without sending model input. Some CLI
+versions and account routes lack a supported quota source. Cherry gateway models
+use their provider's account. Conversation statistics continue to show turn usage.
 
 ## Protocol behavior
 

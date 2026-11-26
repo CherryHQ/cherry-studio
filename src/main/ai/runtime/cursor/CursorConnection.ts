@@ -6,7 +6,7 @@ import {
   type Run,
   type SDKAgent
 } from '@cherrystudio/agent-runtime-cursor'
-import { CURSOR_PERMISSION_MODES } from '@cherrystudio/agent-runtime-cursor/cli'
+import { CURSOR_PERMISSION_MODES, resolveCursorModelId } from '@cherrystudio/agent-runtime-cursor/cli'
 import { getShellEnv } from '@main/utils/shellEnv'
 
 import { acquireLocalAgentBrowserLease } from '../../mcp/localAgentBrowserBridge'
@@ -50,7 +50,7 @@ export class CursorConnection extends LocalConnection {
 
   async start(cwd: string, resume?: string): Promise<this> {
     this.abort.signal.throwIfAborted()
-    const model = this.config.nativeModel || 'auto'
+    const model = resolveCursorModelId(this.config.nativeModel)
     this.localSessionInfo.activeModel = { id: model }
     this.localSessionInfo.images = true
     this.localSessionInfo.resume = true

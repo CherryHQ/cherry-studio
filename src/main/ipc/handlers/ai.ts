@@ -226,6 +226,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     application.get('AiService').respondToolApproval(payload, senderWebContents(senderId)),
 
   // ── Agent creation + session warm-connection lifecycle. ──
+  'ai.local_agents.select_session_model': ({ sessionId, modelId }) =>
+    application.get('AgentSessionRuntimeService').selectLocalSessionModel(sessionId, modelId),
   'ai.local_agents.set_config_option': ({ sessionId, configId, value }) =>
     application.get('AgentSessionRuntimeService').setLocalConfigOption(sessionId, configId, value),
   'ai.local_agents.set_mode': ({ sessionId, configId, value }) =>
@@ -246,11 +248,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.local_agents.subscription_usage': ({ agentId }) =>
     application.get('LocalAgentAuthService').readSubscriptionUsage(agentId),
   'ai.local_agents.read_account': readLocalAgentAccount,
-  'ai.local_agents.auth_status': async (config) => (await readLocalAgentAccount(config)).status,
   'ai.local_agents.authenticate': ({ requestId, config, methodId, secret, provider }, { senderId }) =>
     application.get('LocalAgentAuthService').authenticate(requestId, config, methodId, { secret, provider }, senderId),
   'ai.local_agents.cancel_auth': ({ requestId }, { senderId }) =>
     application.get('LocalAgentAuthService').cancel(requestId, senderId),
+  'ai.local_agents.respond_auth_consent': ({ requestId, promptId, decision }, { senderId }) =>
+    application.get('LocalAgentAuthService').respondToBrowserConsent(requestId, promptId, decision, senderId),
   'ai.local_agents.select_model': ({ agentId, nativeModel, ...selection }) =>
     selectLocalAgentModel(agentId, nativeModel, selection),
   'ai.local_agents.uninstall_components': ({ presetId, expectedPath }) =>

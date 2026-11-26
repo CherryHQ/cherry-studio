@@ -73,8 +73,8 @@ const clineGateway = {
   }
 } satisfies AcpGatewayConfig
 
-function clineSelection(_configured: string | undefined, launch: AcpLaunch): AcpModelSelection {
-  return { model: launch.env.CLINE_MODEL || undefined, allowUnlisted: true }
+function clineSelection(configured: string | undefined, launch: AcpLaunch): AcpModelSelection {
+  return { model: configured ?? (launch.env.CLINE_MODEL || undefined), allowUnlisted: true }
 }
 
 export const clinePreset = {

@@ -115,6 +115,7 @@ export function bindAccount(config: LocalAgentConfiguration): RuntimeAccountAcce
         signal
       )
     },
-    authenticate: ({ methodId }, _host, signal) => authenticateLocalAcp(config, cwd, methodId, signal)
+    authenticate: ({ methodId }, host, signal) =>
+      authenticateLocalAcp(config, cwd, methodId, host.confirmBrowser, signal)
   }
 }

@@ -14,7 +14,11 @@ export const CLAUDE_PERMISSION_MODES = {
 } as const satisfies PermissionModeCatalog
 
 export const claudeCli = {
-  modelConfig: { target: 'claude-settings', overrides: ['CLAUDE_CONFIG_DIR', 'ANTHROPIC_MODEL'] },
+  modelConfig: {
+    target: 'claude-settings',
+    overrides: ['CLAUDE_CONFIG_DIR', 'ANTHROPIC_MODEL'],
+    nativeSelection: 'agent'
+  },
   id: 'claude',
   windowsShell: { variable: 'CLAUDE_CODE_GIT_BASH_PATH', allowSh: false },
   cliLogin: [

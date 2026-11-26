@@ -29,6 +29,7 @@ export const LOCAL_AGENT_MODEL_CONFIG: Readonly<
       tool: ModelConfiguredCli
       target: CliConfigTarget
       overrides: readonly string[] | ((platform: string) => readonly string[])
+      nativeSelection?: 'agent'
     }
   >
 > = {
@@ -61,9 +62,15 @@ export const LOCAL_AGENT_MODEL_CONFIG: Readonly<
 
 export function getLocalAgentModelStorage(presetId: string | undefined) {
   const preset = getLocalAgentPreset(presetId)
-  if (preset?.protocol === 'cursor' || (preset?.protocol === 'acp' && preset.sessionModel)) {
+  const file = preset && LOCAL_AGENT_MODEL_CONFIG[preset.id]
+  if (preset && file) {
+    return {
+      type: 'cli',
+      ...file,
+      nativeSelection: preset.protocol === 'acp' ? 'agent' : file.nativeSelection
+    } as const
+  }
+  if (preset?.protocol === 'cursor' || preset?.protocol === 'acp' || presetId === undefined) {
     return { type: 'agent' } as const
   }
-  const file = preset && LOCAL_AGENT_MODEL_CONFIG[preset.id]
-  return file ? ({ type: 'cli', ...file } as const) : undefined
 }

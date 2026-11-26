@@ -391,6 +391,7 @@ agent_servers:
     ['codex', 'codex', ['login']],
     ['auggie', 'auggie', ['auth', 'login']],
     ['command-code', 'command-code', ['login']],
+    ['dimagent', 'dim', ['auth', 'login']],
     ['copilot', 'copilot', ['login']],
     ['claude', 'claude', ['auth', 'login']],
     ['kimi', 'kimi', ['login']],

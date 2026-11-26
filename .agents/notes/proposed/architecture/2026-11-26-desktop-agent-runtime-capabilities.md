@@ -18,9 +18,11 @@ An ACP harness with native behavior owns an independent `agent-runtime-<harness>
 
 The CLI package declares its executable and distribution. The shared CLI contract carries the component identity and path resolved by the host. Discovery, installation verification and launch read the same component selection. Codex builds the stdio launch command, binds the RPC transport and closes the owned process after a probe or session. Probes only initialize or read the model catalog. Explicit executable wrappers can still supply their full command.
 
-Desktop ACP adapters share the stdio process contract for chat and management. CodeBuddy declares its npm distribution in its package. Antigravity installation verification uses the same adapter selection as chat, including native ACP when the separate adapter is absent. Claude binds the resolved installation to its SDK launch and retains SDK-owned startup and shutdown.
+Desktop ACP adapters share the stdio process contract for chat and management. CodeBuddy declares its npm distribution in its package. Antigravity discovers and installs the official CLI and runs `agy acp` for chat and management. Claude binds the resolved installation to its SDK launch and retains SDK-owned startup and shutdown.
 
 Amp declares both installed components. Kiro and Vibe own their native installation recipes. Native account probes carry their command, output parser and exit policy together. Main executes the commands and routes login prompts. Each local launch reads the needed configuration files once. Harness packages interpret that configuration, and Main verifies the route and issues the scoped gateway credential.
+
+Move default Amp chat to the official [Amp TypeScript SDK](https://ampcode.com/docs/sdk/typescript) once it can honor the host-selected CLI and wait for the child to exit after cancellation. Use the Amp thread ID for new SDK sessions. Keep existing ACP sessions restorable and explicit ACP commands executable. Terminal, login and quota reads continue to use the selected native CLI. The SDK entry must preserve image input and any steering the default route already exposes.
 
 Use the Agent permission mode for product policy. A runtime can report its effective session mode through the connection. The scheduler checks that mode and the Agent's configured policy without interpreting native option labels or preset IDs. The native-control adapter maps those values to Agent semantics. A native shortcut and the settings menu use the same full-access classification.
 
@@ -37,6 +39,8 @@ The harness adapter interprets native approval requests and options. The common 
 The runtime reports native input admission independently of placement. Only a definitive refusal releases the binding and allows the existing scheduler to requeue an admitted input. The Composer keeps unsubmitted drafts and derives native follow-up from the connected owner. Manual compaction is an idle thread operation whose correlated native result settles occupancy and refreshes the context reading.
 
 Pi Durable, built-in Pi, Claude and Codex expose their existing native methods through the same desktop input and compaction entry points. Codex Stop can withdraw an input before dispatch. After dispatch, a missing native echo leaves delivery unknown and preserves its binding.
+
+Local installation resolves release and component declarations without opening a runtime. Runtime packages own login methods and credential selection. Main delivers native login prompts to the originating window and owns cancellation. Optional subscription reads bind to the account used by the saved runtime settings. They use a short-lived management connection and publish windows only while the saved configuration and sign-in generation still match.
 
 ## Alternatives considered
 
@@ -59,7 +63,7 @@ A provider-wide boolean cannot express read-only child access, a volatile queue 
 - AC13 — Cursor creates and resumes chats by SDK agent ID in the selected workspace without a CLI. The selected model's standard toolset is available in both paths. Tool calls and native permission errors appear in the chat under the original call ID. (verification: unit and Electron)
 - AC14 — OpenClaw restores through its adapter and suppresses bridge titles. A custom ACP command on the same desktop connection path follows negotiated recovery and retains its native title. Settings and chat consume the same CLI declaration. (verification: unit)
 - AC15 — Codex installation and launch share the CLI component identity. Checks and model discovery open no native thread, and normal close, failed startup and cancellation all join the owned App Server process. (verification: unit and Electron)
-- AC16 — CodeBuddy and Claude use their package declarations for installation and launch. Installing the Antigravity CLI alone suffices when the same native ACP component is selected by discovery and launch. ACP management and chat join their owned process on exit. (verification: unit and Electron)
+- AC16 — CodeBuddy and Claude use their package declarations for installation and launch. Antigravity discovery and install verification select `agy`, and its chat and management commands use that executable with `acp`. ACP management and chat join their owned process on exit. (verification: unit and Electron)
 - AC17 — Amp, Kiro and Vibe keep their native component and install behavior through package declarations. CLI account probes interpret success and signed-out exits using each harness's declared format. (verification: unit)
 - AC18 — Changing native configuration during launch cannot make the launcher and gateway attribution interpret different reads of the same file. (verification: unit)
 - AC19 — A connection in effective Plan mode suppresses prompt suggestions even if the saved Agent mode permits them. A native choice mapped to full access requires confirmation and cannot be selected by the Plan shortcut. (verification: unit and renderer)
@@ -73,6 +77,14 @@ A provider-wide boolean cannot express read-only child access, a volatile queue 
 - AC27 — Context readings use the native occupancy or last model request. Cursor keeps the accumulated run tokens in the usage record. The window comes from the runtime or the bound Cherry catalog model. A reading without a known window displays tokens without a percentage. (verification: unit and Electron)
 - AC28 — Native steer keeps the original input ID through acknowledgement, placement and refusal. Missing or ambiguous responses never cause fallback. A native continuation delivered in the same ACP batch as the preceding prompt response keeps its own content and terminal boundary. (verification: unit and Electron)
 - AC29 — Manual compaction reserves the thread until the native operation settles or the source terminates. Only matched completion refreshes the context reading. (verification: unit and Electron)
+
+- AC30 — Install code cannot import runtime session adapters. Login prompts and cancellation belong to the requesting window. Startup failure or deadline expiry closes the owned process before returning. (verification: lint, unit and Electron)
+- AC31 — Codex and Claude read subscription windows without generating a turn or scanning history. Concurrent reads for the same saved target share the in-flight result. A changed account or configuration discards an obsolete result. Cherry gateway routes do not inherit the harness account’s quota. A vendor key can report quota when it authenticates the actual subscription. (verification: unit and Electron)
+
+- AC32 — Each additional subscription reader uses a native quota source and the account selected by that launch. An unsupported binary, protocol version, account store or route returns an explicit result without sending model input. A prepaid balance with no ceiling displays as a currency amount. (verification: unit and Electron)
+
+- AC33 — New default Amp chats use the official SDK and the CLI and account chosen for login and quota reads. Text, images and supported steering reach the intended thread, SDK sessions resume by Amp thread ID, and cancellation joins the child. Existing ACP sessions and explicit ACP commands remain usable. (verification: unit, Electron and packaged artifact)
+- AC34 — Catalog entries select the declared distribution and region. Each available sign-in completes against that same runtime and refreshes its account state. Provider-only configuration does not offer a harness account login. An authentication prerequisite is shown as a sign-in action. (verification: unit and Electron)
 
 ## Risks
 

@@ -11,6 +11,14 @@ const configuredModel = {
   'acp-usage-zero-size': 'google/gemini-4-neon',
   'acp-usage-prompt-fallback': 'claude-sonnet-4-6'
 }[scenario]
+const fixtureModelOption = {
+  value: configuredModel ?? 'fixture-model',
+  name: 'Fixture model',
+  ...(scenario === 'both-models' && {
+    description: 'Live model description',
+    _meta: { fixture: { modalities: ['image'] } }
+  })
+}
 if (process.env.FIXTURE_LOG) {
   writeFileSync(`${process.env.FIXTURE_LOG}.pid`, String(process.pid))
   writeFileSync(`${process.env.FIXTURE_LOG}.argv.json`, JSON.stringify(process.argv))
@@ -335,7 +343,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
             type: 'select',
             currentValue: 'updated-model',
             options: [
-              { value: 'updated-model', name: 'Updated model' },
+              {
+                value: 'updated-model',
+                name: 'Updated model',
+                description: 'Updated model description',
+                _meta: { fixture: { modalities: ['text', 'image'] } }
+              },
               ...(scenario === 'close-management-catalog'
                 ? [{ value: 'alternate-model', name: 'Alternate model' }]
                 : [])
@@ -376,7 +389,14 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         ? {
             models: {
               currentModelId: 'legacy-default',
-              availableModels: [{ modelId: 'legacy-model', name: 'Legacy model' }]
+              availableModels: [
+                {
+                  modelId: 'legacy-model',
+                  name: 'Legacy model',
+                  description: 'Legacy model description',
+                  _meta: { fixture: { modalities: ['text'] } }
+                }
+              ]
             }
           }
         : {}),
@@ -436,7 +456,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
                             : scenario === 'acp-usage-zero-size'
                               ? 'google/gemini-4-neon'
                               : 'fixture-default',
-                        options: [{ value: configuredModel ?? 'fixture-model', name: 'Fixture model' }]
+                        options: [fixtureModelOption]
                       }
                     ]
     })
@@ -449,7 +469,8 @@ createInterface({ input: process.stdin }).on('line', (line) => {
           {
             modelId: 'grok-reasoning',
             name: 'Grok Reasoning',
-            _meta: { reasoningEfforts: [{ value: 'high', label: 'High', default: true }] }
+            description: 'Grok model description',
+            _meta: { reasoningEfforts: [{ value: 'high', label: 'High', default: true }], fixture: { fast: true } }
           },
           { modelId: 'grok-basic', name: 'Grok Basic' },
           { modelId: 'internal', hidden: true }
@@ -529,7 +550,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
           name: 'Model',
           type: 'select',
           currentValue: message.params.value,
-          options: [{ value: configuredModel ?? 'fixture-model', name: 'Fixture model' }]
+          options: [fixtureModelOption]
         }
       ]
     })

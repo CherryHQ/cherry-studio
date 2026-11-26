@@ -723,15 +723,8 @@ const AgentComposerInner = ({
   const localMode = localInfo?.mode ?? localView?.idleMode
   const localEffort = localInfo?.thoughtLevel
   const localExtraOptions = useMemo(() => {
-    const primaryModel = localInfo?.configOptions?.find(
-      (option) => option.category === 'model' && option.type === 'select'
-    )
     return localInfo?.configOptions?.filter(
-      (option) =>
-        option.category !== 'model_config' &&
-        option !== primaryModel &&
-        option.id !== localMode?.id &&
-        option.id !== localEffort?.id
+      (option) => option.category !== 'model_config' && option.id !== localMode?.id && option.id !== localEffort?.id
     )
   }, [localInfo?.configOptions, localMode?.id, localEffort?.id])
   const localPermissionSelection = isUnifiedLocalPermissionMode(localMode) ? localMode : undefined

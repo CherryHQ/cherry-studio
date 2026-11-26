@@ -18,9 +18,11 @@ Status: proposed
 
 CLI 包声明可执行文件和发行渠道。公共 CLI 契约携带宿主解析出的组件标识与路径。发现、安装复查与启动使用同一套组件选择。Codex 负责构造 stdio 启动命令、绑定 RPC 传输，并在探测或会话结束后关闭所持有的进程。探测只初始化连接或读取模型目录。显式指定的 wrapper 仍可提供完整命令。
 
-桌面 ACP 的聊天和管理共用 stdio 进程契约。CodeBuddy 在自己的包中声明 npm 发行渠道。Antigravity 安装复查使用与聊天相同的适配器选择，在独立适配器缺失时使用原生 ACP。Claude 把探测到的组件绑定到 SDK 启动，由 SDK 管理启动和关闭。
+桌面 ACP 的聊天和管理共用 stdio 进程契约。CodeBuddy 在自己的包中声明 npm 发行渠道。Antigravity 发现并安装官方 CLI，聊天和管理都运行 `agy acp`。Claude 把探测到的组件绑定到 SDK 启动，由 SDK 管理启动和关闭。
 
 Amp 声明两个安装组件，Kiro 和 Vibe 各自提供安装配方。原生账号探测同时声明命令、输出解析和退出策略。Main 执行命令并转发登录提示。每次本机启动只读取一次所需配置文件。Harness 包解释配置，Main 验证路由并签发会话范围的网关凭据。
+
+在官方 [Amp TypeScript SDK](https://ampcode.com/docs/sdk/typescript) 能使用宿主选中的 CLI 并在取消后等待子进程退出时，将 Amp 默认聊天迁到该 SDK。新的 SDK 会话使用原生 Amp thread ID。已有 ACP 会话仍可恢复，显式 ACP 命令仍可执行。终端、登录和额度读取继续使用选中的原生 CLI。SDK 入口保留图片输入及默认路径已提供的插话能力。
 
 产品策略使用 Agent 权限模式。Runtime 可以通过连接报告会话当前生效的模式。调度器依据该模式和 Agent 的配置决策。原生控件适配层负责把选项名称和预设映射成 Agent 语义。原生快捷键和设置菜单使用同一套完全访问判定。
 
@@ -37,6 +39,8 @@ Harness 适配器解释原生审批请求和选项。公共 ACP 包转换标准�
 Runtime 分别报告原生接纳和实际放入的位置。只有明确未接纳才释放绑定，允许调度器重新排队。Composer 持有未提交草稿，由当前连接决定是否直接提交持久后续输入。主动压缩是空闲线程的独立操作，匹配的原生终态解除占用并刷新上下文读数。
 
 Pi Durable、内建 Pi、Claude 和 Codex 的既有原生能力走同一组桌面输入和压缩入口。Codex Stop 可撤回尚未派发的输入。派发后缺少原生回声时，送达状态保持未知，保留原绑定。
+
+本机安装通过发行与组件声明解析目标，无需打开运行时。各 runtime 包拥有登录方法和凭据选择。Main 把原生登录提示交给发起窗口并负责取消。可选的订阅查询绑定到已保存运行设置实际使用的账号，使用短命管理连接。配置和登录代次仍匹配时才发布额度窗口。
 
 ## Alternatives considered
 
@@ -59,7 +63,7 @@ Pi Durable、内建 Pi、Claude 和 Codex 的既有原生能力走同一组桌�
 - AC13 — Cursor 无需 CLI 即可在选定工作区创建会话，并按 SDK 的 agent ID 恢复会话。两条路径均可使用所选模型的标准工具集。聊天按原始调用 ID 展示工具调用和原生权限错误。（验证：单元测试和 Electron）
 - AC14 — OpenClaw 通过自己的适配器恢复会话并过滤桥接器标题。自定义 ACP 命令经过同一桌面连接入口，使用协商出的恢复方式并保留原生标题。设置页与聊天读取同一份 CLI 声明。(verification: unit)
 - AC15 — Codex 安装与启动使用同一个 CLI 组件标识。连接检查和模型探测不打开原生线程，正常关闭、启动失败和取消均等待所属 App Server 进程回收。(verification: unit and Electron)
-- AC16 — CodeBuddy 和 Claude 的安装与启动使用各自包中的声明。Antigravity 的发现与启动都选中原生 ACP 时，仅安装其 CLI 即可。ACP 管理和聊天在退出时均等待所属进程回收。(verification: unit and Electron)
+- AC16 — CodeBuddy 和 Claude 的安装与启动使用各自包中的声明。Antigravity 的发现和安装复查选中 `agy`，聊天和管理以 `acp` 参数启动该程序。ACP 管理和聊天在退出时均等待所属进程回收。(verification: unit and Electron)
 - AC17 — Amp、Kiro 和 Vibe 通过包声明保留原生组件和安装行为。CLI 账号探测按各 harness 声明的格式解释成功和未登录退出。(verification: unit)
 - AC18 — 启动期间修改原生配置时，启动与网关归账对同一文件使用同一次读取结果。(verification: unit)
 - AC19 — 即使 Agent 保存的模式允许输入建议，连接当前生效的 Plan 模式仍阻止生成建议。映射到完全访问的原生选项需要确认，Plan 快捷键不能选中它。(verification: unit and renderer)
@@ -73,6 +77,14 @@ Pi Durable、内建 Pi、Claude 和 Codex 的既有原生能力走同一组桌�
 - AC27 — 上下文读数使用原生端报告的占用量或最近一次模型请求。Cursor 把整轮累计 token 留在用量记录。窗口取自原生 runtime 或已绑定的 Cherry 目录模型。窗口未知时显示 token 数，省略百分比。(verification: unit and Electron)
 - AC28 — 原生插话的回执、归属和拒绝沿用同一 input ID。缺失或不明确的结果不会触发回退。原生后续轮和上一条 prompt 回包同批到达时，正文和终态仍归原生后续轮。(verification: unit and Electron)
 - AC29 — 主动压缩占用线程直到原生操作结算或来源终止。只有匹配的完成证据才刷新上下文读数。(verification: unit and Electron)
+
+- AC30 — 安装代码无法导入会话适配器。登录提示和取消归发起窗口。启动失败或截止后，先关闭所属进程再返回。(verification: lint, unit and Electron)
+- AC31 — Codex 与 Claude 无需执行一轮或扫描历史即可读取订阅窗口。同一已保存目标的并发查询共用在途结果。账号或配置改变后丢弃旧结果。Cherry 网关路由不继承 harness 账号的额度。厂商 Key 可以读取其实际认证的订阅额度。(verification: unit and Electron)
+
+- AC32 — 新增的订阅读取器使用原生额度来源及启动所选的账号。组件、协议版本、账号存储或路由不受支持时返回明确结果，且不发送模型输入。无上限的预付余额显示币种和金额。(verification: unit and Electron)
+
+- AC33 — 新建的默认 Amp 聊天使用官方 SDK，与登录和额度读取使用同一个 CLI 和账号。文本、图片及已支持的插话到达对应线程，SDK 会话按 Amp thread ID 恢复，取消后等待子进程退出。已有 ACP 会话及显式 ACP 命令仍可用。(verification: unit, Electron and packaged artifact)
+- AC34 — 目录项选择声明的发行版和地区。每个可用登录流程在同一 runtime 完成并刷新账号状态。仅需供应商凭据的配置不提供 harness 账号登录。需要认证的前置状态显示为登录操作。(verification: unit and Electron)
 
 ## Risks
 

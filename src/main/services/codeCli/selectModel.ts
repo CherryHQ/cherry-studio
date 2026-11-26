@@ -3,6 +3,7 @@ import { agentService } from '@data/services/AgentService'
 import { t } from '@main/i18n'
 import { getEnvironmentValue } from '@main/utils/env'
 import { getRawShellEnv } from '@main/utils/shellEnv'
+import { getLocalAgentProtocol } from '@shared/ai/localAgent'
 import { getLocalAgentModelStorage, LOCAL_AGENT_MODEL_CONFIG } from '@shared/ai/localAgentModel'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { getCliConfigTargets } from '@shared/utils/cliConfig'
@@ -38,7 +39,10 @@ export async function selectLocalAgentModel(
   if (!agent || agent.type !== 'local' || !config || !native) {
     throw new Error(t('code_cli.model.unsupported'))
   }
-  if (native.type === 'agent') {
+  if (
+    native.type === 'agent' ||
+    (native.nativeSelection === 'agent' && !config.sourceModelId && !selection.sourceModelId)
+  ) {
     if (
       selection.sourceModelId ||
       selection.sourceModelViaGateway ||
@@ -80,7 +84,8 @@ export async function selectLocalAgentModel(
         nativeModel = readNativeModelConfig(native.target, primary.content)
         if (!nativeModel) throw new Error(t('code_cli.model.default_missing'))
       } else {
-        const content = updateNativeModelConfig(native.target, primary?.content ?? current.content, nativeModel)
+        const model = native.nativeSelection === 'agent' ? undefined : nativeModel
+        const content = updateNativeModelConfig(native.target, primary?.content ?? current.content, model)
         if (primary) primary.content = content
         else files.push({ target: native.target, content })
       }
@@ -122,27 +127,23 @@ export function syncLocalAgentConfigModel(
   const agent = agentService
     .listAgents()
     .agents.find((agent) => agent.configuration?.localRuntime?.presetId === presetId)
+  const config = agent?.configuration?.localRuntime
   if (
-    !agent?.configuration?.localRuntime ||
-    hasConfigOverrides(native.overrides, agent.configuration.localRuntime.env, shellEnv)
+    !agent ||
+    !config ||
+    ((native.nativeSelection === 'agent' || getLocalAgentProtocol(presetId) === 'acp') && !config.sourceModelId) ||
+    hasConfigOverrides(native.overrides, config.env, shellEnv)
   )
     return
   const nativeModel =
-    file?.content === undefined
-      ? agent.configuration.localRuntime.nativeModel
-      : readNativeModelConfig(native.target, file.content)
+    file?.content === undefined ? config.nativeModel : readNativeModelConfig(native.target, file.content)
+  const preserveSource = preserveModelSource && nativeModel === config.nativeModel
   agentService.updateAgent(agent.id, {
     configuration: {
       localRuntime: {
-        nativeModel,
-        sourceModelViaGateway:
-          preserveModelSource && nativeModel === agent.configuration.localRuntime.nativeModel
-            ? agent.configuration.localRuntime.sourceModelViaGateway
-            : undefined,
-        sourceModelId:
-          preserveModelSource && nativeModel === agent.configuration.localRuntime.nativeModel
-            ? agent.configuration.localRuntime.sourceModelId
-            : undefined
+        nativeModel: native.nativeSelection === 'agent' && !preserveSource ? undefined : nativeModel,
+        sourceModelViaGateway: preserveSource ? config.sourceModelViaGateway : undefined,
+        sourceModelId: preserveSource ? config.sourceModelId : undefined
       }
     }
   })

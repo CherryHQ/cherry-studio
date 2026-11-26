@@ -2,8 +2,8 @@
  * Auto-generated icon exports
  * Do not edit manually
  *
- * Generated at: 2026-11-23T02:39:17.085Z
- * Total icons: 46
+ * Generated at: 2026-11-26T19:00:51.342Z
+ * Total icons: 49
  */
 
 export { AddCategory } from './add-category'
@@ -21,11 +21,13 @@ export { ClaudeCode } from './claude-code'
 export { ClineCli } from './cline-cli'
 export { CodeAi } from './code-ai'
 export { CodebuddyCodeCli } from './codebuddy-code-cli'
+export { CommandCodeCli } from './command-code-cli'
 export { CortexCodeCli } from './cortex-code-cli'
 export { CursorCli } from './cursor-cli'
 export { DeepagentsCli } from './deepagents-cli'
 export { DeepseekHarnessCli } from './deepseek-harness-cli'
 export { DevinCli } from './devin-cli'
+export { DimcodeCli } from './dimcode-cli'
 export { Emoji } from './emoji'
 export { FactoryDroidCli } from './factory-droid-cli'
 export { GeminiCli } from './gemini-cli'
@@ -41,6 +43,7 @@ export { KiroCli } from './kiro-cli'
 export { MessageAi1 } from './message-ai-1'
 export { MessageBalloonAi1 } from './message-balloon-ai-1'
 export { MistralVibeCli } from './mistral-vibe-cli'
+export { MuseCodeCli } from './muse-code-cli'
 export { OmpCli } from './omp-cli'
 export { OpenCode } from './open-code'
 export { OpenaiCodex } from './openai-codex'

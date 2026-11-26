@@ -9,7 +9,6 @@ import type { FinishReason } from 'ai'
 import {
   acpEffortOption,
   acpHostError,
-  acpModelCatalog,
   acpPermissionChoice,
   acpPermissionControl,
   connectAcpStdio,
@@ -47,6 +46,7 @@ import {
   LOCAL_AGENT_AUTOMATION_SERVER_NAME
 } from '../../mcp/localAgentBrowserBridge'
 import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeService'
+import { enrichLocalAgentModels } from '../localAgentModelMetadata'
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection } from '../LocalConnection'
 import { stopLocalAgentProcess } from '../stdioProcess'
@@ -274,7 +274,6 @@ export class AcpConnection extends LocalConnection {
               }
             : undefined,
           callbacks: this.hostCallbacks(cwd, launch.env),
-          currentModel: () => this.localSessionInfo.activeModel?.id,
           events: this.liveEvents,
           harness: this.harness
         }),
@@ -306,35 +305,17 @@ export class AcpConnection extends LocalConnection {
       })
     }
     const mcpServers = this.buildBrowserMcpServers(response.agentCapabilities?.mcpCapabilities?.http === true)
-    const configure = async (session: Pick<AcpLiveSession, 'setConfigOption' | 'legacyModels'>) => {
+    const configure = async (session: AcpLiveSession) => {
       const selection = acpModelSelection(this.config, launch)
-      const model =
-        selection.model && this.config.sourceModelId
-          ? resolveConfiguredAcpModel(
-              this.config.presetId,
-              selection.model,
-              this.localSessionInfo.models.map(({ id }) => id)
-            )
-          : selection.model
-      if (model && this.localSessionInfo.activeModel?.id !== model) {
-        const catalog = this.localSessionInfo.models
-        const modelConfigId = this.localSessionInfo.configOptions?.find(
-          (option) => option.type === 'select' && option.category === 'model'
-        )?.id
-        if (!(selection.allowUnlisted && modelConfigId) && catalog.length && !catalog.some(({ id }) => id === model))
-          throw new Error(t('local_agent.model_unavailable', { model }))
-        if (modelConfigId) {
-          const updated = await session.setConfigOption(modelConfigId, model)
-          this.readConfigOptions(updated)
-        } else if (session.legacyModels) {
-          await session.legacyModels.select(model)
-          this.localSessionInfo.activeModel = { id: model }
-          this.localSessionInfo.thoughtLevel = this.headless ? undefined : this.session?.legacyEffort?.read()
-          this.publishSessionInfo()
-        } else if (selection.implicit === model && !catalog.length) {
-          this.localSessionInfo.activeModel = { id: model }
-        } else throw new Error('This agent does not support model selection')
-      }
+      if (!selection.model || (resume && !this.config.sourceModelId && session.model.activeModel)) return
+      const model = this.config.sourceModelId
+        ? resolveConfiguredAcpModel(
+            this.config.presetId,
+            selection.model,
+            session.model.models.map(({ id }) => id)
+          )
+        : selection.model
+      await session.selectInitialModel(model, selection)
     }
     if (resume && !agent.restore)
       throw new LocalAgentSessionRestoreError(
@@ -725,6 +706,17 @@ export class AcpConnection extends LocalConnection {
       }
     ]
   }
+  async selectModel(modelId: string) {
+    if (this.headless || !this.session || this.closed || this.active || this.configChange)
+      throw new Error('ACP session is unavailable or busy')
+    this.configChange = this.session.selectModel(modelId)
+    try {
+      await this.configChange
+      return this.localSessionInfo
+    } finally {
+      this.configChange = undefined
+    }
+  }
   async setConfigOption(configId: string, value: string | boolean) {
     return this.setSelection('config', configId, value)
   }
@@ -770,9 +762,7 @@ export class AcpConnection extends LocalConnection {
         }
       })
     } else {
-      this.configChange = this.session
-        .setConfigOption(configId, value)
-        .then((response) => this.readConfigOptions(response))
+      this.configChange = this.session.setConfigOption(configId, value)
     }
     try {
       await this.configChange
@@ -782,19 +772,18 @@ export class AcpConnection extends LocalConnection {
     }
   }
 
-  private readConfigOptions(
-    { configOptions: options, modes }: Pick<AcpSessionConfiguration, 'configOptions' | 'modes'>,
-    initialLegacy?: AcpLiveSession['legacyModels']
-  ) {
+  private readConfigOptions({
+    configOptions: options,
+    modes
+  }: Pick<AcpSessionConfiguration, 'configOptions' | 'modes'>) {
     const mode = options?.find((option) => option.category === 'mode' && option.type === 'select')
     const thought = acpEffortOption(options)
-    const catalog = acpModelCatalog(options, initialLegacy)
     const configOptions: LocalAgentConfigOption[] | undefined =
       options
         ?.filter((option) => option.type === 'select' || option.type === 'boolean')
         .map((option) => {
           const { id, name, description } = option
-          const category = id === catalog.configId ? 'model' : option.category
+          const { category } = option
           const role = option === mode ? ('mode' as const) : option === thought ? ('reasoning' as const) : undefined
           const control = acpPermissionControl(option, this.permissionModes)
           const base = {
@@ -866,10 +855,10 @@ export class AcpConnection extends LocalConnection {
     }
     this.localSessionInfo.mode = this.launchMode ?? permission
     const thoughtOption = configOptions?.find((option) => option.role === 'reasoning')
-    if (catalog.activeModel) this.localSessionInfo.activeModel = catalog.activeModel
-    if (catalog.configId || initialLegacy || !this.session?.legacyModels) {
-      this.localSessionInfo.models = catalog.models
-    }
+    const model = this.session?.model
+    this.localSessionInfo.activeModel = model?.activeModel
+    this.localSessionInfo.models = enrichLocalAgentModels(model?.models ?? [], this.config.presetId)
+    this.localSessionInfo.modelSelection = model?.status
     const effort =
       thoughtOption?.type === 'select'
         ? describeAcpSelection(thoughtOption)
@@ -902,7 +891,7 @@ export class AcpConnection extends LocalConnection {
   private readonly liveEvents: AcpLiveEvents = {
     opened: (session, configuration) => {
       this.session = session
-      this.readConfigOptions(configuration, session.legacyModels)
+      this.readConfigOptions(configuration)
     },
     nativeTurn: (event) => {
       if (event.state === 'started') {
@@ -925,7 +914,7 @@ export class AcpConnection extends LocalConnection {
       if (!isLocalAgentPlaceholderTitle(title, () => this.config.presetId))
         this.events.push({ type: 'session-title', title })
     },
-    options: (configOptions) => this.readConfigOptions({ configOptions }),
+    options: (configOptions, modes) => this.readConfigOptions({ configOptions, modes }),
     commands: (commands) => this.publishCommands(commands),
     mode: (id) => {
       const selection = this.legacyMode && this.localSessionInfo[this.legacyMode]

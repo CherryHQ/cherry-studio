@@ -49,7 +49,6 @@ it('preserves private native turn boundaries when the preceding prompt and its c
   const client = connectAcpStdio(stdin, stdout, {
     clientInfo: { name: 'fixture', version: '0.0.0' },
     callbacks: {},
-    currentModel: () => undefined,
     events,
     harness: {
       registerProtocol(host) {

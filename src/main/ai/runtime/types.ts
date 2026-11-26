@@ -290,6 +290,7 @@ export interface AgentRuntimeConnection {
   readonly effectivePermissionMode?: AgentPermissionMode
   readonly sessionCostScope?: 'native-session'
   readonly localSessionInfo?: LocalAgentSessionInfo
+  selectModel?(modelId: string): Promise<LocalAgentSessionInfo>
   setConfigOption?(configId: string, value: string | boolean): Promise<LocalAgentSessionInfo>
   setMode?(configId: string, value: string): Promise<LocalAgentSessionInfo>
   setThoughtLevel?(configId: string, value: string): Promise<LocalAgentSessionInfo>

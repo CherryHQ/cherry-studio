@@ -77,6 +77,56 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('local agent settings navigation', () => {
+  it('shows the Qoder edition when an earlier default name was saved', () => {
+    publishAgent(localAgent('Qoder', { presetId: 'qoder' }))
+    render(<LocalAgentDirectory />)
+    expect(screen.getByText('Qoder')).toBeVisible()
+    expect(screen.getByText('Qoder CN')).toBeVisible()
+  })
+
+  it('runs TRAE terminal login even when ACP advertises an enterprise PAT method', async () => {
+    navigation.search = { id: 'trae' }
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [{ presetId: 'trae', path: '/test/traecli' }] as never
+      if (route === 'ai.local_agents.read_account') return { status: 'signed-out' }
+      if (route === 'ai.local_agents.open_terminal') return { success: true } as never
+      return {
+        models: [],
+        authMethods: [{ id: 'personal-access-token', name: 'Sign in with Personal Access Token', type: 'agent' }]
+      } as never
+    })
+
+    render(<LocalAgentDirectory />)
+    await userEvent.click(await screen.findByRole('button', { name: '登录' }))
+
+    await waitFor(() =>
+      expect(ipcApi.request).toHaveBeenCalledWith(
+        'ai.local_agents.open_terminal',
+        expect.objectContaining({ presetId: 'trae', login: true })
+      )
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('omits subscription usage from the signed-in Codex settings menu', async () => {
+    navigation.search = { id: 'codex' }
+    publishAgent(localAgent('Codex', { presetId: 'codex' }))
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect') return [{ presetId: 'codex', path: '/test/codex' }] as never
+      if (route === 'ai.local_agents.read_account') {
+        return { status: 'signed-in', account: { displayName: 'Test account' } } as never
+      }
+      return { models: [] } as never
+    })
+
+    render(<LocalAgentDirectory />)
+    await userEvent.click(await screen.findByRole('button', { name: '已登录' }))
+
+    const menu = within(screen.getByRole('menu'))
+    expect(menu.getByRole('menuitem', { name: '重新登录' })).toBeVisible()
+    expect(menu.queryByRole('menuitem', { name: '用量' })).not.toBeInTheDocument()
+  })
+
   it.each([
     { presetId: 'codex', optionLabel: /ChatGPT 账号/, methodId: 'codex-browser' },
     { presetId: 'pi-acp', methodId: 'pi-browser' }
@@ -116,7 +166,7 @@ describe('local agent settings navigation', () => {
           models: [{ id: 'opencode/model', name: 'Native test model' }],
           authMethods: [{ id: 'opencode-login', name: 'Login with opencode', type: 'agent' }]
         } as never
-      if (route === 'ai.local_agents.auth_status') return nativeStatus as never
+      if (route === 'ai.local_agents.read_account') return { status: nativeStatus }
       if (route === 'ai.local_agents.open_terminal') return { success: true } as never
       return { ok: true, protocolInfo: { authMethods: [{ id: 'opencode-login', type: 'agent' }] } } as never
     })
@@ -152,7 +202,7 @@ describe('local agent settings navigation', () => {
         if (failure) throw new Error(failure)
         return { models: [{ id: 'gemini', name: 'Gemini' }], authMethods: methods } as never
       }
-      if (route === 'ai.local_agents.auth_status') return 'unsupported'
+      if (route === 'ai.local_agents.read_account') return { status: 'unsupported' }
       return { protocolInfo: { authMethods: methods } } as never
     })
     render(<LocalAgentDirectory />)
@@ -203,7 +253,7 @@ describe('local agent settings navigation', () => {
     MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', update)
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
       if (route === 'ai.local_agents.detect') return [{ presetId: 'antigravity-acp', path: '/test/agent' }] as never
-      if (route === 'ai.local_agents.auth_status') return 'unsupported'
+      if (route === 'ai.local_agents.read_account') return { status: 'unsupported' }
       if (route === 'ai.local_agents.models') throw new Error('Authentication required')
       return {
         protocolInfo: { authMethods: [{ id: 'gemini-api-key', name: 'Gemini API key', type: 'agent' }] }
@@ -331,28 +381,54 @@ describe('local agent settings navigation', () => {
     await waitFor(() => expect(ipcApi.request).toHaveBeenCalledWith('ai.local_agents.models', expect.anything()))
     expect(screen.getByRole('button', { name: '检查连接' })).toBeEnabled()
     expect(screen.queryByText('请先登录')).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: '刷新' }))
+    await userEvent.click(screen.getByRole('button', { name: '同步模型' }))
     expect(await screen.findByText('请先登录')).toBeVisible()
   })
 
-  it('shows the installed version without checking a connection and offers the discovered upgrade', async () => {
-    vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
-      if (route === 'ai.local_agents.detect')
-        return [{ presetId: 'claude', path: '/usr/local/bin/claude', version: '1.0.0' }] as never
-      if (route === 'ai.local_agents.version') return { current: '1.0.0', latest: '2.0.0', canUpgrade: true } as never
-      if (route === 'ai.local_agents.install') {
-        expect(input).toEqual({ presetId: 'claude', targetVersion: '2.0.0' })
-        return { ok: true, reused: false, path: '/usr/local/bin/claude' } as never
+  it.each([true, false])(
+    'shows the installed version and discovered upgrade without checking a connection (canUpgrade=%s)',
+    async (canUpgrade) => {
+      vi.mocked(ipcApi.request).mockImplementation(async (route, input) => {
+        if (route === 'ai.local_agents.detect')
+          return [{ presetId: 'claude', path: '/usr/local/bin/claude', version: '1.0.0' }] as never
+        if (route === 'ai.local_agents.version') return { current: '1.0.0', latest: '2.0.0', canUpgrade } as never
+        if (route === 'ai.local_agents.install') {
+          expect(input).toEqual({ presetId: 'claude', targetVersion: '2.0.0' })
+          return { ok: true, reused: false, path: '/usr/local/bin/claude' } as never
+        }
+        return { models: [] } as never
+      })
+      render(<LocalAgentDirectory />)
+      expect(await screen.findByText('v1.0.0')).toBeInTheDocument()
+      const upgradeButton = await screen.findByRole('button', { name: '更新到 v2.0.0' })
+      expect(upgradeButton).toHaveTextContent('更新到 v2.0.0')
+      if (!canUpgrade) {
+        expect(upgradeButton).toBeDisabled()
+        return
       }
-      return { models: [] } as never
+      await userEvent.click(upgradeButton)
+      expect(await screen.findByText(/升级成功/)).toBeInTheDocument()
+    }
+  )
+
+  it('shows the incompatible Copilot installation and its available update without offering a second install', async () => {
+    const path = '/usr/local/bin/copilot'
+    const version = { current: '0.0.348', latest: '1.0.116', canUpgrade: false }
+    MockUseCacheUtils.setCacheValue('local_agent.versions', { copilot: { path, ...version } })
+    navigation.search = { id: 'copilot' }
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route === 'ai.local_agents.detect')
+        return [{ presetId: 'copilot', source: 'none', incompatiblePath: path, version: version.current }] as never
+      if (route === 'ai.local_agents.version') return version as never
+      return [] as never
     })
     render(<LocalAgentDirectory />)
-    expect(await screen.findByText('v1.0.0')).toBeInTheDocument()
-    const upgradeButton = await screen.findByRole('button', { name: '升级至 v2.0.0' })
-    await userEvent.hover(upgradeButton)
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('升级至 v2.0.0')
-    await userEvent.click(upgradeButton)
-    expect(await screen.findByText(/升级成功/)).toBeInTheDocument()
+    expect(await screen.findByText('v0.0.348')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'GitHub Copilot · 已安装的 CLI 版本不兼容' })).toBeVisible()
+    expect(screen.getByText('/usr/local/bin/copilot')).toBeVisible()
+    expect(within(screen.getByRole('main')).getByRole('status')).toHaveTextContent('已安装的 CLI 版本不兼容')
+    expect(await screen.findByRole('button', { name: '更新到 v1.0.116' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '安装' })).not.toBeInTheDocument()
   })
 
   it.each([false, true])('keeps navigation usable while an upgrade is pending (fails=%s)', async (fails) => {
@@ -376,7 +452,7 @@ describe('local agent settings navigation', () => {
       return { models: [] } as never
     })
     render(<LocalAgentDirectory />)
-    await user.click(await screen.findByRole('button', { name: '升级至 v2.0.0' }))
+    await user.click(await screen.findByRole('button', { name: '更新到 v2.0.0' }))
     try {
       await user.click(screen.getByRole('button', { name: /^Codex ·/ }))
       await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codex'))
@@ -397,7 +473,7 @@ describe('local agent settings navigation', () => {
       })
       expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Codex')
       await user.click(screen.getByRole('button', { name: /^Claude Code ·/ }))
-      expect(await screen.findByRole('button', { name: '升级至 v2.0.0' })).toBeEnabled()
+      expect(await screen.findByRole('button', { name: '更新到 v2.0.0' })).toBeEnabled()
     } finally {
       finish()
     }
@@ -430,7 +506,7 @@ describe('local agent settings navigation', () => {
     navigation.search = { id: 'cursor' }
     vi.mocked(ipcApi.request).mockImplementation(async (route) => {
       if (route === 'ai.local_agents.detect') return [] as never
-      if (route === 'ai.local_agents.auth_status') return 'signed-out' as never
+      if (route === 'ai.local_agents.read_account') return { status: 'signed-out' }
       if (route === 'ai.local_agents.check') return { ok: true, status: 'ready' } as never
       return { models: [] } as never
     })
@@ -549,11 +625,8 @@ describe('local agent settings navigation', () => {
     )
   })
 
-  it.each([
-    { id: 'antigravity-acp', executable: 'agy', outcome: 'success' },
-    { id: 'antigravity-acp', executable: 'agy', outcome: 'cancel' },
-    { id: 'amp-acp', executable: 'amp', outcome: 'success' }
-  ])('repairs the missing $executable through the Agent installer ($outcome)', async ({ id, executable, outcome }) => {
+  it.each(['success', 'cancel'])('repairs the missing Amp CLI through the Agent installer (%s)', async (outcome) => {
+    const id = 'amp-acp'
     navigation.search = { id }
     vi.mocked(popup.confirm).mockResolvedValueOnce(outcome !== 'cancel')
     const actions: string[] = []
@@ -576,9 +649,7 @@ describe('local agent settings navigation', () => {
       if (outcome === 'success') expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       else expect(screen.getByRole('button', { name: '启动' })).toBeEnabled()
     })
-    expect(popup.confirm).toHaveBeenCalledWith(
-      expect.objectContaining({ content: `${executable}: 未安装`, okText: '安装' })
-    )
+    expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ content: 'amp: 未安装', okText: '安装' }))
     expect(actions).toEqual(outcome === 'success' ? ['install', 'open'] : [])
   })
 

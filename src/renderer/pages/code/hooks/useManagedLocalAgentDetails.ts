@@ -6,10 +6,10 @@ import { useApiGatewayProvider } from '@renderer/hooks/useApiGatewayProvider'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
-import { getGatewayModelGroup, resolveCliConfigApplyContext } from '@renderer/services/codeCliConfig'
+import { resolveCliConfigApplyContext } from '@renderer/services/codeCliConfig'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
-import { getProviderDisplayName } from '@renderer/utils/naming'
+import { getProviderDisplayName, getProviderDisplayNameById } from '@renderer/utils/naming'
 import { CodeCli, GATEWAY_CAPABLE_CLI_TOOLS, isApiGatewayProviderId } from '@shared/types/codeCli'
 
 import { useConfigMetadata } from './useConfigMetadata'
@@ -116,10 +116,9 @@ export function useManagedLocalAgentDetails(selectedCliTool: CodeCli.OPENCLAW | 
         return {
           id: JSON.stringify([provider.id, model.id]),
           name: model.name || model.id,
-          group:
-            (sourceProvider ? getProviderDisplayName(sourceProvider) || undefined : undefined) ??
-            getGatewayModelGroup(model) ??
-            t('models.group.ungrouped'),
+          providerId: model.providerId,
+          apiModelId: model.apiModelId,
+          group: getProviderDisplayName(sourceProvider) || getProviderDisplayNameById(model.providerId),
           source: 'gateway' as const,
           tags: getModelDisplayTags(model, undefined, sourceProvider),
           provider,
@@ -140,7 +139,6 @@ export function useManagedLocalAgentDetails(selectedCliTool: CodeCli.OPENCLAW | 
       loading: isGatewayModelsLoading,
       disabled: providerActionsDisabled,
       loadDisabled: false,
-      showFollowCli: false,
       onLoad: async () => {
         await refreshModels()
       },

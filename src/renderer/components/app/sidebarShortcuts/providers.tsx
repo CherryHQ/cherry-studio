@@ -438,7 +438,7 @@ const localAgentProvider: SidebarShortcutProvider = {
   async resolveMany(targets) {
     const presets = mapRequested(
       targets,
-      LOCAL_AGENT_PRESETS,
+      LOCAL_AGENT_PRESETS.filter((preset) => !preset.retired),
       (preset) => preset.id,
       (preset) => ({
         label: preset.name,

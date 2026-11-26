@@ -18,7 +18,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { cursorLoginMethod } from '@cherrystudio/agent-runtime-cursor/cli'
+import type { CliAuthOption } from '@cherrystudio/agent-runtime/cli'
 import {
   Badge,
   Button,
@@ -29,6 +29,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
   Input,
   Label
@@ -38,7 +39,6 @@ import { toast } from '@renderer/services/toast'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import {
   getLocalAgentPreset,
-  type CliAuthOption,
   type LocalAgentAuthMethod,
   type LocalAgentConfiguration,
   type LocalAgentModelCatalog
@@ -47,10 +47,21 @@ import type { OutputFor } from '@shared/ipc/types'
 
 const loginIcons = { browser: CircleUserRound, enterprise: Building2, 'api-key': KeyRound, cloud: Cloud }
 
-const cachedAuthStatus = new Map<string, OutputFor<'ai.local_agents.auth_status'>>()
+type AccountResult = OutputFor<'ai.local_agents.read_account'>
+const cachedAccounts = new Map<string, AccountResult>()
 
 export function clearLocalAgentAuthStatusCache(): void {
-  cachedAuthStatus.clear()
+  cachedAccounts.clear()
+}
+
+function accountSignature(config: LocalAgentConfiguration) {
+  return JSON.stringify({
+    presetId: config.presetId,
+    executableOverride: config.executableOverride,
+    args: config.args,
+    env: config.env,
+    enabled: true
+  })
 }
 
 export function LocalAgentLogin({
@@ -64,6 +75,7 @@ export function LocalAgentLogin({
   disabled,
   helpUrl,
   onTerminalLogin,
+  onConfigureCredentials,
   onAuthenticated
 }: {
   config: LocalAgentConfiguration
@@ -76,24 +88,18 @@ export function LocalAgentLogin({
   disabled: boolean
   helpUrl?: string
   onTerminalLogin?: (provider?: string) => Promise<void>
+  onConfigureCredentials?: () => void
   onAuthenticated: (config: LocalAgentConfiguration) => Promise<void>
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [discovered, setDiscovered] = useState<{ signature: string; methods: LocalAgentAuthMethod[] }>()
-  const signature = JSON.stringify({
-    presetId: config.presetId,
-    executableOverride: config.executableOverride,
-    args: config.args,
-    env: config.env,
-    enabled: true
-  })
+  const signature = accountSignature(config)
   const preset = getLocalAgentPreset(config.presetId)
-  const sdk = preset?.protocol === 'cursor'
-  const methods: LocalAgentAuthMethod[] | undefined = sdk
-    ? [cursorLoginMethod]
-    : (authMethods ?? (discovered?.signature === signature ? discovered.methods : undefined))
+  const account = preset?.account
+  const methods: readonly LocalAgentAuthMethod[] | undefined =
+    account?.methods ?? authMethods ?? (discovered?.signature === signature ? discovered.methods : undefined)
   const methodNames: Record<string, Record<string, string>> = {
     'codebuddy-code': {
       iOA: 'iOA',
@@ -101,65 +107,83 @@ export function LocalAgentLogin({
       internal: t('agent.channels.wechat.title'),
       selfhosted: t('local_agents.auth_enterprise_domain')
     },
-    cursor: { [cursorLoginMethod.id]: `Cursor · ${t('local_agents.sign_in')}` },
     opencode: { 'opencode-login': `OpenCode · ${t('local_agents.sign_in')}` },
     kilo: { 'kilo-login': `Kilo · ${t('local_agents.sign_in')}` },
     hermes: { custom: t('local_agents.auth_runtime_credentials') }
   }
-  const loginMethod = (id: string | undefined) => preset?.auth?.methods.find((method) => method.id === id)
+  const loginMethod = (id: string | undefined) =>
+    account?.methods?.find((method) => method.id === id) ?? preset?.auth?.methods.find((method) => method.id === id)
   const usableMethods = methods
     ?.filter((method) => method.type === 'agent' && !preset?.externalCredentialMethods?.includes(method.id))
     .map((method) => {
       const declared = loginMethod(method.id)
-      const name = declared?.form === 'api-key' ? `${declared.name} ${t('settings.models.api_key')}` : declared?.name
+      const name =
+        declared?.form === 'api-key'
+          ? `${declared.name} ${t('settings.models.api_key')}`
+          : declared && 'clearEnv' in declared
+            ? `${declared.name} · ${t('local_agents.sign_in')}`
+            : declared?.name
       return { ...method, name: name ?? methodNames[config.presetId ?? '']?.[method.id] ?? method.name }
     })
-  const cliOptions = !usableMethods?.length ? preset?.cliLogin : undefined
+  const cliOptions = preset?.cliLogin
   const providerLogin = !usableMethods?.length ? preset?.providerLogin : undefined
   const hasCliLoginFlow = Boolean(cliOptions?.length || providerLogin)
   const canAuthenticate = Boolean(usableMethods?.length || hasCliLoginFlow)
   const [provider, setProvider] = useState('')
-  const [authStatus, setAuthStatus] = useState<{
+  const [accountRead, setAccountRead] = useState<{
     signature: string
-    status: OutputFor<'ai.local_agents.auth_status'>
+    result: AccountResult
   }>()
   const authFailed = !!authenticationError && classifyLocalAgentError(authenticationError).kind === 'authentication'
-  const hasNativeStatus = sdk || !!preset?.authStatusArgs
-  const currentStatus = authStatus?.signature === signature ? authStatus.status : cachedAuthStatus.get(signature)
-  const status = authFailed && !hasNativeStatus ? 'signed-out' : (currentStatus ?? 'unknown')
+  const canReadAccount = account?.canReadAccount || !!preset?.accountProbe
+  const currentAccount = accountRead?.signature === signature ? accountRead.result : cachedAccounts.get(signature)
+  const status = authFailed && !canReadAccount ? 'signed-out' : (currentAccount?.status ?? 'unknown')
   const signedIn = status === 'signed-in'
+  const identity = signedIn && currentAccount?.status === 'signed-in' ? currentAccount.account : undefined
+  const accountLabel = identity?.email || identity?.displayName || identity?.id
   const needsLogin = !signedIn
   const sessionRequiresLogin = preset?.auth?.catalogRequiresLogin && !config.executableOverride && !config.args.length
 
   useEffect(() => {
-    if (sessionRequiresLogin && freshCatalog) {
-      cachedAuthStatus.set(signature, 'signed-in')
-      setAuthStatus({ signature, status: 'signed-in' })
+    if (!canReadAccount && sessionRequiresLogin && freshCatalog) {
+      const result = { status: 'signed-in' } as const
+      cachedAccounts.set(signature, result)
+      setAccountRead({ signature, result })
     }
-  }, [sessionRequiresLogin, freshCatalog, signature])
+  }, [canReadAccount, sessionRequiresLogin, freshCatalog, signature])
   useEffect(() => {
-    if (sessionRequiresLogin && authFailed) {
-      cachedAuthStatus.set(signature, 'signed-out')
-      setAuthStatus({ signature, status: 'signed-out' })
+    if (!canReadAccount && sessionRequiresLogin && authFailed) {
+      const result = { status: 'signed-out' } as const
+      cachedAccounts.set(signature, result)
+      setAccountRead({ signature, result })
     }
-  }, [sessionRequiresLogin, authFailed, signature])
+  }, [canReadAccount, sessionRequiresLogin, authFailed, signature])
 
   useEffect(() => {
     if (!available || busy) return
     let active = true
     let pending = false
+    let refreshRequested = false
     const refresh = async () => {
-      if (!hasNativeStatus || pending) return
-      pending = true
-      const nextStatus = await ipcApi
-        .request('ai.local_agents.auth_status', JSON.parse(signature))
-        .catch(() => 'unknown' as const)
-      if (active) {
-        if (nextStatus === 'signed-in' || nextStatus === 'signed-out') cachedAuthStatus.set(signature, nextStatus)
-        else cachedAuthStatus.delete(signature)
-        setAuthStatus({ signature, status: nextStatus })
+      if (!canReadAccount) return
+      if (pending) {
+        refreshRequested = true
+        return
       }
+      pending = true
+      const result = await ipcApi
+        .request('ai.local_agents.read_account', JSON.parse(signature))
+        .catch(() => ({ status: 'unknown' as const }))
       pending = false
+      if (!active) return
+      if (refreshRequested) {
+        refreshRequested = false
+        void refresh()
+        return
+      }
+      if (result.status === 'signed-in' || result.status === 'signed-out') cachedAccounts.set(signature, result)
+      else cachedAccounts.delete(signature)
+      setAccountRead({ signature, result })
     }
     void refresh()
     const onFocus = () => {
@@ -171,7 +195,7 @@ export function LocalAgentLogin({
       active = false
       window.removeEventListener('focus', onFocus)
     }
-  }, [available, hasNativeStatus, busy, signature, authenticationError, onRefresh])
+  }, [available, canReadAccount, busy, signature, authenticationError, onRefresh])
   useEffect(() => {
     if (!available || modelsLoading || authMethods !== undefined) return
     let active = true
@@ -191,6 +215,7 @@ export function LocalAgentLogin({
   const [project, setProject] = useState('')
   const [location, setLocation] = useState('')
   const [authPrompt, setAuthPrompt] = useState<{ url?: string; code?: string }>()
+  const [authConsent, setAuthConsent] = useState<{ id: string; url: string; message: string }>()
   const [copiedCode, setCopiedCode] = useState(false)
   const form = loginMethod(method)?.form
   const needsKey = form === 'api-key' || cliOptions?.find((option) => option.id === method)?.kind === 'api-key'
@@ -210,6 +235,12 @@ export function LocalAgentLogin({
     }))
   })
 
+  useIpcOn('ai.local_agents.auth_consent', ({ requestId, promptId, prompt }) => {
+    if (requestId !== request.current) return
+    if (prompt) setAuthConsent({ id: promptId, ...prompt })
+    else setAuthConsent((current) => (current?.id === promptId ? undefined : current))
+  })
+
   const clearCopyState = useCallback(() => {
     if (copyTimer.current) {
       clearTimeout(copyTimer.current)
@@ -223,6 +254,7 @@ export function LocalAgentLogin({
     const requestId = request.current
     request.current = undefined
     setAuthPrompt(undefined)
+    setAuthConsent(undefined)
     clearCopyState()
     if (requestId) void ipcApi.request('ai.local_agents.cancel_auth', { requestId }).catch(() => undefined)
   }, [clearCopyState])
@@ -253,6 +285,16 @@ export function LocalAgentLogin({
           ? t('error.request_timeout')
           : message
     )
+  }
+
+  const respondToBrowserConsent = (decision: 'accept' | 'decline') => {
+    const requestId = request.current
+    if (!requestId || !authConsent) return
+    void ipcApi
+      .request('ai.local_agents.respond_auth_consent', { requestId, promptId: authConsent.id, decision })
+      .catch((failure) => {
+        if (request.current === requestId) showError(failure)
+      })
   }
 
   const chooseMethod = (methodId: string) => {
@@ -286,7 +328,10 @@ export function LocalAgentLogin({
     let cliProvider: string | undefined
 
     const native = loginMethod(methodId)
-    if (native?.form === 'api-key') {
+    const method = account?.methods?.find((entry) => entry.id === methodId)
+    if (method?.form === 'browser') {
+      for (const key of method.clearEnv ?? []) delete nextConfig.env[key]
+    } else if (native?.form === 'api-key') {
       if (!apiKey.trim()) return
       nextConfig.env[native.apiKey] = apiKey.trim()
     } else if (native?.form === 'cloud') {
@@ -312,6 +357,7 @@ export function LocalAgentLogin({
     const requestId = crypto.randomUUID()
     request.current = requestId
     setAuthPrompt(undefined)
+    setAuthConsent(undefined)
     clearCopyState()
     setBusy(true)
     setError(undefined)
@@ -327,23 +373,28 @@ export function LocalAgentLogin({
       request.current = undefined
       await onAuthenticated(nextConfig)
       if (generation.current !== current) return
-      if (sessionRequiresLogin || sdk) {
-        cachedAuthStatus.set(signature, 'signed-in')
-        setAuthStatus({ signature, status: 'signed-in' })
+      cachedAccounts.delete(signature)
+      if (canReadAccount) setAccountRead(undefined)
+      else {
+        const verifiedSignature = accountSignature(nextConfig)
+        const result = { status: 'signed-in' } as const
+        cachedAccounts.set(verifiedSignature, result)
+        setAccountRead({ signature: verifiedSignature, result })
       }
       setApiKey('')
       setMethod(undefined)
       setOpen(false)
     } catch (failure) {
       if (generation.current === current) {
-        cachedAuthStatus.delete(signature)
-        setAuthStatus(undefined)
+        cachedAccounts.delete(signature)
+        setAccountRead(undefined)
         showError(failure)
       }
     } finally {
       if (generation.current === current) {
         request.current = undefined
         setAuthPrompt(undefined)
+        setAuthConsent(undefined)
         clearCopyState()
         setBusy(false)
       }
@@ -393,7 +444,7 @@ export function LocalAgentLogin({
   if (!available) return null
   if (
     !open &&
-    ((hasNativeStatus && currentStatus === undefined) ||
+    ((canReadAccount && currentAccount === undefined) ||
       (sessionRequiresLogin && status === 'unknown' && modelsLoading))
   ) {
     return (
@@ -403,7 +454,7 @@ export function LocalAgentLogin({
       </Badge>
     )
   }
-  if (!canAuthenticate && !onTerminalLogin) {
+  if (!canAuthenticate && !onTerminalLogin && !onConfigureCredentials) {
     return signedIn ? (
       <Badge variant="outline" role="status" className="h-8 gap-1.5 rounded-lg border-border-subtle px-2.5 text-xs">
         <CheckCircle2 className="size-3.5 text-muted-foreground" />
@@ -412,8 +463,16 @@ export function LocalAgentLogin({
     ) : null
   }
   const triggerLogin = () => {
-    if (!canAuthenticate && onTerminalLogin) void terminalLogin()
-    else if (needsLogin && usableMethods?.length === 1) chooseMethod(usableMethods[0].id)
+    if (!canAuthenticate && onTerminalLogin && !onConfigureCredentials) void terminalLogin()
+    else if (!canAuthenticate && !onTerminalLogin && onConfigureCredentials) onConfigureCredentials()
+    else if (
+      needsLogin &&
+      usableMethods?.length === 1 &&
+      !cliOptions?.length &&
+      !onTerminalLogin &&
+      !onConfigureCredentials
+    )
+      chooseMethod(usableMethods[0].id)
     else {
       setError(undefined)
       setOpen(true)
@@ -421,8 +480,9 @@ export function LocalAgentLogin({
   }
 
   const activeCliOption = cliOptions?.find((entry) => entry.id === method)
+  const loginAgentName = preset?.name ?? config.executableOverride
   const dialogTitle =
-    (!method && preset?.auth ? `${preset.name} · ` : '') +
+    (loginAgentName && (authConsent || (!method && preset?.auth)) ? `${loginAgentName} · ` : '') +
     (usableMethods?.find((entry) => entry.id === method)?.name ??
       (activeCliOption ? t(activeCliOption.nameKey) : undefined) ??
       t(needsLogin ? 'local_agents.sign_in' : 'local_agents.reauthenticate'))
@@ -436,6 +496,7 @@ export function LocalAgentLogin({
               variant="outline"
               size="sm"
               className="h-8 shrink-0 gap-1.5 rounded-lg border-border-subtle text-xs shadow-none"
+              title={accountLabel}
               disabled={disabled || busy}>
               <CheckCircle2 className="size-3.5 text-muted-foreground" />
               {t('local_agents.signed_in')}
@@ -443,6 +504,20 @@ export function LocalAgentLogin({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {(accountLabel || identity?.workspace?.name) && (
+              <DropdownMenuLabel className="max-w-72">
+                {accountLabel && (
+                  <div className="truncate" title={accountLabel}>
+                    {accountLabel}
+                  </div>
+                )}
+                {identity?.workspace?.name && (
+                  <div className="truncate text-xs text-muted-foreground" title={identity.workspace.name}>
+                    {identity.workspace.name}
+                  </div>
+                )}
+              </DropdownMenuLabel>
+            )}
             <DropdownMenuItem disabled={disabled || busy} onSelect={triggerLogin}>
               <LogIn className="size-3.5" />
               {t('local_agents.reauthenticate')}
@@ -472,14 +547,36 @@ export function LocalAgentLogin({
           </DialogHeader>
           {busy ? (
             <div className="space-y-4">
-              <p role="status" className="flex items-start gap-2.5 text-sm leading-relaxed text-muted-foreground">
-                <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
-                <span>
-                  {t(
-                    activeFlowKind.current === 'cli' ? 'local_agents.auth_waiting_browser' : 'local_agents.auth_waiting'
-                  )}
-                </span>
-              </p>
+              {authConsent ? (
+                <div className="space-y-2">
+                  <p role="status" className="select-text break-words text-sm">
+                    {authConsent.message}
+                  </p>
+                  <p className="select-all break-all text-xs text-muted-foreground">{authConsent.url}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => respondToBrowserConsent('accept')}>
+                      <ExternalLink className="size-4" />
+                      {t('local_agents.auth_open_browser')}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => respondToBrowserConsent('decline')}>
+                      {t('common.decline')}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p role="status" className="flex items-start gap-2.5 text-sm leading-relaxed text-muted-foreground">
+                  <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
+                  <span>
+                    {account && needsKey
+                      ? t('common.loading')
+                      : t(
+                          activeFlowKind.current === 'cli'
+                            ? 'local_agents.auth_waiting_browser'
+                            : 'local_agents.auth_waiting'
+                        )}
+                  </span>
+                </p>
+              )}
               {authPrompt?.code && (
                 <div className="rounded-lg border border-border-subtle bg-muted/40 p-3">
                   <div className="mb-1.5 text-xs text-muted-foreground">{t('local_agents.auth_device_code_label')}</div>
@@ -599,9 +696,9 @@ export function LocalAgentLogin({
                 <p className="text-sm leading-relaxed text-muted-foreground">{t('local_agents.auth_business_hint')}</p>
               )}
             </form>
-          ) : cliOptions?.length ? (
+          ) : (
             <div className="flex flex-col gap-2">
-              {cliOptions.map((option) => (
+              {cliOptions?.map((option) => (
                 <Button
                   key={option.id}
                   variant="outline"
@@ -619,7 +716,9 @@ export function LocalAgentLogin({
                         </Badge>
                       )}
                     </span>
-                    <span className="block text-xs font-normal text-muted-foreground">{t(option.hintKey)}</span>
+                    {option.hintKey && (
+                      <span className="block text-xs font-normal text-muted-foreground">{t(option.hintKey)}</span>
+                    )}
                   </span>
                   <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                 </Button>
@@ -634,9 +733,6 @@ export function LocalAgentLogin({
                   <span>{t('local_agents.auth_opencode_terminal')}</span>
                 </Button>
               )}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
               {usableMethods?.map((methodItem) => {
                 const method = loginMethod(methodItem.id)
                 const Icon = method ? loginIcons[method.form] : LogIn
@@ -656,7 +752,18 @@ export function LocalAgentLogin({
               })}
               {!canAuthenticate && onTerminalLogin && (
                 <Button variant="outline" onClick={() => void terminalLogin()}>
-                  {t('local_agents.sign_in')}
+                  {t('local_agents.auth_terminal_fallback')}
+                </Button>
+              )}
+              {onConfigureCredentials && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setOpen(false)
+                    onConfigureCredentials()
+                  }}>
+                  <KeyRound className="size-4" />
+                  {t('settings.models.api_key')}
                 </Button>
               )}
             </div>
@@ -688,7 +795,7 @@ export function LocalAgentLogin({
                 </a>
               </Button>
             )}
-            {onTerminalLogin && hasCliLoginFlow && !method && (busy || config.presetId !== 'opencode') && (
+            {onTerminalLogin && canAuthenticate && !method && (busy || config.presetId !== 'opencode') && (
               <Button
                 variant="ghost"
                 size="sm"

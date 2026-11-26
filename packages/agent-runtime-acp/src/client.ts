@@ -1,7 +1,9 @@
 import {
   client,
+  CreateElicitationRequest,
   methods,
   PROTOCOL_VERSION,
+  RequestError,
   type ClientRequestContext,
   type InitializeRequest,
   type InitializeResponse,
@@ -15,6 +17,8 @@ import {
   type Stream
 } from '@agentclientprotocol/sdk'
 import * as z from 'zod'
+
+import type { RuntimeLoginHost } from '@cherrystudio/agent-runtime'
 
 import type {
   AcpAccountReader,
@@ -31,7 +35,14 @@ type WireMessage = Stream['readable'] extends ReadableStream<infer Message> ? Me
 
 const legacyModelsSchema = z.object({
   currentModelId: z.string(),
-  availableModels: z.array(z.object({ modelId: z.string(), name: z.string() }))
+  availableModels: z.array(
+    z.object({
+      modelId: z.string(),
+      name: z.string(),
+      description: z.string().nullish().catch(undefined),
+      _meta: z.record(z.string(), z.unknown()).nullish().catch(undefined)
+    })
+  )
 })
 
 export interface AcpClientOptions {
@@ -40,6 +51,7 @@ export interface AcpClientOptions {
   /** Reject unsolicited host writes and terminal creation when the host advertises read-only access. */
   denyMutation?(sessionId: string): Error
   callbacks: AcpClientCallbacks
+  confirmLoginInBrowser?: RuntimeLoginHost['confirmBrowser']
   update(notification: SessionNotification): void
   nativeTurn?(event: AcpNativeTurn): void
   harness?: AcpHarnessAdapter
@@ -47,7 +59,8 @@ export interface AcpClientOptions {
 
 /** One reader for the supplied stream. Live notifications and prompt responses are delivered without retaining history. */
 export function connectAcpClient(stream: Stream, options: AcpClientOptions) {
-  const { callbacks, harness, denyMutation } = options
+  const { callbacks, confirmLoginInBrowser, harness, denyMutation } = options
+  let authenticating = false
   const orderedNotifications = new Map<string, (params: unknown) => void>()
   let pendingUpdates = 0
   let flushedUpdates: PromiseWithResolvers<void> | undefined
@@ -78,7 +91,19 @@ export function connectAcpClient(stream: Stream, options: AcpClientOptions) {
       return run(params, { signal })
     }
   }
-  if (callbacks.elicitation) app.onRequest(methods.client.elicitation.create, callback(callbacks.elicitation))
+  if (callbacks.elicitation || confirmLoginInBrowser) {
+    app.onRequest(methods.client.elicitation.create, async ({ params, signal }) => {
+      if (CreateElicitationRequest.isUrl(params)) {
+        if (!confirmLoginInBrowser || !authenticating || !('requestId' in params))
+          throw RequestError.invalidParams('URL elicitation requires an active login request')
+        const action = await confirmLoginInBrowser({ url: params.url, message: params.message }, signal)
+        return { action }
+      }
+      if (callbacks.elicitation && CreateElicitationRequest.isForm(params))
+        return callbacks.elicitation(params, { signal })
+      throw RequestError.invalidParams('Unsupported elicitation mode')
+    })
+  }
   if (callbacks.readTextFile) app.onRequest(methods.client.fs.readTextFile, callback(callbacks.readTextFile))
   if (callbacks.writeTextFile) app.onRequest(methods.client.fs.writeTextFile, mutation(callbacks.writeTextFile))
   if (callbacks.terminal) {
@@ -141,7 +166,9 @@ export function connectAcpClient(stream: Stream, options: AcpClientOptions) {
         clientCapabilities: {
           fs: { readTextFile: !!callbacks.readTextFile, writeTextFile: !!callbacks.writeTextFile && !denyMutation },
           terminal: !!callbacks.terminal && !denyMutation,
-          ...(callbacks.elicitation && { elicitation: { form: {} } }),
+          ...((callbacks.elicitation || confirmLoginInBrowser) && {
+            elicitation: { ...(callbacks.elicitation && { form: {} }), ...(confirmLoginInBrowser && { url: {} }) }
+          }),
           ...(options.sessionCapabilities && { session: options.sessionCapabilities })
         }
       })
@@ -195,7 +222,13 @@ export function connectAcpClient(stream: Stream, options: AcpClientOptions) {
         readSubscriptionUsage: (read: AcpSubscriptionUsageReader, target: Parameters<AcpSubscriptionUsageReader>[2]) =>
           read(agent, response, target),
         async authenticate(methodId: string) {
-          await agent.request(methods.agent.authenticate, { methodId })
+          if (authenticating) throw new Error('ACP authentication is already running')
+          authenticating = true
+          try {
+            await agent.request(methods.agent.authenticate, { methodId })
+          } finally {
+            authenticating = false
+          }
         },
         async create(config: NewSessionRequest) {
           const configuration = await agent.request(methods.agent.session.new, config)
@@ -247,13 +280,24 @@ export function acpModelCatalog(options: AcpSessionConfiguration['configOptions'
       activeModel: { id: model.currentValue },
       models: model.options
         .flatMap((option) => ('group' in option ? option.options : [option]))
-        .map(({ value, name }) => ({ id: value, name }))
+        .map(({ value, name, description, _meta }) => ({
+          id: value,
+          name,
+          ...(description != null && { description }),
+          ...(_meta != null && { _meta })
+        }))
     }
   }
   return {
     configId: undefined,
     activeModel: legacy ? { id: legacy.currentModelId } : undefined,
-    models: legacy?.availableModels.map(({ modelId, name }) => ({ id: modelId, name })) ?? []
+    models:
+      legacy?.availableModels.map(({ modelId, name, description, _meta }) => ({
+        id: modelId,
+        name,
+        ...(description != null && { description }),
+        ...(_meta != null && { _meta })
+      })) ?? []
   }
 }
 

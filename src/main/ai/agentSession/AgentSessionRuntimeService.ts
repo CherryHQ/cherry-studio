@@ -4376,6 +4376,13 @@ export class AgentSessionRuntimeService extends BaseService {
     if (entry?.agentType === 'local' && !entry.closing) return this.currentConnection(entry)
   }
 
+  async selectLocalSessionModel(sessionId: string, modelId: string) {
+    const connection = this.localOptionConnection(sessionId)
+    if (!connection?.selectModel || this.isSessionBusy(sessionId))
+      throw new Error('Local agent session is unavailable or busy')
+    return connection.selectModel(modelId)
+  }
+
   async setLocalConfigOption(sessionId: string, configId: string, value: string | boolean) {
     const connection = this.localOptionConnection(sessionId)
     if (!connection?.setConfigOption || this.isSessionBusy(sessionId))

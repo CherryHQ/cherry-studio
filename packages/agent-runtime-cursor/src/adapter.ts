@@ -37,6 +37,7 @@ export async function listCursorModels(
     return {
       id: model.id,
       name: model.displayName || model.id,
+      ...(model.description && { description: model.description }),
       ...(effort && { effort: { options: effort.options, defaultValue: effort.defaultValue } })
     }
   })

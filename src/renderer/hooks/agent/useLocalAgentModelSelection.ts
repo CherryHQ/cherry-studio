@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 
+import { CURSOR_AUTO_MODEL_ID, cursorPreset, resolveCursorModelId } from '@cherrystudio/agent-runtime-cursor/cli'
 import { usePreference } from '@data/hooks/usePreference'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useApiGatewayProvider } from '@renderer/hooks/useApiGatewayProvider'
@@ -8,8 +9,6 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import {
   CLI_TOOL_PROVIDER_MAP,
-  gatewayExpectedModel,
-  getGatewayModelGroup,
   getGatewayProviderIds,
   isCliGatewayModel,
   extractConfigFromCliConfigDraft,
@@ -18,24 +17,22 @@ import {
   stripClaudeDetailedModels,
   prepareCliModelConfig
 } from '@renderer/services/codeCliConfig'
-import { getModelDisplayTags, type ModelDisplayTag } from '@renderer/utils/model'
-import { getProviderDisplayName } from '@renderer/utils/naming'
+import { getModelDisplayCapabilityTags, getModelDisplayTags, type ModelDisplayTag } from '@renderer/utils/model'
+import { getProviderDisplayName, getProviderDisplayNameById } from '@renderer/utils/naming'
 import type { LocalAgentConfiguration, LocalAgentModelCatalog } from '@shared/ai/localAgent'
 import { getLocalAgentModelStorage } from '@shared/ai/localAgentModel'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli, DEEPSEEK_HARNESS_GATEWAY_ROUTE } from '@shared/types/codeCli'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
 export type LocalAgentModelOption = LocalAgentModelCatalog['models'][number] & {
   group?: string
+  providerId?: string
+  apiModelId?: string
   source?: 'native' | 'gateway'
   tags?: readonly ModelDisplayTag[]
 }
-
-export const LOCAL_AGENT_MODEL_SOURCE_LABELS = {
-  native: 'local_agents.model_sources.native',
-  gateway: 'local_agents.model_sources.gateway'
-} as const
 
 const GATEWAY_MODEL_PREFIX = 'gateway-model:'
 
@@ -43,15 +40,18 @@ export type LocalAgentModelSourceRestrictions = Partial<Record<'native' | 'gatew
 
 export function useLocalAgentModelSelection(
   config: LocalAgentConfiguration | undefined,
-  nativeModels: LocalAgentModelCatalog['models'],
-  activeDshModelId?: string
+  nativeModels: LocalAgentModelCatalog['models']
 ) {
   const { t } = useTranslation()
   const { updateNativeModel } = useUpdateAgent()
   const gateway = useApiGatewayProvider()
   const storage = getLocalAgentModelStorage(config?.presetId)
   const native = storage?.type === 'cli' ? storage : undefined
+  const isCursor = config?.presetId === cursorPreset.id
   const isDeepSeekHarness = config?.presetId === CodeCli.DEEPSEEK_HARNESS
+  const followCliLabel = isCursor
+    ? undefined
+    : t(native?.nativeSelection === 'agent' ? 'local_agents.follow_native_model_config' : 'local_agents.follow_cli')
   const managedDeepSeekHarness = isDeepSeekHarness && !config?.env.DSH_HOME
   const [cliConfigs] = usePreference('feature.code_cli.configs')
   const dshState = managedDeepSeekHarness ? cliConfigs?.[CodeCli.DEEPSEEK_HARNESS] : undefined
@@ -76,62 +76,71 @@ export function useLocalAgentModelSelection(
     gateway && (managedDeepSeekHarness || (native && CLI_TOOL_PROVIDER_MAP[native.tool]([gateway.provider]).length))
       ? models.filter((model) => isCliGatewayModel(gatewayProviders, model))
       : []
-  const activeGatewayModel = activeDshModelId
-    ? gatewayModels.find(
-        (model) =>
-          JSON.stringify([DEEPSEEK_HARNESS_GATEWAY_ROUTE, gatewayExpectedModel(model.id, model.apiModelId)]) ===
-          activeDshModelId
-      )
-    : undefined
-  const dshGatewayModelId = activeDshModelId
-    ? activeGatewayModel?.id
-    : dshState?.current === CLI_API_GATEWAY_PROVIDER_ID
+  const gatewayModelId = isDeepSeekHarness
+    ? !config?.nativeModel && dshState?.current === CLI_API_GATEWAY_PROVIDER_ID
       ? dshModelId
       : undefined
-  const gatewayModelId = isDeepSeekHarness
-    ? dshGatewayModelId
     : config?.sourceModelViaGateway
       ? config.sourceModelId
       : undefined
-  const nativeModel = isDeepSeekHarness ? undefined : config?.nativeModel
+  const nativeModel = isCursor ? resolveCursorModelId(config?.nativeModel) : config?.nativeModel
+  const cursorAuto = isCursor
+    ? nativeModels.find((model) => resolveCursorModelId(model.id) === CURSOR_AUTO_MODEL_ID)
+    : undefined
   const options: LocalAgentModelOption[] = [
-    ...(isDeepSeekHarness ? [] : nativeModels)
+    ...nativeModels
+      .filter((model) => !isCursor || resolveCursorModelId(model.id) !== CURSOR_AUTO_MODEL_ID)
       .filter((model) => !gatewayModelId || model.id !== nativeModel)
-      .map((model) => ({ ...model, source: 'native' as const })),
+      .map((model) => {
+        const tags: ModelDisplayTag[] = model.registryModel ? getModelDisplayCapabilityTags(model.registryModel) : []
+        if (/free/i.test(`${model.id} ${model.name}`)) tags.push('free')
+        return { ...model, source: 'native' as const, tags }
+      }),
     ...gatewayModels.map((model) => {
       const sourceProvider = providerById.get(model.providerId)
       return {
         id: `${GATEWAY_MODEL_PREFIX}${model.id}`,
         name: model.name,
-        group:
-          (sourceProvider ? getProviderDisplayName(sourceProvider) || undefined : undefined) ??
-          getGatewayModelGroup(model) ??
-          t('models.group.ungrouped'),
+        providerId: model.providerId,
+        apiModelId: model.apiModelId,
+        group: getProviderDisplayName(sourceProvider) || getProviderDisplayNameById(model.providerId),
         source: 'gateway' as const,
         tags: getModelDisplayTags(model, undefined, sourceProvider)
       }
     })
   ]
+  if (isCursor) {
+    options.unshift({
+      ...cursorAuto,
+      id: CURSOR_AUTO_MODEL_ID,
+      name: t('local_agents.cursor_auto_model'),
+      source: 'native'
+    })
+  }
   const value = gatewayModelId ? `${GATEWAY_MODEL_PREFIX}${gatewayModelId}` : nativeModel
-  const dshModelName = activeDshModelId
-    ? activeGatewayModel?.name
-    : dshModelId && (models.find((model) => model.id === dshModelId)?.name || dshModelId)
   if (value && !options.some((model) => model.id === value)) {
+    const providerId = isUniqueModelId(gatewayModelId) ? parseUniqueModelId(gatewayModelId).providerId : undefined
     options.unshift({
       id: value,
-      name: dshModelName ?? nativeModel ?? value,
-      group: gatewayModelId ? t('models.group.ungrouped') : undefined,
+      name: (gatewayModelId && models.find((model) => model.id === gatewayModelId)?.name) || nativeModel || value,
+      providerId,
+      group: providerId
+        ? getProviderDisplayName(providerById.get(providerId)) || getProviderDisplayNameById(providerId)
+        : undefined,
       source: gatewayModelId ? 'gateway' : 'native'
     })
   }
   const select = async (agent: AgentEntity, id?: string) => {
     const model = gatewayModels.find((model) => `${GATEWAY_MODEL_PREFIX}${model.id}` === id)
-    if (managedDeepSeekHarness) {
-      if (!model) throw new Error(t('local_agents.models_unavailable'))
+    if (managedDeepSeekHarness && model) {
       await ipcApi.request('deepseek_harness.select_gateway_model', { uniqueModelId: model.id })
-      return agent
+      return config?.nativeModel ? updateNativeModel(agent.id) : agent
     }
-    if (storage?.type === 'agent') {
+    if (isCursor && id === CURSOR_AUTO_MODEL_ID) return updateNativeModel(agent.id)
+    if (
+      storage?.type === 'agent' ||
+      (native?.nativeSelection === 'agent' && !agent.configuration?.localRuntime?.sourceModelId && !model)
+    ) {
       if (id && !nativeModels.some((model) => model.id === id)) throw new Error(t('local_agents.models_unavailable'))
       return updateNativeModel(agent.id, id)
     }
@@ -169,9 +178,9 @@ export function useLocalAgentModelSelection(
   return {
     models: options,
     value,
+    followCliLabel,
     select,
     sourceRestrictions,
-    dshModelName,
     gatewayLoading: modelsLoading || providersLoading
   }
 }

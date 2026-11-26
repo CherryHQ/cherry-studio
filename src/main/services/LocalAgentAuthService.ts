@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto'
+
 import { shell } from 'electron'
 
 import { application } from '@application'
-import type { RuntimeLoginRequest, SubscriptionUsageResult } from '@cherrystudio/agent-runtime'
+import type { RuntimeLoginHost, RuntimeLoginRequest, SubscriptionUsageResult } from '@cherrystudio/agent-runtime'
 import { agentService } from '@data/services/AgentService'
 import { resolveLocalRuntimeAccount } from '@main/ai/runtime/LocalRuntimeDriver'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -10,6 +12,11 @@ import type { WindowId } from '@shared/ipc/types'
 import { isSensitiveKey, redactLiteral } from '@shared/utils/redaction'
 
 const AUTH_TIMEOUT_MS = 300_000
+type BrowserDecision = Awaited<ReturnType<NonNullable<RuntimeLoginHost['confirmBrowser']>>>
+type AuthAttempt = {
+  cancel(): Promise<void>
+  consent?: { id: string; resolve(decision: BrowserDecision): void }
+}
 
 function redactAuthMessage(message: string, config: LocalAgentConfiguration, secret?: string): string {
   let sanitized = message
@@ -27,7 +34,7 @@ export class LocalAgentAuthService extends BaseService {
   private readonly shutdown = new AbortController()
   private readonly usageRequests = new Map<string, Promise<SubscriptionUsageResult>>()
   private accountGeneration = 0
-  private readonly pending = new Map<string, () => Promise<void>>()
+  private readonly pending = new Map<string, AuthAttempt>()
 
   async authenticate(
     requestId: string,
@@ -42,11 +49,14 @@ export class LocalAgentAuthService extends BaseService {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(new Error('Authentication timed out')), AUTH_TIMEOUT_MS)
     this.accountGeneration++
-    const work = this.run(senderId, requestId, config, { methodId, ...options }, controller.signal)
-    this.pending.set(key, async () => {
-      controller.abort(new Error('Authentication cancelled'))
-      await work.catch(() => {})
-    })
+    const attempt: AuthAttempt = {
+      async cancel() {
+        controller.abort(new Error('Authentication cancelled'))
+        await work.catch(() => {})
+      }
+    }
+    this.pending.set(key, attempt)
+    const work = this.run(senderId, requestId, config, { methodId, ...options }, attempt, controller.signal)
     try {
       await work
     } catch (error) {
@@ -66,6 +76,7 @@ export class LocalAgentAuthService extends BaseService {
     requestId: string,
     config: LocalAgentConfiguration,
     request: RuntimeLoginRequest,
+    attempt: AuthAttempt,
     signal: AbortSignal
   ) {
     const account = await resolveLocalRuntimeAccount(config)
@@ -89,7 +100,45 @@ export class LocalAgentAuthService extends BaseService {
           if (protocol !== 'https:' && protocol !== 'http:') throw new Error('Invalid login URL')
           if (redactAuthMessage(url, config, request.secret) !== url) throw new Error('Invalid login URL')
           await shell.openExternal(url)
-        }
+        },
+        confirmBrowser: senderId
+          ? async ({ url, message }, requestSignal) => {
+              const consentSignal = AbortSignal.any([signal, requestSignal])
+              if (consentSignal.aborted || attempt.consent) return 'cancel'
+              const target = URL.parse(url)
+              if (
+                !target ||
+                (target.protocol !== 'https:' && target.protocol !== 'http:') ||
+                target.username ||
+                target.password
+              )
+                throw new Error('Invalid login URL')
+              const destination = target.href
+              if (redactAuthMessage(destination, config, request.secret) !== destination)
+                throw new Error('Invalid login URL')
+              const id = randomUUID()
+              const { promise, resolve } = Promise.withResolvers<BrowserDecision>()
+              const cancel = () => resolve('cancel')
+              const ipc = application.get('IpcApiService')
+              attempt.consent = { id, resolve }
+              consentSignal.addEventListener('abort', cancel, { once: true })
+              try {
+                ipc.send(senderId, 'ai.local_agents.auth_consent', {
+                  requestId,
+                  promptId: id,
+                  prompt: { url: destination, message: redactAuthMessage(message, config, request.secret) }
+                })
+                const decision = await promise
+                if (consentSignal.aborted) return 'cancel'
+                if (decision === 'accept') await shell.openExternal(destination)
+                return decision
+              } finally {
+                consentSignal.removeEventListener('abort', cancel)
+                attempt.consent = undefined
+                ipc.send(senderId, 'ai.local_agents.auth_consent', { requestId, promptId: id })
+              }
+            }
+          : undefined
       },
       signal
     )
@@ -97,7 +146,12 @@ export class LocalAgentAuthService extends BaseService {
   }
 
   async cancel(requestId: string, senderId: WindowId | null = null): Promise<void> {
-    await this.pending.get(JSON.stringify([senderId, requestId]))?.()
+    await this.pending.get(JSON.stringify([senderId, requestId]))?.cancel()
+  }
+
+  respondToBrowserConsent(requestId: string, promptId: string, decision: BrowserDecision, senderId: WindowId | null) {
+    const consent = this.pending.get(JSON.stringify([senderId, requestId]))?.consent
+    if (consent?.id === promptId) consent.resolve(decision)
   }
 
   async readSubscriptionUsage(agentId: string): Promise<SubscriptionUsageResult> {
@@ -136,7 +190,7 @@ export class LocalAgentAuthService extends BaseService {
   protected async onStop() {
     this.shutdown.abort()
     try {
-      await Promise.all([...this.pending.values()].map((stop) => stop()))
+      await Promise.all([...this.pending.values()].map((attempt) => attempt.cancel()))
       await Promise.all(this.usageRequests.values())
     } finally {
       this.pending.clear()

@@ -6,6 +6,9 @@ import {
   KiloCli,
   GooseCli,
   CodebuddyCodeCli,
+  CommandCodeCli,
+  DimcodeCli,
+  MuseCodeCli,
   AuggieCli,
   JunieCli,
   FactoryDroidCli,
@@ -63,6 +66,9 @@ const CLI_ICONS: Record<string, IconComponent | undefined> = {
   kilo: KiloCli,
   goose: GooseCli,
   'codebuddy-code': CodebuddyCodeCli,
+  'command-code': CommandCodeCli,
+  dimagent: DimcodeCli,
+  'muse-code': MuseCodeCli,
   auggie: AuggieCli,
   junie: JunieCli,
   'factory-droid': FactoryDroidCli,
@@ -80,6 +86,7 @@ const CLI_ICONS: Record<string, IconComponent | undefined> = {
   'cortex-code': CortexCodeCli,
   poolside: PoolsideCli,
   cursor: CursorCli,
+  'qoder-global': QoderCli,
   kiro: KiroCli,
   trae: TraeCli
 }
@@ -103,6 +110,7 @@ const TILE_ARTWORK_IDS = new Set<string>([
   CodeCli.HERMES,
   CodeCli.KIMI_CODE,
   'codebuddy-code',
+  'command-code',
   'kiro',
   'zcode',
   'snow'

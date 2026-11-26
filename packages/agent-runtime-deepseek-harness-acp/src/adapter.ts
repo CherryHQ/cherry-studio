@@ -7,7 +7,7 @@ export function dshEnvironment(directory: string) {
 }
 
 function dshSelection(configured: string | undefined, launch: AcpLaunch): AcpModelSelection {
-  return { model: launch.nativeModel ?? configured }
+  return { model: configured ?? launch.nativeModel }
 }
 
 export async function prepareDshChat(

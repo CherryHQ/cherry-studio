@@ -1,19 +1,18 @@
 import { ChevronDown, Loader2 } from 'lucide-react'
-import { useState } from 'react'
+import { type ComponentProps, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
-import { CliModelAvatar } from '@renderer/components/Avatar/CliModelAvatar'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { LocalAgentModelAvatar } from '@renderer/components/localAgent/LocalAgentModelAvatar'
 import { LocalAgentModelSelector } from '@renderer/components/LocalAgentModelSelector'
 import { useLocalAgentModelCatalog } from '@renderer/hooks/agent/useLocalAgentModelCatalog'
 import { useLocalAgentModelSelection } from '@renderer/hooks/agent/useLocalAgentModelSelection'
+import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import type { LocalAgentSessionInfo } from '@shared/ai/localAgent'
+import { getLocalAgentProtocol, type LocalAgentSessionInfo } from '@shared/ai/localAgent'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { CodeCli } from '@shared/types/codeCli'
 
 import {
   COMPOSER_BELOW_SELECTOR_BUTTON_CLASS,
@@ -23,21 +22,106 @@ import {
 } from '../shared/ComposerControlScaffolding'
 import { LocalAgentConfigControl } from './LocalAgentConfigControl'
 
-export function LocalAgentModelControl({
-  agent,
-  info,
-  sessionId,
-  disabled,
-  side,
-  iconOnly = false
-}: {
+type LocalAgentModelControlProps = {
   agent: AgentEntity
   info?: LocalAgentSessionInfo | null
   sessionId?: string
   disabled: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
-}) {
+}
+export function LocalAgentModelControl(props: LocalAgentModelControlProps) {
+  const config = props.agent.configuration?.localRuntime
+  if (!config) return null
+  return getLocalAgentProtocol(config.presetId) === 'acp' ? (
+    <AcpSessionModelControl {...props} />
+  ) : (
+    <NativeModelControl {...props} />
+  )
+}
+
+function AcpSessionModelControl({
+  agent,
+  info,
+  sessionId,
+  disabled,
+  side,
+  iconOnly = false
+}: LocalAgentModelControlProps) {
+  const { t } = useTranslation()
+  const [saving, setSaving] = useState(false)
+  const config = agent.configuration?.localRuntime
+  const { refresh, refreshError, loading } = useLocalAgentModelCatalog(config?.presetId ?? agent.id, config, false)
+  const status = info?.modelSelection
+  const models = (info?.models ?? []).map((model) => ({ ...model, source: 'native' as const }))
+  const value = info?.activeModel?.id
+  const model = models.find(({ id }) => id === value) ?? info?.activeModel
+  const options = info?.configOptions?.filter((option) => option.category === 'model_config')
+  const label = model?.name || value || config?.nativeModel || t('button.select_model')
+  const footer =
+    status === 'current-only'
+      ? t('local_agents.session_model.current_only')
+      : status === 'unsupported'
+        ? t('local_agents.session_model.unsupported')
+        : status === 'sign-in-required'
+          ? t('local_agents.sign_in_required')
+          : !info && !refreshError
+            ? t('local_agents.session_model.connect')
+            : undefined
+
+  return (
+    <LocalAgentModelSelector
+      models={models}
+      presetId={config?.presetId}
+      value={value}
+      disabled={!!info && (disabled || saving || status !== 'selectable')}
+      loaded={!!info}
+      loading={!info && loading}
+      error={info ? undefined : refreshError}
+      onLoad={() => refresh().catch(() => {})}
+      onOpenSettings={() => openRoute('/settings/local-agents', { id: config?.presetId ?? agent.id })}
+      onSelect={async (modelId) => {
+        if (!modelId || !sessionId || disabled || saving || status !== 'selectable') return false
+        setSaving(true)
+        try {
+          await ipcApi.request('ai.local_agents.select_session_model', { sessionId, modelId })
+          return true
+        } catch (error) {
+          toast.error(String(error))
+          return false
+        } finally {
+          setSaving(false)
+        }
+      }}
+      side={side}
+      configuration={
+        sessionId && !!options?.length ? (
+          <LocalAgentConfigControl
+            sessionId={sessionId}
+            presetId={config?.presetId}
+            options={options}
+            side="bottom"
+            disabled={disabled || saving}
+          />
+        ) : undefined
+      }
+      footer={footer && <p className="text-muted-foreground">{footer}</p>}
+      trigger={
+        <ModelControlButton
+          model={model && { ...model, name: label }}
+          presetId={config?.presetId}
+          label={label}
+          disabled={disabled || saving}
+          saving={saving}
+          side={side}
+          iconOnly={iconOnly}
+        />
+      }
+    />
+  )
+}
+
+function NativeModelControl({ agent, info, sessionId, disabled, side, iconOnly = false }: LocalAgentModelControlProps) {
   const { t } = useTranslation()
   const [saving, setSaving] = useState(false)
   const config = agent.configuration?.localRuntime
@@ -46,31 +130,30 @@ export function LocalAgentModelControl({
     config,
     false
   )
-  const isDeepSeekHarness = config?.presetId === CodeCli.DEEPSEEK_HARNESS
-  const activeModel = isDeepSeekHarness ? info?.activeModel : undefined
-  const selection = useLocalAgentModelSelection(
-    config,
-    freshCatalog?.models ?? (info?.models.length ? info.models : catalog?.models) ?? [],
-    activeModel?.id
-  )
+  const liveModels = info?.models
+  const catalogModels = (freshCatalog ?? catalog)?.models ?? []
+  const catalogById = new Map(catalogModels.map((model) => [model.id, model]))
+  const nativeModels = liveModels?.length
+    ? liveModels.map((model) => {
+        const entry = catalogById.get(model.id)
+        return entry ? { ...entry, ...model, registryModel: entry.registryModel ?? model.registryModel } : model
+      })
+    : catalogModels
+  const selection = useLocalAgentModelSelection(config, nativeModels)
   const { models, value } = selection
   const modelConfigOptions = info?.configOptions?.filter((option) => option.category === 'model_config')
-  const label = isDeepSeekHarness
-    ? selection.dshModelName ||
-      activeModel?.name ||
-      info?.models?.find((model) => model.id === activeModel?.id)?.name ||
-      activeModel?.id ||
-      t('button.select_model')
-    : value
-      ? models.find((model) => model.id === value)?.name || value
-      : t('local_agents.follow_cli')
+  const label = value
+    ? models.find((model) => model.id === value)?.name || value
+    : (selection.followCliLabel ?? t('button.select_model'))
 
-  const selectedModelId = value ?? activeModel?.id
-  const selectedModel = selectedModelId ? { id: selectedModelId, name: label } : undefined
+  const selectedModelId = value
+  const selectedModel = selectedModelId
+    ? (models.find((model) => model.id === selectedModelId) ?? { id: selectedModelId, name: label })
+    : undefined
 
   const loadModels = () => refresh().catch(() => {})
   const selectModel = async (nativeModel?: string) => {
-    if (!config || disabled || saving || activeModel) return false
+    if (!config || disabled || saving) return false
     setSaving(true)
     try {
       const updated = await selection.select(agent, nativeModel)
@@ -86,13 +169,14 @@ export function LocalAgentModelControl({
   return (
     <LocalAgentModelSelector
       models={models}
+      presetId={config.presetId}
       sourceRestrictions={selection.sourceRestrictions}
-      showFollowCli={!isDeepSeekHarness}
+      followCliLabel={selection.followCliLabel}
       value={value}
-      disabled={disabled || saving || !!activeModel}
-      loading={isDeepSeekHarness ? selection.gatewayLoading : loading}
-      loaded={isDeepSeekHarness || !!freshCatalog || !!info?.models?.length}
-      error={isDeepSeekHarness ? undefined : refreshError}
+      disabled={disabled || saving}
+      loading={loading}
+      loaded={!!freshCatalog || !!liveModels?.some((model) => model.registryModel)}
+      error={refreshError}
       onOpenSettings={() => openRoute('/settings/local-agents', { id: config.presetId ?? agent.id })}
       side={side}
       onLoad={loadModels}
@@ -116,28 +200,57 @@ export function LocalAgentModelControl({
         ) : undefined
       }
       trigger={
-        <Button
-          variant="ghost"
-          size="sm"
+        <ModelControlButton
+          model={selectedModel}
+          presetId={config.presetId}
+          label={label}
+          saving={saving}
           disabled={disabled || saving}
-          aria-label={t('button.select_model')}
-          className={cn(
-            side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS,
-            iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
-          )}>
-          {saving ? (
-            <Loader2 size={20} className="animate-spin text-muted-foreground" />
-          ) : selectedModel ? (
-            <ModelAvatar model={selectedModel} size={20} />
-          ) : (
-            <CliModelAvatar />
-          )}
-          <span title={label} className={cn('max-w-40 truncate text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>
-            {label}
-          </span>
-          <ChevronDown size={14} className={cn('text-muted-foreground', iconOnly && 'hidden')} />
-        </Button>
+          side={side}
+          iconOnly={iconOnly}
+        />
       }
     />
+  )
+}
+
+function ModelControlButton({
+  model,
+  presetId,
+  label,
+  saving,
+  disabled,
+  side,
+  iconOnly
+}: {
+  model?: ComponentProps<typeof LocalAgentModelAvatar>['model']
+  presetId?: string
+  label: string
+  saving: boolean
+  disabled: boolean
+  side: 'top' | 'bottom'
+  iconOnly: boolean
+}) {
+  const { t } = useTranslation()
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      disabled={disabled}
+      aria-label={t('button.select_model')}
+      className={cn(
+        side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS,
+        iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
+      )}>
+      {saving ? (
+        <Loader2 className="size-4 animate-spin" />
+      ) : (
+        <LocalAgentModelAvatar model={model} presetId={presetId} size={20} />
+      )}
+      <span title={label} className={cn('max-w-40 truncate text-xs', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>
+        {label}
+      </span>
+      <ChevronDown size={14} className={cn('text-muted-foreground', iconOnly && 'hidden')} />
+    </Button>
   )
 }

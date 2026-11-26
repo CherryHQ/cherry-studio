@@ -3,7 +3,7 @@ import { webcrypto } from 'node:crypto'
 import { mockPreferenceState } from '@test-mocks/renderer/PreferenceService'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
@@ -52,11 +52,16 @@ beforeEach(async () => {
   await i18n.changeLanguage('zh-CN')
   vi.stubGlobal('crypto', webcrypto)
   HTMLElement.prototype.scrollIntoView = vi.fn()
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+    return this.hasAttribute('data-index') ? 42 : 320
+  })
   updateNativeModel.mockReset()
   vi.mocked(ipcApi.request).mockImplementation(
     async () => ({ files: [{ target: 'opencode-config', path: '/test/opencode.json', content: null }] }) as never
   )
 })
+
+afterEach(() => vi.restoreAllMocks())
 
 describe('local agent model persistence', () => {
   it('shows and changes the saved DeepSeek Harness gateway model from a new chat', async () => {
@@ -156,18 +161,47 @@ describe('local agent model persistence', () => {
       />
     )
     await user.click(screen.getByRole('button', { name: '选择模型' }))
-    const native = screen.getByRole('tab', { name: '官方订阅' })
-    const gateway = screen.getByRole('tab', { name: '统一网关' })
-    expect(native).toBeEnabled()
-    expect(native).toHaveAttribute('aria-selected', 'true')
-    expect(gateway).toBeDisabled()
-    expect(screen.getByRole('option', { name: 'Second' })).toHaveAttribute('aria-disabled', 'true')
-    await user.hover(native.parentElement!)
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('暂未适配此智能体的默认模型切换。')
-    await user.hover(gateway.parentElement!)
-    expect(await screen.findByRole('tooltip', { name: '暂未适配此智能体的服务商模型。' })).toBeVisible()
+    const option = screen.getByRole('option', { name: 'Second' })
+    expect(option).toHaveAttribute('aria-disabled', 'true')
+    expect(option).toHaveAccessibleDescription('暂未适配此智能体的默认模型切换。')
     await user.keyboard('{ArrowDown}{Enter}')
     expect(updateNativeModel).not.toHaveBeenCalled()
+  })
+
+  it('makes registry capabilities available when the live session only reports model names', async () => {
+    const user = userEvent.setup()
+    vi.mocked(ipcApi.request).mockImplementation(async (route) => {
+      if (route !== 'ai.local_agents.models') throw new Error(`Unexpected route: ${route}`)
+      return {
+        models: [
+          info.models[0],
+          {
+            ...info.models[1],
+            effort: {
+              options: [
+                { value: 'low', name: 'Low' },
+                { value: 'high', name: 'High' }
+              ]
+            },
+            registryModel: { id: 'second', capabilities: ['image-recognition'] }
+          },
+          {
+            id: 'catalog-only',
+            name: 'Catalog only',
+            registryModel: { id: 'catalog-only', capabilities: ['image-recognition'] }
+          }
+        ]
+      } as never
+    })
+    render(<LocalAgentModelControl agent={agent} info={info} disabled={false} side="bottom" />)
+    await user.click(screen.getByRole('button', { name: '选择模型' }))
+    await user.click(await screen.findByText('视觉'))
+    const option = screen.getByRole('option', { name: 'Second' })
+    expect(option).toBeVisible()
+    expect(option).toHaveTextContent(/^Second$/)
+    expect(option).not.toHaveAccessibleDescription()
+    expect(screen.queryByRole('option', { name: 'First' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Catalog only' })).not.toBeInTheDocument()
   })
 
   it('edits session model parameters in the model picker without changing the global model', async () => {

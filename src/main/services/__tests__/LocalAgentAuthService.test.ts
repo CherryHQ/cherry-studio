@@ -5,6 +5,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import type { RuntimeLoginHost } from '@cherrystudio/agent-runtime'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 const mocks = vi.hoisted(() => ({
@@ -63,6 +64,28 @@ describe('LocalAgentAuthService', () => {
     await expect(service.authenticate('invalid-key', config, 'cursor_api_key')).rejects.toThrow(
       /^Invalid API key: <redacted>$/
     )
+  })
+
+  it('only opens the displayed login URL after consent to that prompt from the initiating window', async () => {
+    const config: LocalAgentConfiguration = { presetId: 'cursor', enabled: false, args: [], env: {} }
+    const url = 'https://example.invalid/device'
+    const { promise: prompted, resolve } = Promise.withResolvers<string>()
+    mocks.send.mockImplementation((_, event, payload) => {
+      if (event === 'ai.local_agents.auth_consent' && payload.prompt) resolve(payload.promptId)
+    })
+    mocks.authenticateCursor.mockImplementation(async (_, host: RuntimeLoginHost, signal: AbortSignal) => {
+      expect(await host.confirmBrowser?.({ url, message: 'Approve the browser sign-in' }, signal)).toBe('accept')
+    })
+
+    const authentication = service.authenticate('browser-login', config, 'cursor_browser', undefined, 'origin')
+    const promptId = await prompted
+    service.respondToBrowserConsent('browser-login', promptId, 'decline', 'another-window')
+    service.respondToBrowserConsent('browser-login', 'another-prompt', 'decline', 'origin')
+    expect(mocks.openExternal).not.toHaveBeenCalled()
+    service.respondToBrowserConsent('browser-login', promptId, 'accept', 'origin')
+
+    await authentication
+    expect(mocks.openExternal).toHaveBeenCalledExactlyOnceWith(url)
   })
 
   it('executes CLI auth shims (.cmd on Windows, shell script on POSIX), routes prompts to the requesting window and supports cancellation', async () => {

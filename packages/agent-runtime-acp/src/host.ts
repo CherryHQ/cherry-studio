@@ -14,12 +14,11 @@ function stdioStream(stdin: Writable, stdout: Readable) {
 export function connectAcpStdio(
   stdin: Writable,
   stdout: Readable,
-  options: Omit<AcpClientOptions, 'sessionCapabilities' | 'update'> & {
+  options: Omit<AcpClientOptions, 'sessionCapabilities' | 'update' | 'confirmLoginInBrowser'> & {
     events: AcpLiveEvents
-    currentModel(): string | undefined
   }
 ) {
-  const updates = new AcpLiveUpdates(options.events, options.currentModel, options.harness)
+  const updates = new AcpLiveUpdates(options.events, options.harness)
   const client = connectAcpClient(stdioStream(stdin, stdout), {
     ...options,
     denyMutation:
@@ -39,16 +38,18 @@ export function connectAcpStdio(
   }
 }
 
-/** Management connections expose account reads and model discovery. */
+/** Management connections expose account reads, sign-in and model discovery. */
 export function connectAcpManagementStdio(
   stdin: Writable,
   stdout: Readable,
-  clientInfo: AcpClientOptions['clientInfo']
+  clientInfo: AcpClientOptions['clientInfo'],
+  confirmLoginInBrowser?: AcpClientOptions['confirmLoginInBrowser']
 ) {
   let optionsBySession: Map<string, AcpSessionConfiguration['configOptions']> | undefined
   const client = connectAcpClient(stdioStream(stdin, stdout), {
     clientInfo,
     callbacks: {},
+    confirmLoginInBrowser,
     sessionCapabilities: { configOptions: { boolean: {} } },
     update({ sessionId, update }) {
       if (update.sessionUpdate === 'config_option_update') optionsBySession?.set(sessionId, update.configOptions)

@@ -1119,6 +1119,10 @@ class ProviderRegistryService {
     )
   }
 
+  findPresetModel(modelId: string) {
+    return this.getLoader().findModel(modelId)
+  }
+
   /** Runtime convenience lookup; transaction callers must supply context to resolveModel instead. */
   lookupModel(providerId: string, modelId: string) {
     return this.resolveModel(this.getEffectiveProviderContext(providerId), modelId)
