@@ -11,6 +11,7 @@ import type {
 import { toast } from '@renderer/services/toast'
 import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Topic } from '@renderer/types/topic'
+import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
@@ -107,25 +108,27 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   })
 }))
 
+const renderConfiguration = vi.hoisted(() => ({
+  renderConfig: {
+    userName: '',
+    narrowMode: false,
+    messageStyle: 'plain',
+    messageFont: 'system',
+    fontSize: 14,
+    renderInputMessageAsMarkdown: false,
+    codeFancyBlock: true,
+    thoughtAutoCollapse: true,
+    keepIntermediateAssistantText: false,
+    mathEnableSingleDollar: false,
+    showMessageOutline: false,
+    multiModelMessageStyle: 'horizontal',
+    multiModelGridColumns: 2,
+    multiModelGridPopoverTrigger: 'click'
+  },
+  updateRenderConfig: vi.fn()
+}))
 vi.mock('@renderer/components/chat/messages/hooks/useMessageListRenderConfig', () => ({
-  useMessageListRenderConfig: () => ({
-    renderConfig: {
-      userName: '',
-      narrowMode: false,
-      messageStyle: 'plain',
-      messageFont: 'system',
-      fontSize: 14,
-      renderInputMessageAsMarkdown: false,
-      codeFancyBlock: true,
-      thoughtAutoCollapse: true,
-      mathEnableSingleDollar: false,
-      showMessageOutline: false,
-      multiModelMessageStyle: 'horizontal',
-      multiModelGridColumns: 2,
-      multiModelGridPopoverTrigger: 'click'
-    },
-    updateRenderConfig: vi.fn()
-  })
+  useMessageListRenderConfig: () => renderConfiguration
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageMenuConfig', () => ({
@@ -206,6 +209,28 @@ describe('useAgentMessageListProviderValue', () => {
       modifiedAt: 0,
       mime: 'application/octet-stream'
     })
+  })
+
+  it('keys Agent lists by session topic while keeping tool steps collapsed', () => {
+    const topic = { id: 'agent-session:first', assistantId: 'agent-1', name: 'First', messages: [] } as unknown as Topic
+    const { result, rerender } = renderHook(
+      ({ activeTopic }) =>
+        useAgentMessageListProviderValue({
+          topic: activeTopic,
+          messages: [],
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'none'
+        }),
+      { initialProps: { activeTopic: topic } }
+    )
+    expect(result.current.state.listKey).toBe('agent-session:first')
+    expect(result.current.state.renderConfig.expandToolSteps).toBe(false)
+    expect(result.current.state.renderConfig.expandLiveToolSteps).toBe(true)
+    rerender({ activeTopic: { ...topic, id: 'agent-session:second' } })
+    expect(result.current.state.listKey).toBe('agent-session:second')
+    expect(result.current.state.renderConfig.expandToolSteps).toBe(false)
+    expect(result.current.state.renderConfig.expandLiveToolSteps).toBe(true)
   })
 
   it('keeps historical avatars current until their agent is deleted', () => {
@@ -419,7 +444,7 @@ describe('useAgentMessageListProviderValue', () => {
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', async () => {
     const topic = {
-      id: 'agent-session-topic',
+      id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
       lastActivityAt: '2026-01-01T00:00:00.000Z',
@@ -498,7 +523,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     void value?.actions.openPath?.('dist/report.md')
     expect(ipcApiRequest).toHaveBeenCalledWith('ai.agent.session.open_path', {
-      sessionId: 'agent-session-topic',
+      sessionId: 'session-1',
       path: 'dist/report.md'
     })
 
@@ -636,6 +661,77 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
+  it('keeps intermediate assistant text visible in Agent sessions', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+      return null
+    }
+
+    render(<Probe />)
+
+    expect(value?.state.renderConfig.keepIntermediateAssistantText).toBe(true)
+    expect(value?.state.renderConfig.expandToolSteps).toBe(false)
+    expect(value?.state.renderConfig.expandLiveToolSteps).toBe(true)
+  })
+
+  it('keeps the Agent render configuration stable across streamed deltas and refreshes changed preferences', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      messages: []
+    } as unknown as Topic
+    const { result, rerender } = renderHook(
+      ({ messages }) =>
+        useAgentMessageListProviderValue({
+          topic,
+          messages,
+          partsByMessageId: {},
+          isLoading: false,
+          messageNavigation: 'none'
+        }),
+      { initialProps: { messages: [] as CherryUIMessage[] } }
+    )
+    const initial = result.current.state.renderConfig
+    for (let i = 0; i < 10; i++) {
+      rerender({
+        messages: [
+          { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'delta ' + i }] }
+        ] as CherryUIMessage[]
+      })
+      expect(result.current.state.renderConfig).toBe(initial)
+    }
+    const previous = renderConfiguration.renderConfig
+    renderConfiguration.renderConfig = { ...previous, fontSize: 18 }
+    try {
+      rerender({ messages: [] })
+      expect(result.current.state.renderConfig).not.toBe(initial)
+      expect(result.current.state.renderConfig.fontSize).toBe(18)
+      expect(result.current.state.renderConfig.keepIntermediateAssistantText).toBe(true)
+      expect(result.current.state.renderConfig.expandToolSteps).toBe(false)
+      expect(result.current.state.renderConfig.expandLiveToolSteps).toBe(true)
+    } finally {
+      renderConfiguration.renderConfig = previous
+    }
+  })
+
   it('renders terminal fallbacks in both current and sealed history layers', () => {
     const topic = {
       id: 'agent-session:session-1',
@@ -647,6 +743,15 @@ describe('useAgentMessageListProviderValue', () => {
       messages: []
     } as Topic
     const messages = [
+      ...(['TIMEOUT', 'INCOMPLETE', 'CONTENT_FILTER', 'FINISHED'] as const).map((status) => ({
+        id: `imported-${status}`,
+        role: 'assistant',
+        parts: status === 'TIMEOUT' ? [{ type: 'text', text: 'Preserved partial answer' }] : [],
+        metadata: {
+          status: status === 'FINISHED' ? 'success' : 'error',
+          importedHistory: { source: 'deepseek', messageId: '2', status }
+        }
+      })),
       {
         id: 'assistant-error',
         role: 'assistant',
@@ -690,21 +795,31 @@ describe('useAgentMessageListProviderValue', () => {
 
     render(<Probe />)
 
-    expect(value?.state.partsByMessageId?.['assistant-error']).toEqual([
+    for (const status of ['TIMEOUT', 'INCOMPLETE', 'CONTENT_FILTER', 'FINISHED']) {
+      const expected = [
+        ...(status === 'TIMEOUT' ? [{ type: 'text', text: 'Preserved partial answer' }] : []),
+        { type: 'data-imported-status', data: { status } }
+      ]
+      expect(messagePartsAt(value?.state.partsByMessageId, `imported-${status}`)).toEqual(expected)
+      expect(messagePartsAt(value?.state.streamingLayers?.historyPartsByMessageId, `imported-${status}`)).toEqual(
+        expected
+      )
+    }
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-error')).toEqual([
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
-    expect(value?.state.partsByMessageId?.['assistant-empty-success']).toEqual([
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-empty-success')).toEqual([
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
-    expect(value?.state.partsByMessageId?.['assistant-pending']).toEqual([])
-    expect(value?.state.partsByMessageId?.['assistant-hidden-success']).toEqual([
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-pending')).toEqual([])
+    expect(messagePartsAt(value?.state.partsByMessageId, 'assistant-hidden-success')).toEqual([
       expect.objectContaining({ type: 'data-agent-task-event' }),
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
-    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-error']).toEqual([
+    expect(messagePartsAt(value?.state.streamingLayers?.historyPartsByMessageId, 'assistant-error')).toEqual([
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
-    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-hidden-success']).toEqual([
+    expect(messagePartsAt(value?.state.streamingLayers?.historyPartsByMessageId, 'assistant-hidden-success')).toEqual([
       expect.objectContaining({ type: 'data-agent-task-event' }),
       expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
     ])
@@ -777,7 +892,7 @@ describe('useAgentMessageListProviderValue', () => {
 
   it('does not expose selected delete action without delete capability', () => {
     const topic = {
-      id: 'agent-session-topic',
+      id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
       lastActivityAt: '2026-01-01T00:00:00.000Z',
@@ -815,7 +930,7 @@ describe('useAgentMessageListProviderValue', () => {
 
   it('does not show a toast when selected-message save is canceled', async () => {
     const topic = {
-      id: 'agent-session-topic',
+      id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
       lastActivityAt: '2026-01-01T00:00:00.000Z',

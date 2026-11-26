@@ -11,7 +11,7 @@ export type PreparedOpenMineruContext = OpenMineruConnection & {
 }
 
 export type OpenMineruProbeResult =
-  | { kind: 'supported'; protocol: 'legacy' | 'v1' }
+  | { kind: 'supported'; protocol: 'legacy' | 'v1' | 'tasks' }
   | { kind: 'http-error'; status: number }
   | { kind: 'invalid-response' }
   | { kind: 'not-found' }

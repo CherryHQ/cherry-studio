@@ -137,6 +137,18 @@ const miniAppThemeAssetPlugin = (): Plugin => ({
   }
 })
 
+const commandParserAssetsPlugin = (): Plugin => ({
+  name: 'cherry-command-parser-assets',
+  apply: 'build',
+  buildStart() {
+    const require = createRequire(import.meta.url)
+    for (const filename of ['tree-sitter.wasm', 'tree-sitter-bash.wasm', 'tree-sitter-powershell.wasm']) {
+      const source = readFileSync(require.resolve(`@vscode/tree-sitter-wasm/wasm/${filename}`))
+      this.emitFile({ type: 'asset', fileName: `assets/command-parsers/${filename}`, source })
+    }
+  }
+})
+
 /** Shared with the utility-process entries build, which must resolve identically. */
 export const mainResolveAlias = {
   '@main': resolve('src/main'),
@@ -201,6 +213,7 @@ export default defineConfig({
       },
       chunkExportGuardPlugin(),
       miniAppThemeAssetPlugin(),
+      commandParserAssetsPlugin(),
       ...visualizerPlugin('main'),
       ...sentrySourceMapPlugins('main')
     ],
@@ -259,7 +272,8 @@ export default defineConfig({
           preload: resolve(__dirname, 'src/preload/preload.ts'),
           simplest: resolve(__dirname, 'src/preload/simplest.ts'), // Minimal preload
           webview: resolve(__dirname, 'src/preload/webview.ts'), // Site `<webview>` guests
-          miniAppBridge: resolve(__dirname, 'src/preload/miniAppBridge.ts') // Local mini app guests (`window.cherry`)
+          miniAppBridge: resolve(__dirname, 'src/preload/miniAppBridge.ts'), // Local mini app guests (`window.cherry`)
+          mcpAppGuest: resolve(__dirname, 'src/preload/mcpAppGuest.ts')
         },
         external: ['electron'],
         output: {

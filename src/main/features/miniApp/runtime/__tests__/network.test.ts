@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { DENY_ALL_PAC, installNetworkPolicy, shouldAllowRequest } from '../network'
+import { DENY_ALL_PAC } from '@main/core/security/guestNetwork'
+
+import { installNetworkPolicy, shouldAllowRequest } from '../network'
 import { buildMiniAppCsp } from '../protocol'
 
 const APP = 'com.example.mygame'

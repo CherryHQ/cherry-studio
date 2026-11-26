@@ -39,11 +39,10 @@ async function fetchCherryInApiKeys(accessToken: string, apiHost: string): Promi
   }
 
   const keysArray = ApiKeysResponseSchema.parse(await response.json())
-  const apiKeys = keysArray.filter(Boolean).join(',')
-  if (!apiKeys) {
-    throw new OAuthServiceError('No API keys received')
-  }
-  return apiKeys
+  return keysArray
+    .map((key) => key.trim())
+    .filter(Boolean)
+    .join(',')
 }
 
 export const cherryInOAuthProvider = {

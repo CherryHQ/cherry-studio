@@ -18,6 +18,8 @@ import type {
   Tool
 } from '@modelcontextprotocol/client'
 
+import type { McpSkill } from '@shared/types/mcpSkills'
+
 export interface McpInteractionContext {
   windowId?: string
   topicId?: string
@@ -74,7 +76,9 @@ export interface McpConnection {
   readonly serverCapabilities: ServerCapabilities | undefined
   readonly instructions: string | undefined
 
-  listTools(cacheMode?: CacheMode): Promise<Tool[]>
+  listSkills(options?: McpRequestOptions): Promise<McpSkill[]>
+  getSkill(uri: string, options?: McpRequestOptions): Promise<McpSkill>
+  listTools(cacheMode?: CacheMode, signal?: AbortSignal): Promise<Tool[]>
   callTool(name: string, args: unknown, options: McpCallToolOptions): Promise<CallToolResult>
   forwardRequest(
     method: McpForwardMethod,

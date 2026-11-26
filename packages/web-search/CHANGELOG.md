@@ -6,6 +6,12 @@
 
 - Change the package license from AGPL-3.0-only to MIT and update the README license statement.
 
+## 0.9.0
+
+### Minor Changes
+
+- [#24791](https://github.com/CherryHQ/cherry-studio/pull/24791) [`2dc35a3`](https://github.com/CherryHQ/cherry-studio/commit/2dc35a385b4f9568a80b6c1897276719abe19dba) Thanks [@404-Page-Found](https://github.com/404-Page-Found)! - Add a `searchImages` capability with typed image results and a StepFun provider that implements it.
+
 ## 0.8.0
 
 ### Minor Changes

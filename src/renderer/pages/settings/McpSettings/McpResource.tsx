@@ -84,7 +84,7 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
           </Accordion>
         </>
       ) : (
-        <EmptyState compact preset="no-result" description={t('settings.mcp.resources.noResourcesAvailable')} />
+        <EmptyState compact description={t('settings.mcp.resources.noResourcesAvailable')} />
       )}
     </div>
   )

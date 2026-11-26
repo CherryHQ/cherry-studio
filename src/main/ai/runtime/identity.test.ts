@@ -6,7 +6,7 @@ import type { HookInput, SyncHookJSONOutput } from '@anthropic-ai/claude-agent-s
 import type { BeforeAgentStartEvent, ExtensionAPI } from '@earendil-works/pi-coding-agent'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { PromptBuilder } from '@main/ai/agents/prompt'
+import { PromptBuilder } from '@main/ai/agents/prompt/promptContext'
 
 import { createClaudeCodeIdentityHooks } from './claudeCode/identityHooks'
 import { createPiIdentityExtension } from './pi/identityExtension'

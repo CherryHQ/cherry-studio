@@ -3,6 +3,8 @@ import type { LanguageModelMiddleware } from 'ai'
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 
+import type { RequestFeature } from '../feature'
+
 const logger = loggerService.withContext('noThinkPlugin')
 
 /**
@@ -63,8 +65,6 @@ const createNoThinkPlugin = () =>
       context.middlewares.push(createNoThinkMiddleware())
     }
   })
-
-import type { RequestFeature } from '../feature'
 
 /** OVMS backend needs `/no_think` suffix when MCP tools are present. */
 export const noThinkFeature: RequestFeature = {

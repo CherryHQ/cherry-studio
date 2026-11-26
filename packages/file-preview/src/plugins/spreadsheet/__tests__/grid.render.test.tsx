@@ -1070,7 +1070,7 @@ describe('XlsxGrid — floating layer', () => {
     )
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{ 1: 'blob:mock-url' }} zoom={2} />)
 
-    const img = screen.getByTestId('xlsx-grid-floating-image') as HTMLImageElement
+    const img = screen.getByTestId<HTMLImageElement>('xlsx-grid-floating-image')
     expect(img.src).toContain('blob:mock-url')
     // floatingImages[0].rect = { x: 340, y: 44, width: 160, height: 90 } stays unscaled;
     // the ancestor zoom layer's transform applies the visual scaling.

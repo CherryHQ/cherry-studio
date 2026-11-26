@@ -100,6 +100,9 @@ function PreviewSession({
     plugin: ReturnType<typeof resolvePreviewPlugin>
   } | null>(null)
   const [failure, setFailure] = useState<{ source: PreviewSource; refreshKey: number } | null>(null)
+  // Plugin-requested reload: re-opens the source so the plugin receives a new
+  // document (fresh size/revision), which re-reading the retained one cannot do.
+  const [reloadNonce, setReloadNonce] = useState(0)
   const closeRef = useRef<(() => void) | undefined>(undefined)
   const plugin = useMemo(() => resolvePreviewPlugin(source.name, source.mediaType), [source.name, source.mediaType])
   const Plugin = useMemo(() => (plugin ? lazy(plugin.load) : null), [plugin])
@@ -129,8 +132,9 @@ function PreviewSession({
     return () => {
       requestIdRef.current += 1
     }
-  }, [source, refreshKey, plugin])
+  }, [source, refreshKey, plugin, reloadNonce])
   const isCurrentSession = useCallback(() => session?.requestId === requestIdRef.current, [session])
+  const requestReload = useCallback(() => setReloadNonce((nonce) => nonce + 1), [])
   const failDocument = useCallback(
     (error: unknown) => {
       if (isCurrentSession()) reportFailure(error)
@@ -160,9 +164,20 @@ function PreviewSession({
       onDiagnostic: reportDiagnostic,
       onRequestOpen: hasOpenAction ? requestOpen : undefined,
       failDocument,
-      isCurrentDocument: isCurrentSession
+      isCurrentDocument: isCurrentSession,
+      onRequestReload: requestReload
     }),
-    [root, resources, options, reportDiagnostic, requestOpen, hasOpenAction, failDocument, isCurrentSession]
+    [
+      root,
+      resources,
+      options,
+      reportDiagnostic,
+      requestOpen,
+      hasOpenAction,
+      failDocument,
+      isCurrentSession,
+      requestReload
+    ]
   )
   useEffect(() => {
     setFailure(null)
@@ -206,7 +221,7 @@ function PreviewSession({
       close()
       if (closeRef.current === close) closeRef.current = undefined
     }
-  }, [source, refreshKey, plugin, reportFailure])
+  }, [source, refreshKey, plugin, reloadNonce, reportFailure])
 
   const ready = session?.source.id === source.id && session.plugin === plugin ? session : null
   const failed = failure?.source === source && failure.refreshKey === refreshKey

@@ -198,7 +198,7 @@ describe('mouse hold dictation', () => {
 
   it('preserves drag selection and ignores small mouse jitter', () => {
     render(<Host />)
-    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox')
     input.focus()
     pointer(input, 'pointerdown')
     pointer(window, 'pointermove', { clientX: 7 })
@@ -217,7 +217,7 @@ describe('mouse hold dictation', () => {
         <input aria-label="Search" />
       </>
     )
-    const input = screen.getByRole('textbox', { name: 'Dictation input' }) as HTMLTextAreaElement
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Dictation input' })
     input.value = 'selected text'
     input.focus()
     pointer(input, 'pointerdown')

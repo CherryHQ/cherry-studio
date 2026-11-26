@@ -1433,10 +1433,10 @@ export class AiUsageRecordService {
     return getMessageUsageProjectionTx(application.get('DbService').getDb(), ref)
   }
 
-  refreshMessageProjection(ref: MessageRef): void {
+  refreshMessageProjection(ref: MessageRef, { publishDataChange = true } = {}): void {
     try {
       const rebuilt = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
-      if (rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
+      if (publishDataChange && rebuilt?.changed) notifyDataApiDataChange(messageReadModelEffects([rebuilt.target]))
     } catch (err) {
       logger.error('refreshMessageProjection failed', err as Error, ref)
     }
@@ -1454,13 +1454,17 @@ export class AiUsageRecordService {
     return getAiUsageRecordStats(query)
   }
 
-  totalTokens(range: { from: number; to: number }): number {
+  /** Tokens used in `range`, optionally only those attributed to one Assistant / Agent / mini app. */
+  totalTokens(range: { from: number; to: number }, source?: { type: AiUsageRecordSourceType; id: string }): number {
+    const sourceConditions = source
+      ? [eq(aiUsageRecordTable.sourceType, source.type), eq(aiUsageRecordTable.sourceId, source.id)]
+      : []
     const [row] = application
       .get('DbService')
       .getDb()
       .select({ totalTokens: totalTokensSum() })
       .from(aiUsageRecordTable)
-      .where(and(...rangeConditions(range)))
+      .where(and(...sourceConditions, ...rangeConditions(range)))
       .all()
     return row.totalTokens
   }
