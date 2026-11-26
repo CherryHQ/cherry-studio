@@ -9,6 +9,7 @@ import { application } from '@application'
 import type { AgentRuntimeBackendRow } from '@data/db/schemas/agentRuntimeBackend'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { loggerService } from '@logger'
+import { unavailableNativeContext } from '@main/ai/runtime/types'
 
 const DURABLE_STORAGE_ERROR_I18N_KEY = 'durable_storage_failed'
 const logger = loggerService.withContext('durableNativeContext')
@@ -194,7 +195,14 @@ export async function reconcileDurableBackend(backendId: string): Promise<Storag
 /** Recover the native identity from the same commit that created the root conversation. */
 export async function prepareDurableRoot(contextId: string) {
   const context = contexts.context(contextId)
-  if (contexts.backend(context.backendId).state === 'creating') {
+  const backend = contexts.backend(context.backendId)
+  try {
+    if (backend.state === 'bound' && !lstatSync(durablePath(backend), { throwIfNoEntry: false }))
+      return unavailableNativeContext(context, 'Durable store is missing')
+  } catch (error) {
+    throw Object.assign(error as Error, { i18nKey: DURABLE_STORAGE_ERROR_I18N_KEY })
+  }
+  if (backend.state === 'creating') {
     try {
       await createDurableBackend(context.backendId)
     } catch (error) {
@@ -210,10 +218,12 @@ export async function prepareDurableRoot(contextId: string) {
   const identity = await durableContextIdentity()
   try {
     const matches: string[] = []
+    let hasBoundThread = false
     let cursor: Parameters<Storage['scanConversations']>[2]
     do {
       const page = await storage.scanConversations({}, 256, cursor, nativeContext)
       for (const conversation of page.items) {
+        if (String(conversation.id) === context.nativeThreadId) hasBoundThread = true
         const address = await storage.findDocument(
           { kind: identity.definition.kind, scope: { kind: 'conversation', conversationId: conversation.id } },
           'current',
@@ -224,6 +234,10 @@ export async function prepareDurableRoot(contextId: string) {
       }
       cursor = page.next
     } while (cursor)
+    if (context.nativeThreadId && !hasBoundThread && matches.length === 0)
+      return storage
+        .close(nativeContext)
+        .then(() => unavailableNativeContext(context, 'Durable conversation is missing'))
     if (matches.length > 1 || (context.nativeThreadId && matches[0] !== context.nativeThreadId))
       throw new Error('Durable context identity does not match')
     const nativeId = matches[0]

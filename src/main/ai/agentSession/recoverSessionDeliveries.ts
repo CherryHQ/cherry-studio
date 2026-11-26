@@ -1,4 +1,5 @@
 import { agentService } from '@data/services/AgentService'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -8,7 +9,8 @@ import { finalizeInterruptedParts } from '../streamManager'
 
 /** A `pi-durable` delivery request that reached Durable; its record, not a host repair, settles the reply. */
 export function awaitsDurableOutcome(request: AgentSessionMessageEntity): boolean {
-  if (!agentSessionMessageService.inputBinding(request.sessionId, request.id)?.nativeInputId) return false
+  const binding = agentSessionMessageService.inputBinding(request.sessionId, request.id)
+  if (!binding?.nativeInputId || !binding.contextId || !contexts.context(binding.contextId).nativeThreadId) return false
   const agentId = agentSessionService.getById(request.sessionId).agentId
   return (agentId ? agentService.getAgent(agentId)?.type : undefined) === 'pi-durable'
 }

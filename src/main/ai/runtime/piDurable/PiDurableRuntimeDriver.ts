@@ -1,18 +1,21 @@
 import type { AgentSessionContextRow } from '@data/db/schemas/agentSessionContext'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
+import { loggerService } from '@logger'
 import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { Sequencer } from '@shared/utils/async'
 
 import { prepareAgentSessionWorkspaceDirectory } from '../agentSessionWorkspace'
 import { AgentSessionForkError, type RuntimeForkInput } from '../fork'
-import type { AgentRuntimeConnectInput, AgentSessionRuntimeDriver } from '../types'
+import { type AgentRuntimeConnectInput, type AgentSessionRuntimeDriver, unavailableNativeContext } from '../types'
 import { DurableBackend } from './DurableBackend'
 import { prepareDurableBranch } from './durableContext'
 import { forkDurable } from './durableFork'
 import { DurableForkCheckpointSchema } from './forkCheckpoint'
 import { PiDurableRuntimeConnection } from './PiDurableRuntimeConnection'
+
+const logger = loggerService.withContext('PiDurableRuntimeDriver')
 
 export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'pi-durable'
@@ -71,13 +74,35 @@ export class PiDurableRuntimeDriver implements AgentSessionRuntimeDriver {
     await prepareAgentSessionWorkspaceDirectory(session)
   }
 
-  connect(input: AgentRuntimeConnectInput) {
+  async connect(input: AgentRuntimeConnectInput) {
     input = { ...input }
     const context = prepareDurableBranch(input.sessionId, input.branchHead)
+    const opened = await this.connectBranch(input, context)
+    if (!('status' in opened)) return opened
+    // An idle reopen may be waiting for an already-admitted delivery to resume.
+    if (input.headless === undefined) throw new Error(opened.reason)
+    logger.warn('Rebuilding a missing Durable context from session messages', {
+      sessionId: input.sessionId,
+      contextId: context.id,
+      reason: opened.reason
+    })
+    const replacement = prepareDurableBranch(input.sessionId, input.branchHead, context.id)
+    const rebuilt = await this.connectBranch(input, replacement)
+    if ('status' in rebuilt) throw new Error(rebuilt.reason)
+    return rebuilt
+  }
+
+  private connectBranch(input: AgentRuntimeConnectInput, context: AgentSessionContextRow) {
     const slot = this.slot(context.backendId)
     return new PiDurableRuntimeConnection(input, async () =>
       slot.queue.queue(async () => {
-        slot.owner ??= await DurableBackend.open(input, context)
+        const current = contexts.context(context.id)
+        if (!current.anchorMessageId) return unavailableNativeContext(context, 'Durable branch binding was replaced')
+        if (!slot.owner) {
+          const opened = await DurableBackend.open(input, context)
+          if ('status' in opened) return opened
+          slot.owner = opened
+        }
         const owner = slot.owner
         const root = await owner.prepare(input, contexts.context(context.id))
         slot.users += 1

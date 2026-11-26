@@ -43,6 +43,7 @@ import type {
   AgentRuntimeTraceContext,
   AgentRuntimeCommand
 } from '../types'
+import { type UnavailableNativeContext, unavailableNativeContext } from '../types'
 import type { DurableBackend, DurableRoot } from './DurableBackend'
 import type { prepareDurableBranch } from './durableContext'
 import { saveDurableRequest } from './durableRequest'
@@ -137,16 +138,24 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   constructor(
     private readonly input: AgentRuntimeConnectInput,
-    private readonly acquire: () => Promise<{
-      owner: DurableBackend
-      root: DurableRoot
-      release(flush: () => Promise<void>): Promise<void>
-    }>
+    private readonly acquire: () => Promise<
+      | {
+          owner: DurableBackend
+          root: DurableRoot
+          release(flush: () => Promise<void>): Promise<void>
+        }
+      | UnavailableNativeContext
+    >
   ) {}
 
-  async start(): Promise<this> {
+  async start(): Promise<this | UnavailableNativeContext> {
     try {
-      this.access = await this.acquire()
+      const access = await this.acquire()
+      if ('status' in access) {
+        await this.close()
+        return access
+      }
+      this.access = access
       const { owner, root } = this.access
       this.desktop = root.desktop
       this.context = root.context
@@ -169,6 +178,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
         backendId: runtimeId(this.context.backendId),
         id: runtimeId(this.context.nativeThreadId!)
       })
+      if (opened.status === 'rejected' && opened.error.code === 'not-found')
+        return this.close().then(() => unavailableNativeContext(root.context, opened.error.message))
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
       this.handle = opened.value
       this.context = contexts.bindContext(this.context.id, this.handle.thread.id)

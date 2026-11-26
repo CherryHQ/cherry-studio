@@ -21,7 +21,12 @@ import { redactSecretTokens } from '@shared/utils/redaction'
 
 import { createPiGatewayModelBinding } from '../pi/gatewayModelBinding'
 import { createPiBehaviorHost } from '../pi/piBehaviorHost'
-import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
+import {
+  type AgentRuntimeConnectInput,
+  type AgentRuntimeEvent,
+  type UnavailableNativeContext,
+  unavailableNativeContext
+} from '../types'
 import { prepareDurableDesktop } from './durableDesktop'
 import { readDurableRequest } from './durableRequest'
 
@@ -58,7 +63,10 @@ export class DurableBackend {
 
   private constructor(private readonly registry: Registry) {}
 
-  static async open(input: AgentRuntimeConnectInput, context: AgentSessionContextRow): Promise<DurableBackend> {
+  static async open(
+    input: AgentRuntimeConnectInput,
+    context: AgentSessionContextRow
+  ): Promise<DurableBackend | UnavailableNativeContext> {
     const [{ BACKGROUND_CONTEXT }, { createRegistry }, { createPiDurableRuntime }] = await Promise.all([
       import('@earendil-works/chord/context'),
       import('@earendil-works/pi-durable'),
@@ -66,6 +74,7 @@ export class DurableBackend {
     ])
     const owner = new DurableBackend(createRegistry())
     const root = await prepareDurableRoot(context.id)
+    if ('status' in root) return root
     let storageOwned = true
     try {
       for (const binding of contexts.roots(context.backendId)) {
@@ -174,6 +183,8 @@ export class DurableBackend {
               owner.nativeRoots.set(runtimeId(String(id)), host.context.id)
             }
           })
+      if (opened.status === 'rejected' && opened.error.code === 'not-found')
+        return owner.shutdown().then(() => unavailableNativeContext(context, opened.error.message))
       if (opened.status !== 'confirmed') throw new Error(opened.error.message)
       owner.bind(host, Number(opened.value.thread.id) as ConversationId)
       await opened.value.release()

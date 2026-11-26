@@ -92,7 +92,7 @@ export class ClaudeOwner {
   private resetFrom?: string
   private activeSession: string
   private readonly archives = new Map<string, ClaudeArchive>()
-  private reading?: Promise<void>
+  private reading?: Promise<boolean>
   private buffered?: SDKMessage[]
 
   constructor(
@@ -704,7 +704,7 @@ export class ClaudeOwner {
     }
   }
 
-  async refresh(sessionId: string): Promise<void> {
+  async refresh(sessionId: string): Promise<boolean> {
     if (this.reading) {
       await this.reading
       return this.refresh(sessionId)
@@ -712,7 +712,7 @@ export class ClaudeOwner {
     this.buffered = []
     this.reading = (async () => {
       const archive = await readArchive(this.runtime.configDir, this.config.cwd, sessionId)
-      if (!archive) throw new Error('native-storage-missing')
+      if (!archive) return false
       const root = this.projection(sessionId)
       const entriesFor = (agentId?: string): NativeArchiveEntry[] =>
         archive.entries
@@ -750,9 +750,10 @@ export class ClaudeOwner {
         this.tasks.set(native.agentId, task)
         this.relation(native.agentId, task)
       }
+      return true
     })()
     try {
-      await this.reading
+      return await this.reading
     } finally {
       this.reading = undefined
       const buffered = this.buffered
@@ -763,7 +764,11 @@ export class ClaudeOwner {
 
   async archive(projection: ClaudeProjection, refresh = true): Promise<OperationResult<ClaudeArchive>> {
     try {
-      if (refresh || !this.archives.has(projection.thread.id)) await this.refresh(projection.thread.id.split('/')[0])
+      if (
+        (refresh || !this.archives.has(projection.thread.id)) &&
+        !(await this.refresh(projection.thread.id.split('/')[0]))
+      )
+        return rejected('archive', 'native-storage-missing')
       const archive = this.archives.get(projection.thread.id)
       return archive
         ? { status: 'confirmed', value: cloneHistoryData(refresh ? archive : projection.committed(archive)) }

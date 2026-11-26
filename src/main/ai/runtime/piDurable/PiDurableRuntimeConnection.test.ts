@@ -31,7 +31,7 @@ import { agentSessionMessageService as messages } from '@data/services/AgentSess
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type * as AgentPrompt from '@main/ai/agents/prompt/buildAgentPrompt'
 import { savedChildView } from '@main/ai/agentSession/ChildThreadProjection'
-import { openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
+import { createDurableBackend, openDurableStorage } from '@main/ai/agentSession/durableNativeContext'
 import { AgentSessionForkOperations } from '@main/ai/agentSession/fork/AgentSessionForkOperations'
 import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { bindNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
@@ -343,6 +343,62 @@ describe('desktop Pi Durable connection', () => {
     expect(resumedRequest).not.toContain('Sibling banana')
     expect(resumedRequest.match(/Previous conversation history/g)).toHaveLength(1)
   })
+  it.each(['store', 'conversation', 'binding'])(
+    'continues from product history after losing the native %s',
+    async (missing) => {
+      const reserved = prepareDurableBranch(input.sessionId)
+      const backend = await createDurableBackend(reserved.backendId)
+      if (backend.locator.kind !== 'pi-durable') throw new Error('Expected Durable backend')
+      const path = application.getPath('feature.agents.durable.stores', backend.locator.fileName)
+      const emptyStore = readFileSync(path)
+
+      const first = await connect()
+      const previous = message('Remember the blue notebook')
+      await first.connection.send({ message: previous })
+      const answer = await savedAnswer(first)
+      messages.saveMessage({
+        sessionId: input.sessionId,
+        parentId: previous.id,
+        message: { role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'Sibling branch' }] } }
+      })
+      await first.connection.close()
+      if (missing === 'binding') {
+        application.get('DbService').withWriteTx((tx) => contexts.detachBranchTx(tx, reserved.id))
+      } else {
+        if (missing === 'store') unlinkSync(path)
+        else writeFileSync(path, emptyStore)
+      }
+
+      messages.selectBranch(input.sessionId, answer.id)
+      input.branchHead = answer.id
+      if (missing !== 'binding') await expect(driver.connect(input)).rejects.toThrow()
+      input.headless = false
+      setScript([assistantReply('Recovered answer')])
+      const recovered = await connect()
+      expect(recovered.connection.contextId).not.toBe(first.connection.contextId)
+      expect(script.calls).toHaveLength(0)
+      const followup = message('What did I ask you to remember?')
+      await recovered.connection.send({
+        message: followup,
+        context: await readSessionHistory(input.sessionId, followup.id, recovered.connection.contextId)
+      })
+      const recoveredAnswer = await savedAnswer(recovered)
+      const request = JSON.stringify(script.calls[0].messages.filter((message) => message.role !== 'system'))
+      expect(request).toContain('Remember the blue notebook')
+      expect(request).toContain('Hello world')
+      expect(request).not.toContain('Sibling branch')
+      if (missing === 'store') expect(existsSync(path)).toBe(false)
+      if (missing === 'conversation') expect(readFileSync(path)).toEqual(emptyStore)
+
+      await recovered.connection.close()
+      input.branchHead = recoveredAnswer.id
+      const reopened = await connect()
+      expect(reopened.connection.contextId).toBe(recovered.connection.contextId)
+      const next = message('Continue after reopening')
+      expect(await readSessionHistory(input.sessionId, next.id, reopened.connection.contextId)).toBeUndefined()
+    }
+  )
+
   it.each([false, true])('materializes the captured model name for headless=%s', async (headless) => {
     const { buildAgentPrompt } = await vi.importActual<typeof AgentPrompt>('@main/ai/agents/prompt/buildAgentPrompt')
     mocks.prompt.mockImplementation(buildAgentPrompt)

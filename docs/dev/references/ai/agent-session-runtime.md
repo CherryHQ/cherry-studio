@@ -1217,9 +1217,14 @@ prefixes. A Main-only `locallyHandled` acknowledgement retains native ownership 
 excluding the local input and reply from model history. The product prefix remains available
 for the next model submission after a local command or reopening. Once native model input
 has been submitted, subsequent inputs and reopening reuse the ordinary native conversation.
-Known native identities follow their existing recovery rules; a missing native store is
-never silently replaced with product history. This path creates no native-history files,
-rebuild state or historical checkpoints and does not inspect import provenance.
+A branch with a missing or unusable native context can use the same prefix. The
+driver detaches the failed binding and reserves a new native context at the branch
+anchor in one transaction. Pi Durable also allocates a new backend. The branch's
+replacement binding takes precedence over resume tokens stored on historical
+messages. An input submitted to the replacement may drop its previous native input
+identity once its original context is detached. Historical messages remain available
+for display. Reference history creates no historical checkpoints and does not depend
+on import provenance.
 
 ## DeepSeek Agent history import
 
@@ -1306,15 +1311,19 @@ callers can intentionally use assistant prefill.
 
 ## Native resume failures
 
-Claude Code surfaces native resume failures, including missing conversations and
-duplicate tool-use IDs. The adapter does not discard the resume token and replay
-the pending input into a fresh conversation. Native history and its recovery
-semantics belong to the harness.
+Claude Code and Pi first try the selected branch's binding. If the binding is
+missing, a resume token persisted on the branch can reconnect an existing native
+transcript. The driver uses the [reference history](#first-submission-without-native-history)
+when no original transcript can be opened by a trusted identity. Pi also rebuilds
+when multiple files claim that identity and preserves those files. Claude Code
+distinguishes a missing transcript from a read failure. Backend or storage access
+failures propagate to the caller. These checks run before the new input is submitted.
 
-Forked sessions use the same persisted native resume-token path as other Agent
-sessions. Cherry does not rebuild their context from visible messages when native
-history is unavailable. See [Agent Session Fork](./agent-session-fork.md) for the
-separate publication and file-resource recovery path.
+For Pi Durable, a new turn rebuilds when the bound store or conversation is missing.
+An idle reopen of a missing bound context reports the failure so interrupted deliveries
+can reach an error outcome. Forked sessions use the same resume rules as other
+sessions of their runtime. See
+[Agent Session Fork](./agent-session-fork.md) for publication and file-resource recovery.
 
 ## Idle and shutdown
 

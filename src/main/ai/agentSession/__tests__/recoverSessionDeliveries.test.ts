@@ -6,6 +6,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentSessionContextService as contexts } from '@data/services/AgentSessionContextService'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { preparePiBranch } from '@main/ai/runtime/pi/piContext'
 
@@ -46,7 +47,7 @@ function interruptedDelivery(admitted: boolean) {
     messages.bindInputContextTx(tx, 'target', request.id, context.id)
     if (admitted) messages.bindNativeInputTx(tx, 'target', request.id, context.id, 'native-input')
   })
-  return { request, reply }
+  return { request, reply, context }
 }
 
 // AC6: Durable still owns an admitted input after an exit, so boot recovery must not end its reply.
@@ -63,6 +64,17 @@ it('leaves an admitted Durable delivery turn for the runtime to resume', () => {
 // Durable has no record of an input it never admitted; waiting for its outcome would hang the delivery.
 it('ends a Durable delivery turn whose input never reached the runtime', () => {
   const { request, reply } = interruptedDelivery(false)
+
+  const { resumable } = recoverSessionDeliveries()
+
+  expect(resumable.size).toBe(0)
+  expect(messages.getSessionMessage('target', reply.id).status).toBe('error')
+  expect(messages.getSessionMessage('target', request.id).delivery?.status).not.toBe('delivering')
+})
+
+it('ends an admitted delivery whose native context was detached', () => {
+  const { request, reply, context } = interruptedDelivery(true)
+  application.get('DbService').withWriteTx((tx) => contexts.detachBranchTx(tx, context.id))
 
   const { resumable } = recoverSessionDeliveries()
 

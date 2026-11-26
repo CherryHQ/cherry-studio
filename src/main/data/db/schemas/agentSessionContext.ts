@@ -6,6 +6,7 @@ import { agentRuntimeBackendTable } from './agentRuntimeBackend'
 import { agentSessionTable } from './agentSession'
 
 export interface AgentSessionCheckpoints {
+  referenceHistory?: true
   fork?: Record<string, unknown>
   root?: {
     version?: 2

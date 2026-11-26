@@ -20,6 +20,11 @@ Pi owns context, streaming, reasoning replay, tools and compaction. Cherry's gat
 selection, upstream credentials and billing. Pi's native transcript remains the replay source;
 product messages are a display projection. Tools advertised to the gateway have no executor there.
 
+The desktop driver reopens the original transcript when it can verify its identity,
+including through a persisted resume token if the branch binding is missing.
+It uses the [Session reference history](../../../../../docs/dev/references/ai/agent-session-runtime.md#first-submission-without-native-history)
+to continue in a fresh native session when the original transcript cannot be located.
+
 Pi and Pi Durable use one gateway compatibility predicate for model selection, child catalogs and
 native binding. The desktop binding injects native protocol object transports; upstream API keys,
 OAuth refresh and provider request patches stay in Cherry's provider execution. There is no desktop
