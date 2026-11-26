@@ -1529,8 +1529,7 @@ it.each(['process-first', 'source-first'] as const)(
       type: 'error',
       error: {
         name: 'ClaudeCodeProcessExitError',
-        processExitCode: 7,
-        processExitDetail: 'native loader unavailable; api_key="<redacted>"'
+        processExitCode: 7
       }
     })
     wire.exit()

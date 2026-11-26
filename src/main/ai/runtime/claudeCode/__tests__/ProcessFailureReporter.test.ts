@@ -23,8 +23,7 @@ describe('task-owned process failure reporting', () => {
     expect(emit).toHaveBeenCalledOnce()
     expect(emit.mock.calls[0][0]).toMatchObject({
       name: 'ClaudeCodeProcessExitError',
-      processExitCode: code,
-      processExitDetail: 'native library unavailable'
+      processExitCode: code
     })
     reporter.close()
   })
@@ -48,7 +47,7 @@ describe('task-owned process failure reporting', () => {
     recordClaudeCodeProcessExit(diagnostics, 2, null, 'native failed')
     await ending
     expect(emit).toHaveBeenCalledOnce()
-    expect(emit.mock.calls[0][0]).toMatchObject({ processExitCode: 2, processExitDetail: 'native failed' })
+    expect(emit.mock.calls[0][0]).toMatchObject({ processExitCode: 2 })
     reporter.close()
   })
 
@@ -77,7 +76,7 @@ describe('task-owned process failure reporting', () => {
     reporter.beginTurn()
     recordClaudeCodeSpawnError(diagnostics, new Error('spawn ENOENT'))
     expect(emit).toHaveBeenCalledOnce()
-    expect(emit.mock.calls[0][0]).toMatchObject({ processExitDetail: 'spawn ENOENT' })
+    expect(emit.mock.calls[0][0]).toMatchObject({ name: 'ClaudeCodeProcessExitError' })
     reporter.close()
   })
 

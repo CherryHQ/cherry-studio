@@ -85,8 +85,7 @@ import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
 import {
   canSalvageClaudeOutput,
   createClaudeCodeProcessExitError,
-  isClaudeCodeProcessFailure,
-  withClaudeCodeSdkFailure
+  isClaudeCodeProcessFailure
 } from './processExitDiagnostics'
 import { type ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 import { ProcessFailureReporter } from './ProcessFailureReporter'
@@ -713,9 +712,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             if (result) terminal.push(result)
           }
           for (const event of terminal) {
-            if (this.pendingProcessFailure && event.type === 'error') {
-              this.pendingProcessFailure.error = withClaudeCodeSdkFailure(this.pendingProcessFailure.error, event.error)
-            }
             if (!this.pendingProcessFailure || (event.type !== 'turn-complete' && event.type !== 'error'))
               this.eventQueue.push(event)
           }
