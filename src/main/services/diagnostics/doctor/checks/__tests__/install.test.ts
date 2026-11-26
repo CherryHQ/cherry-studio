@@ -1,7 +1,14 @@
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
+import { REGISTRY_FILES, REGISTRY_SCHEMA_VERSION } from '@cherrystudio/provider-registry/node'
+import type * as Platform from '@main/core/platform'
 import { ScreenCaptureError } from '@main/services/screenshot'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 
@@ -9,6 +16,7 @@ const services = vi.hoisted(() => ({
   queryUpdateAvailability: vi.fn(),
   loadNativeCaptureBackend: vi.fn()
 }))
+const platform = vi.hoisted(() => ({ isPortable: false }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -19,9 +27,20 @@ vi.mock('@application', async () => {
 vi.mock('@main/services/screenshot/nativeCaptureBackend', () => ({
   loadNativeCaptureBackend: services.loadNativeCaptureBackend
 }))
+vi.mock('@main/core/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof Platform>()),
+  get isPortable() {
+    return platform.isPortable
+  }
+}))
 
-const { installArchitectureMatch, installNativeModules, installUpdateAvailable, installVersionChannel } =
-  await import('../install')
+const {
+  installArchitectureMatch,
+  installNativeModules,
+  installUpdateAvailable,
+  installVersionChannel,
+  providerRegistryReadable
+} = await import('../install')
 
 const setTranslated = (value: boolean | undefined) => {
   ;(app as { runningUnderARM64Translation?: boolean }).runningUnderARM64Translation = value
@@ -154,6 +173,146 @@ describe('install-native-modules', () => {
         { key: 'error', value: 'Screen capture backend is unavailable', dataClass: 'consent_required' },
         { key: 'cause', value: 'dlopen failed', dataClass: 'consent_required' }
       ]
+    })
+  })
+})
+
+describe('install-provider-registry-readable', () => {
+  let fixtureRoot: string
+  let bundledRoot: string
+  let overrideRoot: string
+
+  beforeEach(() => {
+    platform.isPortable = false
+    fixtureRoot = mkdtempSync(path.join(os.tmpdir(), 'doctor-provider-registry-'))
+    bundledRoot = path.join(fixtureRoot, 'provider-registry')
+    overrideRoot = path.join(fixtureRoot, 'override')
+    mkdirSync(bundledRoot)
+    for (const file of REGISTRY_FILES) {
+      copyFileSync(path.resolve('packages/provider-registry/data', file), path.join(bundledRoot, file))
+    }
+    vi.spyOn(application, 'getPath').mockImplementation((key, filename = '') =>
+      path.join(key === 'feature.provider_registry.override' ? overrideRoot : bundledRoot, filename)
+    )
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    rmSync(fixtureRoot, { recursive: true })
+  })
+
+  it('passes without evidence or actions when all three bundled files are valid', async () => {
+    await expect(providerRegistryReadable.run(ctx)).resolves.toEqual({ status: 'pass' })
+  })
+
+  it('reports the missing provider file before an invalid models file and offers recovery actions', async () => {
+    const providers = path.join(bundledRoot, 'providers.json')
+    unlinkSync(providers)
+    writeFileSync(path.join(bundledRoot, 'models.json'), '{}')
+
+    await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
+      status: 'fail',
+      attribution: 'user-fixable',
+      detail: { variant: 'unreadable', params: { file: 'providers.json' } },
+      actions: [{ kind: 'navigate', target: '/settings/about' }, { kind: 'report' }],
+      devMessage: expect.stringContaining(
+        'Provider registry file is unreadable: providers.json (namespace: bundled, cause: ENOENT'
+      ),
+      evidence: expect.arrayContaining([
+        { key: 'file', value: 'providers.json', dataClass: 'public' },
+        { key: 'namespace', value: 'bundled', dataClass: 'public' },
+        { key: 'path', value: providers, dataClass: 'local_only' },
+        { key: 'bundledRoot', value: bundledRoot, dataClass: 'local_only' },
+        { key: 'portable', value: false, dataClass: 'public' },
+        { key: 'cause', value: expect.stringContaining('ENOENT'), dataClass: 'consent_required' }
+      ])
+    })
+  })
+
+  it('reports malformed provider JSON with the original parse error', async () => {
+    writeFileSync(path.join(bundledRoot, 'providers.json'), '{')
+
+    await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
+      status: 'fail',
+      detail: { variant: 'unreadable', params: { file: 'providers.json' } },
+      evidence: expect.arrayContaining([
+        { key: 'cause', value: expect.stringMatching(/\S/), dataClass: 'consent_required' }
+      ])
+    })
+  })
+
+  it('rejects a syntactically valid models file with an invalid schema', async () => {
+    writeFileSync(path.join(bundledRoot, 'models.json'), '{"version":"test","models":{}}')
+
+    await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
+      status: 'fail',
+      detail: { variant: 'unreadable', params: { file: 'models.json' } }
+    })
+  })
+
+  it('attributes invalid provider-model metadata to the active override', async () => {
+    mkdirSync(overrideRoot)
+    const providerModels = path.join(overrideRoot, 'provider-models.json')
+    writeFileSync(path.join(overrideRoot, 'models.json'), '{"version":"models","models":[]}')
+    writeFileSync(providerModels, '{"version":"provider-models","overrides":{}}')
+    writeFileSync(
+      path.join(overrideRoot, 'manifest.json'),
+      JSON.stringify({
+        minAppVersion: app.getVersion(),
+        sourceAppVersion: app.getVersion(),
+        revision: 1,
+        schemaVersion: REGISTRY_SCHEMA_VERSION,
+        files: { 'models.json': 'models', 'provider-models.json': 'provider-models' }
+      })
+    )
+
+    await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
+      status: 'fail',
+      detail: { variant: 'unreadable', params: { file: 'provider-models.json' } },
+      devMessage: expect.stringContaining(
+        'Provider registry file is unreadable: provider-models.json (namespace: override, cause: '
+      ),
+      evidence: expect.arrayContaining([
+        { key: 'namespace', value: 'override', dataClass: 'public' },
+        { key: 'path', value: providerModels, dataClass: 'local_only' }
+      ])
+    })
+  })
+
+  it('passes a healthy portable build in temp and records portable and temp evidence on failure', async () => {
+    platform.isPortable = true
+    await expect(providerRegistryReadable.run(ctx)).resolves.toEqual({ status: 'pass' })
+
+    unlinkSync(path.join(bundledRoot, 'providers.json'))
+
+    await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
+      status: 'fail',
+      evidence: expect.arrayContaining([
+        { key: 'resourcesUnderTempDir', value: true, dataClass: 'public' },
+        { key: 'portable', value: true, dataClass: 'public' }
+      ])
+    })
+  })
+
+  it('recognizes a temporary directory reached through an alias', async () => {
+    const tempAlias = path.join(fixtureRoot, 'temp-alias')
+    symlinkSync(fixtureRoot, tempAlias, 'junction')
+    vi.spyOn(os, 'tmpdir').mockReturnValue(tempAlias)
+    unlinkSync(path.join(bundledRoot, 'providers.json'))
+
+    await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
+      evidence: expect.arrayContaining([{ key: 'resourcesUnderTempDir', value: true, dataClass: 'public' }])
+    })
+  })
+
+  it('does not match a sibling of the temporary directory with the same prefix', async () => {
+    const tempRoot = path.join(fixtureRoot, 'provider')
+    mkdirSync(tempRoot)
+    vi.spyOn(os, 'tmpdir').mockReturnValue(tempRoot)
+    unlinkSync(path.join(bundledRoot, 'providers.json'))
+
+    await expect(providerRegistryReadable.run(ctx)).resolves.toMatchObject({
+      evidence: expect.arrayContaining([{ key: 'resourcesUnderTempDir', value: false, dataClass: 'public' }])
     })
   })
 })

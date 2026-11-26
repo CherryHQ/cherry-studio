@@ -4952,6 +4952,8 @@
   "settings.doctor.checks.install-architecture-match.title": "Installation architecture",
   "settings.doctor.checks.install-native-modules.detail.unavailable": "A required native component is unavailable.",
   "settings.doctor.checks.install-native-modules.title": "Native components",
+  "settings.doctor.checks.install-provider-registry-readable.detail.unreadable": "Cherry Studio cannot read its bundled provider registry file ({{file}}). Reinstall the app, or move it out of a temporary folder, then run these checks again.",
+  "settings.doctor.checks.install-provider-registry-readable.title": "Provider registry files",
   "settings.doctor.checks.install-update-available.detail.available": "A newer version of Cherry Studio is available.",
   "settings.doctor.checks.install-update-available.detail.unsupported": "Update checks are unavailable for this installation.",
   "settings.doctor.checks.install-update-available.title": "Available update",

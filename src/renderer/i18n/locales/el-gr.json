@@ -4952,6 +4952,8 @@
   "settings.doctor.checks.install-architecture-match.title": "Αρχιτεκτονική εγκατάστασης",
   "settings.doctor.checks.install-native-modules.detail.unavailable": "Ένα απαραίτητο εγγενές στοιχείο δεν είναι διαθέσιμο.",
   "settings.doctor.checks.install-native-modules.title": "Εγγενή στοιχεία",
+  "settings.doctor.checks.install-provider-registry-readable.detail.unreadable": "Το Cherry Studio δεν μπορεί να διαβάσει το αρχείο μητρώου παρόχων που περιλαμβάνεται στην εφαρμογή ({{file}}). Εγκαταστήστε ξανά την εφαρμογή ή μετακινήστε την εκτός του προσωρινού φακέλου και επαναλάβετε τους ελέγχους.",
+  "settings.doctor.checks.install-provider-registry-readable.title": "Αρχεία μητρώου παρόχων",
   "settings.doctor.checks.install-update-available.detail.available": "Υπάρχει διαθέσιμη νεότερη έκδοση του Cherry Studio.",
   "settings.doctor.checks.install-update-available.detail.unsupported": "Οι έλεγχοι ενημερώσεων δεν είναι διαθέσιμοι για αυτήν την εγκατάσταση.",
   "settings.doctor.checks.install-update-available.title": "Διαθέσιμη ενημέρωση",

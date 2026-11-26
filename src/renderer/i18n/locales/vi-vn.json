@@ -4952,6 +4952,8 @@
   "settings.doctor.checks.install-architecture-match.title": "Kiến trúc cài đặt",
   "settings.doctor.checks.install-native-modules.detail.unavailable": "Một thành phần gốc bắt buộc không khả dụng.",
   "settings.doctor.checks.install-native-modules.title": "Thành phần gốc",
+  "settings.doctor.checks.install-provider-registry-readable.detail.unreadable": "Cherry Studio không đọc được tệp danh mục nhà cung cấp đi kèm ứng dụng ({{file}}). Hãy cài đặt lại ứng dụng hoặc chuyển ứng dụng ra khỏi thư mục tạm, rồi chạy lại các bước kiểm tra.",
+  "settings.doctor.checks.install-provider-registry-readable.title": "Tệp danh mục nhà cung cấp",
   "settings.doctor.checks.install-update-available.detail.available": "Hiện có phiên bản Cherry Studio mới hơn.",
   "settings.doctor.checks.install-update-available.detail.unsupported": "Không thể kiểm tra bản cập nhật cho bản cài đặt này.",
   "settings.doctor.checks.install-update-available.title": "Bản cập nhật hiện có",

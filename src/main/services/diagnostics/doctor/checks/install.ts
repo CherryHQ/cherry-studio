@@ -1,7 +1,19 @@
+import { realpathSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { app } from 'electron'
 
 import { application } from '@application'
+import {
+  readModelRegistry,
+  readProviderModelRegistry,
+  readProviderRegistry
+} from '@cherrystudio/provider-registry/node'
+import { isPortable } from '@main/core/platform'
+import { resolveRegistryPaths } from '@main/data/services/utils/registryDataPaths'
 import { loadNativeCaptureBackend } from '@main/services/screenshot'
+import { isOutsidePath, isPathInside } from '@main/utils/file'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 
 import { defineDoctorCheck } from '../types'
@@ -132,3 +144,59 @@ export const installNativeModules = defineDoctorCheck({
   },
   fixes: {}
 })
+
+export const providerRegistryReadable = defineDoctorCheck({
+  id: 'install-provider-registry-readable',
+  async run() {
+    const paths = resolveRegistryPaths()
+    const files = [
+      [paths.providers, readProviderRegistry],
+      [paths.models, readModelRegistry],
+      [paths.providerModels, readProviderModelRegistry]
+    ] as const
+
+    // Portable builds can legitimately run from temp. Unreadable registry files indicate an install problem.
+    for (const [filePath, read] of files) {
+      try {
+        read(filePath)
+      } catch (error) {
+        const file = path.basename(filePath)
+        const bundledRoot = application.getPath('feature.provider_registry.data')
+        const overrideRoot = application.getPath('feature.provider_registry.override')
+        const namespace = isPathInside(filePath, overrideRoot) ? 'override' : 'bundled'
+        const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : ''
+        return {
+          status: 'fail',
+          attribution: 'user-fixable',
+          detail: { variant: 'unreadable', params: { file } },
+          actions: [{ kind: 'navigate', target: '/settings/about' }, { kind: 'report' }],
+          devMessage: `Provider registry file is unreadable: ${file} (namespace: ${namespace}, cause: ${cause})`,
+          evidence: [
+            { key: 'file', value: file, dataClass: 'public' },
+            { key: 'namespace', value: namespace, dataClass: 'public' },
+            { key: 'path', value: filePath, dataClass: 'local_only' },
+            { key: 'bundledRoot', value: bundledRoot, dataClass: 'local_only' },
+            { key: 'resourcesUnderTempDir', value: isUnderTempDir(bundledRoot), dataClass: 'public' },
+            { key: 'portable', value: isPortable, dataClass: 'public' },
+            { key: 'cause', value: cause, dataClass: 'consent_required' }
+          ]
+        }
+      }
+    }
+    return { status: 'pass' }
+  },
+  fixes: {}
+})
+
+function isUnderTempDir(bundledRoot: string): boolean {
+  const root = path.resolve(bundledRoot)
+  const temp = path.resolve(os.tmpdir())
+  if (!isOutsidePath(path.relative(temp, root))) return true
+
+  // Resolve aliases such as /var and /private/var when the paths differ.
+  try {
+    return !isOutsidePath(path.relative(realpathSync.native(temp), realpathSync.native(root)))
+  } catch {
+    return false
+  }
+}

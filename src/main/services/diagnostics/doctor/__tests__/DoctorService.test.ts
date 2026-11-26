@@ -53,6 +53,11 @@ vi.mock('../registry', async () => {
         run: registryMocks.hardwareAccelerationRun,
         fixes: {}
       },
+      'install-provider-registry-readable': {
+        id: 'install-provider-registry-readable',
+        run: async () => ({ status: 'pass' }),
+        fixes: {}
+      },
       'mcp-servers-connected': {
         id: 'mcp-servers-connected',
         run: registryMocks.mcpConnectedRun,
@@ -332,6 +337,7 @@ describe('DoctorService scopes', () => {
     ]
     expect(ids).toEqual(
       expect.arrayContaining([
+        'install-provider-registry-readable',
         'network-online',
         'network-model-endpoint',
         'provider-model-list',

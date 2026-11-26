@@ -4952,6 +4952,8 @@
   "settings.doctor.checks.install-architecture-match.title": "安裝架構",
   "settings.doctor.checks.install-native-modules.detail.unavailable": "所需的原生元件無法使用。",
   "settings.doctor.checks.install-native-modules.title": "原生元件",
+  "settings.doctor.checks.install-provider-registry-readable.detail.unreadable": "Cherry Studio 無法讀取應用程式隨附的供應商登錄檔案（{{file}}）。請重新安裝應用程式，或將它移出暫存資料夾，然後重新檢查。",
+  "settings.doctor.checks.install-provider-registry-readable.title": "供應商登錄檔案",
   "settings.doctor.checks.install-update-available.detail.available": "Cherry Studio 有新版本可用。",
   "settings.doctor.checks.install-update-available.detail.unsupported": "目前的安裝方式不支援檢查更新。",
   "settings.doctor.checks.install-update-available.title": "可用更新",
