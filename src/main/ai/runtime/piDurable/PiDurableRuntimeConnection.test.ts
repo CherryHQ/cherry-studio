@@ -604,7 +604,7 @@ describe('desktop Pi Durable connection', () => {
     return () => finish()
   }
   function sharedHosts() {
-    dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', orderKey: 'a0' }).run()
+    dbh.db.insert(userProviderTable).values({ providerId: 'test', name: 'Test', isEnabled: true, orderKey: 'a0' }).run()
     dbh.db
       .insert(userModelTable)
       .values({
