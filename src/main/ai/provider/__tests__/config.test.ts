@@ -32,7 +32,7 @@ import { resolveImageTransport } from '../custom/imageTransportRegistry'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
 import { buildVendorProviderOptions } from '../custom/wire/buildImageRequest'
 import { WIRE_REGISTRY } from '../custom/wire/wireProfile'
-import { resolveEffectiveEndpoint, resolveWireModelId } from '../endpoint'
+import { resolveWireModelId } from '../endpoint'
 import { resolveSdkConfig } from '../sdkConfig'
 
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
