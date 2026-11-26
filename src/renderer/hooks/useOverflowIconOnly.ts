@@ -54,12 +54,10 @@ export function useOverflowIconOnly() {
 
   useLayoutEffect(() => {
     update()
-  })
+  }, [iconOnly, update])
 
   useEffect(() => {
     if (!container || typeof ResizeObserver === 'undefined') return
-
-    update()
 
     const observer = new ResizeObserver((entries) => {
       const containerEntry = entries.find((entry) => entry.target === container)

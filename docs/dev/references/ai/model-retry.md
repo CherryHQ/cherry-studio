@@ -49,6 +49,11 @@ These keys are generated from `scripts/data-classify/data/target-key-definitions
 ### Chat models — two pieces
 
 **Fallbacks are rebuilt per-model** (`src/main/ai/runtime/aiSdk/retry/buildFallbackModels.ts`).
+A tool continuation that carries route-bound state uses the route that produced
+the active tool call. This includes a fallback that already served the turn.
+If that route is unavailable, the continuation fails with its tool results
+retained. Cross-model fallback resumes at the next user turn.
+
 A fallback must carry **its own** feature middleware and params, not the
 primary's — ai-retry swaps the model but replays one set of call options, and
 the feature plugins are model-specific (built per `(assistant, model, provider)`
@@ -69,10 +74,9 @@ in `buildAgentParams`, closed over that model). So for each configured fallback
    configuration, authentication, plugin, and other unexpected errors propagate
    instead of being silently converted into "no fallback".
 
-**`createRetryableWrap`** (`createRetryableWrap.ts`) then just assembles the
-ai-retry policy from the pre-built fallbacks (no provider/model loading in this
-leaf). It returns `undefined` only when model retry is disabled and no eligible
-API-key fallback exists; otherwise it returns a `wrapModel` closure. Key rotation
+**`createRetryableWrap`** (`createRetryableWrap.ts`) assembles the ai-retry
+policy and checks route-bound tool continuations. An eligible fallback, a
+model retry policy, or a replay route guard can install the wrapper. Key failover
 is attempted first for 401/429 responses. When model retry is enabled, a selected
 replacement key still receives the configured same-model retry for other
 retryable errors (such as 503/529) before cross-model fallback begins.
@@ -166,22 +170,20 @@ Pi and Pi Durable internal object requests reuse `createRetryableWrap` through t
 caller-owned single-step path. `RuntimeExecutor.streamText` / `generateText` apply the
 wrapper after provider middleware. An explicit request count enables three retries,
 independently of the chat retry toggle and count; backoff uses `chat.retry.backoff_enabled`.
-Native and AI SDK built-in retries remain disabled. These requests do not rotate API keys
-or fall back to another model, and retry only before the first content chunk is forwarded.
+Native and AI SDK built-in retries remain disabled. The Gateway selects the
+serving key once per request. Retries use that key and model, and only run before
+the first content chunk is forwarded.
 An explicit zero keeps HTTP gateway requests outside the wrapper. See the
 [Pi model request contract](../../../../src/main/ai/runtime/pi/README.md#model-requests).
 
-- **AI SDK `maxRetries`** is forced to `0` whenever the chat wrapper is active,
-  so ai-retry alone owns retries and attempts cannot multiply. With the global
-  feature disabled, an explicit non-zero per-request value uses the SDK's native
-  retry behavior unless API-key failover activates the wrapper; in that case the
-  wrapper normalizes a positive fractional value down to at least one retry and
-  applies that count without enabling configured model fallbacks.
+- **AI SDK `maxRetries`** is set to `0` when ai-retry owns retries or API-key
+  failover. A route guard on its own preserves an explicit SDK retry budget.
+  With global retry disabled and API-key failover enabled, the wrapper
+  normalizes a positive fractional budget down to at least one retry and
+  leaves configured model fallbacks disabled.
 - **Per-request opt-out:** an explicit `requestOptions.maxRetries === 0` on a
-  chat request disables the entire ai-retry wrapper for that request (no API-key
-  failover, same-model retry, or cross-model fallback), so the per-request
-  contract stays authoritative — the same way embedding/rerank honor an explicit
-  override.
+  chat request disables API-key failover, same-model retry, and cross-model
+  fallback. The replay route guard still checks the continuation.
 - **`AgentLoopHooks.onError`** handlers are all invoked and their decisions are
   composed (`retry` wins over `abort`). The current agent loop still terminates
   after notification; call-level retry/fallback belongs to this model wrapper,

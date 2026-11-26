@@ -16,6 +16,7 @@ import { openExternalWebsite } from '@renderer/services/website'
 import { type FileMetadata } from '@renderer/types/file'
 import type { McpTool } from '@renderer/types/tool'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
+import { type MessagePartRows, messagePartsAt, messagePartEntries } from '@renderer/utils/message/messagePartRows'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type AbsoluteFilePath, FILE_TYPE } from '@shared/types/file'
@@ -35,7 +36,7 @@ type MessageLeafActions = Pick<
 type MessageLeafState = Pick<MessageListState, 'getFileView' | 'isToolAutoApproved'>
 
 interface MessageLeafCapabilitiesParams {
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   streamingLayers?: MessageStreamingLayers
 }
 
@@ -110,21 +111,16 @@ export function useMessageLeafCapabilities({
   const { t } = useTranslation()
   const { preview } = useAttachment()
   const platformActions = useMessagePlatformActions()
-  const historyPartsByMessageId = streamingLayers?.historyPartsByMessageId
-  const historyHasMcpToolParts = useMemo(
-    () =>
-      historyPartsByMessageId
-        ? Object.values(historyPartsByMessageId).some((parts) => parts.some(isMcpToolPart))
-        : false,
-    [historyPartsByMessageId]
-  )
-  const hasMcpToolParts = useMemo(() => {
-    if (!streamingLayers) {
-      return Object.values(partsByMessageId).some((parts) => parts.some(isMcpToolPart))
+  const historyPartsByMessageId = streamingLayers?.historyPartsByMessageId ?? partsByMessageId
+  const historyHasMcpToolParts = useMemo(() => {
+    for (const [, parts] of messagePartEntries(historyPartsByMessageId)) {
+      if (parts.some(isMcpToolPart)) return true
     }
-    if (historyHasMcpToolParts) return true
-    return streamingLayers.liveMessageIds.some((messageId) => partsByMessageId[messageId]?.some(isMcpToolPart))
-  }, [historyHasMcpToolParts, partsByMessageId, streamingLayers])
+    return false
+  }, [historyPartsByMessageId])
+  const hasMcpToolParts =
+    historyHasMcpToolParts ||
+    streamingLayers?.liveMessageIds.some((id) => messagePartsAt(partsByMessageId, id)?.some(isMcpToolPart)) === true
   const { data: mcpServersData } = useQuery('/mcp-servers', { enabled: hasMcpToolParts })
   const mcpServers = useMemo(() => mcpServersData?.items ?? [], [mcpServersData])
 

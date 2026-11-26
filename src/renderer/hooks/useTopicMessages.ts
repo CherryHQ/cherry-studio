@@ -1,23 +1,19 @@
 /**
  * Hook for loading topic messages from DataApi as CherryUIMessage[].
  *
- * Uses `useConversationHistoryQuery` + `useInfiniteFlatItems` with `reversePages: true` —
+ * Uses `useConversationHistoryQuery` —
  * the branch endpoint paginates newest-page-first but keeps within-page items
  * in oldest→newest order, so reversing page order yields a monotonically
  * chronological `items` array (root → activeNode) across any number of loaded
  * pages. `activeNodeId` is read from the freshest page's top-level metadata.
- *
- * `toUIMessage` projects every persisted field onto `CherryUIMessage.metadata`
- * so downstream consumers read per-message metadata (model, parent, stats,
- * status, …) directly from the message object — no parallel metadataMap
- * lookup that can lag behind `useChat.state.messages` during streaming.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
+import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
-import { useDataChange, useInfiniteFlatItems } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useWriteInfinitePage } from '@renderer/data/hooks/useDataApi'
 import type { MessageListSelectAllPagination } from '@renderer/types/message'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
@@ -28,7 +24,9 @@ import type {
   Message as SharedMessage
 } from '@shared/data/types/message'
 
+import { useHistoryPageProjection } from './historyPageLayout'
 import { useConversationHistoryQuery } from './useConversationHistoryQuery'
+import { type HistorySlot, type PageRows, type ReplyHistory, useHistoryRowUpdates } from './useHistoryRowUpdates'
 
 // Baseline page size when the anchor rail is off — no reason to load more.
 const PAGE_SIZE = 50
@@ -122,10 +120,31 @@ function projectBranchMessages(items: BranchMessage[]): BranchProjection {
   return { displayMessages, siblingsMap }
 }
 
+function branchBelongsToTopic(item: BranchMessage, topicId: string): boolean {
+  return item.message.topicId === topicId && (item.siblingsGroup ?? []).every((sibling) => sibling.topicId === topicId)
+}
+
+const branchRows: PageRows<BranchMessage, SharedMessage> = {
+  get(items, { item, sibling }) {
+    return sibling === undefined ? items[item]?.message : items[item]?.siblingsGroup?.[sibling]
+  },
+  replace(items, { item, sibling }, row) {
+    const entry = items[item]
+    return items.with(
+      item,
+      sibling === undefined
+        ? { ...entry, message: row }
+        : { ...entry, siblingsGroup: entry.siblingsGroup!.with(sibling, row) }
+    )
+  }
+}
+
 // ── Hook ──
 
 export interface UseTopicMessagesResult {
+  displayIndex(id: string): number | undefined
   uiMessages: CherryUIMessage[]
+  replyHistory: ReplyHistory
   /**
    * Map from any sibling member's id to the full ordered sibling group
    * (includes the member itself). Lets the sibling navigator render
@@ -137,7 +156,7 @@ export interface UseTopicMessagesResult {
   pathMessages: SharedMessage[]
   isLoading: boolean
   isStale: boolean
-  refresh: () => Promise<CherryUIMessage[]>
+  refresh: () => Promise<void>
   activeNodeId: string | null
   /** Load the next (older) page of branch history. */
   loadOlder: () => void
@@ -176,41 +195,113 @@ export function useTopicMessages(
   useEffect(() => {
     stopLoadAll()
   }, [stopLoadAll, topicId])
-  const { pages, isLoading, isRefreshing, error, mutate, loadNext, hasNext } = useConversationHistoryQuery(
-    '/topics/:topicId/messages',
-    {
-      params: { topicId },
-      query: { includeSiblings: true },
-      limit: pageSize,
-      enabled,
-      swrOptions: {
-        dedupingInterval: 0,
-        // Paging to the end must not revalidate the first page on every step
-        // (same as `useTopics({ loadAll: true })`); restored once finished.
-        revalidateFirstPage: !loadAllRequested,
-        ...(!fetchOnMount && {
-          revalidateIfStale: false,
-          revalidateOnMount: false
-        })
-      }
+  const {
+    pages,
+    isLoading,
+    isRefreshing,
+    error,
+    mutate,
+    loadNext,
+    hasNext,
+    refresh: refreshPages
+  } = useConversationHistoryQuery('/topics/:topicId/messages', {
+    params: { topicId },
+    query: { includeSiblings: true },
+    limit: pageSize,
+    enabled,
+    swrOptions: {
+      dedupingInterval: 0,
+      // Paging to the end must not revalidate the first page on every step
+      // (same as `useTopics({ loadAll: true })`); restored once finished.
+      revalidateFirstPage: !loadAllRequested,
+      ...(!fetchOnMount && {
+        revalidateIfStale: false,
+        revalidateOnMount: false
+      })
     }
-  )
+  })
   // Branch endpoint paginates newest-page-first; flipping page order gives a
   // chronological root → activeNode list. `activeNodeId` lives on each page
   // response — page 0 is the freshest fetch, so its value is authoritative.
-  const branchItems = useInfiniteFlatItems(pages, { reversePages: true })
-  const pagesBelongToTopic = useMemo(
-    () =>
-      pages.every((page) =>
-        page.items.every(
-          (item) =>
-            item.message.topicId === topicId &&
-            (item.siblingsGroup ?? []).every((sibling) => sibling.topicId === topicId)
-        )
-      ),
-    [pages, topicId]
-  )
+  const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
   const activeNodeId = pages[0]?.activeNodeId ?? null
+  const build = useCallback(
+    (pages: { items: BranchMessage[] }[]) => {
+      const items = pages.toReversed().flatMap((page) => page.items)
+      const { displayMessages, siblingsMap } = projectBranchMessages(items)
+      const uiMessages = projectDisplayMessagesToUI(displayMessages, projectionCacheRef.current)
+      const positions = new Map<string, HistorySlot & { displayIndex?: number; pathIndex?: number }>()
+      pages.forEach(({ items }, page) => {
+        items.forEach((entry, item) => {
+          positions.set(entry.message.id, { page, item })
+          entry.siblingsGroup?.forEach((row, sibling) => positions.set(row.id, { page, item, sibling }))
+        })
+      })
+      uiMessages.forEach((row, index) => {
+        positions.get(row.id)!.displayIndex = index
+      })
+      const pagesBelongToTopic = items.every((item) => branchBelongsToTopic(item, topicId))
+      const excluded = new Set<string>()
+      for (const [id, slot] of positions) if (slot.displayIndex === undefined) excluded.add(id)
+      const pathMessages: SharedMessage[] = []
+      let id = activeNodeId
+      while (id) {
+        const slot = positions.get(id)
+        if (!slot) break
+        const entry = pages[slot.page].items[slot.item]
+        const row = slot.sibling === undefined ? entry.message : entry.siblingsGroup?.[slot.sibling]
+        if (!row) break
+        pathMessages.push(row)
+        id = row.parentId
+      }
+      pathMessages.reverse().forEach((row, i) => {
+        positions.get(row.id)!.pathIndex = i
+      })
+      return { positions, uiMessages, siblingsMap, pagesBelongToTopic, excluded, pathMessages }
+    },
+    [activeNodeId, topicId]
+  )
+  const replace = useCallback(
+    (view: ReturnType<typeof build>, changes: BranchMessage[]) => {
+      if (!view.pagesBelongToTopic) return
+      const uiMessages = view.uiMessages.slice()
+      let siblingsMap = view.siblingsMap
+      let pathMessages = view.pathMessages
+      for (const entry of changes) {
+        if (!branchBelongsToTopic(entry, topicId)) return
+        const group = projectBranchMessages([entry])
+        const messages = projectDisplayMessagesToUI(group.displayMessages, projectionCacheRef.current)
+        const start = view.positions.get(messages[0].id)?.displayIndex
+        if (start === undefined) return
+        const members = [entry.message, ...(entry.siblingsGroup ?? [])]
+        if (members.filter((row) => view.positions.get(row.id)?.displayIndex !== undefined).length !== messages.length)
+          return
+        for (const [i, row] of messages.entries()) {
+          if (view.positions.get(row.id)?.displayIndex !== start + i) return
+          uiMessages[start + i] = row
+        }
+        for (const member of members) {
+          const index = view.positions.get(member.id)?.pathIndex
+          if (index === undefined || pathMessages[index] === member) continue
+          if (pathMessages[index].parentId !== member.parentId) return
+          if (pathMessages === view.pathMessages) pathMessages = pathMessages.slice()
+          pathMessages[index] = member
+        }
+        if (entry.siblingsGroup?.length) {
+          if (siblingsMap === view.siblingsMap) siblingsMap = { ...siblingsMap }
+          for (const member of members) delete siblingsMap[member.id]
+          Object.assign(siblingsMap, group.siblingsMap)
+        }
+      }
+      return { ...view, uiMessages, siblingsMap, pathMessages }
+    },
+    [topicId]
+  )
+  const { positions, uiMessages, siblingsMap, pagesBelongToTopic, excluded, pathMessages } = useHistoryPageProjection(
+    pages,
+    build,
+    replace
+  )
 
   // Errors that predate the load-all are baseline; only a NEW error while paging
   // abandons it. A retained error would otherwise deadlock a retried select-all
@@ -253,71 +344,33 @@ export function useTopicMessages(
     setReadyTopicId(topicId)
   }, [enabled, isLoading, isRefreshing, pagesBelongToTopic, topicId])
 
-  const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
-  const branchProjection = useMemo(() => projectBranchMessages(branchItems), [branchItems])
-  const uiMessages = useMemo<CherryUIMessage[]>(
-    () => projectDisplayMessagesToUI(branchProjection.displayMessages, projectionCacheRef.current),
-    [branchProjection.displayMessages]
+  const writePage = useWriteInfinitePage('/topics/:topicId/messages', {
+    params: { topicId },
+    query: { includeSiblings: true },
+    limit: pageSize
+  })
+  const readRow = useCallback((id: string) => dataApiService.get(`/messages/${id}`), [])
+  const { replyHistory, onChange } = useHistoryRowUpdates(
+    pages,
+    positions,
+    branchRows,
+    readRow,
+    writePage,
+    topicId,
+    refreshPages,
+    excluded
   )
-  const pathMessages = useMemo(() => {
-    const messagesById = new Map<string, SharedMessage>()
-    for (const { message, siblingsGroup } of branchItems) {
-      for (const sibling of siblingsGroup ?? []) messagesById.set(sibling.id, sibling)
-      messagesById.set(message.id, message)
-    }
-
-    // Optimistic reservations can include replies outside the active branch.
-    const path: SharedMessage[] = []
-    let message = activeNodeId ? messagesById.get(activeNodeId) : undefined
-    while (message) {
-      path.push(message)
-      message = message.parentId ? messagesById.get(message.parentId) : undefined
-    }
-    return path.reverse()
-  }, [activeNodeId, branchItems])
-  const loadedMessageIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const item of branchItems) {
-      ids.add(item.message.id)
-      for (const sibling of item.siblingsGroup ?? []) ids.add(sibling.id)
-    }
-    return ids
-  }, [branchItems])
-
   useDataChange(
     '/topics/:topicId/messages',
     (effects) => {
-      // Membership effects carry the NEW row ids — never in loadedMessageIds yet.
-      // Route scoping already limits them to this topic, so they must always refetch.
-      if (
-        enabled &&
-        effects.some(
-          (effect) =>
-            !effect.entityIds ||
-            effect.kind === 'membership' ||
-            effect.entityIds.some((messageId) => loadedMessageIds.has(messageId))
-        )
-      ) {
-        void mutate()
-      }
+      if (enabled) onChange(effects)
     },
     { routeParams: { topicId } }
   )
 
-  // `refresh` revalidates every loaded page and returns the flattened
-  // uiMessages so `useChatWithHistory`'s on-done handler can push DB truth
-  // into `useChat.state.messages`. Reuses the same projection helper as the
-  // memo above so the two paths can't drift on flatten / cache semantics.
-  const refresh = useCallback(async (): Promise<CherryUIMessage[]> => {
-    if (!enabled) return []
-    const refreshed = await mutate()
-    if (!refreshed?.length) return []
-    const allItems = refreshed
-      .slice()
-      .reverse()
-      .flatMap((p) => p.items)
-    return projectBranchMessagesToUI(allItems, projectionCacheRef.current)
-  }, [mutate, enabled])
+  const refresh = useCallback(async () => {
+    if (enabled) await refreshPages({ throwOnError: true })
+  }, [refreshPages, enabled])
 
   const isStale = enabled && (readyTopicId !== topicId || !pagesBelongToTopic)
 
@@ -331,10 +384,14 @@ export function useTopicMessages(
     [enabled, hasNext, loadAllRequested, startLoadAll, stopLoadAll]
   )
 
+  const displayIndex = useCallback((id: string) => positions.get(id)?.displayIndex, [positions])
+
   return {
+    displayIndex,
     uiMessages,
-    siblingsMap: branchProjection.siblingsMap,
     pathMessages,
+    replyHistory,
+    siblingsMap,
     isLoading: enabled && (isLoading || isStale),
     isStale,
     refresh,

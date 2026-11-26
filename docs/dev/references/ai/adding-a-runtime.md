@@ -95,18 +95,21 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
      `isForkCheckpoint(value)` using the adapter's native checkpoint schema. Message
      listing uses this predicate without loading the SDK, opening storage or starting
      execution. The fork operation still verifies native history before publication.
-   - Optional: `prewarmSession` / `closeSessionWarm` / `onSessionIdle` for
-     runtimes that benefit from idle warmup (see the Claude driver).
+   - A driver can use `onSessionIdle` to prepare for its next command. Main invokes
+     `recoverWork` after lifecycle initialization for work that survives a restart.
 
 2. **Connection** (`AgentRuntimeConnection`) — required members:
-   - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Minimum viable event
-     mapping: `message-projection` for authoritative Agent content, `chunk` for
-     host controls and display metadata, `turn-complete` to settle the
-     host turn (the host closes the UI turn on this event — a runtime that
-     never emits it strands the turn; set `status: 'paused'` instead of
-     emitting `error` when native evidence shows the turn was aborted),
-     `resume-token` whenever the runtime learns a recovery handle, `error` on
-     failure.
+   - `events` — an `AsyncIterable<AgentRuntimeEvent>`. Use `message-projection` to
+     establish or reconcile native messages and `NativePartUpdate` for live text,
+     reasoning and tool results. Emit `message-metadata` for turn statistics,
+     `data-retry` for model retries and `tool-input-available` for a tool input
+     surfaced before approval. A `tool-approval-request` carries the full request
+     so the host can present it in the stream or in a separate message.
+     Emit `resume-token` when a recovery handle becomes available. Close each
+     turn with `turn-complete`, set its status to `paused` for a native abort,
+     or emit `error` on failure. Independently confirmed fork positions may use `run-checkpoint`,
+     carrying the native context and stable product input ID. Main resolves the owning Run;
+     emitting this evidence does not finish it or require the whole connection to become idle.
    - `send(input)` — deliver a user message; `input.systemReminder` marks a
      steer, wrap it with `wrapSteerReminder(...)`. Apply optional model-only
      `input.context` through ordinary input/attachment conversion with
@@ -132,16 +135,17 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        `steer-boundary` with input IDs when native placement is evidenced. Keep original product
        snapshots/headless policy on the existing session entry, including unknown admission across
        replacement. Prepare the native binding before dispatch, fence stale callbacks by generation,
-       and reconcile retained inputs without automatically resending. Pi/Durable reserve the reply
+       and reconcile retained inputs without automatically resending. Pi/Durable associate steered inputs with the active Run
        synchronously before the next provider request; Claude command-start alone is not placement. A driver that returns unplaced inputs
        for the next turn emits `steer-undelivered`; Pi instead records native queued
        inputs as aborted when execution ends without placing them, without automatic resend.
        Claude uses native next-priority admission across the turn boundary and never
-       returns an accepted input for host resend.
+       returns an accepted input for host resend. If native completion precedes placement, emit
+       `run-started` for that distinct execution instead of joining the completed Run.
      - `followUp(input)` — native admission for a message sent while native work runs. The
        runtime persists the input in its own queue at once, so it survives a crash; the host
        prefers `redirect` for an open turn, then `followUp`, then its own queue. Emit
-       `steer-boundary` with the input ID and `followUp: true` when the runtime places it, after
+       `run-started` with the input ID when the runtime starts a distinct execution, after
        the content that answers the input before it, so each input gets its own reply. Report a
        refused submission through `input-submission`, and emit `steer-undelivered` for one that
        fails before it reaches the runtime. Return false when no native work runs or the text is a
@@ -158,10 +162,10 @@ Create `src/main/ai/runtime/<name>/` implementing the contract in
        that input's reply. A projection's `inputs` maps native user messages to product input IDs, so
        committed answers rebuild a reply that never reached terminal persistence.
        Resident commands may retain the connection without holding a product reply open.
-     - `childProjection(toolCallId)` — expose a child snapshot and subscription
-       through the root owner. `messageChild(contextId, text)` dispatches child input
-       through that owner. These optional desktop facets do not add native history
-       methods to the common Runtime contract; see [Pi child projection](./agent-session-runtime.md#pi-behavior-host).
+     - A child writer publishes its product archive through `childTimelines`. The
+       desktop reads that archive directly and subscribes to live changes. An explicit
+       `messageChild(contextId, text)` command opens its original execution owner.
+       See [Pi child projection](./agent-session-runtime.md#pi-behavior-host).
        A connection with independent child writes also provides `drainChildWrites()`:
        after input admission drains, wait for native work, queued observation delivery and in-flight
        callbacks before the final archive flush. Keep the write boundary sealed until resume.

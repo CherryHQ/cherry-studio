@@ -7,6 +7,13 @@ import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '..
 import type { FileProcessingCapabilityHandler } from '../../types'
 import { createPaddleClient, PADDLE_MAX_FILE_SIZE } from '../client'
 
+/**
+ * Models served by the PaddleOCR document-parsing task (`document_parsing`),
+ * not the plain OCR task (`ocr`). Kept in sync with `isDocumentParsingModel`
+ * in `@paddleocr/api-sdk` (PP-StructureV3 + PaddleOCR-VL series).
+ */
+const DOCUMENT_PARSING_MODELS = new Set(['PP-StructureV3', 'PaddleOCR-VL', 'PaddleOCR-VL-1.5', 'PaddleOCR-VL-1.6'])
+
 /** Capability handler that extracts text from images via PaddleOCR. */
 export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
   mode: 'background',
@@ -19,6 +26,24 @@ export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to
       mode: 'background',
       async execute(executionContext) {
         const client = await createPaddleClient(apiHost, apiKey)
+
+        // VL / Structure models are document-parsing models: they must go
+        // through `parseDocument` (markdown per page), while PP-OCR models go
+        // through `ocr` (rec_texts per page). The SDK rejects cross-task calls.
+        if (model && DOCUMENT_PARSING_MODELS.has(model)) {
+          const result = await client.parseDocument({ filePath: file.path, model }, { signal: executionContext.signal })
+          const text = result.pages
+            .map((p) => p.markdownText)
+            .join('\n\n')
+            .trim()
+
+          if (!text) {
+            throw new Error('PaddleOCR image OCR returned empty text content')
+          }
+
+          return { kind: 'text', text }
+        }
+
         const result = await client.ocr({ filePath: file.path, model }, { signal: executionContext.signal })
         const text = result.pages
           .flatMap((p) => {

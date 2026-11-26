@@ -82,6 +82,30 @@ export async function openDeepseekArchive(file: string) {
       const name = `chat_sessions/${id}.json`
       if (!sessionNames.has(name)) throw new Error('Missing DeepSeek conversation')
       const raw = await json(name)
+      // Fragments this build doesn't model yet (e.g. agent-run stage records
+      // like PATTERN/RATIO/RESULTS) are dropped before validation, so a single
+      // bad fragment cannot abort the whole import.
+      const KNOWN_FRAGMENT_TYPES = new Set([
+        'REQUEST',
+        'RESPONSE',
+        'TEMPLATE_RESPONSE',
+        'CONTENT_RISK',
+        'THINK',
+        'FILE',
+        'TOOL_OPEN',
+        'TOOL_SEARCH',
+        'TOOL_IMAGE_SEARCH'
+      ])
+      const conversation = raw as { messages?: Array<{ fragments?: unknown[] }> } | null | undefined
+      if (Array.isArray(conversation?.messages)) {
+        for (const message of conversation.messages) {
+          if (!Array.isArray(message.fragments)) continue
+          message.fragments = message.fragments.filter((fragment) => {
+            const f = fragment as { type?: string } | null
+            return f != null && KNOWN_FRAGMENT_TYPES.has(f.type ?? '')
+          })
+        }
+      }
       let value: ReturnType<typeof parseDeepseekConversation>
       try {
         value = parseDeepseekConversation(raw)

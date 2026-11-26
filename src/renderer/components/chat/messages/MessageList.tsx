@@ -21,6 +21,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { dataUrlToBlob } from '@renderer/utils/image'
+import { messagePartsAt } from '@renderer/utils/message/messagePartRows'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -55,7 +56,7 @@ import { getLatestAssistantGroupKey, getMessageGroupKey } from './utils/messageG
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableAnchorMessagesCache, stableAnchorMessages } from './utils/stableAnchorMessages'
-import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils/stableGroupedMessages'
+import { stableGroupedMessages } from './utils/stableGroupedMessages'
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
 const MESSAGE_OUTLINE_LAYOUTS: MultiModelMessageStyle[] = ['horizontal', 'vertical', 'fold', 'grid']
@@ -159,7 +160,7 @@ function groupPartsShallowEqual(
   messages: MessageGroupLayerProps['messages']
 ): boolean {
   if (previous === next) return true
-  return messages.every((message) => previous?.[message.id] === next?.[message.id])
+  return messages.every((message) => messagePartsAt(previous, message.id) === messagePartsAt(next, message.id))
 }
 
 /**
@@ -242,8 +243,12 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   const [topicImageCaptureActions, setTopicImageCaptureActions] = useState<PendingTopicImageRuntimeAction[]>([])
   const topicImageCaptureActionsRef = useRef<PendingTopicImageRuntimeAction[]>([])
 
-  const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
-  const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
+  const previousGroups = useRef<ReturnType<typeof stableGroupedMessages>>(undefined)
+  const { entries: groupedMessages, indexByKey } = useMemo(() => {
+    const groups = stableGroupedMessages(messages, previousGroups.current)
+    previousGroups.current = groups
+    return groups
+  }, [messages])
   const listItems = useMemo(
     () => (afterMessages ? [...groupedMessages, AFTER_MESSAGES] : groupedMessages),
     [afterMessages, groupedMessages]
@@ -293,14 +298,13 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   )
   const firstLiveGroupIndex = useMemo(() => {
     if (!streamingLayers) return 0
-    if (liveMessageIds.length === 0) return groupedMessages.length
-
-    const liveIndex = groupedMessages.findIndex(([, groupMessages]) =>
-      groupMessages.some((message) => liveMessageIdSet.has(message.id))
-    )
-    // Stream status can arrive before its placeholder joins the visible list.
-    return liveIndex >= 0 ? liveIndex : groupedMessages.length
-  }, [groupedMessages, liveMessageIdSet, liveMessageIds.length, streamingLayers])
+    let first = groupedMessages.length
+    for (const id of liveMessageIds) {
+      const message = messageById.get(id)
+      if (message) first = Math.min(first, indexByKey.get(getMessageGroupKey(message)) ?? first)
+    }
+    return first
+  }, [groupedMessages.length, indexByKey, liveMessageIds, messageById, streamingLayers])
   const { bindRuntime, copyImage, loadOlder, saveImage } = actions
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
@@ -457,6 +461,10 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   // at the very bottom the last turn wins regardless of its height.
   const updateActiveAnchorMessage = useCallback(() => {
     if (!shouldTrackAnchorPosition) return
+    if (messageListRef.current?.isFollowing()) {
+      setActiveAnchorMessageId(null)
+      return
+    }
 
     const scrollElement = scrollContainerRef.current ?? messageListRef.current?.getScrollElement()
     if (!scrollElement) return
@@ -496,6 +504,14 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
   }, [messageById, shouldTrackAnchorPosition])
   const updateActiveAnchorMessageRef = useRef(updateActiveAnchorMessage)
   updateActiveAnchorMessageRef.current = updateActiveAnchorMessage
+  const activeAnchorFrameRef = useRef<number | null>(null)
+  const requestActiveAnchorUpdate = useCallback(() => {
+    if (activeAnchorFrameRef.current !== null) return
+    activeAnchorFrameRef.current = requestAnimationFrame(() => {
+      activeAnchorFrameRef.current = null
+      updateActiveAnchorMessageRef.current()
+    })
+  }, [])
 
   const loadMoreMessages = useCallback(() => {
     if (!hasOlder || isLoadingMoreRef.current || !loadOlder) return
@@ -696,14 +712,6 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
 
   useEffect(() => {
     if (!shouldTrackAnchorPosition) {
-      setActiveAnchorMessageId((current) => (current ? null : current))
-      return
-    }
-    updateActiveAnchorMessage()
-  }, [groupedMessages, shouldTrackAnchorPosition, updateActiveAnchorMessage])
-
-  useEffect(() => {
-    if (!shouldTrackAnchorPosition) {
       setRailGutterPx(0)
       return
     }
@@ -721,25 +729,39 @@ const MessageList = ({ enableSearch = false, scrollPositionKey }: MessageListPro
     const resizeObserver = new ResizeObserver(updateRailGutter)
     resizeObserver.observe(scrollElement)
 
-    let frame: number | null = null
-    const handleAnchorUpdate = () => {
-      if (frame !== null) return
-      frame = requestAnimationFrame(() => {
-        frame = null
-        updateActiveAnchorMessageRef.current()
-      })
-    }
-    scrollElement.addEventListener('scroll', handleAnchorUpdate, { passive: true })
-    window.addEventListener('resize', handleAnchorUpdate)
+    scrollElement.addEventListener('scroll', requestActiveAnchorUpdate, { passive: true })
+    window.addEventListener('resize', requestActiveAnchorUpdate)
 
     // The layout owner survives topic switches, so preserve its width-derived gutter.
     return () => {
       resizeObserver.disconnect()
-      if (frame !== null) cancelAnimationFrame(frame)
-      scrollElement.removeEventListener('scroll', handleAnchorUpdate)
-      window.removeEventListener('resize', handleAnchorUpdate)
+      scrollElement.removeEventListener('scroll', requestActiveAnchorUpdate)
+      window.removeEventListener('resize', requestActiveAnchorUpdate)
     }
-  }, [data.isInitialLoading, data.listKey, setRailGutterPx, shouldTrackAnchorPosition, topic.id])
+  }, [
+    data.isInitialLoading,
+    data.listKey,
+    requestActiveAnchorUpdate,
+    setRailGutterPx,
+    shouldTrackAnchorPosition,
+    topic.id
+  ])
+
+  useEffect(() => {
+    if (shouldTrackAnchorPosition) {
+      requestActiveAnchorUpdate()
+    } else {
+      setActiveAnchorMessageId(null)
+    }
+  }, [groupedMessages, requestActiveAnchorUpdate, shouldTrackAnchorPosition, updateActiveAnchorMessage])
+
+  useEffect(() => {
+    return () => {
+      if (activeAnchorFrameRef.current === null) return
+      cancelAnimationFrame(activeAnchorFrameRef.current)
+      activeAnchorFrameRef.current = null
+    }
+  }, [shouldTrackAnchorPosition])
 
   useEffect(() => {
     return bindRuntime?.({
