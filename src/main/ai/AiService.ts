@@ -1207,8 +1207,7 @@ export class AiService extends BaseService {
       sdkConfig.providerId === 'newapi' && sdkConfig.providerOptionsKey === 'google' ? 'google' : sdkConfig.providerId
     const registration = WIRE_REGISTRY[wireProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
     // OpenAI-compatible models read providerOptions[actualProviderId], not the adapter id.
-    const deliveryKey =
-      sdkConfig.providerId === 'openai-compatible' ? sdkConfig.providerOptionsKey : wireProviderId
+    const deliveryKey = sdkConfig.providerId === 'openai-compatible' ? sdkConfig.providerOptionsKey : wireProviderId
     const imageProviderOptions = buildVendorProviderOptions(deliveryKey, params, registration, vendorBag)
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
