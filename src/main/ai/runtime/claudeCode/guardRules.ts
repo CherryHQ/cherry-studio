@@ -41,6 +41,8 @@ export const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
 export const GLOBAL_INSTALL_PLAN_DENIAL =
   'Plan mode is read-only: global package installation is not allowed. Exit plan mode before retrying.'
+export const FILE_WRITE_PLAN_DENIAL = 'Plan mode is read-only. Exit plan mode before editing files.'
+export const CLAUDE_FILE_WRITE_TOOLS: ReadonlySet<string> = new Set(['Edit', 'MultiEdit', 'NotebookEdit', 'Write'])
 export const GLOBAL_INSTALL_UNATTENDED_DENIAL =
   'Global package installation requires approval and cannot run without a responder. Retry interactively or use Full Access.'
 export const WORKSPACE_PATH_FIELDS = {
@@ -221,6 +223,13 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { tool: 'Bash', when: miseMutationCommand },
     effect: 'deny',
     reason: 'Blocked: direct mise mutation (use cli_search / cli_install).'
+  },
+  {
+    id: 'file-write-plan',
+    bypassBehavior: 'enforce',
+    match: { when: (ctx) => (ctx.permissionMode === 'plan' && CLAUDE_FILE_WRITE_TOOLS.has(ctx.toolName) ? {} : null) },
+    effect: 'deny',
+    reason: FILE_WRITE_PLAN_DENIAL
   },
   {
     id: 'global-install-plan',

@@ -152,7 +152,7 @@ async function resolveFallback(
   }
 
   const repairUsagePlugins: { current?: AiPlugin[] } = {}
-  const { sdkConfig, credentialReceipt, plugins, options, nativeFileSupport } = await buildAgentParams({
+  const { sdkConfig, replayRouteId, credentialReceipt, plugins, options, nativeFileSupport } = await buildAgentParams({
     request: args.request,
     signal: args.signal,
     provider,
@@ -180,5 +180,10 @@ async function resolveFallback(
     sdkConfig.modelId,
     [...plugins, usagePlugin]
   )
-  return { model: resolved, options: pickFallbackCallOptions(options), repairToolCall: options.repairToolCall }
+  return {
+    model: resolved,
+    replayRouteId,
+    options: pickFallbackCallOptions(options),
+    repairToolCall: options.repairToolCall
+  }
 }

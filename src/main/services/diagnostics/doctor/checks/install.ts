@@ -1,10 +1,23 @@
+import { realpathSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { app } from 'electron'
 
 import { application } from '@application'
+import {
+  readModelRegistry,
+  readProviderModelRegistry,
+  readProviderRegistry
+} from '@cherrystudio/provider-registry/node'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { isPortable } from '@main/core/platform'
+import { probeOverrideSnapshot, resolveRegistryPaths } from '@main/data/services/utils/registryDataPaths'
 import { loadNativeCaptureBackend } from '@main/services/screenshot'
+import { isOutsidePath, isPathInside } from '@main/utils/file'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 
-import { defineDoctorCheck } from '../types'
+import { defineDoctorCheck, type DoctorProbeOutcome } from '../types'
 
 function versionChannel(version: string): UpgradeChannel {
   if (version.includes(`-${UpgradeChannel.BETA}.`)) return UpgradeChannel.BETA
@@ -132,3 +145,82 @@ export const installNativeModules = defineDoctorCheck({
   },
   fixes: {}
 })
+
+function unreadableRegistry(
+  filePath: string,
+  namespace: 'bundled' | 'override',
+  cause: string
+): DoctorProbeOutcome<'install-provider-registry-readable'> {
+  const file = path.basename(filePath)
+  const bundledRoot = application.getPath('feature.provider_registry.data')
+  return {
+    status: 'warn',
+    attribution: 'user-fixable',
+    detail: { variant: namespace === 'override' ? 'unreadable_override' : 'unreadable', params: { file } },
+    actions: [{ kind: 'navigate', target: '/settings/about' }, { kind: 'report' }],
+    devMessage: `Using the in-bundle provider registry for ${file} (namespace: ${namespace})`,
+    evidence: [
+      { key: 'file', value: file, dataClass: 'public' },
+      { key: 'namespace', value: namespace, dataClass: 'public' },
+      { key: 'path', value: filePath, dataClass: 'local_only' },
+      { key: 'bundledRoot', value: bundledRoot, dataClass: 'local_only' },
+      { key: 'usingBundledFallback', value: true, dataClass: 'public' },
+      { key: 'resourcesUnderTempDir', value: isUnderTempDir(bundledRoot), dataClass: 'public' },
+      { key: 'portable', value: isPortable, dataClass: 'public' },
+      { key: 'cause', value: cause, dataClass: 'consent_required' }
+    ]
+  }
+}
+
+export const providerRegistryReadable = defineDoctorCheck({
+  id: 'install-provider-registry-readable',
+  async run() {
+    for (const { file } of providerRegistryService.getRegistryFallbacks()) {
+      providerRegistryService.getCatalogVersion(file)
+    }
+    const [fallback] = providerRegistryService.getRegistryFallbacks()
+    if (fallback) return unreadableRegistry(fallback.path, fallback.namespace, fallback.cause)
+
+    const rejection = probeOverrideSnapshot()
+    if (rejection) {
+      return unreadableRegistry(
+        application.getPath('feature.provider_registry.override', rejection.file),
+        'override',
+        rejection.cause
+      )
+    }
+
+    const paths = resolveRegistryPaths()
+    const files = [
+      [paths.providers, readProviderRegistry],
+      [paths.models, readModelRegistry],
+      [paths.providerModels, readProviderModelRegistry]
+    ] as const
+
+    for (const [filePath, read] of files) {
+      try {
+        read(filePath)
+      } catch (error) {
+        const overrideRoot = application.getPath('feature.provider_registry.override')
+        const namespace = isPathInside(filePath, overrideRoot) ? 'override' : 'bundled'
+        const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : ''
+        return unreadableRegistry(filePath, namespace, cause)
+      }
+    }
+    return { status: 'pass' }
+  },
+  fixes: {}
+})
+
+function isUnderTempDir(bundledRoot: string): boolean {
+  const root = path.resolve(bundledRoot)
+  const temp = path.resolve(os.tmpdir())
+  if (!isOutsidePath(path.relative(temp, root))) return true
+
+  // Resolve aliases such as /var and /private/var when the paths differ.
+  try {
+    return !isOutsidePath(path.relative(realpathSync.native(temp), realpathSync.native(root)))
+  } catch {
+    return false
+  }
+}

@@ -212,7 +212,10 @@ it('keeps each native background result owned until its parent notification has 
     await childGates[index].reached
     await expect.poll(pending).toMatchObject({ status: 'confirmed', value: { pending: [call] } })
     await expect.poll(() => batches.filter((batch) => batch.settled).length).toBe(index * 2 + 1)
-    const relation = batches.flatMap((batch) => batch.events).find((event) => event.type === 'subagent.upsert')
+    const relation = batches
+      .map((batch) => batch.events)
+      .flat()
+      .find((event) => event.type === 'subagent.upsert')
     if (relation?.type !== 'subagent.upsert' || !relation.subagent.child) throw new Error('Missing child')
     childId = relation.subagent.child.id
     const beforeNotification = batches.length
@@ -347,7 +350,9 @@ it('continues the discovered child in place, streams to shared handles and deliv
   expect(childRequests[1]).toContain('first child result')
   expect(childRequests[1]).toContain('continue child')
   expect(
-    secondEvents.some((event) => event.type === 'message.upsert' && event.message.metadata?.completeness === 'partial')
+    secondEvents.some(
+      (event) => event.type === 'message.reconcile' && event.message.metadata?.completeness === 'partial'
+    )
   ).toBe(true)
   await expect
     .poll(
