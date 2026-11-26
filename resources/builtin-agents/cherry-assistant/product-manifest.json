@@ -891,8 +891,8 @@
     }
   ],
   "providers": {
-    "version": "5179a16fddc562d9",
-    "count": 68,
+    "version": "c784da2f7a4b379c",
+    "count": 69,
     "entries": [
       {
         "id": "cherryin",
@@ -1165,6 +1165,10 @@
       {
         "id": "minimax-global",
         "name": "minimax-global"
+      },
+      {
+        "id": "morse",
+        "name": "Morse"
       }
     ]
   },

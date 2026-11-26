@@ -56,6 +56,7 @@ const providerKeyMap = {
   mistral: 'provider.mistral',
   modelscope: 'provider.modelscope',
   moonshot: 'provider.moonshot',
+  morse: 'provider.morse',
   'new-api': 'provider.new-api',
   nvidia: 'provider.nvidia',
   o3: 'provider.o3',

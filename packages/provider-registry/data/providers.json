@@ -2967,7 +2967,31 @@
       },
       "name": "minimax-global",
       "presetProviderId": "minimax"
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Morse - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://inference.trymorse.ai",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "morse",
+      "metadata": {
+        "website": {
+          "apiKey": "https://console.trymorse.ai",
+          "docs": "https://trymorse.ai/inference/docs",
+          "models": "https://trymorse.ai/inference/models",
+          "official": "https://trymorse.ai/inference"
+        }
+      },
+      "name": "Morse"
     }
   ],
-  "version": "5179a16fddc562d9"
+  "version": "c784da2f7a4b379c"
 }
