@@ -854,7 +854,7 @@ function PresetInstancePicker({
         return {
           value: source.id,
           label,
-          icon: <ProviderAvatar provider={{ id: presetId, name: label }} size={20} />,
+          icon: <ProviderAvatar provider={{ id: presetId, name: label, presetProviderId: presetId }} size={20} />,
           source
         }
       }),
@@ -902,7 +902,16 @@ function DuplicateHeader({ source }: { source: Provider }) {
   const label = presetId ? t(getProviderLabelKey(presetId)) : source.name
   return (
     <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-muted/40 px-3 py-2">
-      <ProviderAvatar provider={{ id: presetId ?? source.id, name: label }} size={18} />
+      <ProviderAvatar
+        provider={{
+          id: presetId ?? source.id,
+          name: label,
+          presetProviderId: presetId ?? source.presetProviderId,
+          logo: source.logo,
+          logoSrc: source.logoSrc
+        }}
+        size={18}
+      />
       <span className="truncate text-sm text-foreground">{label}</span>
     </div>
   )
