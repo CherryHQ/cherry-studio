@@ -8,19 +8,13 @@ English | [中文](2026-11-26-builtin-agent-sandbox.zh.md)
 
 Cherry Support runs on the Claude Code runtime in `acceptEdits` mode. Its skills submit feedback through `lark-cli` and `gh`, and command detection cannot see what a script or raw API call sends. The `support-bash` rule in `src/main/ai/agents/builtin/builtinAgentGuardRules.ts` therefore asks before every interactive Bash or PowerShell call outside Full Access, including local diagnostics such as reading logs. Users approve many harmless commands to reach the few that leave the machine.
 
-Claude Code subprocesses can inherit model provider credentials today. `mergeRuntimeSettings` in `src/main/ai/runtime/claudeCode/agentSessionWarmup.ts` supplies `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` for key-based routes and can also supply `ANTHROPIC_CUSTOM_HEADERS` containing authentication values.
-
 Other Agents will want a sandbox later: the Assistant, user Agents, and possibly Pi runtimes. If each one writes its own complete sandbox configuration, the security invariants get copied into every Agent, and one omission reopens a hole. For example, without strict mode, Full Access silently allows unlisted hosts.
 
 [Preserve root approvals and identify subagent requests](../../implemented/bug-fix/2026-11-12-agent-shell-approval-boundary.md) deferred an OS sandbox as a larger boundary change. This Spec takes up that deferral. It defines one base policy that every Agent extends, and enables it for Cherry Support only.
 
 ## Proposal
 
-Two independent layers.
-
-**Layer 1 — credential scrub, all platforms.** Every built-in Agent session (Assistant, Support, Doctor) using Claude Code sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`. Claude Code keeps provider credentials for its own model calls. Bash commands, hooks, and stdio MCP servers must receive no provider authentication values from `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, or `ANTHROPIC_CUSTOM_HEADERS`. Preserve `GH_TOKEN`/`GITHUB_TOKEN` and proxy variables. Enable this layer only once AC8 and AC9 pass. User Agents are unchanged.
-
-**Layer 2 — base sandbox policy with per-Agent overlays.** Cherry defines its own runtime-neutral `SandboxPolicy` in three parts.
+Cherry defines its own runtime-neutral `SandboxPolicy` in three parts.
 
 *Base.* It lives in `src/main/ai/toolApproval/`, next to the guard rules and the command policy, because all three define the tool execution boundary. It holds the defaults and invariants shared by every sandboxed Agent:
 
@@ -75,10 +69,6 @@ Probe evidence (SDK 0.3.311, native CLI 2.1.311, macOS 26, scripted mock model):
 - A retry with `dangerouslyDisableSandbox: true` reached PreToolUse with the flag in `tool_input`, then arrived at `canUseTool` as an ordinary Bash approval. A PreToolUse `ask` also reached `canUseTool` under `bypassPermissions`.
 - Without strict mode, `bypassPermissions` let an unlisted host through silently. With strict mode, the host was denied.
 - A write to `$HOME` failed with EPERM. Writes to the cwd, the additional directories, and `$TMPDIR` succeeded.
-- `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` hid `ANTHROPIC_API_KEY` and a custom `*_API_KEY` from Bash, and kept `GH_TOKEN` and plain variables.
-- The scrub also removed `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_CUSTOM_HEADERS` from Bash. It removed `ANTHROPIC_CUSTOM_HEADERS` even when the value held no credential (`X-Cherry-Trace: abc`), so it matches that variable by name.
-
-The credential probe covers macOS Bash only. AC8 requires evidence from the actual subprocess environments on all three platforms.
 
 ## Alternatives considered
 
@@ -89,7 +79,7 @@ The credential probe covers macOS Bash only. AC8 requires evidence from the actu
 - Empty, non-strict allowlist with a per-host prompt: under Full Access, unlisted hosts are allowed silently. The `SandboxNetworkAccess` request carries a toolUseID that matches no tool part, so Cherry would need a new approval surface for it.
 - `excludedCommands: ["gh *"]` (Claude Code's documented remedy for Go TLS failures): an excluded `gh` runs outside the sandbox through the ordinary tool permission flow. This would defeat the requirement for an explicit escape before a Bash command can run outside the sandbox.
 - `enableWeakerNetworkIsolation` so `gh` works inside the sandbox: the explicit escape already serves this use case, and this option widens every sandboxed command's reach to `trustd`.
-- `sandbox.credentials.envVars` deny for the provider keys: only works where the sandbox runs, which means macOS Support only. The scrub covers every platform and every built-in Agent.
+- `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` for built-in sessions, proposed as an independent first layer in [#25513](https://github.com/CherryHQ/cherry-studio/pull/25513) and closed. The variables it hides carry little: every Cherry-managed model route puts only the internal gateway credential in the CLI environment, which is held in memory, bound to the session and served on `127.0.0.1`, and the external CLI login route puts none. Upstream provider keys live in Cherry's database, which unsandboxed Bash can read anyway. The scrub also removes `CLAUDE_CONFIG_DIR`, which `npx skills` uses to choose its global install directory, so the Assistant's skill installs would land in the user's own `~/.claude`. It strips credential-looking variables from the user's login shell, and on Linux it moves Bash into a separate PID namespace. If a sandboxed Agent later needs these variables hidden, `sandbox.credentials.envVars` deny can remove exactly them.
 - Sandbox the Assistant now: it is general-purpose (`npx skills`, package installs, web pages), so the base's empty allowlist breaks it until its overlay adds a preset list.
 - Linux and Windows: bubblewrap/socat, or an elevated `claude sandbox install`, are not zero-setup for a desktop user. They keep their current shell approval behavior.
 - Wrap the whole Claude Code process in a VM or `sandbox-runtime` (as Claude Cowork does): this would also cover hooks and MCP, but it is a much larger change with its own packaging cost.
@@ -103,19 +93,16 @@ The credential probe covers macOS Bash only. AC8 requires evidence from the actu
 - AC5 — Support denies Bash and PowerShell in headless turns and when an approval responder is unavailable, even in Full Access. With an available responder, Full Access skips the escape approval card, and Bash calls that stay sandboxed still cannot reach the network. (verification: unit + macOS native test, owner: Claude Code runtime implementer)
 - AC6 — On Linux and Windows, Support sessions receive no sandbox option. With an available responder, Bash and PowerShell calls, where available, still require per-call approval outside Full Access. (verification: unit, owner: Claude Code runtime implementer)
 - AC7 — Agents without an overlay (Assistant, Doctor, and user Agents) receive no sandbox option. (verification: unit, owner: Claude Code runtime implementer)
-- AC8 — On macOS, Linux, and Windows, a built-in Claude Code session authenticates to a test model endpoint using each supported environment-based authentication route. Distinct test values in `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, and authentication headers in `ANTHROPIC_CUSTOM_HEADERS` are absent from the observed environments of Bash, hooks, and stdio MCP, including an approved unsandboxed Bash call where supported. (verification: native runtime tests on all three platforms, owner: Claude Code runtime implementer)
-- AC9 — With the scrub enabled, Cherry-owned stdio MCP servers and built-in Agent skills keep working, and subprocesses that need GitHub authentication or proxy configuration still receive those variables. (verification: Electron, owner: Support integration implementer)
-- AC10 — With a real model on macOS in `acceptEdits` mode, a Support feedback submission completes end to end. After a sandbox network denial, the model requests an escape instead of repeating the same sandboxed command, and the user approves once per Bash call that needs network access. (verification: Electron, owner: Support integration implementer)
-- AC11 — An overlay that tries to turn off strict mode, make leaving approval-free, enable Apple Events, Unix sockets, or nested user namespaces, or make the `$HOME` root or a shell startup file writable produces a merged policy that keeps the base values. (verification: unit, owner: sandbox policy implementer)
-- AC12 — Domains and writable paths added by an overlay appear in the Claude Code sandbox options alongside the base values, and a domain denied by either side stays denied. (verification: unit, owner: sandbox policy implementer)
-- AC13 — On macOS with the sandbox enabled for Support, a startup failure or an effective configuration that cannot be verified to enforce the resolved policy produces a visible turn error before any shell command executes, including in Full Access and on reused connections. With the sandbox rollout off, Support keeps the existing per-call shell approval outside Full Access. (verification: unit + macOS native test + Electron, owner: Claude Code runtime implementer)
+- AC8 — With a real model on macOS in `acceptEdits` mode, a Support feedback submission completes end to end. After a sandbox network denial, the model requests an escape instead of repeating the same sandboxed command, and the user approves once per Bash call that needs network access. (verification: Electron, owner: Support integration implementer)
+- AC9 — An overlay that tries to turn off strict mode, make leaving approval-free, enable Apple Events, Unix sockets, or nested user namespaces, or make the `$HOME` root or a shell startup file writable produces a merged policy that keeps the base values. (verification: unit, owner: sandbox policy implementer)
+- AC10 — Domains and writable paths added by an overlay appear in the Claude Code sandbox options alongside the base values, and a domain denied by either side stays denied. (verification: unit, owner: sandbox policy implementer)
+- AC11 — On macOS with the sandbox enabled for Support, a startup failure or an effective configuration that cannot be verified to enforce the resolved policy produces a visible turn error before any shell command executes, including in Full Access and on reused connections. With the sandbox rollout off, Support keeps the existing per-call shell approval outside Full Access. (verification: unit + macOS native test + Electron, owner: Claude Code runtime implementer)
 
 ## Risks
 
-- Model behavior: the model may retry a denied command unchanged. Cursor reported this failure mode and fixed it by changing tool results and tool descriptions. AC10 must pass with a real model before the sandbox ships. If it fails, keep the sandbox off rather than add retry machinery.
+- Model behavior: the model may retry a denied command unchanged. Cursor reported this failure mode and fixed it by changing tool results and tool descriptions. AC8 must pass with a real model before the sandbox ships. If it fails, keep the sandbox off rather than add retry machinery.
 - Sandboxed Bash retains read access to files such as `~/.ssh` and can copy them into the workspace. Bash network access requires an escape. Other tools and model requests are outside this network boundary. Read denial is out of scope.
 - In an interactive turn with an available responder, Full Access allows escapes without a card. The headless and no-responder denials and the fail-closed sandbox startup behavior still apply.
-- A merge bug would widen a sandbox without any visible sign. AC11 and AC12 test the merge function directly. Later overlays add their own cases there.
-- The scrub matches credentials by name and value shape, so a secret with an ordinary name and value passes through. It also removes `CLAUDE_CONFIG_DIR` and credential-looking variables from Cherry-owned stdio MCP servers. AC9 catches any breakage.
+- A merge bug would widen a sandbox without any visible sign. AC9 and AC10 test the merge function directly. Later overlays add their own cases there.
 - Seatbelt (`sandbox-exec`) is deprecated by Apple, and macOS updates have broken other products' profiles. The base's fail-on-unavailable rule makes a failed sandbox start fail the turn visibly. The darwin native test catches SDK upgrades that change behavior.
-- Pi and Pi Durable do not use the Claude Agent SDK, so neither layer covers them. The runtime-neutral policy lets a later Pi adapter reuse the base and overlays. Until one exists, a built-in Agent cannot move to a Pi runtime without losing its sandbox.
+- Pi and Pi Durable do not use the Claude Agent SDK, so the sandbox does not cover them. The runtime-neutral policy lets a later Pi adapter reuse the base and overlays. Until one exists, a built-in Agent cannot move to a Pi runtime without losing its sandbox.

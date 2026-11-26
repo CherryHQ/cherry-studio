@@ -8,19 +8,13 @@ Status: proposed
 
 Cherry Support 运行在 Claude Code 运行时上，权限模式是 `acceptEdits`。它的技能通过 `lark-cli` 和 `gh` 提交反馈，但命令检测看不出脚本或直接调用 API 时会发出什么。因此，在 Full Access 以外的交互式轮次中，`src/main/ai/agents/builtin/builtinAgentGuardRules.ts` 中的 `support-bash` 规则对每次 Bash 或 PowerShell 调用都要求审批，读日志等本地诊断命令也一样。用户为了放行少数会把数据发出本机的命令，要先批准大量无害的命令。
 
-目前 Claude Code 的子进程可能继承模型提供商的凭据。`src/main/ai/runtime/claudeCode/agentSessionWarmup.ts` 中的 `mergeRuntimeSettings` 会为使用密钥的路由设置 `ANTHROPIC_API_KEY` 和 `ANTHROPIC_AUTH_TOKEN`，还可能设置含认证信息的 `ANTHROPIC_CUSTOM_HEADERS`。
-
 以后其他 Agent 也会需要沙箱，包括 Assistant、用户自建的 Agent，可能还有 Pi 运行时。如果每个 Agent 都各写一份完整的沙箱配置，安全不变式就会被复制到每个 Agent 里，漏掉一处就重新打开一个缺口。例如没开严格模式时，Full Access 会静默放行白名单外的主机。
 
 [保留根会话审批并标识子智能体请求](../../implemented/bug-fix/2026-11-12-agent-shell-approval-boundary.md) 认为系统沙箱是更大的边界改动，当时推迟了。本 Spec 接手这项推迟的工作：定义一份供所有 Agent 扩展的基础策略，并且只为 Cherry Support 启用。
 
 ## 提案
 
-分为两个互相独立的层。
-
-**第 1 层：清理凭据，所有平台生效。** 使用 Claude Code 的内置 Agent 会话（Assistant、Support、Doctor）设置 `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`。Claude Code 调用模型时仍使用提供商凭据。Bash 命令、hooks 和 stdio MCP 服务器的环境中不得含有来自 `ANTHROPIC_API_KEY`、`ANTHROPIC_AUTH_TOKEN` 或 `ANTHROPIC_CUSTOM_HEADERS` 的提供商认证信息。保留 `GH_TOKEN`/`GITHUB_TOKEN` 和代理变量。AC8 和 AC9 通过后才启用这一层。用户自建的 Agent 不受影响。
-
-**第 2 层：基础沙箱策略加按 Agent 的扩展。** Cherry 定义一个与运行时无关的 `SandboxPolicy`，由三部分组成。
+Cherry 定义一个与运行时无关的 `SandboxPolicy`，由三部分组成。
 
 *Base（基础策略）。* 放在 `src/main/ai/toolApproval/`，与守卫规则和命令策略放在一起，因为三者共同定义工具执行边界。它包含所有启用沙箱的 Agent 共用的默认值和不变式：
 
@@ -75,10 +69,6 @@ Support 保留 `settingSources: []`，排除用户和工作区设置。对于 CL
 - 带 `dangerouslyDisableSandbox: true` 的重试先到达 PreToolUse，`tool_input` 里带着这个标记，随后作为普通 Bash 审批到达 `canUseTool`。在 `bypassPermissions` 下，PreToolUse 返回 `ask` 同样会到达 `canUseTool`。
 - 不开严格模式时，`bypassPermissions` 会静默放行白名单外的主机；开了严格模式后，该主机被拒绝。
 - 写入 `$HOME` 返回 EPERM；写入 cwd、附加目录和 `$TMPDIR` 都成功。
-- 设置 `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` 后，Bash 读不到 `ANTHROPIC_API_KEY` 和一个自定义的 `*_API_KEY`，但仍能读到 `GH_TOKEN` 和普通变量。
-- 清理同样从 Bash 环境中移除了 `ANTHROPIC_AUTH_TOKEN` 和 `ANTHROPIC_CUSTOM_HEADERS`；即使 `ANTHROPIC_CUSTOM_HEADERS` 的值不含凭据（`X-Cherry-Trace: abc`）也会被移除，说明它按变量名匹配。
-
-凭据探针只覆盖 macOS 上的 Bash。AC8 要求在三个平台上验证实际子进程的环境。
 
 ## 已考虑的替代方案
 
@@ -89,7 +79,7 @@ Support 保留 `settingSources: []`，排除用户和工作区设置。对于 CL
 - 白名单为空、不开严格模式、按主机弹窗：在 Full Access 下，未列出的主机会被静默放行；而且 `SandboxNetworkAccess` 请求带的 toolUseID 对不上任何 tool part，Cherry 需要为它新做一个审批界面。
 - `excludedCommands: ["gh *"]`（Claude Code 文档给出的 Go TLS 失败解决办法）：被排除的 `gh` 会走常规工具权限流程，在沙箱外运行。这与 Bash 命令必须显式申请才能出沙箱的要求冲突。
 - 用 `enableWeakerNetworkIsolation` 让 `gh` 能在沙箱内运行：显式申请出沙箱已能满足这个需求，而这个选项会让所有沙箱命令都能访问 `trustd`。
-- 用 `sandbox.credentials.envVars` deny 屏蔽服务商密钥：只在沙箱运行的地方有效，也就是只覆盖 macOS 上的 Support。环境变量清理覆盖所有平台和所有内置 Agent。
+- 为内置会话设置 `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`：曾作为独立的第一层在 [#25513](https://github.com/CherryHQ/cherry-studio/pull/25513) 提出，已关闭。它隐藏的变量价值很低：所有 Cherry 管理的模型路线放进 CLI 环境的，都只是内部网关凭据，这个凭据只存在内存中、绑定当前会话、只在 `127.0.0.1` 上可用；外部 CLI 登录路线则不放任何凭据。上游服务商的 Key 存在 Cherry 的数据库里，没有沙箱的 Bash 本来就能读到。清理还会删掉 `CLAUDE_CONFIG_DIR`，而 `npx skills` 正是靠它决定全局安装目录，结果 Assistant 安装的技能会落到用户自己的 `~/.claude`。它还会删掉用户登录 shell 里看起来像凭据的变量；在 Linux 上，它会把 Bash 移进独立的 PID 命名空间。以后某个启用沙箱的 Agent 如果需要隐藏这些变量，可以用 `sandbox.credentials.envVars` deny 只删除它们。
 - 现在就给 Assistant 开沙箱：它是通用 Agent，会用到 `npx skills`、安装依赖、访问网页。在它的 overlay 加上预置清单之前，基础策略的空白名单会让它无法工作。
 - Linux 和 Windows：需要 bubblewrap/socat，或者以管理员权限运行 `claude sandbox install`，对桌面用户来说都不是零配置。这两个平台沿用现有的 shell 审批行为。
 - 像 Claude Cowork 那样把整个 Claude Code 进程放进虚拟机或 `sandbox-runtime`：这样也能覆盖 hooks 和 MCP，但改动大得多，还会带来额外的打包成本。
@@ -103,19 +93,16 @@ Support 保留 `settingSources: []`，排除用户和工作区设置。对于 CL
 - AC5 — Support 在无界面轮次或没有审批响应方时拒绝 Bash 和 PowerShell，Full Access 也不例外。有响应方时，Full Access 跳过出沙箱审批卡，但留在沙箱内的 Bash 调用仍无法联网。 (verification: 单元测试和 macOS 原生测试, owner: Claude Code 运行时实施者)
 - AC6 — 在 Linux 和 Windows 上，Support 会话不带沙箱配置。有审批响应方时，平台提供的 Bash 和 PowerShell 调用在 Full Access 以外仍需逐次审批。 (verification: 单元测试, owner: Claude Code 运行时实施者)
 - AC7 — 没有 overlay 的 Agent（Assistant、Doctor 和用户自建 Agent）不带沙箱配置。 (verification: 单元测试, owner: Claude Code 运行时实施者)
-- AC8 — 在 macOS、Linux 和 Windows 上，内置 Agent 的 Claude Code 会话能通过每种受支持的环境变量认证方式连接测试模型端点。在 Bash、hooks 和 stdio MCP 的实际环境中，都读不到分别为 `ANTHROPIC_API_KEY`、`ANTHROPIC_AUTH_TOKEN` 和 `ANTHROPIC_CUSTOM_HEADERS` 中的认证头设置的测试值。在支持出沙箱的平台上，也验证一次获批的沙箱外 Bash 调用。 (verification: 三个平台的原生运行时测试, owner: Claude Code 运行时实施者)
-- AC9 — 开启环境变量清理后，Cherry 自带的 stdio MCP 服务器和内置 Agent 附带的技能仍能正常工作。需要 GitHub 认证或代理配置的子进程仍能收到相应变量。 (verification: Electron, owner: Support 集成实施者)
-- AC10 — 在 macOS 上，Support 能在 `acceptEdits` 模式下用真实模型完整提交一次反馈。沙箱拒绝联网后，模型显式申请出沙箱，且不会原样重复同一条沙箱命令。每次需要联网的 Bash 调用只需批准一次。 (verification: Electron, owner: Support 集成实施者)
-- AC11 — 如果 overlay 试图关闭严格模式、让离开沙箱无需审批、开启 Apple Events、Unix socket 或嵌套用户命名空间，或者让 `$HOME` 根目录或 shell 启动文件可写，合并后的策略仍保留基础策略的值。 (verification: 单元测试, owner: 沙箱策略实施者)
-- AC12 — overlay 追加的域名和可写路径会与基础策略的值一起出现在 Claude Code 沙箱配置中。任何一方拒绝的域名仍然被拒绝。 (verification: 单元测试, owner: 沙箱策略实施者)
-- AC13 — 在 macOS 上为 Support 启用沙箱后，如果启动失败，或无法验证生效配置会强制执行解析后的策略，本轮会在执行任何 shell 命令前显示错误。Full Access 和复用连接也必须满足此条件。沙箱未启用时，Support 在 Full Access 以外沿用现有的逐次 shell 审批。 (verification: 单元测试、macOS 原生测试和 Electron, owner: Claude Code 运行时实施者)
+- AC8 — 在 macOS 上，Support 能在 `acceptEdits` 模式下用真实模型完整提交一次反馈。沙箱拒绝联网后，模型显式申请出沙箱，且不会原样重复同一条沙箱命令。每次需要联网的 Bash 调用只需批准一次。 (verification: Electron, owner: Support 集成实施者)
+- AC9 — 如果 overlay 试图关闭严格模式、让离开沙箱无需审批、开启 Apple Events、Unix socket 或嵌套用户命名空间，或者让 `$HOME` 根目录或 shell 启动文件可写，合并后的策略仍保留基础策略的值。 (verification: 单元测试, owner: 沙箱策略实施者)
+- AC10 — overlay 追加的域名和可写路径会与基础策略的值一起出现在 Claude Code 沙箱配置中。任何一方拒绝的域名仍然被拒绝。 (verification: 单元测试, owner: 沙箱策略实施者)
+- AC11 — 在 macOS 上为 Support 启用沙箱后，如果启动失败，或无法验证生效配置会强制执行解析后的策略，本轮会在执行任何 shell 命令前显示错误。Full Access 和复用连接也必须满足此条件。沙箱未启用时，Support 在 Full Access 以外沿用现有的逐次 shell 审批。 (verification: 单元测试、macOS 原生测试和 Electron, owner: Claude Code 运行时实施者)
 
 ## 风险
 
-- 模型行为：模型可能原样重试被拒绝的命令。Cursor 报告过这种失败模式，并通过修改工具结果和工具描述解决。沙箱上线前，AC10 必须用真实模型跑通；如果跑不通，就保持沙箱关闭，不额外加重试机制。
+- 模型行为：模型可能原样重试被拒绝的命令。Cursor 报告过这种失败模式，并通过修改工具结果和工具描述解决。沙箱上线前，AC8 必须用真实模型跑通；如果跑不通，就保持沙箱关闭，不额外加重试机制。
 - 沙箱内的 Bash 仍可读取 `~/.ssh` 等文件，并将其复制到工作区。Bash 要联网必须出沙箱。其他工具和模型请求不受这一网络边界约束。限制文件读取不在本次范围内。
 - 有审批响应方的交互式轮次中，Full Access 允许直接出沙箱，不显示审批卡。无界面或没有响应方时的拒绝规则仍然适用，沙箱启动失败仍会终止轮次。
-- 合并函数如果有 bug，会在毫无提示的情况下放宽沙箱。AC11 和 AC12 直接测试合并函数，以后新增的 overlay 也在这里补充各自的用例。
-- 环境变量清理按变量名和值的形态识别凭据，名字和值都看起来很普通的密钥会漏过。它还会从 Cherry 自带的 stdio MCP 服务器环境中移除 `CLAUDE_CONFIG_DIR` 以及看起来像凭据的变量。如果因此出问题，AC9 会发现。
+- 合并函数如果有 bug，会在毫无提示的情况下放宽沙箱。AC9 和 AC10 直接测试合并函数，以后新增的 overlay 也在这里补充各自的用例。
 - Seatbelt（`sandbox-exec`）已被 Apple 标记为弃用，macOS 升级也曾经弄坏过其他产品的沙箱配置。基础策略规定沙箱无法启动时本轮失败，问题会明确暴露出来。darwin native test 能发现 SDK 升级带来的行为变化。
-- Pi 和 Pi Durable 不使用 Claude Agent SDK，两层都覆盖不到它们。与运行时无关的策略让以后的 Pi 适配器可以复用基础策略和 overlay；在适配器出现之前，内置 Agent 一旦改用 Pi 运行时就会失去沙箱。
+- Pi 和 Pi Durable 不使用 Claude Agent SDK，沙箱覆盖不到它们。与运行时无关的策略让以后的 Pi 适配器可以复用基础策略和 overlay；在适配器出现之前，内置 Agent 一旦改用 Pi 运行时就会失去沙箱。
