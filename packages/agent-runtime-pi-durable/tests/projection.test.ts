@@ -926,3 +926,29 @@ it.each([
     await sub.stop()
   }
 )
+
+it('retains exact input answer positions while another native Run remains active and on reattachment', async () => {
+  const { projection } = setup(view([], live()))
+  const frames: DurableObservation[] = []
+  const observer = projection.observe((frame) => {
+    frames.push(frame)
+  })
+  const inputId = runtimeId<'input'>('answered-input')
+  projection.update(view([entry(11, 'A final answer')], live()), {
+    type: 'commit',
+    revision: 1,
+    changes: [{ inputId, facts: ['accepted', 'placed'], outcome: 'completed' }],
+    answers: [{ inputId, entryId: '11' }]
+  })
+  await vi.waitFor(() =>
+    expect(frames.some((frame) => frame.answers?.some((answer) => answer.entryId === '11'))).toBe(true)
+  )
+  expect(frames.every((frame) => !frame.completion)).toBe(true)
+  await observer.stop()
+  const reopened: DurableObservation[] = []
+  const reattached = projection.observe((frame) => {
+    reopened.push(frame)
+  })
+  await vi.waitFor(() => expect(reopened[0]?.answers).toEqual([{ inputId, entryId: '11' }]))
+  await reattached.stop()
+})

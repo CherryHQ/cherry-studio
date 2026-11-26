@@ -31,6 +31,7 @@ interface LiveRow {
 }
 
 interface LivePart extends RowPart {
+  pos?: number | null
   awaitingText: boolean
   row: LiveRow
 }
@@ -122,11 +123,13 @@ export class MessageProjectionService {
     if (!row?.layout) return baseline
     const parts: CherryMessagePart[] = []
     const partIds: string[] = []
+    const partPositions: (number | null)[] = []
     row.layout.forEachPart((part) => {
       partIds.push(part.id)
+      partPositions.push(this.entries.get(key(target))?.parts.get(part.id)?.pos ?? null)
       parts.push(part.value)
     })
-    return { ...baseline, partIds, parts }
+    return { ...baseline, partIds, partPositions, parts }
   }
 
   private entry(target: ProjectionTarget): Entry {
@@ -220,6 +223,7 @@ export class MessageProjectionService {
     for (const [id, { messageId, value, placement }] of edits.inserted) {
       const slot: LivePart = {
         id,
+        pos: placement.pos,
         row: entry.rows.get(messageId)!,
         value,
         layout: { partId: id },
@@ -283,6 +287,7 @@ export class MessageProjectionService {
           }
           const slot: LivePart = {
             id,
+            pos: item.partPositions?.[index],
             value,
             row,
             layout: { partId: id },
