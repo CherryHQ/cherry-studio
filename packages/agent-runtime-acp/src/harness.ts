@@ -6,7 +6,12 @@ import type {
   PromptResponse
 } from '@agentclientprotocol/sdk'
 
-import type { OperationResult, RuntimeEffortControl, ThreadContextUsage } from '@cherrystudio/agent-runtime'
+import type {
+  OperationResult,
+  RuntimeEffortControl,
+  RuntimeModelOption,
+  ThreadContextUsage
+} from '@cherrystudio/agent-runtime'
 
 import type { AcpPermissionOption, AcpPermissionOptionDetails, AcpPermissionRequest } from './permissions'
 import type { AcpTurnUsage } from './usage'
@@ -16,6 +21,10 @@ interface AcpPermissionQuestion {
   options: { label: string }[]
   optionIdFor(answer: string): string | undefined
 }
+
+export type AcpModelCatalogReader = (
+  agent: Pick<ClientConnection['agent'], 'request'>
+) => Promise<{ models: RuntimeModelOption[]; activeModel?: { id: string } } | undefined>
 
 export interface AcpHarnessSession {
   readonly promptMeta?: PromptRequest['_meta']

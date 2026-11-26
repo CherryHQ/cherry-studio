@@ -76,7 +76,7 @@ describe('CursorConnection', () => {
     vi.clearAllMocks()
   })
 
-  it('emits local-turn-usage and confirmed context-usage when model window is known', async () => {
+  it('reports the last model call as context usage and keeps the turn total for billing', async () => {
     const { connection, events, closeAndDrain } = await createCursorSession('claude-sonnet-4-6')
     const run: Run = {
       status: 'completed',
@@ -86,14 +86,18 @@ describe('CursorConnection', () => {
           status: 'completed',
           model: { id: 'claude-sonnet-4-6' },
           usage: {
-            inputTokens: 1200,
+            inputTokens: 20_000,
             outputTokens: 300,
-            totalTokens: 1500
+            totalTokens: 20_300
           }
         }) as unknown as Awaited<ReturnType<Run['wait']>>,
       cancel: vi.fn()
     } as unknown as Run
-    vi.mocked(sendCursorTurn).mockResolvedValue(run)
+    vi.mocked(sendCursorTurn).mockImplementation(async (_agent, _prompt, _mode, host) => {
+      host.modelCallCompleted('first-call', 8_000)
+      host.modelCallCompleted('last-call', 12_000)
+      return run
+    })
 
     await connection.send(userInput('msg-1'))
     await closeAndDrain()
@@ -104,9 +108,9 @@ describe('CursorConnection', () => {
         nativeSessionId: 'cursor-agent-1',
         model: 'claude-sonnet-4-6',
         usage: expect.objectContaining({
-          inputTokens: 1200,
+          inputTokens: 20_000,
           outputTokens: 300,
-          totalTokens: 1500
+          totalTokens: 20_300
         })
       })
     })
@@ -116,16 +120,15 @@ describe('CursorConnection', () => {
         status: 'confirmed',
         value: {
           model: 'claude-sonnet-4-6',
-          revision: 'claude-sonnet-4-6',
-          contextWindow: 200_000,
+          revision: 'last-call',
           basis: 'last-request',
-          used: { tokens: 1200, precision: 'estimated' }
+          used: { tokens: 12_000, precision: 'reported' }
         }
       }
     })
   })
 
-  it('emits unsupported context-usage once across multiple turns when model window is unknown', async () => {
+  it('keeps reporting aggregate usage without a model-call observation', async () => {
     const { connection, events, closeAndDrain } = await createCursorSession('auto')
     const makeRun = (inputTokens: number): Run =>
       ({
@@ -155,7 +158,7 @@ describe('CursorConnection', () => {
           error: {
             operation: 'contextUsage',
             code: 'unsupported',
-            message: 'This agent does not report context window size'
+            message: 'This agent does not report context usage'
           }
         }
       }

@@ -120,7 +120,7 @@ export function AgentContextUsageSummary({
         .sort((a, b) => CATEGORY_KIND_ORDER[a.kind] - CATEGORY_KIND_ORDER[b.kind] || b.tokens - a.tokens)
     : []
   const data =
-    usage?.used && percentage !== null
+    usage?.used && windowTokens > 0 && percentage !== null
       ? {
           usedTokens: usage.used.tokens,
           estimated: usage.used.precision === 'estimated',
@@ -146,7 +146,13 @@ export function AgentContextUsageSummary({
   return (
     <ContextUsageSummary
       title={t(showCategories ? 'agent.right_pane.info.context' : 'agent.right_pane.info.context_usage')}
-      emptyLabel={status === 'unsupported' ? t('agent.right_pane.info.context_usage_unsupported') : t('common.unknown')}
+      emptyLabel={
+        usage?.used
+          ? t('chat.message.token_details.tokens', { value: formatExact(usage.used.tokens) })
+          : status === 'unsupported'
+            ? t('agent.right_pane.info.context_usage_unsupported')
+            : t('common.unknown')
+      }
       data={data}
       className={className}
       summaryClassName={showCategories ? 'px-3' : undefined}

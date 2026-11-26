@@ -16,7 +16,7 @@ import {
 } from '@agentclientprotocol/sdk'
 import * as z from 'zod'
 
-import type { AcpHarnessAdapter } from './harness'
+import type { AcpHarnessAdapter, AcpModelCatalogReader } from './harness'
 import type { AcpClientCallbacks, AcpSessionConfiguration } from './types'
 import { readPromptUsage } from './usage'
 
@@ -147,6 +147,7 @@ export function connectAcpClient(stream: Stream, options: AcpClientOptions) {
       }
       return {
         response,
+        readModelCatalog: (read: AcpModelCatalogReader) => read(agent),
         async authenticate(methodId: string) {
           await agent.request(methods.agent.authenticate, { methodId })
         },
@@ -191,7 +192,9 @@ export function acpEffortOption(options: AcpSessionConfiguration['configOptions'
 }
 
 export function acpModelCatalog(options: AcpSessionConfiguration['configOptions'], legacy: AcpSession['legacyModels']) {
-  const model = options?.find((option) => option.category === 'model' && option.type === 'select')
+  const model =
+    options?.find((option) => option.type === 'select' && option.category === 'model') ??
+    options?.find((option) => option.type === 'select' && option.category == null && option.id === 'model')
   if (model?.type === 'select') {
     return {
       configId: model.id,

@@ -1,7 +1,7 @@
 import { Agent, Cursor, type AgentOptions } from '@cursor/sdk'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import { openCursorSession, sendCursorTurn, type SDKAgent } from '@cherrystudio/agent-runtime-cursor'
+import { listCursorModels, openCursorSession, sendCursorTurn, type SDKAgent } from '@cherrystudio/agent-runtime-cursor'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -37,24 +37,33 @@ it('sets an advertised effort on the next SDK send and preserves the selected co
     {
       id: 'composer',
       displayName: 'Composer',
-      parameters: [{ id: 'effort', values: [{ value: 'low' }, { value: 'xhigh', displayName: 'Extra high' }] }],
+      parameters: [
+        { id: 'thinking', values: [{ value: 'true' }, { value: 'false' }] },
+        { id: 'reasoning_effort', values: [{ value: 'low' }, { value: 'xhigh', displayName: 'Extra high' }] }
+      ],
       variants: [
         {
           displayName: 'Default',
           isDefault: true,
           params: [
             { id: 'context', value: 'long' },
-            { id: 'effort', value: 'low' }
+            { id: 'reasoning_effort', value: 'low' }
           ]
         },
         {
           displayName: 'Extra high',
           params: [
             { id: 'context', value: 'long' },
-            { id: 'effort', value: 'xhigh' }
+            { id: 'reasoning_effort', value: 'xhigh' }
           ]
         }
       ]
+    }
+  ])
+  expect(await listCursorModels()).toMatchObject([
+    {
+      id: 'composer',
+      effort: { defaultValue: 'low', options: [{ value: 'low' }, { value: 'xhigh', name: 'Extra high' }] }
     }
   ])
   const recorded = new Error('Recorded SDK request')
@@ -63,7 +72,7 @@ it('sets an advertised effort on the next SDK send and preserves the selected co
       id: 'composer',
       params: [
         { id: 'context', value: 'long' },
-        { id: 'effort', value: 'xhigh' }
+        { id: 'reasoning_effort', value: 'xhigh' }
       ]
     })
     throw recorded
@@ -81,14 +90,14 @@ it('sets an advertised effort on the next SDK send and preserves the selected co
       { value: 'xhigh', name: 'Extra high' }
     ]
   })
-  const host = { append: vi.fn(), toolStarted: vi.fn(), toolCompleted: vi.fn() }
+  const host = { modelCallCompleted: vi.fn(), append: vi.fn(), toolStarted: vi.fn(), toolCompleted: vi.fn() }
   await expect(sendCursorTurn(agent, { text: 'inspect' }, 'plan', host, effort?.modelFor('xhigh'))).rejects.toBe(
     recorded
   )
 })
 
 it('reports a native shell permission denial on the original tool call', async () => {
-  const host = { append: vi.fn(), toolStarted: vi.fn(), toolCompleted: vi.fn() }
+  const host = { modelCallCompleted: vi.fn(), append: vi.fn(), toolStarted: vi.fn(), toolCompleted: vi.fn() }
   const denied = { message: 'Denied by Cursor policy' }
   const stopped = new Error('End of recorded turn')
   const send: SDKAgent['send'] = async (_message, options) => {

@@ -117,7 +117,7 @@ export interface ContextResource {
 export interface ThreadContextUsage {
   readonly model: string
   readonly revision: string
-  readonly contextWindow: number
+  readonly contextWindow?: number
   readonly used?: ContextTokenCount
   readonly basis: 'current-context' | 'last-request'
   readonly reserved?: ContextTokenCount
@@ -246,4 +246,13 @@ export interface RuntimeEffortControl<Value extends string = string> {
   application: 'session' | 'next-turn'
   modelId?: string
   options: Array<{ value: Value; name: string; description?: string }>
+}
+
+export interface RuntimeModelOption {
+  id: string
+  name: string
+  effort?: {
+    options: RuntimeEffortControl['options']
+    defaultValue?: string
+  }
 }

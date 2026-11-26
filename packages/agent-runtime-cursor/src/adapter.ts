@@ -16,18 +16,23 @@ export type { Run, SDKAgent, SDKUserMessage } from '@cursor/sdk'
 
 export async function listCursorModels(apiKey?: string) {
   const models = await Cursor.models.list({ apiKey })
-  return models.map(({ id, displayName }) => ({ id, name: displayName || id }))
+  return models.map((model) => {
+    const effort = cursorEffort(model)
+    return {
+      id: model.id,
+      name: model.displayName || model.id,
+      ...(effort && { effort: { options: effort.options, defaultValue: effort.defaultValue } })
+    }
+  })
 }
 
-function bindEffort(models: readonly SDKModel[], selection: ModelSelection) {
-  const model = models.find(({ id, aliases }) => id === selection.id || aliases?.includes(selection.id))
-  if (!model) return
-  const parameter = ['effort', 'reasoning', 'thinking']
+function cursorEffort(model: SDKModel, params?: ModelSelection['params']) {
+  const parameter = ['effort', 'reasoning', 'reasoning_effort', 'thinking']
     .map((id) => model.parameters?.find((entry) => entry.id === id))
     .find((entry) => entry !== undefined)
   if (!parameter) return
 
-  const otherParams = selection.params?.filter(({ id }) => id !== parameter.id) ?? []
+  const otherParams = params?.filter(({ id }) => id !== parameter.id) ?? []
   const variants = model.variants?.filter((variant) =>
     otherParams.every(({ id, value }) => variant.params.some((param) => param.id === id && param.value === value))
   )
@@ -38,21 +43,26 @@ function bindEffort(models: readonly SDKModel[], selection: ModelSelection) {
         variants?.some(({ params }) => params.some((param) => param.id === parameter.id && param.value === value))
     )
     .map(({ value, displayName }) => ({ value, name: displayName || value }))
-  const firstOption = options[0]
-  if (!firstOption) return
-
   const defaultValue = variants?.find(({ isDefault }) => isDefault)?.params.find(({ id }) => id === parameter.id)?.value
-  const activeValue = selection.params?.find(({ id }) => id === parameter.id)?.value ?? defaultValue
+  if (options.length) return { id: parameter.id, options, defaultValue, otherParams }
+}
+
+function bindEffort(models: readonly SDKModel[], selection: ModelSelection) {
+  const model = models.find(({ id, aliases }) => id === selection.id || aliases?.includes(selection.id))
+  const effort = model && cursorEffort(model, selection.params)
+  if (!effort) return
+  const { id, options, defaultValue, otherParams } = effort
+  const activeValue = selection.params?.find((param) => param.id === id)?.value
   return {
     control: {
-      id: parameter.id,
+      id,
       modelId: selection.id,
       application: 'next-turn' as const,
-      currentValue: activeValue ?? firstOption.value,
+      currentValue: activeValue ?? defaultValue ?? options[0].value,
       options
     },
     modelFor(value: string): ModelSelection {
-      return { id: selection.id, params: [...otherParams, { id: parameter.id, value }] }
+      return { id: selection.id, params: [...otherParams, { id, value }] }
     }
   }
 }
@@ -110,6 +120,7 @@ export function sendCursorTurn(
   prompt: SDKUserMessage,
   mode: CursorPermissionMode,
   host: {
+    modelCallCompleted(modelCallId: string, inputTokens: number): void
     append(kind: 'text' | 'reasoning', text: string): void
     toolStarted(id: string, name: string, args: Record<string, unknown>): void
     toolCompleted(id: string, output: unknown, failed: boolean): void
@@ -117,6 +128,10 @@ export function sendCursorTurn(
   model?: ModelSelection
 ) {
   const onDelta: NonNullable<SendOptions['onDelta']> = ({ update }) => {
+    if (update.type === 'model-call-completed') {
+      host.modelCallCompleted(update.modelCallId, update.usage.inputTokens)
+      return
+    }
     if (update.type === 'text-delta') host.append('text', update.text)
     if (update.type === 'thinking-delta') host.append('reasoning', update.text)
     if (update.type !== 'tool-call-started' && update.type !== 'tool-call-completed') return

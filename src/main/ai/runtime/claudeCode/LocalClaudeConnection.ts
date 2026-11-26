@@ -23,7 +23,6 @@ import {
   LOCAL_AGENT_AUTOMATION_SERVER_NAME
 } from '../../mcp/localAgentBrowserBridge'
 import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeService'
-import { resolveLocalModelContextWindow } from '../modelContextWindow'
 import type {
   AgentRuntimeCommand,
   AgentRuntimeConnectInput,
@@ -240,13 +239,7 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
     if (this.resumeToken || context.bindingState === 'bound')
       options.resume = this.resumeToken ?? context.nativeThreadId ?? undefined
     else options.sessionId = context.nativeThreadId ?? undefined
-    const initialModel = model ?? this.localSessionInfo.activeModel?.id
-    const initialWindow = resolveLocalModelContextWindow(initialModel)
-    await this.startSdk(
-      options,
-      context,
-      initialModel && initialWindow ? { model: initialModel, tokens: initialWindow } : undefined
-    )
+    await this.startSdk(options, context, launch.contextWindow)
     const models = await this.handle!.claude.supportedModels()
     if (models.status === 'confirmed') {
       this.effortModels = models.value
@@ -404,29 +397,6 @@ export class LocalClaudeConnection extends ClaudeSdkConnection {
           }
         })
         if (summary.success) this.eventQueue.push({ type: 'local-turn-usage', summary: summary.data })
-        const modelUsageMap =
-          'modelUsage' in message && message.modelUsage && typeof message.modelUsage === 'object'
-            ? (message.modelUsage as Record<string, { contextWindow?: number } | undefined>)
-            : undefined
-        const matchedUsage =
-          (model ? modelUsageMap?.[model] : undefined) ??
-          Object.values(modelUsageMap ?? {}).find((u) => (u?.contextWindow ?? 0) > 0)
-        const contextWindow = resolveLocalModelContextWindow(model, matchedUsage?.contextWindow)
-        if (contextWindow && inputTokens > 0) {
-          this.eventQueue.push({
-            type: 'context-usage',
-            result: {
-              status: 'confirmed',
-              value: {
-                model: model ?? '',
-                revision: `${message.session_id}:${message.uuid}`,
-                contextWindow,
-                basis: 'last-request',
-                used: { tokens: inputTokens, precision: 'reported' }
-              }
-            }
-          })
-        }
       }
     }
   }

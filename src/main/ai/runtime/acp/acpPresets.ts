@@ -5,7 +5,7 @@ import type {
   AcpLaunch,
   AcpModelSelection
 } from '@cherrystudio/agent-runtime-acp/profile'
-import type { AcpHarnessAdapter } from '@cherrystudio/agent-runtime-acp/v1'
+import type { AcpHarnessAdapter, AcpModelCatalogReader } from '@cherrystudio/agent-runtime-acp/v1'
 import { antigravityEnvironment, antigravityPreset } from '@cherrystudio/agent-runtime-antigravity-acp'
 import { clinePreset } from '@cherrystudio/agent-runtime-cline-acp'
 import { codeBuddyPreset } from '@cherrystudio/agent-runtime-codebuddy-acp'
@@ -14,7 +14,12 @@ import { dshEnvironment, dshPreset, prepareDshChat } from '@cherrystudio/agent-r
 import { factoryGateway, factoryModelProfile } from '@cherrystudio/agent-runtime-factory-acp'
 import { glmGateway, glmModelProfile } from '@cherrystudio/agent-runtime-glm-acp'
 import { goosePreset } from '@cherrystudio/agent-runtime-goose-acp'
-import { createGrokAcpAdapter, grokGateway, grokModelProfile } from '@cherrystudio/agent-runtime-grok-acp'
+import {
+  createGrokAcpAdapter,
+  grokGateway,
+  grokModelProfile,
+  readGrokModelCatalog
+} from '@cherrystudio/agent-runtime-grok-acp'
 import { grokCli } from '@cherrystudio/agent-runtime-grok-acp/cli'
 import { hermesPreset } from '@cherrystudio/agent-runtime-hermes-acp'
 import { kimiGateway, kimiModelProfile } from '@cherrystudio/agent-runtime-kimi-acp'
@@ -53,6 +58,7 @@ type RequestDecision = <T>(
 ) => Promise<T>
 
 type DesktopAcpPreset = {
+  readModelCatalog?: AcpModelCatalogReader
   protocol?: AcpHarnessAdapter | ((decide: RequestDecision) => AcpHarnessAdapter)
   selectModel?(configured: string | undefined, launch: AcpLaunch): AcpModelSelection
   catalogId?(model: string, available: readonly string[]): string
@@ -97,6 +103,7 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
     {
       gateway: grokGateway,
       profile: grokModelProfile,
+      readModelCatalog: readGrokModelCatalog,
       protocol: (decide) =>
         createGrokAcpAdapter({
           ask: (target, input, signal, settle) =>

@@ -54,6 +54,7 @@ describe('connection-local gateway attribution', () => {
         modelId: 'model',
         name: 'Model',
         capabilities: [],
+        contextWindow: 96_000,
         supportsStreaming: true,
         orderKey: 'a0'
       })
@@ -99,11 +100,12 @@ describe('connection-local gateway attribution', () => {
       .mockResolvedValueOnce([{ target: 'poolside-settings', content }])
       .mockResolvedValueOnce([{ target: 'poolside-settings', content: content.replaceAll('provider:model', 'other') }])
 
-    const { launch, gateway } = await prepareAcpChatLaunch(
+    const { launch, gateway, contextWindow } = await prepareAcpChatLaunch(
       { ...config('poolside'), nativeModel: 'provider:model', executableOverride: process.execPath },
       'session-poolside',
       new AbortController().signal
     )
+    expect(contextWindow).toBe(96_000)
 
     expect(launch.env.POOLSIDE_STANDALONE_MODEL).toBe('provider:model')
     expect(launch.env.POOLSIDE_STANDALONE_BASE_URL).toBe('http://127.0.0.1:12345/v1')

@@ -48,7 +48,6 @@ import {
 import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeService'
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection } from '../LocalConnection'
-import { resolveLocalModelContextWindow } from '../modelContextWindow'
 import { stopLocalAgentProcess } from '../stdioProcess'
 import type { AgentRuntimeUserInput } from '../types'
 import { acpContent } from './acpContent'
@@ -156,8 +155,8 @@ export class AcpConnection extends LocalConnection {
   private readonly approvedWrites: Array<{ path: string; content: string }> = []
   private readonly permissionGrants = createAcpSessionPermissionGrants()
   private readonly toolInputs = new Map<string, LocalAcpTool>()
-  private reportedContextUsageThisTurn = false
   private hasContextUsageReading = false
+  private gatewayContextWindow?: number
 
   get inspectContextUsage() {
     return this.session?.inspectContextUsage
@@ -221,12 +220,17 @@ export class AcpConnection extends LocalConnection {
     }
   }
   private async startConnection(cwd: string, resume?: string): Promise<this> {
-    const { launch, gateway, mode } = await prepareAcpChatLaunch(this.config, this.sessionId, this.abort.signal)
+    const { launch, gateway, mode, contextWindow } = await prepareAcpChatLaunch(
+      this.config,
+      this.sessionId,
+      this.abort.signal
+    )
     if (this.abort.signal.aborted) {
       await gateway?.dispose()
       this.abort.signal.throwIfAborted()
     }
     this.gatewayLease = gateway
+    this.gatewayContextWindow = contextWindow
     this.launchMode = mode
     const client = await this.process.open(
       this.config,
@@ -752,11 +756,13 @@ export class AcpConnection extends LocalConnection {
   ) {
     const mode = options?.find((option) => option.category === 'mode' && option.type === 'select')
     const thought = acpEffortOption(options)
+    const catalog = acpModelCatalog(options, initialLegacy)
     const configOptions: LocalAgentConfigOption[] | undefined =
       options
         ?.filter((option) => option.type === 'select' || option.type === 'boolean')
         .map((option) => {
-          const { id, name, description, category } = option
+          const { id, name, description } = option
+          const category = id === catalog.configId ? 'model' : option.category
           const role = option === mode ? ('mode' as const) : option === thought ? ('reasoning' as const) : undefined
           const control = acpPermissionControl(option, this.permissionModes)
           const base = {
@@ -828,7 +834,6 @@ export class AcpConnection extends LocalConnection {
     }
     this.localSessionInfo.mode = this.launchMode ?? permission
     const thoughtOption = configOptions?.find((option) => option.role === 'reasoning')
-    const catalog = acpModelCatalog(options, initialLegacy)
     if (catalog.activeModel) this.localSessionInfo.activeModel = catalog.activeModel
     if (catalog.configId || initialLegacy || !this.session?.legacyModels) {
       this.localSessionInfo.models = catalog.models
@@ -892,24 +897,26 @@ export class AcpConnection extends LocalConnection {
       }
       if (used < 0) return
       const model = this.localSessionInfo.activeModel?.id ?? this.config.nativeModel ?? ''
-      const contextWindow = size > 0 ? size : resolveLocalModelContextWindow(model)
-      if (contextWindow) {
-        this.reportedContextUsageThisTurn = true
-        this.hasContextUsageReading = true
-        this.events.push({
-          type: 'context-usage',
-          result: {
-            status: 'confirmed',
-            value: {
-              model,
-              revision: model,
-              contextWindow,
-              basis: 'current-context',
-              used: { tokens: used, precision: 'reported' }
-            }
+      const contextWindow =
+        size > 0
+          ? size
+          : this.localSessionInfo.activeModel?.id === this.config.nativeModel
+            ? this.gatewayContextWindow
+            : undefined
+      this.hasContextUsageReading = true
+      this.events.push({
+        type: 'context-usage',
+        result: {
+          status: 'confirmed',
+          value: {
+            model,
+            revision: model,
+            ...(contextWindow === undefined ? {} : { contextWindow }),
+            basis: 'current-context',
+            used: { tokens: used, precision: 'reported' }
           }
-        })
-      }
+        }
+      })
     },
     content: (kind, content, messageId) => {
       if (messageId !== this.messageId) this.endContent()
@@ -1045,46 +1052,26 @@ export class AcpConnection extends LocalConnection {
     this.begin(input.message.id)
     this.planPart = undefined
     this.planId = undefined
-    this.reportedContextUsageThisTurn = false
     try {
       if (!this.session) throw new Error('ACP session is not connected')
       const model = this.localSessionInfo.activeModel?.id ?? null
       const { stopReason, usage, context } = await this.session.prompt(prompt, input.message.id)
       if (context) {
-        this.reportedContextUsageThisTurn = true
         this.hasContextUsageReading = true
         this.events.push({ type: 'context-usage', result: { status: 'confirmed', value: context } })
-      } else if (!this.reportedContextUsageThisTurn) {
-        const contextWindow = usage ? resolveLocalModelContextWindow(model) : undefined
-        if (usage && contextWindow) {
-          this.hasContextUsageReading = true
-          this.events.push({
-            type: 'context-usage',
-            result: {
-              status: 'confirmed',
-              value: {
-                model: model ?? '',
-                revision: model ?? '',
-                contextWindow,
-                basis: 'last-request',
-                used: { tokens: usage.inputTokens, precision: 'reported' }
-              }
+      } else if (!this.hasContextUsageReading) {
+        this.hasContextUsageReading = true
+        this.events.push({
+          type: 'context-usage',
+          result: {
+            status: 'unsupported',
+            error: {
+              operation: 'contextUsage',
+              code: 'unsupported',
+              message: 'This agent does not report context usage'
             }
-          })
-        } else if (!this.hasContextUsageReading) {
-          this.hasContextUsageReading = true
-          this.events.push({
-            type: 'context-usage',
-            result: {
-              status: 'unsupported',
-              error: {
-                operation: 'contextUsage',
-                code: 'unsupported',
-                message: 'This agent does not report context usage'
-              }
-            }
-          })
-        }
+          }
+        })
       }
       if (usage) {
         // ACP totals already include cached tokens.

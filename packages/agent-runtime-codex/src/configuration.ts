@@ -1,6 +1,6 @@
 import type * as z from 'zod'
 
-import type { RuntimeEffortControl } from '@cherrystudio/agent-runtime'
+import type { RuntimeEffortControl, RuntimeModelOption } from '@cherrystudio/agent-runtime'
 
 import { CodexRequestError, type CodexAppServerClient, type CodexRequestParams } from './appServerClient'
 import { CODEX_PERMISSION_MODES } from './cli'
@@ -55,15 +55,10 @@ const CODEX_EFFORT_LABELS: Record<string, string> = {
   ultra: 'Ultra'
 }
 
-function codexEffortControl(
-  modelId: string | undefined,
-  efforts: Array<{ reasoningEffort: string; description?: string }> | undefined,
-  currentValue: string | null | undefined
-): RuntimeEffortControl | undefined {
-  if (!modelId || !efforts?.length) return
-  const seen = new Set<string>(['default'])
-  const options: RuntimeEffortControl['options'] = [{ value: 'default', name: 'Default' }]
-  for (const entry of efforts) {
+function codexEffortOptions(efforts: Array<{ reasoningEffort: string; description?: string }> | undefined) {
+  const seen = new Set<string>()
+  const options: RuntimeEffortControl['options'] = []
+  for (const entry of efforts ?? []) {
     if (!entry.reasoningEffort || seen.has(entry.reasoningEffort)) continue
     seen.add(entry.reasoningEffort)
     options.push({
@@ -72,14 +67,36 @@ function codexEffortControl(
       ...(entry.description ? { description: entry.description } : {})
     })
   }
-  if (options.length > 1)
-    return {
-      id: 'codex-effort',
-      application: 'next-turn',
-      modelId,
-      currentValue: options.find((option) => option.value === currentValue)?.value ?? 'default',
-      options
-    }
+  return options
+}
+
+export function describeCodexModel(
+  model: Awaited<ReturnType<CodexAppServerClient['listModels']>>[number]
+): RuntimeModelOption {
+  const options = codexEffortOptions(model.supportedReasoningEfforts)
+  const defaultValue = options.find(({ value }) => value === model.defaultReasoningEffort)?.value
+  return {
+    id: model.model ?? model.id,
+    name: model.displayName,
+    ...(options.length && { effort: { options, defaultValue } })
+  }
+}
+
+function codexEffortControl(
+  modelId: string | undefined,
+  efforts: Array<{ reasoningEffort: string; description?: string }> | undefined,
+  currentValue: string | null | undefined
+): RuntimeEffortControl | undefined {
+  if (!modelId) return
+  const options = codexEffortOptions(efforts).filter(({ value }) => value !== 'default')
+  if (!options.length) return
+  return {
+    id: 'codex-effort',
+    application: 'next-turn',
+    modelId,
+    currentValue: options.find((option) => option.value === currentValue)?.value ?? 'default',
+    options: [{ value: 'default', name: 'Default' }, ...options]
+  }
 }
 
 export function chatArgs({ headless, mcp }: SessionOptions): string[] {

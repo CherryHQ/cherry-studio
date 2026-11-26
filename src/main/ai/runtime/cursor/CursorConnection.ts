@@ -6,7 +6,6 @@ import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeServic
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection } from '../LocalConnection'
 import { localContent } from '../localContent'
-import { resolveLocalModelContextWindow } from '../modelContextWindow'
 import type { AgentRuntimeUserInput } from '../types'
 import { getCursorApiKey } from './cursorAccount'
 
@@ -101,6 +100,7 @@ export class CursorConnection extends LocalConnection {
     }
     this.begin(input.message.id)
     const signal = AbortSignal.any([this.abort.signal, this.turnAbort.signal])
+    let lastModelCall: { id: string; inputTokens: number } | undefined
     try {
       const effort = this.localSessionInfo.thoughtLevel
       this.pendingRun = sendCursorTurn(
@@ -108,6 +108,9 @@ export class CursorConnection extends LocalConnection {
         prompt,
         this.mode.value,
         {
+          modelCallCompleted: (id, inputTokens) => {
+            if (!signal.aborted && Number.isFinite(inputTokens) && inputTokens >= 0) lastModelCall = { id, inputTokens }
+          },
           append: (kind, text) => {
             if (!signal.aborted) this.content(text, kind)
           },
@@ -137,36 +140,21 @@ export class CursorConnection extends LocalConnection {
             usage: completed.usage
           }
         })
-        const contextWindow = resolveLocalModelContextWindow(model)
-        if (contextWindow) {
-          this.hasContextUsageReading = true
-          this.events.push({
-            type: 'context-usage',
-            result: {
-              status: 'confirmed',
-              value: {
-                model: model ?? '',
-                revision: model ?? '',
-                contextWindow,
-                basis: 'last-request',
-                used: { tokens: completed.usage.inputTokens, precision: 'estimated' }
-              }
+      }
+      if (lastModelCall) {
+        this.hasContextUsageReading = true
+        this.events.push({
+          type: 'context-usage',
+          result: {
+            status: 'confirmed',
+            value: {
+              model: model ?? '',
+              revision: lastModelCall.id,
+              basis: 'last-request',
+              used: { tokens: lastModelCall.inputTokens, precision: 'reported' }
             }
-          })
-        } else if (!this.hasContextUsageReading) {
-          this.hasContextUsageReading = true
-          this.events.push({
-            type: 'context-usage',
-            result: {
-              status: 'unsupported',
-              error: {
-                operation: 'contextUsage',
-                code: 'unsupported',
-                message: 'This agent does not report context window size'
-              }
-            }
-          })
-        }
+          }
+        })
       } else if (!this.hasContextUsageReading) {
         this.hasContextUsageReading = true
         this.events.push({

@@ -26,9 +26,7 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli, DEEPSEEK_HARNESS_GATEWAY_ROUTE } from '@shared/types/codeCli'
 import { getCliConfigTargets } from '@shared/utils/cliConfig'
 
-export interface LocalAgentModelOption {
-  id: string
-  name: string
+export type LocalAgentModelOption = LocalAgentModelCatalog['models'][number] & {
   group?: string
   source?: 'native' | 'gateway'
   tags?: readonly ModelDisplayTag[]

@@ -1,8 +1,9 @@
 import { acpAuthMethods, connectAcpManagementStdio, type AcpManagementAgent } from '@cherrystudio/agent-runtime-acp/v1'
-import type { LocalAgentConfiguration, LocalAgentModelCatalog } from '@shared/ai/localAgent'
+import { localCliPresetById, type LocalAgentConfiguration, type LocalAgentModelCatalog } from '@shared/ai/localAgent'
 
 import { acpError } from './acpError'
 import { acpModelSelection, resolveAcpLaunch, resolveAcpModelLaunch } from './acpLaunch'
+import { acpPreset } from './acpPresets'
 import { AcpProcess } from './AcpProcess'
 import { acpProtocolInfo } from './acpSessionInfo'
 
@@ -23,7 +24,11 @@ export class AcpManagement {
 
   listModels(cwd: string): Promise<LocalAgentModelCatalog> {
     return this.run(cwd, resolveAcpModelLaunch, async (agent, launch) => {
-      const { models, activeModel, closeSession } = await agent.readModels(cwd)
+      const id = this.config.presetId
+      const { models, activeModel, closeSession } = await agent.readModels(cwd, {
+        read: acpPreset(id)?.readModelCatalog,
+        legacyModes: id ? localCliPresetById.get(id)?.legacyModes : undefined
+      })
       this.closeSession = closeSession
       const implicit = acpModelSelection(this.config, launch).implicit
       return {

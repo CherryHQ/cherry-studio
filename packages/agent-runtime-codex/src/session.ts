@@ -820,7 +820,7 @@ export class CodexSession {
 export const listCodexBuiltinCommands = CodexSession.listBuiltinCommands
 export type { CodexCommand } from './commands'
 
-export { CodexRestoreError, type CodexThreadRestore } from './configuration'
+export { CodexRestoreError, describeCodexModel, type CodexThreadRestore } from './configuration'
 
 function toNativeInput(part: Content): CodexRequestParams['turn/start']['input'][number] {
   return part.type === 'image'

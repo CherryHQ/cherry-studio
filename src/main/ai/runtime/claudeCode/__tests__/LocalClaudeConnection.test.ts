@@ -153,15 +153,6 @@ async function startLocalClaude(nativeModel = 'cherryin:anthropic/claude-haiku-4
 }
 
 describe('LocalClaudeConnection', () => {
-  it('passes resolved contextWindow for gateway-prefixed Claude models into createClaudeCodeRuntime', async () => {
-    await startLocalClaude('cherryin:anthropic/claude-haiku-4.5')
-    expect(createClaudeCodeRuntime).toHaveBeenCalledWith(
-      expect.objectContaining({
-        contextWindow: { model: 'cherryin:anthropic/claude-haiku-4.5', tokens: 200_000 }
-      })
-    )
-  })
-
   it('emits unified decision options in canUseTool and caches session grants', async () => {
     const { events, createdConfig } = await startLocalClaude()
     const canUseTool = createdConfig.canUseTool
@@ -222,7 +213,7 @@ describe('LocalClaudeConnection', () => {
     await expect(editPrompt).resolves.toEqual({ behavior: 'deny', message: 'User declined' })
   })
 
-  it('emits local-turn-usage and confirmed context-usage on Turn 1 native result and ignores local commands', async () => {
+  it('reports native turn usage without treating the result as a context reading', async () => {
     const { events, emitObservation } = await startLocalClaude()
 
     await emitObservation({
@@ -262,9 +253,7 @@ describe('LocalClaudeConnection', () => {
       ]
     })
 
-    await vi.waitFor(() => {
-      expect(events.filter((e) => e.type === 'context-usage')).toHaveLength(1)
-    })
+    await vi.waitFor(() => expect(events.filter((e) => e.type === 'local-turn-usage')).toHaveLength(1))
 
     expect(events.filter((e) => e.type === 'local-turn-usage')).toEqual([
       {
@@ -285,20 +274,6 @@ describe('LocalClaudeConnection', () => {
       }
     ])
 
-    expect(events.filter((e) => e.type === 'context-usage')).toEqual([
-      {
-        type: 'context-usage',
-        result: {
-          status: 'confirmed',
-          value: {
-            model: 'cherryin:anthropic/claude-haiku-4.5',
-            revision: 'claude-native-1:msg-real-turn',
-            contextWindow: 200_000,
-            basis: 'last-request',
-            used: { tokens: 1203, precision: 'reported' }
-          }
-        }
-      }
-    ])
+    expect(events.filter((e) => e.type === 'context-usage')).toEqual([])
   })
 })

@@ -2,7 +2,8 @@ import { Readable, Writable } from 'node:stream'
 
 import { ndJsonStream, RequestError } from '@agentclientprotocol/sdk'
 
-import { acpAuthMethods, acpModelCatalog, connectAcpClient, type AcpClientOptions } from './client'
+import { acpAuthMethods, acpEffortOption, acpModelCatalog, connectAcpClient, type AcpClientOptions } from './client'
+import type { AcpModelCatalogReader } from './harness'
 import { AcpLiveUpdates, type AcpLiveEvents } from './live'
 import type { AcpSessionConfiguration } from './types'
 
@@ -65,16 +66,37 @@ export function connectAcpManagementStdio(
           if (method.type === 'terminal') throw new Error('This authentication method requires external setup')
           await agent.authenticate(method.id)
         },
-        async readModels(cwd: string) {
+        async readModels(cwd: string, discovery?: { read?: AcpModelCatalogReader; legacyModes?: 'effort' }) {
+          const advertised = discovery?.read && (await agent.readModelCatalog(discovery.read))
+          if (advertised) return { ...advertised, closeSession: undefined }
           if (optionsBySession) throw new Error('ACP model discovery is already running')
           optionsBySession = new Map()
           try {
             const { session, configuration } = await agent.create({ cwd, mcpServers: [] })
-            const { activeModel, models } = acpModelCatalog(
-              optionsBySession.get(session.id) ?? configuration.configOptions,
-              session.legacyModels
-            )
-            return { activeModel, models, closeSession: session.close }
+            const configOptions = optionsBySession.get(session.id) ?? configuration.configOptions
+            const { activeModel, models } = acpModelCatalog(configOptions, session.legacyModels)
+            const thought = acpEffortOption(configOptions)
+            const effortOptions =
+              thought?.type === 'select'
+                ? thought.options
+                    .flatMap((option) => ('group' in option ? option.options : [option]))
+                    .map(({ value, name, description }) => ({ value, name, description: description ?? undefined }))
+                : configOptions == null && discovery?.legacyModes === 'effort'
+                  ? configuration.modes?.availableModes.map(({ id, name, description }) => ({
+                      value: id,
+                      name,
+                      description: description ?? undefined
+                    }))
+                  : undefined
+            return {
+              activeModel,
+              models: effortOptions?.length
+                ? models.map((model) =>
+                    model.id === activeModel?.id ? { ...model, effort: { options: effortOptions } } : model
+                  )
+                : models,
+              closeSession: session.close
+            }
           } finally {
             optionsBySession = undefined
           }

@@ -20,6 +20,7 @@ type GatewayCredential = { baseUrl: string; apiKey: string }
 export type CliGatewayRoute = {
   path: string
   model: string
+  contextWindow?: number
   baseUrl: string
   apiKey: string
   install(credential: GatewayCredential): void
@@ -122,5 +123,12 @@ export function resolveCliGatewayRoute(
   const model = modelService.getByKey(source.providerId, source.modelId)
   const wireModel = formatGatewayModelId(source.providerId, model.apiModelId ?? source.modelId)
   if (route.model !== wireModel) return undefined
-  return { path: route.path, model: wireModel, baseUrl: route.baseUrl, apiKey: route.apiKey, install }
+  return {
+    path: route.path,
+    model: wireModel,
+    baseUrl: route.baseUrl,
+    apiKey: route.apiKey,
+    ...(model.contextWindow && { contextWindow: model.contextWindow }),
+    install
+  }
 }

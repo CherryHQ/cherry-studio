@@ -9,7 +9,7 @@ import {
   type SpawnOptions
 } from '@anthropic-ai/claude-agent-sdk'
 
-import type { RuntimeEffortControl } from '@cherrystudio/agent-runtime'
+import type { RuntimeEffortControl, RuntimeModelOption } from '@cherrystudio/agent-runtime'
 import type { InstalledCli } from '@cherrystudio/agent-runtime/cli'
 import type { LaunchSpec } from '@cherrystudio/agent-runtime/stdio'
 
@@ -60,7 +60,10 @@ export async function probeClaudeModels(
   })
   try {
     const { models } = await stream.initializationResult()
-    return models.map((model) => ({ id: model.value, name: model.displayName }))
+    return models.map((model): RuntimeModelOption => {
+      const options = claudeEffortOptions(model)
+      return { id: model.value, name: model.displayName, ...(options.length && { effort: { options } }) }
+    })
   } finally {
     done.abort()
     stream.close()
@@ -78,17 +81,20 @@ const effortLabels = {
   max: 'Max'
 } satisfies Record<NonNullable<Options['effort']>, string>
 
+function claudeEffortOptions(model: ModelInfo | undefined) {
+  if (model?.supportsEffort === false) return []
+  return model?.supportedEffortLevels?.map((value) => ({ value, name: effortLabels[value] })) ?? []
+}
+
 export function claudeEffortControl(
   models: readonly ModelInfo[],
   modelId: string,
   selected: string | undefined
 ): RuntimeEffortControl<ClaudeEffort> | undefined {
   const model = models.find((entry) => entry.value === modelId || entry.resolvedModel === modelId)
-  if (model?.supportsEffort === false || !model?.supportedEffortLevels?.length) return
-  const options: RuntimeEffortControl<ClaudeEffort>['options'] = [
-    { value: 'default', name: 'Default' },
-    ...model.supportedEffortLevels.map((value) => ({ value, name: effortLabels[value] }))
-  ]
+  const advertised = claudeEffortOptions(model)
+  if (!advertised.length) return
+  const options: RuntimeEffortControl<ClaudeEffort>['options'] = [{ value: 'default', name: 'Default' }, ...advertised]
   return {
     id: 'claude-effort',
     application: 'session',

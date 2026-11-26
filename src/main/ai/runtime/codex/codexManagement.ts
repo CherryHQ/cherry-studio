@@ -1,3 +1,4 @@
+import { describeCodexModel } from '@cherrystudio/agent-runtime-codex'
 import { withCodexAppServer, type CodexProbeClient } from '@cherrystudio/agent-runtime-codex/launcher'
 import type { LocalAgentConfiguration, LocalAgentModelCatalog } from '@shared/ai/localAgent'
 
@@ -11,7 +12,7 @@ export function checkCodex(config: LocalAgentConfiguration, cwd: string) {
 
 export function listCodexModels(config: LocalAgentConfiguration, cwd: string): Promise<LocalAgentModelCatalog> {
   return withCodexManagement(config, cwd, async (server) => ({
-    models: (await server.listModels()).map((model) => ({ id: model.model ?? model.id, name: model.displayName }))
+    models: (await server.listModels()).map(describeCodexModel)
   }))
 }
 

@@ -337,13 +337,19 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         sessionUpdate: 'config_option_update',
         configOptions: [
           ...(scenario.startsWith('resume') ? [mode(), thought()] : []),
+          ...(scenario === 'close-management-catalog' ? [thought()] : []),
           {
             id: 'model',
             category: 'model',
             name: 'Model',
             type: 'select',
             currentValue: 'updated-model',
-            options: [{ value: 'updated-model', name: 'Updated model' }]
+            options: [
+              { value: 'updated-model', name: 'Updated model' },
+              ...(scenario === 'close-management-catalog'
+                ? [{ value: 'alternate-model', name: 'Alternate model' }]
+                : [])
+            ]
           }
         ]
       })
@@ -443,6 +449,22 @@ createInterface({ input: process.stdin }).on('line', (line) => {
                         options: [{ value: configuredModel ?? 'fixture-model', name: 'Fixture model' }]
                       }
                     ]
+    })
+  } else if (method === '_x.ai/models/list') {
+    if (scenario !== 'grok-model-catalog') return emit({ id, error: { code: -32601, message: 'Method not found' } })
+    reply(id, {
+      result: {
+        currentModelId: 'grok-reasoning',
+        availableModels: [
+          {
+            modelId: 'grok-reasoning',
+            name: 'Grok Reasoning',
+            _meta: { reasoningEfforts: [{ value: 'high', label: 'High', default: true }] }
+          },
+          { modelId: 'grok-basic', name: 'Grok Basic' },
+          { modelId: 'internal', hidden: true }
+        ]
+      }
     })
   } else if (method === 'session/close') {
     if (scenario === 'close-hang') return

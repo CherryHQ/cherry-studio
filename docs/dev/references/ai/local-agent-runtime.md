@@ -278,6 +278,14 @@ explicitly. For Qwen, MiniMax and Hermes, Cherry maps provider-configured defaul
 to advertised ACP IDs. CLIs with config-file-only model selection use the
 configured default.
 
+The settings and Composer model pickers share the installed runtime's catalog.
+Codex uses paginated `model/list`, Claude reads SDK initialization, Cursor uses
+`Cursor.models.list()`, and Grok uses `_x.ai/models/list` when available. Ordinary
+ACP opens a dedicated probe session and reads the advertised model selector or
+legacy model list. Each catalog entry carries its own advertised effort choices.
+A standard ACP probe can associate `thought_level` with the reported current
+model. Pi ACP's legacy thinking modes follow the same rule.
+
 An idle session shows the permission mode declared by its runtime. Main can
 record that choice before opening a connection. The live session publishes its
 current permission, effort and other configuration controls, and a disconnect
@@ -364,6 +372,10 @@ queries the live Pi session for current occupancy. Compaction or missing request
 evidence falls back to Pi’s native reading at settlement. Codex measures
 per-turn usage from thread totals relative to a pre-turn baseline so repeated
 notifications do not add usage again. Missing usage or cost is left unknown.
+Cursor uses the last completed model call for context occupancy and the SDK
+run totals for billing. A context reading may contain only the token count.
+The window comes from the native runtime or an exactly bound Cherry model
+in the provider catalog.
 See [AI Usage Records](./ai-usage-records.md#local-agent-observations) for storage,
 display and gateway attribution.
 

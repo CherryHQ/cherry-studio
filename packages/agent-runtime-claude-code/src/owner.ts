@@ -179,10 +179,11 @@ export class ClaudeOwner {
   }
 
   private contextWindow(model: string): number | undefined {
+    const native = this.contextWindows.get(model)
+    if (native !== undefined) return native
     const declared = this.runtime.contextWindow
     const normalize = (id: string) => id.replace(/\[1m\]$/i, '')
     if (declared && normalize(declared.model) === normalize(model)) return declared.tokens
-    return this.contextWindows.get(model)
   }
 
   async contextUsage(projection: ClaudeProjection): Promise<OperationResult<ThreadContextUsage>> {
@@ -194,15 +195,10 @@ export class ClaudeOwner {
     let result: OperationResult<ThreadContextUsage>
     try {
       const native = await this.sdk.getContextUsage()
-      const window = this.contextWindow(native.model)
-      if (window) {
-        const value = normalizeContextUsage(native, window)
-        result = {
-          status: 'confirmed',
-          value: { ...value, revision: `${this.activeSession}:${epoch}:${value.revision}` }
-        }
-      } else {
-        result = { status: 'unknown', error: runtimeError('contextUsage', 'unknown-window') }
+      const value = normalizeContextUsage(native, this.contextWindow(native.model))
+      result = {
+        status: 'confirmed',
+        value: { ...value, revision: `${this.activeSession}:${epoch}:${value.revision}` }
       }
     } catch (error) {
       this.report(error)
@@ -540,14 +536,14 @@ export class ClaudeOwner {
         (this.liveInputUsage.input_tokens ?? 0) +
         (this.liveInputUsage.cache_read_input_tokens ?? 0) +
         (this.liveInputUsage.cache_creation_input_tokens ?? 0)
-      if ((event.type === 'message_start' || event.type === 'message_delta') && model && window && tokens > 0)
+      if ((event.type === 'message_start' || event.type === 'message_delta') && model && tokens > 0)
         events.push({
           type: 'context.changed',
           result: {
             status: 'confirmed',
             value: {
               model,
-              contextWindow: window,
+              ...(window === undefined ? {} : { contextWindow: window }),
               revision: `${this.activeSession}:${this.contextEpoch}:${message.uuid}`,
               basis: 'last-request',
               used: { tokens, precision: 'reported' }

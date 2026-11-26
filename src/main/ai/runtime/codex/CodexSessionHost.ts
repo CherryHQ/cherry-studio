@@ -15,7 +15,6 @@ import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeServic
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection, type LocalSource } from '../LocalConnection'
 import { localContent } from '../localContent'
-import { resolveLocalModelContextWindow } from '../modelContextWindow'
 import type { AgentRuntimeUserInput, AgentRuntimeCommand, AgentRuntimeConnectInput } from '../types'
 import { resolveCodexLaunch } from './codexLaunch'
 import { codexProcessHost } from './processHost'
@@ -204,28 +203,18 @@ export class CodexSessionHost extends LocalConnection {
         })
         if (summary.success) this.events.push({ type: 'local-turn-usage', summary: summary.data })
         const { modelContextWindow, turnId, inputTokens } = event.lastRequest
-        const contextWindow = resolveLocalModelContextWindow(model, modelContextWindow)
         this.events.push({
           type: 'context-usage',
-          result: contextWindow
-            ? {
-                status: 'confirmed',
-                value: {
-                  model,
-                  revision: `${model}:${turnId}`,
-                  contextWindow,
-                  basis: 'last-request',
-                  used: { tokens: inputTokens, precision: 'reported' }
-                }
-              }
-            : {
-                status: 'unknown',
-                error: {
-                  operation: 'contextUsage',
-                  code: 'unknown-window',
-                  message: 'Context window size is unknown for this Codex model'
-                }
-              }
+          result: {
+            status: 'confirmed',
+            value: {
+              model,
+              revision: `${model}:${turnId}`,
+              ...(modelContextWindow !== undefined && { contextWindow: modelContextWindow }),
+              basis: 'last-request',
+              used: { tokens: inputTokens, precision: 'reported' }
+            }
+          }
         })
         return
       }

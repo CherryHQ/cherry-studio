@@ -24,6 +24,7 @@ import type {
 import { useLocalAgentModelTabs } from '@renderer/hooks/agent/useLocalAgentModelTabs'
 import { classifyLocalAgentError } from '@renderer/utils/agent/localAgentError'
 import { getSearchMatchScore } from '@renderer/utils/model'
+import { reasoningEffortLabel } from '@renderer/utils/reasoning'
 import { cn } from '@renderer/utils/style'
 
 interface LocalAgentModelSelectorProps {
@@ -236,17 +237,25 @@ export function LocalAgentModelSelector({
                     )}
                     {entries.map(({ key, model, label }) => {
                       const selected = model ? value === model.id : !value
+                      const effort = model?.effort?.options
+                        .map(({ value, name }) => reasoningEffortLabel(value, t, name))
+                        .join(' · ')
                       const rowTags =
                         model?.tags ?? (model && /free/i.test(`${model.id} ${model.name}`) ? (['free'] as const) : [])
                       return (
                         <div key={key} className="px-1 py-0.5" onMouseEnter={() => setFocusedKey(key)}>
                           <ModelSelectorRow
+                            className={effort ? 'h-10' : undefined}
                             selected={selected}
                             focused={activeKey === key}
                             disabled={selectionDisabled}
                             showSelectedIndicator={selected}
                             onSelect={() => void select(model?.id)}
-                            optionProps={{ id: optionId(key), 'aria-label': label }}
+                            optionProps={{
+                              id: optionId(key),
+                              'aria-label': label,
+                              'aria-description': effort || undefined
+                            }}
                             leading={
                               model ? (
                                 <ModelAvatar model={model} size={24} className="rounded-full border border-border" />
@@ -270,9 +279,16 @@ export function LocalAgentModelSelector({
                                 </div>
                               ) : undefined
                             }>
-                            <span className="min-w-0 max-w-full truncate" title={model ? label : undefined}>
-                              {label}
-                            </span>
+                            <div className="min-w-0">
+                              <div className="truncate" title={model ? label : undefined}>
+                                {label}
+                              </div>
+                              {effort && (
+                                <div className="truncate text-muted-foreground text-xs" title={effort}>
+                                  {effort}
+                                </div>
+                              )}
+                            </div>
                           </ModelSelectorRow>
                         </div>
                       )

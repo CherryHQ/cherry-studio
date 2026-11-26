@@ -22,8 +22,13 @@ export async function prepareAcpChatLaunch(config: LocalAgentConfiguration, sess
   const preset = acpPreset(config.presetId)
   const { gatewayRoute, ...launch } = await resolveAcpLaunch(config, signal, 'session')
   const prepared = await preset?.prepareChat?.(config, launch, sessionId)
-  const gateway = prepared?.gateway ?? (await bindCliGatewayRoute(sessionId, gatewayRoute))
-  return { launch, gateway, mode: prepared?.mode }
+  const scopedGateway = prepared?.gateway ? undefined : await bindCliGatewayRoute(sessionId, gatewayRoute)
+  return {
+    launch,
+    gateway: prepared?.gateway ?? scopedGateway,
+    contextWindow: scopedGateway ? gatewayRoute?.contextWindow : undefined,
+    mode: prepared?.mode
+  }
 }
 
 export function acpModelSelection(config: LocalAgentConfiguration, launch: AcpLaunch): AcpModelSelection {

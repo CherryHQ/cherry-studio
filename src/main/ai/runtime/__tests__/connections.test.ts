@@ -1194,7 +1194,9 @@ describe('local protocol processes', () => {
       args: [fixture, protocol, 'normal'],
       env: { FIXTURE_LOG: path.join(cwd, 'models.jsonl') }
     })
-    expect(catalog.models).toEqual([{ id: 'fixture-model', name: 'Fixture model' }])
+    expect(catalog.models).toHaveLength(1)
+    expect(catalog.models[0]).toMatchObject({ id: 'fixture-model', name: 'Fixture model' })
+    if (protocol === 'codex') expect(catalog.models[0].effort?.options.map(({ value }) => value)).toContain('ultra')
     const wire = await readWire('models.jsonl')
     expect(
       wire.some((message) =>
@@ -1206,9 +1208,17 @@ describe('local protocol processes', () => {
   it('reads setup model updates for the queried ACP session without granting host access', async () => {
     const catalog = await listLocalAgentModels(fixtureConfig('acp', 'close-management-catalog'))
     expect(catalog).toMatchObject({
-      models: [{ id: 'updated-model', name: 'Updated model' }],
+      models: [
+        {
+          id: 'updated-model',
+          name: 'Updated model',
+          effort: { options: [{ value: 'balanced' }, { value: 'deep' }] }
+        },
+        { id: 'alternate-model', name: 'Alternate model' }
+      ],
       activeModel: { id: 'updated-model' }
     })
+    expect(catalog.models[1]).not.toHaveProperty('effort')
     const wire = await readWire()
     expect(wire.map(({ method }) => method)).toEqual(['initialize', 'session/new', 'session/close'])
     const capabilities = wire[0].params.clientCapabilities
@@ -1216,6 +1226,22 @@ describe('local protocol processes', () => {
     expect(capabilities.terminal).toBe(false)
     expect(capabilities).not.toHaveProperty('elicitation')
     expect(wire[1].params.mcpServers).toEqual([])
+  })
+
+  it('lists Grok effort per model without opening a session', async () => {
+    const catalog = await listLocalAgentModels({
+      ...fixtureConfig('acp', 'grok-model-catalog'),
+      presetId: 'grok-build'
+    })
+    expect(catalog.models).toEqual([
+      {
+        id: 'grok-reasoning',
+        name: 'Grok Reasoning',
+        effort: { defaultValue: 'high', options: [{ value: 'high', name: 'High' }] }
+      },
+      { id: 'grok-basic', name: 'Grok Basic' }
+    ])
+    expect((await readWire()).map(({ method }) => method)).toEqual(['initialize', '_x.ai/models/list'])
   })
 
   it('loads terminal Antigravity models when the separate adapter has no sign-in', async () => {
@@ -2813,7 +2839,7 @@ describe('local protocol processes', () => {
     expect(turn.params.effort).toBeUndefined()
   })
 
-  it('emits confirmed context-usage for Codex models with known windows and unknown otherwise', async () => {
+  it('keeps Codex request tokens while leaving an unreported window unknown', async () => {
     const known = create('codex', 'codex-usage', 'gpt-5-codex')
     await known.connection.start(cwd)
     expect(known.connection.localSessionInfo.thoughtLevel?.options).toContainEqual({
@@ -2831,11 +2857,12 @@ describe('local protocol processes', () => {
       type: 'context-usage',
       result: {
         status: 'confirmed',
-        value: expect.objectContaining({
-          contextWindow: 400_000,
+        value: {
+          model: 'gpt-5-codex',
+          revision: expect.any(String),
           basis: 'last-request',
           used: { tokens: 200, precision: 'reported' }
-        })
+        }
       }
     })
     await known.closeAndDrain()
@@ -2860,19 +2887,9 @@ describe('local protocol processes', () => {
       }
     })
     await nativeWindow.closeAndDrain()
-
-    const unknownModel = create('codex', 'codex-usage', 'fixture-model')
-    await unknownModel.connection.start(cwd)
-    await unknownModel.connection.send(input)
-    await vi.waitFor(() =>
-      expect(
-        unknownModel.events.some((event) => event.type === 'context-usage' && event.result.status === 'unknown')
-      ).toBe(true)
-    )
-    await unknownModel.closeAndDrain()
   })
 
-  it('falls back to model context window when ACP usage_update omits size and forwards Antigravity warnings', async () => {
+  it('preserves ACP context occupancy when the agent reports no window', async () => {
     const zeroSize = create('acp', 'acp-usage-zero-size', 'google/gemini-4-neon')
     await zeroSize.connection.start(cwd)
     await zeroSize.connection.send(input)
@@ -2881,14 +2898,17 @@ describe('local protocol processes', () => {
       type: 'context-usage',
       result: {
         status: 'confirmed',
-        value: expect.objectContaining({
-          contextWindow: 1_048_576,
+        value: {
+          model: 'google/gemini-4-neon',
+          revision: expect.any(String),
           basis: 'current-context',
           used: { tokens: 5000, precision: 'reported' }
-        })
+        }
       }
     })
+  })
 
+  it('forwards Antigravity warnings when granting session approval', async () => {
     const agyWarn = create('acp', 'acp-antigravity-warning-grant', undefined, 'antigravity-acp')
     await agyWarn.connection.start(cwd)
     const sending = agyWarn.connection.send(input)
@@ -2914,25 +2934,21 @@ describe('local protocol processes', () => {
     await agyWarn.closeAndDrain()
   })
 
-  it('falls back to prompt usage window when usage_update is absent and emits unsupported once across turns', async () => {
+  it('keeps ACP prompt billing separate from context occupancy', async () => {
     const promptFallback = create('acp', 'acp-usage-prompt-fallback', 'claude-sonnet-4-6')
     await promptFallback.connection.start(cwd)
     await promptFallback.connection.send(input)
     await promptFallback.closeAndDrain()
 
-    expect(promptFallback.events).toContainEqual({
-      type: 'context-usage',
-      result: {
-        status: 'confirmed',
-        value: {
-          model: 'claude-sonnet-4-6',
-          revision: 'claude-sonnet-4-6',
-          contextWindow: 200_000,
-          basis: 'last-request',
-          used: { tokens: 100, precision: 'reported' }
-        }
-      }
-    })
+    expect(promptFallback.events).toContainEqual(
+      expect.objectContaining({
+        type: 'local-turn-usage',
+        summary: expect.objectContaining({ usage: expect.objectContaining({ inputTokens: 100 }) })
+      })
+    )
+    expect(
+      promptFallback.events.some((event) => event.type === 'context-usage' && event.result.status === 'confirmed')
+    ).toBe(false)
 
     const noUsage = create('acp', 'normal')
     await noUsage.connection.start(cwd)

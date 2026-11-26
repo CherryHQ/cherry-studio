@@ -65,6 +65,8 @@ Harness 适配器解释原生审批请求和选项。公共 ACP 包转换标准�
 - AC23 — 使用同一个网关模型的两个 CLI 会话分别取得自己的凭据，请求归到凭据对应的会话。只有公共密钥的请求不会归到任一会话。启动准备在绑定凭据时不重复读取配置文件。(verification: unit and Electron)
 - AC24 — 同一预设的检查、模型查询与会话打开选择同一个 Main 适配器。保存的配置包含预设 ID。自定义可执行文件选择 ACP。新增协议时必须为 Main 派发表提供三项操作。(verification: schema and typecheck)
 - AC25 — 读取冷会话控件不会打开原生会话。连接关闭时 Composer 撤下该连接的实时控件。切换模型后撤下旧模型档位，并拒绝写入旧模型。ACP 保留原生公布的档位，包括 Pi ACP 的旧版思考模式和 Grok 的旧版模型元数据。Cursor 从 SDK 模型目录读取档位，在下一次发送时应用所选值。(verification: unit and Electron)
+- AC26 — 模型选择器在首次发送前使用所选安装的模型目录。每个模型只携带原生端为它公布的 effort 档位。标准 ACP 探测将会话选项归属到原生端报告的当前模型，读完关闭探测会话。Grok 可直接列模型，扩展缺失时使用会话探测。(verification: unit and Electron)
+- AC27 — 上下文读数使用原生端报告的占用量或最近一次模型请求。Cursor 把整轮累计 token 留在用量记录。窗口取自原生 runtime 或已绑定的 Cherry 目录模型。窗口未知时显示 token 数，省略百分比。(verification: unit and Electron)
 
 ## Risks
 

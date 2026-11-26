@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import * as z from 'zod'
 
 import { acpConfigRecord, type AcpGatewayConfig, type TomlModelProfile } from '@cherrystudio/agent-runtime-acp/profile'
-import type { AcpHarnessAdapter, AcpTurnUsage } from '@cherrystudio/agent-runtime-acp/v1'
+import type { AcpHarnessAdapter, AcpModelCatalogReader, AcpTurnUsage } from '@cherrystudio/agent-runtime-acp/v1'
 
 import { setGrokAuxiliaryModels } from './cli'
 import { grokInteractions, type GrokInteractionHost } from './interactions'
@@ -84,10 +84,15 @@ const registerPromptUsage: NonNullable<AcpHarnessAdapter['registerPromptUsage']>
 
 const prediction = z.object({ generation: z.number().int().nonnegative(), suggestion: z.string().nullable() })
 
-const legacyEffortModelState = z.object({
+const modelState = z.object({
+  currentModelId: z.string().optional(),
   availableModels: z.array(
     z.object({
       modelId: z.string(),
+      name: z.string().optional(),
+      hidden: z.boolean().optional(),
+      user_selectable: z.boolean().optional(),
+      userSelectable: z.boolean().optional(),
       _meta: z
         .object({
           supportsReasoningEffort: z.boolean().optional(),
@@ -109,33 +114,61 @@ const legacyEffortModelState = z.object({
   )
 })
 
+function grokEffort(metadata: z.output<typeof modelState>['availableModels'][number]['_meta']) {
+  if (!metadata?.reasoningEfforts?.length || metadata.supportsReasoningEffort === false) return
+  const options = metadata.reasoningEfforts.flatMap((option) => {
+    const value = option.value ?? option.id
+    return value ? [{ value, name: option.label || value, description: option.description ?? undefined }] : []
+  })
+  if (!options.length) return
+  const nativeDefault = metadata.reasoningEfforts.find((option) => option.default)
+  return { options, defaultValue: nativeDefault?.value ?? nativeDefault?.id }
+}
+
+const listModelsResponse = z.union([z.object({ result: modelState }).transform(({ result }) => result), modelState])
+
+export const readGrokModelCatalog: AcpModelCatalogReader = async (agent) => {
+  let response: unknown
+  try {
+    response = await agent.request('_x.ai/models/list', {})
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === -32601) return
+    throw error
+  }
+  const { currentModelId, availableModels } = listModelsResponse.parse(response)
+  return {
+    models: availableModels
+      .filter((model) => !model.hidden && model.user_selectable !== false && model.userSelectable !== false)
+      .map(({ modelId, name, _meta }) => {
+        const effort = grokEffort(_meta)
+        return { id: modelId, name: name || modelId, ...(effort && { effort }) }
+      }),
+    activeModel: currentModelId ? { id: currentModelId } : undefined
+  }
+}
+
 function bindLegacyEffort({
   agent,
   sessionId,
   currentModel,
   legacyModelState
 }: Parameters<NonNullable<AcpHarnessAdapter['bind']>>[0]) {
-  const models = legacyEffortModelState.safeParse(legacyModelState).data?.availableModels
+  const models = modelState.safeParse(legacyModelState).data?.availableModels
   if (!models) return
   let applied: { modelId: string; value: string } | undefined
   const read = () => {
     const modelId = currentModel()
     if (!modelId) return
     const metadata = models.find((model) => model.modelId === modelId)?._meta
-    if (!metadata?.reasoningEfforts?.length || metadata.supportsReasoningEffort === false) return
-    const options = metadata.reasoningEfforts.flatMap((option) => {
-      const value = option.value ?? option.id
-      return value ? [{ value, name: option.label || value, description: option.description ?? undefined }] : []
-    })
-    if (!options.length) return
-    const nativeDefault = metadata.reasoningEfforts.find((option) => option.default)
-    const value = applied?.modelId === modelId ? applied.value : metadata.reasoningEffort
+    const effort = grokEffort(metadata)
+    if (!effort) return
+    const value = applied?.modelId === modelId ? applied.value : metadata?.reasoningEffort
     return {
       id: 'grok-legacy-effort',
       modelId,
       application: 'session' as const,
-      currentValue: value ?? nativeDefault?.value ?? nativeDefault?.id ?? 'default',
-      options
+      currentValue: value ?? effort.defaultValue ?? 'default',
+      options: effort.options
     }
   }
   return {

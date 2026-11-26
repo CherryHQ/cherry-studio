@@ -214,11 +214,13 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
       this.compacting = true
       const usage = await this.handle.contextUsage().catch(() => undefined)
       this.compacting = false
+      const contextWindow = usage?.status === 'confirmed' ? usage.value.contextWindow : undefined
       thresholdReached =
         usage?.status === 'confirmed' &&
         !!usage.value.used &&
-        usage.value.contextWindow > 0 &&
-        usage.value.used.tokens >= (usage.value.contextWindow * snapshot.compactionPercent) / 100
+        contextWindow !== undefined &&
+        contextWindow > 0 &&
+        usage.value.used.tokens >= (contextWindow * snapshot.compactionPercent) / 100
     }
     if (manual || (thresholdReached && stopGeneration === this.stopGeneration && !this.closing)) {
       const trigger = manual ? 'manual' : 'auto'

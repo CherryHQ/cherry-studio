@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import type { RuntimeEffortControl } from '@cherrystudio/agent-runtime'
+import type { RuntimeEffortControl, RuntimeModelOption } from '@cherrystudio/agent-runtime'
 import type { AcpLoginProfile, AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
 import { ampCli } from '@cherrystudio/agent-runtime-amp-acp/cli'
 import { antigravityCli } from '@cherrystudio/agent-runtime-antigravity-acp/cli'
@@ -264,7 +264,18 @@ export type LocalAgentAuthMethod = z.infer<typeof LocalAgentAuthMethodSchema>
 
 export const LocalAgentModelCatalogSchema = z.object({
   authMethods: z.array(LocalAgentAuthMethodSchema).optional(),
-  models: z.array(z.object({ id: z.string().min(1), name: z.string() })),
+  models: z.array(
+    z.object({
+      id: z.string().min(1),
+      name: z.string(),
+      effort: z
+        .object({
+          options: z.array(z.object({ value: z.string(), name: z.string(), description: z.string().optional() })),
+          defaultValue: z.string().optional()
+        })
+        .optional()
+    }) satisfies z.ZodType<RuntimeModelOption>
+  ),
   activeModel: z.object({ id: z.string(), name: z.string().optional() }).optional()
 })
 export type LocalAgentModelCatalog = z.infer<typeof LocalAgentModelCatalogSchema>
