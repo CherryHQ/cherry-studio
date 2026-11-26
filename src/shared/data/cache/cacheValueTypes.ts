@@ -146,6 +146,7 @@ export interface CacheComposerSerializedToken {
   label: string
   icon?: string
   description?: string
+  sourceMessageId?: string
   promptText?: string
   payload?: unknown
   index: number

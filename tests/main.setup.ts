@@ -194,7 +194,8 @@ vi.mock('electron', async () => {
     },
     Notification: vi.fn(),
     net: {
-      fetch: vi.fn()
+      fetch: vi.fn(),
+      request: vi.fn()
     }
   }
 
