@@ -117,6 +117,48 @@ describe('DSH session archives', () => {
     ])
   })
 
+  it.each([0, 3])(
+    'matches recovered v%d retries to a migrated copy despite shifted lines and settlement times',
+    async (version) => {
+      const step = { turn: 2, step: 1 }
+      const start = event('turn/start', { turn: 2 })
+      const retry = event('llm/retry', step)
+      const run = { index: 0, texts: ['Part', 'ial'], dt: [9] }
+      const packed = { type: 'text-chunks', time0: 105, seq0: 5, data: { ...step, ...run } }
+      const chunk = { type: 'tool-call-delta', index: 1, id: '', name: 'read', argumentsDelta: '{}' }
+      const tool = event('assistant/chunk', { ...step, chunk }, 114)
+      const stream = [
+        { type: 'text-chunks', time0: 105, ...run },
+        { type: 'chunk', time: 114, chunk }
+      ]
+      const attempt = event('assistant/attempt', { ...step, stream }, 114)
+      const prefix = [
+        user,
+        event('turn/start', { turn: 1 }),
+        event('agent/inbox/spliced', { target: 'next-turn', inserted: [1] })
+      ]
+      const original = version === 0 ? [packed, tool, retry, { ...packed, seq0: 9 }, tool] : [attempt, retry, attempt]
+      await save(version, ...prefix, start, ...original)
+      await save(
+        4,
+        ...prefix,
+        event('turn/end', { turn: 1, reason: { kind: 'interrupted' } }),
+        start,
+        attempt,
+        retry,
+        attempt
+      )
+      const [ref] = await discover()
+      const history = await dshAdapter.read(ref, signal)
+      expect(history.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+      const replies = history.messages.filter((m) => m.role === 'assistant')
+      const recovered = { timestamp: 105, status: 'paused', data: { parts: [{ type: 'text', text: 'Partial' }] } }
+      expect(replies).toMatchObject([recovered, recovered])
+      expect(replies[0].provenance.originalMessageId).not.toBe(replies[1].provenance.originalMessageId)
+      expect(history.messages.filter((m) => m.role === 'system')).toHaveLength(2)
+    }
+  )
+
   it('skips generated compaction checkpoints and keeps matching user-authored text', async () => {
     const answer = event('assistant/message', { message: { id: 'answer', content: 'Original answer' } })
     const content = [{ type: 'text', text: 'Earlier summary' }]

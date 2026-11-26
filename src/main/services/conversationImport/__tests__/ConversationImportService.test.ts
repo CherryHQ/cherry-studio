@@ -788,9 +788,9 @@ describe('local history atomic import', () => {
   })
   it('commits valid DSH sessions independently, rechecks every copy and retries after repair', async () => {
     const sourceRoot = path.join(root, 'source')
-    const bytes = (id: string, text: string) =>
+    const bytes = (id: string, text: string, version = 4) =>
       Buffer.concat([
-        zstdCompressSync(JSON.stringify({ type: 'session', version: 4, id, cwd: root, createdAt: 100 }) + '\n'),
+        zstdCompressSync(JSON.stringify({ type: 'session', version, id, cwd: root, createdAt: 100 }) + '\n'),
         zstdCompressSync(
           JSON.stringify({ type: 'user/message', time: 101, data: { id: 'prompt', content: text } }) + '\n'
         )
@@ -801,10 +801,20 @@ describe('local history atomic import', () => {
       await writeFile(path.join(dir, name), data)
     }
     const name = 'session.v4.jsonl.zstd'
+    const run = { index: 0, dt: [3], texts: ['Part', 'ial'] }
+    const step = { turn: 1, step: 1 }
+    const packed = { type: 'text-chunks', time0: 110, seq0: 1, data: { ...step, ...run } }
+    const stream = [{ type: 'text-chunks', time0: 110, ...run }]
+    const migrated = { type: 'assistant/attempt', time: 113, data: { ...step, stream } }
+    const copy = (version: number, text: string) =>
+      Buffer.concat([
+        bytes('copy', text, version),
+        zstdCompressSync(JSON.stringify(version === 0 ? packed : migrated) + '\n')
+      ])
     await write('valid', name, bytes('valid', 'Good'))
     await write('repair', name, bytes('repair', 'Repair me').subarray(0, -1))
-    await write('copy', name, bytes('copy', 'Original'))
-    await write('copy', 'session.jsonl.zstd', bytes('copy', 'Original'))
+    await write('copy', name, copy(4, 'Original'))
+    await write('copy', 'session.jsonl.zstd', copy(0, 'Original'))
     dbh.db.update(agentTable).set({ type: 'pi-durable' }).where(eq(agentTable.id, 'other')).run()
     const scan = await service.discover('window', 'dsh', sourceRoot)
     const refs = scan.candidates.map(({ ref }) => ({ ref }))
@@ -818,13 +828,13 @@ describe('local history atomic import', () => {
       return Object.fromEntries(p.items.map((item, i) => [path.basename(path.dirname(item.sourcePath)), outcomes[i]]))
     }
     const preview = await prepare()
-    await write('copy', 'session.jsonl.zstd', bytes('copy', 'Changed'))
+    await write('copy', 'session.jsonl.zstd', copy(0, 'Changed'))
     const first = await commit(preview)
     expect(first.valid).toMatchObject({ status: 'imported', initialization: 'ready' })
     expect(first.copy).toMatchObject({ status: 'failed', reason: 'source_changed' })
     expect(first.repair.status).toBe('failed')
     await write('repair', name, bytes('repair', 'Repaired'))
-    await write('copy', 'session.jsonl.zstd', bytes('copy', 'Original'))
+    await write('copy', 'session.jsonl.zstd', copy(0, 'Original'))
     const again = await commit(await prepare())
     expect(again.valid).toMatchObject({ status: 'existing', sessionId: first.valid.sessionId })
     expect([again.copy.status, again.repair.status]).toEqual(['imported', 'imported'])
