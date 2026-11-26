@@ -1,22 +1,26 @@
-import type { SharedV3ProviderOptions } from '@ai-sdk/provider'
+import type { JSONObject, JSONValue, SharedV3ProviderOptions } from '@ai-sdk/provider'
 import { isToolUIPart, type LanguageModelMiddleware, type UIMessage } from 'ai'
 
-import { definePlugin } from '@cherrystudio/ai-core'
-import { ENDPOINT_TYPE, UniqueModelIdSchema } from '@shared/data/types/model'
-import { isGemini3Model, isGemini4Model } from '@shared/utils/model'
+import { geminiSignatures } from '@main/ai/messages/geminiTextSignature'
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 
-import type { RequestFeature } from '../feature'
+import type { AssistantPart } from './providerStateReplay'
 
-function geminiSignatures(options: SharedV3ProviderOptions | undefined): Array<[string, string]> {
-  const signatures: Array<[string, string]> = []
-  for (const namespace of ['google', 'vertex', 'googleVertex']) {
-    const signature = options?.[namespace]?.thoughtSignature
-    if (typeof signature === 'string' && signature.trim()) signatures.push([namespace, signature])
-  }
-  return signatures
+function asObject(value: JSONValue | undefined): JSONObject {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 }
 
-function indexForeignHistory(messages: UIMessage[], targetModelId: string): Map<string, boolean> {
+function compatibleContent(options: SharedV3ProviderOptions | undefined) {
+  const extraContent = asObject(options?.openaiCompatible?.extra_content)
+  return { extraContent, google: asObject(extraContent.google) }
+}
+
+export function hasGeminiSignature(options: SharedV3ProviderOptions | undefined): boolean {
+  const compatible = compatibleContent(options).google.thought_signature
+  return geminiSignatures(options).length > 0 || (typeof compatible === 'string' && compatible.trim().length > 0)
+}
+
+export function legacyGeminiHistory(messages: UIMessage[], targetModelId: string): (part: AssistantPart) => boolean {
   const foreign = new Map<string, boolean>()
   for (const message of messages) {
     if (message.role !== 'assistant') continue
@@ -38,77 +42,87 @@ function indexForeignHistory(messages: UIMessage[], targetModelId: string): Map<
       }
     }
   }
-  return foreign
+  return (part) => {
+    if (part.type === 'text') {
+      return geminiSignatures(part.providerOptions).some(([, signature]) => foreign.get(`text:${signature}`))
+    }
+    return part.type === 'tool-call' && foreign.get(`tool:${part.toolCallId}`) === true
+  }
 }
 
-export const geminiHistorySignatureReplayFeature: RequestFeature = {
-  name: 'gemini-history-signature-replay',
-  applies: ({ request, endpointType, model }) =>
-    request.contextOwner !== 'caller' &&
-    endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT &&
-    (isGemini3Model(model) || isGemini4Model(model)),
-  contributeModelAdapters: ({ request, model }) => {
-    const foreign = indexForeignHistory(request.messages ?? [], model.id)
-    if (![...foreign.values()].includes(true)) return []
-
-    const middleware: LanguageModelMiddleware = {
-      specificationVersion: 'v3',
-      transformParams: async ({ params }) => {
-        const currentTurn = params.prompt.findLastIndex(
-          (message) =>
-            message.role === 'user' && message.content.some((part) => part.type === 'text' && part.text.trim())
-        )
-        if (currentTurn < 0) return params
-        return {
-          ...params,
-          prompt: params.prompt.map((message, index) => {
-            if (index >= currentTurn || message.role !== 'assistant') return message
-            return {
-              ...message,
-              content: message.content.map((part) => {
-                if (part.type === 'text') {
-                  const signatures = geminiSignatures(part.providerOptions).filter(([, signature]) =>
-                    foreign.get(`text:${signature}`)
-                  )
-                  if (signatures.length === 0) return part
-                  const providerOptions = { ...part.providerOptions }
-                  for (const [namespace] of signatures) {
-                    const options = { ...providerOptions[namespace] }
-                    delete options.thoughtSignature
-                    providerOptions[namespace] = options
-                  }
-                  return { ...part, providerOptions }
-                }
-                if (
-                  part.type !== 'tool-call' ||
-                  part.providerExecuted ||
-                  !foreign.get(`tool:${part.toolCallId}`) ||
-                  geminiSignatures(part.providerOptions).length === 0
-                )
-                  return part
-                return {
-                  ...part,
-                  providerOptions: {
-                    ...part.providerOptions,
-                    cherry: { ...part.providerOptions?.cherry, omitGeminiThoughtSignature: true }
-                  }
-                }
-              })
-            }
-          })
-        }
-      }
-    }
-
-    return [
-      definePlugin({
-        name: 'gemini-history-signature-replay',
-        enforce: 'pre',
-        configureContext: (context) => {
-          context.middlewares ??= []
-          context.middlewares.push(middleware)
-        }
-      })
-    ]
+export function omitGeminiSignature(part: Exclude<AssistantPart, { type: 'reasoning' }>) {
+  if (part.type === 'tool-call' && part.providerExecuted) return part
+  const providerOptions = { ...part.providerOptions }
+  for (const [key] of geminiSignatures(part.providerOptions)) {
+    const options = { ...providerOptions[key] }
+    delete options.thoughtSignature
+    providerOptions[key] = options
   }
+  const { extraContent, google } = compatibleContent(providerOptions)
+  if ('thought_signature' in google) {
+    const remaining = { ...google }
+    delete remaining.thought_signature
+    const extra = { ...extraContent }
+    if (Object.keys(remaining).length) extra.google = remaining
+    else delete extra.google
+    const compatible = { ...providerOptions.openaiCompatible }
+    if (Object.keys(extra).length) compatible.extra_content = extra
+    else delete compatible.extra_content
+    providerOptions.openaiCompatible = compatible
+  }
+  if (part.type === 'tool-call') {
+    providerOptions.cherry = { ...providerOptions.cherry, omitGeminiThoughtSignature: true }
+  }
+  return { ...part, providerOptions }
+}
+
+export const geminiCompatibleToolSignatures: LanguageModelMiddleware = {
+  specificationVersion: 'v3',
+  transformParams: async ({ params }) => ({
+    ...params,
+    prompt: params.prompt.map((message) => {
+      if (message.role !== 'assistant') return message
+      let hasSignedCall = false
+      let batchEnd = 0
+      let omitBatch = false
+      return {
+        ...message,
+        content: message.content.map((part, index) => {
+          if (part.type !== 'tool-call' || part.providerExecuted) return part
+          if (index >= batchEnd) {
+            omitBatch = false
+            for (batchEnd = index; batchEnd < message.content.length; batchEnd++) {
+              const call = message.content[batchEnd]
+              if (call.type !== 'tool-call' || call.providerExecuted) break
+              omitBatch ||= call.providerOptions?.cherry?.omitGeminiThoughtSignature === true
+            }
+          }
+          if (omitBatch) return omitGeminiSignature(part)
+          const options = part.providerOptions
+          const recorded = geminiSignatures(options)[0]?.[1]
+          const { extraContent, google } = compatibleContent(options)
+          const nested =
+            typeof google.thought_signature === 'string' && google.thought_signature.trim()
+              ? google.thought_signature
+              : undefined
+          if (!recorded && !nested && hasSignedCall) return part
+          hasSignedCall ||= Boolean(recorded || nested)
+          return {
+            ...part,
+            providerOptions: {
+              ...options,
+              ...(recorded && { google: { ...options?.google, thoughtSignature: recorded } }),
+              openaiCompatible: {
+                ...options?.openaiCompatible,
+                extra_content: {
+                  ...extraContent,
+                  google: { ...google, thought_signature: nested ?? recorded ?? 'skip_thought_signature_validator' }
+                }
+              }
+            }
+          }
+        })
+      }
+    })
+  })
 }

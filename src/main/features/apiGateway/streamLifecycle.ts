@@ -17,6 +17,11 @@ export function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
   return STARTUP_COMMIT_CHUNK_TYPES.has(chunk.type)
 }
 
+// Count these chunks' semantic frames separately from the adapter's lazy opening frames.
+export function requiresSemanticFrames(chunk: UIMessageChunk): boolean {
+  return chunk.type === 'tool-input-error' || chunk.type === 'file'
+}
+
 export function streamInterruptedError(): Error & { status: number } {
   const error = new Error('Upstream idle timeout exceeded') as Error & {
     status: number
