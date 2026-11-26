@@ -559,6 +559,7 @@ describe('ShortcutService', () => {
       globalShortcutMock.register.mockImplementation((accelerator: string) => accelerator !== 'Alt+Space')
       windowManagerMock.broadcastToType.mockClear()
       globalShortcutMock.register.mockClear()
+      globalShortcutMock.unregister.mockClear()
 
       MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
         binding: ['Alt', 'Space'],
@@ -576,6 +577,9 @@ describe('ShortcutService', () => {
           hasConflict: true
         }
       )
+      // The working Alt+A registration is kept until the replacement succeeds,
+      // so there is no gap where neither hotkey works.
+      expect(globalShortcutMock.unregister).not.toHaveBeenCalledWith('Alt+A')
 
       await new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -583,7 +587,87 @@ describe('ShortcutService', () => {
         binding: ['Alt', 'A'],
         enabled: true
       })
-      expect(globalShortcutMock.register).toHaveBeenCalledWith('Alt+A', expect.any(Function))
+      expect(globalShortcutMock.unregister).not.toHaveBeenCalledWith('Alt+A')
+    })
+
+    it('keeps the requested value when a non-Alt+Space show replacement is rejected', async () => {
+      stubWindows()
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+        binding: ['Alt', 'A'],
+        enabled: true
+      })
+
+      await (service as any).onInit()
+
+      globalShortcutMock.register.mockImplementation((accelerator: string) => accelerator !== 'Alt+B')
+      windowManagerMock.broadcastToType.mockClear()
+      globalShortcutMock.register.mockClear()
+      globalShortcutMock.unregister.mockClear()
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+        binding: ['Alt', 'B'],
+        enabled: true
+      })
+
+      expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith(
+        WindowType.Main,
+        IpcChannel.Shortcut_RegistrationConflict,
+        {
+          key: 'shortcut.app.window.show',
+          accelerator: 'Alt+B',
+          hasConflict: true
+        }
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      // Scoped rollback applies to Alt+Space only; any other rejected show
+      // binding keeps the historical behavior (requested value + conflict).
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('shortcut.app.window.show')).toEqual({
+        binding: ['Alt', 'B'],
+        enabled: true
+      })
+    })
+
+    it('keeps the requested value when another global shortcut replacement is rejected', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.screenshot.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.screenshot.capture', {
+        binding: ['CommandOrControl', 'Shift', 'A'],
+        enabled: true
+      })
+
+      await (service as any).onInit()
+
+      expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+Shift+A', expect.any(Function))
+
+      globalShortcutMock.register.mockImplementation(
+        (accelerator: string) => accelerator !== 'CommandOrControl+Shift+B'
+      )
+      windowManagerMock.broadcastToType.mockClear()
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.screenshot.capture', {
+        binding: ['CommandOrControl', 'Shift', 'B'],
+        enabled: true
+      })
+
+      expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith(
+        WindowType.Main,
+        IpcChannel.Shortcut_RegistrationConflict,
+        {
+          key: 'shortcut.screenshot.capture',
+          accelerator: 'CommandOrControl+Shift+B',
+          hasConflict: true
+        }
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      // The Windows Alt+Space rollback must not change conflict handling for
+      // other shortcuts: the requested value stays saved with its indicator.
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('shortcut.screenshot.capture')).toEqual({
+        binding: ['CommandOrControl', 'Shift', 'B'],
+        enabled: true
+      })
     })
   })
 })

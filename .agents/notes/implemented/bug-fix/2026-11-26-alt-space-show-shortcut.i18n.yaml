@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-26-alt-space-show-shortcut.md
-2026-11-26-alt-space-show-shortcut.md: d7873ff4c1ce56f7c82a58f8e4213681301fe53a
-2026-11-26-alt-space-show-shortcut.zh.md: b4ebdaf6cdcd55155bbc88fb13ee028102bfa66d
+2026-11-26-alt-space-show-shortcut.md: 8cf615394e8c0b6eddb83053d90145a8ab5b0fe6
+2026-11-26-alt-space-show-shortcut.zh.md: 992d49e34b0b9ae63ca30f8c242543f6ef260b4a

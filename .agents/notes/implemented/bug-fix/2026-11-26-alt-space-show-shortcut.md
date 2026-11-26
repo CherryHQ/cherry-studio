@@ -12,6 +12,8 @@ The "Show application" global shortcut (`app.window.show`, `shortcut.app.window.
 
 - The shortcut recorder offers a Windows-only manual "Use Alt+Space" assignment for `app.window.show`, with a hint that enabling it takes over the system-menu shortcut. The default binding stays empty; Alt+Space is opt-in.
 - Once saved, registration flows through the existing `globalShortcut` path, and a registration failure surfaces the existing occupied-by-system-or-application conflict.
+- The replacement accelerator is registered before the superseded one is released, so a rejected replacement never leaves a gap where neither hotkey works.
+- Only a rejected Windows `app.window.show` Alt+Space replacement restores the last successfully registered preference; every other rejected global shortcut keeps the requested value with the existing conflict indicator.
 - When the main window is focused and the saved binding is Alt+Space, `before-input-event` swallows the keystroke so the system menu does not open on top of the toggle.
 
 ## Alternatives considered
@@ -27,6 +29,6 @@ Windows users can bind Alt+Space; other platforms are unchanged. While bound, th
 ## Verification
 
 - Regression — `src/renderer/pages/settings/__tests__/ShortcutSettings.test.tsx`: fallback visibility on Windows, manual assignment without key capture, conflict blocking, and hiding off Windows and for other shortcuts.
-- Regression — `src/main/services/__tests__/ShortcutService.test.ts`: Alt+Space global registration, registration-conflict broadcast, focused-window system-menu suppression, and untouched behavior otherwise.
+- Regression — `src/main/services/__tests__/ShortcutService.test.ts`: Alt+Space global registration, registration-conflict broadcast, focused-window system-menu suppression, Alt+Space rejection that keeps the previous hotkey registered and restores its preference, and untouched behavior for non-Alt+Space and non-show rejections.
 - Regression — `src/shared/utils/__tests__/shortcut.test.ts`: Alt+Space is a valid binding and resolves from a Win32 Alt+Space key event.
 - Regression — `src/shared/utils/command/__tests__/keybindings.test.ts`: `app.window.show` with an Alt+Space preference resolves to the `Alt+Space` Electron accelerator.

@@ -293,10 +293,13 @@ export class ShortcutService extends BaseService {
       }
     }
 
-    // Unregister shortcuts that are no longer needed or have a different handler
+    // Unregister same-accelerator entries whose handler or window changed so the
+    // fresh handler can register below. Accelerators that are no longer desired
+    // are pruned after registration so a rejected replacement keeps the old
+    // hotkey active until the new one succeeds.
     for (const [accelerator, previous] of this.registeredAccelerators) {
       const entry = desired.get(accelerator)
-      if (!entry || entry.handler !== previous.handler || entry.window !== previous.window) {
+      if (entry && (entry.handler !== previous.handler || entry.window !== previous.window)) {
         try {
           globalShortcut.unregister(accelerator)
         } catch (error) {
@@ -337,6 +340,26 @@ export class ShortcutService extends BaseService {
       }
     }
 
+    // Prune accelerators that are no longer desired. When the Windows show
+    // shortcut's Alt+Space replacement is rejected, keep the previous working
+    // accelerator registered so there is no gap where neither hotkey works.
+    for (const [accelerator, previous] of this.registeredAccelerators) {
+      if (!desired.has(accelerator)) {
+        if (
+          failedKeys.has(previous.key) &&
+          this.shouldRevertFailedReplacement(previous.key, currentPrefs.get(previous.key))
+        ) {
+          continue
+        }
+        try {
+          globalShortcut.unregister(accelerator)
+        } catch (error) {
+          logger.debug(`Failed to unregister shortcut accelerator: ${accelerator}`, error as Error)
+        }
+        this.registeredAccelerators.delete(accelerator)
+      }
+    }
+
     for (const [key, current] of currentPrefs) {
       if (failedKeys.has(key)) {
         this.revertFailedReplacement(key, current)
@@ -351,6 +374,27 @@ export class ShortcutService extends BaseService {
     }
   }
 
+  /**
+   * Only the Windows global show/hide Alt+Space assignment restores the
+   * previous working preference after a rejected registration. Every other
+   * global shortcut keeps the historical behavior: the requested value stays
+   * saved and the conflict indicator stays visible.
+   */
+  private shouldRevertFailedReplacement(
+    key: CommandShortcutPreferenceKey<CommandId>,
+    current: PreferenceShortcutType | undefined
+  ): boolean {
+    if (process.platform !== 'win32') return false
+    if (key !== commandShortcutPreferenceKey('app.window.show')) return false
+    if (!current?.enabled) return false
+    if (current.binding.length !== 2 || current.binding[0] !== 'Alt' || current.binding[1] !== 'Space') {
+      return false
+    }
+    const lastGood = this.lastGoodPreferences.get(key)
+    if (!lastGood || this.isSameShortcutPreference(current, lastGood)) return false
+    return true
+  }
+
   private isSameShortcutPreference(
     a: PreferenceShortcutType | undefined,
     b: PreferenceShortcutType | undefined
@@ -362,17 +406,18 @@ export class ShortcutService extends BaseService {
   }
 
   /**
-   * Restores the last successfully registered preference when a replacement
-   * accelerator is rejected (e.g. Alt+Space held by another app). Without this,
-   * the failed binding stays saved while the previous working binding (e.g.
-   * Alt+A) is already unregistered, leaving a shortcut that does nothing.
+   * Restores the last successfully registered preference when the Windows
+   * show-shortcut Alt+Space replacement is rejected (e.g. Alt+Space held by
+   * another app). Scoped to that assignment only; every other shortcut keeps
+   * the requested value and the visible conflict indicator.
    */
   private revertFailedReplacement(
     key: CommandShortcutPreferenceKey<CommandId>,
     current: PreferenceShortcutType | undefined
   ): void {
+    if (!this.shouldRevertFailedReplacement(key, current)) return
     const lastGood = this.lastGoodPreferences.get(key)
-    if (!lastGood || !current || this.isSameShortcutPreference(current, lastGood)) return
+    if (!lastGood || !current) return
     if (this.pendingReverts.has(key)) return
     this.pendingReverts.add(key)
     try {
