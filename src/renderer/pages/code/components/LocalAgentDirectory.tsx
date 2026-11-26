@@ -15,6 +15,7 @@ import {
   Settings2,
   SquareTerminal,
   Search,
+  Trash2,
   X
 } from 'lucide-react'
 import { useCallback, useEffect, useEffectEvent, useRef, useState, type ComponentProps, type ReactNode } from 'react'
@@ -157,6 +158,7 @@ export function LocalAgentDirectory({
   renderDetails?: (props: ComponentProps<typeof LocalAgentDetails>) => ReactNode
 }) {
   const { t } = useTranslation()
+  const closeConversationTabs = useCloseConversationTabs()
   const [agentOrder, setAgentOrder] = usePreference('feature.code_cli.agent_order')
   const { agents, refetch } = useAgents({ includeDisabledLocal: true })
   const { data: archivedAgents, refetch: refetchArchivedAgents } = useQuery('/agents', {
@@ -176,6 +178,7 @@ export function LocalAgentDirectory({
   const [selected, setSelected] = useState(requestedId ?? 'claude')
   const [pendingSelection, setPendingSelection] = useState<string>()
   const [openMenuId, setOpenMenuId] = useState<string>()
+  const archivingAgent = useRef(false)
   const [installingAgents, setInstallingAgents] = useState<Map<string, string | undefined>>(() => new Map())
   const installAgent = useCallback(async (presetId: string, targetVersion?: string, systemOnly?: boolean) => {
     setInstallingAgents((current) => new Map(current).set(presetId, targetVersion))
@@ -256,6 +259,7 @@ export function LocalAgentDirectory({
       (DEFAULT_AGENT_ORDER.get(a.id) ?? DEFAULT_AGENT_ORDER.size) -
         (DEFAULT_AGENT_ORDER.get(b.id) ?? DEFAULT_AGENT_ORDER.size)
   )
+  const listedEntries = entries.filter(({ preset, agent }) => preset || !agent?.deletedAt)
   const dragName = (id: string | number) => entries.find((entry) => entry.id === id)?.name ?? String(id)
   const entry = entries.find((e) => e.id === selected || e.agent?.id === selected)
   const cliTool = entry?.preset ? codeCliForLocalAgent(entry.preset.id) : undefined
@@ -268,6 +272,36 @@ export function LocalAgentDirectory({
   useEffect(() => {
     if (pendingSelection && entry?.id.startsWith('cli:')) navigateToSelection()
   }, [pendingSelection, entry?.id, navigateToSelection])
+
+  const archiveAgent = async (agent: AgentEntity) => {
+    if (archivingAgent.current) return
+    archivingAgent.current = true
+    try {
+      const confirmed = await popup.confirm({
+        title: t('local_agents.disable_archive.title', { name: agent.name }),
+        okText: t('common.archive')
+      })
+      if (!confirmed) return
+      const result = await ipcApi.request('ai.agent.delete', { agentId: agent.id, deleteSessions: true })
+      if (!result.deleted) {
+        toast.error(t('common.error'))
+        return
+      }
+      closeConversationTabs('agents', result.deletedSessionIds ?? [])
+      if (entry?.id === agent.id) {
+        setSelected('claude')
+        setPendingSelection(undefined)
+        void navigate({ to: '/settings/local-agents', search: { id: 'claude' }, replace: true })
+      }
+      await Promise.allSettled([refetch(), refetchArchivedAgents()])
+      toast.success(t('common.archived', { name: agent.name }))
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+    } finally {
+      archivingAgent.current = false
+    }
+  }
+
   return (
     <div data-ui="code.view" className="flex h-full min-h-0 w-full">
       <aside
@@ -319,7 +353,7 @@ export function LocalAgentDirectory({
         </div>
         <ScrollArea className="min-h-0 flex-1" contentProps={{ className: 'space-y-2 px-2.5 pt-2 pb-2.5' }}>
           {[2, 1, 0].map((priority) => {
-            const items = entries.filter((entry) => getPriority(entry) === priority)
+            const items = listedEntries.filter((entry) => getPriority(entry) === priority)
             const visibleItems = items.filter((entry) => entry.name.toLowerCase().includes(query.toLowerCase()))
             if (!visibleItems.length) return null
             return (
@@ -348,12 +382,9 @@ export function LocalAgentDirectory({
                   }
                 }}
                 onReorder={async (nextItems) => {
-                  const reordered = [...entries]
-                  reordered.splice(
-                    entries.findIndex((entry) => getPriority(entry) === priority),
-                    nextItems.length,
-                    ...nextItems
-                  )
+                  const groupIds = new Set(items.map((item) => item.id))
+                  let nextIndex = 0
+                  const reordered = entries.map((entry) => (groupIds.has(entry.id) ? nextItems[nextIndex++] : entry))
                   await setAgentOrder(reordered.map((entry) => entry.id))
                 }}
                 onReorderError={() => toast.error(t('common.error'))}
@@ -383,7 +414,19 @@ export function LocalAgentDirectory({
                   const tool = e.preset
                     ? codeCliForLocalAgent(e.preset.id)
                     : CODE_CLI_TOOL_PRESETS.find((tool) => e.id === `cli:${tool.id}`)?.id
-                  const menuItems = getRowMenuItems?.(e.id, tool, e.name)
+                  const menuItems = [...(getRowMenuItems?.(e.id, tool, e.name) ?? [])]
+                  const agent = e.agent
+                  if (!e.preset && agent && !agent.deletedAt) {
+                    menuItems.push({
+                      type: 'item',
+                      id: `local-agent.delete.${agent.id}`,
+                      label: t('common.delete'),
+                      icon: <Trash2 size={14} />,
+                      destructive: true,
+                      onSelect: () => void archiveAgent(agent)
+                    })
+                  }
+                  const hasMenu = menuItems.length > 0
                   const menuOpen = openMenuId === e.id
                   const row = (
                     <div className={cn('group/row relative', dragging && 'opacity-65')}>
@@ -391,7 +434,7 @@ export function LocalAgentDirectory({
                         variant="ghost"
                         className={cn(
                           'h-8 w-full justify-between gap-0 rounded-[10px] border border-transparent py-0 pr-2.5 pl-3 text-left font-normal text-foreground shadow-none hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:ring-0',
-                          menuItems && 'pr-8',
+                          hasMenu && 'pr-8',
                           entry?.id === e.id && 'bg-muted font-medium'
                         )}
                         aria-pressed={entry?.id === e.id}
@@ -412,7 +455,7 @@ export function LocalAgentDirectory({
                           </span>
                         ) : (
                           enabled &&
-                          !menuItems && (
+                          !hasMenu && (
                             <span aria-hidden className="mr-0.5 ml-1 size-1.5 shrink-0 rounded-full bg-success" />
                           )
                         )}
@@ -428,7 +471,7 @@ export function LocalAgentDirectory({
                           <GripVertical className="lucide-custom size-4 w-2.5 text-muted-foreground" />
                         </Button>
                       )}
-                      {menuItems && (
+                      {hasMenu && (
                         <div className="absolute top-1/2 right-[7px] size-5 -translate-y-1/2">
                           {enabled && !notInstalled && !menuOpen && (
                             <span
@@ -459,7 +502,7 @@ export function LocalAgentDirectory({
                       )}
                     </div>
                   )
-                  return menuItems ? (
+                  return hasMenu ? (
                     <CommandContextMenu location="webcontents.context" extraItems={menuItems}>
                       {row}
                     </CommandContextMenu>
@@ -470,7 +513,7 @@ export function LocalAgentDirectory({
               />
             )
           })}
-          {!entries.some((e) => e.name.toLowerCase().includes(query.toLowerCase())) && (
+          {!listedEntries.some((e) => e.name.toLowerCase().includes(query.toLowerCase())) && (
             <p className="px-3 py-6 text-center text-sm text-muted-foreground">{t('common.no_results')}</p>
           )}
         </ScrollArea>

@@ -45,6 +45,10 @@ shows enabled Agents. Local refers to the CLI process, which may call a remote
 model. A Cherry model provider is optional.
 
 Each preset has a stable Agent ID. Custom ACP Agents have independent IDs.
+For a standalone item in the services list, Delete archives the Agent and its
+active conversations and removes the item from the list. This includes custom ACP
+Agents and saved records without a recognized preset. Restore archived items
+from Settings → Archive.
 Disabling requires confirmation and archives the Agent and its active conversations
 after running tasks stop. It also stops the managed WebUI. Re-enabling restores
 the same identity, configuration, ordering and conversations archived with the

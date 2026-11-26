@@ -789,6 +789,50 @@ describe('local agent settings navigation', () => {
     expect(screen.getByRole('button', { name: '对话' })).toHaveProperty('disabled', fails)
   })
 
+  it.each([
+    ['custom ACP', localAgent('My ACP', { executableOverride: '/test/custom-acp' }, 'my-acp')],
+    [
+      'legacy record with a built-in name',
+      { ...localAgent('DeepSeek Harness', {}, 'legacy-deepseek'), configuration: undefined }
+    ]
+  ])('archives a confirmed deletion for a %s and removes the record from the services list', async (_, agent) => {
+    publishAgent(agent)
+    navigation.search = { id: agent.id }
+    const confirm = vi.mocked(popup.confirm)
+    confirm.mockReset().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    const request = vi.mocked(ipcApi.request)
+    const respond = request.getMockImplementation()!
+    const archives: unknown[] = []
+    request.mockImplementation(async (...args) => {
+      if (args[0] !== 'ai.agent.delete') return respond(...args)
+      archives.push(args[1])
+      publishAgent({ ...agent, deletedAt: '2026-11-26T00:00:00.000Z' })
+      return { deleted: true, deletedSessionIds: ['my-session'] } as never
+    })
+
+    const user = userEvent.setup()
+    const { rerender } = render(<LocalAgentDirectory />)
+    const remove = async () => {
+      await user.click(screen.getByRole('button', { name: `${agent.name} · 更多` }))
+      await user.click(await screen.findByRole('menuitem', { name: '删除' }))
+    }
+    expect(screen.queryByRole('button', { name: 'Claude Code · 更多' })).not.toBeInTheDocument()
+    await remove()
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('heading', { name: agent.name })).toBeVisible()
+    expect(archives).toEqual([])
+
+    await remove()
+    await waitFor(() => expect(archives).toEqual([{ agentId: agent.id, deleteSessions: true }]))
+    rerender(<LocalAgentDirectory />)
+    expect(screen.queryByRole('button', { name: `${agent.name} · 更多` })).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: (name) => name.startsWith(`${agent.name} · `) })).toHaveLength(
+      agent.configuration ? 0 : 1
+    )
+    expect(screen.getByRole('button', { name: /DeepSeek Harness ·/ })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Claude Code' })).toBeVisible()
+  })
+
   it('waits for an archived custom agent without opening a new-configuration drawer', async () => {
     navigation.search = { id: 'archived-custom' }
     const { rerender } = render(<LocalAgentDirectory />)
