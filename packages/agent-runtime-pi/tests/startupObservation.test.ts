@@ -9,6 +9,7 @@ import { expect, it, onTestFinished } from 'vitest'
 import { runtimeId, type ObservationPayload, type OperationResult } from '@cherrystudio/agent-runtime'
 
 import { createPiRuntime } from '../src'
+import { observationReplay } from './observationReplay'
 import { createTestBehavior } from './sessionSupport'
 
 function confirmed<T>(result: OperationResult<T>): T {
@@ -95,21 +96,20 @@ it.each(['create', 'open'] as const)('observes startup output before completion 
   stream.push({ type: 'text_start', contentIndex: 0, partial: message })
   text.text = 'First'
   stream.push({ type: 'text_delta', contentIndex: 0, delta: 'First', partial: message })
-  const updates = () => events.filter((event) => event.type === 'message.upsert' && event.message.role === 'assistant')
+  const updates = () => events.flatMap(observationReplay()).filter((value) => value.role === 'assistant')
   await expect
     .poll(() => updates().at(-1))
     .toMatchObject({
-      message: { metadata: { completeness: 'partial' }, parts: [{ type: 'text', text: 'First', state: 'streaming' }] }
+      metadata: { completeness: 'partial' },
+      parts: [{ type: 'text', text: 'First', state: 'streaming' }]
     })
   text.text = 'First second'
   stream.push({ type: 'text_delta', contentIndex: 0, delta: ' second', partial: message })
   await expect
     .poll(() => updates().at(-1))
     .toMatchObject({
-      message: {
-        metadata: { completeness: 'partial' },
-        parts: [{ type: 'text', text: 'First second', state: 'streaming' }]
-      }
+      metadata: { completeness: 'partial' },
+      parts: [{ type: 'text', text: 'First second', state: 'streaming' }]
     })
   stream.push({ type: 'text_end', contentIndex: 0, content: 'First second', partial: message })
   stream.push({ type: 'done', reason: 'stop', message })

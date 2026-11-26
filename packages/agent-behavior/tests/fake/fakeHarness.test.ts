@@ -397,7 +397,7 @@ describe('fake harness', () => {
   it('keeps the accepted summary in the model context in place of what it compacted', async () => {
     const fake = createFakeHarness({ install: (p) => p.lifecycle.register(onReopen(async () => {})) })
     const context = (thread: ThreadId) => fake.withCall(thread, (p) => p.ledger.modelContext(thread))
-    const summary = { kind: 'compaction', text: 'what happened so far' }
+    const summary = { role: 'user', content: 'what happened so far' }
     const t = await fake.createThread()
     fake.script(t, [reply('first'), reply('second')])
     await fake.sendUser(t, 'before')
@@ -415,6 +415,10 @@ describe('fake harness', () => {
     expect(await context(t)).toEqual([summary])
     await fake.sendUser(t, 'after')
     await fake.settle()
-    expect(await context(t)).toEqual([summary, { kind: 'user', text: 'after' }, { kind: 'assistant', text: 'second' }])
+    expect(await context(t)).toEqual([
+      summary,
+      { role: 'user', content: 'after' },
+      { role: 'assistant', content: 'second' }
+    ])
   })
 })
