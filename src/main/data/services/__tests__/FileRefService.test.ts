@@ -1,4 +1,4 @@
-import { setupTestDatabase, withRoot, seedSessionRoot } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase, withRoot, seedSessionRoot } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -105,7 +104,7 @@ describe('FileRefService', () => {
       orderKey: workspaceId
     })
     await dbh.db.insert(agentSessionTable).values({ id: sessionId, name: sessionId, workspaceId, orderKey: sessionId })
-    await dbh.db.insert(agentSessionMessageTable).values({
+    insertAgentSessionMessages(dbh.db, {
       parentId: seedSessionRoot(dbh.db, sessionId),
       id: messageId,
       sessionId,

@@ -223,7 +223,7 @@ export function createAcpRuntime(options: AcpRuntimeOptions): AcpRuntime {
     const thread = { backendId: options.backendId, id: runtimeId<'thread'>(sessionId) }
     const owner: Owner = {
       thread,
-      projection: new Projection(sessionId, report),
+      projection: new Projection(sessionId, thread, report),
       inputs: new Set(),
       observations: new Set(),
       work: Promise.resolve(),

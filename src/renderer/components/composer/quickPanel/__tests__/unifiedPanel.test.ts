@@ -385,6 +385,176 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     expect(options.sortFn!(reversedItems, '')).toEqual(reversedItems)
   })
 
+  it('ranks exact slash commands ahead of skills and MCP skills mentioning them in descriptions', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'agent-skills',
+          kind: 'panel',
+          label: 'Skills',
+          icon: 'skill',
+          order: 40,
+          sources: ['root-panel'],
+          rootSearchItems: [
+            {
+              id: 'skill:session-cleanup',
+              label: 'session-cleanup',
+              description: 'Clean up files and run /compact or /clear when done',
+              filterText: 'session-cleanup Clean up files and run /compact or /clear when done',
+              searchAliases: ['Skills'],
+              icon: 'skill',
+              action: vi.fn()
+            },
+            {
+              id: 'skill:compact-notes',
+              label: 'compact-notes',
+              description: 'Summarize notes',
+              filterText: 'compact-notes Summarize notes',
+              searchAliases: ['Skills'],
+              icon: 'skill',
+              action: vi.fn()
+            },
+            {
+              id: 'mcp-skill:["srv","skill://ctx"]',
+              label: 'context-helper · srv',
+              description: 'Track context usage and run /usage checks — skill://ctx',
+              filterText: 'context-helper srv srv-id Track context usage and run /usage checks skill://ctx',
+              searchAliases: ['Skills'],
+              icon: 'mcp',
+              action: vi.fn()
+            }
+          ],
+          action: vi.fn()
+        },
+        {
+          id: 'slash-command:/goal',
+          kind: 'command',
+          label: '目标模式',
+          description: '设定一个持续推进的目标',
+          searchAliases: ['斜杠命令', '/goal', 'Set a goal to work toward until it is completed'],
+          sources: ['popover', 'root-panel'],
+          order: 79.5,
+          icon: 'target',
+          action: vi.fn()
+        },
+        {
+          id: 'slash-command:/clear',
+          kind: 'command',
+          label: '/clear',
+          description: 'Start a new conversation with empty context',
+          searchAliases: ['Slash Commands', 'Start a new conversation with empty context'],
+          sources: ['root-panel'],
+          rootPanelPlacement: 'trailing',
+          order: 20.01,
+          icon: 'terminal',
+          action: vi.fn()
+        },
+        {
+          id: 'slash-command:/compact',
+          kind: 'command',
+          label: '/compact',
+          description: 'Free up context by summarizing the conversation so far',
+          searchAliases: ['Slash Commands', 'Free up context by summarizing the conversation so far'],
+          sources: ['root-panel'],
+          rootPanelPlacement: 'trailing',
+          order: 20.02,
+          icon: 'terminal',
+          action: vi.fn()
+        },
+        {
+          id: 'slash-command:/context',
+          kind: 'command',
+          label: '/context',
+          description: 'Visualize current context usage as a colored grid',
+          searchAliases: ['Slash Commands', 'Visualize current context usage as a colored grid'],
+          sources: ['root-panel'],
+          rootPanelPlacement: 'trailing',
+          order: 20.03,
+          icon: 'terminal',
+          action: vi.fn()
+        },
+        {
+          id: 'slash-command:/usage',
+          kind: 'command',
+          label: '/usage',
+          description: 'Show session cost, plan usage limits, and activity stats',
+          searchAliases: ['Slash Commands', 'Show session cost, plan usage limits, and activity stats'],
+          sources: ['root-panel'],
+          rootPanelPlacement: 'trailing',
+          order: 20.04,
+          icon: 'terminal',
+          action: vi.fn()
+        }
+      ],
+      { quickPanel }
+    )
+
+    expect(labels(getVisibleItems(options, 'compact'))[0]).toBe('/compact')
+    expect(labels(getVisibleItems(options, 'compact'))).toEqual(['/compact', 'compact-notes', 'session-cleanup'])
+    expect(labels(getVisibleItems(options, 'clear'))[0]).toBe('/clear')
+    expect(labels(getVisibleItems(options, 'context'))[0]).toBe('/context')
+    expect(labels(getVisibleItems(options, 'usage'))[0]).toBe('/usage')
+    expect(labels(getVisibleItems(options, 'goal'))[0]).toBe('目标模式')
+  })
+
+  it('lets exact or prefix name matches outrank section layer and breaks ties by section, order, and index', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'helper-command',
+          kind: 'command',
+          label: 'helper-tool',
+          description: 'Inspect report',
+          icon: 'command',
+          sources: ['root-panel'],
+          action: vi.fn()
+        },
+        {
+          id: 'first-prefix',
+          kind: 'command',
+          label: 'report-summary',
+          icon: 'command',
+          sources: ['root-panel'],
+          action: vi.fn()
+        },
+        {
+          id: 'second-prefix',
+          kind: 'command',
+          label: 'report-export',
+          icon: 'command',
+          sources: ['root-panel'],
+          action: vi.fn()
+        }
+      ],
+      {
+        quickPanel,
+        resourceItems: [
+          { id: 'file:report', label: 'report', description: '/workspace/report', icon: 'file' },
+          { id: 'file:report-draft', label: 'report-draft', description: '/workspace/report-draft', icon: 'file' }
+        ]
+      }
+    )
+
+    // Exact match in resources outranks prefix/description matches in commands,
+    // while equal prefix scores keep commands before resources and static order within commands.
+    expect(labels(getVisibleItems(options, 'report'))).toEqual([
+      'report',
+      'report-summary',
+      'report-export',
+      'report-draft',
+      'helper-tool'
+    ])
+
+    // Reversed input order still resolves equal prefix scores by section layer and static order.
+    const matching = options.list.filter((item) => item.label !== 'helper-tool')
+    expect(labels(options.sortFn!([...matching].reverse(), 'report'))).toEqual([
+      'report',
+      'report-summary',
+      'report-export',
+      'report-draft'
+    ])
+  })
+
   it('filters by explicit text, search aliases, pinyin, and pinyin initials without loose fuzzy subsequence', () => {
     const options = createUnifiedQuickPanelOpenOptions(
       [

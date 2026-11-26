@@ -5,11 +5,12 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
+import { isQrLoginChannel } from '@shared/data/api/schemas/agentChannels'
 import type { ChannelConfig } from '@shared/data/types/channel'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
-import type { EventPayload } from '@shared/ipc/types'
+import type { EventPayload, WindowId } from '@shared/ipc/types'
 
-import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
+import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, ChannelQrLoginEvent } from './ChannelAdapter'
 import { loadChannelAdapter } from './channelAdapterLoader'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
 import { channelMessageHandler } from './ChannelMessageHandler'
@@ -19,12 +20,15 @@ import type { ChannelLogEntry, ChannelStatusEvent } from './types'
 
 const logger = loggerService.withContext('ChannelManager')
 
+type QrLogin = { owner: WindowId; requestId: string; dispose: () => void }
+
 @Injectable('ChannelManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager', 'FileManager', 'PowerService'])
 export class ChannelManager extends BaseService {
   readonly registration = new ChannelRegistration()
   private readonly runtimes = new Map<string, ChannelRuntime>()
+  private readonly qrLogins = new Map<string, QrLogin>()
   private readonly channelLogs = new ChannelLogBuffer()
   private acceptingConnections = false
 
@@ -68,6 +72,9 @@ export class ChannelManager extends BaseService {
   async stop(): Promise<void> {
     this.acceptingConnections = false
     this.registration.dispose()
+    for (const [channelId, login] of this.qrLogins) {
+      this.cancelQrLogin(login.owner, channelId, login.requestId)
+    }
     logger.info('Stopping channel manager')
     const runtimes = [...this.runtimes.values()]
     for (const runtime of runtimes) runtime.requestReconcile()
@@ -92,7 +99,63 @@ export class ChannelManager extends BaseService {
     return qrUrl
   }
 
+  beginQrLogin(owner: WindowId | null, channelId: string, requestId: string): boolean {
+    if (!owner || !this.acceptingConnections || this.qrLogins.has(channelId)) return false
+    const channel = channelService.getChannel(channelId)
+    const window = application.get('WindowManager').getWindow(owner)
+    if (!window || window.isDestroyed() || !channel?.agentId || channel.isActive || !isQrLoginChannel(channel)) {
+      return false
+    }
+    const close = () => this.cancelQrLogin(owner, channelId, requestId)
+    window.once('closed', close)
+    this.qrLogins.set(channelId, { owner, requestId, dispose: () => window.removeListener('closed', close) })
+    try {
+      channelService.updateChannel(channelId, { isActive: true })
+      this.requestReconcile(channelId)
+      return true
+    } catch (error) {
+      this.finishQrLogin(channelId)
+      throw error
+    }
+  }
+
+  cancelQrLogin(owner: WindowId | null, channelId: string, requestId: string): void {
+    const login = this.qrLogins.get(channelId)
+    if (!login || login.owner !== owner || login.requestId !== requestId) return
+    this.finishQrLogin(channelId)
+    try {
+      if (channelService.updateChannel(channelId, { isActive: false })) this.requestReconcile(channelId)
+    } catch (error) {
+      this.logRuntimeError(channelId, error)
+    }
+  }
+
+  private finishQrLogin(channelId: string): void {
+    const login = this.qrLogins.get(channelId)
+    this.qrLogins.delete(channelId)
+    login?.dispose()
+  }
+
+  private publishQrLogin(event: ChannelQrLoginEvent): void {
+    const { channelId, url, status } = event.data
+    const login = this.qrLogins.get(channelId)
+    if (login) {
+      if (status === 'confirmed') this.finishQrLogin(channelId)
+      application.get('IpcApiService').send(login.owner, 'channel.qr_login.status', {
+        channelId,
+        requestId: login.requestId,
+        url,
+        status
+      })
+    } else if (event.type === 'wechat') {
+      this.sendToRenderer('channel.wechat.qr_login', event.data)
+    } else {
+      this.sendToRenderer('channel.feishu.qr_login', event.data)
+    }
+  }
+
   async removeChannel(channelId: string): Promise<void> {
+    this.finishQrLogin(channelId)
     const runtime = this.runtimes.get(channelId)
     this.runtimes.delete(channelId)
     this.channelLogs.remove(channelId)
@@ -141,6 +204,7 @@ export class ChannelManager extends BaseService {
       onMessage: (adapter, event) => this.handleMessage(adapter, event),
       onCommand: (adapter, event) => this.handleCommand(adapter, event),
       onCredentials: (agentId, id, credentials) => this.saveCredentials(agentId, id, credentials),
+      onQrLogin: (event) => this.publishQrLogin(event),
       onDynamicChatId: (id, chatId) => this.persistDynamicChatId(id, chatId),
       onLog: (entry) => this.publishLog(entry),
       onStatus: (status) => this.publishStatus(status),
@@ -243,7 +307,8 @@ export class ChannelManager extends BaseService {
       channelService.updateChannel(channelId, {
         config: { ...config, app_id: credentials.appId, app_secret: credentials.appSecret }
       })
-      this.requestReconcile(channelId)
+      // Let the current adapter emit its confirmation before this revision is replaced.
+      queueMicrotask(() => this.requestReconcile(channelId))
     } catch (error) {
       logger.error('Failed to save channel credentials', {
         agentId,

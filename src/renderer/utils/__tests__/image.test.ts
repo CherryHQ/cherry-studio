@@ -14,6 +14,7 @@ import {
   captureScrollableAsDataUrl,
   checkEntityImageSize,
   convertToBase64,
+  copyImageToClipboard,
   dataUrlToBlob,
   getImageBlobFromSource,
   IMAGE_CAPTURE_ATTRIBUTE,
@@ -176,6 +177,32 @@ describe('utils/image', () => {
       const file = new File(['x'], 'logo.svg', { type: 'image/svg+xml' })
 
       await expect(prepareEntityImageBytes(file)).rejects.toThrow('message.error.image_process_failed')
+    })
+
+    // A 400×200 image: the centered square starts at x 100; a framed square is used as given.
+    function drawnRegion(area?: Parameters<typeof prepareEntityImageBytes>[1]) {
+      const bitmap = { width: 400, height: 200, close: vi.fn() }
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap))
+      const drawImage = vi.fn()
+      const canvas = document.createElement('canvas')
+      vi.spyOn(canvas, 'getContext').mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D)
+      vi.spyOn(canvas, 'toBlob').mockImplementation((done) =>
+        done({ arrayBuffer: async () => new ArrayBuffer(1) } as Blob)
+      )
+      const createElement = document.createElement.bind(document)
+      vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+        tag === 'canvas' ? canvas : createElement(tag)) as typeof document.createElement)
+      return prepareEntityImageBytes(new File(['x'], 'a.png', { type: 'image/png' }), area).then(() =>
+        drawImage.mock.calls[0].slice(1)
+      )
+    }
+
+    it('keeps the largest centered square when nothing is framed', async () => {
+      expect(await drawnRegion()).toEqual([100, 0, 200, 200, 0, 0, 128, 128])
+    })
+
+    it('saves exactly the framed square, scaled to 128×128', async () => {
+      expect(await drawnRegion({ x: 230, y: 40, width: 120, height: 120 })).toEqual([230, 40, 120, 120, 0, 0, 128, 128])
     })
   })
 
@@ -1121,7 +1148,7 @@ describe('utils/image', () => {
       }
     })
 
-    it('restores viewBox dimensions on a responsive SVG preview without mutating the live node', async () => {
+    it('restores upscaled viewBox dimensions on a responsive SVG preview without mutating the live node', async () => {
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
       svg.setAttribute('viewBox', '0 0 960 480')
       svg.setAttribute('width', '100%')
@@ -1134,11 +1161,37 @@ describe('utils/image', () => {
       expect(svg.hasAttribute('height')).toBe(false)
 
       const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
-      expect(previewSvg.getAttribute('width')).toBe('960')
-      expect(previewSvg.getAttribute('height')).toBe('480')
+      expect(previewSvg.getAttribute('width')).toBe('2880')
+      expect(previewSvg.getAttribute('height')).toBe('1440')
       expect(previewSvg.getAttribute('viewBox')).toBe('0 0 960 480')
       expect(previewSvg.textContent).toContain('First line')
       expect(previewSvg.textContent).toContain('Second line')
+      // Responsive inline constraints must not shrink the standalone preview image.
+      expect((previewSvg as unknown as SVGElement).style?.maxWidth ?? '').toBe('')
+    })
+
+    it('upscales a small Mermaid-size viewBox so the dialog no longer shrinks', async () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 200 80')
+      svg.setAttribute('width', '100%')
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe('2400')
+      expect(previewSvg.getAttribute('height')).toBe('960')
+    })
+
+    it('caps an oversized viewBox upscale to bound preview memory', async () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 3000 2000')
+      svg.setAttribute('width', '100%')
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe('4096')
+      expect(previewSvg.getAttribute('height')).toBe('2731')
     })
 
     it('preserves an SVG that already has positive intrinsic dimensions', async () => {
@@ -1172,7 +1225,7 @@ describe('utils/image', () => {
       expect(previewSvg.getAttribute('height')).toBe(height)
     })
 
-    it('replaces a non-finite SVG length with finite viewBox dimensions', async () => {
+    it('replaces a non-finite SVG length with upscaled viewBox dimensions', async () => {
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
       svg.setAttribute('viewBox', '0 0 800 400')
       svg.setAttribute('width', '1e309px')
@@ -1180,8 +1233,8 @@ describe('utils/image', () => {
       await imageInputToPreviewUrl(svg, { format: 'svg' })
 
       const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
-      expect(previewSvg.getAttribute('width')).toBe('800')
-      expect(previewSvg.getAttribute('height')).toBe('400')
+      expect(previewSvg.getAttribute('width')).toBe('2400')
+      expect(previewSvg.getAttribute('height')).toBe('1200')
     })
 
     it.each(['NaN 0 800 400', '0 Infinity 800 400'])(
@@ -1201,6 +1254,36 @@ describe('utils/image', () => {
         expect(previewSvg.hasAttribute('height')).toBe(false)
       }
     )
+  })
+
+  it('finishes copying a file-backed image after focus is lost during the read', async () => {
+    const read = Promise.withResolvers<{ content: Uint8Array; mime: string }>()
+    ipcMocks.request.mockReturnValueOnce(read.promise)
+    let focused = true
+    let copied: Blob | undefined
+
+    class TestClipboardItem {
+      constructor(readonly formats: Record<string, Blob | Promise<Blob>>) {}
+    }
+    vi.stubGlobal('ClipboardItem', TestClipboardItem)
+    const write = async ([item]: TestClipboardItem[]) => {
+      if (!focused) throw new DOMException('Document is not focused.', 'NotAllowedError')
+      copied = await item.formats['image/png']
+    }
+    vi.stubGlobal('navigator', Object.create(navigator, { clipboard: { value: { write } } }))
+
+    try {
+      const copy = copyImageToClipboard('file:///tmp/generated.png')
+      focused = false
+      const content = new Uint8Array([1, 2, 3])
+      read.resolve({ content, mime: 'image/png' })
+
+      await copy
+      expect(copied?.type).toBe('image/png')
+      expect(copied?.size).toBe(content.length)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   describe('getImageBlobFromSource', () => {

@@ -103,41 +103,35 @@ const owned = (sender: ReturnType<typeof makeSender>) => ({ windowId: sender.win
 describe.skipIf(!ripgrepAvailable)('DirectoryTreeManager integration', () => {
   let tmp: string
   let registry: DirectoryTreeManager
+  let observations: FileObservationService
 
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-tree-registry-'))
     BaseService.resetInstances()
-    MockApplicationUtils.setService('FileObservationService', new FileObservationService())
+    observations = new FileObservationService()
+    MockApplicationUtils.setService('FileObservationService', observations)
     registry = new DirectoryTreeManager()
     await registry._doInit()
   })
 
   afterEach(async () => {
     await registry.disposeAll()
+    await observations._doStop()
     await rm(tmp, { recursive: true, force: true })
     vi.restoreAllMocks()
   })
 
-  it('scans the root and hands every consumer the same snapshot', async () => {
+  it('shares the initial scan and sends live mutations to every attached sender', async () => {
     await writeFile(path.join(tmp, 'a.md'), 'a')
-
     const sender1 = makeSender(1)
     const sender2 = makeSender(2)
 
     const created1 = await registry.create(owned(sender1), tmp, undefined)
     const created2 = await registry.create(owned(sender2), tmp, undefined)
-
     expect(created1.treeId).not.toBe(created2.treeId)
-    expect(created1.snapshot.path).toBe(created2.snapshot.path)
+    expect(created1.snapshot).toEqual(created2.snapshot)
     expect(Object.keys(created1.snapshot.children ?? {})).toContain('a.md')
-  })
 
-  it('fans real watcher mutations out to every attached sender', async () => {
-    const sender1 = makeSender(1)
-    const sender2 = makeSender(2)
-
-    const created1 = await registry.create(owned(sender1), tmp, undefined)
-    const created2 = await registry.create(owned(sender2), tmp, undefined)
     expect(registry.activateTree(created1.treeId, created1.revision, sender1.id)).toBe(true)
     expect(registry.activateTree(created2.treeId, created2.revision, sender2.id)).toBe(true)
 

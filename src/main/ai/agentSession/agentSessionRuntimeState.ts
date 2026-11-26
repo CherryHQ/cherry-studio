@@ -1,6 +1,5 @@
-import type { UIMessageChunk } from 'ai'
-
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import type { AgentControlChunk } from '@main/ai/runtime/types'
 
 import type { AgentRuntimeConnection } from '../runtime/types'
 
@@ -58,7 +57,7 @@ export interface AgentSessionRuntimeReply<TTurn> {
   turn: TTurn
   delivery: AgentSessionReplyDelivery
   admission: AgentSessionRuntimeAdmissionPhase
-  buffer: UIMessageChunk[]
+  buffer: AgentControlChunk[]
   terminal?: AgentSessionTerminalOutcome
   pendingResultToolCallIds: readonly string[] | undefined
   deliveryFailure?: { error: unknown }
@@ -66,8 +65,8 @@ export interface AgentSessionRuntimeReply<TTurn> {
 
 export type AgentSessionRuntimeExecution<TTurn> =
   | { kind: 'idle'; lastTurn?: TTurn }
-  | { kind: 'turn'; reply: AgentSessionRuntimeReply<TTurn>; reservation?: TTurn }
-  | { kind: 'steer-transition'; source: AgentSessionRuntimeReply<TTurn>; reply: AgentSessionRuntimeReply<TTurn> }
+  | { kind: 'turn'; reply: AgentSessionRuntimeReply<TTurn> }
+  | { kind: 'run-handoff'; source: AgentSessionRuntimeReply<TTurn>; reply: AgentSessionRuntimeReply<TTurn> }
   | {
       kind: 'autonomous-turn'
       reply: AgentSessionRuntimeReply<TTurn>
@@ -86,9 +85,8 @@ export interface AgentSessionRuntimeState<TTurn, TPendingTurn> {
 export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn> =
   | { type: 'begin-turn'; turn: TTurn; clearQueue?: boolean; reserved?: boolean }
   | { type: 'queue-turn'; turn: TPendingTurn }
-  | { type: 'dequeue-turn' | 'clear-queue' | 'clear-steer-reservation' }
-  | { type: 'reserve-steer'; reservation: TTurn }
-  | { type: 'steer-boundary'; turn: TTurn }
+  | { type: 'dequeue-turn' | 'clear-queue' }
+  | { type: 'run-placed'; turn: TTurn }
   | { type: 'autonomous-turn-started'; turn: TTurn; deferCurrentTurn: boolean }
   | { type: 'autonomous-turn-finished' | 'background-reply-resumed' }
   | {
@@ -103,7 +101,7 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn> =
     }
   | { type: 'reply-delivery-failed'; turn: TTurn; error: unknown }
   | { type: 'retry-reply'; turn: TTurn }
-  | { type: 'buffer-chunk'; turn: TTurn; chunk: UIMessageChunk }
+  | { type: 'buffer-chunk'; turn: TTurn; chunk: AgentControlChunk }
   | { type: 'reply-results'; turn: TTurn; toolCallIds: readonly string[] | undefined }
   | { type: 'runtime-terminal'; turn: TTurn; outcome: AgentSessionTerminalOutcome }
   | { type: 'turn-terminal'; turn: TTurn; status: AgentSessionTerminalStatus }
@@ -128,7 +126,7 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn> =
 export type AgentSessionRuntimeStateEffect<TTurn> =
   | { type: 'schedule-launch'; target: AgentSessionRuntimeLaunchTarget<TTurn> }
   | { type: 'suspend-turn'; turn: TTurn }
-  | { type: 'deliver-buffer'; turn: TTurn; chunks: UIMessageChunk[] }
+  | { type: 'deliver-buffer'; turn: TTurn; chunks: AgentControlChunk[] }
   | { type: 'settle-turn'; turn: TTurn; outcome: AgentSessionTerminalOutcome }
   | { type: 'report-delivery-failure'; turn: TTurn; error: unknown }
   | { type: 'release-background-waiter'; connection?: AgentRuntimeConnection }
@@ -183,7 +181,7 @@ export function getAgentSessionRuntimeReply<TTurn, TPendingTurn>(
   const execution = state.execution
   if (execution.kind === 'idle') return undefined
   if (execution.reply.turn === turn) return execution.reply
-  if (execution.kind === 'steer-transition' && execution.source.turn === turn) return execution.source
+  if (execution.kind === 'run-handoff' && execution.source.turn === turn) return execution.source
   if (execution.kind === 'autonomous-turn' && execution.deferred?.turn === turn) return execution.deferred
   return undefined
 }
@@ -195,7 +193,7 @@ function replaceReply<TTurn, TPendingTurn>(
   const execution = state.execution
   if (execution.kind === 'idle') return state
   if (execution.reply.turn === value.turn) return { ...state, execution: { ...execution, reply: value } }
-  if (execution.kind === 'steer-transition' && execution.source.turn === value.turn)
+  if (execution.kind === 'run-handoff' && execution.source.turn === value.turn)
     return { ...state, execution: { ...execution, source: value } }
   if (execution.kind === 'autonomous-turn' && execution.deferred?.turn === value.turn)
     return { ...state, execution: { ...execution, deferred: value } }
@@ -208,7 +206,7 @@ function advance<TTurn, TPendingTurn>(
   let { state } = transition
   const effects = [...transition.effects]
   let execution = state.execution
-  if (execution.kind === 'steer-transition' && execution.source.delivery.kind === 'settled') {
+  if (execution.kind === 'run-handoff' && execution.source.delivery.kind === 'settled') {
     execution = { kind: 'turn', reply: execution.reply }
     state = { ...state, execution }
   }
@@ -278,15 +276,8 @@ function reduce<TTurn, TPendingTurn>(
       return { state: { ...state, queue: state.queue.slice(1) }, effects: [] }
     case 'clear-queue':
       return { state: { ...state, queue: [] }, effects: [] }
-    case 'reserve-steer':
-      if (execution.kind !== 'turn' || execution.reservation) return invalid(state, event)
-      return { state: { ...state, execution: { ...execution, reservation: event.reservation } }, effects: [] }
-    case 'clear-steer-reservation':
-      return execution.kind === 'turn'
-        ? { state: { ...state, execution: { kind: 'turn', reply: execution.reply } }, effects: [] }
-        : { state, effects: [] }
-    case 'steer-boundary': {
-      if (execution.kind === 'steer-transition') return invalid(state, event)
+    case 'run-placed': {
+      if (execution.kind === 'run-handoff') return invalid(state, event)
       // Native work answers queued input after its own: the deferred user turn resumes, or a placed input starts.
       if (
         execution.kind === 'autonomous-turn' &&
@@ -305,7 +296,7 @@ function reduce<TTurn, TPendingTurn>(
         state: {
           ...state,
           execution: {
-            kind: 'steer-transition',
+            kind: 'run-handoff',
             source: {
               ...source,
               delivery: source.delivery.kind === 'settled' ? source.delivery : { kind: 'awaiting-persistence' }
@@ -319,7 +310,7 @@ function reduce<TTurn, TPendingTurn>(
     case 'background-reply-resumed': {
       if (
         execution.kind === 'idle' ||
-        execution.kind === 'steer-transition' ||
+        execution.kind === 'run-handoff' ||
         !['open', 'attaching', 'unopened'].includes(execution.reply.delivery.kind)
       )
         return invalid(state, event)
@@ -334,7 +325,7 @@ function reduce<TTurn, TPendingTurn>(
     }
     case 'autonomous-turn-started': {
       if (execution.kind === 'autonomous-turn') return { state, effects: [] }
-      if (execution.kind === 'steer-transition') return invalid(state, event)
+      if (execution.kind === 'run-handoff') return invalid(state, event)
       const deferred =
         event.deferCurrentTurn && execution.kind === 'turn'
           ? execution.reply.delivery.kind === 'awaiting-persistence'
@@ -646,7 +637,7 @@ export function getAgentSessionRuntimeTurns<TTurn, TPendingTurn>(
   if (execution.kind === 'idle') return []
   return [
     execution.reply.turn,
-    ...(execution.kind === 'steer-transition' ? [execution.source.turn] : []),
+    ...(execution.kind === 'run-handoff' ? [execution.source.turn] : []),
     ...(execution.kind === 'autonomous-turn' && execution.deferred ? [execution.deferred.turn] : [])
   ]
 }
@@ -700,7 +691,7 @@ export function isAgentSessionRuntimeTransitioning<TTurn, TPendingTurn>(
   state: AgentSessionRuntimeState<TTurn, TPendingTurn>
 ): boolean {
   return (
-    state.execution.kind === 'steer-transition' ||
+    state.execution.kind === 'run-handoff' ||
     state.execution.kind === 'autonomous-turn' ||
     (state.execution.kind === 'turn' && state.execution.reply.delivery.kind === 'awaiting-persistence')
   )
@@ -745,7 +736,7 @@ export function willAgentSessionRuntimeContinue<TTurn, TPendingTurn>(
     isAgentSessionRuntimeCompacting(state) ||
     state.queue.length > 0 ||
     state.launch.kind !== 'idle' ||
-    state.execution.kind === 'steer-transition' ||
+    state.execution.kind === 'run-handoff' ||
     (state.execution.kind === 'autonomous-turn' && state.execution.deferred !== undefined)
   )
 }

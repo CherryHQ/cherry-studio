@@ -1,4 +1,9 @@
-import { SdkErrorCode, StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
+import {
+  ProtocolError,
+  ProtocolErrorCode,
+  SdkErrorCode,
+  StreamableHTTPClientTransport
+} from '@modelcontextprotocol/client'
 import { createMcpHandler, McpServer, Server } from '@modelcontextprotocol/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -106,6 +111,62 @@ describe('legacy MCP health over handler.fetch', () => {
       await test.close()
     }
   })
+})
+
+describe('legacy MCP resource templates over handler.fetch', () => {
+  it.each([false, true])(
+    'isolates template discovery from supported catalogs (internal error: %s)',
+    async (internalError) => {
+      const resource = { uri: 'docs://guide', name: 'Guide' }
+      const handler = createMcpHandler(() => {
+        const server = new Server(
+          { name: 'legacy-templates', version: '1' },
+          { capabilities: { tools: {}, resources: {} } }
+        )
+        server.setRequestHandler('resources/list', async () => ({ resources: [resource] }))
+        server.setRequestHandler('tools/list', async () => ({
+          tools: [{ name: 'echo', inputSchema: { type: 'object' } }]
+        }))
+        if (internalError) {
+          server.setRequestHandler('resources/templates/list', async () => {
+            throw new ProtocolError(ProtocolErrorCode.InternalError, 'template lookup failed')
+          })
+        }
+        return server
+      })
+      const connection = new ClientMcpConnection(
+        { name: 'test', version: '1' },
+        {
+          capabilities: { elicitation: { form: {}, url: {} }, sampling: {}, roots: {} },
+          versionNegotiation: { mode: 'legacy' }
+        },
+        events
+      )
+      try {
+        await connection.connect(
+          new StreamableHTTPClientTransport(new URL('http://legacy-templates.test/mcp'), {
+            fetch: (input, init) => fetchMcpHandler(handler, input, init)
+          })
+        )
+        if (internalError) {
+          await expect(connection.listResourceTemplates()).rejects.toMatchObject({
+            code: ProtocolErrorCode.InternalError
+          })
+        } else {
+          const [resources, templates] = await Promise.all([
+            connection.listResources(),
+            connection.listResourceTemplates()
+          ])
+          expect(resources).toEqual([resource])
+          expect(templates).toEqual([])
+          await expect(connection.listTools()).resolves.toMatchObject([{ name: 'echo' }])
+        }
+      } finally {
+        await connection.close()
+        await handler.close()
+      }
+    }
+  )
 })
 
 describe('MCP catalog over modern handler.fetch', () => {

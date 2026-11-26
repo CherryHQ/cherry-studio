@@ -112,7 +112,7 @@ it('places steer at a native tool boundary and associates one answer with both i
     const answer = view.batches.findIndex((batch) =>
       batch.events.some(
         (event) =>
-          event.type === 'message.upsert' &&
+          event.type === 'message.reconcile' &&
           event.message.parts.some((part) => part.type === 'text' && part.text === 'Shared answer')
       )
     )
@@ -532,13 +532,19 @@ it('observes a background child after its parent result without adding child bod
     const child = confirmed(await runtime.open(childThread))
     expect(child.input).toBeUndefined()
     const childView = await observe(child)
+    await expect.poll(() => textOf(childView.snapshot)).toEqual(['Child toolu_background'])
     await root.release()
     childRequest.reply.block({ type: 'text', text: 'Child block one' })
     childRequest.reply.block({ type: 'text', text: 'Child block two' })
     childRequest.reply.finish()
-    await expect.poll(() => textOf(childView.snapshot)).toEqual(['Child block one', 'Child block two'])
+    await expect
+      .poll(() => textOf(childView.snapshot))
+      .toEqual(['Child toolu_background', 'Child block one', 'Child block two'])
     expect(textOf(parent.snapshot)).not.toContain('Child block one')
     const archive = confirmed(await child.claude.archive())
+    await expect
+      .poll(() => childView.snapshot.messages.filter((message) => message.role === 'user').map((message) => message.id))
+      .toEqual(archive.content.filter((message) => message.role === 'user').map((message) => message.id))
     const assistant = archive.content.filter((message) => message.role === 'assistant')
     expect(assistant).toHaveLength(2)
     expect(new Set(assistant.map((message) => message.id)).size).toBe(2)

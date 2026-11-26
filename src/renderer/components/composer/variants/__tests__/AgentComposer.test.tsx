@@ -27,7 +27,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
@@ -572,6 +572,10 @@ vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
   })
 }))
 
+vi.mock('../../ProviderQuotaNotice', () => ({
+  ProviderQuotaNotice: () => <div data-testid="provider-quota-notice" />
+}))
+
 vi.mock('@renderer/hooks/useCherryCloudQuotaExhaustion', () => ({
   useCherryCloudQuotaExhaustion: () => mocks.quotaExhaustion
 }))
@@ -1017,6 +1021,39 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
     render(<>{mocks.surfaceProps?.queueContent}</>)
     expect(screen.getByRole('button', { name: 'settings.subscription.go_to_subscribe' })).toBeInTheDocument()
+  })
+
+  it('suggests a subscription after a provider ran out of quota, until the user sends or moves to Cherry Cloud', () => {
+    const queueHasNotice = () => {
+      const { unmount } = render(<>{mocks.surfaceProps?.queueContent}</>)
+      const shown = screen.queryByTestId('provider-quota-notice') !== null
+      unmount()
+      return shown
+    }
+    const composer = (props: { isStreaming: boolean; resolvedModel?: Model }) => (
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        providerQuotaExhausted
+        {...props}
+      />
+    )
+
+    const { rerender } = render(composer({ isStreaming: false, resolvedModel: model }))
+    expect(queueHasNotice()).toBe(true)
+
+    rerender(composer({ isStreaming: true, resolvedModel: model }))
+    expect(queueHasNotice()).toBe(false)
+
+    const cloudModel = {
+      ...model,
+      id: createUniqueModelId('cherryai-subscription', 'qwen'),
+      providerId: 'cherryai-subscription'
+    }
+    rerender(composer({ isStreaming: false, resolvedModel: cloudModel }))
+    expect(queueHasNotice()).toBe(false)
   })
   it('receives a screenshot and optional text into the Agent draft without sending', async () => {
     mocks.screenshotEnabled = true
@@ -2169,7 +2206,7 @@ describe('AgentComposer', () => {
     expect(modelLabel).toHaveAttribute('title', 'Custom Model | My Custom Provider')
   })
 
-  it('routes new session shortcuts through the empty session action', () => {
+  it('routes the new session shortcut and slash action through the empty session handler', () => {
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -2186,29 +2223,13 @@ describe('AgentComposer', () => {
     mocks.shortcutHandlers.get('topic.create')?.()
 
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
+
+    const sessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.find((item) => item.label === 'agent.session.new')
+    sessionItem?.action?.({ context: {} as any, action: 'enter', item: sessionItem })
+    expect(onCreateEmptySession).toHaveBeenCalledTimes(2)
   })
 
-  it('routes classic-layout new session shortcuts through the empty session action', () => {
-    mocks.sessionLayout = 'classic'
-    const onCreateEmptySession = vi.fn()
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        onCreateEmptySession={onCreateEmptySession}
-        isStreaming={false}
-      />
-    )
-
-    mocks.shortcutHandlers.get('topic.create')?.()
-
-    expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
-  })
-
-  it('puts the classic-layout empty session action first in the toolbar and calls the explicit handler', () => {
+  it('opens a classic-layout empty session through the toolbar, slash action, and shortcut', () => {
     mocks.sessionLayout = 'classic'
     const onCreateEmptySession = vi.fn()
 
@@ -2241,34 +2262,12 @@ describe('AgentComposer', () => {
 
     expect(onCreateEmptySession).toHaveBeenCalledTimes(2)
 
+    mocks.shortcutHandlers.get('topic.create')?.()
+    expect(onCreateEmptySession).toHaveBeenCalledTimes(3)
+
     act(() => {
       mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
-  })
-
-  it('keeps the new session action at the far left and the tool menu at the far right of the left toolbar', () => {
-    const onCreateEmptySession = vi.fn()
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        onCreateEmptySession={onCreateEmptySession}
-        isStreaming={false}
-      />
-    )
-
-    const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
-
-    newSessionItem?.action?.({
-      context: {} as any,
-      action: 'enter',
-      item: newSessionItem
-    })
-
-    expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
   })
 
   // #20766: first paint highlights MCP from the agent's current bindings, before the panel opens.

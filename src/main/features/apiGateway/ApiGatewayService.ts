@@ -1,3 +1,4 @@
+import { createHmac, randomBytes } from 'node:crypto'
 import { hostname, networkInterfaces } from 'node:os'
 
 import type { ProviderHeaders } from '@earendil-works/pi-ai'
@@ -60,6 +61,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }>()
   /** Never persisted or shown to the user; unrestricted on the internal listener. */
   private readonly internalApiKey = `cs-internal-${uuidv4()}`
+  private readonly agentCredentialSecret = randomBytes(32)
   /** Live scoped credentials; each authorizes only its own scope until disposed. */
   private readonly scopedCredentials = new Map<string, InternalCredentialScope>()
   private readonly usageCaptures = new Map<string, InProcessUsageContext>()
@@ -373,11 +375,18 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   /**
-   * Base URL and unrestricted credential for Cherry-launched consumers. Served by a dedicated loopback
+   * Base URL and credential for Cherry-launched consumers. Served by a dedicated loopback
    * listener so internal traffic never depends on, or turns on, the user-facing gateway.
    */
-  async ensureInternalGateway(): Promise<{ baseUrl: string; apiKey: string }> {
-    return { baseUrl: await this.ensureInternalListener(), apiKey: this.internalApiKey }
+  async ensureInternalGateway(sessionId?: string): Promise<{ baseUrl: string; apiKey: string }> {
+    return {
+      baseUrl: await this.ensureInternalListener(),
+      apiKey: sessionId === undefined ? this.internalApiKey : this.agentApiKey(sessionId)
+    }
+  }
+
+  private agentApiKey(sessionId: string): string {
+    return `cs-agent-${createHmac('sha256', this.agentCredentialSecret).update(sessionId).digest('base64url')}`
   }
 
   /** A credential for one consumer run that authorizes only `scope`, revoked by `dispose`. */
@@ -427,7 +436,12 @@ export class ApiGatewayService extends BaseService implements Activatable {
   /** Whether the request presents an internal credential; external callers never hold one. */
   isInternalRequest(headers: Headers): boolean {
     const token = presentedToken(headers)
-    return !!token && (isValidToken(token, this.internalApiKey) || this.scopedCredentials.has(token))
+    return (
+      !!token &&
+      (isValidToken(token, this.internalApiKey) ||
+        this.scopedCredentials.has(token) ||
+        !!this.getAgentSessionId(headers))
+    )
   }
 
   /** Limit overlapping internal HTTP payloads before image preparation and SDK encoding. */
@@ -516,6 +530,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   createAgentObjectTransports(input: {
     sessionId: string
+    replayRouteId?: string
+    omitGeminiSignaturesFor?: ReadonlySet<number>
     headers?: ProviderHeaders
     reasoningEffort?: ReasoningEffortOption
     serviceTier?: ServiceTierSelection
@@ -534,6 +550,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
       requestHeaders: headers,
       agentContext: {
         agentSessionId: sessionId,
+        replayRouteId: input.replayRouteId,
+        omitGeminiSignaturesFor: input.omitGeminiSignaturesFor,
         onRetryEvent: input.onRetryEvent,
         reasoningEffort: input.reasoningEffort ?? 'default',
         serviceTier: input.serviceTier,
@@ -574,11 +592,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  /** Agent session id of an unrestricted internal request; undefined for every other caller. */
+  /** The session named by the request and verified against its issued credential. */
   getAgentSessionId(headers: Headers): string | undefined {
     const token = presentedToken(headers)
-    if (!token || !isValidToken(token, this.internalApiKey)) return undefined
-    return headers.get(AGENT_SESSION_ID_HEADER)?.trim() || undefined
+    const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()
+    return sessionId && token?.startsWith('cs-agent-') && isValidToken(token, this.agentApiKey(sessionId))
+      ? sessionId
+      : undefined
   }
 
   /** Capture the reserved continuation or active turn of the requesting Agent session. */

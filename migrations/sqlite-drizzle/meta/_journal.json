@@ -298,15 +298,22 @@
     {
       "idx": 42,
       "version": "6",
-      "when": 1795244965364,
-      "tag": "0042_wise_luckman",
+      "when": 1795662594367,
+      "tag": "0042_agent_history_artifacts_and_mcp",
       "breakpoints": true
     },
     {
       "idx": 43,
       "version": "6",
-      "when": 1795284392659,
-      "tag": "0043_faithful_bishop",
+      "when": 1795691699090,
+      "tag": "0043_agent_session_head_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1795691700090,
+      "tag": "0044_followup_queue",
       "breakpoints": true
     }
   ],
