@@ -551,16 +551,6 @@ export class AgentSessionRuntimeService extends BaseService {
    * stop and destroy (#23519 review inv_8fa258e00144e9e7,
    * inv_bf75f32eb09d3192). */
   private readonly shutdownListeners = new Set<() => void>()
-  /** Warm-lease holders by session: the window WebContents currently displaying it. The runtime
-   *  connection is shared per-session across windows, so its view-close teardown may only start
-   *  once this set is empty — a renderer-local count can neither see other windows nor survive
-   *  their crash. */
-  private readonly warmLeaseHolders = new Map<string, Set<Electron.WebContents>>()
-  /** One destroyed-listener per holder window, so a window that dies without releasing (crash,
-   *  forced close — renderer cleanup never runs) is reaped from every session it held. */
-  private readonly warmLeaseSenders = new Map<Electron.WebContents, { sessionIds: Set<string>; dispose: () => void }>()
-  /** Armed grace timers for sessions whose last holder released (see WARM_LEASE_RELEASE_DELAY_MS). */
-  private readonly pendingWarmTeardowns = new Map<string, NodeJS.Timeout>()
   private blockedRecovery = new Set<string>()
   private recovery?: Promise<void>
   private readonly secondaryRoots = new Map<string, AgentSessionRuntimeEntry>()

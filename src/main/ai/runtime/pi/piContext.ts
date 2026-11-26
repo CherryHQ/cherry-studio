@@ -11,7 +11,7 @@ export function reservePiBranchTx(
   sessionId: string,
   anchorMessageId: string,
   nativeId: string,
-  checkpointMapping?: { staleResetHandled?: string; referenceHistory?: boolean }
+  checkpointMapping?: { staleResetHandled?: string; referenceHistory?: true }
 ) {
   const backend = contexts.ensureBackendTx(tx, { version: 1, kind: 'pi' }, 'bound')
   return contexts.reserveBranchTx(tx, {
