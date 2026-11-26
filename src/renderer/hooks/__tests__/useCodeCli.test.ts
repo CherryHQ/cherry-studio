@@ -76,17 +76,6 @@ describe('useCodeCli', () => {
   })
 
   describe('selectedCliTool', () => {
-    it('selectTool should switch the selected tool (navigation state)', () => {
-      setupConfigsMock({
-        'openai-codex': state({ anthropic: cfg() }, 'anthropic')
-      })
-      const { result } = renderHook(() => useCodeCli())
-      act(() => {
-        result.current.selectTool(CodeCli.OPENAI_CODEX)
-      })
-      expect(result.current.selectedCliTool).toBe(CodeCli.OPENAI_CODEX)
-    })
-
     it('keeps route search and visible selection synchronized', () => {
       setupConfigsMock({})
       const onToolChange = vi.fn()
@@ -172,9 +161,9 @@ describe('useCodeCli', () => {
       expect(providerConfig(toolState, 'openrouter').modelId).toBe('openrouter::claude-4')
     })
 
-    it('should preserve existing config when updating only modelId', async () => {
+    it('preserves provider order while retaining, replacing, and clearing config', async () => {
       const mockSetter = setupUpdaterMock({
-        'claude-code': state({ anthropic: cfg({ config: { foo: 1 } }) }, 'anthropic')
+        'claude-code': state({ anthropic: cfg({ config: { foo: 1 }, sortIndex: 2 }) }, 'anthropic')
       })
       const { result } = renderHook(() => useCodeCli())
 
@@ -184,16 +173,24 @@ describe('useCodeCli', () => {
         })
       })
 
-      const updated = providerConfig(lastToolState(mockSetter), 'anthropic')
-      expect(updated.modelId).toBe('anthropic::claude-5')
-      expect(updated.config).toEqual({ foo: 1 })
-    })
-
-    it('should remove existing config when config is explicitly undefined', async () => {
-      const mockSetter = setupUpdaterMock({
-        'claude-code': state({ anthropic: cfg({ config: { foo: 1 } }) }, 'anthropic')
+      expect(providerConfig(lastToolState(mockSetter), 'anthropic')).toEqual({
+        modelId: 'anthropic::claude-5',
+        config: { foo: 1 },
+        sortIndex: 2
       })
-      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.upsertProviderConfig('anthropic', {
+          modelId: 'anthropic::claude-5',
+          config: { foo: 2 }
+        })
+      })
+
+      expect(providerConfig(lastToolState(mockSetter), 'anthropic')).toEqual({
+        modelId: 'anthropic::claude-5',
+        config: { foo: 2 },
+        sortIndex: 2
+      })
 
       await act(async () => {
         await result.current.upsertProviderConfig('anthropic', {
@@ -203,24 +200,8 @@ describe('useCodeCli', () => {
       })
 
       const updated = providerConfig(lastToolState(mockSetter), 'anthropic')
-      expect(updated.modelId).toBe('anthropic::claude-5')
+      expect(updated).toEqual({ modelId: 'anthropic::claude-5', sortIndex: 2 })
       expect(updated).not.toHaveProperty('config')
-    })
-
-    it('should preserve existing sortIndex when updating model/config', async () => {
-      const mockSetter = setupUpdaterMock({
-        'claude-code': state({ anthropic: cfg({ sortIndex: 2 }) }, 'anthropic')
-      })
-      const { result } = renderHook(() => useCodeCli())
-
-      await act(async () => {
-        await result.current.upsertProviderConfig('anthropic', {
-          modelId: 'anthropic::claude-5',
-          config: { foo: 1 }
-        })
-      })
-
-      expect(lastToolState(mockSetter).providers['anthropic']?.sortIndex).toBe(2)
     })
   })
 

@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-25-gemini-chat-tool-signature-replay.md
+2026-11-25-gemini-chat-tool-signature-replay.md: cc471a532413767fe7b81f2415ffaaf483690fad
+2026-11-25-gemini-chat-tool-signature-replay.zh.md: a9421a184879dd95ea607b863b06a8721bf7ce39

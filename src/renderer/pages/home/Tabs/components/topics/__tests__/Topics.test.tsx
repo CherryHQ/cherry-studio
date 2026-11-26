@@ -809,6 +809,13 @@ function getTopicRow(topicName: string) {
   return row as HTMLElement
 }
 
+function getTopicArchiveAction(row: HTMLElement) {
+  fireEvent.contextMenu(row)
+  const contextMenu = row.closest('[data-testid="context-menu"]')
+  const menuContent = contextMenu?.querySelector('[data-testid="context-menu-content"]')
+  return within(menuContent as HTMLElement).getByRole('button', { name: 'Archive' })
+}
+
 // The drag overlay renders a copy of the dragged row outside the list.
 function listedRowTexts() {
   return screen
@@ -818,7 +825,7 @@ function listedRowTexts() {
 }
 
 function deleteTopicRow(row: HTMLElement) {
-  fireEvent.click(within(row).getByRole('button', { name: 'Archive' }))
+  fireEvent.click(getTopicArchiveAction(row))
 }
 
 const topicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${topicId}` as never
@@ -2159,14 +2166,11 @@ describe('Topics', () => {
     expect(toast.info).toHaveBeenCalledWith('Already in Recycle Bin')
   })
 
-  it('archives a topic from its inline action', async () => {
+  it('does not offer one-click archiving in the topic row', () => {
     const { getByText } = renderTopicList()
 
     const topicRow = getByText('Gamma topic').closest('[role="option"]')
-    const deleteButton = within(topicRow as HTMLElement).getByRole('button', { name: 'Archive' })
-    fireEvent.click(deleteButton)
-
-    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-c'))
+    expect(within(topicRow as HTMLElement).queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument()
   })
 
   it('selects the same assistant neighbouring topic after deleting the active topic in the right panel', async () => {
@@ -2640,14 +2644,12 @@ describe('Topics', () => {
     let topicRow = getTopicRow('Gamma topic')
     let indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     expect(indicatorRoot).toHaveAccessibleName('Running')
-    const runningDeleteButton = within(topicRow).getByRole('button', { name: 'Archive' })
+    const runningDeleteButton = getTopicArchiveAction(topicRow)
     expect(runningDeleteButton).toBeDisabled()
     fireEvent.click(runningDeleteButton)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
-    // The delete button always renders now (revealed on hover); assert only
-    // that the row is not in the delete-confirm state.
-
+    expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
 
     setTopicStreamCacheStatus('topic-c', 'done')
@@ -2658,9 +2660,8 @@ describe('Topics', () => {
     topicRow = getTopicRow('Gamma topic')
     indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     expect(indicatorRoot).toHaveAccessibleName('Done')
-    expect(within(topicRow).getByRole('button', { name: 'Archive' })).toBeEnabled()
-    // The delete button always renders now (revealed on hover); assert only
-    // that the row is not in the delete-confirm state.
+    expect(getTopicArchiveAction(topicRow)).toBeEnabled()
+    expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
 
     fireEvent.click(topicRow)
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
@@ -4334,6 +4335,46 @@ describe('Topics', () => {
       })
     )
     expect(topicDataMocks.moveTopic).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps topic order and persists nothing when dropped on its own assistant header', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    renderTopicList()
+    const originalRows = listedRowTexts()
+
+    await dragRow({ source: 'item:topic-c', target: 'group:topic:assistant:assistant-2', side: 'before' })
+
+    expect(topicDataMocks.moveTopic).not.toHaveBeenCalled()
+    expect(listedRowTexts()).toEqual(originalRows)
+  })
+
+  it('appends a topic dropped on another assistant header using the last topic anchor', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    renderTopicList({
+      assistantTopicsSource: createAssistantTopicsSource([
+        createApiTopic(),
+        createApiTopic({ id: 'topic-c', name: 'Gamma topic', assistantId: 'assistant-2', orderKey: 'c' }),
+        createApiTopic({ id: 'topic-d', name: 'Delta archive', assistantId: 'assistant-2', orderKey: 'd' })
+      ])
+    })
+
+    await dragRow({ source: 'item:topic-a', target: 'group:topic:assistant:assistant-2', side: 'before' })
+
+    await vi.waitFor(() =>
+      expect(topicDataMocks.moveTopic).toHaveBeenCalledExactlyOnceWith('topic-a', {
+        assistantId: 'assistant-2',
+        anchor: { after: 'topic-d' }
+      })
+    )
+    const targetHeader = getByRowText('Beta Assistant')
+    for (const name of ['Gamma topic', 'Delta archive', 'Alpha topic']) {
+      const row = getTopicRow(name)
+      expect(targetHeader.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    }
+    const rows = listedRowTexts()
+    expect(rows.findIndex((text) => text.includes('Delta archive'))).toBeLessThan(
+      rows.findIndex((text) => text.includes('Alpha topic'))
+    )
   })
 
   it('keeps assistant grouped topics stable during cross-group drag hover', async () => {

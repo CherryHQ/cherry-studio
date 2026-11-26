@@ -1,5 +1,35 @@
 # @cherrystudio/provider-registry
 
+## 0.8.3
+
+### Patch Changes
+
+- [`973740c`](https://github.com/CherryHQ/cherry-studio/commit/973740ce1636e01839849049e20a24ab844d1466) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Cursor Composer 2.5 and Cognition SWE model metadata. Resolve the Grok CLI Composer route to the Cursor model entry.
+
+- [`199e811`](https://github.com/CherryHQ/cherry-studio/commit/199e8113e5ca5d495c2b5cec3bc978b0427a392e) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Inkling 2 Mini, Inkling 2 Small, MAI Image 2.7, and MAI Image 2.7 Flash model metadata. Attribute the Inkling family to Thinking Machines Lab.
+  
+  Attribute Muse Image to Meta and add OpenRouter reference-image editing capabilities.
+  
+  Add Vercel AI Gateway model metadata for Recursive Flint, Reflection Beam, Sakana Fugu and Namazu, and ScaleDown Extract and Summarize.
+
+- [#25464](https://github.com/CherryHQ/cherry-studio/pull/25464) [`28d12fa`](https://github.com/CherryHQ/cherry-studio/commit/28d12fa39846a1decc61c3ab77b44f84df832e48) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Serve the catalog that is compiled into the package when a registry file on disk cannot be read, and report the fallback with a bounded cause instead of failing every lookup. A fallback expires after the idle TTL so a repaired file is picked up, and `models`/`provider-models` always come from a single snapshot.
+
+## 0.8.2
+
+### Patch Changes
+
+- [#25206](https://github.com/CherryHQ/cherry-studio/pull/25206) [`2bd7725`](https://github.com/CherryHQ/cherry-studio/commit/2bd772550b6d16825687853f3d35f63fd018028a) Thanks [@WhiteZeek](https://github.com/WhiteZeek)! - Default Ollama chat to its native endpoint so disabling reasoning sends the correct request option.
+
+## 0.8.1
+
+### Patch Changes
+
+- [#25094](https://github.com/CherryHQ/cherry-studio/pull/25094) [`78d3d5c`](https://github.com/CherryHQ/cherry-studio/commit/78d3d5c2b3a7cdda708b5dc66f5ba96f292e1367) Thanks [@LWWZH](https://github.com/LWWZH)! - Enable AiHubMix native web search and URL context for Gemini 4 Hydrogen, Carbon and Neon models.
+
+- [#25193](https://github.com/CherryHQ/cherry-studio/pull/25193) [`fcbe28a`](https://github.com/CherryHQ/cherry-studio/commit/fcbe28a0f466a6517afb44c7cad032cf4ecc27b6) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Claude Fable 5.2 model limits and reasoning controls, along with its CherryIN model ID and supported endpoints.
+
+- [#25090](https://github.com/CherryHQ/cherry-studio/pull/25090) [`b37ce6f`](https://github.com/CherryHQ/cherry-studio/commit/b37ce6fa174cbee26ec2abbde8e5ded9598b2ff3) Thanks [@LWWZH](https://github.com/LWWZH)! - Sync the Tencent Cloud TokenHub model list to the latest served models (GLM-5.3 series, Kimi K3/K2.8, DeepSeek V4.1/V4-Pro-0813, MiniMax M3.1-Flash, MiMo, Step-5-Preview, Hy3, Hunyuan-Role-Latest).
+
 ## 0.8.0
 
 ### Minor Changes

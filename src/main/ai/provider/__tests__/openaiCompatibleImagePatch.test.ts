@@ -31,6 +31,25 @@ describe('patched @ai-sdk/openai-compatible image model', () => {
     return { image, bodies }
   }
 
+  it('allows an OpenAI-compatible image endpoint on a v1beta host', async () => {
+    let requestUrl = ''
+    let body: unknown
+    const image = new OpenAICompatibleImageModel('image-model', {
+      provider: 'relay',
+      url: ({ path }) => `https://relay.example.com/v1beta${path}`,
+      headers: () => ({}),
+      fetch: async (input, init) => {
+        requestUrl = String(input)
+        body = JSON.parse(String(init?.body))
+        return ok({ data: [{ b64_json: 'QUJD' }] })
+      }
+    })
+    const result = await image.doGenerate(options)
+    expect(requestUrl).toBe('https://relay.example.com/v1beta/images/generations')
+    expect(body).toEqual({ model: 'image-model', prompt: 'a fox', n: 1, response_format: 'b64_json' })
+    expect(result.images).toEqual(['QUJD'])
+  })
+
   it('asks for b64_json first', async () => {
     const { image, bodies } = model(() => ok({ data: [{ b64_json: 'QUJD' }] }))
 

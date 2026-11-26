@@ -9,7 +9,8 @@ import { fetchGenerate, fetchMessagesSummary, fetchNoteSummary } from '../aiGene
 // Stand-in Model — only `.id` reaches the request; nothing else is inspected.
 const TEST_MODEL = { id: 'quick-model', provider: 'test-provider' }
 
-const { generateTextMock, ipcRequestMock } = vi.hoisted(() => ({
+const { generateTextMock, ipcRequestMock, ipcEvents } = vi.hoisted(() => ({
+  ipcEvents: new Map<string, Set<(payload: any) => void>>(),
   generateTextMock:
     vi.fn<
       (args: {
@@ -18,13 +19,23 @@ const { generateTextMock, ipcRequestMock } = vi.hoisted(() => ({
         reasoningEffort?: string
         system?: string
         prompt?: string
+        streamDeltas?: boolean
       }) => Promise<{ text: string }>
     >(),
   ipcRequestMock: vi.fn()
 }))
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (route: string, input: any) => ipcRequestMock(route, input) }
+  ipcApi: {
+    request: (route: string, input: any) => ipcRequestMock(route, input),
+    on: (event: string, callback: (payload: any) => void) => {
+      const listeners = ipcEvents.get(event) ?? new Set()
+      listeners.add(callback)
+      ipcEvents.set(event, listeners)
+      return () => listeners.delete(callback)
+    }
+  }
 }))
+const emit = (event: string, payload: unknown) => ipcEvents.get(event)?.forEach((callback) => callback(payload))
 
 const { readQuickModelMock, readDefaultModelMock } = vi.hoisted(() => ({
   readQuickModelMock: vi.fn(),
@@ -106,6 +117,26 @@ describe('fetchGenerate cancellation', () => {
 
     expect(generateTextMock.mock.calls[0][0]).not.toHaveProperty('requestId')
     expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.text.abort', expect.anything())
+  })
+})
+
+describe('fetchGenerate streaming', () => {
+  // Catches deltas from another generation leaking in, or a listener left behind after the reply.
+  it('reports only its own request deltas while generating, then stops listening', async () => {
+    const deltas: string[] = []
+    generateTextMock.mockImplementationOnce(async ({ requestId, streamDeltas }) => {
+      expect(streamDeltas).toBe(true)
+      emit('ai.text.delta', { requestId, delta: 'Hel' })
+      emit('ai.text.delta', { requestId: 'someone-else', delta: 'XX' })
+      emit('ai.text.delta', { requestId, delta: 'lo' })
+      return { text: 'Hello' }
+    })
+
+    const text = await fetchGenerate({ prompt: 'p', content: 'c', onTextDelta: (delta) => deltas.push(delta) })
+
+    expect(text).toBe('Hello')
+    expect(deltas).toEqual(['Hel', 'lo'])
+    expect(ipcEvents.get('ai.text.delta')?.size ?? 0).toBe(0)
   })
 })
 

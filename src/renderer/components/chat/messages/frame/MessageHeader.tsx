@@ -29,6 +29,7 @@ interface Props {
   model?: Model
   isGroupContextMessage?: boolean
   showModelIdentity?: boolean
+  showHeader?: boolean
   actionsSlot?: ReactNode
   contentSlot?: ReactNode
   footerSlot?: ReactNode
@@ -91,7 +92,16 @@ export const AgentSessionDeliveryBadge: FC<{
 }
 
 const MessageHeader: FC<Props> = memo(
-  ({ model, message, isGroupContextMessage, showModelIdentity = false, actionsSlot, contentSlot, footerSlot }) => {
+  ({
+    model,
+    message,
+    isGroupContextMessage,
+    showModelIdentity = false,
+    showHeader = true,
+    actionsSlot,
+    contentSlot,
+    footerSlot
+  }) => {
     const { theme } = useTheme()
     const actions = useMessageListActions()
     const meta = useMessageListMeta()
@@ -152,84 +162,107 @@ const MessageHeader: FC<Props> = memo(
 
     const canOpenUserProfile = !!actions.openUserProfile
     const hasBodySlot = !!contentSlot || !!footerSlot
+    const toggleAuthorProfile = isAssistantMessage ? actions.toggleAuthorProfile : undefined
+
+    const assistantAvatar = authorAvatar ? (
+      <MessageAvatar
+        avatar={authorAvatar}
+        fallback={authorSnapshot?.emoji || avatarName}
+        onErrorCapture={() => setFailedAvatarKey(avatarKey)}
+      />
+    ) : ModelIcon ? (
+      <MessageAvatarFrame className="bg-background">
+        <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
+      </MessageAvatarFrame>
+    ) : (
+      <MessageAvatar
+        fallback={avatarName}
+        fallbackAvatarStyle={{
+          border: 'none',
+          filter: theme === 'dark' ? 'invert(0.05)' : undefined
+        }}
+      />
+    )
 
     return (
       <div
-        className={`message-header group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
-        {isAssistantMessage ? (
-          authorAvatar ? (
-            <MessageAvatar
-              avatar={authorAvatar}
-              fallback={authorSnapshot?.emoji || avatarName}
-              onErrorCapture={() => setFailedAvatarKey(avatarKey)}
-            />
-          ) : ModelIcon ? (
-            <MessageAvatarFrame className="bg-background">
-              <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
-            </MessageAvatarFrame>
-          ) : (
-            <MessageAvatar
-              fallback={avatarName}
-              fallbackAvatarStyle={{
-                border: 'none',
-                filter: theme === 'dark' ? 'invert(0.05)' : undefined
-              }}
-            />
-          )
+        className={`${showHeader ? 'message-header' : 'message-continuation'} group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
+        {!showHeader ? (
+          <span aria-hidden className="w-8 shrink-0" />
+        ) : toggleAuthorProfile ? (
+          <button
+            type="button"
+            aria-label={t('chat.profile_pane.open', { name: authorName || username })}
+            onClick={toggleAuthorProfile}
+            className="shrink-0 cursor-pointer rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring">
+            {assistantAvatar}
+          </button>
+        ) : isAssistantMessage ? (
+          assistantAvatar
         ) : (
           <MessageAvatar avatar={userAvatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
         )}
         <div
           className={hasBodySlot ? 'message-body-column flex min-h-0 min-w-0 flex-1 flex-col' : 'flex min-w-0 flex-1'}>
-          <div className="flex w-full min-w-0 items-center gap-1.5">
-            <span
-              className="truncate text-sm leading-5 font-semibold"
-              style={{
-                color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--foreground)'
-              }}>
-              {username}
-            </span>
-            {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
-            {isAssistantMessage && message.turnOrigin?.kind === 'goal-round' && (
-              <GoalRoundBadge round={message.turnOrigin.round} />
-            )}
-            {isAssistantMessage && showModelIdentity && displayModelName && (
-              <span className="text-foreground-tertiary flex min-w-0 shrink items-center gap-1 text-xs leading-5">
-                <span aria-hidden="true" className="shrink-0">
-                  <ModelAvatar className="rounded-full" model={displayModel} size={16} />
-                </span>
-                <span className="truncate">{displayModelName}</span>
+          {showHeader && (
+            <div key="identity" className="flex w-full min-w-0 items-center gap-1.5">
+              <span
+                className="truncate text-sm leading-5 font-semibold"
+                style={{
+                  color: isBubbleStyle && theme === 'dark' ? 'white' : 'var(--foreground)'
+                }}>
+                {username}
               </span>
-            )}
-            {isGroupContextMessage && (
-              <Tooltip content={t('chat.message.useful.tip')}>
-                <Sparkle className="shrink-0" fill="var(--primary)" strokeWidth={0} size={16} />
-              </Tooltip>
-            )}
-            <div
-              className={`message-header-info-wrap text-foreground-tertiary flex shrink-0 items-center gap-1 text-[10px] leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 no-hover:opacity-100 ${hiddenContentHoverClass}`}>
-              <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
-              {renderConfig.showEstimatedTokens &&
-                isBubbleStyle &&
-                !isAssistantMessage &&
-                message.stats !== undefined && (
-                  <>
-                    |
-                    <MessageTokens message={message} />
-                  </>
-                )}
-            </div>
-            {actionsSlot && (
+              {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
+              {isAssistantMessage && message.turnOrigin?.kind === 'goal-round' && (
+                <GoalRoundBadge round={message.turnOrigin.round} />
+              )}
+              {isAssistantMessage && showModelIdentity && displayModelName && (
+                <span className="text-foreground-tertiary flex min-w-0 shrink items-center gap-1 text-xs leading-5">
+                  <span aria-hidden="true" className="shrink-0">
+                    <ModelAvatar className="rounded-full" model={displayModel} size={16} />
+                  </span>
+                  <span className="truncate">{displayModelName}</span>
+                </span>
+              )}
+              {isGroupContextMessage && (
+                <Tooltip content={t('chat.message.useful.tip')}>
+                  <Sparkle className="shrink-0" fill="var(--primary)" strokeWidth={0} size={16} />
+                </Tooltip>
+              )}
               <div
-                className={`message-header-actions pointer-events-none ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100 ${hiddenActionsHoverClass}`}>
-                {actionsSlot}
+                className={`message-header-info-wrap text-foreground-tertiary flex shrink-0 items-center gap-1 text-[10px] leading-none opacity-0 transition-opacity duration-150 focus-within:opacity-100 no-hover:opacity-100 ${hiddenContentHoverClass}`}>
+                <span>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
+                {renderConfig.showEstimatedTokens &&
+                  isBubbleStyle &&
+                  !isAssistantMessage &&
+                  message.stats !== undefined && (
+                    <>
+                      |
+                      <MessageTokens message={message} />
+                    </>
+                  )}
               </div>
-            )}
-          </div>
-          {contentSlot && (
-            <div className="message-body-content mt-2 min-h-0 max-w-full min-w-0 flex-1">{contentSlot}</div>
+              {actionsSlot && (
+                <div
+                  className={`message-header-actions pointer-events-none ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 no-hover:pointer-events-auto no-hover:opacity-100 ${hiddenActionsHoverClass}`}>
+                  {actionsSlot}
+                </div>
+              )}
+            </div>
           )}
-          {footerSlot && <div className="message-footer-slot mt-auto min-w-0 shrink-0">{footerSlot}</div>}
+          {contentSlot && (
+            <div
+              key="body"
+              className={`message-body-content min-h-0 max-w-full min-w-0 flex-1 ${showHeader ? 'mt-2' : ''}`}>
+              {contentSlot}
+            </div>
+          )}
+          {footerSlot && (
+            <div key="footer" className="message-footer-slot mt-auto min-w-0 shrink-0">
+              {footerSlot}
+            </div>
+          )}
         </div>
         {isMultiSelectMode && (
           <Checkbox

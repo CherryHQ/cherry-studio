@@ -20,7 +20,7 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks'
 
-import type { LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV3, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { APICallError, RetryError, type ToolCallRepairFunction, type ToolSet, wrapLanguageModel } from 'ai'
 import {
   isErrorAttempt,
@@ -35,6 +35,7 @@ import { and, createRetryableModel, error, not } from 'ai-retry/language-model'
 import { loggerService } from '@logger'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 
+import { getPendingReplayRoute, ToolContinuationRouteError } from '../../../provider/replayRoute'
 import type { RetryPolicy } from './retryPolicy'
 import { withStreamContinuation } from './streamContinuation'
 
@@ -51,6 +52,7 @@ export type FallbackCallOptions = LanguageModelRetryCallOptions
 /** A resolved fallback: a fully-resolved (middleware-applied) model + its own params. */
 export interface RetryFallback {
   model: LanguageModelV3
+  replayRouteId?: string
   options?: FallbackCallOptions
   repairToolCall?: ToolCallRepairFunction<ToolSet>
 }
@@ -64,6 +66,7 @@ export interface RetryFallback {
 export type FallbackResolver = () => Promise<RetryFallback | null>
 
 export interface CreateRetryableWrapOptions {
+  primaryReplayRouteId?: string
   /** Same-provider, same-model alternatives using the remaining enabled API keys. */
   apiKeyFallbacks?: FallbackResolver[]
   /**
@@ -113,11 +116,13 @@ export function bufferedActivityIntervalMs(idleTimeoutMs?: number): number {
 function lazyFallbackRetryable(
   resolveFallback: FallbackResolver,
   onFallbackActivated?: (fallback: RetryFallback) => void,
-  wrapFallbackModel?: WrapLanguageModel
+  wrapFallbackModel?: WrapLanguageModel,
+  crossRoute = false
 ): Retryable<LanguageModel> {
   let cached: Promise<RetryFallback | null> | undefined
   return async (context) => {
     if (!isErrorAttempt(context.current)) return undefined
+    if (crossRoute && getPendingReplayRoute(context.current.options.prompt)) return undefined
     cached ??= resolveFallback()
     const fallback = await cached
     if (!fallback) {
@@ -187,7 +192,22 @@ function describeAttempt(context: RetryContext<LanguageModelV3>): Extract<RetryP
  */
 export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLanguageModel | undefined {
   const apiKeyFallbacks = options.apiKeyFallbacks ?? []
-  if (!options.retryPolicy.enabled && apiKeyFallbacks.length === 0) return undefined
+  if (!options.primaryReplayRouteId && !options.retryPolicy.enabled && apiKeyFallbacks.length === 0) return undefined
+
+  const fallbackResolvers = options.fallbacks.map((resolve) => {
+    let result: Promise<RetryFallback | null> | undefined
+    return async () => {
+      result ??= resolve()
+      try {
+        const fallback = await result
+        if (!fallback) result = undefined
+        return fallback
+      } catch (error) {
+        result = undefined
+        throw error
+      }
+    }
+  })
 
   // `max_attempts` is the number of RETRIES (matches the "Max retry attempts"
   // setting and the embedding/rerank AI SDK `maxRetries`). ai-retry counts the
@@ -222,7 +242,9 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       // Error-only (like a plain-model fallback): ai-retry also evaluates function
       // retryables on *result* attempts (content-filter etc.), so guard on
       // `isErrorAttempt` to avoid resolving — and falsely retrying — on success.
-      ...options.fallbacks.map((fallback) => lazyFallbackRetryable(fallback, options.onFallbackActivated))
+      ...fallbackResolvers.map((fallback) =>
+        lazyFallbackRetryable(fallback, options.onFallbackActivated, undefined, true)
+      )
     ]
 
     // Evaluate the native retry rule first. Consume only an eligible same-model retry,
@@ -338,7 +360,37 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
           })
         : primary
 
-    if (!options.retryPolicy.enabled) return keyPoolModel
+    const withReplayPin = (model: LanguageModelV3): LanguageModelV3 => {
+      if (!options.primaryReplayRouteId) return model
+      const resolvePinned = async (params: LanguageModelV3CallOptions) => {
+        const route = getPendingReplayRoute(params.prompt)
+        if (!route || route === options.primaryReplayRouteId) return undefined
+        for (const resolve of fallbackResolvers) {
+          const fallback = await resolve()
+          if (fallback?.replayRouteId === route) {
+            options.onFallbackActivated?.(fallback)
+            return fallback
+          }
+        }
+        throw new ToolContinuationRouteError()
+      }
+      return wrapLanguageModel({
+        model,
+        middleware: {
+          specificationVersion: 'v3',
+          wrapGenerate: async ({ params, doGenerate }) => {
+            const pinned = await resolvePinned(params)
+            return pinned ? pinned.model.doGenerate({ ...params, ...pinned.options }) : doGenerate()
+          },
+          wrapStream: async ({ params, doStream }) => {
+            const pinned = await resolvePinned(params)
+            return pinned ? pinned.model.doStream({ ...params, ...pinned.options }) : doStream()
+          }
+        }
+      })
+    }
+
+    if (!options.retryPolicy.enabled) return withReplayPin(keyPoolModel)
 
     const retryableModel = createRetryableModel({
       model: keyPoolModel,
@@ -383,7 +435,9 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       }
     })
 
-    return new Proxy(retryableModel, {
+    const pinnedRetryableModel = withReplayPin(retryableModel)
+
+    return new Proxy(pinnedRetryableModel, {
       get(target, prop) {
         if (prop === 'doStream')
           return (callOptions: Parameters<LanguageModelV3['doStream']>[0]) => {

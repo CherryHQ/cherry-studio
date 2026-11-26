@@ -1,14 +1,10 @@
-import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
+import { Braces, Database, HelpCircle, X } from 'lucide-react'
+import { type ComponentProps, type ReactNode, useCallback, useEffect, useRef } from 'react'
+import { type FieldValues, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  Form,
   FormControl,
   FormDescription,
   FormField,
@@ -16,33 +12,25 @@ import {
   FormLabel,
   FormMessage,
   Input,
-  MenuItem,
-  MenuList,
   NormalTooltip,
   Popover,
   PopoverContent,
   PopoverTrigger,
-  ScrollArea,
-  Tabs,
-  TabsList,
-  TabsTrigger,
   Textarea
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { CherryCloudModelSelector as ModelSelector } from '@renderer/components/cherryCloud/CherryCloudModelSelector'
 import { type ModelSelectorFilter } from '@renderer/components/ModelSelector'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CoalescingTask } from '@shared/utils/async'
 
-import { AddCatalogPopover, type CatalogItem } from './CatalogPicker'
-import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './DialogFormFields'
+import { DialogModelFrame, DialogModelTrigger } from './DialogFormFields'
 
 // Vertical submenu / nav item preset — kept in sync with the settings sidebar's
-// settingsSubmenuItemClassName so the edit-dialog rail and settings nav read identically.
+// settingsSubmenuItemClassName so the create wizard's rail and settings nav read identically.
 const submenuItemClassName =
   'h-8 rounded-[10px] border-transparent px-2.5 font-normal text-muted-foreground text-sm hover:!bg-foreground/[0.04] hover:!text-foreground focus-visible:!border-transparent focus-visible:!ring-1 focus-visible:!ring-foreground/20 focus-visible:!ring-offset-0 data-[active=true]:!border-transparent data-[active=true]:!bg-foreground/[0.08] data-[active=true]:!font-medium data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-current'
 
@@ -72,29 +60,8 @@ export type EditDialogBaseProps = {
   onOpenChange: (open: boolean) => void
   modelFilter?: ModelSelectorFilter
   isModelDisabled?: ModelSelectorFilter
-  /** Leaf tab id to open on first render (e.g. `tools.mcp`, `tools.skills`); falls back to `basic`. */
+  /** Deep-link ID (e.g. `tools.mcp`, `channels`) naming the page to open; unknown IDs open the main page. */
   initialTab?: string
-}
-
-export type EditDialogTab = {
-  id: string
-  label: string
-  children?: EditDialogTab[]
-}
-
-export type EditDialogGroupExpansion = 'collapsed' | 'all'
-export type EditDialogGroupPresentation = 'grouped' | 'inline'
-
-function resolveTabValue(tabs: EditDialogTab[], value: string) {
-  const matched = tabs.find((tab) => tab.id === value)
-  return matched?.children?.[0]?.id ?? value
-}
-
-function getDefaultExpandedGroupIds(tabs: EditDialogTab[], groupExpansion: EditDialogGroupExpansion) {
-  if (groupExpansion === 'all') {
-    return new Set(tabs.filter((tab) => tab.children?.length).map((tab) => tab.id))
-  }
-  return new Set<string>()
 }
 
 const PROMPT_VARIABLES: { name: string; i18n: string }[] = [
@@ -255,362 +222,6 @@ export function KnowledgeBaseAvatar({
   )
 }
 
-type KnowledgeBaseFieldValues = FieldValues & {
-  knowledgeBaseIds: string[]
-}
-
-export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
-  form,
-  portalContainer,
-  formLabel = true,
-  labelClassName,
-  disabled = false,
-  onOpenKnowledgePage
-}: {
-  form: UseFormReturn<TValues>
-  portalContainer: HTMLElement | null
-  formLabel?: boolean
-  labelClassName?: string
-  disabled?: boolean
-  onOpenKnowledgePage?: () => void
-}) {
-  const { t } = useTranslation()
-  const { bases, isLoading } = useKnowledgeBases({ revalidateOnFocus: true })
-  const fieldName = 'knowledgeBaseIds' as Path<TValues>
-  const watchedValue = useWatch({ control: form.control, name: fieldName })
-  const value = useMemo(() => (watchedValue ?? []) as string[], [watchedValue])
-
-  const { catalog, linkedItems } = useMemo(() => {
-    const byId = new Map(bases.map((base) => [base.id, base]))
-    const linked = value.map(
-      (id) =>
-        byId.get(id) ?? {
-          id,
-          name: `${id.slice(0, 8)}${t('library.config.knowledge.invalid_suffix')}`,
-          itemCount: 0
-        }
-    )
-    const items: CatalogItem[] = bases.map((base) => ({
-      id: base.id,
-      name: base.name,
-      description: t('library.config.knowledge.doc_count', { count: base.itemCount ?? 0 }),
-      icon: <KnowledgeBaseAvatar />
-    }))
-    return { catalog: items, linkedItems: linked }
-  }, [bases, t, value])
-
-  const setKnowledgeBaseIds = (nextValue: string[]) =>
-    form.setValue(fieldName, nextValue as never, { shouldDirty: true })
-  const remove = (id: string) => setKnowledgeBaseIds(value.filter((itemId) => itemId !== id))
-  const add = (id: string) => setKnowledgeBaseIds([...value, id])
-
-  return (
-    <FormField
-      control={form.control}
-      name={fieldName}
-      render={() => (
-        <FormItem>
-          <div className="flex items-center justify-between gap-3">
-            <FieldLabelWithHelp
-              label={t('library.config.knowledge.linked')}
-              help={t('library.config.knowledge.linked_hint')}
-              formLabel={formLabel}
-              labelClassName={labelClassName}
-            />
-            <AddCatalogPopover
-              items={catalog}
-              enabledIds={new Set(value)}
-              onAdd={add}
-              triggerLabel={t('library.config.knowledge.add')}
-              searchPlaceholder={t('library.config.knowledge.search')}
-              emptyLabel={t('library.config.knowledge.no_more')}
-              disabled={isLoading || disabled}
-              align="end"
-              triggerPosition="end"
-              triggerClassName="border border-border bg-transparent"
-              portalContainer={portalContainer}
-              footer={
-                onOpenKnowledgePage ? (
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    className="relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-muted-foreground text-xs transition-colors hover:bg-accent/60 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
-                    onClick={onOpenKnowledgePage}>
-                    <ArrowUpRight size={14} className="shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">{t('library.config.knowledge.create_first')}</span>
-                  </button>
-                ) : null
-              }
-            />
-          </div>
-          {linkedItems.length === 0 ? (
-            <div className="mt-2 flex flex-col items-center rounded-md border border-border-subtle border-dashed p-6">
-              <Database size={20} strokeWidth={1.2} className="mb-2 text-foreground-tertiary" />
-              <p className="mb-1 text-foreground-tertiary text-xs">{t('library.config.knowledge.empty_title')}</p>
-              <p className="text-foreground-tertiary text-xs">{t('library.config.knowledge.empty_desc')}</p>
-            </div>
-          ) : (
-            <div className="mt-2 space-y-1.5">
-              {linkedItems.map((kb) => (
-                <div
-                  key={kb.id}
-                  className="group flex items-center gap-3 rounded-md border border-border-subtle bg-accent/15 px-3 py-2.5 transition-colors hover:border-border-subtle hover:bg-accent/20">
-                  <KnowledgeBaseAvatar className="flex size-8 shrink-0 items-center justify-center rounded-md text-base leading-none" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-foreground text-sm">{kb.name}</div>
-                    <div className="text-muted-foreground text-xs">
-                      {t('library.config.knowledge.doc_count', { count: kb.itemCount ?? 0 })}
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={disabled}
-                    onClick={() => remove(kb.id)}
-                    aria-label={t('library.config.knowledge.remove_aria')}
-                    className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground opacity-0 shadow-none transition-all hover:bg-destructive hover:text-destructive-foreground focus-visible:ring-0 group-hover:opacity-100">
-                    <Trash2 size={10} />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  )
-}
-
-export function EditDialogShell<TValues extends FieldValues>({
-  activeTab,
-  children,
-  form,
-  onActiveTabChange,
-  onOpenChange,
-  open,
-  rootError,
-  setDialogContentElement,
-  tabs,
-  title,
-  groupExpansion = 'collapsed',
-  groupPresentation = 'grouped'
-}: {
-  activeTab: string
-  children: ReactNode
-  form: UseFormReturn<TValues>
-  groupExpansion?: EditDialogGroupExpansion
-  groupPresentation?: EditDialogGroupPresentation
-  onActiveTabChange: (tab: string) => void
-  onOpenChange: (open: boolean) => void
-  open: boolean
-  rootError?: string
-  setDialogContentElement: (element: HTMLDivElement | null) => void
-  tabs: EditDialogTab[]
-  title: string
-}) {
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() =>
-    getDefaultExpandedGroupIds(tabs, groupExpansion)
-  )
-
-  useEffect(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = 0
-    }
-  }, [activeTab])
-
-  useEffect(() => {
-    setExpandedGroupIds(open ? getDefaultExpandedGroupIds(tabs, groupExpansion) : new Set())
-  }, [groupExpansion, open, tabs])
-
-  useEffect(() => {
-    const activeGroup = tabs.find((tab) => tab.children?.some((child) => child.id === activeTab))
-    if (!activeGroup) return
-    setExpandedGroupIds((current) => {
-      if (current.has(activeGroup.id)) return current
-      return new Set(current).add(activeGroup.id)
-    })
-  }, [activeTab, tabs])
-
-  const handleTabValueChange = (value: string) => {
-    onActiveTabChange(resolveTabValue(tabs, value))
-  }
-
-  const toggleTabGroup = (tabId: string) => {
-    setExpandedGroupIds((current) => {
-      const next = new Set(current)
-      if (next.has(tabId)) {
-        next.delete(tabId)
-      } else {
-        next.add(tabId)
-      }
-      return next
-    })
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        ref={setDialogContentElement}
-        className={cn('flex h-[min(600px,76vh)] flex-col gap-0 p-0 sm:max-w-180', resourceDialogCloseButtonClassName)}>
-        <Form {...form}>
-          {/* Clipping lives on the form (rounded-[inherit]), not DialogContent: the dialog's
-              transform makes it the containing block for portaled fixed poppers (model selector),
-              so overflow-hidden on DialogContent would clip them. */}
-          <form
-            id="resource-edit-dialog-form"
-            onSubmit={(event) => event.preventDefault()}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
-            {/* Header — title, matching the create wizard's top bar. */}
-            <div className={resourceDialogHeaderClassName}>
-              <div className="min-w-0">
-                <DialogTitle className={resourceDialogTitleClassName}>{title}</DialogTitle>
-              </div>
-            </div>
-            <Tabs
-              value={activeTab}
-              onValueChange={handleTabValueChange}
-              orientation="vertical"
-              className="min-h-0 flex-1 gap-0 overflow-hidden">
-              {/* Quiet rail surface keeps navigation distinct without competing with the form. */}
-              <div className="flex w-36 shrink-0 flex-col border-border border-r-[0.5px] bg-background-subtle">
-                <TabsList asChild className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-3">
-                  <MenuList>
-                    {tabs.map((tab) => {
-                      const hasChildren = Boolean(tab.children?.length)
-                      if (hasChildren && groupPresentation === 'inline') {
-                        return tab.children?.map((child) => (
-                          <TabsTrigger key={child.id} value={child.id} asChild>
-                            <MenuItem
-                              label={child.label}
-                              active={activeTab === child.id}
-                              className={resourceDialogRailItemClassName}
-                            />
-                          </TabsTrigger>
-                        ))
-                      }
-
-                      const groupExpanded = expandedGroupIds.has(tab.id)
-
-                      return (
-                        <div key={tab.id} className="grid gap-1">
-                          {hasChildren ? (
-                            <MenuItem
-                              label={tab.label}
-                              aria-expanded={groupExpanded}
-                              onClick={() => toggleTabGroup(tab.id)}
-                              className={submenuItemClassName}
-                              suffix={
-                                <ChevronDown
-                                  size={13}
-                                  strokeWidth={1.8}
-                                  className="mr-1 shrink-0 transition-transform data-[expanded=true]:rotate-180"
-                                  data-expanded={groupExpanded || undefined}
-                                />
-                              }
-                            />
-                          ) : (
-                            <TabsTrigger value={tab.id} asChild>
-                              <MenuItem
-                                label={tab.label}
-                                active={activeTab === tab.id}
-                                className={resourceDialogRailItemClassName}
-                              />
-                            </TabsTrigger>
-                          )}
-                          {hasChildren && groupExpanded ? (
-                            <div className="grid gap-1">
-                              {tab.children?.map((child) => (
-                                <TabsTrigger key={child.id} value={child.id} asChild>
-                                  <MenuItem
-                                    label={child.label}
-                                    active={activeTab === child.id}
-                                    className={resourceDialogRailItemClassName}
-                                  />
-                                </TabsTrigger>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      )
-                    })}
-                  </MenuList>
-                </TabsList>
-              </div>
-
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <ScrollArea
-                  viewportProps={{ ref: scrollContainerRef }}
-                  contentProps={{
-                    className: cn('px-6 pt-5 pb-3', (activeTab === 'prompt' || activeTab === 'memory') && 'h-full')
-                  }}
-                  className="min-h-0 min-w-0 flex-1">
-                  {children}
-                </ScrollArea>
-                {/* Always-present bottom band: insets scrolling lists from the dialog's
-                    rounded-3xl corners so content never clips into them mid-scroll, and
-                    surfaces the save error inline when present. */}
-                <div className="flex min-h-6 shrink-0 items-center px-6 pb-4" aria-live="polite">
-                  {rootError ? <p className="text-destructive text-xs">{rootError}</p> : null}
-                </div>
-              </div>
-            </Tabs>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-export function AvatarField({
-  form,
-  emojiPickerOpen,
-  setEmojiPickerOpen,
-  fallback,
-  portalContainer,
-  size,
-  layout = 'stacked'
-}: {
-  form: UseFormReturn<any>
-  emojiPickerOpen: boolean
-  setEmojiPickerOpen: (open: boolean) => void
-  fallback: string
-  portalContainer: HTMLElement | null
-  size?: 'sm' | 'md'
-  layout?: 'stacked' | 'row'
-}) {
-  const { t } = useTranslation()
-  const avatar = form.watch('avatar')
-
-  return (
-    <FormField
-      control={form.control}
-      name="avatar"
-      render={({ field }) => (
-        <FormItem className={layout === 'row' ? editDialogFormRowClassName : undefined}>
-          <FormLabel className={layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal'}>
-            {t('common.avatar')}
-          </FormLabel>
-          <EmojiAvatarPicker
-            value={avatar}
-            fallback={fallback}
-            open={emojiPickerOpen}
-            onOpenChange={setEmojiPickerOpen}
-            onChange={field.onChange}
-            ariaLabel={t('library.config.dialogs.create.avatar_aria')}
-            portalContainer={portalContainer}
-            size={size}
-          />
-          <FormMessage className={layout === 'row' ? 'col-start-2' : undefined} />
-        </FormItem>
-      )}
-    />
-  )
-}
-
 export function TextInputField({
   form,
   name,
@@ -619,7 +230,9 @@ export function TextInputField({
   description,
   placeholder,
   required = false,
-  layout = 'stacked'
+  layout = 'stacked',
+  rows = 2,
+  textareaClassName
 }: {
   form: UseFormReturn<any>
   name: 'name' | 'description'
@@ -629,6 +242,8 @@ export function TextInputField({
   placeholder?: string
   required?: boolean
   layout?: 'stacked' | 'row'
+  rows?: number
+  textareaClassName?: string
 }) {
   const { t } = useTranslation()
 
@@ -651,10 +266,10 @@ export function TextInputField({
             {name === 'description' ? (
               <Textarea.Input
                 value={field.value}
-                rows={2}
+                rows={rows}
                 placeholder={placeholder}
                 onValueChange={field.onChange}
-                className="min-h-16"
+                className={cn('min-h-16', textareaClassName)}
               />
             ) : (
               <Input {...field} placeholder={placeholder} />
@@ -710,7 +325,8 @@ export function CompactModelField({
   setModelLabels: (labels: ModelLabels) => void
   onModelChange?: (modelId: UniqueModelId | null, model?: Model) => void
   onSettingsNavigate?: (navigate: () => void) => void
-  layout?: 'stacked' | 'row'
+  /** `chip`: the trigger alone, with the label kept for screen readers. */
+  layout?: 'stacked' | 'row' | 'chip'
   triggerClassName?: string
 }) {
   const { t } = useTranslation()
@@ -751,7 +367,11 @@ export function CompactModelField({
             />
           ) : (
             <FormLabel
-              className={cn(layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal', labelClassName)}>
+              className={cn(
+                layout === 'row' ? editDialogFormRowLabelClassName : 'font-normal',
+                layout === 'chip' && 'sr-only',
+                labelClassName
+              )}>
               {label}
             </FormLabel>
           )}
@@ -844,7 +464,14 @@ export function PromptVariablesPopover({ portalContainer }: { portalContainer: H
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <HelpIconButton ariaLabel={t('library.config.prompt.variables_title')} />
+        {/* A labelled chip, like the editor's own controls: a bare "?" hid that variables exist. */}
+        <Button
+          type="button"
+          variant="ghost"
+          className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0 font-normal text-muted-foreground! text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0">
+          <Braces className="size-3" aria-hidden="true" />
+          {t('library.config.prompt.variables_title')}
+        </Button>
       </PopoverTrigger>
       <PopoverContent
         portalContainer={portalContainer}

@@ -1,4 +1,4 @@
-import { setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
+import { insertAgentSessionMessages, setupTestDatabase, seedSessionRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { expect, it } from 'vitest'
 
@@ -104,17 +104,14 @@ it('projects child fees once and retains unbound auxiliary charges', () => {
     .insert(agentSessionTable)
     .values({ id: 'child-session', workspaceId: 'workspace', name: 'Child', orderKey: 'a0' })
     .run()
-  dbh.db
-    .insert(agentSessionMessageTable)
-    .values({
-      parentId: seedSessionRoot(dbh.db, 'child-session'),
-      id: 'child-message',
-      sessionId: 'child-session',
-      role: 'assistant',
-      data: { parts: [] },
-      status: 'success'
-    })
-    .run()
+  insertAgentSessionMessages(dbh.db, {
+    parentId: seedSessionRoot(dbh.db, 'child-session'),
+    id: 'child-message',
+    sessionId: 'child-session',
+    role: 'assistant',
+    data: { parts: [] },
+    status: 'success'
+  })
   const attribution = new AgentSessionUsageAttribution()
   attribution.capture('response')(invocation('visible-call'))
   attribution.capture('auxiliary')(invocation('summary-call'))

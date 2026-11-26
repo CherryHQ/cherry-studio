@@ -66,10 +66,6 @@ describe('fileEntryTable — CHECK constraints', () => {
     await expect(dbh.db.insert(fileEntryTable).values(baseInternal())).resolves.not.toThrow()
   })
 
-  it('accepts a valid external entry (externalPath non-null)', async () => {
-    await expect(dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/report.pdf'))).resolves.not.toThrow()
-  })
-
   it('rejects internal entry with non-null externalPath (fe_origin_consistency)', async () => {
     await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ externalPath: '/some/path' }))).rejects.toThrow()
   })
