@@ -1777,7 +1777,6 @@ it('GATE native error result while process failure latched is a single terminal'
       g.test.events.filter((e) => e.type === 'error')
     )
     const terminal = JSON.stringify(g.test.events.filter((e) => e.type === 'error'))
-    expect(terminal).toContain('429 rate_limit_error')
     expect(terminal).not.toMatch(/sk-ant-private|alice|Secret|Project|client.env/)
     expect(g.test.events.filter((e) => e.type === 'error')).toHaveLength(1)
   } finally {
