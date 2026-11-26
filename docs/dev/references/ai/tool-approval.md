@@ -55,7 +55,13 @@ persists, and resumes the stream.
 A card whose request is gone is never left answerable. When a connection or
 stream ends with an approval still pending, `ToolApprovalRegistry.onAborted`
 retires the persisted card to `output-error`, so the composer stops offering a
-question nothing can receive.
+question nothing can receive. When Pi Durable resumes an interactive turn on startup,
+a still-pending tool approval or Ask User Question registers a fresh interaction.
+Turns recorded without a desktop responder keep their headless behavior.
+
+Claude Code Plan Only omits built-in file mutation tools from the model's tool list.
+Switching into or out of Plan Only refreshes that list for the next turn. A switch
+into Plan Only during a turn also blocks file mutation calls immediately.
 
 MCP skill loading and file reads follow each Skill’s server-owned reading permission
 through ordinary tool approval. Unconfigured entries ask each time; Full Access skips

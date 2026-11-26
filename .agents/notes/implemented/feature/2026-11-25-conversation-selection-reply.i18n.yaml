@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/feature/2026-11-25-conversation-selection-reply.md
+2026-11-25-conversation-selection-reply.md: 6fdd4ef6bd469f609c1b4cd555fbe5ee95494d39
+2026-11-25-conversation-selection-reply.zh.md: 4d7c656ce873b7d2eaf38339f8425c7301347ddd

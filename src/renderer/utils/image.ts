@@ -979,9 +979,26 @@ const hasPositiveIntrinsicSvgLength = (value: string | null): boolean => {
  * Percentage/missing dimensions give that standalone image the browser's small
  * default intrinsic size, so the viewer's fit and zoom geometry starts from the
  * wrong box. Give only the preview clone an intrinsic vector size.
+ *
+ * The inline diagram is typically stretched to the chat width (e.g. a `200x80`
+ * viewBox shown at `~600px`), while the preview viewer never enlarges past the
+ * natural size (`fitScale <= 1`) and zooms via a rasterized CSS transform. A `1x`
+ * viewBox restore therefore looks shrunken and blurs on zoom/retina. Scale the
+ * restored size up (matching the `3x` PNG export) with a long-edge target so
+ * small diagrams fill the fullscreen dialog, capped for memory safety.
  */
+const PREVIEW_UPSCALE = 3
+const PREVIEW_TARGET_LONG_EDGE = 2400
+const PREVIEW_MAX_LONG_EDGE = 4096
+
 const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
   const clone = svgElement.cloneNode(true) as SVGElement
+  // Responsive inline styles would constrain the standalone `<img>`; the
+  // width/height attributes below govern the preview instead.
+  clone.style.removeProperty('max-width')
+  clone.style.removeProperty('max-height')
+  clone.style.removeProperty('width')
+  clone.style.removeProperty('height')
   if (
     hasPositiveIntrinsicSvgLength(clone.getAttribute('width')) ||
     hasPositiveIntrinsicSvgLength(clone.getAttribute('height'))
@@ -995,8 +1012,19 @@ const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
     .split(/[\s,]+/)
     .map(Number)
   if (viewBox?.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
-    clone.setAttribute('width', String(viewBox[2]))
-    clone.setAttribute('height', String(viewBox[3]))
+    const viewWidth = viewBox[2]
+    const viewHeight = viewBox[3]
+    const scale = Math.max(PREVIEW_UPSCALE, PREVIEW_TARGET_LONG_EDGE / Math.max(viewWidth, viewHeight))
+    let width = Math.round(viewWidth * scale)
+    let height = Math.round(viewHeight * scale)
+    const longest = Math.max(width, height)
+    if (longest > PREVIEW_MAX_LONG_EDGE) {
+      const downscale = PREVIEW_MAX_LONG_EDGE / longest
+      width = Math.round(width * downscale)
+      height = Math.round(height * downscale)
+    }
+    clone.setAttribute('width', String(width))
+    clone.setAttribute('height', String(height))
   }
 
   return clone

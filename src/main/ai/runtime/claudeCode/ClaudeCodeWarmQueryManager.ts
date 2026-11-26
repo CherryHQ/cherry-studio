@@ -3,10 +3,11 @@ import { createHash } from 'node:crypto'
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
+import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { openRuntimeMemoryGuard } from '@main/ai/memory/memoryRuntime'
-import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
+import { claudeBranchQueryIdentity, prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { deriveRootSpanId } from '@shared/data/types/trace'
@@ -178,9 +179,6 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly closingQueries = new Map<string, Set<Promise<void>>>()
   private readonly failedClosures = new Map<string, Set<WarmQueryEntry>>()
 
-  // `ai.agent.session.prewarm` / `ai.agent.session.close_warm` (IpcApi, validated by the router)
-  // delegate to the public methods below; this service registers no IPC of its own.
-
   async prewarmAgentSession(sessionId: string): Promise<void> {
     const preparing = this.prepareAgentSession(sessionId)
     const preparations = this.preparingSessions.get(sessionId) ?? new Set<Promise<void>>()
@@ -203,16 +201,17 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       await guard.check()
       if (!warmRequest) return
+      const storedResume = messages.getLastRuntimeResumeToken(sessionId) ?? undefined
       const context = prepareClaudeBranch(
         sessionId,
         resolveClaudeConfigDirectory(warmRequest.options.env),
-        warmRequest.options.resume
+        storedResume,
+        undefined,
+        true
       )
       warmRequest.options = {
         ...warmRequest.options,
-        ...(warmRequest.options.resume || context.bindingState === 'bound'
-          ? { resume: warmRequest.options.resume ?? context.nativeThreadId! }
-          : { sessionId: context.nativeThreadId! })
+        ...claudeBranchQueryIdentity(context, storedResume)
       }
       const traced = await this.withTraceEnv(sessionId, warmRequest)
       await guard.check()
@@ -248,12 +247,6 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (!traceEnv) return request
 
     return { ...request, options: { ...request.options, env: { ...request.options.env, ...traceEnv } } }
-  }
-
-  closeAgentSessionWarm(sessionId: string): void {
-    void this.close(sessionId).catch((error) => {
-      logger.debug('Failed to close agent session warm query', { sessionId, error })
-    })
   }
 
   async prewarm(request: WarmQueryRequest): Promise<void> {

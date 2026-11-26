@@ -109,10 +109,13 @@ const STATS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 export class AssistantDataService {
   private readonly memoryAccessRevoked = new Emitter<string>()
   readonly onMemoryAccessRevoked = this.memoryAccessRevoked.event
+  private readonly changed = new Emitter<readonly string[]>()
+  readonly onChanged = this.changed.event
 
   notifyReadModelChange(assistantIds: readonly string[], kind: 'membership' | 'projection'): void {
     if (assistantIds.length === 0) return
     const entityIds = [...new Set(assistantIds)]
+    this.changed.fire(entityIds)
     notifyDataApiDataChange([
       { endpoint: '/assistants', kind, entityIds },
       { endpoint: '/assistants/:id', entityIds }

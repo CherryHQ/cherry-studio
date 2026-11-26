@@ -1,35 +1,40 @@
 import { parse as parsePartialJson } from 'partial-json'
 import { use, useDeferredValue, useMemo } from 'react'
 
-import { PartsContext, useScopedPartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { useScopedPartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
+import { SubagentStatusContext } from '../../blocks/SubagentStatusContext'
 import { AgentToolsType, isAskUserQuestionToolName } from '../shared/agentToolTypes'
 import { getEffectiveStatus, StreamingContext } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { isToolPartAwaitingApproval } from '../toolResponse'
+import { useToolResponsePreview } from '../useToolResponsePreview'
 import { AgentToolCallCard } from './AgentToolCallCard'
 import { AskUserQuestionCard } from './AskUserQuestionCard'
 import { NavigateToolInline } from './NavigateTool'
 import { isCherrySessionToolResponse } from './sessionToolResult'
-import { getSubagentTaskStatus } from './subagentStatus'
 
-export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalToolResponse }) {
+export function AgentExecutionTimeline({ toolResponse: originalResponse }: { toolResponse: NormalToolResponse }) {
+  const name = originalResponse.tool.name
+  const { toolResponse } = useToolResponsePreview(
+    originalResponse,
+    isAskUserQuestionToolName(name) ||
+      name === AgentToolsType.Agent ||
+      name === AgentToolsType.Task ||
+      name === AgentToolsType.WebSearch ||
+      name === AgentToolsType.WebFetch ||
+      name === AgentToolsType.ToolSearch ||
+      name === 'mcp__assistant__navigate' ||
+      isCherrySessionToolResponse(originalResponse)
+  )
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
 
   const partsMap = useScopedPartsMap()
   const awaitingApproval = isToolPartAwaitingApproval(partsMap, toolResponse.toolCallId)
 
   const isSubagentTool = tool?.name === AgentToolsType.Agent || tool?.name === AgentToolsType.Task
-  // A steer routes later task events to a continuation message, so only subagent cards read the complete map.
-  const taskPartsMap = isSubagentTool ? use(PartsContext) : null
-  const taskStatus = useMemo(
-    () =>
-      taskPartsMap
-        ? getSubagentTaskStatus(Object.values(taskPartsMap).flat(), toolResponse.toolCallId, status)
-        : undefined,
-    [taskPartsMap, status, toolResponse.toolCallId]
-  )
+  const taskStatus = isSubagentTool ? use(SubagentStatusContext)(toolResponse.toolCallId, status) : undefined
 
   const deferredPartialArguments = useDeferredValue(partialArguments)
   const parsedPartialArgs = useMemo(() => {
@@ -81,8 +86,4 @@ export function AgentExecutionTimeline({ toolResponse }: { toolResponse: NormalT
       <ToolApprovalOutcome approval={toolResponse.approval} />
     </>
   )
-}
-
-export function AgentToolRenderer(props: { toolResponse: NormalToolResponse }) {
-  return <AgentExecutionTimeline {...props} />
 }
