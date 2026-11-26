@@ -1,9 +1,10 @@
 import os from 'node:os'
 
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
-import type { UIMessage } from 'ai'
+import { jsonSchema, type UIMessage } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { countToolTokens } from '@main/ai/tokens/footprint'
 import type * as TokenProfiles from '@main/ai/tokens/profiles'
 import { resolveOllamaRequestNumCtx } from '@main/ai/utils/ollamaRequestNumCtx'
 import type { Model } from '@shared/data/types/model'
@@ -739,7 +740,9 @@ describe('resolveAttachmentBudget pricing of the existing prompt', () => {
 
 describe('resolveAttachmentBudget framing parity with the dispatch guard', () => {
   it('charges system message overhead and per-tool framing like the converted call', async () => {
-    const tools = { lookup: { description: 'find', inputSchema: { type: 'object', properties: {} } } } as never
+    const tools = {
+      lookup: { description: 'find', inputSchema: jsonSchema({ type: 'object', properties: {} }) }
+    } as never
     const base = {
       provider: { id: 'test', endpointConfigs: {} } as Provider,
       model: {
@@ -763,6 +766,11 @@ describe('resolveAttachmentBudget framing parity with the dispatch guard', () =>
     // One char per token in this suite: 50 text + 3 message overhead.
     expect(plain!.tokens - withSystem!.tokens).toBe(53)
     // The tool costs its definition plus the 10-token framing the dispatch guard adds.
-    expect(plain!.tokens - withTool!.tokens).toBeGreaterThanOrEqual(10)
+    expect(plain!.tokens - withTool!.tokens).toBe(
+      countToolTokens(
+        { name: 'lookup', description: 'find', schema: { type: 'object', properties: {} } },
+        charTokenizer
+      ) + 10
+    )
   })
 })
