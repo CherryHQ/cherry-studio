@@ -1,13 +1,18 @@
 import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { PassThrough } from 'node:stream'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import type { StdioProcess } from '@cherrystudio/agent-runtime/stdio'
+import { bindAccount } from '@main/ai/runtime/acp/acpDriver'
 import { resolveAcpLaunch, resolveAcpModelLaunch } from '@main/ai/runtime/acp/acpLaunch'
 import { resolveClaudeLaunch } from '@main/ai/runtime/claudeCode/localClaudeLaunch'
-import { resolveCliProgram, systemAgentEntry } from '@main/ai/runtime/cli/cliProgram'
+import { resolveCliProgram } from '@main/ai/runtime/cli/cliProgram'
+import { systemAgentEntry } from '@main/ai/runtime/cli/installedCli'
+import { spawnLocalAgentStdio } from '@main/ai/runtime/stdioProcess'
 import type * as Platform from '@main/core/platform'
 import type * as ShellEnv from '@main/utils/shellEnv'
 import { getLocalAgentProtocol, type LocalAgentConfiguration } from '@shared/ai/localAgent'
@@ -28,6 +33,7 @@ const inventory = vi.hoisted(() => ({
   snapshots: {} as Record<string, BinaryToolSnapshot>,
   bundledGitDir: null as string | null
 }))
+vi.mock('@main/ai/runtime/stdioProcess', () => ({ spawnLocalAgentStdio: vi.fn() }))
 vi.mock('@main/core/platform', async (importOriginal) => ({
   ...(await importOriginal<typeof Platform>()),
   get isWin() {
@@ -198,45 +204,12 @@ describe('local agent installation resolution', () => {
     })
   })
 
-  it('routes Antigravity WebSockets through the configured HTTP proxy without replacing explicit routes', async () => {
-    installSystemCommands('agy_acp_server.par')
-    inventory.getRawShellEnv.mockResolvedValue({ HTTPS_PROXY: 'http://proxy:8100', NO_PROXY: 'localhost' })
-    const agent = { ...config, presetId: 'antigravity-acp' }
-    const { env } = await resolveLocalAgentLaunch(agent)
-    expect(env).toMatchObject({ WSS_PROXY: 'http://proxy:8100', WS_PROXY: 'http://proxy:8100', NO_PROXY: 'localhost' })
-    const custom = await resolveLocalAgentLaunch({ ...agent, env: { WSS_PROXY: 'http://websocket:8123' } })
-    expect(custom.env.WSS_PROXY).toBe('http://websocket:8123')
-    const socks = await resolveLocalAgentLaunch({ ...agent, env: { ALL_PROXY: 'socks5://proxy:1080' } })
-    expect(socks.env.WSS_PROXY).toBeUndefined()
-  })
-
-  it('uses the applied Cherry proxy when the Antigravity shell snapshot predates proxy initialization', async () => {
-    vi.stubEnv('CHERRY_STUDIO_NODE_PROXY_RULES', 'http://desktop:9123')
-    vi.stubEnv('HTTPS_PROXY', 'http://desktop:9123')
-    vi.stubEnv('https_proxy', 'http://desktop:9123')
-    vi.stubEnv('no_proxy', 'localhost')
-    installSystemCommands('agy_acp_server.par')
-    try {
-      const { env } = await resolveLocalAgentLaunch({ ...config, presetId: 'antigravity-acp' })
-      expect(env).toMatchObject(
-        process.platform === 'win32'
-          ? { WSS_PROXY: 'http://desktop:9123', NO_PROXY: 'localhost' }
-          : { WSS_PROXY: 'http://desktop:9123', no_proxy: 'localhost' }
-      )
-    } finally {
-      vi.unstubAllEnvs()
-    }
-  })
-
-  it('starts the native ACP server when only terminal Antigravity is installed', async () => {
+  it('signs into Antigravity through the same CLI used for ACP sessions', async () => {
     installSystemCommands('agy')
-    expect((await detectLocalAgents()).find((entry) => entry.presetId === 'antigravity-acp')?.path).toBe(
-      '/user/bin/agy'
+    await openLocalAgentTerminal({ ...config, presetId: 'antigravity-acp', login: true })
+    expect(inventory.openTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({ executable: '/user/bin/agy', args: ['acp', '--login'] })
     )
-    expect(await resolveLocalAgentLaunch({ ...config, presetId: 'antigravity-acp' })).toMatchObject({
-      executable: '/user/bin/agy',
-      args: ['acp']
-    })
   })
 
   it('uses the environment promoted during discovery when launching a system CLI', async () => {
@@ -416,10 +389,16 @@ agent_servers:
 
   it.each([
     ['codex', 'codex', ['login']],
+    ['auggie', 'auggie', ['auth', 'login']],
+    ['command-code', 'command-code', ['login']],
+    ['copilot', 'copilot', ['login']],
     ['claude', 'claude', ['auth', 'login']],
     ['kimi', 'kimi', ['login']],
     ['opencode', 'opencode', ['auth', 'login']],
-    ['qoder', 'qodercli', ['login']],
+    ['qoder', 'qoderclicn', ['login']],
+    ['qoder-global', 'qodercli', ['login']],
+    ['trae', 'traecli', ['login']],
+    ['qwen', 'qwen', []],
     ['pi-acp', 'pi', ['auth', 'login', 'openai-codex']],
     ['poolside', 'pool', ['login']]
   ] as const)('opens the native %s sign-in with its login arguments', async (presetId, executable, args) => {
@@ -434,7 +413,7 @@ agent_servers:
   })
 
   it('rejects login for a CLI without a terminal login command', async () => {
-    await expect(openLocalAgentTerminal({ ...config, presetId: 'qwen', login: true })).rejects.toThrow(
+    await expect(openLocalAgentTerminal({ ...config, presetId: 'kilo', login: true })).rejects.toThrow(
       'supported terminal login'
     )
     expect(inventory.openTerminal).not.toHaveBeenCalled()
@@ -556,7 +535,7 @@ agent_servers:
   it.each([
     ['copilot', 'copilot', ['--acp']],
     ['deepseek-harness', 'dsh', ['--profile', 'acp']],
-    ['antigravity-acp', 'agy_acp_server.par', process.platform === 'linux' ? ['--uid='] : []],
+    ['antigravity-acp', 'agy', ['acp']],
     ['factory-droid', 'droid', ['exec', '--output-format', 'acp-daemon']]
   ] as const)('launches %s with its native ACP invocation', async (presetId, executable, args) => {
     const executablePath = `/user/bin/${executable}`
@@ -594,7 +573,7 @@ agent_servers:
     })
   })
 
-  it('prefers the system Qoder CLI to its old Code Mate installation across command names', async () => {
+  it('keeps each Qoder preset on its own CLI even when the other edition is on PATH', async () => {
     inventory.snapshots.qoderclicn = {
       name: 'qoderclicn',
       availability: { source: 'mise', path: '/managed/qoderclicn' }
@@ -602,20 +581,25 @@ agent_servers:
     inventory.snapshots.qodercli = { name: 'qodercli', availability: { source: 'system', path: '/system/qodercli' } }
     const found = await detectLocalAgents()
     expect(found.find((entry) => entry.presetId === 'qoder')).toMatchObject({
+      source: 'mise',
+      path: '/managed/qoderclicn'
+    })
+    expect(found.find((entry) => entry.presetId === 'qoder-global')).toMatchObject({
       source: 'system',
       path: '/system/qodercli'
     })
-    expect((await resolveLocalAgentLaunch({ ...config, presetId: 'qoder' })).executable).toBe('/system/qodercli')
+    expect((await resolveLocalAgentLaunch({ ...config, presetId: 'qoder' })).executable).toBe('/managed/qoderclicn')
+    expect((await resolveLocalAgentLaunch({ ...config, presetId: 'qoder-global' })).executable).toBe('/system/qodercli')
   })
 
-  it('detects the Antigravity adapter and interactive CLI independently', async () => {
+  it('detects the official Antigravity CLI for both ACP and the terminal', async () => {
     installSystemCommands('agy_acp_server.par')
     const findAntigravity = async () =>
       (await detectLocalAgents()).find((entry) => entry.presetId === 'antigravity-acp')
-    expect(await findAntigravity()).toMatchObject({ path: '/user/bin/agy_acp_server.par', terminalPath: undefined })
+    expect(await findAntigravity()).toMatchObject({ source: 'none' })
     installSystemCommands('agy')
     expect(await findAntigravity()).toMatchObject({
-      path: '/user/bin/agy_acp_server.par',
+      path: '/user/bin/agy',
       terminalPath: '/user/bin/agy'
     })
   })
@@ -805,6 +789,7 @@ agent_servers:
       await writeFile(macBundle, '// zcode\n')
       const viaMacBundle = await resolveLocalAgentLaunch({ ...config, presetId: 'zcode' })
       expect(viaMacBundle.executable).toBe('/user/bin/zcode-acp')
+      expect(viaMacBundle.env.ZCODE_BIN).toBe(macBundle)
     }
 
     // Windows bundled desktop zcode.cjs under LOCALAPPDATA/Programs/ZCode
@@ -828,6 +813,30 @@ agent_servers:
       expect.objectContaining({ executable: '/user/bin/amp', args: ['login'] })
     )
     await expect(resolveLocalAgentLaunch(selected)).rejects.toMatchObject({ code: 'LOCAL_AGENT_NOT_INSTALLED' })
+  })
+
+  it('reads Amp subscription usage without requiring the chat adapter', async () => {
+    installSystemCommands('amp')
+    vi.mocked(spawnLocalAgentStdio).mockImplementationOnce(({ executable, args, env }) => {
+      const stdout = new PassThrough()
+      const ok = executable === '/user/bin/amp' && args.length === 1 && args[0] === 'usage' && env.HOME === '/user/home'
+      const closed: StdioProcess['closed'] = new Promise((resolve) => {
+        stdout.once('end', () => resolve({ kind: 'exited', code: ok ? 0 : 1, signal: null }))
+      })
+      stdout.end(ok ? 'Free tier: $3/$10 remaining\n' : '')
+      return {
+        stdin: new PassThrough(),
+        stdout,
+        stderr: new PassThrough().end(),
+        closed,
+        closeAndJoin: async () => {}
+      }
+    })
+    const account = bindAccount({ ...config, presetId: 'amp-acp' })
+    await expect(account.readSubscriptionUsage?.(new AbortController().signal)).resolves.toMatchObject({
+      status: 'available',
+      windows: [{ label: 'Free tier', usedRatio: 0.7 }]
+    })
   })
 
   it('requires amp CLI when launching amp-acp bridge without an executable override', async () => {

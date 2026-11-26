@@ -9,6 +9,7 @@ export const glmCli = {
   externalCredentialMethods: ['z-ai-api-key', 'z_ai_api_key'],
   name: 'GLM Agent',
   protocol: 'acp',
+  subscriptionUsage: true,
   executable: 'glm-acp-agent',
   args: [],
   helpUrl: 'https://github.com/stefandevo/glm-acp-agent'

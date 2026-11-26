@@ -60,4 +60,12 @@ describe('resolveCliAuthCommand', () => {
     expect(resolveCliAuthCommand('antigravity-acp', 'oauth-personal')).toBeUndefined()
     expect(resolveCliAuthCommand('claude', 'unknown-method')).toBeUndefined()
   })
+
+  it('uses native ZCode OAuth and MiniMax login commands', () => {
+    expect(resolveCliAuthCommand('zcode', 'zcode-browser')).toEqual({
+      args: ['login', '--no-browser'],
+      autoOpenUrl: true
+    })
+    expect(resolveCliAuthCommand('minimax', 'minimax-browser')).toEqual({ args: ['login'] })
+  })
 })

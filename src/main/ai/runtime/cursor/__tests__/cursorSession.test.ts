@@ -3,6 +3,10 @@ import { afterEach, expect, it, vi } from 'vitest'
 
 import { listCursorModels, openCursorSession, sendCursorTurn, type SDKAgent } from '@cherrystudio/agent-runtime-cursor'
 
+const env = {}
+const readShellEnv = async () => ({})
+const signal = new AbortController().signal
+
 afterEach(() => vi.restoreAllMocks())
 
 it.each([undefined, 'saved-agent'])('opens %s with the native workspace, toolset and permissions', async (agentId) => {
@@ -29,7 +33,9 @@ it.each([undefined, 'saved-agent'])('opens %s with the native workspace, toolset
     vi.spyOn(Agent, 'create').mockImplementation(inspect)
     vi.spyOn(Agent, 'resume').mockRejectedValue(new Error('Tried to resume a new chat'))
   }
-  await expect(openCursorSession({ cwd, model: 'composer', browser, agentId, headless: true })).rejects.toBe(opened)
+  await expect(
+    openCursorSession({ cwd, model: 'composer', browser, agentId, headless: true, env, readShellEnv })
+  ).rejects.toBe(opened)
 })
 
 it('sets an advertised effort on the next SDK send and preserves the selected context', async () => {
@@ -60,7 +66,7 @@ it('sets an advertised effort on the next SDK send and preserves the selected co
       ]
     }
   ])
-  expect(await listCursorModels()).toMatchObject([
+  expect(await listCursorModels(env, readShellEnv, signal)).toMatchObject([
     {
       id: 'composer',
       effort: { defaultValue: 'low', options: [{ value: 'low' }, { value: 'xhigh', name: 'Extra high' }] }
@@ -81,7 +87,7 @@ it('sets an advertised effort on the next SDK send and preserves the selected co
     model: { id: 'composer', params: [{ id: 'context', value: 'long' }] },
     send
   } as SDKAgent)
-  const { agent, effort } = await openCursorSession({ cwd: '/workspace', model: 'composer' })
+  const { agent, effort } = await openCursorSession({ cwd: '/workspace', model: 'composer', env, readShellEnv })
   expect(effort?.control).toMatchObject({
     modelId: 'composer',
     currentValue: 'low',

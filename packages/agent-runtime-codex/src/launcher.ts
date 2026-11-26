@@ -1,3 +1,8 @@
+import type {
+  RuntimeAccountResult,
+  SubscriptionUsageResult,
+  SubscriptionUsageWindow
+} from '@cherrystudio/agent-runtime'
 import type { InstalledCli } from '@cherrystudio/agent-runtime/cli'
 import type { LaunchSpec, SpawnStdio } from '@cherrystudio/agent-runtime/stdio'
 
@@ -110,11 +115,20 @@ export function launchCodexAppServer(
 
 export type CodexProbeClient = Pick<CodexAppServerClient, 'listModels'>
 
-export async function withCodexAppServer<T>(
+export function withCodexAppServer<T>(
   target: CodexLaunch,
   host: CodexProcessHost,
   signal: AbortSignal,
   read: (client: CodexProbeClient) => T | Promise<T>
+): Promise<T> {
+  return withManagementClient(target, host, signal, read)
+}
+
+async function withManagementClient<T>(
+  target: CodexLaunch,
+  host: CodexProcessHost,
+  signal: AbortSignal,
+  read: (client: CodexAppServerClient) => T | Promise<T>
 ): Promise<T> {
   signal.throwIfAborted()
   const server = launchCodexAppServer(target, host)
@@ -124,9 +138,85 @@ export async function withCodexAppServer<T>(
   try {
     const client = await server.ready
     signal.throwIfAborted()
-    return await read(client)
+    const result = await read(client)
+    signal.throwIfAborted()
+    return result
   } finally {
     signal.removeEventListener('abort', cancel)
     await server.close()
+  }
+}
+
+export function readCodexAccount(
+  target: CodexLaunch,
+  host: CodexProcessHost,
+  signal: AbortSignal
+): Promise<RuntimeAccountResult> {
+  if (target.env.OPENAI_API_KEY || target.env.OPENAI_BASE_URL) return Promise.resolve({ status: 'unknown' })
+  return withManagementClient<RuntimeAccountResult>(target, host, signal, async (client) => {
+    const { config } = await client.request('config/read', { cwd: target.cwd })
+    if (config.model_provider && config.model_provider !== 'openai') return { status: 'unsupported' }
+    const { account, requiresOpenaiAuth, userId, workspaceRouting } = await client.request('account/read', {
+      refreshToken: false
+    })
+    if (!requiresOpenaiAuth) return { status: 'unsupported' }
+    if (!account) return { status: 'signed-out' }
+    if (account.type !== 'chatgpt') return { status: 'signed-in' }
+    const email = account.email ?? undefined
+    const id = userId ?? undefined
+    const workspace = workspaceRouting ? { id: workspaceRouting.chatgptAccountId } : undefined
+    return { status: 'signed-in', ...(email || id || workspace ? { account: { email, id, workspace } } : {}) }
+  })
+}
+
+export async function readCodexSubscriptionUsage(
+  target: CodexLaunch,
+  host: CodexProcessHost,
+  signal: AbortSignal
+): Promise<SubscriptionUsageResult> {
+  if (target.env.OPENAI_API_KEY || target.env.OPENAI_BASE_URL) return { status: 'unsupported' }
+  try {
+    return await withManagementClient(target, host, signal, async (client): Promise<SubscriptionUsageResult> => {
+      const { config } = await client.request('config/read', { cwd: target.cwd })
+      if (config.model_provider && config.model_provider !== 'openai') return { status: 'unsupported' }
+      const { account, requiresOpenaiAuth, userId, workspaceRouting } = await client.request('account/read', {
+        refreshToken: false
+      })
+      if (!requiresOpenaiAuth) return { status: 'unsupported' }
+      if (!account) return { status: 'signed-out' }
+      if (account.type !== 'chatgpt') return { status: 'unsupported' }
+
+      const { accountId, rateLimits, rateLimitsByLimitId } = await client.request('account/rateLimits/read', {})
+      const current = await client.request('account/read', { refreshToken: false })
+      const workspaceId = workspaceRouting?.chatgptAccountId
+      if (
+        account.type !== current.account?.type ||
+        account.email !== current.account.email ||
+        userId !== current.userId ||
+        workspaceId !== current.workspaceRouting?.chatgptAccountId ||
+        (accountId && workspaceId && accountId !== workspaceId)
+      )
+        return { status: 'unavailable' }
+      const buckets = Object.entries(rateLimitsByLimitId ?? {})
+      if (!buckets.length) buckets.push([rateLimits.limitId ?? 'codex', rateLimits])
+      const windows: SubscriptionUsageWindow[] = []
+      for (const [id, bucket] of buckets) {
+        for (const name of ['primary', 'secondary'] as const) {
+          const window = bucket[name]
+          if (!window) continue
+          windows.push({
+            id: id + ':' + name,
+            label: bucket.limitName || id,
+            usedRatio: window.usedPercent / 100,
+            durationMinutes: window.windowDurationMins ?? undefined,
+            resetsAt: window.resetsAt == null ? undefined : window.resetsAt * 1000
+          })
+        }
+      }
+      return windows.length ? { status: 'available', readAt: Date.now(), windows } : { status: 'unavailable' }
+    })
+  } catch (error) {
+    signal.throwIfAborted()
+    return { status: error instanceof CodexRequestError && error.code === -32601 ? 'unsupported' : 'unavailable' }
   }
 }

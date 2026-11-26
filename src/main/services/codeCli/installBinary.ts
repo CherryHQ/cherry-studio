@@ -12,7 +12,7 @@ import unbzip2 from 'unbzip2-stream'
 
 import { application } from '@application'
 import type { CliInstallPlan } from '@cherrystudio/agent-runtime/cli'
-import { systemAgentEntry, systemAgentWrapper } from '@main/ai/runtime/cli/cliProgram'
+import { systemAgentEntry, systemAgentWrapper } from '@main/ai/runtime/cli/installedCli'
 import { isOutsidePath } from '@main/utils/file'
 import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 

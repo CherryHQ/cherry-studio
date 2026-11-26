@@ -5,6 +5,7 @@ import {
   acpGatewayPath,
   type AcpHostBinary,
   type AcpJsonModelProfile,
+  type AcpLaunch,
   type AcpGatewayConfig
 } from '@cherrystudio/agent-runtime-acp/profile'
 
@@ -96,10 +97,19 @@ const zcodeProfile = {
   }
 } satisfies AcpJsonModelProfile<'zcode-config'>
 
+function prepareZCodeLoginCommand(command: AcpLaunch & { executable: string }) {
+  const executable = command.env.ZCODE_BIN
+  if (!executable) throw new Error('Install ZCode Desktop or set ZCODE_BIN to its CLI')
+  return /\.[cm]?js$/i.test(executable)
+    ? { ...command, executable: command.env.ZCODE_NODE || 'node', args: [executable, ...command.args] }
+    : { ...command, executable }
+}
+
 export const zcodePreset = {
   id: zcodeCli.id,
   gateway: zcodeGateway,
   profile: zcodeProfile,
   catalogId: zcodeModelId,
-  hostBinary: zcodeHostBinary
+  hostBinary: zcodeHostBinary,
+  prepareLoginCommand: prepareZCodeLoginCommand
 } as const

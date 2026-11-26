@@ -24,3 +24,5 @@ export const copilotGateway = {
     }
   }
 } satisfies AcpGatewayConfig<'copilot-providers'>
+
+export { readCopilotAccount, readCopilotSubscriptionUsage } from './accountUsage'

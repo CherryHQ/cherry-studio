@@ -1,42 +1,43 @@
 import { stripVTControlCharacters } from 'node:util'
 
-import { getCursorAuthStatus } from '@main/ai/runtime/cursor/cursorAccount'
+import type { RuntimeAccountResult } from '@cherrystudio/agent-runtime'
 import { CommandFailedError, executeCommand } from '@main/utils/processRunner'
 import { getLocalAgentPreset, type LocalAgentConfiguration } from '@shared/ai/localAgent'
-import type { OutputFor } from '@shared/ipc/types'
 
 import { resolveLocalAgentCli } from './localAgentCli'
 
-type AuthStatus = OutputFor<'ai.local_agents.auth_status'>
-
-export async function getLocalAgentAuthStatus(config: LocalAgentConfiguration): Promise<AuthStatus> {
+export async function readCliAccount(
+  config: LocalAgentConfiguration,
+  signal?: AbortSignal
+): Promise<RuntimeAccountResult> {
   const preset = getLocalAgentPreset(config.presetId)
-  if (preset?.protocol === 'cursor') return getCursorAuthStatus(config)
-  const probe = preset?.authStatus
-  if (!preset || !probe) return 'unsupported'
+  const probe = preset?.accountProbe
+  if (!preset || !probe) return { status: 'unsupported' }
   if (
     config.args.length &&
     (config.args.length !== preset.args.length || config.args.some((arg, i) => arg !== preset.args[i]))
   )
-    return 'unsupported'
+    return { status: 'unsupported' }
   try {
-    const launch = await resolveLocalAgentCli(config)
+    const launch = await resolveLocalAgentCli(config, signal)
     return await executeCommand(launch.executable, [...probe.args], {
       env: launch.env,
-      includeStderr: probe.includeStderr ?? false,
       timeout: 10000,
-      maxOutputBytes: 16384
+      maxOutputBytes: 16384,
+      ...(probe.stdin !== undefined && { stdin: probe.stdin })
     }).then(
-      (output) => probe.parse(stripVTControlCharacters(output)),
+      (output) => probe.parse(stripVTControlCharacters(output), launch.env),
       (error: unknown) => {
-        if (error instanceof CommandFailedError && error.code === 1) {
-          const output = probe.includeStderr ? [error.stdout, error.stderr].join('\n') : error.stdout
-          if (probe.parse(stripVTControlCharacters(output)) === 'signed-out') return 'signed-out'
+        if (error instanceof CommandFailedError && error.code === probe.signedOutExitCode) {
+          const result = probe.parse(stripVTControlCharacters(error.stdout), launch.env)
+          if (result.status === 'signed-out') return result
+          const diagnostics = probe.parse(stripVTControlCharacters(error.stderr), launch.env)
+          if (diagnostics.status === 'signed-out') return diagnostics
         }
-        return 'unknown'
+        return { status: 'unknown' }
       }
     )
   } catch {
-    return 'unknown'
+    return { status: 'unknown' }
   }
 }

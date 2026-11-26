@@ -1,8 +1,4 @@
-import {
-  parseBooleanLoginStatus,
-  type CliAuthStatusProbe,
-  type PermissionModeCatalog
-} from '@cherrystudio/agent-runtime/cli'
+import type { CliAccountProbe, PermissionModeCatalog } from '@cherrystudio/agent-runtime/cli'
 
 export const CLAUDE_PERMISSION_MODES = {
   id: 'claude-mode',
@@ -38,14 +34,32 @@ export const claudeCli = {
       kind: 'browser'
     }
   ],
-  authStatus: {
+  accountProbe: {
+    signedOutExitCode: 1,
     args: ['auth', 'status', '--json'],
-    parse: (output) => parseBooleanLoginStatus(output, 'loggedIn')
-  } satisfies CliAuthStatusProbe,
+    parse(output, env) {
+      try {
+        const reply: unknown = JSON.parse(output)
+        if (!reply || typeof reply !== 'object' || !('loggedIn' in reply)) return { status: 'unknown' }
+        if (reply.loggedIn === false) return { status: 'signed-out' }
+        if (reply.loggedIn !== true) return { status: 'unknown' }
+        if (env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN || env.ANTHROPIC_BASE_URL) return { status: 'signed-in' }
+        if ('apiProvider' in reply && reply.apiProvider !== 'firstParty') return { status: 'signed-in' }
+        const email = 'email' in reply && typeof reply.email === 'string' ? reply.email : undefined
+        const id = 'orgId' in reply && typeof reply.orgId === 'string' ? reply.orgId : undefined
+        const name = 'orgName' in reply && typeof reply.orgName === 'string' ? reply.orgName : undefined
+        const workspace = id || name ? { id, name } : undefined
+        return { status: 'signed-in', ...(email || workspace ? { account: { email, workspace } } : {}) }
+      } catch {
+        return { status: 'unknown' }
+      }
+    }
+  } satisfies CliAccountProbe,
   loginArgs: ['auth', 'login'],
   terminalArgs: [],
   name: 'Claude Code',
   protocol: 'claude',
+  subscriptionUsage: true,
   defaultMode: CLAUDE_PERMISSION_MODES,
   executable: 'claude',
   npmPackage: '@anthropic-ai/claude-code',

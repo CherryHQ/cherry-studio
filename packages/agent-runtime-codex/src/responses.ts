@@ -34,12 +34,26 @@ const skill = z.looseObject({
 const empty = z.looseObject({})
 const turn = z.looseObject({ id: z.string() })
 
+const rateLimitWindow = z.object({
+  usedPercent: z.number().nonnegative(),
+  windowDurationMins: z.number().positive().nullish(),
+  resetsAt: z.number().nonnegative().nullish()
+})
+const rateLimitSnapshot = z.object({
+  limitId: z.string().nullish(),
+  limitName: z.string().nullish(),
+  primary: rateLimitWindow.nullish(),
+  secondary: rateLimitWindow.nullish()
+})
 export const goalSchema = z.object({ threadId: z.string(), objective: z.string(), status: z.string() })
 export const responses = {
   'model/list': z.looseObject({ data: z.array(model), nextCursor: z.string().nullish() }),
   'skills/list': z.looseObject({ data: z.array(z.looseObject({ skills: z.array(skill) })) }),
   'config/read': z.looseObject({
-    config: z.looseObject({ mcp_servers: z.record(z.string().regex(/^[\w-]+$/), z.unknown()).nullish() })
+    config: z.looseObject({
+      model_provider: z.string().nullish(),
+      mcp_servers: z.record(z.string().regex(/^[\w-]+$/), z.unknown()).nullish()
+    })
   }),
   'thread/start': thread,
   'thread/resume': thread,
@@ -64,6 +78,17 @@ export const responses = {
   'turn/start': z.looseObject({ turn }),
   'turn/interrupt': empty,
   'review/start': z.looseObject({ turn, reviewThreadId: z.string() }),
+  'account/read': z.object({
+    account: z.object({ type: z.string(), email: z.string().nullish() }).nullish(),
+    requiresOpenaiAuth: z.boolean(),
+    userId: z.string().nullish(),
+    workspaceRouting: z.object({ chatgptAccountId: z.string() }).nullish()
+  }),
+  'account/rateLimits/read': z.object({
+    accountId: z.string().nullish(),
+    rateLimits: rateLimitSnapshot,
+    rateLimitsByLimitId: z.record(z.string(), rateLimitSnapshot).nullish()
+  }),
   'account/usage/read': z.record(z.string(), z.unknown()),
   gitDiffToRemote: z.looseObject({ diff: z.string() }),
   'command/exec': z.looseObject({ stdout: z.string() }),

@@ -17,7 +17,6 @@ import { resolveCodexLaunch } from '@main/ai/runtime/codex/codexLaunch'
 import { BaseService } from '@main/core/lifecycle'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
-import { installBinaryAgent } from '../installBinary'
 import { detectLocalAgents } from '../localAgentCli'
 import { LocalAgentInstallService } from '../LocalAgentInstallService'
 
@@ -252,24 +251,8 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     expect(fs.existsSync(path.join(state.root, 'pi-acp'))).toBe(false)
   })
 
-  it('repairs the Antigravity terminal through its official native installer', async () => {
-    state.name = 'agy_acp_server.par'
-    const adapter = path.join(state.root, state.name)
-    await writeFile(adapter, 'adapter')
-    expect(await new LocalAgentInstallService().install('antigravity-acp')).toMatchObject({
-      ok: true,
-      reused: true,
-      path: adapter
-    })
-    expect(fs.existsSync(path.join(state.root, 'agy'))).toBe(true)
-    expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toContain(
-      process.platform === 'win32'
-        ? 'https://antigravity.google/cli/install.ps1'
-        : 'https://antigravity.google/cli/install.sh'
-    )
-  })
-
-  it('discovers and resolves Antigravity ACP after installing only the official CLI', async () => {
+  it('installs the official Antigravity CLI and uses it for ACP even if the old adapter exists', async () => {
+    await writeFile(path.join(state.root, 'agy_acp_server.par'), 'adapter')
     const cli = path.join(state.root, 'agy')
     const config: LocalAgentConfiguration = {
       presetId: 'antigravity-acp',
@@ -289,7 +272,11 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
       executable: cli,
       args: ['acp']
     })
-    expect(fs.existsSync(path.join(state.root, 'agy_acp_server.par'))).toBe(false)
+    expect(await readFile(path.join(state.root, 'calls'), 'utf8')).toContain(
+      process.platform === 'win32'
+        ? 'https://antigravity.google/cli/install.ps1'
+        : 'https://antigravity.google/cli/install.sh'
+    )
   })
 
   it.each(['system', 'mise'])('reuses the %s native Pi without reinstalling it', async (source) => {
@@ -460,6 +447,47 @@ process.exit(Number(process.env.INSTALL_EXIT)); }
     expect(await service.getVersion('kilo', true)).toEqual({ current: '7.7.0', latest: '7.8.1', canUpgrade: true })
     vi.mocked(fetch).mockRejectedValue(new Error('offline'))
     expect(await service.getVersion('kilo', true)).toEqual({ current: '7.7.0', canUpgrade: false })
+  })
+
+  it('finds an update for incompatible Copilot without upgrading through a different npm prefix', async () => {
+    const directory = path.join(state.root, '@github', 'copilot')
+    const executable = path.join(state.root, 'copilot')
+    await mkdir(directory, { recursive: true })
+    await writeFile(
+      path.join(directory, 'package.json'),
+      JSON.stringify({ name: '@github/copilot', version: '0.0.348', bin: { copilot: 'index.js' } })
+    )
+    await writeFile(path.join(directory, 'index.js'), 'throw new Error("must not execute")')
+    await symlink(path.join(directory, 'index.js'), executable)
+    vi.mocked(fetch).mockImplementation(
+      async (url) =>
+        ({
+          ok: true,
+          json: async () =>
+            String(url).includes('registry.npmjs.org')
+              ? { version: '1.0.116' }
+              : { agents: [{ id: 'github-copilot-cli', distribution: { npx: { package: '@github/copilot' } } }] }
+        }) as Response
+    )
+    const service = new LocalAgentInstallService()
+    expect((await detectLocalAgents()).find(({ presetId }) => presetId === 'copilot')).toMatchObject({
+      source: 'none',
+      path: undefined,
+      incompatiblePath: executable,
+      version: '0.0.348'
+    })
+    expect(await service.getVersion('copilot', true)).toEqual({
+      current: '0.0.348',
+      latest: '1.0.116',
+      canUpgrade: true
+    })
+    state.target = path.join(state.root, 'other-npm-root')
+    expect(await service.getVersion('copilot', true)).toEqual({
+      current: '0.0.348',
+      latest: '1.0.116',
+      canUpgrade: false
+    })
+    expect(await service.install('copilot', '1.0.116')).toEqual({ ok: false, reason: 'unsupported' })
   })
 
   it('upgrades an installed ACP package to the selected version instead of reusing it', async () => {
@@ -851,16 +879,8 @@ else process.exit(1);
     }
   )
 
-  it('lists only the terminal CLI when Antigravity has no standalone adapter', async () => {
-    const cli = path.join(state.root, 'agy')
-    await writeFile(cli, 'terminal CLI')
-    expect(await new LocalAgentInstallService().getUninstallComponents('antigravity-acp', cli)).toEqual([
-      { executable: 'agy', path: cli }
-    ])
-  })
-
   it.skipIf(process.platform === 'win32')(
-    'removes Antigravity ACP and its verified standalone CLI without touching configuration',
+    'removes the verified Antigravity CLI and preserves its configuration and unrelated binaries',
     async () => {
       vi.mocked(application.getPath).mockImplementation((key, file) => {
         const directory = key === 'sys.home' || key === 'external.acp.bin' ? state.root : path.join(state.root, key)
@@ -870,28 +890,22 @@ else process.exit(1);
             ? path.join(directory, file)
             : directory
       })
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async () => new Response('#!/bin/sh\necho acp\n'))
-      )
-      const adapter = await installBinaryAgent(
-        'agy_acp_server.par',
-        { manager: 'binary', version: '1.0', archive: 'https://example.com/adapter', cmd: 'adapter' },
-        new AbortController().signal
-      )
+      const adapter = path.join(state.root, 'agy_acp_server.par')
+      await writeFile(adapter, 'adapter')
       const cli = path.join(state.root, 'agy')
       await writeFile(
         cli,
-        '#!/usr/bin/env node\nif (process.argv.includes("--version")) process.stdout.write("1.2.3"); else process.stderr.write("Usage of agy:")\n'
+        '#!/usr/bin/env node\nif (process.argv.includes("--version")) process.stdout.write("1.5.0"); else process.stderr.write("Usage of agy:")\n'
       )
       await chmod(cli, 0o755)
       const config = path.join(state.root, 'settings.json')
       await writeFile(config, '{"keep":true}')
-      expect(await new LocalAgentInstallService().uninstall('antigravity-acp', adapter)).toEqual({ ok: true })
-      expect(fs.existsSync(adapter)).toBe(false)
+      const service = new LocalAgentInstallService()
+      expect(await service.getUninstallComponents('antigravity-acp', cli)).toEqual([{ executable: 'agy', path: cli }])
+      expect(await service.uninstall('antigravity-acp', cli)).toEqual({ ok: true })
+      expect(fs.existsSync(adapter)).toBe(true)
       expect(fs.existsSync(cli)).toBe(false)
       expect(await readFile(config, 'utf8')).toBe('{"keep":true}')
-      expect(await fs.promises.readdir(path.join(state.root, 'feature.acp.agents'))).toEqual([])
     }
   )
 

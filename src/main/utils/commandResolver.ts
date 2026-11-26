@@ -25,7 +25,7 @@ const execFileAsync = promisify(execFile)
 const COMMAND_LOOKUP_TIMEOUT_MS = 5000
 
 // Regex to validate command names - must start with alphanumeric or underscore, max 128 chars.
-// Dots are allowed for declared executables such as `agy_acp_server.par`; a leading dot is not.
+// Declared executables may have file extensions but cannot start with a dot.
 const VALID_COMMAND_NAME_REGEX = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$/
 
 // Maximum output size to prevent buffer overflow (10KB)

@@ -3,7 +3,6 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { parse } from 'jsonc-parser'
-import { lt, valid } from 'semver'
 import { parseDocument } from 'yaml'
 
 import { application } from '@application'
@@ -17,32 +16,24 @@ import { getBundledGitDir } from '@main/utils/bundledGit'
 import { autoDiscoverGitBash, findExecutableInEnv } from '@main/utils/commandResolver'
 import { getEnvironmentValue, mergeEnvironment } from '@main/utils/env'
 import { getRawShellEnv } from '@main/utils/shellEnv'
-import { getLocalAgentPreset, type LocalCliAgentPreset, type LocalAgentConfiguration } from '@shared/ai/localAgent'
-import type { BinaryAvailability, BinaryToolSnapshot } from '@shared/types/binary'
+import { getLocalAgentPreset, type LocalAgentConfiguration } from '@shared/ai/localAgent'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
 import { resolveCliGatewayRoute } from './cliGatewayRoute'
 import { readModelProfile, type CliModelBinding, type CliModelProfile } from './cliModelProfile'
-import { readInstalledPackageVersion } from './installedVersion'
+import { type InstalledBinary, selectAvailableInstallation } from './installedCli'
 import { resolveRequiredRuntime } from './runtimeDependency'
 
-type AgentCommand = Pick<LocalCliAgentPreset, 'executable' | 'aliases'> &
-  Partial<Pick<LocalCliAgentPreset, 'protocol' | 'minimumAcpVersion'>>
+type LaunchPurpose = 'session' | 'chat' | 'models' | 'account' | 'terminal-account' | 'cli'
 
-type InstalledBinary = InstalledCli<string, Exclude<BinaryAvailability['source'], 'none'>>
-type LaunchPurpose = 'session' | 'chat' | 'models' | 'cli'
+type CliCommand = { executable: string; args: string[]; env: Record<string, string> }
+export type PrepareCliCommand = (command: CliCommand) => Promise<CliCommand & { source: InstalledBinary['source'] }>
 
 type CliLaunchPolicy = CliModelBinding & {
   componentId?: string
-  cliFallback?: { executable: string; args: string[] }
-  adapterEnv?(env: Record<string, string>, overrides: Record<string, string>): Record<string, string>
   defaultEnv?(): Record<string, string>
   hostBinary?: AcpHostBinary
-  bundledBridge?: {
-    runtime: { executable: string; minimumVersion: string; label: string; major: string }
-    commandEnv: string
-    entry(): string
-  }
+  prepareCommand?: PrepareCliCommand
   windowsShell?: { variable: string; allowSh: boolean }
   scheduledEnvironment?: {
     target: CliConfigTarget
@@ -55,78 +46,6 @@ type CliLaunchPolicy = CliModelBinding & {
   }
 }
 export type LaunchConfigFiles = Readonly<Partial<Record<CliConfigTarget, string | null>>>
-
-async function supportsAgentCommand(preset: AgentCommand, candidate: BinaryAvailability) {
-  if (preset.protocol !== 'acp' || !preset.minimumAcpVersion || candidate.source === 'none') return true
-  const version =
-    valid('version' in candidate ? candidate.version : undefined) ?? (await readInstalledPackageVersion(candidate.path))
-  return !version || !lt(version, preset.minimumAcpVersion)
-}
-
-async function selectInstallation(preset: AgentCommand, snapshots: Record<string, BinaryToolSnapshot>) {
-  const candidates = await Promise.all(
-    [preset.executable, ...(preset.aliases ?? [])].map(async (name) => {
-      const candidate = snapshots[name]?.availability
-      if (candidate && !(await supportsAgentCommand(preset, candidate))) return undefined
-      return candidate
-    })
-  )
-  return (
-    candidates.find((value) => value?.source === 'system') ??
-    candidates.find((value) => value && value.source !== 'none') ?? { source: 'none' as const }
-  )
-}
-
-export function systemAgentEntry(executable: string): string {
-  return application.getPath('external.acp.bin', `${executable}${process.platform === 'win32' ? '.cmd' : ''}`)
-}
-
-export function systemAgentWrapper(command: string): string {
-  return process.platform === 'win32'
-    ? `@echo off\r\n"${command.replace(/%/g, '%%')}" %*\r\n`
-    : `#!/bin/sh\nexec '${command.replace(/'/g, "'\\''")}' "$@"\n`
-}
-
-export async function selectAvailableInstallation(
-  preset: AgentCommand,
-  snapshots: Record<string, BinaryToolSnapshot>
-): Promise<InstalledBinary | { source: 'none' }> {
-  const installed = await selectInstallation(preset, snapshots)
-  const fallback = installed.source === 'none' ? installed : { ...installed, componentId: preset.executable }
-  if (installed.source === 'system' || installed.source === 'bundled') return fallback
-  const entry = systemAgentEntry(preset.executable)
-  try {
-    if (!(await fs.stat(entry)).isFile()) return fallback
-    await fs.access(entry, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
-    if (
-      await isManagedBinaryPath(entry, [
-        application.getPath('feature.binary.data'),
-        application.getPath('cherry.bin'),
-        application.getPath('app.root')
-      ])
-    )
-      return fallback
-    const candidate = { source: 'system' as const, path: entry, componentId: preset.executable }
-    return (await supportsAgentCommand(preset, candidate)) ? candidate : fallback
-  } catch {
-    return fallback
-  }
-}
-
-export async function selectChatInstallation(
-  preset: AgentCommand,
-  snapshots: Record<string, BinaryToolSnapshot>,
-  fallback?: AgentCommand,
-  systemOnly = false
-): Promise<InstalledBinary | { source: 'none' }> {
-  const primary = await selectAvailableInstallation(preset, snapshots)
-  if (primary.source !== 'none' && (!systemOnly || primary.source !== 'mise')) return primary
-  if (fallback) {
-    const alternate = await selectAvailableInstallation(fallback, snapshots)
-    if (!systemOnly || alternate.source !== 'mise') return alternate
-  }
-  return { source: 'none' }
-}
 
 function parseJsonRecord(content: string | null | undefined): Record<string, unknown> | undefined {
   if (!content) return undefined
@@ -156,6 +75,7 @@ function injectPresetConfigEnv(
       throw new Error(t('code_cli.model.invalid_config', { format: 'YAML' }))
     })
   }
+  return undefined
 }
 
 async function isExistingFile(filePath: string): Promise<boolean> {
@@ -190,13 +110,27 @@ export function requireInstallation<Component extends string>(
   return { ...installation, componentId }
 }
 
+export async function requireLaunchRuntime(
+  runtime: { executable: string; minimumVersion: string; label: string; major: string },
+  env: Record<string, string>
+) {
+  const installed = await resolveRequiredRuntime(runtime, env)
+  if (!installed) throw new Error(t('local_agent.runtime_required', { runtime: runtime.label, version: runtime.major }))
+  const directories = [path.dirname(installed.path)]
+  return {
+    path: installed.path,
+    source: installed.source,
+    env: installed.source === 'mise' ? mergeBinaryExecutionEnv(env, directories) : mergePathPrefixes(env, directories)
+  }
+}
+
 export async function resolveCliProgram(
   config: LocalAgentConfiguration,
   purpose: LaunchPurpose,
   signal?: AbortSignal,
   policy?: CliLaunchPolicy
 ) {
-  const terminal = purpose === 'cli'
+  const terminal = purpose === 'cli' || purpose === 'terminal-account'
   const definition = getLocalAgentPreset(config.presetId)
   if (definition?.protocol === 'cursor' || (config.presetId !== undefined && !definition))
     throw new Error('Invalid local agent preset')
@@ -209,28 +143,26 @@ export async function resolveCliProgram(
   let shellEnv = await getRawShellEnv(signal)
   let lookupEnv = mergeEnvironment(shellEnv, preset?.env, config.env)
   let installation: InstalledBinary | { source: 'none' } = { source: 'none' }
-  let nativeArgs: string[] | undefined
-  if (config.executableOverride && !(terminal && (definition?.terminalCli || policy?.bundledBridge))) {
-    const executable = path.isAbsolute(config.executableOverride)
-      ? config.executableOverride
-      : ((await findExecutableInEnv(config.executableOverride, { env: lookupEnv })) ?? undefined)
+  const useTerminalOnPath = purpose === 'terminal-account' && getEnvironmentValue(config.env, 'PATH') !== undefined
+  const useInstalledTerminal = terminal && (definition?.terminalCli || definition?.terminalUsesInstalledCli)
+  const override = useTerminalOnPath ? preset?.executable : useInstalledTerminal ? undefined : config.executableOverride
+  if (override) {
+    const executable = path.isAbsolute(override)
+      ? override
+      : await findExecutableInEnv(override, { env: lookupEnv, signal })
     if (!executable) throw new Error('Local agent executable was not found')
     if (!(await fs.stat(executable)).isFile()) throw new Error('Local agent executable is not a file')
     await fs.access(executable, process.platform === 'win32' ? constants.F_OK : constants.X_OK)
     const root = application.getPath('feature.binary.data')
     installation = {
-      componentId: preset?.executable ?? policy?.componentId ?? config.executableOverride,
+      componentId: preset?.executable ?? policy?.componentId ?? override,
       path: executable,
       source: (await isManagedBinaryPath(executable, [root])) ? 'mise' : 'system'
     }
   } else if (preset) {
     const names = [preset.executable, ...(preset.aliases ?? [])]
-    const fallback = !terminal && !config.args.length ? policy?.cliFallback : undefined
-    if (fallback) names.push(fallback.executable)
     const snapshots = await application.get('BinaryManager').getToolSnapshots(names)
-    installation = await selectChatInstallation(preset, snapshots, fallback)
-    if (fallback && installation.source !== 'none' && installation.componentId === fallback.executable)
-      nativeArgs = fallback.args
+    installation = await selectAvailableInstallation(preset, snapshots)
   }
   if (installation.source === 'none') {
     throw Object.assign(new Error('Local agent is not installed'), { code: 'LOCAL_AGENT_NOT_INSTALLED' })
@@ -336,30 +268,6 @@ export async function resolveCliProgram(
     gatewaySelection && gatewayBinding
       ? resolveCliGatewayRoute(gatewaySelection, gatewayBinding, configFiles, childEnv, shellEnv)
       : undefined
-  const bridge = policy?.bundledBridge
-  if (bridge && !terminal && !config.executableOverride) {
-    const nativeExecutable = executable
-    const finalEnv = mergeEnvironment(env, preset?.env, config.env)
-    const runtime = await resolveRequiredRuntime(bridge.runtime, finalEnv)
-    if (!runtime)
-      throw new Error(
-        t('local_agent.runtime_required', { runtime: bridge.runtime.label, version: bridge.runtime.major })
-      )
-    const childEnv = {
-      ...(runtime.source === 'mise'
-        ? mergeBinaryExecutionEnv(finalEnv, [path.dirname(runtime.path)])
-        : mergePathPrefixes(finalEnv, [path.dirname(runtime.path)])),
-      [bridge.commandEnv]: finalEnv[bridge.commandEnv] || nativeExecutable
-    }
-    return {
-      executable: runtime.path,
-      source: runtime.source,
-      installation: undefined,
-      gatewayRoute: gatewayRouteFor(childEnv),
-      args: [bridge.entry(), ...config.args],
-      env: childEnv
-    }
-  }
   let childEnv = mergeEnvironment(env, preset?.env, config.env)
   const windowsShell = definition?.windowsShell ?? policy?.windowsShell
   if (isWin && windowsShell && !getEnvironmentValue(childEnv, windowsShell.variable)) {
@@ -376,8 +284,6 @@ export async function resolveCliProgram(
     )
     if (content && policy?.profile) nativeModel = readModelProfile(policy.profile, content)
   }
-  if (policy?.adapterEnv && !terminal && !nativeArgs && !config.executableOverride)
-    childEnv = policy.adapterEnv(childEnv, config.env)
   const binary = policy?.hostBinary
   if (binary && !config.executableOverride) {
     const available = await binary.resolve(childEnv, {
@@ -401,18 +307,20 @@ export async function resolveCliProgram(
         ),
         { code: 'LOCAL_AGENT_HOST_REQUIRED' }
       )
+    childEnv[binary.envKey] = available
   }
-  return {
+  const command = {
     executable,
-    installation,
-    gatewayRoute: gatewayRouteFor(childEnv),
-    ...(nativeModel ? { nativeModel } : {}),
-    source,
-    args:
-      nativeArgs ??
-      (config.args.length
-        ? config.args
-        : [...(preset?.platformArgs?.[process.platform as 'linux' | 'darwin' | 'win32'] ?? preset?.args ?? [])]),
+    args: config.args.length ? config.args : [...(preset?.args ?? [])],
     env: childEnv
+  }
+  const prepared = !terminal && !config.executableOverride ? await policy?.prepareCommand?.(command) : undefined
+  const launch = prepared ?? command
+  return {
+    ...launch,
+    installation: prepared ? undefined : installation,
+    gatewayRoute: gatewayRouteFor(launch.env),
+    ...(nativeModel ? { nativeModel } : {}),
+    source: prepared?.source ?? source
   }
 }

@@ -1,6 +1,7 @@
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
+import type { RuntimeAccountResult, SubscriptionUsageResult } from '@cherrystudio/agent-runtime'
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type { AgentAttachmentSelection } from '@cherrystudio/remote-protocol/agent'
 import { AgentConfigChangePreviewSchema } from '@shared/ai/agentConfigToolOutput'
@@ -535,9 +536,57 @@ export const aiRequestSchemas = {
     }),
     output: LocalAgentInstallResultSchema
   }),
+  'ai.local_agents.subscription_usage': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1) }),
+    output: z.discriminatedUnion('status', [
+      z.object({
+        status: z.literal('available'),
+        readAt: z.number(),
+        balances: z
+          .array(
+            z.object({
+              id: z.string(),
+              label: z.string(),
+              amount: z.number().nonnegative(),
+              currency: z.string().regex(/^[A-Z]{3}$/)
+            })
+          )
+          .optional(),
+        windows: z.array(
+          z.object({
+            id: z.string(),
+            label: z.string(),
+            usedRatio: z.number().nonnegative(),
+            durationMinutes: z.number().positive().optional(),
+            resetsAt: z.number().optional()
+          })
+        )
+      }),
+      z.object({ status: z.literal('signed-out') }),
+      z.object({ status: z.literal('unsupported') }),
+      z.object({ status: z.literal('unavailable') })
+    ]) satisfies z.ZodType<SubscriptionUsageResult>
+  }),
   'ai.local_agents.auth_status': defineRoute({
     input: LocalAgentConfigurationSchema,
     output: z.enum(['signed-in', 'signed-out', 'unknown', 'unsupported'])
+  }),
+  'ai.local_agents.read_account': defineRoute({
+    input: LocalAgentConfigurationSchema,
+    output: z.discriminatedUnion('status', [
+      z.object({
+        status: z.literal('signed-in'),
+        account: z
+          .object({
+            id: z.string().optional(),
+            email: z.string().optional(),
+            displayName: z.string().optional(),
+            workspace: z.object({ id: z.string().optional(), name: z.string().optional() }).optional()
+          })
+          .optional()
+      }),
+      z.object({ status: z.enum(['signed-out', 'unknown', 'unsupported']) })
+    ]) satisfies z.ZodType<RuntimeAccountResult>
   }),
   'ai.local_agents.authenticate': defineRoute({
     input: z.strictObject({

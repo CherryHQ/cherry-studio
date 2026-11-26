@@ -1,6 +1,12 @@
 export { createClaudeCodeRuntime } from './runtime'
 export { claudeThread } from './identity'
-export { claudeEffortControl, localClaudeOptions, probeClaudeModels, type LocalClaudeLaunch } from './localLaunch'
+export {
+  claudeEffortControl,
+  localClaudeOptions,
+  probeClaudeModels,
+  readClaudeSubscriptionUsage,
+  type LocalClaudeLaunch
+} from './localLaunch'
 export type {
   ClaudeSessionOptions,
   ClaudeCodeRuntimeOptions,

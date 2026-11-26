@@ -553,6 +553,9 @@ importers:
       '@cherrystudio/agent-runtime-deepseek-harness-acp':
         specifier: workspace:*
         version: link:packages/agent-runtime-deepseek-harness-acp
+      '@cherrystudio/agent-runtime-dimcode-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-dimcode-acp
       '@cherrystudio/agent-runtime-factory-acp':
         specifier: workspace:*
         version: link:packages/agent-runtime-factory-acp
@@ -577,6 +580,9 @@ importers:
       '@cherrystudio/agent-runtime-minimax-acp':
         specifier: workspace:*
         version: link:packages/agent-runtime-minimax-acp
+      '@cherrystudio/agent-runtime-muse-code-acp':
+        specifier: workspace:*
+        version: link:packages/agent-runtime-muse-code-acp
       '@cherrystudio/agent-runtime-omp-acp':
         specifier: workspace:*
         version: link:packages/agent-runtime-omp-acp
@@ -1838,6 +1844,10 @@ importers:
         version: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@24.10.4)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(jsdom@26.1.0(supports-color@10.2.2))(msw@2.12.7(@types/node@24.10.4)(@typescript/typescript6@6.0.2))(vite@8.2.2(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))
 
   packages/agent-runtime-amp-acp:
+    dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -1851,9 +1861,15 @@ importers:
 
   packages/agent-runtime-antigravity-acp:
     dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
       '@cherrystudio/agent-runtime-acp':
         specifier: workspace:*
         version: link:../agent-runtime-acp
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -1949,9 +1965,18 @@ importers:
 
   packages/agent-runtime-copilot-acp:
     dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
       '@cherrystudio/agent-runtime-acp':
         specifier: workspace:*
         version: link:../agent-runtime-acp
+      vscode-jsonrpc:
+        specifier: 8.2.0
+        version: 8.2.0
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -2001,11 +2026,26 @@ importers:
         specifier: npm:@typescript/typescript6@6.0.2
         version: '@typescript/typescript6@6.0.2'
 
+  packages/agent-runtime-dimcode-acp:
+    devDependencies:
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
   packages/agent-runtime-factory-acp:
     dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
       '@cherrystudio/agent-runtime-acp':
         specifier: workspace:*
         version: link:../agent-runtime-acp
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -2022,6 +2062,9 @@ importers:
       '@cherrystudio/agent-runtime-acp':
         specifier: workspace:*
         version: link:../agent-runtime-acp
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -2054,6 +2097,9 @@ importers:
 
   packages/agent-runtime-grok-acp:
     dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
       '@cherrystudio/agent-runtime-acp':
         specifier: workspace:*
         version: link:../agent-runtime-acp
@@ -2073,6 +2119,9 @@ importers:
 
   packages/agent-runtime-hermes-acp:
     dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
       '@cherrystudio/agent-runtime-acp':
         specifier: workspace:*
         version: link:../agent-runtime-acp
@@ -2105,6 +2154,9 @@ importers:
 
   packages/agent-runtime-kiro-acp:
     dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
       '@cherrystudio/agent-runtime-acp':
         specifier: workspace:*
         version: link:../agent-runtime-acp
@@ -2128,6 +2180,15 @@ importers:
       '@types/node':
         specifier: ^24.10.4
         version: 24.10.4
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
+      typescript:
+        specifier: npm:@typescript/typescript6@6.0.2
+        version: '@typescript/typescript6@6.0.2'
+
+  packages/agent-runtime-muse-code-acp:
+    devDependencies:
       tsdown:
         specifier: ^0.22.14
         version: 0.22.14(@typescript/typescript6@6.0.2)(oxc-resolver@11.21.2)(tsx@4.21.0)(unrun@0.2.27(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.3))
@@ -2169,9 +2230,15 @@ importers:
 
   packages/agent-runtime-opencode-acp:
     dependencies:
+      '@cherrystudio/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
       '@cherrystudio/agent-runtime-acp':
         specifier: workspace:*
         version: link:../agent-runtime-acp
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -2312,6 +2379,12 @@ importers:
       '@cherrystudio/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
+      '@qoder-ai/qoder-agent-sdk':
+        specifier: 1.0.61
+        version: 1.0.61(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3)
+      '@qodercn-ai/qodercn-agent-sdk':
+        specifier: 1.0.61
+        version: 1.0.61(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3)
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -2356,10 +2429,6 @@ importers:
         version: '@typescript/typescript6@6.0.2'
 
   packages/agent-runtime-trae-acp:
-    dependencies:
-      '@cherrystudio/agent-runtime-acp':
-        specifier: workspace:*
-        version: link:../agent-runtime-acp
     devDependencies:
       '@types/node':
         specifier: ^24.10.4
@@ -6712,6 +6781,18 @@ packages:
 
   '@protobufjs/utf8@1.1.1':
     resolution: {integrity: sha512-oOAWABowe8EAbMyWKM0tYDKi8Yaox52D+HWZhAIJqQXbqe0xI/GV7FhLWqlEKreMkfDjshR5FKgi3mnle0h6Eg==}
+
+  '@qoder-ai/qoder-agent-sdk@1.0.61':
+    resolution: {integrity: sha512-nG/HWLyKJta3CtCzKh5kQe85qg1WVwKQo9EFrZKOuaVm1dGcUV2jXaZXFveMd0YmabGeD/XnduF76Z739WRVZg==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+
+  '@qodercn-ai/qodercn-agent-sdk@1.0.61':
+    resolution: {integrity: sha512-XwpLkkgrc9WveqVZyiOSMs50+dw07/NWvab3xsa8v8w16zRxetV9+j9aoO0uhYXZ0aLJ0mzOr8Mf7pNKfHW7Zg==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@quansync/fs@1.0.0':
     resolution: {integrity: sha512-4TJ3DFtlf1L5LDMaM6CanJ/0lckGNtJcMjQ1NAV6zDmA0tEHKZtxNKin8EgPaVX1YzljbxckyT2tJrpQKAtngQ==}
@@ -20924,6 +21005,22 @@ snapshots:
   '@protobufjs/pool@1.1.0': {}
 
   '@protobufjs/utf8@1.1.1': {}
+
+  '@qoder-ai/qoder-agent-sdk@1.0.61(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3)':
+    dependencies:
+      '@modelcontextprotocol/sdk': 1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3)
+      zod: 4.4.3
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - supports-color
+
+  '@qodercn-ai/qodercn-agent-sdk@1.0.61(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3)':
+    dependencies:
+      '@modelcontextprotocol/sdk': 1.32.2(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.4.3)
+      zod: 4.4.3
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - supports-color
 
   '@quansync/fs@1.0.0':
     dependencies:

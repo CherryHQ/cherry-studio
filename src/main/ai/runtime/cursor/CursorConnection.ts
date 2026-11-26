@@ -7,6 +7,7 @@ import {
   type SDKAgent
 } from '@cherrystudio/agent-runtime-cursor'
 import { CURSOR_PERMISSION_MODES } from '@cherrystudio/agent-runtime-cursor/cli'
+import { getShellEnv } from '@main/utils/shellEnv'
 
 import { acquireLocalAgentBrowserLease } from '../../mcp/localAgentBrowserBridge'
 import type { LocalAgentBrowserLease } from '../../mcp/LocalAgentMcpBridgeService'
@@ -14,7 +15,6 @@ import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection } from '../LocalConnection'
 import { localContent } from '../localContent'
 import type { AgentRuntimeInput, AgentRuntimeUserInput } from '../types'
-import { getCursorApiKey } from './cursorAccount'
 
 export class CursorConnection extends LocalConnection {
   private agent?: SDKAgent
@@ -49,7 +49,6 @@ export class CursorConnection extends LocalConnection {
   }
 
   async start(cwd: string, resume?: string): Promise<this> {
-    const apiKey = await getCursorApiKey(this.config, this.abort.signal)
     this.abort.signal.throwIfAborted()
     const model = this.config.nativeModel || 'auto'
     this.localSessionInfo.activeModel = { id: model }
@@ -69,10 +68,12 @@ export class CursorConnection extends LocalConnection {
     this.abort.signal.throwIfAborted()
     const { agent, effort } = await openCursorSession({
       cwd,
-      apiKey,
+      env: this.config.env,
+      readShellEnv: getShellEnv,
       model,
       agentId: resume,
       headless: this.headless,
+      signal: this.abort.signal,
       browser: this.browser && { type: 'http', url: this.browser.url, headers: this.browser.headers }
     }).catch((error: unknown) => {
       if (resume) throw new LocalAgentSessionRestoreError('Could not restore the Cursor SDK session', { cause: error })

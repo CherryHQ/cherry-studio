@@ -1,6 +1,9 @@
 export const kimiCli = {
+  nativeCliInstall: true,
   modelConfig: { target: 'kimi-config', overrides: ['KIMI_CODE_HOME'] },
   id: 'kimi',
+  account: { canReadAccount: true },
+  externalCredentialMethods: ['login'],
   windowsShell: { variable: 'KIMI_SHELL_PATH', allowSh: true },
   cliLogin: [
     {
@@ -24,6 +27,7 @@ export const kimiCli = {
   terminalArgs: [],
   name: 'Kimi',
   protocol: 'acp',
+  subscriptionUsage: true,
   executable: 'kimi',
   args: ['acp'],
   helpUrl: 'https://moonshotai.github.io/kimi-code/'

@@ -3,7 +3,7 @@ import { PassThrough } from 'node:stream'
 import { expect, it } from 'vitest'
 import * as z from 'zod'
 
-import { connectAcpStdio, type AcpLiveEvents } from '../src/v1'
+import { connectAcpManagementStdio, connectAcpStdio, readNegotiatedAcpUsage, type AcpLiveEvents } from '../src/v1'
 
 const turn = z.discriminatedUnion('state', [
   z.object({ state: z.literal('started'), sessionId: z.string(), id: z.string() }),
@@ -85,3 +85,55 @@ it('preserves private native turn boundaries when the preceding prompt and its c
     client.close()
   }
 })
+
+it.each([false, true])(
+  'reads account windows only after ACP advertises the query (advertised: %s)',
+  async (advertised) => {
+    const stdin = new PassThrough()
+    const stdout = new PassThrough()
+    const request = z.object({ id: z.union([z.string(), z.number()]), method: z.string() })
+    const methods: string[] = []
+    stdin.on('data', (chunk: Buffer) => {
+      for (const line of chunk.toString().trim().split('\n')) {
+        const { id, method } = request.parse(JSON.parse(line))
+        methods.push(method)
+        const result =
+          method === 'initialize'
+            ? {
+                protocolVersion: 1,
+                agentCapabilities: advertised ? { _meta: { lody: { rateLimits: { version: 1, query: true } } } } : {}
+              }
+            : {
+                rateLimits: [
+                  {
+                    limitId: 'weekly',
+                    planName: 'Test plan',
+                    windows: [{ usedPercent: 0, windowDurationSeconds: 604800, resetsAtEpochSeconds: 1800000000 }]
+                  }
+                ],
+                fetchedAtEpochSeconds: 1799990000
+              }
+        stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n')
+      }
+    })
+
+    const client = connectAcpManagementStdio(stdin, stdout, { name: 'fixture', version: '0.0.0' })
+    try {
+      const agent = await client.initialize()
+      const result = await agent.readSubscriptionUsage(readNegotiatedAcpUsage, { env: {} })
+      if (advertised) {
+        expect(result).toMatchObject({
+          status: 'available',
+          readAt: 1799990000000,
+          windows: [{ usedRatio: 0, durationMinutes: 10080, resetsAt: 1800000000000 }]
+        })
+        expect(methods).toEqual(['initialize', '_lody/rate_limits/get'])
+      } else {
+        expect(result).toEqual({ status: 'unsupported' })
+        expect(methods).toEqual(['initialize'])
+      }
+    } finally {
+      client.close()
+    }
+  }
+)

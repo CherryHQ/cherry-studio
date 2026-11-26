@@ -30,9 +30,14 @@ describe('system agent install recipes', () => {
   })
   it.each([
     ['codebuddy-code', '@tencent-ai/codebuddy-code'],
+    ['command-code', 'command-code'],
+    ['deepagents', 'deepagents-acp'],
     ['deepseek-harness', '@deepseek-ai/dsh'],
+    ['dimagent', 'dimcode'],
     ['openclaw', 'openclaw'],
     ['omp', '@oh-my-pi/pi-coding-agent'],
+    ['qoder', '@qodercn-ai/qoderclicn'],
+    ['qoder-global', '@qoder-ai/qodercli'],
     ['snow', 'snow-ai'],
     ['zcode', 'zcode-acp-server']
   ])('installs %s from its published package without an ACP registry entry', (id, packageName) => {
@@ -41,6 +46,16 @@ describe('system agent install recipes', () => {
       package: packageName,
       args: ['install', '--global', packageName]
     })
+  })
+
+  it('uses the published Auggie package instead of the outdated ACP registry version', () => {
+    const staleRegistry = registry('auggie', { npx: { package: '@augmentcode/auggie@0.37.0' } })
+    expect(resolveInstallRecipe('auggie', staleRegistry)).toMatchObject({ package: '@augmentcode/auggie' })
+  })
+
+  it('uses the current DeepAgents npm package when the ACP registry pins an older version', () => {
+    const staleRegistry = registry('deepagents', { npx: { package: 'deepagents-acp@0.1.7' } })
+    expect(resolveInstallRecipe('deepagents', staleRegistry)).toMatchObject({ package: 'deepagents-acp' })
   })
 
   it('installs the MiniMax package that provides mcode instead of the registry launcher', () => {

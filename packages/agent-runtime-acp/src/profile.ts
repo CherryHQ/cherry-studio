@@ -1,6 +1,6 @@
 import type { Document } from 'yaml'
 
-import { cliConfigRecord as acpConfigRecord, type CliInstallPlan } from '@cherrystudio/agent-runtime/cli'
+import { cliConfigRecord as acpConfigRecord } from '@cherrystudio/agent-runtime/cli'
 
 export { acpConfigRecord }
 export { tomlModelField, type TomlModelProfile } from '@cherrystudio/agent-runtime/cli'
@@ -153,18 +153,4 @@ export interface AcpHostBinary {
       isFile(file: string): Promise<boolean>
     }
   ): Promise<string | undefined>
-}
-
-export interface AcpCliInstaller {
-  executable: string
-  script(platform: string, version?: string): Extract<CliInstallPlan, { manager: 'script' }> | undefined
-  removal:
-    | {
-        kind: 'command'
-        probe: string[]
-        accepts(help: string): boolean
-        args: string[]
-        fallback: { manager: 'uv'; package: string }
-      }
-    | { kind: 'file'; identity: RegExp }
 }

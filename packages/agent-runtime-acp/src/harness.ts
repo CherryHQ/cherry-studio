@@ -7,6 +7,7 @@ import type {
   SessionUpdate
 } from '@agentclientprotocol/sdk'
 
+import type { RuntimeAccountResult, SubscriptionUsageResult } from '@cherrystudio/agent-runtime'
 import type {
   CompactThread,
   OperationResult,
@@ -17,6 +18,7 @@ import type {
 } from '@cherrystudio/agent-runtime'
 
 import type { AcpPermissionOption, AcpPermissionOptionDetails, AcpPermissionRequest } from './permissions'
+import type { AcpLaunch } from './profile'
 import type { AcpInputDraft } from './types'
 import type { AcpTurnUsage } from './usage'
 
@@ -25,6 +27,18 @@ interface AcpPermissionQuestion {
   options: { label: string }[]
   optionIdFor(answer: string): string | undefined
 }
+
+export type AcpSubscriptionUsageReader = (
+  agent: Pick<ClientConnection['agent'], 'request'>,
+  response: InitializeResponse,
+  target: { readonly env: Readonly<Record<string, string>>; readonly model?: string }
+) => Promise<SubscriptionUsageResult>
+
+export type AcpAccountReader = (
+  agent: Pick<ClientConnection['agent'], 'request'>,
+  response: InitializeResponse,
+  launch: AcpLaunch
+) => Promise<RuntimeAccountResult>
 
 export type AcpModelCatalogReader = (
   agent: Pick<ClientConnection['agent'], 'request'>

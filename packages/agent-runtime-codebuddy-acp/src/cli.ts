@@ -1,7 +1,40 @@
-import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import { acpConfigRecord, type AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+
+const accountRequestId = 'cherry-account'
 
 export const codeBuddyCli = {
   id: 'codebuddy-code',
+  accountProbe: {
+    args: ['--print', '--input-format', 'stream-json', '--output-format', 'stream-json'],
+    stdin:
+      JSON.stringify({ type: 'control_request', request_id: accountRequestId, request: { subtype: 'initialize' } }) +
+      '\n',
+    parse(output: string, env: Readonly<Record<string, string>>) {
+      if (env.CODEBUDDY_API_KEY) return { status: 'unknown' } as const
+      for (const line of output.split('\n')) {
+        try {
+          const message = acpConfigRecord(JSON.parse(line))
+          const response = acpConfigRecord(message?.response)
+          if (
+            message?.type !== 'control_response' ||
+            response?.request_id !== accountRequestId ||
+            response.subtype !== 'success'
+          )
+            continue
+          const account = acpConfigRecord(response.response)?.account
+          if (account === null) return { status: 'signed-out' } as const
+          const identity = acpConfigRecord(account)
+          if (identity) {
+            const displayName = typeof identity.nickname === 'string' ? identity.nickname : undefined
+            return { status: 'signed-in', ...(displayName && { account: { displayName } }) } as const
+          }
+        } catch {
+          continue
+        }
+      }
+      return { status: 'unknown' } as const
+    }
+  },
   permissionMode: {
     values: {
       default: 'default',

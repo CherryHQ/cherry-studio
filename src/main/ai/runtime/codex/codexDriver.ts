@@ -1,10 +1,14 @@
 import { application } from '@application'
+import type { RuntimeAccountAccess } from '@cherrystudio/agent-runtime'
+import { readCodexAccount, readCodexSubscriptionUsage } from '@cherrystudio/agent-runtime-codex/launcher'
+import { withStartupSignal } from '@cherrystudio/agent-runtime/stdio'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
-import { withConnectionTimeout } from '../connectionTimeout'
 import type { AgentRuntimeConnectInput } from '../types'
+import { resolveCodexLaunch } from './codexLaunch'
 import { checkCodex, listCodexModels } from './codexManagement'
+import { codexProcessHost } from './processHost'
 
 export async function connect(input: AgentRuntimeConnectInput, config: LocalAgentConfiguration, cwd: string) {
   const { CodexSessionHost } = await import('./CodexSessionHost')
@@ -18,14 +22,11 @@ export async function connect(input: AgentRuntimeConnectInput, config: LocalAgen
             : ('required' as const)
       }
     : undefined
-  const startup = host.start(cwd, restore, input.branchHead)
-  try {
-    return await withConnectionTimeout(startup)
-  } catch (error) {
-    await host.close()
-    await startup.catch(() => {})
-    throw error
-  }
+  return withStartupSignal(
+    AbortSignal.timeout(30_000),
+    () => host.start(cwd, restore, input.branchHead),
+    () => host.close()
+  )
 }
 
 export function listModels(config: LocalAgentConfiguration) {
@@ -34,4 +35,18 @@ export function listModels(config: LocalAgentConfiguration) {
 
 export function check(config: LocalAgentConfiguration) {
   return checkCodex(config, application.getPath('cherry.bin'))
+}
+
+export function bindAccount(config: LocalAgentConfiguration): RuntimeAccountAccess {
+  const launch = (signal: AbortSignal) =>
+    resolveCodexLaunch(config, application.getPath('cherry.bin'), signal, 'models')
+  return {
+    async readAccount(signal) {
+      return readCodexAccount(await launch(signal), codexProcessHost, signal)
+    },
+    async readSubscriptionUsage(signal) {
+      if (config.sourceModelViaGateway) return { status: 'unsupported' }
+      return readCodexSubscriptionUsage(await launch(signal), codexProcessHost, signal)
+    }
+  }
 }

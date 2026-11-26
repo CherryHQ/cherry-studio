@@ -6,14 +6,21 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    ".": {
+      "types": "./dist/adapter.d.mts",
+      "default": "./dist/adapter.mjs"
+    },
     "./cli": {
       "types": "./dist/cli.d.mts",
       "default": "./dist/cli.mjs"
     }
   },
   "scripts": {
-    "build": "tsdown src/cli.ts --format esm --dts --clean",
+    "build": "tsdown src/adapter.ts src/cli.ts --format esm --dts --clean",
     "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-amp-acp/tsconfig.json"
+  },
+  "dependencies": {
+    "@cherrystudio/agent-runtime": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.10.4",

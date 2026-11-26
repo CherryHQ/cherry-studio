@@ -12,6 +12,15 @@ export const zcodeCli = {
   executable: 'zcode-acp',
   args: ['server'],
   terminalArgs: [],
+  cliLogin: [
+    {
+      id: 'zcode-browser',
+      kind: 'browser',
+      nameKey: 'local_agents.auth_open_browser',
+      args: ['login', '--no-browser'],
+      autoOpenUrl: true
+    }
+  ],
   npmPackage: 'zcode-acp-server',
   env: { ZCODE_ACP_MODE: 'build' },
   helpUrl: 'https://github.com/william0wang/zcode-acp'

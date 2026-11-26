@@ -2,7 +2,6 @@ import { describeCodexModel } from '@cherrystudio/agent-runtime-codex'
 import { withCodexAppServer, type CodexProbeClient } from '@cherrystudio/agent-runtime-codex/launcher'
 import type { LocalAgentConfiguration, LocalAgentModelCatalog } from '@shared/ai/localAgent'
 
-import { withConnectionTimeout } from '../connectionTimeout'
 import { resolveCodexLaunch } from './codexLaunch'
 import { codexProcessHost } from './processHost'
 
@@ -21,15 +20,7 @@ async function withCodexManagement<T>(
   cwd: string,
   operation: (client: CodexProbeClient) => T | Promise<T>
 ) {
-  const abort = new AbortController()
-  const run = async () => {
-    const launch = await resolveCodexLaunch(config, cwd, abort.signal, 'models')
-    return withCodexAppServer(launch, codexProcessHost, abort.signal, operation)
-  }
-  const probing = run()
-  try {
-    return await withConnectionTimeout(probing, () => abort.abort())
-  } finally {
-    await probing.catch(() => {})
-  }
+  const signal = AbortSignal.timeout(30_000)
+  const launch = await resolveCodexLaunch(config, cwd, signal, 'models')
+  return withCodexAppServer(launch, codexProcessHost, signal, operation)
 }

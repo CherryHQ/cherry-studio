@@ -1,8 +1,14 @@
 export const factoryCli = {
   id: 'factory-droid',
+  account: { canReadAccount: true },
+  accountArgs: ['exec', '--output-format', 'acp'],
+  loginArgs: [],
+  externalCredentialMethods: ['device-pairing', 'factory-api-key'],
+  credentialEnvironment: ['FACTORY_API_KEY'],
   terminalArgs: [],
   name: 'Factory Droid',
   protocol: 'acp',
+  subscriptionUsage: true,
   executable: 'droid',
   args: ['exec', '--output-format', 'acp-daemon'],
   env: {

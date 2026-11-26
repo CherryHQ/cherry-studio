@@ -4,7 +4,14 @@ import { expect, it } from 'vitest'
 
 import type { LaunchSpec, StdioProcess } from '@cherrystudio/agent-runtime/stdio'
 
-import { launchCodexAppServer, withCodexAppServer, type CodexLaunch, type CodexProcessHost } from '../src/launcher'
+import {
+  launchCodexAppServer,
+  readCodexAccount,
+  readCodexSubscriptionUsage,
+  withCodexAppServer,
+  type CodexLaunch,
+  type CodexProcessHost
+} from '../src/launcher'
 import { createPeer } from './peer'
 
 function fixture() {
@@ -102,3 +109,72 @@ it('rejects a different listener before spawning an installed Codex', () => {
   )
   expect(f.command()).toBeUndefined()
 })
+
+it('returns the active Codex account and workspace without opening a thread', async () => {
+  const f = fixture()
+  const read = readCodexAccount(f.target, f.host, new AbortController().signal)
+  await f.peer.handshake()
+  const config = await f.peer.read()
+  expect(config.method).toBe('config/read')
+  f.peer.send({ id: config.id, result: { config: { model_provider: 'openai' } } })
+  const account = await f.peer.read()
+  expect(account).toMatchObject({ method: 'account/read', params: { refreshToken: false } })
+  f.peer.send({
+    id: account.id,
+    result: {
+      requiresOpenaiAuth: true,
+      account: { type: 'chatgpt', email: 'active@example.test' },
+      userId: 'native-user',
+      workspaceRouting: { chatgptAccountId: 'native-workspace' }
+    }
+  })
+  await expect(read).resolves.toEqual({
+    status: 'signed-in',
+    account: { email: 'active@example.test', id: 'native-user', workspace: { id: 'native-workspace' } }
+  })
+  await f.reaped
+  await expect(f.peer.read()).rejects.toThrow('Client closed before writing the expected frame')
+})
+
+it.each([false, true])(
+  'checks subscription ownership after reading native windows (account changed: %s)',
+  async (changed) => {
+    const f = fixture()
+    const probe = readCodexSubscriptionUsage(f.target, f.host, new AbortController().signal)
+    await f.peer.handshake()
+    async function reply(method: string, result: unknown) {
+      const request = await f.peer.read()
+      expect(request.method).toBe(method)
+      f.peer.send({ id: request.id, result })
+    }
+
+    await reply('config/read', { config: { model_provider: 'openai' } })
+    const account = {
+      requiresOpenaiAuth: true,
+      account: { type: 'chatgpt' },
+      workspaceRouting: { chatgptAccountId: 'team-a' }
+    }
+    await reply('account/read', account)
+    await reply('account/rateLimits/read', {
+      accountId: 'team-a',
+      rateLimits: {},
+      rateLimitsByLimitId: {
+        codex: { primary: { usedPercent: 0, windowDurationMins: 300, resetsAt: 1800000000 } },
+        spark: { secondary: { usedPercent: 50 } }
+      }
+    })
+    await reply('account/read', changed ? { ...account, workspaceRouting: { chatgptAccountId: 'team-b' } } : account)
+
+    if (changed) await expect(probe).resolves.toEqual({ status: 'unavailable' })
+    else
+      await expect(probe).resolves.toMatchObject({
+        status: 'available',
+        windows: [
+          { id: 'codex:primary', usedRatio: 0, durationMinutes: 300, resetsAt: 1800000000000 },
+          { id: 'spark:secondary', usedRatio: 0.5 }
+        ]
+      })
+    await f.reaped
+    await expect(f.peer.read()).rejects.toThrow('Client closed before writing the expected frame')
+  }
+)

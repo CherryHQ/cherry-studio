@@ -1,4 +1,18 @@
-export const cursorLoginMethod = { id: 'cursor_login', type: 'agent', name: 'Cursor' } as const
+export const cursorLoginMethod = {
+  id: 'cursor_login',
+  type: 'agent',
+  name: 'Cursor',
+  form: 'browser',
+  clearEnv: ['CURSOR_API_KEY']
+} as const
+export const cursorApiKeyMethod = {
+  id: 'cursor_api_key',
+  type: 'agent',
+  name: 'Cursor',
+  form: 'api-key',
+  apiKey: 'CURSOR_API_KEY'
+} as const
+export const cursorLoginMethods = [cursorLoginMethod, cursorApiKeyMethod] as const
 
 export const CURSOR_PERMISSION_MODES = {
   id: 'cursor-mode',
@@ -16,6 +30,7 @@ export const cursorPreset = {
   id: 'cursor',
   name: 'Cursor',
   protocol: 'cursor',
+  account: { methods: cursorLoginMethods, canReadAccount: true },
   defaultMode: CURSOR_PERMISSION_MODES,
   helpUrl: 'https://cursor.com/docs/api/sdk/typescript'
 } as const

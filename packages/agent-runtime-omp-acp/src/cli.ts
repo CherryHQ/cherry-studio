@@ -5,6 +5,7 @@ export const ompCli = {
     overrides: ['OMP_PROFILE', 'PI_PROFILE', 'PI_CONFIG_DIR', 'PI_CODING_AGENT_DIR']
   },
   id: 'omp',
+  credentialScope: 'provider',
   name: 'Oh My Pi',
   protocol: 'acp',
   executable: 'omp',

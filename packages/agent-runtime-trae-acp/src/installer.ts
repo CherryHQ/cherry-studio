@@ -1,26 +1,6 @@
 import { lstat, readFile, realpath, rm, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
-export function traeInstall(platform: string) {
-  if (platform === 'win32')
-    return {
-      manager: 'script' as const,
-      command: 'powershell.exe',
-      args: [
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        "$ErrorActionPreference = 'Stop'; irm https://trae.cn/trae-cli/install_v2.ps1 | iex"
-      ]
-    }
-  if (platform === 'darwin' || platform === 'linux')
-    return {
-      manager: 'script' as const,
-      command: 'bash',
-      args: ['-o', 'pipefail', '-c', 'curl -fsSL https://trae.cn/trae-cli/install_v2.sh | bash']
-    }
-}
-
 export async function traeRemoval(
   expectedPath: string,
   env: Record<string, string>,

@@ -6,17 +6,23 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    ".": {
+      "types": "./dist/adapter.d.mts",
+      "default": "./dist/adapter.mjs"
+    },
     "./cli": {
       "types": "./dist/cli.d.mts",
       "default": "./dist/cli.mjs"
     }
   },
   "scripts": {
-    "build": "tsdown src/cli.ts --format esm --dts --clean",
+    "build": "tsdown src/adapter.ts src/cli.ts --format esm --dts --clean",
     "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-qoder-acp/tsconfig.json"
   },
   "dependencies": {
-    "@cherrystudio/agent-runtime": "workspace:*"
+    "@cherrystudio/agent-runtime": "workspace:*",
+    "@qoder-ai/qoder-agent-sdk": "1.0.61",
+    "@qodercn-ai/qodercn-agent-sdk": "1.0.61"
   },
   "devDependencies": {
     "@types/node": "^24.10.4",

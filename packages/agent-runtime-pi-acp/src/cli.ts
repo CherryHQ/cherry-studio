@@ -1,6 +1,7 @@
 export const piCli = {
   modelConfig: { target: 'pi-settings', overrides: ['PI_CODING_AGENT_DIR'] },
   id: 'pi-acp',
+  credentialScope: 'provider',
   loginArgs: ['auth', 'login'],
   providerLogin: {
     id: 'pi-browser',
@@ -8,6 +9,7 @@ export const piCli = {
     suggestions: ['openai-codex', 'github-copilot', 'anthropic', 'openai']
   },
   terminalArgs: [],
+  terminalUsesInstalledCli: true,
   name: 'Pi',
   protocol: 'acp',
   legacyModes: 'effort',

@@ -213,6 +213,8 @@ export async function executeCommand(
     includeStderr?: boolean
     /** Environment variables (defaults to getShellEnv()) */
     env?: NodeJS.ProcessEnv
+    /** Input to send before closing stdin. */
+    stdin?: string
     /** Maximum combined stdout/stderr bytes before the command is terminated */
     maxOutputBytes?: number
     /** Timeout in milliseconds */
@@ -276,5 +278,10 @@ export async function executeCommand(
         reject(new CommandFailedError(code ?? -1, stdout, stderr))
       }
     })
+
+    if (options?.stdin !== undefined) {
+      child.stdin?.once('error', reject)
+      child.stdin?.end(options.stdin)
+    }
   })
 }

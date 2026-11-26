@@ -27,6 +27,8 @@ const methods = [
   'turn/interrupt',
   'review/start',
   'account/usage/read',
+  'account/read',
+  'account/rateLimits/read',
   'gitDiffToRemote',
   'command/exec',
   'mcpServerStatus/list'
@@ -48,7 +50,10 @@ try {
       else if (ts.isTypeAliasDeclaration(node)) {
         const name = node.name.text
         if (declarations.has(name)) throw new Error('Ambiguous protocol type ' + name)
-        declarations.set(name, printer.printNode(ts.EmitHint.Unspecified, node, source))
+        declarations.set(
+          name,
+          printer.printNode(ts.EmitHint.Unspecified, node, source).replace(/\bnull(?: \| null)+\b/g, 'null')
+        )
       }
     }
   }

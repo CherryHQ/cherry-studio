@@ -39,7 +39,7 @@ export function connectAcpStdio(
   }
 }
 
-/** Management connections can inspect, authenticate and read a temporary session's model catalog. */
+/** Management connections expose account reads and model discovery. */
 export function connectAcpManagementStdio(
   stdin: Writable,
   stdout: Readable,
@@ -61,6 +61,8 @@ export function connectAcpManagementStdio(
       const agent = await client.initialize()
       return {
         response: agent.response,
+        readAccount: agent.readAccount,
+        readSubscriptionUsage: agent.readSubscriptionUsage,
         async authenticate(methodId: string) {
           const method = acpAuthMethods(agent.response).find((item) => item.id === methodId)
           if (!method) throw new Error('Unsupported authentication method')

@@ -13,6 +13,12 @@ separate lifetime.
 Native CLI login uses the same stdio capability, forwards parsed login prompts and joins the
 child on cancellation.
 
+`RuntimeAccountAccess` binds optional sign-in, account identity and subscription reads to an account
+target. `readAccount` returns one status with any identity and workspace fields reported by the
+runtime. An adapter can expose any supported operation without opening a thread. Subscription
+results preserve native time windows and distinguish a signed-out account, an unsupported
+route, and a failed read. Per-turn usage stays in execution observations.
+
 Runtime permission mode declarations carry the native choice value, its supported Agent permission
 semantics and when a selection applies. A selection can take effect on the current session, the
 next turn or across a reconnect. A catalog describes available choices. A live connection confirms

@@ -21,20 +21,20 @@ import { LocalClaudeConnection, probeLocalClaude } from '../LocalClaudeConnectio
 import { resolveClaudeLaunch } from '../localClaudeLaunch'
 import type { ClaudeCodeProcessDiagnostics } from '../processExitDiagnostics'
 
-vi.mock('@anthropic-ai/claude-agent-sdk', async (load) => {
-  const sdk = await load<typeof import('@anthropic-ai/claude-agent-sdk')>()
+vi.mock(import('@anthropic-ai/claude-agent-sdk'), async (load) => {
+  const sdk = await load()
   return { ...sdk, query: vi.fn(sdk.query) }
 })
 vi.mock(
   '@cherrystudio/agent-runtime-claude-code',
   () => import('../../../../../../packages/agent-runtime-claude-code/src')
 )
-vi.mock('../localClaudeLaunch', async (load) => ({
-  ...(await load<typeof import('../localClaudeLaunch')>()),
+vi.mock(import('../localClaudeLaunch'), async (load) => ({
+  ...(await load()),
   resolveClaudeLaunch: vi.fn()
 }))
-vi.mock('../../../mcp/localAgentBrowserBridge', async (load) => ({
-  ...(await load<typeof import('../../../mcp/localAgentBrowserBridge')>()),
+vi.mock(import('../../../mcp/localAgentBrowserBridge'), async (load) => ({
+  ...(await load()),
   acquireLocalAgentBrowserLease: vi.fn()
 }))
 
@@ -285,7 +285,7 @@ it('binds browser permissions to the session mode and releases its lease', async
 
 it('reads the initialization catalog without submitting a prompt or creating a transcript', async () => {
   const { wire, spawn, launch, directory } = await transport()
-  const catalog = await probeLocalClaude(config, directory, new AbortController())
+  const catalog = await probeLocalClaude(config, directory, new AbortController().signal)
   expect(catalog.models).toEqual([{ id: 'sonnet', name: 'Sonnet' }])
   expect(wire.inputs).toHaveLength(0)
   expect(wire.process.exitCode).toBe(0)

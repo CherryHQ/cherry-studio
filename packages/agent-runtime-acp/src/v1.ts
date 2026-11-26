@@ -1,3 +1,9 @@
+export {
+  acpSubscriptionUsageFailure,
+  advertisesAcpSubscriptionUsage,
+  readCachedAcpAccount,
+  readNegotiatedAcpUsage
+} from './accountUsage'
 export type {
   ContentBlock as AcpContentBlock,
   InitializeResponse as AcpInitializeResponse,
@@ -12,7 +18,14 @@ export {
   formatAcpError,
   type AcpManagementAgent
 } from './host'
-export type { AcpHarnessAdapter, AcpHarnessSession, AcpModelCatalogReader, AcpNativeTurn } from './harness'
+export type {
+  AcpAccountReader,
+  AcpHarnessAdapter,
+  AcpHarnessSession,
+  AcpModelCatalogReader,
+  AcpSubscriptionUsageReader,
+  AcpNativeTurn
+} from './harness'
 export type { AcpLiveEvents, AcpLiveSession } from './live'
 export { acpPermissionChoice, acpPermissionControl } from './permissionMode'
 export { mapAcpPermissionOptions, type AcpPermissionOption, type AcpPermissionRequest } from './permissions'

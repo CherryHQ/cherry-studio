@@ -6,6 +6,7 @@ import {
   claudeEffortControl,
   localClaudeOptions,
   probeClaudeModels,
+  readClaudeSubscriptionUsage,
   type ClaudeControl,
   type ClaudeObservation
 } from '@cherrystudio/agent-runtime-claude-code'
@@ -84,16 +85,33 @@ function localSessionTitle(message: { subtype: string }): string | undefined {
   return undefined
 }
 
-export async function probeLocalClaude(config: LocalAgentConfiguration, cwd: string, abort: AbortController) {
-  const launch = await resolveClaudeLaunch(config, cwd, abort.signal, 'models')
+export async function probeLocalClaude(config: LocalAgentConfiguration, cwd: string, signal: AbortSignal) {
+  return { models: await withLocalClaudeProbe(config, cwd, signal, probeClaudeModels) }
+}
+
+export function probeLocalClaudeSubscription(config: LocalAgentConfiguration, cwd: string, signal: AbortSignal) {
+  return withLocalClaudeProbe(config, cwd, signal, readClaudeSubscriptionUsage)
+}
+
+async function withLocalClaudeProbe<T>(
+  config: LocalAgentConfiguration,
+  cwd: string,
+  signal: AbortSignal,
+  read: (...args: Parameters<typeof probeClaudeModels>) => Promise<T>
+) {
+  const launch = await resolveClaudeLaunch(config, cwd, signal, 'models')
   const diagnostics = createClaudeCodeProcessDiagnostics()
-  const models = await probeClaudeModels(
-    launch,
-    abort,
-    createSpawnClaudeCodeProcess(diagnostics),
-    () => diagnostics.exited
-  )
-  return { models }
+  const abort = new AbortController()
+  const cancel = () => abort.abort(signal.reason)
+  signal.throwIfAborted()
+  signal.addEventListener('abort', cancel, { once: true })
+  try {
+    const result = await read(launch, abort, createSpawnClaudeCodeProcess(diagnostics), () => diagnostics.exited)
+    signal.throwIfAborted()
+    return result
+  } finally {
+    signal.removeEventListener('abort', cancel)
+  }
 }
 
 export class LocalClaudeConnection extends ClaudeSdkConnection {

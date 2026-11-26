@@ -11,6 +11,7 @@ import { codexCli } from '@cherrystudio/agent-runtime-codex/cli'
 import { copilotCli } from '@cherrystudio/agent-runtime-copilot-acp/cli'
 import { cursorPreset } from '@cherrystudio/agent-runtime-cursor/cli'
 import { dshCli } from '@cherrystudio/agent-runtime-deepseek-harness-acp/cli'
+import { dimcodeCli } from '@cherrystudio/agent-runtime-dimcode-acp/cli'
 import { factoryCli } from '@cherrystudio/agent-runtime-factory-acp/cli'
 import { glmCli } from '@cherrystudio/agent-runtime-glm-acp/cli'
 import { gooseCli } from '@cherrystudio/agent-runtime-goose-acp/cli'
@@ -19,45 +20,39 @@ import { hermesCli } from '@cherrystudio/agent-runtime-hermes-acp/cli'
 import { kimiCli } from '@cherrystudio/agent-runtime-kimi-acp/cli'
 import { kiroCli } from '@cherrystudio/agent-runtime-kiro-acp/cli'
 import { minimaxCli } from '@cherrystudio/agent-runtime-minimax-acp/cli'
+import { museCodeCli } from '@cherrystudio/agent-runtime-muse-code-acp/cli'
 import { ompCli } from '@cherrystudio/agent-runtime-omp-acp/cli'
 import { openClawCli } from '@cherrystudio/agent-runtime-openclaw-acp/cli'
 import { openCodeCli } from '@cherrystudio/agent-runtime-opencode-acp/cli'
 import { piCli } from '@cherrystudio/agent-runtime-pi-acp/cli'
 import { poolsideCli } from '@cherrystudio/agent-runtime-poolside-acp/cli'
-import { qoderCli } from '@cherrystudio/agent-runtime-qoder-acp/cli'
+import { qoderCli, qoderGlobalCli } from '@cherrystudio/agent-runtime-qoder-acp/cli'
 import { qwenCli } from '@cherrystudio/agent-runtime-qwen-acp/cli'
 import { snowCli } from '@cherrystudio/agent-runtime-snow-acp/cli'
 import { traeCli } from '@cherrystudio/agent-runtime-trae-acp/cli'
 import { vibeCli } from '@cherrystudio/agent-runtime-vibe-acp/cli'
 import { zcodeCli } from '@cherrystudio/agent-runtime-zcode-acp/cli'
-import type {
-  CliAuthStatusProbe,
-  CliComponent,
-  PermissionModeApplication,
-  PermissionModeCatalog,
-  PermissionModeChoice
+import {
+  parseBooleanLoginStatus,
+  type CliAccountProbe,
+  type CliAuthOption,
+  type CliComponent,
+  type CliLoginDeclaration,
+  type PermissionModeApplication,
+  type PermissionModeCatalog,
+  type PermissionModeChoice,
+  type RuntimeAccountDeclaration
 } from '@cherrystudio/agent-runtime/cli'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
+
+export type { CliAuthOption } from '@cherrystudio/agent-runtime/cli'
 
 export const LocalAgentBrowserControlModeSchema = z.enum(['inherit', 'readonly', 'disabled'])
 export type LocalAgentBrowserControlMode = z.infer<typeof LocalAgentBrowserControlModeSchema>
 
 export type LocalAgentProtocol = 'acp' | 'claude' | 'codex' | 'cursor'
 
-export interface CliAuthOption {
-  id: string
-  nameKey: string
-  hintKey: string
-  kind: 'browser' | 'api-key'
-  args: readonly string[]
-  autoOpenUrl?: boolean
-  recommended?: boolean
-}
-
-interface LocalAgentCliOptions extends CliComponent {
-  cliLogin?: readonly CliAuthOption[]
-  providerLogin?: { id: string; args: readonly string[]; suggestions: readonly string[] }
-
+interface LocalAgentCliOptions extends CliComponent, CliLoginDeclaration {
   auth?: AcpLoginProfile
   sessionModel?: true
   minimumAcpVersion?: string
@@ -67,13 +62,15 @@ interface LocalAgentCliOptions extends CliComponent {
   legacyModes?: 'effort'
   terminalArgs?: readonly string[]
   aliases?: readonly string[]
+  nativeCliInstall?: true
   loginArgs?: readonly string[]
-  authStatus?: CliAuthStatusProbe
+  credentialEnvironment?: readonly string[]
+  accountProbe?: CliAccountProbe
   /** ACP methods that rely on credentials configured outside the login flow. */
   externalCredentialMethods?: readonly string[]
   terminalCli?: { executable: string; npmPackage?: string; requiredForChat?: true }
+  terminalUsesInstalledCli?: true
   args: readonly string[]
-  platformArgs?: Partial<Record<'linux' | 'darwin' | 'win32', readonly string[]>>
   env?: Readonly<Record<string, string>>
   modelDependencies?: readonly string[]
   windowsShell?: { variable: string; allowSh: boolean }
@@ -84,6 +81,10 @@ interface LocalAgentPresetInfo {
   id: string
   name: string
   helpUrl: string
+  account?: RuntimeAccountDeclaration
+  credentialScope?: 'provider'
+  retired?: true
+  subscriptionUsage?: true
   defaultMode?: PermissionModeCatalog
   modeForLaunch?: (env: Readonly<Record<string, string>>) => PermissionModeCatalog
 }
@@ -111,6 +112,7 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   openClawCli,
   dshCli,
   kiroCli,
+  qoderGlobalCli,
   qoderCli,
   traeCli,
   hermesCli,
@@ -129,6 +131,9 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   {
     id: 'auggie',
     terminalArgs: [],
+    loginArgs: ['auth', 'login'],
+    npmPackage: '@augmentcode/auggie',
+    minimumAcpVersion: '1.0.0',
     name: 'Auggie CLI',
     protocol: 'acp',
     executable: 'auggie',
@@ -144,12 +149,37 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     protocol: 'acp',
     executable: 'junie',
     args: ['--acp=true'],
+    loginArgs: [],
+    credentialEnvironment: [
+      'JUNIE_API_KEY',
+      'JUNIE_LLM_PROVIDER',
+      'JUNIE_ANTHROPIC_API_KEY',
+      'JUNIE_OPENAI_API_KEY',
+      'JUNIE_GOOGLE_API_KEY',
+      'JUNIE_GROK_API_KEY',
+      'JUNIE_META_API_KEY',
+      'JUNIE_OPENROUTER_API_KEY',
+      'JUNIE_LITELLM_URL',
+      'JUNIE_LITELLM_API_KEY'
+    ],
     helpUrl: 'https://junie.jetbrains.com'
   },
   factoryCli,
   {
     id: 'devin',
     terminalArgs: [],
+    loginArgs: ['auth', 'login'],
+    accountProbe: {
+      args: ['auth', 'status'],
+      signedOutExitCode: 1,
+      parse(output) {
+        if (/^Not logged in\b/im.test(output)) return { status: 'signed-out' }
+        if (!/^Logged in\b/im.test(output)) return { status: 'unknown' }
+        const email = /^\s*Email:[ \t]*(\S+)/im.exec(output)?.[1]
+        const displayName = /^\s*Name:[ \t]*([^\r\n]+)/im.exec(output)?.[1]?.trim()
+        return { status: 'signed-in', ...(email || displayName ? { account: { email, displayName } } : {}) }
+      }
+    } satisfies CliAccountProbe,
     name: 'Devin',
     protocol: 'acp',
     executable: 'devin',
@@ -165,15 +195,37 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
   zcodeCli,
   {
     id: 'deepagents',
+    credentialScope: 'provider',
     modelDependencies: ['@langchain/anthropic', '@langchain/openai'],
     name: 'DeepAgents',
     protocol: 'acp',
     executable: 'deepagents-acp',
+    npmPackage: 'deepagents-acp',
     args: [],
     helpUrl: 'https://docs.langchain.com/oss/javascript/deepagents/overview'
   },
-  glmCli,
+  { ...glmCli, retired: true },
   grokCli,
+  {
+    id: 'command-code',
+    name: 'Command Code',
+    protocol: 'acp',
+    account: { methods: [] },
+    accountProbe: {
+      args: ['status', '--json'],
+      signedOutExitCode: 1,
+      parse: (output) => parseBooleanLoginStatus(output, 'authenticated')
+    },
+    executable: 'command-code',
+    npmPackage: 'command-code',
+    args: ['acp'],
+    terminalArgs: [],
+    loginArgs: ['login'],
+    credentialEnvironment: ['COMMAND_CODE_API_KEY'],
+    helpUrl: 'https://commandcode.ai/docs/acp'
+  },
+  dimcodeCli,
+  museCodeCli,
   {
     id: 'cortex-code',
     name: 'Cortex Code',
@@ -182,11 +234,29 @@ export const LOCAL_AGENT_PRESETS: readonly LocalAgentPreset[] = [
     args: ['acp', 'serve'],
     helpUrl: 'https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code'
   },
-  poolsideCli
+  { ...poolsideCli, retired: true }
 ]
 
-export function getLocalAgentPreset(presetId: string | undefined): LocalAgentPreset | undefined {
-  return LOCAL_AGENT_PRESETS.find((preset) => preset.id === presetId)
+export function getLocalAgentPreset(presetId: string | undefined):
+  | (LocalAgentPreset & {
+      authStatusArgs?: readonly string[]
+      cliLogin?: readonly (CliAuthOption & { hintKey: string })[]
+    })
+  | undefined {
+  const preset = LOCAL_AGENT_PRESETS.find((entry) => entry.id === presetId)
+  if (!preset) return undefined
+  // The current settings client gates its auth-status request on this field.
+  const authStatusArgs = preset.accountProbe?.args ?? (preset.account?.canReadAccount ? [] : undefined)
+  if (preset.protocol === 'cursor') return { ...preset, authStatusArgs }
+  return {
+    ...preset,
+    authStatusArgs,
+    cliLogin: preset.cliLogin?.map((option) => ({
+      ...option,
+      hintKey:
+        option.hintKey ?? (option.kind === 'browser' ? 'local_agents.auth_open_browser' : 'settings.models.api_key')
+    }))
+  }
 }
 
 export function getLocalAgentProtocol(presetId: string | undefined): LocalAgentProtocol {
@@ -250,6 +320,7 @@ export interface LocalAgentDetection {
   presetId: string
   source: string
   path?: string
+  incompatiblePath?: string
   version?: string
   terminalPath?: string
   missingChatExecutable?: string
@@ -263,6 +334,7 @@ export const LocalAgentAuthMethodSchema = z.object({
 export type LocalAgentAuthMethod = z.infer<typeof LocalAgentAuthMethodSchema>
 
 export const LocalAgentModelCatalogSchema = z.object({
+  subscriptionUsage: z.literal(true).optional(),
   authMethods: z.array(LocalAgentAuthMethodSchema).optional(),
   models: z.array(
     z.object({
@@ -301,7 +373,7 @@ export function getLocalAgentLaunchMode(
 ): LocalAgentSelection | undefined {
   const preset = getLocalAgentPreset(config.presetId)
   const catalog = preset?.modeForLaunch?.(config.env) ?? preset?.defaultMode
-  if (catalog) return { ...catalog, options: [...catalog.options] }
+  return catalog && { ...catalog, options: [...catalog.options] }
 }
 
 export interface LocalAgentSessionOverrides {

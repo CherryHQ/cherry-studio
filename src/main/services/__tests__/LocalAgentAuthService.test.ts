@@ -8,9 +8,14 @@ import { application } from '@application'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 const mocks = vi.hoisted(() => ({
-  broadcast: vi.fn(),
+  send: vi.fn(),
+  authenticateCursor: vi.fn(),
   openExternal: vi.fn().mockResolvedValue(undefined),
   resolveLocalAgentCli: vi.fn()
+}))
+
+vi.mock('@cherrystudio/agent-runtime-cursor', () => ({
+  bindCursorAccount: () => ({ authenticate: mocks.authenticateCursor })
 }))
 
 vi.mock('electron', () => ({
@@ -20,7 +25,7 @@ vi.mock('electron', () => ({
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    IpcApiService: { broadcast: mocks.broadcast }
+    IpcApiService: { send: mocks.send }
   })
 })
 
@@ -31,11 +36,13 @@ vi.mock('../codeCli/localAgentCli', () => ({
 import { LocalAgentAuthService } from '../LocalAgentAuthService'
 
 describe('LocalAgentAuthService', () => {
+  const service = new LocalAgentAuthService()
   let tmpDir: string
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'local-agent-auth-'))
-    mocks.broadcast.mockReset()
+    mocks.send.mockReset()
+    mocks.authenticateCursor.mockReset()
     mocks.openExternal.mockReset().mockResolvedValue(undefined)
     mocks.resolveLocalAgentCli.mockReset()
     vi.mocked(application.getPath).mockImplementation(() => tmpDir)
@@ -45,7 +52,20 @@ describe('LocalAgentAuthService', () => {
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('executes CLI auth shims (.cmd on Windows, shell script on POSIX), broadcasts prompts, and supports cancellation', async () => {
+  it('redacts rejected runtime credentials', async () => {
+    const config: LocalAgentConfiguration = {
+      presetId: 'cursor',
+      enabled: false,
+      args: [],
+      env: { CURSOR_API_KEY: 'test-cursor-key' }
+    }
+    mocks.authenticateCursor.mockRejectedValueOnce(new Error('Invalid API key: test-cursor-key'))
+    await expect(service.authenticate('invalid-key', config, 'cursor_api_key')).rejects.toThrow(
+      /^Invalid API key: <redacted>$/
+    )
+  })
+
+  it('executes CLI auth shims (.cmd on Windows, shell script on POSIX), routes prompts to the requesting window and supports cancellation', async () => {
     const helper = path.join(tmpDir, 'auth-helper.mjs')
     await fs.writeFile(
       helper,
@@ -77,10 +97,9 @@ describe('LocalAgentAuthService', () => {
       env: { ...process.env }
     })
 
-    const service = new LocalAgentAuthService()
-    await service.authenticate('req-ok', config, 'opencode-console')
+    await service.authenticate('req-ok', config, 'opencode-console', undefined, 'origin')
 
-    expect(mocks.broadcast).toHaveBeenCalledWith('ai.local_agents.auth_prompt', {
+    expect(mocks.send).toHaveBeenCalledWith('origin', 'ai.local_agents.auth_prompt', {
       requestId: 'req-ok',
       url: 'https://example.invalid/device?user_code=ABCD-EFGH',
       code: 'ABCD-EFGH'
@@ -101,15 +120,17 @@ describe('LocalAgentAuthService', () => {
       env: { ...process.env }
     })
 
-    const authPromise = service.authenticate('req-cancel', config, 'opencode-console')
+    const authPromise = service.authenticate('req-cancel', config, 'opencode-console', undefined, 'origin')
     const rejection = expect(authPromise).rejects.toThrow('Authentication cancelled')
     await vi.waitFor(() =>
-      expect(mocks.broadcast).toHaveBeenCalledWith(
+      expect(mocks.send).toHaveBeenCalledWith(
+        'origin',
         'ai.local_agents.auth_prompt',
         expect.objectContaining({ requestId: 'req-cancel' })
       )
     )
-    await service.cancel('req-cancel')
+    await service.cancel('req-cancel', 'other-window')
+    await service.cancel('req-cancel', 'origin')
     await rejection
   })
 })

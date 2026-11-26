@@ -1,5 +1,4 @@
 import type { AcpLaunch, AcpModelSelection } from '@cherrystudio/agent-runtime-acp/profile'
-import { resolveLocalAgentCli } from '@main/services/codeCli'
 import type { LocalAgentConfiguration } from '@shared/ai/localAgent'
 
 import { bindCliGatewayRoute } from '../agentApiGateway'
@@ -9,7 +8,7 @@ import { acpPreset } from './acpPresets'
 export function resolveAcpLaunch(
   config: LocalAgentConfiguration,
   signal?: AbortSignal,
-  purpose: 'chat' | 'session' | 'models' = 'chat'
+  purpose: 'chat' | 'session' | 'models' | 'account' | 'terminal-account' = 'chat'
 ) {
   return resolveCliProgram(config, purpose, signal, acpPreset(config.presetId))
 }
@@ -37,23 +36,6 @@ export function acpModelSelection(config: LocalAgentConfiguration, launch: AcpLa
       model: config.nativeModel ?? launch.nativeModel
     }
   )
-}
-
-export async function withAcpLoginFallback<T>(
-  config: LocalAgentConfiguration,
-  run: (config: LocalAgentConfiguration) => Promise<T>
-): Promise<T> {
-  const fallback = acpPreset(config.presetId)?.cliFallback
-  if (!fallback || config.executableOverride || config.args.length) return run(config)
-  try {
-    return await run(config)
-  } catch (error) {
-    if (!fallback.retry(error)) throw error
-    // The standalone adapter and terminal CLI own separate sign-ins.
-    const terminal = await resolveLocalAgentCli(config).catch(() => undefined)
-    if (!terminal) throw error
-    return run({ ...config, executableOverride: terminal.executable, args: fallback.args })
-  }
 }
 
 /** Resolves a config-file default against the IDs advertised by the ACP session. */

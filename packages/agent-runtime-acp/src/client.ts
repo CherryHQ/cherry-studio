@@ -16,7 +16,13 @@ import {
 } from '@agentclientprotocol/sdk'
 import * as z from 'zod'
 
-import type { AcpHarnessAdapter, AcpNativeTurn, AcpModelCatalogReader } from './harness'
+import type {
+  AcpAccountReader,
+  AcpHarnessAdapter,
+  AcpNativeTurn,
+  AcpModelCatalogReader,
+  AcpSubscriptionUsageReader
+} from './harness'
 import { deadline } from './result'
 import type { AcpClientCallbacks, AcpSessionConfiguration } from './types'
 import { readPromptUsage } from './usage'
@@ -184,7 +190,10 @@ export function connectAcpClient(stream: Stream, options: AcpClientOptions) {
       }
       return {
         response,
+        readAccount: (read: AcpAccountReader, launch: Parameters<AcpAccountReader>[2]) => read(agent, response, launch),
         readModelCatalog: (read: AcpModelCatalogReader) => read(agent),
+        readSubscriptionUsage: (read: AcpSubscriptionUsageReader, target: Parameters<AcpSubscriptionUsageReader>[2]) =>
+          read(agent, response, target),
         async authenticate(methodId: string) {
           await agent.request(methods.agent.authenticate, { methodId })
         },

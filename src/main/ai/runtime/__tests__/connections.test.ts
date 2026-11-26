@@ -1244,23 +1244,19 @@ describe('local protocol processes', () => {
     expect((await readWire()).map(({ method }) => method)).toEqual(['initialize', '_x.ai/models/list'])
   })
 
-  it('loads terminal Antigravity models when the separate adapter has no sign-in', async () => {
-    const commands: Record<string, string> = {}
-    for (const [name, scenario] of [
-      ['agy_acp_server.par', 'auth-unconfigured'],
-      ['agy', 'normal']
-    ]) {
-      const windows = process.platform === 'win32'
-      const command = path.join(cwd, windows ? name + '.cmd' : name)
-      const invoke = `"${process.execPath}" "${fixture}" acp ${scenario}`
-      await writeFile(command, windows ? `@echo off\r\n${invoke}\r\n` : `#!/bin/sh\nexec ${invoke}\n`, { mode: 0o755 })
-      commands[name] = command
-    }
+  it('loads Antigravity models from the official agy ACP command', async () => {
+    const windows = process.platform === 'win32'
+    const command = path.join(cwd, windows ? 'agy.cmd' : 'agy')
+    const invoke = `"${process.execPath}" "${fixture}" acp normal`
+    await writeFile(
+      command,
+      windows
+        ? `@echo off\r\nif not "%~1"=="acp" exit /b 2\r\n${invoke}\r\n`
+        : `#!/bin/sh\n[ "$1" = acp ] || exit 2\nexec ${invoke}\n`,
+      { mode: 0o755 }
+    )
     MockApplicationUtils.setService('BinaryManager', {
-      getToolSnapshots: async () =>
-        Object.fromEntries(
-          Object.entries(commands).map(([name, path]) => [name, { name, availability: { source: 'system', path } }])
-        )
+      getToolSnapshots: async () => ({ agy: { name: 'agy', availability: { source: 'system', path: command } } })
     })
     const catalog = await listLocalAgentModels({
       presetId: 'antigravity-acp',

@@ -1,29 +1,49 @@
 import { application } from '@application'
-import type {
-  AcpCliInstaller,
-  AcpHostBinary,
-  AcpLaunch,
-  AcpModelSelection
-} from '@cherrystudio/agent-runtime-acp/profile'
-import type { AcpHarnessAdapter, AcpModelCatalogReader } from '@cherrystudio/agent-runtime-acp/v1'
-import { antigravityEnvironment, antigravityPreset } from '@cherrystudio/agent-runtime-antigravity-acp'
+import type { RuntimeAccountResult, SubscriptionUsageResult } from '@cherrystudio/agent-runtime'
+import type { AcpHostBinary, AcpLaunch, AcpModelSelection } from '@cherrystudio/agent-runtime-acp/profile'
+import {
+  readNegotiatedAcpUsage,
+  type AcpAccountReader,
+  type AcpHarnessAdapter,
+  type AcpModelCatalogReader,
+  type AcpSubscriptionUsageReader
+} from '@cherrystudio/agent-runtime-acp/v1'
+import { ampSubscriptionUsage } from '@cherrystudio/agent-runtime-amp-acp'
+import { ampCli } from '@cherrystudio/agent-runtime-amp-acp/cli'
+import { antigravityPreset, readAntigravitySubscriptionUsage } from '@cherrystudio/agent-runtime-antigravity-acp'
+import { antigravityCli } from '@cherrystudio/agent-runtime-antigravity-acp/cli'
 import { clinePreset } from '@cherrystudio/agent-runtime-cline-acp'
 import { codeBuddyPreset } from '@cherrystudio/agent-runtime-codebuddy-acp'
-import { copilotGateway, copilotModelProfile } from '@cherrystudio/agent-runtime-copilot-acp'
+import {
+  copilotGateway,
+  copilotModelProfile,
+  readCopilotAccount,
+  readCopilotSubscriptionUsage
+} from '@cherrystudio/agent-runtime-copilot-acp'
+import { copilotCli } from '@cherrystudio/agent-runtime-copilot-acp/cli'
 import { dshEnvironment, dshPreset, prepareDshChat } from '@cherrystudio/agent-runtime-deepseek-harness-acp'
-import { factoryGateway, factoryModelProfile } from '@cherrystudio/agent-runtime-factory-acp'
-import { glmGateway, glmModelProfile } from '@cherrystudio/agent-runtime-glm-acp'
+import {
+  factoryGateway,
+  factoryModelProfile,
+  readFactoryAccount,
+  readFactorySubscriptionUsage
+} from '@cherrystudio/agent-runtime-factory-acp'
+import { factoryCli } from '@cherrystudio/agent-runtime-factory-acp/cli'
+import { glmGateway, glmModelProfile, readGlmSubscriptionUsage } from '@cherrystudio/agent-runtime-glm-acp'
+import { glmCli } from '@cherrystudio/agent-runtime-glm-acp/cli'
 import { goosePreset } from '@cherrystudio/agent-runtime-goose-acp'
 import {
   createGrokAcpAdapter,
   grokGateway,
   grokModelProfile,
-  readGrokModelCatalog
+  readGrokAccount,
+  readGrokModelCatalog,
+  readGrokSubscriptionUsage
 } from '@cherrystudio/agent-runtime-grok-acp'
 import { grokCli } from '@cherrystudio/agent-runtime-grok-acp/cli'
 import { hermesPreset } from '@cherrystudio/agent-runtime-hermes-acp'
-import { kimiGateway, kimiModelProfile } from '@cherrystudio/agent-runtime-kimi-acp'
-import { kiroInstaller } from '@cherrystudio/agent-runtime-kiro-acp'
+import { kimiGateway, kimiModelProfile, readKimiAccount } from '@cherrystudio/agent-runtime-kimi-acp'
+import { kimiCli } from '@cherrystudio/agent-runtime-kimi-acp/cli'
 import { minimaxPreset } from '@cherrystudio/agent-runtime-minimax-acp'
 import { ompGateway, ompModelProfile } from '@cherrystudio/agent-runtime-omp-acp'
 import { attachOpenClawGateway, openClawPreset, openClawEnvironment } from '@cherrystudio/agent-runtime-openclaw-acp'
@@ -32,20 +52,22 @@ import {
   kiloModelProfile,
   openCodeAcpAdapter,
   openCodeGatewayOverlay,
-  openCodeModelProfile
+  openCodeModelProfile,
+  readOpenCodeGoSubscriptionUsage
 } from '@cherrystudio/agent-runtime-opencode-acp'
-import { piAcpAdapter, piBundledBridge, piGateway, piModelProfile } from '@cherrystudio/agent-runtime-pi-acp'
+import { openCodeCli } from '@cherrystudio/agent-runtime-opencode-acp/cli'
+import { piAcpAdapter, piGateway, piModelProfile, preparePiAcpLaunch } from '@cherrystudio/agent-runtime-pi-acp'
 import { poolsidePreset } from '@cherrystudio/agent-runtime-poolside-acp'
+import { readQoderSubscriptionUsage } from '@cherrystudio/agent-runtime-qoder-acp'
+import { qoderCli, qoderGlobalCli } from '@cherrystudio/agent-runtime-qoder-acp/cli'
 import { qwenPreset } from '@cherrystudio/agent-runtime-qwen-acp'
 import { snowPreset } from '@cherrystudio/agent-runtime-snow-acp'
-import { traeInstall, traeRemoval } from '@cherrystudio/agent-runtime-trae-acp'
-import { vibeGateway, vibeInstall, vibeModelProfile } from '@cherrystudio/agent-runtime-vibe-acp'
+import { readVibeAccount, vibeGateway, vibeModelProfile } from '@cherrystudio/agent-runtime-vibe-acp'
 import { zcodePreset } from '@cherrystudio/agent-runtime-zcode-acp'
-import type { CliInstallPlan } from '@cherrystudio/agent-runtime/cli'
+import type { LaunchSpec, SpawnStdio } from '@cherrystudio/agent-runtime/stdio'
 import type { CliModelBinding } from '@main/ai/runtime/cli/cliModelProfile'
+import { requireLaunchRuntime, type PrepareCliCommand } from '@main/ai/runtime/cli/cliProgram'
 import type { DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
-import { CHERRY_NODE_PROXY_RULES_ENV, getProxyEnvironment } from '@main/services/proxy/proxyEnv'
-import { mergeEnvironment } from '@main/utils/env'
 import type { LocalAgentConfiguration, LocalAgentSelection } from '@shared/ai/localAgent'
 import { NativeQuestionReplySchema } from '@shared/ai/nativeInteraction'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
@@ -59,22 +81,30 @@ type RequestDecision = <T>(
 ) => Promise<T>
 
 type DesktopAcpPreset = {
+  account?:
+    | { transport: 'acp'; read: AcpAccountReader; args?: readonly string[] }
+    | {
+        transport: 'cli'
+        read(launch: LaunchSpec, spawn: SpawnStdio, signal: AbortSignal): Promise<RuntimeAccountResult>
+      }
+  subscriptionUsage?:
+    | { transport: 'acp'; read: AcpSubscriptionUsageReader }
+    | (({ transport: 'cli'; executable: string } | { transport: 'terminal' }) & {
+        read(
+          launch: LaunchSpec & { readonly model?: string },
+          spawn: SpawnStdio,
+          signal: AbortSignal
+        ): Promise<SubscriptionUsageResult>
+      })
   readModelCatalog?: AcpModelCatalogReader
   protocol?: AcpHarnessAdapter | ((decide: RequestDecision) => AcpHarnessAdapter)
   selectModel?(configured: string | undefined, launch: AcpLaunch): AcpModelSelection
   catalogId?(model: string, available: readonly string[]): string
-  cliFallback?: { executable: string; args: string[]; retry(error: unknown): boolean }
-  adapterEnv?(env: Record<string, string>, overrides: Record<string, string>): Record<string, string>
   defaultEnv?(): Record<string, string>
-  installation?: 'native-cli'
-  installer?: AcpCliInstaller & { file?: () => string }
   automationName?(name: string, input: unknown): string | undefined
   hostBinary?: AcpHostBinary
-  bundledBridge?: {
-    runtime: { executable: string; minimumVersion: string; label: string; major: string }
-    commandEnv: string
-    entry(): string
-  }
+  prepareCommand?: PrepareCliCommand
+  prepareLoginCommand?: (command: AcpLaunch & { executable: string }) => AcpLaunch & { executable: string }
   sessionMcp?: 'unsupported'
   acquireGateway?(
     overrides: Record<string, string>,
@@ -89,13 +119,6 @@ type DesktopAcpPreset = {
     gateway?: { dispose(): Promise<void> }
     mode: LocalAgentSelection & { application: 'reconnect' }
   }>
-  install?(platform: string): CliInstallPlan | undefined
-  removeInstallation?(
-    path: string,
-    env: Record<string, string>,
-    run: (args: string[], timeout: number, includeStderr?: boolean) => Promise<string>
-  ): Promise<(() => Promise<void>) | undefined>
-  stopForUninstall?(): Promise<boolean>
 } & CliModelBinding
 
 const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAcpPreset>([
@@ -104,7 +127,9 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
     {
       gateway: grokGateway,
       profile: grokModelProfile,
+      account: { transport: 'acp', read: readGrokAccount },
       readModelCatalog: readGrokModelCatalog,
+      subscriptionUsage: { transport: 'acp', read: readGrokSubscriptionUsage },
       protocol: (decide) =>
         createGrokAcpAdapter({
           ask: (target, input, signal, settle) =>
@@ -119,20 +144,66 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
         })
     }
   ],
-  ['opencode', { profile: openCodeModelProfile, gatewayOverlay: openCodeGatewayOverlay, protocol: openCodeAcpAdapter }],
-  ['kilo', { profile: kiloModelProfile, gatewayOverlay: kiloGatewayOverlay }],
-  ['glm-acp-agent', { profile: glmModelProfile, gateway: glmGateway }],
-  ['kimi', { profile: kimiModelProfile, gateway: kimiGateway, installation: 'native-cli' }],
-  ['omp', { profile: ompModelProfile, gateway: ompGateway }],
-  ['copilot', { profile: copilotModelProfile, gateway: copilotGateway }],
-  ['factory-droid', { profile: factoryModelProfile, gateway: factoryGateway }],
-  ['mistral-vibe', { profile: vibeModelProfile, gateway: vibeGateway, install: vibeInstall }],
   [
-    'kiro',
+    openCodeCli.id,
     {
-      install: kiroInstaller.script,
-      installer: { ...kiroInstaller, file: () => application.getPath('external.acp.bin', kiroInstaller.executable) }
+      profile: openCodeModelProfile,
+      gatewayOverlay: openCodeGatewayOverlay,
+      protocol: openCodeAcpAdapter,
+      subscriptionUsage: { transport: 'cli', executable: openCodeCli.executable, read: readOpenCodeGoSubscriptionUsage }
     }
+  ],
+  ['kilo', { profile: kiloModelProfile, gatewayOverlay: kiloGatewayOverlay }],
+  [
+    glmCli.id,
+    {
+      profile: glmModelProfile,
+      gateway: glmGateway,
+      subscriptionUsage: { transport: 'acp', read: readGlmSubscriptionUsage }
+    }
+  ],
+  [
+    kimiCli.id,
+    {
+      profile: kimiModelProfile,
+      gateway: kimiGateway,
+      account: { transport: 'acp', read: readKimiAccount },
+      subscriptionUsage: { transport: 'acp', read: readNegotiatedAcpUsage }
+    }
+  ],
+  ['omp', { profile: ompModelProfile, gateway: ompGateway }],
+  [
+    copilotCli.id,
+    {
+      gateway: copilotGateway,
+      profile: copilotModelProfile,
+      account: { transport: 'cli', read: readCopilotAccount },
+      subscriptionUsage: { transport: 'cli', executable: copilotCli.executable, read: readCopilotSubscriptionUsage }
+    }
+  ],
+  [
+    factoryCli.id,
+    {
+      profile: factoryModelProfile,
+      gateway: factoryGateway,
+      account: { transport: 'acp', read: readFactoryAccount, args: factoryCli.accountArgs },
+      subscriptionUsage: { transport: 'cli', executable: factoryCli.executable, read: readFactorySubscriptionUsage }
+    }
+  ],
+  [ampCli.id, { subscriptionUsage: ampSubscriptionUsage }],
+  [
+    qoderCli.id,
+    {
+      subscriptionUsage: {
+        transport: 'cli',
+        executable: qoderCli.executable,
+        read: (launch, spawn, signal) => readQoderSubscriptionUsage('cn', launch, spawn, signal)
+      }
+    }
+  ],
+  [
+    'mistral-vibe',
+    { profile: vibeModelProfile, gateway: vibeGateway, account: { transport: 'acp', read: readVibeAccount } }
   ],
   [
     'pi-acp',
@@ -140,7 +211,11 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
       protocol: piAcpAdapter,
       profile: piModelProfile,
       gateway: piGateway,
-      bundledBridge: { ...piBundledBridge, entry: () => application.getPath('app.pi_acp.file') }
+      prepareCommand: (command) =>
+        preparePiAcpLaunch(command, {
+          requireRuntime: requireLaunchRuntime,
+          bridgeEntry: () => application.getPath('app.pi_acp.file')
+        })
     }
   ],
   [
@@ -153,19 +228,17 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
           application.getPath('external.openclaw.config', 'openclaw.json')
         ),
       acquireGateway: (env, launch, signal) =>
-        attachOpenClawGateway(env, launch, () => application.get('OpenClawService').acquireGateway(signal)),
-      stopForUninstall: async () =>
-        (await application.get('OpenClawService').stopGateway({ requirePortFree: true })).success
+        attachOpenClawGateway(env, launch, () => application.get('OpenClawService').acquireGateway(signal))
     }
   ],
   [
     antigravityPreset.id,
     {
-      ...antigravityPreset,
-      installer: { ...antigravityPreset.installer, file: () => application.getPath('external.antigravity.cli.file') },
-      adapterEnv: (env, overrides) => {
-        const proxy = getProxyEnvironment()
-        return antigravityEnvironment(env, overrides, proxy, !!proxy[CHERRY_NODE_PROXY_RULES_ENV], mergeEnvironment)
+      protocol: antigravityPreset.protocol,
+      subscriptionUsage: {
+        transport: 'cli',
+        executable: antigravityCli.executable,
+        read: readAntigravitySubscriptionUsage
       }
     }
   ],
@@ -181,54 +254,26 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
           application.get('CacheService').getPersist('local_agent.session_overrides')[sessionId]?.mode,
           (defaultProfile) =>
             application.get('DeepSeekHarnessService').prepareAgent(defaultProfile ? sessionId : undefined)
-        ),
-      stopForUninstall: async () => {
-        await application.get('DeepSeekHarnessService').stop()
-        return true
-      }
-    }
-  ],
-  [
-    'trae',
-    {
-      install: traeInstall,
-      removeInstallation: (path, env, run) =>
-        traeRemoval(
-          path,
-          env,
-          {
-            bin: application.getPath('external.acp.bin'),
-            installation: application.getPath('external.trae.installation')
-          },
-          run
         )
     }
   ],
   [clinePreset.id, clinePreset],
   [goosePreset.id, goosePreset],
   [poolsidePreset.id, poolsidePreset],
-  [
-    codeBuddyPreset.id,
-    {
-      ...codeBuddyPreset,
-      stopForUninstall: async () => {
-        await application.get('CodeBuddyWebUiService').stop()
-        return true
-      }
-    }
-  ],
+  [codeBuddyPreset.id, codeBuddyPreset],
   [snowPreset.id, snowPreset],
-  [qwenPreset.id, qwenPreset],
   [
-    hermesPreset.id,
+    qoderGlobalCli.id,
     {
-      ...hermesPreset,
-      stopForUninstall: async () => {
-        await application.get('HermesDashboardService').stop()
-        return true
+      subscriptionUsage: {
+        transport: 'cli',
+        executable: qoderGlobalCli.executable,
+        read: (launch, spawn, signal) => readQoderSubscriptionUsage('global', launch, spawn, signal)
       }
     }
   ],
+  [qwenPreset.id, qwenPreset],
+  [hermesPreset.id, hermesPreset],
   [minimaxPreset.id, minimaxPreset],
   [zcodePreset.id, zcodePreset]
 ])
@@ -248,12 +293,4 @@ const profiles = new Map(
 
 export function acpModelProfile(target: CliConfigTarget) {
   return profiles.get(target)
-}
-
-const installers = new Map(
-  [...presets.values()].flatMap(({ installer }) => (installer ? [[installer.executable, installer] as const] : []))
-)
-
-export function acpCliInstaller(executable: string) {
-  return installers.get(executable)
 }

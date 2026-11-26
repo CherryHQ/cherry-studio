@@ -10,14 +10,28 @@ import {
   type SendOptions
 } from '@cursor/sdk'
 
-import type { CompactThread, InputDraft, SubmitInput } from '@cherrystudio/agent-runtime'
+import type {
+  CompactThread,
+  InputDraft,
+  RuntimeAccountAccess,
+  RuntimeAccountResult,
+  SubmitInput
+} from '@cherrystudio/agent-runtime'
 
-import { cursorLoginMethod, type CursorPermissionMode } from './cli'
+import { cursorApiKeyMethod, cursorLoginMethod, type CursorPermissionMode } from './cli'
 
 export type { Run, SDKAgent, SDKUserMessage } from '@cursor/sdk'
 
-export async function listCursorModels(apiKey?: string) {
-  const models = await Cursor.models.list({ apiKey })
+export async function listCursorModels(
+  env: CursorEnvironment,
+  readShellEnv: ReadShellEnvironment,
+  signal: AbortSignal
+) {
+  const models = await readCursorResult(signal, async () => {
+    const apiKey = await resolveCursorApiKey(env, readShellEnv, signal)
+    signal.throwIfAborted()
+    return Cursor.models.list({ apiKey })
+  })
   return models.map((model) => {
     const effort = cursorEffort(model)
     return {
@@ -83,38 +97,58 @@ async function effortCatalog(apiKey?: string): Promise<SDKModel[]> {
   }
 }
 
-export function cursorLogin(methodId: string, signal: AbortSignal, openBrowser: (url: string) => Promise<void>) {
+function cursorLogin(methodId: string, signal: AbortSignal, openBrowser: (url: string) => Promise<void>) {
   if (methodId !== cursorLoginMethod.id) throw new Error('Unknown Cursor authentication method')
   return Cursor.auth.login({ signal, openBrowser }).then(() => undefined)
 }
 
-export async function cursorAuthStatus(apiKey?: string) {
+async function readCursorAccount(apiKey?: string): Promise<RuntimeAccountResult> {
   if (apiKey) {
-    await Cursor.me({ apiKey })
-    return 'signed-in' as const
+    const { userId, userEmail, userFirstName, userLastName } = await Cursor.me({ apiKey })
+    const id = userId?.toString()
+    const displayName = [userFirstName, userLastName].filter(Boolean).join(' ')
+    return {
+      status: 'signed-in',
+      ...(id || userEmail || displayName
+        ? { account: { id, email: userEmail, displayName: displayName || undefined } }
+        : {})
+    }
   }
-  return (await Cursor.auth.status()).status === 'logged-in' ? ('signed-in' as const) : ('signed-out' as const)
+  const result = await Cursor.auth.status()
+  return result.status === 'logged-in'
+    ? { status: 'signed-in', ...(result.email ? { account: { email: result.email } } : {}) }
+    : { status: 'signed-out' }
 }
 
 export async function openCursorSession(input: {
-  apiKey?: string
+  env: CursorEnvironment
+  readShellEnv: ReadShellEnvironment
   cwd: string
   model: string
   agentId?: string
   headless?: boolean
   browser?: Extract<McpServerConfig, { url: string }>
+  signal?: AbortSignal
 }) {
   const options: AgentOptions = {
-    apiKey: input.apiKey,
+    apiKey: await resolveCursorApiKey(input.env, input.readShellEnv, input.signal),
     model: { id: input.model },
     mcpServers: input.browser ? { automation: input.browser } : {},
     local: { cwd: input.cwd, autoReview: true }
   }
-  const [agent, models] = await Promise.all([
-    input.agentId ? Agent.resume(input.agentId, options) : Agent.create(options),
-    input.headless ? [] : effortCatalog(input.apiKey)
-  ])
-  return { agent, effort: bindEffort(models, agent.model ?? { id: input.model }) }
+  const { signal } = input
+  async function open() {
+    const [agent, models] = await Promise.all([
+      input.agentId ? Agent.resume(input.agentId, options) : Agent.create(options),
+      input.headless ? [] : effortCatalog(options.apiKey)
+    ])
+    if (signal?.aborted) {
+      agent.close()
+      signal.throwIfAborted()
+    }
+    return { agent, effort: bindEffort(models, agent.model ?? { id: input.model }) }
+  }
+  return signal ? readCursorResult(signal, open) : open()
 }
 
 export function sendCursorTurn(
@@ -207,5 +241,53 @@ export async function completeCursorCompaction(run: Run): ReturnType<CompactThre
       code: cancelled ? 'cancelled' : result.status === 'finished' ? 'missing-receipt' : 'failed',
       message: result.error?.message ?? 'Cursor did not complete compaction'
     }
+  }
+}
+
+type CursorEnvironment = Readonly<Record<string, string | undefined>>
+type ReadShellEnvironment = (signal?: AbortSignal) => Promise<CursorEnvironment>
+
+async function resolveCursorApiKey(env: CursorEnvironment, readShellEnv: ReadShellEnvironment, signal?: AbortSignal) {
+  return env[cursorApiKeyMethod.apiKey] ?? (await readShellEnv(signal))[cursorApiKeyMethod.apiKey]
+}
+
+export function bindCursorAccount(env: CursorEnvironment, readShellEnv: ReadShellEnvironment): RuntimeAccountAccess {
+  return {
+    async authenticate({ methodId }, host, signal) {
+      signal.throwIfAborted()
+      if (methodId !== cursorApiKeyMethod.id)
+        return cursorLogin(methodId, signal, (url) => {
+          if (new URL(url).protocol !== 'https:') throw new Error('Invalid Cursor login URL')
+          return host.openBrowser(url)
+        })
+      const apiKey = env[cursorApiKeyMethod.apiKey]?.trim()
+      if (!apiKey) throw new Error('Cursor API key is required')
+      await readCursorResult(AbortSignal.any([signal, AbortSignal.timeout(30_000)]), () => readCursorAccount(apiKey))
+    },
+    async readAccount(signal) {
+      try {
+        return await readCursorResult(signal, async () =>
+          readCursorAccount(await resolveCursorApiKey(env, readShellEnv, signal))
+        )
+      } catch {
+        return { status: 'unknown' }
+      }
+    }
+  }
+}
+
+async function readCursorResult<T>(signal: AbortSignal, read: () => Promise<T>): Promise<T> {
+  signal.throwIfAborted()
+  let cancel: (() => void) | undefined
+  const cancelled = new Promise<never>((_, reject) => {
+    cancel = () => reject(signal.reason)
+    signal.addEventListener('abort', cancel, { once: true })
+  })
+  try {
+    const result = await Promise.race([read(), cancelled])
+    signal.throwIfAborted()
+    return result
+  } finally {
+    if (cancel) signal.removeEventListener('abort', cancel)
   }
 }

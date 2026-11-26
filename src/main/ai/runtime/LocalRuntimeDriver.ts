@@ -1,6 +1,9 @@
+import type { RuntimeAccountAccess, RuntimeAccountResult } from '@cherrystudio/agent-runtime'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { authenticateViaCli, readCliAccount, resolveCliAuthCommand } from '@main/services/codeCli'
 import {
+  getLocalAgentPreset,
   getLocalAgentProtocol,
   type LocalAgentCheckResult,
   type LocalAgentConfiguration,
@@ -23,6 +26,7 @@ interface LocalRuntimeAdapter {
     cwd: string
   ): ReturnType<AgentSessionRuntimeDriver['connect']>
   listModels(config: LocalAgentConfiguration): Promise<LocalAgentModelCatalog>
+  bindAccount?(config: LocalAgentConfiguration): RuntimeAccountAccess | Promise<RuntimeAccountAccess>
   check(config: LocalAgentConfiguration): Promise<LocalAgentProtocolInfo | void>
 }
 
@@ -43,9 +47,6 @@ export class LocalRuntimeDriver implements AgentSessionRuntimeDriver {
     const agent = session.agentId ? agentService.getAgent(session.agentId) : undefined
     if (!agent?.configuration?.localRuntime?.enabled) throw new Error('Local agent is disabled')
     if (!session.workspace?.path) throw new Error('Session has no working directory')
-  }
-  async listAvailableTools() {
-    return []
   }
   async connect(input: AgentRuntimeConnectInput) {
     const session = agentSessionService.getById(input.sessionId)
@@ -89,4 +90,32 @@ export async function checkLocalAgent(config: LocalAgentConfiguration): Promise<
       error: error instanceof Error ? error.message : String(error)
     }
   }
+}
+
+export async function resolveLocalRuntimeAccount(config: LocalAgentConfiguration): Promise<RuntimeAccountAccess> {
+  const adapter = await localRuntimeAdapters[getLocalAgentProtocol(config.presetId)]()
+  const native = await adapter.bindAccount?.(config)
+  const preset = getLocalAgentPreset(config.presetId)
+  const hasCliLogin = preset?.cliLogin?.length || preset?.providerLogin
+  return {
+    ...native,
+    ...(!native?.readAccount && preset?.accountProbe && { readAccount: (signal) => readCliAccount(config, signal) }),
+    ...(hasCliLogin && {
+      authenticate(request, host, signal) {
+        const spec = resolveCliAuthCommand(config.presetId, request.methodId, request)
+        if (spec) return authenticateViaCli(config, spec, host, signal)
+        if (native?.authenticate) return native.authenticate(request, host, signal)
+        throw new Error('Unknown authentication method')
+      }
+    })
+  }
+}
+
+export async function readLocalAgentAccount(config: LocalAgentConfiguration): Promise<RuntimeAccountResult> {
+  const access = await resolveLocalRuntimeAccount(config)
+  return (
+    access.readAccount?.(AbortSignal.timeout(10_000)).catch(() => ({ status: 'unknown' as const })) ?? {
+      status: 'unsupported'
+    }
+  )
 }

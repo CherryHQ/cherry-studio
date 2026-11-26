@@ -1,4 +1,5 @@
-import type { AcpLoginProfile, AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile'
+import type { CliInstaller } from '@cherrystudio/agent-runtime/cli'
+import type { AcpLoginProfile, AcpPermissionModes } from '@cherrystudio/agent-runtime/cli'
 
 export const antigravityCli = {
   id: 'antigravity-acp',
@@ -8,6 +9,7 @@ export const antigravityCli = {
   } satisfies AcpPermissionModes,
   modelEndpoints: ['google-generate-content'],
   terminalArgs: [],
+  loginArgs: ['acp', '--login'],
   sessionModel: true,
   auth: {
     catalogRequiresLogin: true,
@@ -25,14 +27,37 @@ export const antigravityCli = {
       }
     ]
   } satisfies AcpLoginProfile,
-  terminalCli: { executable: 'agy', managedPackage: 'google-antigravity/antigravity-cli' },
   name: 'Google Antigravity',
   protocol: 'acp',
-  executable: 'agy_acp_server.par',
-  aliases: ['agy_acp_server'],
-  platformArgs: {
-    linux: ['--uid=']
-  },
-  args: [],
-  helpUrl: 'https://antigravity.google/docs/ide/extensions'
+  subscriptionUsage: true,
+  executable: 'agy',
+  managedPackage: 'google-antigravity/antigravity-cli',
+  nativeCliInstall: true,
+  minimumAcpVersion: '1.5.0',
+  args: ['acp'],
+  helpUrl: 'https://antigravity.google/docs/cli/acp/'
 } as const
+
+export const antigravityInstaller = {
+  executable: antigravityCli.executable,
+  script(platform, targetVersion) {
+    if (targetVersion) throw new Error('Antigravity manages its own updates')
+    return platform === 'win32'
+      ? {
+          manager: 'script',
+          command: 'powershell.exe',
+          args: [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            "$ErrorActionPreference = 'Stop'; irm https://antigravity.google/cli/install.ps1 | iex"
+          ]
+        }
+      : {
+          manager: 'script',
+          command: 'bash',
+          args: ['-o', 'pipefail', '-c', 'curl -fsSL https://antigravity.google/cli/install.sh | bash']
+        }
+  },
+  removal: { kind: 'file', identity: /\b(?:antigravity|agy)\b/i }
+} satisfies CliInstaller

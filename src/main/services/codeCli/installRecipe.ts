@@ -4,7 +4,7 @@ import type { CliInstallPlan } from '@cherrystudio/agent-runtime/cli'
 import { LOCAL_CLI_AGENT_PRESETS } from '@shared/ai/localAgent'
 import { CODE_CLI_TOOL_PRESETS, type CodeCliToolPreset } from '@shared/data/presets/codeCliTools'
 
-import { acpCliInstaller, acpPreset } from '../../ai/runtime/acp/acpPresets'
+import { cliInstallers, presetInstallRecipe } from './installPolicy'
 
 const packageDistribution = z.object({ package: z.string().min(1) })
 const binaryDistribution = z.object({
@@ -40,13 +40,12 @@ export function resolveInstallRecipe(
 ): CliInstallPlan | undefined {
   const preset = LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === presetId)
   if (!preset) throw new Error('Unknown local agent preset')
-  const adapter = acpPreset(presetId)
-  const native =
-    adapter?.installation === 'native-cli'
-      ? CODE_CLI_TOOL_PRESETS.find((entry) => entry.executable === preset.executable)
-      : undefined
+  const native = preset.nativeCliInstall
+    ? CODE_CLI_TOOL_PRESETS.find((entry) => entry.executable === preset.executable)
+    : undefined
   if (native) return resolveCliInstallRecipe(native, undefined, platform)
-  if (adapter?.install) return adapter.install(platform)
+  const custom = presetInstallRecipe.get(presetId)
+  if (custom) return custom(platform)
   const entry = preset.npmPackage
     ? undefined
     : registry === undefined
@@ -80,7 +79,7 @@ export function resolveCliInstallRecipe(
   platform = process.platform
 ): Exclude<CliInstallPlan, { manager: 'binary' }> {
   if (targetVersion && !/^[a-zA-Z0-9][a-zA-Z0-9.+_-]*$/.test(targetVersion)) throw new Error('Invalid CLI version')
-  const installer = acpCliInstaller(preset.executable)
+  const installer = cliInstallers.get(preset.executable)
   if (installer) {
     const recipe = installer.script(platform, targetVersion)
     if (!recipe) throw new Error('Unsupported CLI installation platform')

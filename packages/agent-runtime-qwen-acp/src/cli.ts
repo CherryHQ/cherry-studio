@@ -3,6 +3,7 @@ export const qwenCli = {
   id: 'qwen',
   externalCredentialMethods: ['openai'],
   terminalArgs: [],
+  loginArgs: [],
   registryId: 'qwen-code',
   name: 'Qwen Code',
   protocol: 'acp',

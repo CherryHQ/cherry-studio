@@ -21,3 +21,5 @@ export const factoryGateway = {
     }
   }
 } satisfies AcpGatewayConfig
+
+export { readFactoryAccount, readFactorySubscriptionUsage } from './accountUsage'

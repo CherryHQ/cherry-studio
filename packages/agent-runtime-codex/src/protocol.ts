@@ -134,7 +134,7 @@ export type ThreadStartParams = {
   model?: string | null
   modelProvider?: string | null
   allowProviderModelFallback?: boolean
-  serviceTier?: string | null | null
+  serviceTier?: string | null
   cwd?: string | null
   runtimeWorkspaceRoots?: Array<AbsolutePathBuf> | null
   approvalPolicy?: AskForApproval | null
@@ -466,7 +466,7 @@ export type ThreadResumeParams = {
   path?: string | null
   model?: string | null
   modelProvider?: string | null
-  serviceTier?: string | null | null
+  serviceTier?: string | null
   cwd?: string | null
   runtimeWorkspaceRoots?: Array<AbsolutePathBuf> | null
   approvalPolicy?: AskForApproval | null
@@ -494,7 +494,7 @@ export type ThreadForkParams = {
   path?: string | null
   model?: string | null
   modelProvider?: string | null
-  serviceTier?: string | null | null
+  serviceTier?: string | null
   cwd?: string | null
   runtimeWorkspaceRoots?: Array<AbsolutePathBuf> | null
   approvalPolicy?: AskForApproval | null
@@ -731,7 +731,7 @@ export type TurnStartParams = {
   sandboxPolicy?: SandboxPolicy | null
   permissions?: string | null
   model?: string | null
-  serviceTier?: string | null | null
+  serviceTier?: string | null
   serviceTierForTurn?: string | null
   effort?: ReasoningEffort | null
   summary?: ReasoningSummary | null
@@ -775,6 +775,15 @@ export type ReviewStartParams = {
 
 export type GetAccountTokenUsageParams = {
   threadId?: string | null
+}
+
+export type GetAccountParams = {
+  refreshToken?: boolean
+}
+
+export type GetAccountRateLimitsParams = {
+  supportsLunaReserve?: boolean
+  excludeResetCreditDetails?: boolean
 }
 
 export type GitDiffToRemoteParams = {
@@ -961,6 +970,8 @@ export interface CodexRequestParams {
   'turn/interrupt': TurnInterruptParams
   'review/start': ReviewStartParams
   'account/usage/read': GetAccountTokenUsageParams
+  'account/read': GetAccountParams
+  'account/rateLimits/read': GetAccountRateLimitsParams
   gitDiffToRemote: GitDiffToRemoteParams
   'command/exec': CommandExecParams
   'mcpServerStatus/list': ListMcpServerStatusParams

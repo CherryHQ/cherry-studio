@@ -20,6 +20,7 @@ function configuredContextWindow(config: LocalAgentConfiguration) {
   } catch {
     return undefined
   }
+  return undefined
 }
 
 export async function resolveClaudeLaunch(
@@ -41,8 +42,8 @@ export async function resolveClaudeLaunch(
     cwd,
     env: program.env,
     args: program.args,
-    nativeModel: program.nativeModel,
-    contextWindow: purpose === 'models' ? undefined : configuredContextWindow(config)
+    ...(program.nativeModel && { nativeModel: program.nativeModel }),
+    ...(purpose !== 'models' && { contextWindow: configuredContextWindow(config) })
   } satisfies LocalClaudeLaunch & {
     env: Record<string, string>
     nativeModel?: string

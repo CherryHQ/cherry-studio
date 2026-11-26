@@ -1,4 +1,11 @@
-import { acpAuthMethods, connectAcpManagementStdio, type AcpManagementAgent } from '@cherrystudio/agent-runtime-acp/v1'
+import {
+  acpAuthMethods,
+  advertisesAcpSubscriptionUsage,
+  connectAcpManagementStdio,
+  type AcpAccountReader,
+  type AcpManagementAgent,
+  type AcpSubscriptionUsageReader
+} from '@cherrystudio/agent-runtime-acp/v1'
 import { localCliPresetById, type LocalAgentConfiguration, type LocalAgentModelCatalog } from '@shared/ai/localAgent'
 
 import { acpError } from './acpError'
@@ -34,9 +41,30 @@ export class AcpManagement {
       return {
         models,
         activeModel: activeModel ?? (implicit ? { id: implicit } : undefined),
-        authMethods: acpAuthMethods(agent.response)
+        authMethods: acpAuthMethods(agent.response),
+        ...(advertisesAcpSubscriptionUsage(agent.response) && { subscriptionUsage: true })
       }
     })
+  }
+
+  readSubscriptionUsage(cwd: string, reader: AcpSubscriptionUsageReader) {
+    return this.run(
+      cwd,
+      (config, signal) => resolveAcpLaunch(config, signal, 'account'),
+      (agent, launch) =>
+        agent.readSubscriptionUsage(reader, { env: launch.env, model: this.config.nativeModel ?? launch.nativeModel })
+    )
+  }
+
+  readAccount(cwd: string, read: AcpAccountReader, args?: readonly string[]) {
+    return this.run(
+      cwd,
+      async (config, signal) => {
+        const launch = await resolveAcpLaunch(config, signal, 'account')
+        return args ? { ...launch, args: [...args] } : launch
+      },
+      (agent, launch) => agent.readAccount(read, launch)
+    )
   }
 
   close(): Promise<void> {
@@ -66,6 +94,7 @@ export async function authenticateLocalAcp(
   methodId: string,
   signal: AbortSignal
 ) {
+  signal.throwIfAborted()
   const management = new AcpManagement(config)
   const cancel = () => {
     void management.close().catch(() => {})

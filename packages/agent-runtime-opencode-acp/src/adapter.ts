@@ -146,3 +146,5 @@ export const openCodeAcpAdapter: AcpHarnessAdapter = {
     }
   }
 }
+
+export { readOpenCodeGoSubscriptionUsage } from './accountUsage'

@@ -20,6 +20,7 @@
     "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-kiro-acp/tsconfig.json"
   },
   "dependencies": {
+    "@cherrystudio/agent-runtime": "workspace:*",
     "@cherrystudio/agent-runtime-acp": "workspace:*"
   },
   "devDependencies": {

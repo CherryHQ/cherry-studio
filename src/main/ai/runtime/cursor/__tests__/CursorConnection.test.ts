@@ -4,7 +4,6 @@ import { openCursorSession, sendCursorTurn, type Run, type SDKAgent } from '@che
 
 import { acquireLocalAgentBrowserLease } from '../../../mcp/localAgentBrowserBridge'
 import type { AgentRuntimeEvent, AgentRuntimeUserInput } from '../../types'
-import { getCursorApiKey } from '../cursorAccount'
 import { CursorConnection } from '../CursorConnection'
 
 vi.mock('../../../agentSession/localContext', () => ({
@@ -12,14 +11,10 @@ vi.mock('../../../agentSession/localContext', () => ({
   bindLocalContext: (id: string, nativeThreadId: string) => ({ id, backendId: 'local-backend', nativeThreadId })
 }))
 
-vi.mock('@cherrystudio/agent-runtime-cursor', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@cherrystudio/agent-runtime-cursor')>()),
+vi.mock(import('@cherrystudio/agent-runtime-cursor'), async (importOriginal) => ({
+  ...(await importOriginal()),
   openCursorSession: vi.fn(),
   sendCursorTurn: vi.fn()
-}))
-
-vi.mock('../cursorAccount', () => ({
-  getCursorApiKey: vi.fn()
 }))
 
 vi.mock('../../../mcp/localAgentBrowserBridge', () => ({
@@ -38,7 +33,6 @@ function userInput(id: string, text = 'hello'): AgentRuntimeUserInput {
 }
 
 async function createCursorSession(nativeModel?: string) {
-  vi.mocked(getCursorApiKey).mockResolvedValue('cursor-test-key')
   vi.mocked(acquireLocalAgentBrowserLease).mockResolvedValue(undefined)
   const agent: SDKAgent = {
     agentId: 'cursor-agent-1',

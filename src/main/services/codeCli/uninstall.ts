@@ -6,7 +6,7 @@ import readCmdShim from 'read-cmd-shim'
 import { parse as parseToml } from 'smol-toml'
 
 import { application } from '@application'
-import { systemAgentEntry, systemAgentWrapper } from '@main/ai/runtime/cli/cliProgram'
+import { systemAgentEntry, systemAgentWrapper } from '@main/ai/runtime/cli/installedCli'
 import { isOutsidePath } from '@main/utils/file'
 import { executeCommand } from '@main/utils/processRunner'
 

@@ -1,4 +1,4 @@
-import type { CliAuthStatusProbe, PermissionModeCatalog } from '@cherrystudio/agent-runtime/cli'
+import type { PermissionModeCatalog } from '@cherrystudio/agent-runtime/cli'
 
 export const CODEX_PERMISSION_MODES = {
   id: 'codex-mode',
@@ -30,19 +30,12 @@ export const codexCli = {
       kind: 'api-key'
     }
   ],
-  authStatus: {
-    args: ['login', 'status'],
-    includeStderr: true,
-    parse(output) {
-      if (/^Not logged in$/m.test(output.trim())) return 'signed-out'
-      if (/^Logged in using (?:ChatGPT|an API key(?: - .+)?)$/m.test(output.trim())) return 'signed-in'
-      return 'unknown'
-    }
-  } satisfies CliAuthStatusProbe,
+  account: { canReadAccount: true },
   loginArgs: ['login'],
   terminalArgs: [],
   name: 'Codex',
   protocol: 'codex',
+  subscriptionUsage: true,
   defaultMode: CODEX_PERMISSION_MODES,
   executable: 'codex',
   npmPackage: '@openai/codex',

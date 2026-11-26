@@ -45,10 +45,26 @@ export const piModelProfile = {
   }
 } satisfies AcpJsonModelProfile<'pi-settings'>
 
-export const piBundledBridge = {
-  runtime: { executable: 'node', minimumVersion: '20.0.0', label: 'Node.js', major: '20' },
-  commandEnv: 'PI_ACP_PI_COMMAND'
-} as const
+const nodeRuntime = { executable: 'node', minimumVersion: '20.0.0', label: 'Node.js', major: '20' } as const
+
+export async function preparePiAcpLaunch<Source extends string>(
+  command: { executable: string; args: readonly string[]; env: Record<string, string> },
+  host: {
+    requireRuntime(
+      runtime: typeof nodeRuntime,
+      env: Record<string, string>
+    ): Promise<{ path: string; source: Source; env: Record<string, string> }>
+    bridgeEntry(): string
+  }
+) {
+  const node = await host.requireRuntime(nodeRuntime, command.env)
+  return {
+    executable: node.path,
+    source: node.source,
+    args: [host.bridgeEntry(), ...command.args],
+    env: { ...node.env, PI_ACP_PI_COMMAND: command.env.PI_ACP_PI_COMMAND || command.executable }
+  }
+}
 
 export const piGateway = {
   format: 'json',

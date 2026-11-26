@@ -1,3 +1,5 @@
+import type { CliAccountProbe } from '@cherrystudio/agent-runtime/cli'
+
 export const openCodeCli = {
   modelConfig: {
     target: 'opencode-config',
@@ -30,28 +32,30 @@ export const openCodeCli = {
       kind: 'browser'
     }
   ],
-  authStatus: {
+  accountProbe: {
+    signedOutExitCode: 1,
     args: ['auth', 'list', '--format', 'json'],
-    parse(output: string): 'signed-in' | 'signed-out' | 'unknown' {
+    parse(output) {
       try {
         const parsed: unknown = JSON.parse(output.trim())
-        if (!Array.isArray(parsed)) return 'unknown'
+        if (!Array.isArray(parsed)) return { status: 'unknown' }
         const hasConnection = parsed.some((entry: unknown) => {
           if (!entry || typeof entry !== 'object') return false
           const connections: unknown = Reflect.get(entry, 'connections')
           return Array.isArray(connections) ? connections.length > 0 : true
         })
-        return hasConnection ? 'signed-in' : 'signed-out'
+        return { status: hasConnection ? 'signed-in' : 'signed-out' }
       } catch {
-        return 'unknown'
+        return { status: 'unknown' }
       }
     }
-  },
+  } satisfies CliAccountProbe,
   loginArgs: ['auth', 'login'],
   externalCredentialMethods: ['opencode-login'],
   terminalArgs: [],
   name: 'OpenCode',
   protocol: 'acp',
+  subscriptionUsage: true,
   executable: 'opencode',
   args: ['acp'],
   helpUrl: 'https://opencode.ai/docs/acp/'

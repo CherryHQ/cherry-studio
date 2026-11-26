@@ -74,9 +74,9 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
   }),
   defineCodeCliTool({
     id: CodeCli.ANTIGRAVITY_CLI,
-    executable: antigravityCli.terminalCli.executable,
+    executable: antigravityCli.executable,
     skillFolderName: 'code-mate-antigravity',
-    packageName: antigravityCli.terminalCli.managedPackage,
+    packageName: antigravityCli.managedPackage,
     install: 'aqua'
   }),
   defineCodeCliTool({

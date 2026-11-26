@@ -19,14 +19,9 @@ import { childTimelines } from '@main/ai/agentSession/childTimelines'
 import { readToolResult } from '@main/ai/messages/toolResultRead'
 import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
-import { checkLocalAgent, listLocalAgentModels } from '@main/ai/runtime/LocalRuntimeDriver'
+import { checkLocalAgent, listLocalAgentModels, readLocalAgentAccount } from '@main/ai/runtime/LocalRuntimeDriver'
 import { AiStreamAdmissionError, type MainDispatchRequest } from '@main/ai/streamManager'
-import {
-  detectLocalAgents,
-  getLocalAgentAuthStatus,
-  openLocalAgentTerminal,
-  selectLocalAgentModel
-} from '@main/services/codeCli'
+import { detectLocalAgents, openLocalAgentTerminal, selectLocalAgentModel } from '@main/services/codeCli'
 import { openRequestPath } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { isAgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
@@ -248,10 +243,14 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.local_agents.open_terminal': openLocalAgentTerminal,
   'ai.local_agents.check': checkLocalAgent,
   'ai.local_agents.models': listLocalAgentModels,
-  'ai.local_agents.auth_status': getLocalAgentAuthStatus,
-  'ai.local_agents.authenticate': ({ requestId, config, methodId, secret, provider }) =>
-    application.get('LocalAgentAuthService').authenticate(requestId, config, methodId, { secret, provider }),
-  'ai.local_agents.cancel_auth': ({ requestId }) => application.get('LocalAgentAuthService').cancel(requestId),
+  'ai.local_agents.subscription_usage': ({ agentId }) =>
+    application.get('LocalAgentAuthService').readSubscriptionUsage(agentId),
+  'ai.local_agents.read_account': readLocalAgentAccount,
+  'ai.local_agents.auth_status': async (config) => (await readLocalAgentAccount(config)).status,
+  'ai.local_agents.authenticate': ({ requestId, config, methodId, secret, provider }, { senderId }) =>
+    application.get('LocalAgentAuthService').authenticate(requestId, config, methodId, { secret, provider }, senderId),
+  'ai.local_agents.cancel_auth': ({ requestId }, { senderId }) =>
+    application.get('LocalAgentAuthService').cancel(requestId, senderId),
   'ai.local_agents.select_model': ({ agentId, nativeModel, ...selection }) =>
     selectLocalAgentModel(agentId, nativeModel, selection),
   'ai.local_agents.uninstall_components': ({ presetId, expectedPath }) =>

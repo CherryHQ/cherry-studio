@@ -1,0 +1,22 @@
+{
+  "name": "@cherrystudio/agent-runtime-muse-code-acp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Muse Code ACP integration for Cherry Studio.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./cli": {
+      "types": "./dist/cli.d.mts",
+      "default": "./dist/cli.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown src/cli.ts --format esm --dts --clean",
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-muse-code-acp/tsconfig.json"
+  },
+  "devDependencies": {
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2"
+  }
+}

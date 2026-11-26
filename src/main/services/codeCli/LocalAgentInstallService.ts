@@ -10,7 +10,7 @@ import type { CliInstallPlan } from '@cherrystudio/agent-runtime/cli'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { selectChatInstallation } from '@main/ai/runtime/cli/cliProgram'
+import { inspectAgentInstallation, selectAvailableInstallation } from '@main/ai/runtime/cli/installedCli'
 import { readInstalledPackageVersion, resolveInstalledExecutable } from '@main/ai/runtime/cli/installedVersion'
 import { resolveRequiredRuntime } from '@main/ai/runtime/cli/runtimeDependency'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -32,15 +32,22 @@ import type { BinaryInstallByNameRequest } from '@shared/types/binary'
 import { LOCAL_AGENT_WEB_UI_IDS } from '@shared/types/managedTool'
 import { redactSecretText } from '@shared/utils/redaction'
 
-import { acpCliInstaller, acpPreset } from '../../ai/runtime/acp/acpPresets'
 import { installBinaryAgent } from './installBinary'
+import { cliInstallers, customRemoval, stopAgentHostForUninstall } from './installPolicy'
 import { resolveInstallRecipe, resolveCliInstallRecipe } from './installRecipe'
 import { getBinaryAgentInstallation, ownsNpmExecutable, ownsUvExecutable, uninstallBinaryAgent } from './uninstall'
 
 const logger = loggerService.withContext('LocalAgentInstallService')
 type InstallTarget = Pick<
   LocalCliAgentPreset,
-  'id' | 'executable' | 'aliases' | 'npmPackage' | 'requiredRuntime' | 'terminalCli' | 'modelDependencies'
+  | 'id'
+  | 'executable'
+  | 'aliases'
+  | 'npmPackage'
+  | 'requiredRuntime'
+  | 'terminalCli'
+  | 'modelDependencies'
+  | 'minimumAcpVersion'
 > & {
   protocol?: LocalCliAgentPreset['protocol']
   cli?: CodeCliToolPreset
@@ -66,7 +73,7 @@ export class LocalAgentInstallService extends BaseService {
 
   install(presetId: string, targetVersion?: string, systemOnly = false): Promise<LocalAgentInstallResult> {
     const target = LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === presetId)
-    return target
+    return target && !target.retired
       ? this.installTarget(target, targetVersion, systemOnly)
       : Promise.resolve({ ok: false, reason: 'unsupported' })
   }
@@ -132,10 +139,7 @@ export class LocalAgentInstallService extends BaseService {
   }
 
   private async resolveUninstallComponents(target: InstallTarget, expectedPath: string) {
-    let primary = await this.detect(target)
-    if (primary.source === 'none' && acpPreset(target.id)?.cliFallback && target.terminalCli) {
-      primary = await this.detect({ id: target.id, executable: target.terminalCli.executable })
-    }
+    const primary = await this.detect(target)
     if (primary.source === 'none' || primary.path !== expectedPath) return []
     const presets = target.cli
       ? LOCAL_CLI_AGENT_PRESETS.filter(
@@ -176,11 +180,13 @@ export class LocalAgentInstallService extends BaseService {
     return operation
   }
 
-  private async detect(target: InstallTarget, systemOnly = false, chat = false) {
-    const fallback = chat && !target.cli ? acpPreset(target.id)?.cliFallback : undefined
-    const names = [target.executable, ...(target.aliases ?? []), ...(fallback ? [fallback.executable] : [])]
+  private async detect(target: InstallTarget, { systemOnly = false, includeIncompatible = false } = {}) {
+    const names = [target.executable, ...(target.aliases ?? [])]
     const snapshots = await application.get('BinaryManager').getToolSnapshots(names)
-    return selectChatInstallation(target, snapshots, fallback, systemOnly)
+    const installed = includeIncompatible
+      ? (await inspectAgentInstallation(target, snapshots)).installed
+      : await selectAvailableInstallation(target, snapshots)
+    return systemOnly && installed.source === 'mise' ? { source: 'none' as const } : installed
   }
 
   private closeIdleAgentSessions(presetIds: readonly string[]): Promise<boolean> {
@@ -200,7 +206,7 @@ export class LocalAgentInstallService extends BaseService {
       ? { id: cli.id, executable: cli.executable, cli }
       : LOCAL_CLI_AGENT_PRESETS.find((entry) => entry.id === presetId)
     if (!target) return { canUpgrade: false }
-    const detected = await this.detect(target, false, true)
+    const detected = await this.detect(target, { includeIncompatible: true })
     if (detected.source === 'none') return { canUpgrade: false }
     let current = 'version' in detected ? detected.version : await readInstalledPackageVersion(detected.path)
     if (!current) {
@@ -216,7 +222,7 @@ export class LocalAgentInstallService extends BaseService {
         return { canUpgrade: false }
       }
     }
-    if (!latest || !current || detected.componentId !== target.executable) return { current, canUpgrade: false }
+    if (!latest || !current) return { current, canUpgrade: false }
     try {
       const recipe = await this.recipe(target)
       let available: string | undefined
@@ -237,7 +243,13 @@ export class LocalAgentInstallService extends BaseService {
       return {
         current,
         latest: available,
-        canUpgrade: newer && !!recipe && (await this.canUpgradeInstallation(recipe, target.executable, detected.path))
+        canUpgrade:
+          newer &&
+          !!recipe &&
+          (await this.canUpgradeInstallation(recipe, target.executable, detected.path).catch((error) => {
+            logger.debug('Agent package ownership lookup unavailable', { presetId, error })
+            return false
+          }))
       }
     } catch (error) {
       logger.debug('Agent update lookup unavailable', { presetId, error })
@@ -318,12 +330,12 @@ export class LocalAgentInstallService extends BaseService {
       return async () => {
         if (!(await uninstallBinaryAgent(target.executable, expectedPath))) throw new Error('Installation changed')
       }
-    const removeInstallation = acpPreset(target.id)?.removeInstallation
+    const removeInstallation = await customRemoval(target.executable)
     if (removeInstallation)
       return removeInstallation(expectedPath, env, (args, timeout, includeStderr) =>
         this.run(expectedPath, args, env, timeout, includeStderr)
       )
-    const installer = acpCliInstaller(target.executable)
+    const installer = cliInstallers.get(target.executable)
     const removal = installer?.removal
     if (removal?.kind === 'command') {
       const help = await this.run(expectedPath, removal.probe, env, 8000, true).catch(() => '')
@@ -429,8 +441,7 @@ export class LocalAgentInstallService extends BaseService {
       for (const agent of agents) {
         const webUiId = LOCAL_AGENT_WEB_UI_IDS.find((id) => id === agent.id)
         if (webUiId) await application.get('LocalAgentWebUiService').stop(webUiId)
-        const stop = acpPreset(agent.id)?.stopForUninstall
-        if (stop && !(await stop())) return { ok: false, reason: 'busy' }
+        if (!(await stopAgentHostForUninstall(agent.id))) return { ok: false, reason: 'busy' }
       }
       for (const { component, action } of actions) {
         this.abort.signal.throwIfAborted()
@@ -484,24 +495,13 @@ export class LocalAgentInstallService extends BaseService {
     systemOnly: boolean
   ): Promise<LocalAgentInstallResult> {
     const presetId = preset.id
-    if (targetVersion && acpCliInstaller(preset.executable)) return { ok: false, reason: 'unsupported' }
+    if (targetVersion && cliInstallers.has(preset.executable)) return { ok: false, reason: 'unsupported' }
     try {
       this.abort.signal.throwIfAborted()
       await refreshShellEnv()
-      let existing = await this.detect(preset, systemOnly, !targetVersion)
+      const existing = await this.detect(preset, { systemOnly, includeIncompatible: !!targetVersion })
       const reused = existing.source !== 'none'
       let env = await getRawShellEnv(this.abort.signal)
-      const nativeCli = preset.terminalCli && CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[preset.terminalCli.executable]
-      if (nativeCli) {
-        const result = await this.installTarget(
-          { id: nativeCli.id, executable: nativeCli.executable, cli: nativeCli },
-          undefined,
-          systemOnly
-        )
-        if (!result.ok) return result
-        env = await getRawShellEnv(this.abort.signal)
-        if (acpPreset(presetId)?.cliFallback && !targetVersion) existing = await this.detect(preset, systemOnly, true)
-      }
       const executableDependencies = [
         ...(preset.requiredRuntime ? [{ executable: preset.requiredRuntime.executable, package: 'bun' }] : []),
         ...(preset.terminalCli?.npmPackage
@@ -515,7 +515,7 @@ export class LocalAgentInstallService extends BaseService {
         const available = async () =>
           runtime
             ? !!(await resolveRequiredRuntime(runtime, env))
-            : (await this.detect(target, systemOnly)).source !== 'none'
+            : (await this.detect(target, { systemOnly })).source !== 'none'
         if (await available()) continue
         const failure = await this.installPackage(
           { manager: 'npm', package: dependency.package, args: ['install', '--global', dependency.package] },
@@ -565,7 +565,7 @@ export class LocalAgentInstallService extends BaseService {
         if (!command) return { ok: false, reason: 'unsupported' }
         await this.run(command, recipe.args, env)
         await refreshShellEnv()
-        const installed = await this.detect(preset, systemOnly, !targetVersion)
+        const installed = await this.detect(preset, { systemOnly })
         application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
         return installed.source === 'none'
           ? { ok: false, reason: 'not_detected' }
@@ -574,7 +574,7 @@ export class LocalAgentInstallService extends BaseService {
       const failure = await this.installPackage(recipe, env)
       if (failure) return failure
       await refreshShellEnv()
-      const detected = await this.detect(preset, systemOnly, !targetVersion)
+      const detected = await this.detect(preset, { systemOnly })
       application.get('IpcApiService').broadcast('binary.availability_changed', undefined)
       if (detected.source === 'none') return { ok: false, reason: 'not_detected', manager: recipe.manager }
       const dependencyFailure = await this.ensureModelDependencies(preset, detected.path, env)

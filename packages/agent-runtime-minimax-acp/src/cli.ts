@@ -4,6 +4,16 @@ export const minimaxCli = {
   modelConfig: { target: 'minimax-config', overrides: [] },
   id: 'minimax',
   terminalArgs: [],
+  loginArgs: ['login'],
+  cliLogin: [
+    {
+      id: 'minimax-browser',
+      kind: 'browser',
+      nameKey: 'local_agents.auth_open_browser',
+      args: ['login'],
+      recommended: true
+    }
+  ],
   permissionMode: {
     values: { ask: 'default', auto: 'auto', full_access: 'bypassPermissions' },
     labels: { ask: 'default' }

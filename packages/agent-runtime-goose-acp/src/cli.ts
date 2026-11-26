@@ -2,6 +2,7 @@ import type { AcpPermissionModes } from '@cherrystudio/agent-runtime-acp/profile
 
 export const gooseCli = {
   id: 'goose',
+  credentialScope: 'provider',
   permissionMode: {
     values: { auto: 'bypassPermissions', approve: 'default', smart_approve: 'auto' },
     labels: { auto: 'bypassPermissions' }
