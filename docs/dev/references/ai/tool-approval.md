@@ -216,9 +216,10 @@ connect fail the next turn instead of riding on the first check.
 
 The connection's verified state reaches the guard table as `sandboxed`. A Bash call with
 `dangerouslyDisableSandbox` set asks through `sandbox-escape`, whose reason says the command
-leaves the sandbox; Full Access skips that card. Support's `support-bash` asks only for shell
-calls the sandbox does not cover (PowerShell, escapes, or any call without a sandbox), and
-headless or responder-less turns deny every Support shell call in every mode. PowerShell and
+leaves the sandbox; Full Access skips that card, and a headless or responder-less turn denies the
+escape outside Full Access. Support's `support-bash` asks for shell calls the sandbox does not
+cover (PowerShell, escapes, or any call without a sandbox) and for every shell call in plan mode,
+and headless or responder-less turns deny every Support shell call in every mode. PowerShell and
 other tools, MCP web access included, are outside this boundary.
 
 A network denial alone does not lead every model to the escape. When a sandboxed Bash result

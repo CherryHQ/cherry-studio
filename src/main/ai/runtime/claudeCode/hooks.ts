@@ -70,7 +70,7 @@ export interface ClaudeCodeHookContext {
   pluginDirectories: ReadonlyMap<string, string>
   supportsImages: boolean
   /** Whether this connection's Bash runs in a verified sandbox; fixed for the connection's lifetime. */
-  sandboxed?: boolean
+  sandboxed: boolean
 }
 
 export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSettings['hooks'] {

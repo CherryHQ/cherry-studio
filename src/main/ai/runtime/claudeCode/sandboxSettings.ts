@@ -37,6 +37,7 @@ export async function assertSandboxSettingsUnchanged(options: Pick<Options, 'cwd
   }
 }
 
+const VIOLATIONS_BLOCK = /<sandbox_violations>([\s\S]*?)<\/sandbox_violations>/g
 const NETWORK_DENIAL = /deny network-outbound (\S+?)(?::\d+)? \(/g
 
 /**
@@ -44,7 +45,9 @@ const NETWORK_DENIAL = /deny network-outbound (\S+?)(?::\d+)? \(/g
  * to the approved escape. Returns `undefined` when the output reports no network denial.
  */
 export function sandboxEscapeGuidance(output: string): string | undefined {
-  const hosts = [...new Set(Array.from(output.matchAll(NETWORK_DENIAL), (match) => match[1]))]
+  // The CLI appends its block after the command's own output, so an earlier block is the command's text.
+  const violations = Array.from(output.matchAll(VIOLATIONS_BLOCK)).at(-1)?.[1] ?? ''
+  const hosts = [...new Set(Array.from(violations.matchAll(NETWORK_DENIAL), (match) => match[1]))]
   if (hosts.length === 0) return undefined
   const target = hosts.length === 1 ? 'this host' : 'these hosts'
   return (

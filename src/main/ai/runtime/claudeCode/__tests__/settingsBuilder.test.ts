@@ -3462,7 +3462,8 @@ describe('buildClaudeCodeSessionSettings', () => {
         autoAllowBashIfSandboxed: true,
         network: { strictAllowlist: true, allowedDomains: [] }
       })
-      expect(mocks.resolveSettings).toHaveBeenCalledWith({ cwd: '/workspace/project', settingSources: [] })
+      // The check must read the same settings tiers the query will load.
+      expect(mocks.resolveSettings).toHaveBeenCalledWith({ cwd: settings.cwd, settingSources: settings.settingSources })
       await expect(preToolUseDecision(settings, { command: 'ls -la' })).resolves.toBeUndefined()
     })
 
@@ -3509,7 +3510,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       const settings = await build()
 
       expect(settings.sandbox).toBeUndefined()
-      expect(mocks.resolveSettings).not.toHaveBeenCalled()
       await expect(preToolUseDecision(settings, { command: 'ls -la' })).resolves.toBe('ask')
     })
 

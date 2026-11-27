@@ -164,7 +164,13 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     bypassBehavior: 'skipInteractiveEffect',
     match: { tool: 'Bash', when: (ctx) => (requestsSandboxEscape(ctx) ? {} : null) },
     effect: 'ask',
-    reason: () => t('command_approval.sandbox_escape')
+    reason: () => t('command_approval.sandbox_escape'),
+    headless: {
+      predicate: 'either',
+      reason:
+        'No one can approve running this command outside the sandbox in this turn. Keep it inside the sandbox, or leave the step for an interactive turn.',
+      skipHeadlessDenyInBypass: true
+    }
   },
   {
     id: 'command-policy-deny',

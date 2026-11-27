@@ -481,6 +481,18 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       })
     })
 
+    it('denies an unattended escape for any sandboxed Agent unless Full Access lifts it', async () => {
+      const escape = { sandboxed: true, input: { command: 'gh api /zen', dangerouslyDisableSandbox: true } } as const
+
+      await expect(evaluate(makeCtx({ ...escape, interaction: HEADLESS }))).resolves.toMatchObject({
+        effect: 'deny',
+        ruleId: 'sandbox-escape'
+      })
+      await expect(
+        evaluate(makeCtx({ ...escape, interaction: HEADLESS, permissionMode: 'bypassPermissions' }))
+      ).resolves.toBeUndefined()
+    })
+
     it('never treats an escape flag as a sandbox when the connection has none (AC6)', async () => {
       const decision = await evaluate(
         makeCtx({ ...supportCtx, input: { command: 'ls', dangerouslyDisableSandbox: false } })
