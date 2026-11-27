@@ -1,0 +1,5 @@
+# Bilingual-pair consistency record (docs/dev/i18n/README.md).
+# After editing either side, update its counterpart and re-record with:
+#   pnpm docs:check-pairing --write .agents/notes/implemented/bug-fix/2026-11-27-renderer-timer-cleanup-ownership.md
+2026-11-27-renderer-timer-cleanup-ownership.md: ca5e03bd5792ad978dba651b76e349fda1431749
+2026-11-27-renderer-timer-cleanup-ownership.zh.md: e3fe62258560c8804a85338900cf73c072711184
