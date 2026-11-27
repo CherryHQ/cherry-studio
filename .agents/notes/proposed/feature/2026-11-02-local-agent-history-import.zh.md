@@ -277,7 +277,7 @@ Claude Code 的真实用户任务包括非空的用户正文，或明确的用�
 
 导入的助手消息显示当前目标智能体的名称和头像，旧导入记录同样适用。不能把来源会话标题作为作者名称。保留来源模型快照；Cherry 普通消息沿用原有作者快照规则。目标智能体改名后，导入消息的名称随之更新，不改写历史记录。
 
-加载到历史真正的开头，并找到真实用户消息后，从该消息开始显示导入对话。隐藏此前导入的 AGENTS.md 等项目指令、环境信息及其他准备记录。不能把部分已加载页面中的首条用户消息当作截断点。保留后续记录，以及没有真实用户消息的历史。此规则只影响显示，原始持久记录和续聊上下文仍保留。图片导出传递导入来源信息，使用相同的作者和前置信息显示规则。
+加载到历史开头后，以仍保留的首条导入用户任务为界，隐藏此前导入的项目指令、环境信息等准备记录。Claude Code 导入器在自动生成的用户角色准备消息的来源信息中保存 `isSetup: true`。仍保留的回答始终可见。如果导入的用户任务已全部删除，显示所有剩余消息，包括 Cherry 中的续聊。历史只加载了一部分时，显示已加载的全部消息。存储内容和续聊上下文保持完整。图片导出沿用相同的作者和前置消息显示规则。
 
 第一层交付续聊，仅支持 Pi 目标；选择器禁用其他运行时。可见消息不能证明已有原生上下文。通过独立导入入口复用 [Pi 历史转换](../../../../src/main/ai/runtime/pi/retiredSessionHistory.ts)，不伪装成旧运行时迁移，不使用外部 resume token。保留导入历史尾部的用户消息，不能套用旧迁移的待投递消息过滤规则。
 
@@ -310,6 +310,7 @@ interface ImportedSessionState {
 interface MessageProvenance {
   source: Source
   sourceOrder: number
+  isSetup?: true
 }
 ```
 
@@ -415,7 +416,7 @@ main
 - AC20 — 所有已启用来源均满足 Windows、macOS 和 Linux 的路径映射和只读访问要求，区分模拟与实机证据。WorkBuddy 按声明的系统或发行版、架构和来源版本组合，同时交付三平台支持。各平台验证来源发现、SQLite/WAL 只读访问、打包原生模块加载、导入和重开、Pi 续聊。合成测试不能替代实机证据；任一平台未验证时，该来源仍未完成。DSH 正式入口也须在声明支持的三平台组合通过实机验证，覆盖打包后读取连续压缩帧、导入、重开与首次 Pi Durable 续聊。（验证：unit platform cases, real source-layout checks, and platform-native packaged Electron）
 - AC21 — 方案之后按 Claude Code、Codex、OpenCode、WorkBuddy、DSH 顺序形成五个 gh-stack 实现层，各层差异范围明确。（验证：docs gate and gh stack topology/diff inspection）
 - AC22 — 导入的助手消息显示当前目标智能体的名称和头像，旧导入记录和智能体改名后也适用，同时保留来源模型。不把来源会话标题当作作者；Cherry 普通消息的作者快照不变。（验证：renderer author/provenance/capture cases and Electron）
-- AC23 — 加载到真正的历史开头并找到首条真实用户消息后，仅隐藏此前导入的准备记录。部分页面、后续记录、存储历史和续聊上下文保持完整。图片导出使用相同规则。（验证：renderer paging/projection/capture cases and Electron）
+- AC23 — 加载到历史开头并找到仍保留的首条导入用户任务后，仅隐藏此前导入的准备记录。部分页面、后续记录、存储历史和续聊上下文保持完整。图片导出使用相同规则。（验证：renderer paging/projection/capture cases and Electron）
 - AC24 — 带有已验证 Guardian 来源标识的 Codex 会话在候选显示前被排除，旧选择也不能绕过过滤。改名不改变分类；只有标题匹配的对话、普通子代理和存在冲突的副本不被静默排除。（验证：versioned adapter fixtures and coordinator revalidation）
 - AC25 — 只有完整、已识别的 Claude 历史能证明所有可还原分支均无真实用户任务时，才排除纯设置会话。真实提问、纯附件、设置与任务混合历史、任务命令均保留；不确定记录和未确定分支仍可见并接受校验。（验证：versioned adapter content/branch fixtures）
 - AC26 — 发现接口单独报告排除数量，不混入导入结果、选择上限或错误。过滤和复查不创建会话或工作目录，保留来源文件和已有导入，也不阻止同批有效会话。全部排除时有明确空状态，不提供无效重试或修正选择。（验证：coordinator state/source checks, renderer counts/empty-state/mixed-batch cases and Electron）
