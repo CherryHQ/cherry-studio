@@ -8716,12 +8716,14 @@
         "anthropic-messages": {
           "wire": {
             "auto": {
+              "effortMap": {
+                "auto": "high"
+              },
               "operations": [
                 {
                   "target": "effort",
                   "value": {
-                    "source": "literal",
-                    "value": "high"
+                    "source": "effort"
                   }
                 }
               ]
@@ -51847,5 +51849,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "c88fb37c78806f40"
+  "version": "834048a4dfbaa2d1"
 }

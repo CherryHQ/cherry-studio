@@ -241,7 +241,7 @@ const chatOffers = [
       'anthropic-messages': {
         wire: {
           ...modeWire('thinking.type', { off: 'disabled' }),
-          ...modeWire('effort', { auto: 'high', effort: EFFORT })
+          ...modeWire('effort', { auto: EFFORT, effort: EFFORT }, { autoEffort: 'high' })
         }
       }
     }
