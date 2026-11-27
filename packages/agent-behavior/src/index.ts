@@ -65,6 +65,7 @@ export type {
   Step
 } from './core/decisions'
 export type { Key } from './core/keys'
+export { decideApproval } from './core/approval/approval'
 export { nativeSummaryKey, subagentMessageKey } from './core/keys'
 export { goalForRequest, turnOrigin } from './core/goal/goalHistory'
 export { delegationStatus, subagentViews, subagentResults } from './core/subagents/subagentLedger'

@@ -88,7 +88,7 @@ function requiresApproval(mode: PermissionMode, tool: string, host: ApprovalHost
  * approval-bound calls. Host rewrites apply in every mode.
  */
 export function decideApproval(
-  call: GateCall,
+  call: Pick<GateCall, 'tool'>,
   host: ApprovalHostFacts,
   permissionMode: PermissionMode,
   attendance: Attendance,

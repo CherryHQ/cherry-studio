@@ -61,7 +61,7 @@ export function gateHandlers(host: HostPorts): GateHandlers {
         const args = answer.args ?? decision.args ?? call.args
         const latest = await currentFacts(host, ref, { ...tool, args })
         const checked = decideApproval(
-          { ...call, args },
+          call,
           latest,
           host.settings.permissionMode(call.thread),
           host.settings.attendance(call.thread),

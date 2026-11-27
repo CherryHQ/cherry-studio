@@ -11,7 +11,7 @@
  * warm-pooled query's prewarm-baked hooks observe mid-session updates.
  */
 
-import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
+import type { CanUseTool, HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -68,6 +68,7 @@ export interface ClaudeCodeHookContext {
   /** Loaded plugin directories by manifest name; indexed once per session. */
   pluginDirectories: ReadonlyMap<string, string>
   supportsImages: boolean
+  authorizeMemory?: CanUseTool
 }
 
 export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSettings['hooks'] {
@@ -86,7 +87,23 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     // connections; a missing snapshot means no disabled set yet (canUseTool separately fails closed).
     const snapshot = sessionState().getToolPolicySnapshot(sessionId)
     const interaction = application.get('AgentSessionRuntimeService').getInteractionState(sessionId)
+    let memoryInput: Record<string, unknown> | undefined
+    try {
+      if (ctx.authorizeMemory)
+        memoryInput = await sessionState()
+          .getMemoryTools(sessionId, cwd, ctx.authorizeMemory)
+          .prepare(input, options.signal)
+    } catch (error) {
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason: error instanceof Error ? error.message : 'Memory operation is unavailable'
+        }
+      }
+    }
     const decision = await evaluateToolGuards(CLAUDE_TOOL_GUARD_RULES, {
+      controlledMemory: memoryInput !== undefined,
       toolName,
       input: toolInput,
       permissionMode: snapshot?.getPermissionMode(),
@@ -102,6 +119,10 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id)
     })
     if (!decision) {
+      if (memoryInput)
+        return {
+          hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput: memoryInput }
+        }
       if (
         snapshot &&
         findBuiltinToolPolicy(toolName, ctx.mountedServers)?.approval === 'delegation' &&
@@ -128,13 +149,15 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       return {}
     }
     if (decision.effect === 'deny') {
+      if (ctx.authorizeMemory) sessionState().peekMemoryTools(sessionId)?.release(input.tool_use_id)
       logger.info('Tool guard denied a tool call', { sessionId, toolName, ruleId: decision.ruleId })
     }
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: decision.effect,
-        permissionDecisionReason: decision.reason
+        permissionDecisionReason: decision.reason,
+        ...(memoryInput && decision.effect !== 'deny' ? { updatedInput: memoryInput } : {})
       }
     }
   }
@@ -175,7 +198,10 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   const bashRewriteCleanupHook: HookCallback = async (input) => {
     if (input.hook_event_name !== 'PostToolBatch') return {}
     // Denied calls have no PostToolUse event; consume only this batch's leftovers.
-    for (const call of input.tool_calls) sessionState().takeBashRewriteOrigin(sessionId, call.tool_use_id)
+    for (const call of input.tool_calls) {
+      sessionState().takeBashRewriteOrigin(sessionId, call.tool_use_id)
+      if (ctx.authorizeMemory) sessionState().peekMemoryTools(sessionId)?.release(call.tool_use_id)
+    }
     return {}
   }
 
@@ -260,11 +286,18 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
+  const memoryResultHook: HookCallback = async (input, _toolUseId, options) => {
+    const memory = ctx.authorizeMemory ? sessionState().peekMemoryTools(sessionId) : undefined
+    if (input.hook_event_name === 'PostToolUse') return memory?.complete(input, options.signal) ?? {}
+    if (input.hook_event_name === 'PostToolUseFailure') memory?.release(input.tool_use_id)
+    return {}
+  }
+
   return {
     ...createClaudeCodeIdentityHooks(agentDataPath, sessionId),
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook] }],
-    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
+    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook, memoryResultHook] }],
+    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook, memoryResultHook] }],
     PostToolBatch: [{ hooks: [bashRewriteCleanupHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }

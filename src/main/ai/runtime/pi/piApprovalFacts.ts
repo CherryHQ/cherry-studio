@@ -1,10 +1,12 @@
 import { realpath } from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
 import type { ApprovalHostFacts } from '@cherrystudio/agent-behavior'
 import type { JsonValue } from '@cherrystudio/agent-runtime'
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
+import { memorySearchTarget, memoryTarget } from '@main/ai/memory/memoryTarget'
 import { resolveBrowserToolPermission } from '@main/ai/toolApproval/browserToolPolicy'
 import { resolveMcpSkillToolAccess } from '@main/ai/toolApproval/builtinToolPolicy'
 import { type CommandCheck, checkCommand, commandContextChangedReason } from '@main/ai/toolApproval/commandPolicy'
@@ -19,6 +21,7 @@ import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 export interface PiApprovalContext {
+  executionOwnedTools?: ReadonlySet<string>
   sessionId: string
   workspacePath: string
   agentDataPath: string
@@ -50,6 +53,9 @@ export async function readPiApprovalFacts(
   name: string,
   input: Record<string, JsonValue>
 ): Promise<ApprovalHostFacts> {
+  const untrustedPreview = (name === 'write' || name === 'edit') && 'memoryPreview' in input
+  const sanitizedInput = { ...input }
+  if (untrustedPreview) delete sanitizedInput.memoryPreview
   const browser = resolveBrowserToolPermission(name)
   const permissionClass = PI_BUILTIN_TOOLS.find((tool) => tool.name === name)?.permissionClass
   const category = BEHAVIOR_META_TOOLS.has(name)
@@ -59,8 +65,14 @@ export async function readPiApprovalFacts(
       : 'other'
   const interaction = ctx.getInteractionState()
   const mode = ctx.getPermissionMode() ?? 'default'
+  const searchPath = ['grep', 'find', 'ls'].includes(name)
+    ? resolvePiToolPath(typeof input.path === 'string' ? input.path : '.', ctx.workspacePath)
+    : undefined
+  const memorySearchBlocked =
+    ['grep', 'find', 'ls'].includes(name) && (!searchPath || (await memorySearchTarget(searchPath)))
   const skillAccess = resolveMcpSkillToolAccess(name, input)
-  const disabled = ctx.isDisabled(name) || browser === 'deny' || skillAccess?.enabled === false
+  const disabled =
+    ctx.isDisabled(name) || browser === 'deny' || skillAccess?.enabled === false || Boolean(memorySearchBlocked)
   const sqlite = disabled
     ? undefined
     : await evaluateUserDataSqliteGuard({
@@ -77,6 +89,11 @@ export async function readPiApprovalFacts(
     name === 'bash' && !disabled && !sqlite && !globalInstall && !miseMutation && command
       ? await rtkRewrite(command)
       : undefined
+  const editPath =
+    (name === 'write' || name === 'edit') && typeof input.path === 'string'
+      ? resolvePiToolPath(input.path, ctx.workspacePath)
+      : undefined
+  const controlledEdit = ctx.executionOwnedTools?.has(name) && editPath && (await memoryTarget(editPath))
   const commandPolicy = command && !disabled ? await checkPiCommand(ctx, name, mode, command, rewritten) : undefined
   const guard = ctx.builtinRole
     ? await evaluateToolGuards(BUILTIN_AGENT_TOOL_GUARD_RULES, {
@@ -99,7 +116,9 @@ export async function readPiApprovalFacts(
     category,
     disabled,
     autoApproved:
-      browser === 'allow' || (skillAccess ? skillAccess.approval === 'auto' : ctx.autoApprovedTools.has(name)),
+      browser === 'allow' ||
+      (skillAccess ? skillAccess.approval === 'auto' : ctx.autoApprovedTools.has(name)) ||
+      Boolean(controlledEdit),
     approvalRequired:
       (skillAccess ? skillAccess.approval === 'prompt' : ctx.approvalRequiredTools.has(name)) ||
       policyAsk ||
@@ -136,7 +155,11 @@ export async function readPiApprovalFacts(
           }
         }
       : {}),
-    ...(rewritten ? { rewrittenArgs: { ...input, command: rewritten } } : {}),
+    ...(rewritten
+      ? { rewrittenArgs: { ...sanitizedInput, command: rewritten } }
+      : untrustedPreview
+        ? { rewrittenArgs: sanitizedInput }
+        : {}),
     ...(ctx.delegationTools.has(name)
       ? {
           delegation:
@@ -182,8 +205,7 @@ async function isToolPathInsideAllowedRoots(
   // read defaults a missing/empty path to "." → the workspace root, which is inside.
   if (raw !== undefined && raw !== null && typeof raw !== 'string') return false
 
-  const resolved = resolveToolPath(raw || '.', workspacePath)
-  if (resolved === undefined) return false
+  const resolved = resolvePiToolPath(raw || '.', workspacePath)
 
   const [canonicalWorkspace, canonicalAgentData, canonicalTarget] = await Promise.all([
     canonicalizeExistingPath(workspacePath),
@@ -210,16 +232,13 @@ async function canonicalizeExistingPath(target: string): Promise<string | undefi
   }
 }
 
-/** Resolve a raw tool `path` to an absolute path, mirroring pi's `resolveToCwd`; returns undefined
- *  for inputs whose resolution is ambiguous (e.g. `file://` URLs) so the caller requires approval. */
-function resolveToolPath(raw: string, workspacePath: string): string | undefined {
+/** Resolve one native Pi file identity for both approval and execution. */
+export function resolvePiToolPath(raw: string, workspacePath: string): string {
   let p = normalizePiNativePathInput(raw)
+  if (p.startsWith('file://')) return fileURLToPath(p)
   if (p === '~') p = application.getPath('sys.home')
   else if (p.startsWith('~/') || (process.platform === 'win32' && p.startsWith('~\\'))) {
     p = path.join(application.getPath('sys.home'), p.slice(2))
-  } else if (p.startsWith('file://')) {
-    // pi resolves file:// via fileURLToPath; the target can be anywhere, so stay conservative.
-    return undefined
   }
-  return path.isAbsolute(p) ? path.resolve(p) : path.resolve(workspacePath, p)
+  return path.resolve(workspacePath, p)
 }

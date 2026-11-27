@@ -21,7 +21,7 @@ export const lsToolDefinition = {
 // Handler implementation
 export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: string): Promise<CallToolResult> {
   const targetPath = args.path || baseDir
-  const validPath = await validatePath(targetPath, baseDir)
+  const validPath = await validatePath(targetPath, baseDir, true)
 
   // Verify the target exists and is a directory before walking it: the recursive
   // walk below treats an unreadable directory as empty, so without this check a
@@ -81,6 +81,12 @@ export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: 
           continue
         }
 
+        const childPath = path.join(dirPath, entry.name)
+        try {
+          await validatePath(childPath, baseDir, recursive && entry.isDirectory())
+        } catch {
+          continue
+        }
         fileCount++
         const node: TreeNode = {
           name: entry.name,
@@ -88,7 +94,6 @@ export async function handleLsTool(args: z.infer<typeof LsToolSchema>, baseDir: 
         }
 
         if (entry.isDirectory() && recursive && depth < 5) {
-          const childPath = path.join(dirPath, entry.name)
           // Validate symlinked directories to prevent escaping the workspace root
           try {
             await validatePath(childPath, baseDir)

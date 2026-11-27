@@ -19,6 +19,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import {
@@ -30,6 +31,8 @@ import {
   normalizeBashCommand
 } from './bashNoProgress'
 import { buildMcpToolMetadata } from './mcpCatalog'
+import { ClaudeMemoryTools } from './memoryTools'
+import type { CanUseTool } from './types'
 import type { McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSessionStateService')
@@ -52,6 +55,21 @@ export class ClaudeCodeSessionStateService extends BaseService {
   private readonly mcpSessionCatalogStates = new Map<string, McpSessionCatalogState>()
   private readonly bashOutcomes = new Map<string, BashOutcome[]>()
   private readonly bashRewriteOrigins = new Map<string, Map<string, string>>()
+  private readonly memoryTools = new Map<string, ClaudeMemoryTools>()
+  private readonly memoryCleanup = createInFlightWorkTracker()
+
+  getMemoryTools(sessionId: string, cwd: string, authorize: CanUseTool): ClaudeMemoryTools {
+    let tools = this.memoryTools.get(sessionId)
+    if (!tools) {
+      tools = new ClaudeMemoryTools(sessionId, cwd, authorize)
+      this.memoryTools.set(sessionId, tools)
+    }
+    return tools
+  }
+
+  peekMemoryTools(sessionId: string): ClaudeMemoryTools | undefined {
+    return this.memoryTools.get(sessionId)
+  }
 
   getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
     let holder = this.toolApprovalEmitters.get(sessionId)
@@ -169,6 +187,12 @@ export class ClaudeCodeSessionStateService extends BaseService {
   }
 
   disposeToolPolicySnapshot(sessionId: string): void {
+    const memory = this.memoryTools.get(sessionId)
+    this.memoryTools.delete(sessionId)
+    if (memory)
+      void this.memoryCleanup
+        .track(memory.dispose())
+        .catch((error) => logger.warn('Memory tool cleanup failed', { error }))
     this.toolPolicySnapshots.delete(sessionId)
     // Subagent scopes key as `${sessionId} ${agentId}` — sweep them with the parent.
     for (const key of [...this.bashOutcomes.keys()]) {
@@ -245,6 +269,11 @@ export class ClaudeCodeSessionStateService extends BaseService {
   }
 
   private disposeAllSessionState(): void {
+    for (const memory of this.memoryTools.values())
+      void this.memoryCleanup
+        .track(memory.dispose())
+        .catch((error) => logger.warn('Memory tool cleanup failed', { error }))
+    this.memoryTools.clear()
     for (const holder of [...this.toolApprovalEmitters.values()]) holder.dispose?.()
     this.toolApprovalEmitters.clear()
     this.toolPolicySnapshots.clear()
@@ -254,13 +283,12 @@ export class ClaudeCodeSessionStateService extends BaseService {
     this.mcpSessionCatalogStates.clear()
   }
 
-  protected onStop(): Promise<void> {
+  protected async onStop(): Promise<void> {
     this.disposeAllSessionState()
-    return Promise.resolve()
+    if (!(await this.memoryCleanup.drain())) logger.warn('Memory tool cleanup did not finish before shutdown')
   }
 
   protected onDestroy(): Promise<void> {
-    this.disposeAllSessionState()
-    return Promise.resolve()
+    return this.onStop()
   }
 }

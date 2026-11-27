@@ -727,7 +727,8 @@ async function buildToolPermissions(
     builtinRole,
     mountedServers,
     pluginDirectories,
-    supportsImages
+    supportsImages,
+    authorizeMemory: canUseTool
   })
 
   const disallowedTools = resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext)

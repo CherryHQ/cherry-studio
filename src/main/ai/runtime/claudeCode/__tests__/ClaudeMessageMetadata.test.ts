@@ -23,6 +23,71 @@ async function project(message: RuntimeMessage, native: ClaudeObservation['nativ
   return messages
 }
 
+it('shows a scratch-only native edit as unconfirmed even when replayed without live hook state', async () => {
+  const messages = await project({
+    id: randomUUID(),
+    role: 'assistant',
+    parts: [
+      {
+        type: 'dynamic-tool',
+        toolName: 'Edit',
+        toolCallId: 'memory-edit',
+        state: 'output-available',
+        input: { file_path: 'C:/Memory/MEMORY.md' },
+        output:
+          'The file C:/Temp/cherry-memory-native-ABC123/12345678-1234-1234-1234-123456789abc.md has been updated successfully.'
+      }
+    ]
+  })
+  expect(messages[0].parts[0]).toMatchObject({
+    state: 'output-error',
+    errorText: expect.stringContaining('not confirmed saved')
+  })
+  expect(messages[0].parts[0]).not.toHaveProperty('output', expect.stringContaining('successfully'))
+})
+
+it('marks a rejected memory read from its native result metadata', async () => {
+  const messages = await project(
+    {
+      id: randomUUID(),
+      role: 'assistant',
+      parts: [
+        {
+          type: 'dynamic-tool',
+          toolName: 'Read',
+          toolCallId: 'read-memory',
+          state: 'output-available',
+          input: { file_path: 'C:/Memory/MEMORY.md' },
+          output: 'Memory read is unavailable.'
+        }
+      ]
+    },
+    [
+      {
+        source: 'live',
+        message: {
+          type: 'user',
+          uuid: randomUUID(),
+          session_id: 'native',
+          parent_tool_use_id: null,
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'read-memory', content: 'Memory read is unavailable.' }]
+          },
+          tool_use_result: {
+            type: 'text',
+            file: { filePath: 'C:/Temp/cherry-memory-native-ABC123/12345678-1234-1234-1234-123456789abc.md' }
+          }
+        }
+      }
+    ]
+  )
+  expect(messages[0].parts[0]).toMatchObject({
+    state: 'output-error',
+    errorText: expect.stringContaining('not confirmed saved')
+  })
+})
+
 it('times each reasoning block through its own end and preserves timing through canonical replacement', async () => {
   vi.useFakeTimers({ toFake: ['Date', 'performance'] })
   onTestFinished(() => {

@@ -26,6 +26,8 @@ export interface ToolGuardInteractionState {
 
 /** Read-only per-invocation snapshot; every field is resolved at fire-time by the caller. */
 export interface ToolGuardContext {
+  /** Main-owned memory adapter has validated this exact native file operation. */
+  readonly controlledMemory?: boolean
   readonly toolName: string
   readonly input: Readonly<Record<string, unknown>> | undefined
   readonly permissionMode: AgentPermissionMode | undefined
