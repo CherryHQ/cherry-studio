@@ -8,6 +8,29 @@ import {
 } from '../importedHistoryText'
 
 describe('Claude imported history presentation', () => {
+  it('projects each OpenCode tool outcome independently of its enclosing message', () => {
+    const activity = (state: object) => ({
+      type: 'text' as const,
+      text: '[Historical tool activity]\n' + JSON.stringify({ type: 'tool', tool: 'read', state })
+    })
+    const input = { filePath: 'notes.md' }
+    const time = { start: 10, end: 20 }
+    const failed = activity({ status: 'error', input, time, error: 'File not found' })
+    const completed = activity({ status: 'completed', input, time, output: 'Second read succeeded' })
+    const presented = presentImportedTools(
+      'opencode',
+      'message',
+      'assistant',
+      { parts: [failed, completed] },
+      'success'
+    )
+    expect(presented.data.parts).toMatchObject([
+      { type: 'dynamic-tool', toolName: 'historical_tool', input, state: 'output-error', errorText: 'File not found' },
+      { type: 'dynamic-tool', state: 'output-available', output: 'Second read succeeded' }
+    ])
+    expect(failed.type).toBe('text')
+    expect(presented.data.parts?.[0]).not.toHaveProperty('approval')
+  })
   it('preserves interrupted WorkBuddy tool state without creating an executable action', () => {
     const data = { parts: [{ type: 'text' as const, text: '[Historical tool result: read]\nInterrupted' }] }
     const presented = presentImportedTools('workbuddy', 'message', 'system', data, 'paused')
