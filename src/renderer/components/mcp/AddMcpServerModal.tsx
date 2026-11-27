@@ -27,8 +27,8 @@ import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LazyCodeEditor } from '@renderer/components/LazyCodeEditor'
-import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { safeValidateMcpConfig } from '@renderer/types/mcp'
 import { formatZodError } from '@renderer/utils/error'
@@ -39,6 +39,7 @@ import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { resolveMcpPackageIconUrl, resolveMcpPackagePathPlaceholders, resolveMcpPackageVersion } from './mcpPackage'
+import { McpImportTrustWarningContent } from './McpTrustWarningContent'
 
 const logger = loggerService.withContext('AddMcpServerModal')
 
@@ -108,17 +109,49 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   const [importMethod, setImportMethod] = useState<'json' | 'dxt' | 'mcpb'>(initialImportMethod)
 
   const [packageFile, setPackageFile] = useState<File | null>(null)
-  const { setTimeoutTimer } = useTimer()
   const invalidateCache = useInvalidateCache()
 
-  // A failed connect stays enabled on purpose: the server card only surfaces the runtime error for
-  // active servers, so disabling it again would hide why the import did not work.
-  const activateImportedServer = async (server: McpServer) => {
-    await dataApiService.patch(`/mcp-servers/${server.id}`, { body: { isActive: true } })
+  // A failed connect stays enabled on purpose (#21323): the server card only surfaces the runtime
+  // error for active servers, so disabling it again would hide why the import did not work.
+  const activateTrustedServer = async (server: McpServer, trustedAt: number) => {
+    await dataApiService.patch(`/mcp-servers/${server.id}`, {
+      body: { isActive: true, isTrusted: true, trustedAt }
+    })
     await invalidateCache('/mcp-servers').catch((error) =>
       logger.warn('Failed to refresh MCP server list after import', error as Error)
     )
     await ipcApi.request('mcp.server.refresh_tools', { serverId: server.id })
+  }
+
+  const confirmAndActivateImportedServers = async (servers: McpServer[]) => {
+    if (servers.length === 0) return
+
+    let confirmed = false
+    try {
+      confirmed = await popup.confirm({
+        centered: true,
+        title: t('settings.mcp.importTrustWarning.title'),
+        content: (
+          <McpImportTrustWarningContent message={t('settings.mcp.importTrustWarning.message')} servers={servers} />
+        ),
+        okText: t('settings.mcp.importTrustWarning.confirm'),
+        cancelText: t('common.cancel'),
+        okButtonProps: { danger: true }
+      })
+    } catch (error) {
+      logger.warn('MCP import trust confirmation failed', error as Error)
+      return
+    }
+
+    if (!confirmed) return
+
+    const trustedAt = Date.now()
+    for (const createdServer of servers) {
+      activateTrustedServer(createdServer, trustedAt).catch((connError: unknown) => {
+        logger.error(`Failed to start imported server ${createdServer.name}:`, connError as Error)
+        toast.error(createdServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
+      })
+    }
   }
 
   const form = useForm<JsonFieldType>({
@@ -253,29 +286,16 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             providerUrl: manifest.author?.url || manifest.homepage || manifest.repository?.url,
             tags: manifest.keywords,
             installSource: 'manual' as const,
-            isTrusted: true,
-            installedAt: installTimestamp,
-            trustedAt: installTimestamp
+            isTrusted: false,
+            installedAt: installTimestamp
           })
 
-          const [createdServer] = await onSuccess([serverDto])
+          const createdServers = await onSuccess([serverDto])
           form.reset({ serverConfig: '' })
           setPackageFile(null)
           onClose()
 
-          setTimeoutTimer(
-            'handleOk',
-            () => {
-              activateImportedServer(createdServer).catch((connError: any) => {
-                // Don't show error for package servers as they might need additional setup
-                logger.warn(
-                  `Package server ${createdServer.name} failed to start, this is normal for servers requiring additional configuration`,
-                  connError
-                )
-              })
-            },
-            1000
-          ) // Delay to ensure server is properly added to store
+          void confirmAndActivateImportedServers(createdServers)
         } catch (error) {
           logger.error(`${isMcpbImport ? 'MCPB' : 'DXT'} processing error:`, error as Error)
           toast.error(
@@ -325,9 +345,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             baseUrl: serverToAdd.baseUrl ?? serverToAdd.url ?? '',
             isActive: false, // 初始狀態為非啟用
             installSource: 'manual' as const,
-            isTrusted: true,
-            installedAt: installTimestamp,
-            trustedAt: installTimestamp
+            isTrusted: false,
+            installedAt: installTimestamp
           })
         )
 
@@ -335,13 +354,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         form.reset({ serverConfig: '' })
         onClose()
 
-        // 在背景非同步檢查伺服器可用性並更新狀態
-        for (const createdServer of createdServers) {
-          activateImportedServer(createdServer).catch((connError: any) => {
-            logger.error(`Failed to start imported server ${createdServer.name}:`, connError)
-            toast.error(createdServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
-          })
-        }
+        void confirmAndActivateImportedServers(createdServers)
       }
     } finally {
       setLoading(false)

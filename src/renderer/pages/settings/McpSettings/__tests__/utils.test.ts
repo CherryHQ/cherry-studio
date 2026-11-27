@@ -5,7 +5,7 @@ import { isSameMcpServerCandidate } from '@renderer/utils/mcpDiscovery'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 
-import { formatMcpLogs, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'
+import { ensureServerTrusted, formatMcpLogs, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'
 
 describe('McpSettings utils', () => {
   it('matches provider candidates without using their transient id', () => {
@@ -113,5 +113,75 @@ describe('McpSettings utils', () => {
     )
 
     vi.restoreAllMocks()
+  })
+
+  describe('ensureServerTrusted', () => {
+    it('requires confirmation for manually imported servers with isTrusted: false and preserves installSource', async () => {
+      const server: McpServer = {
+        id: 'manual-untrusted',
+        name: 'Imported Stdio',
+        type: 'stdio',
+        command: 'npx',
+        args: ['-y', 'demo'],
+        installSource: 'manual',
+        isActive: false,
+        isTrusted: false
+      }
+      const updateServer = vi.fn()
+
+      const declined = await ensureServerTrusted(server, vi.fn().mockResolvedValue(false), updateServer)
+      expect(declined).toBeNull()
+      expect(updateServer).not.toHaveBeenCalled()
+
+      const approved = await ensureServerTrusted(server, vi.fn().mockResolvedValue(true), updateServer)
+      expect(approved).toMatchObject({
+        id: 'manual-untrusted',
+        installSource: 'manual',
+        isTrusted: true,
+        trustedAt: expect.any(Number)
+      })
+      expect(updateServer).toHaveBeenCalledWith({
+        installSource: 'manual',
+        isTrusted: true,
+        trustedAt: expect.any(Number)
+      })
+    })
+
+    it('keeps protocol-link trust and whitelist behavior unchanged', async () => {
+      const whitelisted: McpServer = {
+        id: 'protocol-wps',
+        name: 'WPS Notes',
+        type: 'streamableHttp',
+        baseUrl: 'http://127.0.0.1:18930/mcp',
+        installSource: 'protocol',
+        isActive: false,
+        isTrusted: false
+      }
+      const requestConfirm = vi.fn().mockResolvedValue(false)
+      const updateServer = vi.fn()
+
+      const autoTrusted = await ensureServerTrusted(whitelisted, requestConfirm, updateServer)
+      expect(requestConfirm).not.toHaveBeenCalled()
+      expect(autoTrusted).toMatchObject({ installSource: 'protocol', isTrusted: true })
+      expect(updateServer).toHaveBeenCalledWith(expect.objectContaining({ installSource: 'protocol', isTrusted: true }))
+    })
+
+    it('does not prompt for legacy manual servers without explicit isTrusted: false', async () => {
+      const legacy: McpServer = {
+        id: 'legacy-manual',
+        name: 'Legacy',
+        type: 'stdio',
+        command: 'node',
+        installSource: 'manual',
+        isActive: false
+      }
+      const requestConfirm = vi.fn().mockResolvedValue(false)
+      const updateServer = vi.fn()
+
+      const result = await ensureServerTrusted(legacy, requestConfirm, updateServer)
+      expect(result).toBe(legacy)
+      expect(requestConfirm).not.toHaveBeenCalled()
+      expect(updateServer).not.toHaveBeenCalled()
+    })
   })
 })
