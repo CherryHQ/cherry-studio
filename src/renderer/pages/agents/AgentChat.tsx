@@ -42,6 +42,7 @@ import type { GetAgentResponse } from '@renderer/types/agent'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import type { MessagePartRows } from '@renderer/utils/message/messagePartRows'
 import { cn } from '@renderer/utils/style'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
@@ -177,7 +178,7 @@ interface AgentChatLayoutProps {
   paneManualToggle?: PaneManualToggleSignal
   paneOpen?: boolean
   panePosition?: ChatPanePosition
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: MessagePartRows
   resourcePane?: ResourcePaneConfig | null
   resourcePaneRevealRequest?: ResourceListRevealRequest
   rightPanelDefaultOpen?: boolean
@@ -699,6 +700,7 @@ const AgentChatSessionCenter = ({
         editing={runtime.editing}
         cancelEditing={runtime.cancelEditing}
         resendEditedMessage={runtime.resendEditedMessage}
+        providerQuotaExhausted={runtime.providerQuotaExhausted}
       />
     </div>
   )

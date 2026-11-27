@@ -14,7 +14,7 @@ import {
   type AgentInteraction,
   type AgentPart,
   type AgentProjection,
-  applyAgentEvents,
+  createAgentJournalWriter,
   encodeAgentCheckpointPage,
   textByteLength
 } from '@cherrystudio/remote-protocol/agent'
@@ -23,14 +23,21 @@ import type { DbOrTx } from '@data/db/types'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { startAgentSessionRun } from '@main/ai/streamManager'
-import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '@main/ai/streamManager'
+import type {
+  AgentPartChange,
+  StreamDoneResult,
+  StreamErrorResult,
+  StreamListener,
+  StreamPausedResult
+} from '@main/ai/streamManager'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
 import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import {
   contentOf,
-  projectMessageParts,
+  projectMessagePart,
+  type ProjectedPart,
   getSession,
   INLINE_TEXT_LIMIT,
   inputDigest,
@@ -108,6 +115,7 @@ function* pieces(text: string): Generator<string> {
 export class SessionJournal {
   epoch = randomUUID()
   projection: AgentProjection
+  private writeEvent: ReturnType<typeof createAgentJournalWriter>
   readonly pins = new Map<string, Uint8Array>()
   lastUsedAt = Date.now()
   private starting = 0
@@ -127,6 +135,7 @@ export class SessionJournal {
   ) {
     this.topicId = buildAgentSessionTopicId(sessionId)
     this.projection = this.emptyProjection()
+    this.writeEvent = createAgentJournalWriter(this.projection, integrity)
   }
 
   get replayBytes(): number {
@@ -340,8 +349,13 @@ export class SessionJournal {
   onMessage(listener: RemoteAgentListener, message: CherryUIMessage): void {
     const execution = this.ensureExecution(listener.executionId)
     const messageId = this.ensureMessage(execution, message.id)
-    const parts = projectMessageParts({ ...message, modelId: message.metadata?.modelId }, this.next())
-    const keys = new Set(parts.map((value) => value.part.partId))
+    const revision = this.next()
+    const parts = message.parts.map((source, index) => {
+      const stable = message.partIds?.[index]
+      const key = stable ? `${messageId}:part:${stable}` : `${messageId}:${index}`
+      return { source, key, values: projectMessagePart(source, key, revision, message.metadata?.modelId) }
+    })
+    const keys = new Set(parts.flatMap(({ values }) => values.map(({ part }) => part.partId)))
     for (const key of listener.projectedPartIds.keys())
       if (key.startsWith(`${messageId}:`) && !keys.has(key)) listener.projectedPartIds.delete(key)
     for (const key of keys)
@@ -362,46 +376,115 @@ export class SessionJournal {
       })
     }
     let after: string | null = null
-    for (const { part: projected, text } of parts) {
-      const index = Number(projected.partId.slice(messageId.length + 1).split(':')[0])
-      const source = message.parts[index]
-      const partId = listener.projectedPartIds.get(projected.partId)!
-      projected.partId = partId
-      if ('content' in projected) projected.content = contentOf(partId, projected.revision, text)
-      const part: AgentPart =
-        projected.kind === 'text' || projected.kind === 'reasoning'
-          ? {
-              ...projected,
-              state: source && 'state' in source && source.state === 'streaming' ? 'streaming' : 'completed'
-            }
-          : projected
-      const previous = this.projection.parts[part.partId]
-      if (
-        previous &&
-        textOf(previous) === text &&
-        isDeepStrictEqual(previous, {
-          ...part,
-          revision: previous.revision,
-          ...('content' in previous ? { content: previous.content } : {})
-        })
-      ) {
-        after = partId
-        continue
+    for (const { source, key, values } of parts) {
+      for (const value of values) {
+        const id = listener.projectedPartIds.get(value.part.partId)!
+        this.publishProjectedPart(messageId, id, value, source, after)
+        after = id
       }
-      if (text.length > INLINE_TEXT_LIMIT) this.pins.set(`${part.partId}:${part.revision}`, utf8(text))
-      if (previous)
-        this.append({ kind: 'part.replaced', payload: { messageId, baseRevision: previous.revision, part } })
-      else this.createPart(messageId, part, after)
-      after = partId
+      if (!values.length && after) listener.projectedPartIds.set(key, after)
+      this.observeTool(execution, source)
     }
-    for (const part of message.parts) {
-      if (!isToolUIPart(part)) continue
-      execution.toolInputs.set(part.toolCallId, { toolName: getToolName(part), input: part.input })
-      if (part.state !== 'output-available' && part.state !== 'output-error' && part.state !== 'output-denied') continue
-      for (const [id, approval] of execution.approvals)
-        if (approval.toolCallId === part.toolCallId)
-          this.markInteraction(id, part.state === 'output-denied' ? 'denied' : 'approved')
+    this.settleApprovals(execution)
+  }
+
+  onPart(listener: RemoteAgentListener, change: AgentPartChange): void {
+    const execution = this.ensureExecution(listener.executionId)
+    const messageId = this.ensureMessage(
+      execution,
+      change.type === 'part-open'
+        ? change.messageId
+        : change.type === 'part-add'
+          ? change.placement.messageId
+          : undefined
+    )
+    const key = `${messageId}:part:${change.partId}`
+    const ids = listener.projectedPartIds
+    const id = ids.get(key)
+    switch (change.type) {
+      case 'part-open': {
+        if (id) return
+        const partId = `${messageId}:view:${randomUUID()}`
+        ids.set(key, partId)
+        this.createPart(messageId, {
+          partId,
+          revision: this.next(),
+          kind: change.kind,
+          content: { text: '' },
+          state: 'streaming'
+        })
+        return
+      }
+      case 'part-append':
+        if (id) this.appendText(messageId, id, change.text)
+        return
+      case 'part-finish':
+        if (id) this.completePart(messageId, id)
+        return
+      case 'part-correct':
+      case 'part-add':
+      case 'part-put': {
+        let after = ids.get(`${key}:in`)
+        for (const value of projectMessagePart(change.part, key, this.next())) {
+          const partKey = value.part.partId
+          const partId = ids.get(partKey) ?? `${messageId}:view:${randomUUID()}`
+          ids.set(partKey, partId)
+          this.publishProjectedPart(messageId, partId, value, change.part, after)
+          after = partId
+        }
+        this.observeTool(execution, change.part)
+        this.settleApprovals(execution)
+        return
+      }
+      default:
+        change satisfies never
     }
+  }
+
+  private publishProjectedPart(
+    messageId: string,
+    partId: string,
+    { part: projected, text }: ProjectedPart,
+    source: CherryMessagePart,
+    after?: string | null
+  ): void {
+    projected.partId = partId
+    if (projected.kind !== 'file' && 'ref' in projected.content)
+      projected.content = { ref: { ...projected.content.ref, contentId: partId } }
+    const part: AgentPart =
+      projected.kind === 'text' || projected.kind === 'reasoning'
+        ? {
+            ...projected,
+            state: 'state' in source && source.state === 'streaming' ? 'streaming' : 'completed'
+          }
+        : projected
+    const previous = this.projection.parts[part.partId]
+    if (
+      previous &&
+      textOf(previous) === text &&
+      isDeepStrictEqual(previous, {
+        ...part,
+        revision: previous.revision,
+        ...('content' in previous ? { content: previous.content } : {})
+      })
+    ) {
+      return
+    }
+    if (text.length > INLINE_TEXT_LIMIT) this.pins.set(`${part.partId}:${part.revision}`, utf8(text))
+    if (previous) this.append({ kind: 'part.replaced', payload: { messageId, baseRevision: previous.revision, part } })
+    else this.createPart(messageId, part, after)
+  }
+
+  private observeTool(execution: LiveExecution, part: CherryMessagePart): void {
+    if (!isToolUIPart(part)) return
+    execution.toolInputs.set(part.toolCallId, { toolName: getToolName(part), input: part.input })
+    if (part.state !== 'output-available' && part.state !== 'output-error' && part.state !== 'output-denied') return
+    for (const [id, approval] of execution.approvals)
+      if (approval.toolCallId === part.toolCallId)
+        this.markInteraction(id, part.state === 'output-denied' ? 'denied' : 'approved')
+  }
+
+  private settleApprovals(execution: LiveExecution): void {
     if (
       execution.status === 'awaiting-approval' &&
       ![...execution.approvals.values()].some((approval) => approval.status === 'pending')
@@ -575,7 +658,10 @@ export class SessionJournal {
       return
     const execution = this.ensureExecution(listener.executionId)
     listener.current = false
-    const saved = result.persistence?.status === 'saved' ? result.persistence.message : undefined
+    const saved =
+      result.persistence?.status === 'saved' && 'historyRevision' in result.persistence.message
+        ? result.persistence.message
+        : undefined
     const anchor = saved?.messageId ?? result.finalMessage?.id ?? result.anchorMessageId ?? execution.messageId
     if (!anchor) throw new Error('Terminal execution has no assistant message identity')
     const messageId = this.ensureMessage(execution, anchor)
@@ -671,10 +757,10 @@ export class SessionJournal {
     return {
       cursor: { sessionId: this.sessionId, streamEpoch: this.epoch, seq: '0' },
       session,
-      executions: {},
-      messages: {},
-      parts: {},
-      interactions: {},
+      executions: Object.create(null),
+      messages: Object.create(null),
+      parts: Object.create(null),
+      interactions: Object.create(null),
       tombstones: []
     }
   }
@@ -818,22 +904,16 @@ export class SessionJournal {
     const ref = part && part.kind !== 'file' && 'ref' in part.content ? part.content.ref : undefined
     const key = ref && `${ref.contentId}:${ref.revision}`
     const bytes = key ? this.pins.get(key) : undefined
-    const result = applyAgentEvents(
-      this.projection,
-      { subscriptionId: 'journal', sessionId: this.sessionId, streamEpoch: this.epoch, events: [event] },
-      key && bytes ? { [key]: bytes } : {},
-      integrity
-    )
-    if (!result.ok) {
+    const reason = this.writeEvent(event, key && bytes ? { [key]: bytes } : {})
+    if (reason) {
       logger.error('Remote journal rejected its own event; starting a new epoch', {
         sessionId: this.sessionId,
         kind: event.kind,
-        reason: result.reason
+        reason
       })
       this.reset()
       return
     }
-    this.projection = result.projection
     // The owner retains current values independently of replay pins, including completed tool output.
     if (part && bytes) {
       this.projection.parts[part.partId] = { ...part, content: { text: new TextDecoder().decode(bytes) } }
@@ -856,6 +936,7 @@ export class SessionJournal {
     this.pins.clear()
     this.interactionInputs.clear()
     this.projection = this.emptyProjection()
+    this.writeEvent = createAgentJournalWriter(this.projection, integrity)
     if (this.execution) {
       this.execution.messageId = undefined
       this.execution.messageIds.clear()
@@ -897,13 +978,23 @@ class RemoteAgentListener implements StreamListener {
     this.id = `remote:${executionId}`
   }
 
-  onMessage(message: CherryUIMessage, _model?: string, kind?: 'chunks' | 'messages'): void {
-    if (!this.current || kind !== 'messages') return
-    this.projected = true
-    this.guard(() => {
-      this.flushPending()
-      this.journal.onMessage(this, message)
-    })
+  readonly content: NonNullable<StreamListener['content']> = {
+    snapshot: (message, source) => {
+      if (!this.current || source !== 'messages') return
+      this.projected = true
+      this.guard(() => {
+        this.flushPending()
+        this.journal.onMessage(this, message)
+      })
+    },
+    part: (change) => {
+      if (!this.current) return
+      this.projected = true
+      this.guard(() => {
+        this.flushPending()
+        this.journal.onPart(this, change)
+      })
+    }
   }
 
   onChunk(chunk: UIMessageChunk, _sourceModelId?: unknown, anchorMessageId?: string): void {

@@ -2,9 +2,18 @@ import { fileURLToPath } from 'node:url'
 
 import type { Options, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
+import { validate as isUuid } from 'uuid'
 
 import { application } from '@application'
-import { runtimeId, type Observation, type Subagent, type Thread } from '@cherrystudio/agent-runtime'
+import {
+  hasProductInputId,
+  isLivePartInput,
+  runtimeId,
+  type Observation,
+  type RuntimeMessage,
+  type Subagent,
+  type Thread
+} from '@cherrystudio/agent-runtime'
 import type {
   ClaudeCodeRuntime,
   ClaudeControl,
@@ -20,10 +29,9 @@ import { ChildThreadProjection } from '@main/ai/agentSession/ChildThreadProjecti
 import {
   prepareNativeSubmission,
   lookupNativeInput,
-  applyNativeSubmissionResult,
-  bindNativeInput
+  applyNativeSubmissionResult
 } from '@main/ai/agentSession/nativeSubmission'
-import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
+import { projectRuntimeMessage } from '@main/ai/agentSession/ThreadMessageProjection'
 import { logAiFailure } from '@main/ai/errorReporting'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
@@ -33,7 +41,7 @@ import {
   withAgentContext,
   wrapAgentSessionDeliveryContent
 } from '@main/ai/runtime/agentUserContent'
-import { prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
+import { claudeBranchQueryIdentity, prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { probeReadable } from '@main/utils/file'
@@ -59,6 +67,7 @@ import type {
   AgentSessionRuntimeDriver,
   AgentSessionUsageCapture
 } from '../types'
+import { type UnavailableNativeContext, unavailableNativeContext } from '../types'
 import {
   buildClaudeCodeQueryRequestForAgentSession,
   type ConnectionConfig,
@@ -70,7 +79,7 @@ import type { ConsumedWarmQuery } from './ClaudeCodeWarmQueryManager'
 import { forkClaudeSession } from './claudeFork'
 import { ClaudeMessageMetadata } from './ClaudeMessageMetadata'
 import { ClaudePromptSuggestion } from './ClaudePromptSuggestion'
-import { claudeControlEvents, ClaudeCodeResultError } from './ClaudeRuntimeState'
+import { ClaudeCodeResultError, toAgentRuntimeEvent } from './ClaudeRuntimeState'
 import { classifyClaudeFailure } from './failureFacts'
 import { ClaudeForkCheckpointSchema } from './forkCheckpoint'
 import { canSalvageClaudeOutput } from './processExitDiagnostics'
@@ -138,7 +147,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private nativeError?: unknown
   private processDiagnostics?: ClaudeCodeProcessDiagnostics
   private parkedQuery?: ConsumedWarmQuery
-  private readonly rootProjections: ThreadMessageProjection[] = []
   private readonly rootContexts = new Map<string, ReturnType<typeof contexts.context>>()
   private context?: ReturnType<typeof prepareClaudeBranch>
   private readonly children = new Map<
@@ -146,8 +154,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     | { state: 'opening'; pending: Promise<ClaudeChildResource | undefined> }
     | { state: 'attached' | 'closing'; resource: ClaudeChildResource }
   >()
+  private runActive = false
   private closing = false
-  private readonly closingAccess = new AbortController()
   private closePromise?: Promise<void>
   /** Keep the effective child environment for native checkpoint capture. */
   private spawnOptions?: Options
@@ -175,12 +183,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.resumeToken = input.resumeToken
   }
 
-  async start(): Promise<this> {
+  async start(): Promise<this | UnavailableNativeContext> {
     // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
     // the model captured when that turn was created, even if the agent was edited since.
+    const storedResume = messages.getLastRuntimeResumeToken(this.input.sessionId, this.input.branchHead)
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
-      this.resumeToken ?? messages.getLastRuntimeResumeToken(this.input.sessionId, this.input.branchHead),
+      storedResume,
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
@@ -198,17 +207,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.context = prepareClaudeBranch(
       this.input.sessionId,
       resolveClaudeConfigDirectory(request.options.env),
-      request.options.resume ?? this.input.nativeSessionId,
-      this.input.branchHead
+      storedResume ?? undefined,
+      this.input.branchHead,
+      true
     )
+    if (!this.context.nativeThreadId || !isUuid(this.context.nativeThreadId))
+      return unavailableNativeContext(this.context, 'Invalid Claude session identity')
 
     const traceEnv = await this.prepareTraceEnv()
     const coldProcessDiagnostics = createClaudeCodeProcessDiagnostics()
     const options: Options = {
       ...request.options,
-      ...(request.options.resume || this.context.bindingState === 'bound'
-        ? { resume: request.options.resume ?? this.context.nativeThreadId! }
-        : { sessionId: this.context.nativeThreadId! }),
+      ...claudeBranchQueryIdentity(this.context, storedResume ?? undefined),
       ...(traceEnv
         ? {
             env: {
@@ -220,6 +230,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       abortController: this.abortController,
       spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(coldProcessDiagnostics)
     }
+    if (!options.resume) this.resumeToken = undefined
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
     // which is exactly what tracing needs (env is fixed at spawn). No trace branch required here.
@@ -259,6 +270,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const opened = resume
       ? await this.runtime.open({ backendId: runtimeId(this.context.backendId), id: runtimeId(resume) })
       : await this.runtime.create(config)
+    if (opened.status === 'rejected' && opened.error.code === 'native-storage-missing')
+      return unavailableNativeContext(this.context, opened.error.message)
     if (opened.status !== 'confirmed') throw new Error(opened.error.message)
     this.handle = opened.value
     this.sdkModelId = request.sdkModelId
@@ -288,6 +301,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     )
     if (started.status !== 'confirmed') throw new Error(started.error.message)
+    if (resume) this.updateResumeToken(resume)
     this.parkedQuery = undefined
     return this
   }
@@ -327,6 +341,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       parts: input.message.data.parts
     })
     this.input.onInputPrepared?.(input.message.id, contextId)
+    this.runActive = true
     const result = await this.handle!.claude.submit(draft.inputId, sdkMessage.message.content, 'follow-up')
     this.eventQueue.push({ type: 'input-submission', contextId, result })
     applyNativeSubmissionResult(this.input.sessionId, contextId, result)
@@ -334,7 +349,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   lookupInput(contextId: string, inputId: string) {
-    return lookupNativeInput(this.runtime!, this.input.sessionId, contextId, inputId)
+    return lookupNativeInput(
+      this.input.sessionId,
+      contextId,
+      inputId,
+      this.runtime &&
+        this.context && {
+          backendId: this.context.backendId,
+          lookupInput: this.runtime.lookupInput
+        }
+    )
   }
 
   redirect(input: AgentRuntimeCommand): boolean {
@@ -517,7 +541,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async closeQuery(): Promise<void> {
     this.promptSuggestion.clear()
     this.closing = true
-    this.closingAccess.abort()
     if (this.parkedQuery) {
       await this.parkedQuery.warmQuery[Symbol.asyncDispose]()
       await this.parkedQuery.processDiagnostics.exited
@@ -540,17 +563,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.children.delete(key)
     }
     await Promise.all(this.observations.map((observation) => observation.stop()))
-    await Promise.all(this.rootProjections.map((projection) => projection.close()))
     this.teardownSession()
     this.eventQueue.close()
   }
 
   private async observeRoot(handle: ClaudeThreadHandle): Promise<void> {
     const metadata = new ClaudeMessageMetadata(this.mcpToolMetadata)
-    const projection = new ThreadMessageProjection(handle.thread, metadata.decorate)
     const contextId = this.context!.id
     this.rootContexts.set(handle.thread.id, this.context!)
-    this.rootProjections.push(projection)
     let legacy: ClaudeObservation['legacy']
     let end!: () => void
     this.observationEnds.push(
@@ -558,73 +578,103 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         end = resolve
       })
     )
-    const observation = await handle.claude.observe(async (batch) => {
-      this.promptSuggestion.accept(batch)
-      legacy = batch.legacy ?? legacy
-      const currentLegacy = legacy
-      this.publishInvocations(batch, 'current-turn')
-      let publish = () => {}
-      try {
-        const refresh = metadata.accept(batch) ? projection.snapshot().messages.map((message) => message.id) : []
-        const changed = await projection.accept(batch.events, refresh)
-        for (const event of batch.events) {
-          const inputs = event.type === 'snapshot' ? event.inputs : event.type === 'input.changed' ? [event.input] : []
-          for (const input of inputs) bindNativeInput(this.input.sessionId, contextId, input)
-        }
-        const snapshot = batch.events.some((event) => event.type === 'snapshot')
-        const live = changed.filter((message) => batch.live?.includes(message.id)).map((message) => message.id)
-        const replaces = {
-          ...batch.replaces,
-          ...Object.fromEntries(
-            batch.events.flatMap((event) =>
-              event.type === 'message.upsert' ? (event.replaces ?? []).map((ref) => [ref.id, event.message.id]) : []
-            )
-          )
-        }
-        const emit = (messages: readonly CherryUIMessage[], owned: readonly string[]) => {
-          for (const id of owned) this.currentSources.add(id)
-          for (const [previous, replacement] of Object.entries(replaces)) {
+    const observation = await handle.claude.observe(
+      async (batch) => {
+        this.promptSuggestion.accept(batch)
+        legacy = batch.legacy ?? legacy
+        this.publishInvocations(batch, 'current-turn')
+        try {
+          const refresh = metadata.accept(batch)
+          const terminal: AgentRuntimeEvent[] = []
+          const opensTurn = (control: ClaudeControl) =>
+            control.type === 'input-boundary' ||
+            (control.type === 'autonomous-turn-state' && control.state === 'started')
+          for (const control of batch.controls ?? [])
+            if (opensTurn(control)) await this.handleControl(control, contextId)
+          const replaces = batch.replaces ?? {}
+          for (const [previous, replacement] of Object.entries(replaces))
             if (this.currentSources.delete(previous)) this.currentSources.add(replacement)
+          const publishSources = (
+            sources: readonly RuntimeMessage[],
+            removed: readonly string[],
+            refreshSources: boolean
+          ) => {
+            const live = batch.live ?? []
+            for (const id of live) this.currentSources.add(id)
+            const projected = sources.map((source) =>
+              projectRuntimeMessage(source, source.parts as CherryUIMessage['parts'], metadata.decorate)
+            )
+            this.eventQueue.push({
+              type: 'message-projection',
+              projection: {
+                contextId,
+                messages: projected,
+                live,
+                replaces,
+                removed,
+                legacy,
+                ...(refreshSources && { refresh: sources.map((source) => source.id) }),
+                inputs: Object.fromEntries(
+                  sources.flatMap((source) =>
+                    source.role === 'user' && source.metadata?.inputId ? [[source.id, source.metadata.inputId]] : []
+                  )
+                )
+              }
+            })
           }
-          this.eventQueue.push({
-            type: 'message-projection',
-            projection: {
-              contextId,
-              legacy: currentLegacy,
-              messages,
-              live: owned,
-              refresh: [...new Set([...refresh, ...changed.map((message) => message.id)])],
-              replaces,
-              removed: [
-                ...batch.retracted,
-                ...batch.events.flatMap((event) => (event.type === 'message.remove' ? [event.ref.id] : []))
-              ]
+          const recovery = refresh ? batch.recovery : undefined
+          if (recovery) publishSources(recovery.messages, batch.retracted, true)
+          let removed = !!recovery
+          for (const event of batch.events) {
+            if (event.type === 'input.changed' && hasProductInputId(event.input))
+              this.eventQueue.push({ type: 'input-state', contextId, input: event.input })
+            if (event.type === 'context.changed') this.eventQueue.push({ type: 'context-usage', result: event.result })
+            if (event.type === 'subagent.upsert') this.discoverChild(event.subagent)
+            if (event.type === 'snapshot') {
+              if (event.contextUsage) this.eventQueue.push({ type: 'context-usage', result: event.contextUsage })
+              for (const child of event.subagents ?? []) this.discoverChild(child)
             }
+            if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing)
+              terminal.push(this.unexpectedClose(batch, event.reason, metadata))
+            if (recovery) continue
+            if (isLivePartInput(event)) {
+              if (batch.live?.includes(event.ref.id)) this.currentSources.add(event.ref.id)
+              this.eventQueue.push({ ...metadata.decorateLive(event), contextId })
+            } else if (
+              event.type === 'snapshot' ||
+              event.type === 'message.reconcile' ||
+              event.type === 'message.remove'
+            ) {
+              if (event.type === 'snapshot') publishSources(event.messages, batch.retracted, true)
+              else if (event.type === 'message.reconcile') publishSources([event.message], batch.retracted, true)
+              else publishSources([], [event.ref.id, ...batch.retracted], false)
+              removed = true
+            }
+          }
+          if (batch.retracted.length && !removed) publishSources([], batch.retracted, false)
+          for (const control of batch.controls ?? []) {
+            if (opensTurn(control)) continue
+            const result = await this.handleControl(control, contextId)
+            if (result) terminal.push(result)
+          }
+          for (const event of terminal) this.eventQueue.push(event)
+          if (batch.events.some((event) => event.type === 'closed' && event.reason !== 'shutdown') && !this.closing)
+            this.eventQueue.close()
+        } catch (error) {
+          logAiFailure(logger, 'Claude projection failed', error, 'agent.claude.adapt', {
+            source: 'application',
+            kind: 'defect',
+            reason: 'stream_adapter_failed',
+            outcome: 'failed',
+            runtime: 'claude-code'
           })
+          this.eventQueue.push({ type: 'error', error })
+        } finally {
+          if (batch.events.some((event) => event.type === 'closed')) end()
         }
-        publish = () => {
-          emit(snapshot ? projection.snapshot().messages : changed, live)
-          publish = () => {}
-        }
-        const terminal = await this.acceptRoot(batch, projection, contextId)
-        publish()
-        for (const event of terminal) this.eventQueue.push(event)
-        if (batch.events.some((event) => event.type === 'closed' && event.reason !== 'shutdown') && !this.closing)
-          this.eventQueue.close()
-      } catch (error) {
-        publish()
-        logAiFailure(logger, 'Claude projection failed', error, 'agent.claude.adapt', {
-          source: 'application',
-          kind: 'defect',
-          reason: 'stream_adapter_failed',
-          outcome: 'failed',
-          runtime: 'claude-code'
-        })
-        this.eventQueue.push({ type: 'error', error })
-      } finally {
-        if (batch.events.some((event) => event.type === 'closed')) end()
-      }
-    })
+      },
+      (batch) => metadata.needsRecovery(batch)
+    )
     if (observation.status !== 'confirmed') {
       end()
       throw new Error(observation.error.message)
@@ -633,68 +683,53 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.restoreChildren(this.context!)
   }
 
-  private async acceptRoot(
+  private unexpectedClose(
     batch: ClaudeObservation,
-    projection: ThreadMessageProjection,
-    contextId: string
-  ): Promise<AgentRuntimeEvent[]> {
-    const terminal: AgentRuntimeEvent[] = []
-    for (const event of batch.events) {
-      if (event.type === 'input.changed') this.eventQueue.push({ type: 'input-state', contextId, input: event.input })
-      if (event.type === 'context.changed') this.eventQueue.push({ type: 'context-usage', result: event.result })
-      if (event.type === 'snapshot' && event.contextUsage)
-        this.eventQueue.push({ type: 'context-usage', result: event.contextUsage })
-      if (event.type === 'subagent.upsert') this.discoverChild(event.subagent)
-      if (event.type === 'snapshot') for (const child of event.subagents ?? []) this.discoverChild(child)
-      if (event.type === 'closed' && event.reason !== 'shutdown' && !this.closing) {
-        const error = this.nativeError ?? new Error(`Claude observation ended: ${event.reason}`)
-        const surfaced =
-          isClaudeCodeProcessFailure(error, this.processDiagnostics) && this.processDiagnostics
-            ? createClaudeCodeProcessExitError(error, this.processDiagnostics)
-            : error
-        const bufferedChars = projection
-          .snapshot()
-          .messages.filter((message) => message.role === 'assistant' && this.currentSources.has(message.id))
-          .flatMap((message) => message.parts)
-          .reduce((length, part) => length + (part.type === 'text' ? part.text.length : 0), 0)
-        const salvaged = canSalvageClaudeOutput(surfaced, bufferedChars, batch.state?.aborted === true)
-        logAiFailure(
-          logger,
-          'Claude Code query failed',
-          surfaced,
-          'agent.claude.prompt',
-          classifyClaudeFailure(error, {
-            recovered: salvaged,
-            cancelled: batch.state?.aborted,
-            process: this.processDiagnostics
-          })
-        )
-        terminal.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error: surfaced })
-      }
+    reason: string,
+    metadata: ClaudeMessageMetadata
+  ): AgentRuntimeEvent {
+    const error = this.nativeError ?? new Error(`Claude observation ended: ${reason}`)
+    const surfaced =
+      isClaudeCodeProcessFailure(error, this.processDiagnostics) && this.processDiagnostics
+        ? createClaudeCodeProcessExitError(error, this.processDiagnostics)
+        : error
+    const snapshot = batch.recovery ?? batch.events.find((event) => event.type === 'snapshot')
+    let bufferedChars = 0
+    for (const source of snapshot?.messages ?? []) {
+      if (source.role !== 'assistant' || !this.currentSources.has(source.id)) continue
+      const visible = projectRuntimeMessage(source, source.parts as CherryUIMessage['parts'], metadata.decorate)
+      for (const part of visible.parts) if (part.type === 'text') bufferedChars += part.text.length
     }
-    for (const control of batch.controls ?? []) {
-      for (const event of claudeControlEvents(control)) {
-        if (event.type === 'background-results') {
-          terminal.push(event)
-          continue
-        }
-        this.eventQueue.push(
-          event.type === 'supported-commands'
-            ? { ...event, commands: event.commands.filter((command) => !isHostManagedSlashCommand(command)) }
-            : event
-        )
-      }
-      const result = await this.handleControl(control, contextId)
-      if (result) terminal.push(result)
-    }
-    return terminal
+    const salvaged = canSalvageClaudeOutput(surfaced, bufferedChars, batch.state?.aborted === true)
+    logAiFailure(
+      logger,
+      'Claude Code query failed',
+      surfaced,
+      'agent.claude.prompt',
+      classifyClaudeFailure(error, {
+        recovered: salvaged,
+        cancelled: batch.state?.aborted,
+        process: this.processDiagnostics
+      })
+    )
+    return salvaged ? { type: 'turn-complete' } : { type: 'error', error: surfaced }
   }
 
   private async handleControl(control: ClaudeControl, contextId: string): Promise<AgentRuntimeEvent | undefined> {
+    const event = toAgentRuntimeEvent(control)
+    if (event) {
+      this.eventQueue.push(
+        event.type === 'supported-commands'
+          ? { ...event, commands: event.commands.filter((command) => !isHostManagedSlashCommand(command)) }
+          : event
+      )
+    }
     if (control.type === 'input-boundary') {
-      this.eventQueue.push({ type: 'steer-boundary', inputIds: control.inputIds })
+      this.eventQueue.push({ type: this.runActive ? 'steer-boundary' : 'run-started', inputIds: control.inputIds })
+      this.runActive = true
       this.currentSources.clear()
     } else if (control.type === 'autonomous-turn-state' && control.state === 'started') {
+      this.runActive = true
       this.currentSources.clear()
     } else if (control.type === 'session') {
       if (contextId !== this.context?.id) return
@@ -721,12 +756,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
       this.context = contexts.bindContext(this.context.id, control.sessionId)
       this.updateResumeToken(control.sessionId)
-    } else if (control.type === 'archive-changed') {
-      await this.handle!.claude.archive()
     } else if (control.type === 'diagnostic') {
       logger.warn(control.message, { detail: control.detail })
     } else if (control.type === 'result') {
       if (control.sessionId !== this.handle?.claude.sessionId) return
+      if (control.terminal || control.failure) this.runActive = false
       if (control.failure) {
         const error = new ClaudeCodeResultError(control.failure)
         logAiFailure(logger, 'Claude Code result failed', error, 'agent.claude.prompt', classifyClaudeFailure(error))
@@ -821,8 +855,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
         const childContext = context
         const access = handle
-        // The SDK stores the child prompt without forwarding it in the live conversation feed.
-        await access.claude.archive()
         const metadata = new ClaudeMessageMetadata(this.mcpToolMetadata)
         const responseOwners = new Set<string>()
         this.observationEnds.push(
@@ -873,14 +905,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           async () => {
             const archive = await access.claude.archive({ refresh: false })
             if (archive.status !== 'confirmed') throw new Error(archive.error.message)
+            const aliases = Object.fromEntries(archive.value.content.map((message) => [message.id, message.id]))
             return {
               messages: archive.value.content,
               legacy: archive.value.legacy,
               removed: archive.value.retracted,
-              aliases: Object.fromEntries(archive.value.content.map((message) => [message.id, message.id]))
+              aliases: Object.assign(aliases, archive.value.aliases)
             }
           },
-          metadata.decorate
+          metadata.decorate,
+          undefined,
+          (event) => metadata.decorateLive(event)
         )
         resource = { relation, handle: access, projection }
         await projection.attach()
@@ -908,50 +943,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return pending
   }
 
-  async childProjection(toolCallId: string) {
-    if (this.closing) return undefined
-    const known = (await this.childResources()).filter(
-      (child) => (child.relation?.origin?.toolCallId ?? child.projection.context.spawnToolCallId) === toolCallId
-    )
-    if (known.length > 1) return undefined
-    if (known[0]) {
-      const projection = known[0].projection
-      await projection.attach()
-      return { snapshot: () => projection.snapshot(), subscribe: projection.subscribe.bind(projection) }
-    }
-    if (this.closing || !this.handle) return undefined
-    const saved = contexts.findChild(this.input.sessionId, toolCallId)
-    let child: ClaudeChildResource | undefined
-    if (saved?.bindingState === 'bound' && saved.nativeThreadId && saved.backendId === this.context?.backendId) {
-      child = await this.observeChild(
-        { backendId: runtimeId(saved.backendId), id: runtimeId(saved.nativeThreadId) },
-        undefined,
-        saved
-      )
-    } else {
-      const opened = await this.handle.claude.openChild(toolCallId, this.closingAccess.signal)
-      if (opened.status !== 'confirmed') return undefined
-      child = await this.observeChild(opened.value.relation.child, opened.value.handle)
-    }
-    if (!child) return undefined
-    await child.projection.attach()
-    return { snapshot: () => child.projection.snapshot(), subscribe: child.projection.subscribe.bind(child.projection) }
-  }
-
   private bindApprovalEmitter(): void {
     if (!this.approvalEmitter) return
     this.approvalEmitter.emit = (request) => this.eventQueue.push({ type: 'tool-approval-request', request })
     this.approvalEmitter.emitInput = (request) =>
       this.eventQueue.push({
-        type: 'chunk',
-        chunk: {
-          type: 'tool-input-available',
-          toolCallId: request.toolCallId,
-          toolName: request.toolName,
-          input: request.input,
-          providerExecuted: true,
-          dynamic: true
-        }
+        type: 'tool-input-available',
+        ...request,
+        providerExecuted: true,
+        dynamic: true
       })
   }
 
@@ -1318,9 +1318,20 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
-    const connection = new ClaudeCodeRuntimeConnection(input)
+    let connection = new ClaudeCodeRuntimeConnection(input)
     try {
-      return await connection.start()
+      const opened = await connection.start()
+      if (!('status' in opened)) return opened
+      await connection.close()
+      contexts.rebuildFileBranch(opened.context)
+      logger.warn('Rebuilding Claude context from session messages', {
+        sessionId: input.sessionId,
+        reason: opened.reason
+      })
+      connection = new ClaudeCodeRuntimeConnection(input)
+      const rebuilt = await connection.start()
+      if (!('status' in rebuilt)) return rebuilt
+      throw new Error(rebuilt.reason)
     } catch (error) {
       logAiFailure(logger, 'Claude Code startup failed', error, 'agent.claude.start', classifyClaudeFailure(error))
       await connection.close()

@@ -1,5 +1,27 @@
 # @cherrystudio/provider-registry
 
+## 0.8.4
+
+### Patch Changes
+
+- [#25510](https://github.com/CherryHQ/cherry-studio/pull/25510) [`26977f6`](https://github.com/CherryHQ/cherry-studio/commit/26977f616c428205453ef197f04981471cde36e3) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Register missing Alibaba Qwen Image (`qwen-image-max`, `qwen-image-plus`, `qwen-image-2.0`, `qwen-image-2.0-pro`, `qwen-image-2.1-pro`, `qwen-image-2.1-turbo`, `qwen-image-edit-max`, `qwen-image-edit-plus`) and `z-image-turbo` image-generation models in the Alibaba creator catalog and DashScope provider overrides.
+
+- [#25539](https://github.com/CherryHQ/cherry-studio/pull/25539) [`68a0f22`](https://github.com/CherryHQ/cherry-studio/commit/68a0f2285d6a8a0de5b49044894a89417f08e384) Thanks [@DeJeune](https://github.com/DeJeune)! - Recognize reasoning effort controls for SWE-2, Flint, Beam, Fugu, and Namazu models added through custom providers.
+
+## 0.8.3
+
+### Patch Changes
+
+- [`973740c`](https://github.com/CherryHQ/cherry-studio/commit/973740ce1636e01839849049e20a24ab844d1466) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Cursor Composer 2.5 and Cognition SWE model metadata. Resolve the Grok CLI Composer route to the Cursor model entry.
+
+- [`199e811`](https://github.com/CherryHQ/cherry-studio/commit/199e8113e5ca5d495c2b5cec3bc978b0427a392e) Thanks [@DeJeune](https://github.com/DeJeune)! - Add Inkling 2 Mini, Inkling 2 Small, MAI Image 2.7, and MAI Image 2.7 Flash model metadata. Attribute the Inkling family to Thinking Machines Lab.
+  
+  Attribute Muse Image to Meta and add OpenRouter reference-image editing capabilities.
+  
+  Add Vercel AI Gateway model metadata for Recursive Flint, Reflection Beam, Sakana Fugu and Namazu, and ScaleDown Extract and Summarize.
+
+- [#25464](https://github.com/CherryHQ/cherry-studio/pull/25464) [`28d12fa`](https://github.com/CherryHQ/cherry-studio/commit/28d12fa39846a1decc61c3ab77b44f84df832e48) Thanks [@cherry-coding](https://github.com/apps/cherry-coding)! - Serve the catalog that is compiled into the package when a registry file on disk cannot be read, and report the fallback with a bounded cause instead of failing every lookup. A fallback expires after the idle TTL so a repaired file is picked up, and `models`/`provider-models` always come from a single snapshot.
+
 ## 0.8.2
 
 ### Patch Changes

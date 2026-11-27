@@ -1303,6 +1303,21 @@ describe('OpenClawService gateway status state machine', () => {
       expect(child.unref).toHaveBeenCalledOnce()
     })
 
+    it('accepts a gateway whose cold start takes longer than 30 seconds', async () => {
+      startAndWaitSpy.mockRestore()
+      checkPortOpenSpy.mockResolvedValue(false)
+      crossPlatformSpawnMock.mockReturnValue(createSpawnChild())
+      vi.useFakeTimers()
+      const readyAt = Date.now() + 35_000
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockImplementation(async () =>
+        Date.now() >= readyAt ? { status: 'healthy' } : { status: 'unhealthy', error: 'Connection refused' }
+      )
+
+      const started = service.startGateway()
+      await vi.advanceTimersByTimeAsync(35_000)
+      await expect(started).resolves.toEqual({ success: true })
+    })
+
     it('spawns a managed OpenClaw with the refreshed environment and formal config path', async () => {
       const child = createSpawnChild()
       checkPortOpenSpy.mockResolvedValue(false)

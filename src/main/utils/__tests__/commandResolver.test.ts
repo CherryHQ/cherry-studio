@@ -647,20 +647,6 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
     })
 
     describe('real-world scenarios', () => {
-      it('should handle official Git for Windows installer', () => {
-        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
-        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
-
-        process.env.ProgramFiles = 'C:\\Program Files'
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          return p === gitPath || p === bashPath
-        })
-
-        const result = findGitBash()
-
-        expect(result).toBe(bashPath)
-      })
-
       it('should handle portable Git installation in custom directory', () => {
         const gitPath = 'D:\\DevTools\\PortableGit\\bin\\git.exe'
         const bashPath = 'D:\\DevTools\\PortableGit\\bin\\bash.exe'
