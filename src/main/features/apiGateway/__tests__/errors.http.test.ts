@@ -1047,13 +1047,34 @@ describe('statusless context-overflow classification (#24258)', () => {
     },
     {
       id: 'code-only-overflow',
-      input: () => ({ ...markers, code: 'context_length_exceeded', message: 'The request cannot be processed.' }),
+      input: () =>
+        serializeError({
+          type: 'error',
+          error: { code: 'context_length_exceeded', message: 'The request cannot be processed.' },
+          ...markers
+        }),
+      expectedMessage: 'context_length_exceeded: The request cannot be processed.'
+    },
+    {
+      id: 'code-only-responses-400-overflow',
+      input: () =>
+        serializeError({
+          status: 400,
+          code: 'context_length_exceeded',
+          message: 'The request cannot be processed.',
+          ...markers
+        }),
       expectedMessage: 'context_length_exceeded: The request cannot be processed.'
     },
     {
       id: 'redacts-secret-in-overflow',
       input: () => new Error(`${overflowText} Authorization: Bearer sk-private-fixture`),
       expectedMessage: `context_length_exceeded: ${overflowText} Authorization: "<redacted>"`
+    },
+    {
+      id: 'redacts-bare-token-in-overflow',
+      input: () => new Error(`${overflowText} sk-ant-api03-fixture0123456789abcdef012345`),
+      expectedMessage: `context_length_exceeded: ${overflowText} <redacted>`
     },
     {
       id: 'drops-json-container-in-overflow',
@@ -1127,7 +1148,7 @@ describe('statusless context-overflow classification (#24258)', () => {
             error: { code: 400, status: 'INVALID_ARGUMENT', message: sample.expectedMessage }
           })
         }
-        expect(content).not.toMatch(/MARKER_|sk-private-fixture/)
+        expect(content).not.toMatch(/MARKER_|sk-private-fixture|sk-ant-api03/)
       }
     }
   })

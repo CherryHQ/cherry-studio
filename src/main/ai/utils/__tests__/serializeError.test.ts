@@ -75,6 +75,28 @@ describe('serializeError', () => {
       expect(result).toEqual({ name: null, message: null, stack: null })
       expect(JSON.stringify(result)).not.toMatch(/object-secret|nested-secret|\[object Object\]/)
     })
+
+    it('preserves validated status and overflow category from a code-only structured overflow object', () => {
+      const result = serializeError({
+        type: 'error',
+        status: 400,
+        error: {
+          code: 'context_length_exceeded',
+          message: 'The request cannot be processed.'
+        },
+        apiKey: 'object-secret',
+        prompt: 'private prompt'
+      })
+
+      expect(result).toEqual({
+        name: null,
+        message: 'The request cannot be processed.',
+        stack: null,
+        statusCode: 400,
+        providerErrorCategory: 'context_length'
+      })
+      expect(JSON.stringify(result)).not.toMatch(/object-secret|private prompt/)
+    })
   })
 
   it('retains quota diagnosis in serialized retry errors without retaining the payload', () => {

@@ -9,6 +9,7 @@ import { getSafeProviderErrorMessage } from '@shared/ai/providerError'
 import { DataApiError } from '@shared/data/api/errors'
 import type { SerializedError } from '@shared/types/error'
 import { classifyErrorCategory } from '@shared/utils/errorCategory'
+import { redactSecretTokens } from '@shared/utils/redaction'
 
 import type { OutputFormat } from './adapters'
 
@@ -262,7 +263,9 @@ function normalizeProviderError(error: unknown): {
           category: 'context_length'
         }
       }
-      const safeDetail = getSafeProviderErrorMessage({ message })
+      const safeDetail = getSafeProviderErrorMessage({
+        message: typeof message === 'string' ? redactSecretTokens(message) : message
+      })
       return {
         statusCode: 400,
         message: safeDetail
