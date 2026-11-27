@@ -169,7 +169,9 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID).role).toBe('user')
     application
       .get('DbService')
-      .withWriteTx((tx) => setMessageProvenanceTx(tx, SESSION_ID, USER_MESSAGE_ID, { source: 'codex', sourceOrder: 1 }))
+      .withWriteTx((tx) =>
+        setMessageProvenanceTx(tx, SESSION_ID, USER_MESSAGE_ID, { source: 'codex', sourceOrder: 1, isSetup: true })
+      )
     const presented = agentSessionMessageService.getSessionMessage(SESSION_ID, USER_MESSAGE_ID)
     expect(presented.role).toBe('system')
     expect(presented.data.parts?.[0]).toEqual({

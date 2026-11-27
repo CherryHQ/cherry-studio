@@ -38,15 +38,24 @@ export async function openReadonlyDatabase(file: string) {
   }
 }
 
-export async function* discoverJsonl(root: string, signal: AbortSignal, depth = 0): AsyncIterable<string> {
+export async function* discoverJsonl(
+  root: string,
+  signal: AbortSignal,
+  includeCompressed = false,
+  depth = 0
+): AsyncIterable<string> {
   signal.throwIfAborted()
   if (depth > 4) return
   for (const entry of await readdir(root, { withFileTypes: true })) {
     signal.throwIfAborted()
     if (entry.isSymbolicLink()) continue
     const file = path.join(root, entry.name)
-    if (entry.isDirectory()) yield* discoverJsonl(file, signal, depth + 1)
-    else if (entry.isFile() && entry.name.endsWith('.jsonl')) yield file
+    if (entry.isDirectory()) yield* discoverJsonl(file, signal, includeCompressed, depth + 1)
+    else if (
+      entry.isFile() &&
+      (entry.name.endsWith('.jsonl') || (includeCompressed && entry.name.endsWith('.jsonl.zst')))
+    )
+      yield file
   }
 }
 

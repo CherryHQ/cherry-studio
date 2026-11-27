@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto'
+import { createReadStream } from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import path from 'node:path'
+import { constants, createZstdDecompress } from 'node:zlib'
 
 import * as z from 'zod'
 
@@ -56,7 +59,12 @@ function isGuardian(meta?: ThreadMetadata) {
   }
 }
 
-export async function databaseCandidates(root: string, rolloutIds: ReadonlySet<string>, signal: AbortSignal) {
+export async function databaseCandidates(
+  root: string,
+  rolloutIds: ReadonlySet<string>,
+  compressed: ReadonlyMap<string, string[]>,
+  signal: AbortSignal
+) {
   const file = path.join(root, CODEX_HISTORY_DB)
   if (!(await statIfPresent(file))) return []
   const ids = await queryReadonlyDatabase(file, (db) =>
@@ -73,6 +81,7 @@ export async function databaseCandidates(root: string, rolloutIds: ReadonlySet<s
     const meta = metadata.get(id)
     return {
       path: file,
+      sourcePaths: [file, ...(compressed.get(id) ?? [])],
       originalSessionId: id,
       title: meta?.title?.trim() || 'Codex · ' + id,
       filteredReason: isGuardian(meta) ? 'codex_guardian_review' : undefined
@@ -183,23 +192,62 @@ interface ItemRow {
   item_json: string | null
 }
 
+// SQLite projects only local items. The source header establishes whether an ancestor range is also visible.
+async function readRootHeader(ref: SessionRef, signal: AbortSignal) {
+  const archives = ref.sourcePaths?.filter((file) => file.endsWith('.jsonl.zst')) ?? []
+  if (archives.length !== 1) throw new Error('unsupported_history_layout')
+  const [archive] = archives
+  if ((await realpath(archive)) !== archive) throw new Error('source_changed')
+  const source = createReadStream(archive, { signal, end: IMPORT_LIMITS.session - 1 })
+  const decoded = source.compose(createZstdDecompress({ params: { [constants.ZSTD_d_windowLogMax]: 25 } }), { signal })
+  const chunks: Buffer[] = []
+  let size = 0
+  try {
+    for await (const chunk of decoded) {
+      const bytes = chunk as Buffer
+      const end = bytes.indexOf(10)
+      const part = end < 0 ? bytes : bytes.subarray(0, end)
+      size += part.length
+      if (size > IMPORT_LIMITS.line) throw new Error('line_limit')
+      chunks.push(part)
+      if (end < 0) continue
+      const header = Buffer.concat(chunks, size)
+      const row = JSON.parse(header.toString('utf8'))
+      if (row?.type !== 'session_meta' || row.payload?.id !== ref.originalSessionId)
+        throw new Error('unstable_identity')
+      if (typeof row.payload.cli_version !== 'string' || !/^0\.\d+\.\d+(?:[-+].*)?$/.test(row.payload.cli_version))
+        throw new Error('unsupported_version')
+      if (row.ordinal !== 0 || row.payload.history_mode !== 'paginated' || row.payload.history_base != null)
+        throw new Error('unsupported_history_layout')
+      return header
+    }
+    throw new Error('unsupported_history_layout')
+  } finally {
+    decoded.destroy()
+    source.destroy()
+  }
+}
+
 export async function readDatabaseSession(ref: SessionRef, signal: AbortSignal): Promise<NormalizedSession> {
   const id = ref.originalSessionId
   if (!id) throw new Error('unstable_identity')
+  const header = await readRootHeader(ref, signal)
   const meta = (await metadataFor(ref.path, [id])).get(id)
-  const hash = createHash('sha256').update(JSON.stringify(meta ?? null))
+  const hash = createHash('sha256')
+    .update(header)
+    .update(JSON.stringify(meta ?? null))
   const session: NormalizedSession = {
     source: 'codex',
     originalSessionId: id,
     title: meta?.title?.trim() || 'Codex · ' + id,
     workingDirectory: meta?.cwd || undefined,
     sourceVersion: meta?.cli_version ?? undefined,
-    sourcePaths: [ref.path, ...(meta ? [path.join(path.dirname(ref.path), stateFile)] : [])],
+    sourcePaths: [...(ref.sourcePaths ?? [ref.path]), ...(meta ? [path.join(path.dirname(ref.path), stateFile)] : [])],
     filteredReason: isGuardian(meta) ? 'codex_guardian_review' : undefined,
     messages: [],
     branches: [],
     sourceFingerprint: '',
-    inputBytes: 0,
+    inputBytes: header.length,
     diagnostics: [],
     skippedRecords: 0,
     downgradedParts: 0

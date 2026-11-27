@@ -82,16 +82,6 @@ export function isCodexContextText(text: string): boolean {
   return !!text.trim() && !remainder.trim()
 }
 
-export function isCodexContextMessage(data: MessageData): boolean {
-  // Older imports can store the formatted environment as user text. Require the complete field list.
-  const environment =
-    /^\[Historical environment\]\r?\n(?:\r?\n)?(?:(?:cwd|shell|current_date|timezone): [^\r\n]+(?:\r?\n|$))+$/
-  return (
-    !!data.parts?.length &&
-    data.parts.every((part) => part.type === 'text' && (isCodexContextText(part.text) || environment.test(part.text)))
-  )
-}
-
 const questionReplies = z.array(z.object({ question: z.string(), answer: z.string() })).nonempty()
 
 function formatQuestionReply(text: string): string {

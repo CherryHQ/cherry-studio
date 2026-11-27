@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  formatCodexHistoryText,
-  formatCodexTool,
-  isCodexContextMessage,
-  presentCodexHistory
-} from '../importedCodexText'
+import { formatCodexHistoryText, formatCodexTool, isCodexContextText, presentCodexHistory } from '../importedCodexText'
 
 describe('Codex imported text presentation', () => {
   it.each([
@@ -15,33 +10,18 @@ describe('Codex imported text presentation', () => {
     '# AGENTS.md instructions\n\n<INSTRUCTIONS>Project notes</INSTRUCTIONS>'
   ])('keeps user text outside a context block visible (%#)', (context) => {
     const question = 'Please fix the login failure.'
-    expect(isCodexContextMessage({ parts: [{ type: 'text', text: context }] })).toBe(true)
+    expect(isCodexContextText(context)).toBe(true)
     for (const text of [
       context + '\n' + question,
       question + '\n' + context,
       context + '\n' + question + '\n' + context
     ]) {
       const data = { parts: [{ type: 'text' as const, text }] }
-      expect(isCodexContextMessage(data)).toBe(false)
-      expect(isCodexContextMessage(presentCodexHistory(data, 'user'))).toBe(false)
+      expect(isCodexContextText(text)).toBe(false)
       expect(presentCodexHistory(data, 'user').parts).toEqual(data.parts)
     }
   })
-  it('recognizes generated context in old imports without classifying real user text as context', () => {
-    const parts = [
-      { type: 'text' as const, text: '# AGENTS.md instructions\n\n<INSTRUCTIONS>Project notes</INSTRUCTIONS>' },
-      { type: 'text' as const, text: '[Historical environment]\n\ncwd: D:/project' }
-    ]
-    expect(isCodexContextMessage({ parts })).toBe(true)
-    expect(isCodexContextMessage(presentCodexHistory({ parts }, 'user'))).toBe(false)
-    for (const label of ['environment', 'project instructions', 'plugin context', 'app context']) {
-      const text = '[Historical ' + label + ']\n\ncwd: D:/project\nWhat is the charging power?'
-      expect(isCodexContextMessage({ parts: [{ type: 'text', text }] })).toBe(false)
-    }
-    expect(isCodexContextMessage({ parts: [...parts, { type: 'text', text: 'What is the charging power?' }] })).toBe(
-      false
-    )
-    expect(isCodexContextMessage({ parts: [] })).toBe(false)
+  it('formats app context from a source envelope', () => {
     expect(
       formatCodexHistoryText('<external_codex_apps_open_page>{"page_id":null}</external_codex_apps_open_page>', 'user')
     ).toBe('[Historical app context]\n\n{"page_id":null}')
