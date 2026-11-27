@@ -1,5 +1,5 @@
 # Bilingual-pair consistency record (docs/dev/i18n/README.md).
 # After editing either side, update its counterpart and re-record with:
 #   pnpm docs:check-pairing --write .agents/notes/proposed/feature/2026-11-22-search-query-history.md
-2026-11-22-search-query-history.md: c3363d270ffe42865c14e24079f8905f14efca15
-2026-11-22-search-query-history.zh.md: 7f21325611ee318402e18fe5aa24e114a07839d7
+2026-11-22-search-query-history.md: 69195594b046816057946a9aa82abbbae515906e
+2026-11-22-search-query-history.zh.md: c9d8adef37caa69eadf8e124d539143a0c79833a
