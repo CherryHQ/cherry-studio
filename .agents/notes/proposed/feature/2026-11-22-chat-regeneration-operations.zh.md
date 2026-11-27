@@ -92,7 +92,7 @@ Home 编辑/保存并发送审阅在确认时捕获当前模型选择及有效�
 - AC3 — 保留分支的重新生成保留可导航同级消息，下一次服务商输入仅包含选中的祖先路径，覆盖虚拟根首轮及多模型场景。 (verification: real SQLite + scripted provider payload + Electron)
 - AC4 — 替换仅在生成成功并原子发布后移除确认过且合格的旧叶节点；无关分支和引用不受影响。错误、取消、资格过期、发布失败及重启保留旧内容，并如实显示新同级消息。替换仅对单个生成结果提供；多模型请求仅允许分支，涵盖混合成功/失败的结果。 (verification: real SQLite + stream failure injection + Electron)
 - AC5 — 编辑重发遵守确认过的当前模型/控制选择或显式源设置，只派发确认过的编辑 parts、附件标识及控制（来源 ID 不变的改动在任何写入前被拒绝），保留来源的直接父节点（包括早先轮次之后的后续轮编辑），保留未改附件，并在不丢失原分支的前提下拒绝缺失/不受支持文件。 (verification: renderer + Main integration + Electron)
-- AC6 — 现有全局自动重试次数、退避、退出、故障转移/回退及瞬时状态维持单一所有者；取消、部分已输出内容（包括内容输出后被拒绝的流读取）及未知投递绝不触发新的整轮自动提交。 (verification: retry-owner unit + stream integration)
+- AC6 — 现有全局自动重试次数、退避、退出、故障转移/回退及瞬时状态维持单一所有者；取消、部分已输出内容（包括内容输出后被拒绝的流读取）及未知投递绝不触发新的整轮自动提交。启用瞬时错误重试且仍有剩余次数时，测试先发出文本增量，再以可重试错误拒绝流读取；底层服务商 doStream 调用次数必须恰好为一次，不能只统计整轮提交次数。 (verification: retry-owner unit + stream integration)
 - AC7 — 中英文用户指南及全部变更语言键描述受支持 Home 模式、替换资格、重试限制和 Agent/临时聊天边界；验证键盘、窄布局及明暗原生交互。更广的间隔/覆盖/扁平化请求仍明确未完成。 (verification: docs gate + i18n + renderer + Electron)
 
 ## Risks
