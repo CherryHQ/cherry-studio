@@ -640,7 +640,7 @@ describe('useAgentMessageListProviderValue', () => {
       id,
       role,
       parts: [{ type: 'text', text }],
-      metadata: { provenance: { source: 'codex', sourceOrder: 1 } }
+      metadata: { provenance: { source: 'claude-code', sourceOrder: 1 } }
     })
     const preamble = imported('context', 'system', '[Historical project instructions]\nAGENTS.md')
     const setup: CherryUIMessage = {
@@ -657,7 +657,7 @@ describe('useAgentMessageListProviderValue', () => {
     }
     const messages = [native, preamble, setup, user, answer, laterContext]
     const { result, rerender } = renderHook(
-      ({ hasOlder }) =>
+      ({ hasOlder, history }) =>
         useAgentMessageListProviderValue({
           topic: {
             id: 'agent-session:source',
@@ -668,16 +668,16 @@ describe('useAgentMessageListProviderValue', () => {
             updatedAt: '2026-01-01T00:00:00.000Z',
             lastActivityAt: '2026-01-01T00:00:00.000Z'
           },
-          messages,
+          messages: history,
           partsByMessageId: {},
           isLoading: false,
           messageNavigation: 'anchor',
           hasOlder
         }),
-      { initialProps: { hasOlder: true } }
+      { initialProps: { hasOlder: true, history: messages } }
     )
     expect(result.current.state.messages.map((message) => message.id)).toEqual(messages.map((message) => message.id))
-    rerender({ hasOlder: false })
+    rerender({ hasOlder: false, history: messages })
     expect(result.current.state.messages.map((message) => message.id)).toEqual([
       'native',
       'user',
@@ -692,6 +692,11 @@ describe('useAgentMessageListProviderValue', () => {
       'answer',
       'later-context'
     ])
+    const followUp: CherryUIMessage = { id: 'follow-up', role: 'user', parts: [{ type: 'text', text: 'Continue' }] }
+    rerender({ hasOlder: false, history: [setup, answer, followUp] })
+    expect(result.current.state.messages.map((message) => message.id)).toEqual(['setup', 'answer', 'follow-up'])
+    rerender({ hasOlder: false, history: [setup, answer, user, followUp] })
+    expect(result.current.state.messages.map((message) => message.id)).toEqual(['answer', 'user', 'follow-up'])
   })
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', async () => {
