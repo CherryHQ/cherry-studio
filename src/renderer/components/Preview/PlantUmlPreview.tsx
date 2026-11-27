@@ -1,155 +1,71 @@
-import { ExternalLink } from 'lucide-react'
-import pako from 'pako'
-import React, { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { renderPlantUml } from '@renderer/services/PlantUmlRenderService'
 
-import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
-import { PreviewContainer, ShadowWhiteContainer } from './styles'
+import { ShadowWhiteContainer } from './styles'
 import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
 const logger = loggerService.withContext('PlantUmlPreview')
 
-export const PLANTUML_HOST = 'www.plantuml.com'
-const PlantUMLServer = `https://${PLANTUML_HOST}/plantuml`
-function encode64(data: Uint8Array) {
-  let r = ''
-  for (let i = 0; i < data.length; i += 3) {
-    if (i + 2 === data.length) {
-      r += append3bytes(data[i], data[i + 1], 0)
-    } else if (i + 1 === data.length) {
-      r += append3bytes(data[i], 0, 0)
-    } else {
-      r += append3bytes(data[i], data[i + 1], data[i + 2])
-    }
-  }
-  return r
-}
-
-function encode6bit(b: number) {
-  if (b < 10) {
-    return String.fromCharCode(48 + b)
-  }
-  b -= 10
-  if (b < 26) {
-    return String.fromCharCode(65 + b)
-  }
-  b -= 26
-  if (b < 26) {
-    return String.fromCharCode(97 + b)
-  }
-  b -= 26
-  if (b === 0) {
-    return '-'
-  }
-  if (b === 1) {
-    return '_'
-  }
-  return '?'
-}
-
-function append3bytes(b1: number, b2: number, b3: number) {
-  const c1 = b1 >> 2
-  const c2 = ((b1 & 0x3) << 4) | (b2 >> 4)
-  const c3 = ((b2 & 0xf) << 2) | (b3 >> 6)
-  const c4 = b3 & 0x3f
-  let r = ''
-  r += encode6bit(c1 & 0x3f)
-  r += encode6bit(c2 & 0x3f)
-  r += encode6bit(c3 & 0x3f)
-  r += encode6bit(c4 & 0x3f)
-  return r
-}
-/**
- * https://plantuml.com/zh/code-javascript-synchronous
- * To use PlantUML image generation, a text diagram description have to be :
-    1. Encoded in UTF-8
-    2. Compressed using Deflate algorithm
-    3. Reencoded in ASCII using a transformation _close_ to base64
- */
-function encodeDiagram(diagram: string): string {
-  const utf8text = new TextEncoder().encode(diagram)
-  const compressed = pako.deflateRaw(utf8text)
-  return encode64(compressed)
-}
-
-function getPlantUMLImageUrl(format: 'png' | 'svg', diagram: string, isDark?: boolean) {
-  const encodedDiagram = encodeDiagram(diagram)
-  if (isDark) {
-    return `${PlantUMLServer}/d${format}/${encodedDiagram}`
-  }
-  return `${PlantUMLServer}/${format}/${encodedDiagram}`
-}
-
 const PlantUmlPreview = ({
   children,
   enableToolbar = false,
+  isStreaming = false,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
   const { t } = useTranslation()
-  const [isRemoteRenderConfirmed, setIsRemoteRenderConfirmed] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const source = isStreaming ? '' : children.trim()
 
-  // 定义渲染函数
-  const renderPlantUml = useCallback(async (content: string, container: HTMLDivElement) => {
-    const url = getPlantUMLImageUrl('svg', content, false)
-    const response = await fetch(url)
-    if (!response.ok) {
-      if (response.status === 400) {
-        throw new Error(
-          'Diagram rendering failed (400): This is likely due to a syntax error in the diagram. Please check your code.'
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    container?.shadowRoot?.replaceChildren()
+    setError(null)
+    setIsLoading(Boolean(source))
+    if (!container || !source) return
+
+    const controller = new AbortController()
+    const { signal } = controller
+    const timer = setTimeout(async () => {
+      try {
+        const result = await renderPlantUml(source, signal)
+        if (signal.aborted) return
+        if ('error' in result) {
+          setError(result.line ? `${result.line}: ${result.error}` : result.error)
+        } else {
+          renderSvgInShadowHost(result.svg, container, {
+            sanitize: {
+              USE_PROFILES: { svg: true, svgFilters: true },
+              FORBID_TAGS: ['style', 'image', 'feImage', 'use', 'animate', 'animateMotion', 'animateTransform', 'set']
+            }
+          })
+        }
+      } catch (error) {
+        if (signal.aborted) return
+        logger.warn('Local PlantUML rendering failed', {
+          message: error instanceof Error ? error.message : String(error)
+        })
+        setError(
+          error instanceof DOMException && error.name === 'TimeoutError'
+            ? t('error.request_timeout')
+            : t('error.render.block')
         )
+      } finally {
+        if (!signal.aborted) setIsLoading(false)
       }
-      if (response.status >= 500) {
-        throw new Error(
-          `Diagram rendering failed (${response.status}): The PlantUML server is temporarily unavailable. Please try again later.`
-        )
-      }
-      throw new Error(`Diagram rendering failed, server returned: ${response.status} ${response.statusText}`)
+    }, 300)
+
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
     }
-
-    const text = await response.text()
-    renderSvgInShadowHost(text, container)
-  }, [])
-
-  // 使用预览渲染器 hook（仅在用户明确确认发送到远端服务后再触发）
-  const shouldRender = useCallback(() => isRemoteRenderConfirmed, [isRemoteRenderConfirmed])
-  const { containerRef, error, isLoading } = useDebouncedRender(
-    isRemoteRenderConfirmed ? children : '',
-    renderPlantUml,
-    {
-      debounceDelay: 300,
-      shouldRender
-    }
-  )
-
-  // 记录网络错误
-  useEffect(() => {
-    if (error && error.includes('Failed to fetch')) {
-      logger.warn('Network Error: Unable to connect to PlantUML server. Please check your network connection.')
-    } else if (error) {
-      logger.warn(error)
-    }
-  }, [error])
-
-  if (!isRemoteRenderConfirmed) {
-    return (
-      <PreviewContainer
-        role="region"
-        className="plantuml-remote-consent flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="max-w-md text-xs text-muted-foreground">
-          {t('code_block.preview.plantuml_remote_notice', { host: PLANTUML_HOST })}
-        </p>
-        <Button type="button" variant="outline" size="sm" onClick={() => setIsRemoteRenderConfirmed(true)}>
-          <ExternalLink className="mr-1.5 size-3.5" aria-hidden="true" />
-          {t('code_block.preview.plantuml_remote_render')}
-        </Button>
-      </PreviewContainer>
-    )
-  }
+  }, [source, t])
 
   return (
     <ImagePreviewLayout

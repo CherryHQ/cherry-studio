@@ -1421,8 +1421,6 @@
   "code_block.expand": "Mở rộng",
   "code_block.more": "Thêm",
   "code_block.preview.invalid_json": "Cấu hình JSON không hợp lệ",
-  "code_block.preview.plantuml_remote_notice": "Kết xuất sơ đồ PlantUML sẽ gửi mã nguồn sơ đồ tới {{host}}.",
-  "code_block.preview.plantuml_remote_render": "Kết xuất bằng PlantUML",
   "code_block.run": "Chạy",
   "code_block.split.label": "Chia đôi màn hình",
   "code_block.split.restore": "Khôi phục Chế độ chia đôi",

@@ -2,14 +2,11 @@ import { type ComponentType, lazy, type RefObject } from 'react'
 
 import type { BasicPreviewHandles, BasicPreviewProps } from '@renderer/components/Preview/types'
 
-import type { ViewMode } from './types'
-
 type SpecialViewProps = BasicPreviewProps & { ref?: RefObject<BasicPreviewHandles | null> }
 
 export interface SpecialViewDefinition {
   component: ComponentType<SpecialViewProps>
   supportsImageActions: boolean
-  defaultViewMode?: ViewMode
 }
 
 /**
@@ -26,8 +23,7 @@ export const SPECIAL_VIEW_COMPONENTS = {
   },
   plantuml: {
     component: lazy<ComponentType<SpecialViewProps>>(() => import('@renderer/components/Preview/PlantUmlPreview')),
-    supportsImageActions: true,
-    defaultViewMode: 'source'
+    supportsImageActions: true
   },
   svg: {
     component: lazy<ComponentType<SpecialViewProps>>(() => import('@renderer/components/Preview/SvgPreview')),

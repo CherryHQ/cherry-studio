@@ -1421,8 +1421,6 @@
   "code_block.expand": "ขยาย",
   "code_block.more": "เพิ่มเติม",
   "code_block.preview.invalid_json": "คอนฟิก JSON ไม่ถูกต้อง",
-  "code_block.preview.plantuml_remote_notice": "การเรนเดอร์แผนภาพ PlantUML จะส่งซอร์สโค้ดของแผนภาพไปยัง {{host}}",
-  "code_block.preview.plantuml_remote_render": "เรนเดอร์ด้วย PlantUML",
   "code_block.run": "รัน",
   "code_block.split.label": "ดูแบบแยก",
   "code_block.split.restore": "คืนค่าดูแบบแยก",

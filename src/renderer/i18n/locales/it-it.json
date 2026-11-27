@@ -1421,8 +1421,6 @@
   "code_block.expand": "Espandi",
   "code_block.more": "Altro",
   "code_block.preview.invalid_json": "Configurazione JSON non valida",
-  "code_block.preview.plantuml_remote_notice": "Il rendering dei diagrammi PlantUML invia il codice sorgente del diagramma a {{host}}.",
-  "code_block.preview.plantuml_remote_render": "Esegui rendering con PlantUML",
   "code_block.run": "Esegui",
   "code_block.split.label": "Vista divisa",
   "code_block.split.restore": "Disattiva vista divisa",
