@@ -590,6 +590,138 @@ describe('ShortcutService', () => {
       expect(globalShortcutMock.unregister).not.toHaveBeenCalledWith('Alt+A')
     })
 
+    it('clears the stale conflict after rollback so a retry reports again', async () => {
+      stubWindows()
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+        binding: ['Alt', 'A'],
+        enabled: true
+      })
+
+      await (service as any).onInit()
+
+      globalShortcutMock.register.mockImplementation((accelerator: string) => accelerator !== 'Alt+Space')
+      windowManagerMock.broadcastToType.mockClear()
+      globalShortcutMock.register.mockClear()
+      globalShortcutMock.unregister.mockClear()
+
+      const conflictCalls = () =>
+        windowManagerMock.broadcastToType.mock.calls.filter(
+          ([, channel, payload]: any) =>
+            channel === IpcChannel.Shortcut_RegistrationConflict && payload?.key === 'shortcut.app.window.show'
+        )
+
+      // First rejected assignment.
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+        binding: ['Alt', 'Space'],
+        enabled: true
+      })
+
+      expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith(
+        WindowType.Main,
+        IpcChannel.Shortcut_RegistrationConflict,
+        {
+          key: 'shortcut.app.window.show',
+          accelerator: 'Alt+Space',
+          hasConflict: true
+        }
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('shortcut.app.window.show')).toEqual({
+        binding: ['Alt', 'A'],
+        enabled: true
+      })
+      // The restored Alt+A is still registered, so the stale occupied warning
+      // must be cleared instead of marking the working binding as conflicted.
+      expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith(
+        WindowType.Main,
+        IpcChannel.Shortcut_RegistrationConflict,
+        {
+          key: 'shortcut.app.window.show',
+          hasConflict: false
+        }
+      )
+      expect(globalShortcutMock.unregister).not.toHaveBeenCalledWith('Alt+A')
+
+      windowManagerMock.broadcastToType.mockClear()
+
+      // Second rejected assignment must emit a fresh conflict (toast + indicator)
+      // instead of being suppressed as a duplicate.
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+        binding: ['Alt', 'Space'],
+        enabled: true
+      })
+
+      expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith(
+        WindowType.Main,
+        IpcChannel.Shortcut_RegistrationConflict,
+        {
+          key: 'shortcut.app.window.show',
+          accelerator: 'Alt+Space',
+          hasConflict: true
+        }
+      )
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('shortcut.app.window.show')).toEqual({
+        binding: ['Alt', 'A'],
+        enabled: true
+      })
+      expect(conflictCalls().filter(([, , payload]: any) => payload?.hasConflict === false).length).toBeGreaterThan(0)
+    })
+
+    it('resets an equivalent spelling without a false external conflict', async () => {
+      stubWindows()
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.screenshot.enabled', true)
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.screenshot.capture', {
+        binding: ['Ctrl', 'Shift', 'A'],
+        enabled: true
+      })
+
+      await (service as any).onInit()
+
+      expect(globalShortcutMock.register).toHaveBeenCalledWith('Ctrl+Shift+A', expect.any(Function))
+
+      // Electron resolves Ctrl and CommandOrControl to the same native
+      // accelerator on Windows. A reset to the default spelling must unregister
+      // the old spelling before registering, otherwise the new registration
+      // looks like a duplicate held by another app.
+      globalShortcutMock.register.mockImplementation((accelerator: string) => {
+        if (accelerator === 'CommandOrControl+Shift+A') {
+          const oldReleased = globalShortcutMock.unregister.mock.calls.some(([name]) => name === 'Ctrl+Shift+A')
+          return oldReleased
+        }
+        return accelerator !== 'Alt+Space'
+      })
+      windowManagerMock.broadcastToType.mockClear()
+      globalShortcutMock.register.mockClear()
+      globalShortcutMock.unregister.mockClear()
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.screenshot.capture', {
+        binding: ['CommandOrControl', 'Shift', 'A'],
+        enabled: true
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(globalShortcutMock.unregister).toHaveBeenCalledWith('Ctrl+Shift+A')
+      expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+Shift+A', expect.any(Function))
+      expect(windowManagerMock.broadcastToType).not.toHaveBeenCalledWith(
+        WindowType.Main,
+        IpcChannel.Shortcut_RegistrationConflict,
+        expect.objectContaining({
+          key: 'shortcut.screenshot.capture',
+          hasConflict: true
+        })
+      )
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue('shortcut.screenshot.capture')).toEqual({
+        binding: ['CommandOrControl', 'Shift', 'A'],
+        enabled: true
+      })
+    })
+
     it('keeps the requested value when a non-Alt+Space show replacement is rejected', async () => {
       stubWindows()
       MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {

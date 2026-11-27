@@ -293,13 +293,30 @@ export class ShortcutService extends BaseService {
       }
     }
 
-    // Unregister same-accelerator entries whose handler or window changed so the
-    // fresh handler can register below. Accelerators that are no longer desired
-    // are pruned after registration so a rejected replacement keeps the old
-    // hotkey active until the new one succeeds.
-    for (const [accelerator, previous] of this.registeredAccelerators) {
+    // Only the Windows show shortcut's Alt+Space replacement keeps the old
+    // accelerator registered across the registration attempt, so there is no
+    // gap where neither hotkey works. Every other obsolete accelerator is
+    // pruned before registration so equivalent spellings that resolve to the
+    // same native accelerator (e.g. Ctrl+Shift+A vs CommandOrControl+Shift+A)
+    // can be re-registered.
+    const showShortcutKey = commandShortcutPreferenceKey('app.window.show')
+    const deferShowOldAccelerators = this.shouldRevertFailedReplacement(
+      showShortcutKey,
+      currentPrefs.get(showShortcutKey)
+    )
+    for (const [accelerator, previous] of [...this.registeredAccelerators]) {
       const entry = desired.get(accelerator)
       if (entry && (entry.handler !== previous.handler || entry.window !== previous.window)) {
+        try {
+          globalShortcut.unregister(accelerator)
+        } catch (error) {
+          logger.debug(`Failed to unregister shortcut accelerator: ${accelerator}`, error as Error)
+        }
+        this.registeredAccelerators.delete(accelerator)
+      } else if (!entry) {
+        if (deferShowOldAccelerators && previous.key === showShortcutKey) {
+          continue
+        }
         try {
           globalShortcut.unregister(accelerator)
         } catch (error) {
@@ -340,10 +357,11 @@ export class ShortcutService extends BaseService {
       }
     }
 
-    // Prune accelerators that are no longer desired. When the Windows show
-    // shortcut's Alt+Space replacement is rejected, keep the previous working
-    // accelerator registered so there is no gap where neither hotkey works.
-    for (const [accelerator, previous] of this.registeredAccelerators) {
+    // Prune accelerators that are still registered but no longer desired (the
+    // deferred Windows show Alt+Space old accelerators). When that replacement
+    // is rejected, keep the previous working accelerator registered so there
+    // is no gap where neither hotkey works.
+    for (const [accelerator, previous] of [...this.registeredAccelerators]) {
       if (!desired.has(accelerator)) {
         if (
           failedKeys.has(previous.key) &&
@@ -370,6 +388,12 @@ export class ShortcutService extends BaseService {
           this.lastGoodPreferences.delete(key)
         }
         this.pendingReverts.delete(key)
+        // The restored binding may already be registered (the deferred old
+        // accelerator was never released), so no success branch ran to clear a
+        // stale conflict. Reconciling here keeps a working restored binding
+        // from being marked occupied, which also lets a later retry emit a
+        // fresh conflict instead of being suppressed as a duplicate.
+        this.clearRegistrationConflict(key)
       }
     }
   }
