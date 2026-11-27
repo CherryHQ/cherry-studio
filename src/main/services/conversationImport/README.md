@@ -15,7 +15,7 @@
 
 Pi Durable 智能体直接从已导入的消息树开始续聊。已有旧 Pi 智能体沿用原生历史初始化。保留原时间；未来时间在预览及提交前拒绝。Claude 按所选分支的父子顺序导入，时间倒序时显示警告。Codex rollout 和 OpenCode 检查时间顺序。Codex 数据库历史按源序号排序。
 WorkBuddy 通过 app_state 中的 provenance.sourceOrder 保存因果顺序，不新增表、列或数据迁移。导入历史构成固定前缀，续聊按现有规则接在后面。分页、定位、分支和 Pi 初始化使用同一顺序；日期筛选仍用原时间。分支保留消息来源信息，不继承会话级去重身份。
-来源文件不写入。SQLite 通过 files.ts 中的共用入口只读打开。WAL 模式要求现有 WAL/SHM 边文件，否则返回 unsupported_readonly_wal，避免扫描或预览创建来源文件。每个会话单独使用同步事务。复制清除会话级导入身份，备份恢复保留身份。
+来源文件不写入。OpenCode 和 Codex 复用只读 SQLite 入口。正常关闭且已完成检查点的数据库可直接读取。活动 WAL 的已提交内容从临时快照读取。如果 WAL 和 SHM 只剩一个，返回 `unsupported_readonly_wal`。扫描、预览和提交都不会在来源目录创建文件。每个会话单独使用同步事务。复制清除会话级导入身份，备份恢复保留身份。
 
 测试位于 `__tests__/`。数据库用例使用生产迁移和真实 Pi 历史；模型输入用本地网关夹具捕获。
 产品方案见 [本地历史导入方案](../../../../.agents/notes/proposed/feature/2026-11-02-local-agent-history-import.md)。
@@ -38,7 +38,7 @@ Codex 默认在 `sessions` 和 `archived_sessions` 查找 rollout。手动指定
 
 数据库中的 `thread_items` 只有本线程的记录。预览和提交都会读取对应 `.jsonl.zst` 的会话头，核实线程 ID、分页模式、起始序号及继承关系。无法确认独立历史时，保留重试机会。独立线程按源序号导入，保留原时间。`state_5.sqlite` 提供可选的标题、工作目录和 Guardian 来源标记。有 WAL 数据时，SQLite 在临时副本中读取已提交的更新，批次结束后清理副本。
 
-`opencode.ts` 在只读 SQLite 事务中读取同一快照。识别旧版 session/message/part，以及新版 session_v2/session_message，后者可带 session_part。只列出含消息的会话。按 seq 或旧版 time_created、id 排序。版本夹具为 1.2.0 和 2.2.5；新版结构依据 anomalyco/opencode 的 1bf08ae46a91f7793c756e4ee521e37b6b554064。旧版结构依据该提交的 v1-migration 源类型。夹具为合成数据，不能替代真实安装版验证。回退、继承 fork、压缩和未知表结构均明确拒绝。数据库指纹覆盖被选会话的逻辑快照，包含 WAL 已提交行，不要求复制数据库。
+`opencode.ts` 在只读 SQLite 事务中读取同一快照。识别旧版 session/message/part，以及新版 session_v2/session_message，后者可带 session_part。只列出含消息的会话。按 seq 或旧版 time_created、id 排序。版本夹具为 1.2.0 和 2.2.5；新版结构依据 anomalyco/opencode 的 1bf08ae46a91f7793c756e4ee521e37b6b554064。旧版结构依据该提交的 v1-migration 源类型。夹具为合成数据，不能替代真实安装版验证。回退、继承 fork、压缩和未知表结构均明确拒绝。数据库指纹覆盖所选会话的消息和部件类型。两个数据库出现同一会话 ID 时，导入前会核对两份记录。相同副本合为一项，内容冲突会阻止首次导入。
 
 `workbuddy.ts` 关联只读 sessions 索引和 projects 下的直属 JSONL。结构依据为 Windows 桌面 5.9.3 与运行时 2.165.0 的本地样本。支持顶层正文、rawContent 思考及静态工具记录；缺少本地正文、未知附件和不完整父链会阻止导入。不同路径分隔符按来源平台语法比较。索引行和正文共同参与指纹；无关行更新不使预览失效。
 WorkBuddy 读取活动 WAL 数据库时要求 WAL 和 SHM 文件齐全。正常关闭后，两者都不存在时以只读快照打开索引，查询后复核文件状态。只剩一个辅助文件时提示重试。
