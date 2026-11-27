@@ -479,9 +479,10 @@ Previously imported usage records remain in SQLite. New v1 imports require the [
 
 `GET /ai-usage-records` is keyset-paginated (`limit` default 50, max 200) and
 sorts by `createdAt`, `totalTokens`, `cost`, `timeFirstTokenMs`, or
-`tokensPerSecond`. Cost sort requires and filters to one currency. Supplying
-`messageKind` and `messageId` together restricts the list to one message;
-supplying only one is rejected.
+`tokensPerSecond`. Cost sorting requires a currency and compares amounts only
+within that currency. Unpriced requests and requests priced in other currencies
+remain in the list after those with comparable costs, in either sort direction.
+The API requires both `messageKind` and `messageId` when filtering to one message.
 
 The message details card enables this message-scoped query only while the card
 is open and follows its keyset cursor until the message's records are loaded.

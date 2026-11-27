@@ -822,6 +822,47 @@ describe('AiUsageRecordService', () => {
     })
   })
 
+  it('shows requests when all costs are unavailable and cost sorting is selected', () => {
+    aiUsageRecordService.recordInvocation(invocation({ context: context({ pricingSnapshot: null }) }))
+
+    const page = aiUsageRecordService.list({ limit: 25, sortBy: 'cost', sortOrder: 'desc', costCurrency: 'USD' })
+
+    expect(page.total).toBe(1)
+    expect(page.items).toMatchObject([{ requestId: 'request-1', cost: null }])
+  })
+
+  it.each([
+    ['asc', ['usd-zero', 'usd-high', 'other-currency', 'unpriced']],
+    ['desc', ['usd-high', 'usd-zero', 'other-currency', 'unpriced']]
+  ] as const)('sorts comparable costs %s and paginates all requests', (sortOrder, expectedIds) => {
+    const trustedCost = context({ trustProviderReportedCost: true })
+    aiUsageRecordService.recordInvocations([
+      invocation({ requestId: 'unpriced', context: context({ pricingSnapshot: null }), completedAt: 1_000 }),
+      invocation({
+        requestId: 'other-currency',
+        context: trustedCost,
+        providerCost: { amount: 100, currency: 'CNY' },
+        completedAt: 2_000
+      }),
+      invocation({ requestId: 'usd-high', completedAt: 3_000 }),
+      invocation({
+        requestId: 'usd-zero',
+        context: trustedCost,
+        providerCost: { amount: 0, currency: 'USD' },
+        completedAt: 4_000
+      })
+    ])
+
+    let cursor: string | undefined
+    for (const requestId of expectedIds) {
+      const page = aiUsageRecordService.list({ limit: 1, sortBy: 'cost', sortOrder, costCurrency: 'USD', cursor })
+      expect(page.total).toBe(4)
+      expect(page.items.map((item) => item.requestId)).toEqual([requestId])
+      cursor = page.nextCursor
+    }
+    expect(cursor).toBeUndefined()
+  })
+
   it('uses the same TTFT fallback expression for TPS ordering and keyset cursors', () => {
     aiUsageRecordService.recordInvocations([
       invocation({
