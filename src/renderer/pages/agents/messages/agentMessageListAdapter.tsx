@@ -250,10 +250,14 @@ export function useAgentMessageListProviderValue({
   )
   const visibleMessages = useMemo(() => {
     if (hasOlder) return messages
-    const firstUser = messages.findIndex((message) => message.role === 'user' && !message.metadata?.provenance?.isSetup)
-    return firstUser > 0
-      ? messages.filter((message, index) => index >= firstUser || !message.metadata?.provenance)
-      : messages
+    const firstImportedTask = messages.findIndex(
+      ({ role, metadata }) => role === 'user' && metadata?.provenance && !metadata.provenance.isSetup
+    )
+    if (firstImportedTask <= 0) return messages
+    return messages.filter(({ role, metadata }, index) => {
+      const provenance = metadata?.provenance
+      return index >= firstImportedTask || !provenance || (role !== 'system' && !provenance.isSetup)
+    })
   }, [hasOlder, messages])
   const timeline = useAgentTimeline(visibleMessages, displayPartsByMessageId, projectionTarget)
   const sourceIds = useMemo(
