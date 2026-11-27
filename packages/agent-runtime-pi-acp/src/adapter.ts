@@ -1,10 +1,6 @@
 import * as z from 'zod'
 
-import {
-  acpProviderModelGateway,
-  type AcpGatewayConfig,
-  type AcpJsonModelProfile
-} from '@cherrystudio/agent-runtime-acp/profile'
+import { type AcpJsonModelProfile } from '@cherrystudio/agent-runtime-acp/profile'
 import type { AcpHarnessAdapter } from '@cherrystudio/agent-runtime-acp/v1'
 
 import { bindPiContextUsage } from './contextUsage'
@@ -65,9 +61,3 @@ export async function preparePiAcpLaunch<Source extends string>(
     env: { ...node.env, PI_ACP_PI_COMMAND: command.env.PI_ACP_PI_COMMAND || command.executable }
   }
 }
-
-export const piGateway = {
-  format: 'json',
-  target: 'pi-models',
-  read: acpProviderModelGateway
-} satisfies AcpGatewayConfig<'pi-models'>

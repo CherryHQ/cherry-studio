@@ -1,8 +1,4 @@
-import {
-  acpProviderModelGateway,
-  type AcpGatewayConfig,
-  type AcpYamlModelProfile
-} from '@cherrystudio/agent-runtime-acp/profile'
+import { type AcpYamlModelProfile } from '@cherrystudio/agent-runtime-acp/profile'
 
 export const ompModelProfile: AcpYamlModelProfile<'omp-settings'> = {
   format: 'yaml',
@@ -25,9 +21,3 @@ export const ompModelProfile: AcpYamlModelProfile<'omp-settings'> = {
     }
   }
 }
-
-export const ompGateway = {
-  format: 'yaml',
-  target: 'omp-models',
-  read: acpProviderModelGateway
-} satisfies AcpGatewayConfig<'omp-models'>

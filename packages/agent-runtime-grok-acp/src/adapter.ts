@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import * as z from 'zod'
 
-import { acpConfigRecord, type AcpGatewayConfig, type TomlModelProfile } from '@cherrystudio/agent-runtime-acp/profile'
+import { acpConfigRecord, type TomlModelProfile } from '@cherrystudio/agent-runtime-acp/profile'
 import type {
   AcpHarnessAdapter,
   AcpHarnessSession,
@@ -331,20 +331,6 @@ export function createGrokAcpAdapter(host: GrokInteractionHost): AcpHarnessAdapt
     }
   }
 }
-
-export const grokGateway = {
-  format: 'toml',
-  read(doc, model) {
-    const entry = acpConfigRecord(acpConfigRecord(doc.model)?.[model])
-    if (!entry) return
-    return {
-      baseUrl: entry.base_url,
-      apiKey: entry.api_key,
-      model: entry.model,
-      path: entry.api_backend === 'responses' ? '/v1/responses' : '/v1/chat/completions'
-    }
-  }
-} satisfies AcpGatewayConfig
 
 export const grokModelProfile = {
   format: 'toml',

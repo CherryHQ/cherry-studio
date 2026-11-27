@@ -1,8 +1,4 @@
-import {
-  acpConfigRecord,
-  type AcpGatewayConfig,
-  type AcpJsonModelProfile
-} from '@cherrystudio/agent-runtime-acp/profile'
+import { acpConfigRecord, type AcpJsonModelProfile } from '@cherrystudio/agent-runtime-acp/profile'
 
 import { codeBuddyCli } from './cli'
 
@@ -93,18 +89,9 @@ const profile = {
   }
 } satisfies AcpJsonModelProfile<'codebuddy-settings' | 'codebuddy-models'>
 
-const gateway = {
-  format: 'json',
-  target: profile.relatedTarget,
-  read(doc, model) {
-    if (Array.isArray(doc.models)) return readCodeBuddyConnection(doc, model)
-  }
-} satisfies AcpGatewayConfig
-
 export const codeBuddyPreset = {
   id: codeBuddyCli.id,
   profile,
-  gateway,
   automationName(name: string, input: unknown) {
     if (name !== 'DeferExecuteTool') return
     const toolName = acpConfigRecord(input)?.toolName

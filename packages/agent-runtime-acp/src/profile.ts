@@ -92,56 +92,6 @@ export type AcpYamlModelProfile<Target extends string = string> = {
     }
 )
 
-export interface AcpGatewayConfig<Target extends string = string> {
-  format: 'json' | 'yaml' | 'toml'
-  target?: Target
-  related?: { target: Target; format: 'json' | 'yaml' | 'toml' }
-  bindCredential?(env: AcpEnv, credential: { apiKey: string; baseUrl: string }): void
-  envFile?: Target
-  read(
-    document: Record<string, unknown>,
-    model: string,
-    env: (key: string) => string | undefined,
-    related: Record<string, unknown> | undefined
-  ):
-    | {
-        baseUrl?: unknown
-        apiKey?: unknown
-        model?: unknown
-        path: string
-      }
-    | undefined
-}
-
-export interface AcpGatewayOverlay<Target extends string = string> {
-  target: Target
-  envKey: string
-  read(
-    saved: Record<string, unknown>,
-    overrides: Record<string, unknown>,
-    model: string
-  ):
-    | {
-        baseUrl: unknown
-        apiKey: unknown
-        model: string
-        path: string
-        bind(credential: { apiKey: string; baseUrl: string }): string
-      }
-    | undefined
-}
-
-export function acpProviderModelGateway(doc: Record<string, unknown>, model: string) {
-  const slash = model.indexOf('/')
-  if (slash < 1) return undefined
-  const providerKey = model.slice(0, slash)
-  const modelId = model.slice(slash + 1)
-  const entry = acpConfigRecord(acpConfigRecord(doc.providers)?.[providerKey])
-  if (!entry || !Array.isArray(entry.models)) return undefined
-  if (!entry.models.some((item: unknown) => acpConfigRecord(item)?.id === modelId)) return undefined
-  return { baseUrl: entry.baseUrl, apiKey: entry.apiKey, model: modelId, path: acpGatewayPath(entry.api) }
-}
-
 export function acpGatewayPath(api: unknown) {
   if (api === 'anthropic' || api === 'anthropic_messages' || api === 'anthropic-messages') return '/v1/messages'
   return api === 'responses' || api === 'openai-responses' ? '/v1/responses' : '/v1/chat/completions'

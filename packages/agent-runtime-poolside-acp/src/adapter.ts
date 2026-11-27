@@ -1,10 +1,6 @@
 import type { Document } from 'yaml'
 
-import {
-  acpConfigRecord,
-  type AcpGatewayConfig,
-  type AcpYamlModelProfile
-} from '@cherrystudio/agent-runtime-acp/profile'
+import { acpConfigRecord, type AcpYamlModelProfile } from '@cherrystudio/agent-runtime-acp/profile'
 
 import { poolsideCli, poolsideEnvironmentKeys as keys } from './cli'
 
@@ -78,28 +74,9 @@ const profile = {
   }
 } satisfies AcpYamlModelProfile
 
-const gateway = {
-  format: 'yaml',
-  read(doc, _model, env) {
-    const saved = readPoolsideGateway(doc)
-    if (!saved) return
-    return {
-      apiKey: env(keys.apiKey) ?? saved.apiKey,
-      baseUrl: env(keys.baseUrl) ?? saved.baseUrl,
-      model: env(keys.model) ?? saved.wireModel,
-      path: '/v1/chat/completions'
-    }
-  },
-  bindCredential(env, lease) {
-    env[keys.apiKey] = lease.apiKey
-    env[keys.baseUrl] = lease.baseUrl + '/v1'
-  }
-} satisfies AcpGatewayConfig
-
 export const poolsidePreset = {
   id: poolsideCli.id,
   profile,
-  gateway,
   automationName(name: string) {
     const tool = /^(?:mcp:)?poolside__agent__automation(?::|__)(js|reset)$/i.exec(name)?.[1]
     return tool ? 'mcp__automation__' + tool : undefined

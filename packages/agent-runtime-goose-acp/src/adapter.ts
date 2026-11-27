@@ -1,6 +1,6 @@
 import type { Document } from 'yaml'
 
-import type { AcpGatewayConfig, AcpYamlModelProfile } from '@cherrystudio/agent-runtime-acp/profile'
+import type { AcpYamlModelProfile } from '@cherrystudio/agent-runtime-acp/profile'
 
 import { gooseCli } from './cli'
 
@@ -78,6 +78,5 @@ const profile = {
 
 export const goosePreset = {
   id: gooseCli.id,
-  profile,
-  gateway: { format: 'yaml', read: readGooseConnection } satisfies AcpGatewayConfig
+  profile
 }

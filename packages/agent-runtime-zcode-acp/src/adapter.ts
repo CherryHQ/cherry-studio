@@ -2,11 +2,9 @@ import path from 'node:path'
 
 import {
   acpConfigRecord,
-  acpGatewayPath,
   type AcpHostBinary,
   type AcpJsonModelProfile,
-  type AcpLaunch,
-  type AcpGatewayConfig
+  type AcpLaunch
 } from '@cherrystudio/agent-runtime-acp/profile'
 
 import { zcodeCli } from './cli'
@@ -15,27 +13,6 @@ function zcodeModelId(model: string, available: readonly string[]) {
   const normalized = model.replace('/', '\\')
   return available.includes(normalized) ? normalized : (available.find((id) => id.endsWith('\\' + model)) ?? model)
 }
-
-const zcodeGateway = {
-  format: 'json',
-  read(doc, model) {
-    const providers = acpConfigRecord(doc.provider)
-    if (!providers) return
-    const slash = model.indexOf('\\')
-    const key = slash > 0 ? model.slice(0, slash) : Object.keys(providers).find((id) => id.startsWith('cherry-'))
-    if (!key) return
-    const entry = acpConfigRecord(providers[key])
-    const models = acpConfigRecord(entry?.models)
-    if (!models || !Object.keys(models).length) return
-    const options = acpConfigRecord(entry?.options)
-    return {
-      baseUrl: options?.baseURL,
-      apiKey: options?.apiKey,
-      model: slash > 0 ? model.slice(slash + 1) : Object.keys(models)[0],
-      path: acpGatewayPath(entry?.kind)
-    }
-  }
-} satisfies AcpGatewayConfig
 
 const zcodeHostBinary = {
   executable: 'zcode',
@@ -107,7 +84,6 @@ function prepareZCodeLoginCommand(command: AcpLaunch & { executable: string }) {
 
 export const zcodePreset = {
   id: zcodeCli.id,
-  gateway: zcodeGateway,
   profile: zcodeProfile,
   catalogId: zcodeModelId,
   hostBinary: zcodeHostBinary,

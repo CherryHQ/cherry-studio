@@ -1,8 +1,6 @@
 import {
   acpConfigRecord,
-  acpGatewayPath,
   type AcpJsonModelProfile,
-  type AcpGatewayConfig,
   type AcpLaunch,
   type AcpModelSelection
 } from '@cherrystudio/agent-runtime-acp/profile'
@@ -51,35 +49,12 @@ const clineProfile = {
   }
 } satisfies AcpJsonModelProfile<'cline-providers'>
 
-const clineGateway = {
-  format: 'json',
-  read(doc, _model, get) {
-    const { provider, managed, legacy, settings } = readProvider(doc)
-    if (!settings || (!managed && !legacy)) return
-    const expected = {
-      CLINE_PROVIDER: provider,
-      CLINE_API_KEY: settings.apiKey,
-      CLINE_BASE_URL: settings.baseUrl,
-      OPENAI_BASE_URL: settings.baseUrl,
-      CLINE_MODEL: settings.model
-    }
-    if (Object.entries(expected).some(([key, value]) => get(key) !== undefined && get(key) !== value)) return
-    return {
-      baseUrl: settings.baseUrl,
-      apiKey: settings.apiKey,
-      model: settings.model,
-      path: legacy ? acpGatewayPath(settings.api) : '/v1/chat/completions'
-    }
-  }
-} satisfies AcpGatewayConfig
-
 function clineSelection(configured: string | undefined, launch: AcpLaunch): AcpModelSelection {
   return { model: configured ?? (launch.env.CLINE_MODEL || undefined), allowUnlisted: true }
 }
 
 export const clinePreset = {
   id: clineCli.id,
-  gateway: clineGateway,
   profile: clineProfile,
   selectModel: clineSelection
 } as const
