@@ -7,13 +7,15 @@
  * Strict tools additionally lose validation keywords outside the sampling
  * grammar subset accepted by Anthropic and OpenAI (issue #18037).
  *
- * Explicit root objects gain missing `properties: {}` (issue #21957), a
- * validation-neutral change that preserves `additionalProperties` semantics.
+ * Non-object, untyped, `$ref`, and combinator root schemas are normalized to an
+ * explicit `type: 'object'` schema with a `properties` map (issue #21957,
+ * #25073), preserving `$defs`/`definitions` and `additionalProperties` semantics.
  *
  * Native Gemini replaces non-string `enum`/`const` with their bare type and
  * expands type arrays because its Schema proto requires concrete types.
  * Incompatible enums keep type-compatible choices, split by primitive type,
  * or carry their allowed values in the description when no enum can be sent.
+ * Any `enum`/`const` the Google adapter would still reject moves to the description.
  *
  * Native Gemini drops tools with untyped array items: no safe type can be inferred.
  * It drops `propertyNames` / `additionalProperties`, absent from its proto (#20939).
@@ -41,6 +43,7 @@ import type { LanguageModelMiddleware } from 'ai'
 
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import { normalizeRootObjectSchema } from '@main/ai/utils/toolSchema'
 import { ENDPOINT_TYPE, isUniqueModelId } from '@shared/data/types/model'
 import { isGeminiModel } from '@shared/utils/model'
 
@@ -158,24 +161,6 @@ function stripKeywords(schema: JSONSchema7Definition, keywords: ReadonlySet<stri
   return mapSchemas(schema, (node) => dropKeywords(node, keywords))
 }
 
-/**
- * Some OpenAI-compatible validators reject the whole request when a function's
- * `parameters` is an object schema without a `properties` member — a
- * parameterless MCP tool from a Go-SDK server serializes as
- * `{ "type": "object", "additionalProperties": false }` (issue #21957).
- * Adding the empty map is validation-neutral: a missing `properties` and `{}`
- * declare the same empty property set, `additionalProperties` keeps its
- * meaning, and the original schema still validates tool calls locally.
- * A root `$ref` is left alone because providers (the pinned Google adapter)
- * merge root siblings over the referenced definition, so an empty `properties`
- * map would erase the referenced parameters.
- */
-function addMissingProperties(node: JSONSchema7Definition): JSONSchema7Definition {
-  if (typeof node !== 'object' || Array.isArray(node)) return node
-  if (node.type !== 'object' || node.$ref !== undefined || Object.hasOwn(node, 'properties')) return node
-  return { ...node, properties: {} }
-}
-
 /** The single simple type shared by every value, if one exists. */
 function uniformEnumType(values: unknown[]): 'integer' | 'number' | 'boolean' | undefined {
   if (values.length === 0) return undefined
@@ -189,17 +174,20 @@ function uniformEnumType(values: unknown[]): 'integer' | 'number' | 'boolean' | 
  * Gemini's Schema proto types `enum` as a string list — a numeric or boolean
  * `enum`/`const` 400s the whole request (`Invalid value at '…enum[0]'
  * (TYPE_STRING)`, e.g. zod `z.union([z.literal(1), z.literal(2)])`). Replaces
- * it with the bare type; the original zod schema still validates locally.
+ * it with the bare type (nullable when an untyped enum also lists `null`);
+ * the original zod schema still validates locally.
  */
 function stripNonStringEnums(node: JSONSchema7): JSONSchema7 {
   const values = node.enum !== undefined ? node.enum : node.const !== undefined ? [node.const] : undefined
-  const kind = Array.isArray(values) ? uniformEnumType(values) : undefined
+  if (!Array.isArray(values)) return node
+  const nullable = node.type === undefined && values.includes(null)
+  const kind = uniformEnumType(nullable ? values.filter((value) => value !== null) : values)
   if (kind === undefined) return node
 
   const replacement: JSONSchema7 = { ...node }
   delete replacement.enum
   delete replacement.const
-  if (replacement.type === undefined) replacement.type = kind
+  if (replacement.type === undefined) replacement.type = nullable ? [kind, 'null'] : kind
   return replacement
 }
 
@@ -260,14 +248,41 @@ function normalizeGeminiEnum(node: JSONSchema7): JSONSchema7 {
     }
   }
 
-  const { const: constant, ...fallback } = rest
-  const descriptions = [node.description, `Original enum values (JSON): ${JSON.stringify(values)}.`]
+  return describeEnum(node)
+}
+
+/** Drops `enum`/`const`, keeping their values in the description. */
+function describeEnum(node: JSONSchema7): JSONSchema7 {
+  const { enum: values, const: constant, type, ...rest } = node
+  const descriptions = [node.description]
+  if (values !== undefined) descriptions.push(`Original enum values (JSON): ${JSON.stringify(values)}.`)
   if (constant !== undefined) descriptions.push(`Required value (JSON): ${JSON.stringify(constant)}.`)
+  // Arrays stay `string`: Gemini requires typed `items`, which a bare value cannot supply.
+  const members = values ?? [constant]
+  const objects =
+    members.length > 0 && members.every((value) => typeof value === 'object' && value !== null && !Array.isArray(value))
   return {
-    ...fallback,
-    type: type ?? (node.$ref || node.anyOf || node.allOf || node.oneOf ? undefined : 'string'),
+    ...rest,
+    type: type ?? (node.$ref || node.anyOf || node.allOf || node.oneOf ? undefined : objects ? 'object' : 'string'),
     description: descriptions.filter(Boolean).join(' ')
   }
+}
+
+/**
+ * Mirrors `@ai-sdk/google`'s `addEnumToSchema`, which throws for the whole
+ * request, narrowed to the string and null enums Gemini's proto accepts.
+ */
+function isGeminiCompatibleEnum(node: JSONSchema7): boolean {
+  const values = node.enum ?? (node.const !== undefined ? [node.const] : undefined)
+  if (values === undefined) return true
+
+  const { type } = node
+  const allows = (kind: Extract<JSONSchema7['type'], string>) =>
+    type === undefined || type === kind || (Array.isArray(type) && type.includes(kind))
+  if (values.length > 0 && values.every((value) => value === null)) return allows('null')
+  const nullable = (Array.isArray(type) && type.includes('null')) || (type === undefined && values.includes(null))
+  const members = nullable ? values.filter((value) => value !== null) : values
+  return members.length > 0 && allows('string') && members.every((value) => typeof value === 'string')
 }
 
 /**
@@ -344,20 +359,21 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
 
   let changed = false
   const droppedTools: string[] = []
+  const describedTools: string[] = []
   const transformedTools: NonNullable<LanguageModelV3CallOptions['tools']> = []
   for (const tool of tools) {
     if (tool.type !== 'function') {
       transformedTools.push(tool)
       continue
     }
-    if (isGeminiEndpoint && hasIncompatibleGeminiArray(tool.inputSchema)) {
+    let inputSchema: JSONSchema7Definition = normalizeRootObjectSchema(tool.inputSchema)
+    if (isGeminiEndpoint && hasIncompatibleGeminiArray(inputSchema)) {
       changed = true
       droppedTools.push(tool.name)
       continue
     }
     const keywords = tool.strict === true ? STRICT_UNSUPPORTED : new Set(ALWAYS_UNSUPPORTED)
-    let inputSchema = stripKeywords(tool.inputSchema, keywords)
-    inputSchema = addMissingProperties(inputSchema)
+    inputSchema = stripKeywords(inputSchema, keywords)
     if (isGeminiEndpoint) inputSchema = stripKeywords(inputSchema, GEMINI_UNSUPPORTED)
     if (isGeminiEndpoint || isChatGeminiModel) {
       inputSchema = mapSchemas(inputSchema, (node) => {
@@ -365,7 +381,16 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
         return isGeminiEndpoint ? expandTypeArrays(normalized) : normalized
       })
     }
-    if (isGeminiEndpoint) inputSchema = mapSchemas(inputSchema, stripNonStringEnums)
+    if (isGeminiEndpoint) {
+      let described = false
+      inputSchema = mapSchemas(inputSchema, (node) => {
+        const stripped = stripNonStringEnums(node)
+        if (isGeminiCompatibleEnum(stripped)) return stripped
+        described = true
+        return describeEnum(stripped)
+      })
+      if (described) describedTools.push(tool.name)
+    }
     if (isChatGeminiModel) inputSchema = stripKeywords(inputSchema, CHAT_GEMINI_UNSUPPORTED)
     const optOutOfStrict = isResponsesEndpoint && tool.strict === undefined
     if (inputSchema === tool.inputSchema && !optOutOfStrict) transformedTools.push(tool)
@@ -383,6 +408,12 @@ function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: Request
     logger.warn('Dropped tools with Gemini-incompatible array schemas', {
       providerId: scope.sdkConfig.providerId,
       toolNames: droppedTools
+    })
+  }
+  if (describedTools.length > 0) {
+    logger.warn('Moved Gemini-incompatible enum values into tool descriptions', {
+      providerId: scope.sdkConfig.providerId,
+      toolNames: describedTools
     })
   }
 

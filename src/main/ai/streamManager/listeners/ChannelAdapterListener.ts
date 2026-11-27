@@ -9,6 +9,7 @@ import { t } from '@main/i18n'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
+import { StreamReplyText } from './StreamReplyText'
 
 const logger = loggerService.withContext('ChannelAdapterListener')
 const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?)?)?)?)?$/
@@ -18,7 +19,7 @@ const LIVE_UPDATE_INTERVAL_MS = 250
 /** IM-channel sink (Discord / Slack / Feishu / Telegram / etc). */
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
-  private accumulatedText = ''
+  private readonly reply = new StreamReplyText()
   private lastLiveText = ''
   private liveUpdateTimer: ReturnType<typeof setTimeout> | undefined
   private settled = false
@@ -50,9 +51,18 @@ export class ChannelAdapterListener implements StreamListener {
 
   onChunk(): void {}
 
-  onMessage(message: CherryUIMessage): void {
-    if (this.settled) return
-    this.accumulatedText = message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
+  readonly content: NonNullable<StreamListener['content']> = {
+    snapshot: (message) => {
+      if (this.settled) return
+      this.reply.reset(message)
+      this.scheduleLiveUpdate()
+    },
+    part: (change) => {
+      if (!this.settled && this.reply.apply(change)) this.scheduleLiveUpdate()
+    }
+  }
+
+  private scheduleLiveUpdate(): void {
     if (this.adapter.onTextUpdate && !this.liveUpdateTimer) {
       this.liveUpdateTimer = setTimeout(() => this.pushLiveUpdate(), LIVE_UPDATE_INTERVAL_MS)
     }
@@ -65,10 +75,7 @@ export class ChannelAdapterListener implements StreamListener {
     // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
     // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
     // be redacted before they leave.
-    const text = sanitizeChannelOutputSilently(this.accumulatedText).text.replace(
-      INCOMPLETE_CITATION_MARKER_PATTERN,
-      ''
-    )
+    const text = sanitizeChannelOutputSilently(this.reply.read()).text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, '')
     if (text === this.lastLiveText) return
     this.lastLiveText = text
     void this.adapter.onTextUpdate?.(this.platformChatId, text, this.responseOptions)?.catch(() => {})
@@ -90,9 +97,8 @@ export class ChannelAdapterListener implements StreamListener {
   private async finish(status: 'success' | 'paused', message?: CherryUIMessage): Promise<void> {
     if (this.settled) return
     this.settle()
-    if (message)
-      this.accumulatedText = message.parts.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('')
-    const text = sanitizeChannelOutput(this.accumulatedText).text.trim()
+    if (message) this.reply.reset(message)
+    const text = sanitizeChannelOutput(this.reply.read()).text.trim()
 
     try {
       const handled = await this.completeStream(text, status)

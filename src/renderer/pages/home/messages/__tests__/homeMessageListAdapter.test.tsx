@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type * as MessageListItemUtils from '@renderer/components/chat/messages/utils/messageListItem'
+import { isAbortError } from '@renderer/utils/error'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
@@ -668,6 +669,51 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     await waitFor(() => expect(value?.state.isMessageTranslating?.('message-1')).toBe(false))
   })
+
+  it.each(['', 'Partial translation'])(
+    'stops inline translation with output %j before the query refreshes',
+    async (partial) => {
+      const sourcePart: CherryMessagePart = { type: 'text', text: 'Original reply' }
+      let value: MessageListProviderValue | undefined
+      vi.mocked(isAbortError).mockReturnValueOnce(true)
+      vi.mocked(translateText).mockImplementationOnce(
+        async (_text, _language, onResponse, signal) =>
+          new Promise<string>((_resolve, reject) => {
+            signal?.addEventListener('abort', () => reject(new DOMException('Stopped', 'AbortError')), { once: true })
+            if (partial) onResponse?.(partial, false)
+          })
+      )
+
+      render(
+        <MessageListAdapterHarness
+          topic={createTopic('topic-a')}
+          partsByMessageId={{ 'message-1': [sourcePart] }}
+          onValue={(nextValue) => (value = nextValue)}
+        />
+      )
+
+      let translating: void | Promise<void>
+      act(() => {
+        translating = value?.actions.translateMessage?.(
+          'message-1',
+          { langCode: 'en-us' } as TranslateLanguage,
+          'Original reply'
+        )
+      })
+      await waitFor(() => expect(translateText).toHaveBeenCalled())
+
+      await act(async () => {
+        await value?.actions.abortMessageTranslation?.('message-1')
+        await translating
+      })
+
+      const expected = partial
+        ? [sourcePart, { type: 'data-translation', data: { content: partial, targetLanguage: 'en-us' } }]
+        : [sourcePart]
+      expect(chatWriteMock.editMessage).toHaveBeenLastCalledWith('message-1', expected)
+      expect(value?.state.isMessageTranslating?.('message-1')).toBe(false)
+    }
+  )
 
   it('reports a failure without writing when the edited code block cannot be located', async () => {
     const textPart = {

@@ -890,6 +890,45 @@ describe('MessageGroup', () => {
     expect(horizontalGroup.scrollLeft).toBe(160)
   })
 
+  it.each([
+    { wheel: { deltaX: 120 }, direction: 'ltr', start: 0, edge: 200, rowAfter: 280, manual: false },
+    { wheel: { deltaY: 120, shiftKey: true }, direction: 'ltr', start: 0, edge: 200, rowAfter: 280, manual: true },
+    { wheel: { deltaX: -120 }, direction: 'rtl', start: 0, edge: -200, rowAfter: 40, manual: false }
+  ])(
+    'scrolls overflowing math first for $direction wheel $wheel',
+    ({ wheel, direction, start, edge, rowAfter, manual }) => {
+      const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+      const { container } = render(<MessageGroup messages={messages} />)
+      const column = container.querySelector('#message-msg-1 .message-content-container') as HTMLElement
+      const row = container.querySelector('#message-msg-1')?.closest('[data-slot=scroll-area-viewport]') as HTMLElement
+      const viewport = column.querySelector('[data-slot=scroll-area-viewport]') as HTMLElement
+      setElementSize(viewport, { clientHeight: 300, scrollHeight: 600, scrollTop: 140 })
+      viewport.style.overflowY = 'auto'
+      const formula = document.createElement('span')
+      formula.style.overflowX = 'auto'
+      formula.style.direction = direction
+      const formulaBody = document.createElement('span')
+      formula.append(formulaBody)
+      viewport.append(formula)
+      setElementSize(row, { clientWidth: 500, scrollLeft: 160, scrollWidth: 1000 })
+      setElementSize(formula, { clientWidth: 200, scrollLeft: start, scrollWidth: 400 })
+
+      const innerWheel = createEvent.wheel(formulaBody, wheel)
+      fireEvent(formulaBody, innerWheel)
+
+      expect(innerWheel.defaultPrevented).toBe(manual)
+      expect(row.scrollLeft).toBe(160)
+      expect(formula.scrollLeft).toBe(manual ? 120 : start)
+
+      formula.scrollLeft = edge
+      const boundaryWheel = createEvent.wheel(formulaBody, wheel)
+      fireEvent(formulaBody, boundaryWheel)
+
+      expect(boundaryWheel.defaultPrevented).toBe(true)
+      expect(row.scrollLeft).toBe(rowAfter)
+    }
+  )
+
   it('keeps upward wheel inside a message column while that column can still scroll', () => {
     const parentWheel = vi.fn()
     mocks.scrollByWheel.mockReturnValue(true)

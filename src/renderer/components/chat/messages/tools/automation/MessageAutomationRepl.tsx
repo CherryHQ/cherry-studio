@@ -10,6 +10,7 @@ import { getEffectiveStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { ToolDisclosure } from '../shared/ToolDisclosure'
 import type { ToolResponseLike } from '../toolResponse'
+import { useToolResponsePreview } from '../useToolResponsePreview'
 import {
   getAutomationCell,
   formatAutomationReplOutput,
@@ -18,7 +19,8 @@ import {
 } from './automationRepl'
 import { ComputerUseAppIcons } from './ComputerUseAppIcons'
 
-export const MessageAutomationRepl = memo(({ toolResponse }: { toolResponse: ToolResponseLike }) => {
+export const MessageAutomationRepl = memo(({ toolResponse: originalResponse }: { toolResponse: ToolResponseLike }) => {
+  const { toolResponse } = useToolResponsePreview(originalResponse)
   const { t } = useTranslation()
   const actions = useOptionalMessageListActions()
   const { id, arguments: args, status, response, approval } = toolResponse

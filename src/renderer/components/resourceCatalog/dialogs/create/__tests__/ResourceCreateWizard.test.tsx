@@ -73,14 +73,22 @@ vi.mock('@renderer/hooks/useSkills', () => ({
       { id: 'skill-review', name: 'Review skill', source: 'local' },
       { id: 'skill-unused', name: 'Unused skill', source: 'local' }
     ]
-  })
+  }),
+  useReconcileSkillsOnOpen: vi.fn()
 }))
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
-  useKnowledgeBases: () => ({ bases: [{ id: 'kb-docs', name: 'Docs' }] })
+  useKnowledgeBases: () => ({
+    bases: [
+      { id: 'kb-docs', name: 'Docs' },
+      { id: 'knowledge-draft', name: 'Draft base' }
+    ]
+  }),
+  useCreateKnowledgeBase: () => ({ createBase: vi.fn(), isCreating: false })
 }))
 vi.mock('@renderer/hooks/useMcpServer', () => ({
   useMcpServers: () => ({ mcpServers: [{ id: 'mcp-github', name: 'GitHub' }] })
 }))
+vi.mock('@renderer/components/cherryCloud/CherryCloudModelSelector', () => ({ CherryCloudModelSelector: () => null }))
 vi.mock('../../edit', () => ({
   ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } }) => (
     <div data-testid="edit-host">{`${target.kind}:${target.id}`}</div>
@@ -111,6 +119,7 @@ vi.mock('../steps/BasicInfoStep', () => ({ BasicInfoStep: StepHarness }))
 // The entry shares the basic step's fields (one form), so it gets the same harness.
 vi.mock('../steps/AutoCreateEntry', () => ({ AutoCreateEntry: StepHarness }))
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useAgentMutationsById: () => ({ updateAgent: vi.fn() }),
   useResourceAutoConfigure: () => ({
     ready: autoConfigure.ready,
     generate: autoConfigure.generate,
@@ -154,14 +163,14 @@ vi.mock('../steps/SystemPromptStep', () => ({
   )
 }))
 vi.mock('../steps/KnowledgeStep', () => ({
-  KnowledgeStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => (
+  KnowledgeStep: vi.fn(({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => (
     <div data-testid="knowledge-step">
       <DraftValues form={form} />
       <button type="button" onClick={() => form.setValue('knowledgeBaseIds', ['knowledge-draft'])}>
         select knowledge base
       </button>
     </div>
-  )
+  ))
 }))
 vi.mock('../steps/CapabilityStep', () => ({
   CapabilityStep: ({ form }: { form: ReactHookForm.UseFormReturn<ResourceCreateWizardFormValues> }) => (
@@ -206,7 +215,9 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/ReplyLanguageSe
 
 import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
 
+import { AgentEditDialog } from '../../edit/AgentEditDialog'
 import { ResourceCreateWizard } from '../ResourceCreateWizard'
+import { KnowledgeStep } from '../steps/KnowledgeStep'
 
 const NEXT = 'library.config.dialogs.create.next'
 const CREATE = 'library.config.dialogs.create.submit'
@@ -1787,6 +1798,61 @@ describe('ResourceCreateWizard result page', () => {
     const [, enabled, total] = summaryValue(TOOLS_ROW)?.textContent?.match(/tools_enabled:(\d+)\/(\d+)$/) ?? []
     expect(Number(enabled)).toBe(Number(total) - 1)
     expect(summaryValue(HEARTBEAT_ROW)).toHaveTextContent(`${RESULT}.heartbeat_every:30`)
+  })
+
+  it('shows bound knowledge tools when revisiting Tools and matches the saved Agent summary', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn<ComponentProps<typeof ResourceCreateWizard>['onSubmit']>().mockResolvedValue('agent-1')
+    const { unmount } = render(<ResultHost kind="agent" onSubmit={onSubmit} />)
+    const search = 'agent.tools.builtin.CherryKbSearch.label'
+    const manage = 'agent.tools.builtin.CherryKbManage.label'
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: MANUAL }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    expect(screen.queryByRole('switch', { name: search })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    const realKnowledge = await vi.importActual<{ KnowledgeStep: typeof KnowledgeStep }>('../steps/KnowledgeStep')
+    await vi.mocked(KnowledgeStep).withImplementation(realKnowledge.KnowledgeStep, async () => {
+      await user.click(screen.getByRole('button', { name: NEXT }))
+      await user.click(screen.getByRole('switch', { name: 'Draft base' }))
+      await user.click(screen.getByRole('button', { name: /library\.config\.dialogs\.edit\.tools_tab$/ }))
+    })
+    expect(screen.getByRole('switch', { name: manage })).toBeChecked()
+    await user.click(screen.getByRole('switch', { name: search }))
+    await walkToLastStep(user)
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    await screen.findByRole('heading', { name: 'library.config.dialogs.create.result.agent_title' })
+    const [, enabled, total] = summaryValue(TOOLS_ROW)?.textContent?.match(/tools_enabled:(\d+)\/(\d+)$/) ?? []
+    expect(Number(enabled)).toBe(Number(total) - 1)
+    const command = buildCreateAgentCommand(onSubmit.mock.calls[0][0])
+    expect(command).toMatchObject({
+      type: 'pi-durable',
+      knowledgeBaseIds: ['knowledge-draft'],
+      disabledTools: ['mcp__cherry-tools__kb_search']
+    })
+    unmount()
+
+    render(
+      <AgentEditDialog
+        open
+        onOpenChange={vi.fn()}
+        resource={{
+          ...command,
+          id: 'agent-1',
+          orderKey: 'a0',
+          modelName: 'Picked model',
+          createdAt: '',
+          updatedAt: ''
+        }}
+      />
+    )
+    expect(
+      screen.getByRole('button', {
+        name: `${TOOLS_ROW}: library.config.dialogs.edit.count.enabled:${enabled}/${total}`
+      })
+    ).toBeInTheDocument()
   })
 
   it('says what an empty manual Assistant lacks in its own words', async () => {

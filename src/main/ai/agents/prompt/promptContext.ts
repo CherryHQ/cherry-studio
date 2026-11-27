@@ -132,7 +132,8 @@ export class PromptBuilder {
     workspacePath: string,
     config?: AgentConfiguration,
     hasUserInstructions = false,
-    agentDataPath = workspacePath
+    agentDataPath = workspacePath,
+    agentName?: string | null
   ): Promise<AgentPromptParts> {
     const contextParts: string[] = []
 
@@ -146,7 +147,7 @@ export class PromptBuilder {
     // Bootstrap detection: inject bootstrap instructions if not completed
     const needsBootstrap = await this.shouldRunBootstrap(agentDataPath, config)
     const bootstrap = needsBootstrap
-      ? `${buildBootstrapInstructions(hasUserInstructions)}\n\nDuring bootstrap, write persona and user-profile files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
+      ? `${buildBootstrapInstructions(hasUserInstructions, agentName)}\n\nDuring bootstrap, write persona and user-profile files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
       : undefined
     if (bootstrap) {
       contextParts.push(bootstrap)

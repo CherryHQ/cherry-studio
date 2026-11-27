@@ -160,6 +160,7 @@ export const mainResolveAlias = {
   '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
   '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
   '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+  '@cherrystudio/provider-registry/data': resolve('packages/provider-registry/src/bundled-catalog'),
   '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
   '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
   '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),
@@ -272,7 +273,8 @@ export default defineConfig({
           preload: resolve(__dirname, 'src/preload/preload.ts'),
           simplest: resolve(__dirname, 'src/preload/simplest.ts'), // Minimal preload
           webview: resolve(__dirname, 'src/preload/webview.ts'), // Site `<webview>` guests
-          miniAppBridge: resolve(__dirname, 'src/preload/miniAppBridge.ts') // Local mini app guests (`window.cherry`)
+          miniAppBridge: resolve(__dirname, 'src/preload/miniAppBridge.ts'), // Local mini app guests (`window.cherry`)
+          mcpAppGuest: resolve(__dirname, 'src/preload/mcpAppGuest.ts')
         },
         external: ['electron'],
         output: {
@@ -314,6 +316,7 @@ export default defineConfig({
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
         '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src'),
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+        '@cherrystudio/provider-registry/data': resolve('packages/provider-registry/src/bundled-catalog'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
         '@cherrystudio/web-search/catalog': resolve('packages/web-search/src/catalog.ts'),

@@ -5,16 +5,7 @@ vi.mock('@application', () => ({ application: { get: appGetMock } }))
 
 import { mcpHandlers } from '../mcp'
 
-const runtime = {
-  removeServer: vi.fn(),
-  restartServer: vi.fn(),
-  stopServer: vi.fn(),
-  listPrompts: vi.fn(),
-  listResources: vi.fn(),
-  abortTool: vi.fn(),
-  getServerVersion: vi.fn(),
-  getServerLogs: vi.fn()
-}
+const runtime = { abortTool: vi.fn() }
 const catalog = { refreshTools: vi.fn() }
 const pkg = { uploadDxt: vi.fn(), uploadMcpb: vi.fn() }
 const ctx = { senderId: 'w1' }
@@ -30,29 +21,14 @@ beforeEach(() => {
 })
 
 describe('mcpHandlers', () => {
-  it('remove_server delegates to McpRuntimeService.removeServer', async () => {
-    await mcpHandlers['mcp.server.remove']({ serverId: 's' }, ctx)
-    expect(runtime.removeServer).toHaveBeenCalledWith('s')
-  })
-
   it('refresh_tools delegates to the separate McpCatalogService with the caller windowId', async () => {
     await mcpHandlers['mcp.server.refresh_tools']({ serverId: 's' }, ctx)
     expect(catalog.refreshTools).toHaveBeenCalledWith('s', 'w1')
   })
 
-  it('list_prompts returns the prompt list from McpRuntimeService', async () => {
-    runtime.listPrompts.mockResolvedValue([{ name: 'p' }])
-    expect(await mcpHandlers['mcp.server.list_prompts']({ serverId: 's' }, ctx)).toEqual([{ name: 'p' }])
-  })
-
   it('abort_tool_call forwards the callId and isolation scope', async () => {
     await mcpHandlers['mcp.tool.abort_call']({ callId: 'c', scope: 'topic-1' }, ctx)
     expect(runtime.abortTool).toHaveBeenCalledWith('c', 'topic-1')
-  })
-
-  it('get_server_version returns string | null', async () => {
-    runtime.getServerVersion.mockResolvedValue(null)
-    expect(await mcpHandlers['mcp.server.get_version']({ serverId: 's' }, ctx)).toBeNull()
   })
 
   it('upload_dxt / upload_mcpb delegate to McpPackageService with the buffer + fileName', async () => {

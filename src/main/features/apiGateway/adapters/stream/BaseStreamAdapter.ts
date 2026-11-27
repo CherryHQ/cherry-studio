@@ -88,6 +88,15 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
    * `message_start` first (idempotent).
    */
   transformChunk(chunk: UIMessageChunk): TOutputEvent[] {
+    const { opening, events } = this.transformChunkWithOpening(chunk)
+    return opening.length === 0 ? events : [...opening, ...events]
+  }
+
+  /**
+   * Push API: process one chunk while returning lazy opening scaffolding
+   * separately from events produced by `chunk` itself.
+   */
+  transformChunkWithOpening(chunk: UIMessageChunk): { opening: TOutputEvent[]; events: TOutputEvent[] } {
     if (chunk.type === 'finish' && chunk.finishReason === 'error') {
       throw Object.assign(new Error(`Upstream finished with a non-success finish reason: ${chunk.finishReason}`), {
         statusCode: 502
@@ -105,8 +114,10 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
       )
     }
     this.emitMessageStart()
+    const opening = this.drainPending()
     this.processChunk(chunk)
-    return this.drainPending()
+    const events = this.drainPending()
+    return { opening, events }
   }
 
   /**
