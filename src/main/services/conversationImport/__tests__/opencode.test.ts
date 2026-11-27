@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto'
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import Database from 'better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 import { opencodeAdapter } from '../opencode'
 import { IMPORT_LIMITS, type SessionRef } from '../types'
@@ -15,10 +17,12 @@ let file: string
 const signal = () => new AbortController().signal
 beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), 'cherry-opencode-import-'))
+  vi.spyOn(application, 'getPath').mockReturnValue(path.join(root, 'scratch'))
   file = path.join(root, 'opencode.db')
   db = new Database(file)
 })
 afterEach(async () => {
+  vi.restoreAllMocks()
   db.close()
   await rm(root, { recursive: true, force: true })
 })
@@ -61,23 +65,33 @@ async function fingerprintFiles() {
 }
 
 describe('OpenCode read-only source snapshots', () => {
-  it.each(['none', '-wal', '-shm'])(
-    'rejects closed WAL with %s sidecar without writing source files',
-    async (sidecar) => {
-      db.pragma('journal_mode = WAL')
-      schema(false)
-      db.close()
-      if (sidecar !== 'none') await writeFile(file + sidecar, '')
-      const names = await readdir(root)
-      const before = await Promise.all(names.map((name) => readFile(path.join(root, name))))
-      await expect(Array.fromAsync(opencodeAdapter.discover(root, signal()))).rejects.toThrow(
-        'unsupported_readonly_wal'
-      )
-      await expect(read()).rejects.toThrow('unsupported_readonly_wal')
-      expect(await readdir(root)).toEqual(names)
-      expect(await Promise.all(names.map((name) => readFile(path.join(root, name))))).toEqual(before)
-    }
-  )
+  it('reads a checkpointed WAL database without creating any sidecars', async () => {
+    db.pragma('journal_mode = WAL')
+    schema()
+    message('a', 0, 'user', { text: 'checkpointed' })
+    db.close()
+    const before = await readFile(file)
+    expect(before[18]).toBe(2)
+    expect(await readdir(root)).toEqual(['opencode.db'])
+    const [ref] = await Array.fromAsync(opencodeAdapter.discover(root, signal()))
+    expect((await opencodeAdapter.read(ref, signal())).messages[0].data.parts).toEqual([
+      { type: 'text', text: 'checkpointed' }
+    ])
+    expect(await readdir(root)).toEqual(['opencode.db'])
+    expect(await readFile(file)).toEqual(before)
+  })
+  it.each(['-wal', '-shm'])('rejects closed WAL with %s sidecar without writing source files', async (sidecar) => {
+    db.pragma('journal_mode = WAL')
+    schema(false)
+    db.close()
+    if (sidecar !== 'none') await writeFile(file + sidecar, '')
+    const names = await readdir(root)
+    const before = await Promise.all(names.map((name) => readFile(path.join(root, name))))
+    await expect(Array.fromAsync(opencodeAdapter.discover(root, signal()))).rejects.toThrow('unsupported_readonly_wal')
+    await expect(read()).rejects.toThrow('unsupported_readonly_wal')
+    expect(await readdir(root)).toEqual(names)
+    expect(await Promise.all(names.map((name) => readFile(path.join(root, name))))).toEqual(before)
+  })
   it('reads committed WAL data and leaves source DB/WAL bytes unchanged', async () => {
     db.pragma('journal_mode = WAL')
     db.pragma('wal_autocheckpoint = 0')
@@ -190,6 +204,42 @@ describe('OpenCode read-only source snapshots', () => {
       opencodeAdapter.read({ path: path.join(root, 'absent.db'), originalSessionId: 'a' }, signal())
     ).rejects.toThrow()
   })
+  it('reconciles copies across stores and keeps supported sessions beside an unknown layout', async () => {
+    schema()
+    message('a', 0, 'user', { text: 'original' })
+    const next = path.join(root, 'opencode-next.db')
+    await copyFile(file, next)
+    const refs = await Array.fromAsync(opencodeAdapter.discover(root, signal()))
+    expect(refs).toHaveLength(1)
+    expect((await opencodeAdapter.read(refs[0], signal())).messages).toHaveLength(1)
+    const other = new Database(next)
+    try {
+      other.prepare('UPDATE session_message SET data = ?').run(JSON.stringify({ text: 'different' }))
+      await expect(opencodeAdapter.read(refs[0], signal())).rejects.toThrow('identity_conflict')
+      other.exec('DROP TABLE session_v2; CREATE TABLE session(id TEXT)')
+      const mixed = await Array.fromAsync(opencodeAdapter.discover(root, signal()))
+      const good = mixed.find((ref) => ref.originalSessionId === 'ses_a')!
+      expect((await opencodeAdapter.read(good, signal())).messages).toHaveLength(1)
+      await expect(
+        opencodeAdapter.read(
+          mixed.find((ref) => ref.path === next)!,
+          signal()
+        )
+      ).rejects.toThrow('unsupported_database_layout')
+    } finally {
+      other.close()
+    }
+  })
+  it('keeps inherited v2 history from falling back to a populated legacy row', async () => {
+    schema()
+    schema(false)
+    db.exec("INSERT INTO message VALUES ('a','ses_a',1,'{}')")
+    db.exec("UPDATE session_v2 SET fork_session_id = 'parent'")
+    const [ref] = await Array.fromAsync(opencodeAdapter.discover(root, signal()))
+    expect((await opencodeAdapter.read(ref, signal())).diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'unsupported_history_layout', severity: 'error' })
+    )
+  })
   it('rejects ambiguous source ordering, revert and inherited forks', async () => {
     schema()
     message('a', 0, 'user', { text: 'first' })
@@ -213,6 +263,7 @@ describe('OpenCode read-only source snapshots', () => {
           state: {
             status: 'completed',
             input: { command: 'do not execute' },
+            attachments: [{ filename: 'output.png', url: 'data:image/png;base64,secret bytes' }],
             content: [{ type: 'text', text: 'old output' }]
           }
         }
@@ -221,6 +272,7 @@ describe('OpenCode read-only source snapshots', () => {
     const result = await read()
     expect(result.messages.flatMap((m) => m.data.parts ?? []).every((p) => p.type === 'text')).toBe(true)
     expect(JSON.stringify(result.messages)).not.toContain('secret bytes')
+    expect(JSON.stringify(result.messages)).toContain('output.png')
     expect(result.downgradedParts).toBe(3)
   })
   it('reports bad JSON by record and blocks compression it cannot reconstruct', async () => {
@@ -234,7 +286,7 @@ describe('OpenCode read-only source snapshots', () => {
       1767225600000,
       '{bad'
     )
-    message('c', 2, 'compaction', { summary: 'partial' })
+    db.exec("INSERT INTO session_message VALUES ('c','ses_a','compaction',2,2,'{bad')")
     const result = await read()
     expect(result.messages).toHaveLength(1)
     expect(result.diagnostics).toEqual(
@@ -242,6 +294,18 @@ describe('OpenCode read-only source snapshots', () => {
         expect.objectContaining({ code: 'invalid_json', path: file + '#bad' }),
         expect.objectContaining({ code: 'unsupported_compaction', severity: 'error' })
       ])
+    )
+  })
+  it('checks and fingerprints the SQL part discriminator independently of its JSON', async () => {
+    schema()
+    message('a', 0, 'assistant', {})
+    db.exec(`INSERT INTO session_part VALUES ('ses_a','a',0,'text','{"type":"text","text":"original"}')`)
+    const before = await read()
+    db.exec("UPDATE session_part SET type = 'compaction'")
+    const after = await read()
+    expect(after.sourceFingerprint).not.toBe(before.sourceFingerprint)
+    expect(after.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'unsupported_compaction', severity: 'error' })
     )
   })
   it('rejects oversized records before reading their JSON bodies', async () => {
