@@ -3,13 +3,13 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import type { ServerResponse } from 'node:http'
 import path from 'node:path'
 
-import { type PermissionMode, query } from '@anthropic-ai/claude-agent-sdk'
+import { type HookCallback, type PermissionMode, query } from '@anthropic-ai/claude-agent-sdk'
 import { startTestHttpServer, type TestHttpServer } from '@test-helpers/http/server'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { resolveSandboxPolicy } from '@main/ai/toolApproval/sandboxPolicy'
 
-import { toClaudeCodeSandboxSettings } from '../sandboxSettings'
+import { sandboxEscapeGuidance, toClaudeCodeSandboxSettings } from '../sandboxSettings'
 
 // Each case starts the native CLI and runs one Bash turn.
 vi.setConfig({ testTimeout: 90_000 })
@@ -51,6 +51,15 @@ function reply(res: ServerResponse, model: string, block: object, stopReason: 'e
   send('message_delta', { delta: { stop_reason: stopReason, stop_sequence: null }, usage: { output_tokens: 5 } })
   send('message_stop', {})
   res.end()
+}
+
+// Mirrors how the session hooks feed a sandboxed Bash result to `sandboxEscapeGuidance`.
+const escapeGuidanceHook: HookCallback = async (input) => {
+  if (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure') return {}
+  const output =
+    input.hook_event_name === 'PostToolUseFailure' ? input.error : JSON.stringify(input.tool_response ?? '')
+  const additionalContext = sandboxEscapeGuidance(output)
+  return additionalContext ? { hookSpecificOutput: { hookEventName: input.hook_event_name, additionalContext } } : {}
 }
 
 function toolResultText(body: MessagesBody): string | undefined {
@@ -136,6 +145,10 @@ describe.runIf(process.platform === 'darwin')('Claude Code shell sandbox on macO
             approvals.push(toolInput)
             return { behavior: 'deny', message: 'denied by the test' }
           },
+          hooks: {
+            PostToolUse: [{ hooks: [escapeGuidanceHook] }],
+            PostToolUseFailure: [{ hooks: [escapeGuidanceHook] }]
+          },
           maxTurns: 3
         }
       })
@@ -190,6 +203,17 @@ describe.runIf(process.platform === 'darwin')('Claude Code shell sandbox on macO
       expect(existsSync(written.outside)).toBe(false)
     }
   )
+
+  it.each([
+    ['a zero exit code', `curl -sS --max-time 10 http://${PUBLIC_HOST}/`],
+    ['a non-zero exit code', `curl -fsS --max-time 10 http://${PUBLIC_HOST}/`]
+  ])('hands the model escape guidance after a network denial with %s (AC12)', async (_label, command) => {
+    const { toolResult } = await runBash({ command, description: 'escape guidance probe' }, 'acceptEdits')
+
+    expect(toolResult).toContain(`deny network-outbound ${PUBLIC_HOST}:80`)
+    expect(toolResult).toContain(`The sandbox blocked network access to ${PUBLIC_HOST}.`)
+    expect(toolResult).toContain('`dangerouslyDisableSandbox: true`')
+  })
 
   it('routes a request to leave the sandbox to canUseTool and does not run it when denied (AC3)', async () => {
     const target = path.join(root, 'outside', 'escape.txt')

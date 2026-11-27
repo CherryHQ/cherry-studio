@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveSandboxPolicy, type SandboxOverlay } from '@main/ai/toolApproval/sandboxPolicy'
 
-import { assertSandboxSettingsUnchanged, toClaudeCodeSandboxSettings } from '../sandboxSettings'
+import { assertSandboxSettingsUnchanged, sandboxEscapeGuidance, toClaudeCodeSandboxSettings } from '../sandboxSettings'
 
 const mocks = vi.hoisted(() => ({ isMac: true, resolveSettings: vi.fn() }))
 
@@ -130,5 +130,28 @@ describe('assertSandboxSettingsUnchanged (AC11)', () => {
     mocks.resolveSettings.mockRejectedValue(new Error('plutil failed'))
 
     await expect(assertSandboxSettingsUnchanged(options)).rejects.toThrow('plutil failed')
+  })
+})
+
+describe('sandboxEscapeGuidance (AC12)', () => {
+  const violation = (host: string) => `deny network-outbound ${host} (host is not on the allow list)`
+
+  it('names each denied host once and points at the approved escape', () => {
+    const output = `Exit code 1\n<sandbox_violations>\n${violation('api.github.com:443')}\n${violation('api.github.com:443')}\n${violation('uploads.github.com:443')}\n</sandbox_violations>`
+
+    const guidance = sandboxEscapeGuidance(output)
+
+    expect(guidance).toContain('blocked network access to api.github.com, uploads.github.com.')
+    expect(guidance).toContain('`dangerouslyDisableSandbox: true`')
+    expect(guidance).toContain('`allowed_domains` cannot widen network access')
+    expect(guidance).toContain('other tools must not be used')
+  })
+
+  it.each([
+    ['a sandboxed write denial', 'touch: /Users/probe/x: Operation not permitted'],
+    ['an ordinary network error', 'curl: (6) Could not resolve host: example.invalid'],
+    ['empty output', '']
+  ])('adds nothing for %s', (_label, output) => {
+    expect(sandboxEscapeGuidance(output)).toBeUndefined()
   })
 })

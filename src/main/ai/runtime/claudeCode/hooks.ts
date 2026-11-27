@@ -21,7 +21,7 @@ import {
   resolveDelegationApproval,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
-import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
+import { evaluateToolGuards, runsInSandbox } from '@main/ai/toolApproval/toolGuards'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import { rtkRewrite } from '@main/utils/rtk'
@@ -29,6 +29,7 @@ import { rtkRewrite } from '@main/utils/rtk'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { createClaudeCodeIdentityHooks } from './identityHooks'
+import { sandboxEscapeGuidance } from './sandboxSettings'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 import type { ClaudeCodeSettings } from './types'
 
@@ -239,6 +240,19 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
+  // A network denial alone does not lead every model to the escape, so the result says how to ask.
+  const sandboxEscapeGuidanceHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
+      return {}
+    }
+    const toolInput = input.tool_input as Record<string, unknown> | undefined
+    if (!runsInSandbox({ toolName: input.tool_name, input: toolInput, sandboxed: ctx.sandboxed })) return {}
+    const output =
+      input.hook_event_name === 'PostToolUseFailure' ? input.error : JSON.stringify(input.tool_response ?? '')
+    const guidance = sandboxEscapeGuidance(output)
+    return guidance ? { hookSpecificOutput: { hookEventName: input.hook_event_name, additionalContext: guidance } } : {}
+  }
+
   const postToolTimingHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
       return {}
@@ -266,8 +280,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   return {
     ...createClaudeCodeIdentityHooks(agentDataPath),
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, rtkRewriteHook] }],
-    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
+    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook, sandboxEscapeGuidanceHook] }],
+    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook, sandboxEscapeGuidanceHook] }],
     PostToolBatch: [{ hooks: [bashRewriteCleanupHook] }],
     SubagentStop: [{ hooks: [subagentStopHook] }]
   }

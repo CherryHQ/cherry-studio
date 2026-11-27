@@ -3523,6 +3523,63 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect((await build()).sandbox).toBeUndefined()
     })
 
+    describe('escape guidance on network denials (AC12)', () => {
+      const denial =
+        'Exit code 1\n<sandbox_violations>\ndeny network-outbound api.github.com:443 (host is not on the allow list)\n</sandbox_violations>'
+
+      async function guidanceFor(
+        settings: Awaited<ReturnType<typeof buildClaudeCodeSessionSettings>>,
+        event: 'PostToolUse' | 'PostToolUseFailure',
+        toolInput: Record<string, unknown>
+      ) {
+        const input = {
+          hook_event_name: event,
+          tool_name: 'Bash',
+          tool_input: toolInput,
+          tool_use_id: 'tool-use-1',
+          ...(event === 'PostToolUse' ? { tool_response: { stdout: '', stderr: denial } } : { error: denial })
+        }
+        const outputs = await Promise.all(
+          (settings.hooks?.[event]?.[0]?.hooks ?? []).map((hook) => hook(input as never, 'tool-use-1', {} as never))
+        )
+        return outputs
+          .map((output) => (output as { hookSpecificOutput?: { additionalContext?: string } }).hookSpecificOutput)
+          .map((specific) => specific?.additionalContext)
+          .filter((context): context is string => context !== undefined)
+      }
+
+      it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
+        'tells the model how to escape after a sandboxed denial reported through %s',
+        async (event) => {
+          useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
+          const settings = await build()
+
+          const [guidance, ...rest] = await guidanceFor(settings, event, { command: 'gh auth status' })
+
+          expect(rest).toEqual([])
+          expect(guidance).toContain('api.github.com')
+          expect(guidance).toContain('`dangerouslyDisableSandbox: true`')
+        }
+      )
+
+      it('adds nothing to an escape call', async () => {
+        useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
+        const settings = await build()
+
+        await expect(
+          guidanceFor(settings, 'PostToolUseFailure', { command: 'gh auth status', dangerouslyDisableSandbox: true })
+        ).resolves.toEqual([])
+      })
+
+      it('adds nothing when the session has no sandbox', async () => {
+        mocks.platform.isMac = false
+        useAgent({ builtin_role: 'support', permission_mode: 'acceptEdits' })
+        const settings = await build()
+
+        await expect(guidanceFor(settings, 'PostToolUseFailure', { command: 'gh auth status' })).resolves.toEqual([])
+      })
+    })
+
     it('fails the build before any command runs when another tier changes the sandbox (AC11)', async () => {
       useAgent({ builtin_role: 'support', permission_mode: 'bypassPermissions' })
       mocks.resolveSettings.mockResolvedValue({

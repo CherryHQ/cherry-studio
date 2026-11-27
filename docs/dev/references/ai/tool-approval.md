@@ -219,6 +219,13 @@ calls the sandbox does not cover (PowerShell, escapes, or any call without a san
 headless or responder-less turns deny every Support shell call in every mode. PowerShell and
 other tools, MCP web access included, are outside this boundary.
 
+A network denial alone does not lead every model to the escape. When a sandboxed Bash result
+reports `deny network-outbound <host>`, a PostToolUse or PostToolUseFailure hook (the CLI uses the
+first for a zero exit code and the second otherwise) appends `sandboxEscapeGuidance`: rerun with
+`dangerouslyDisableSandbox` if the user's request needs the host, do not use `allowed_domains` or
+other tools, and tell the user if it does not. The CLI rejects `allowed_domains` under the strict
+allowlist before any hook runs, so the guidance must arrive with the first denial.
+
 ## Persistent decisions
 
 `useToolApproval`

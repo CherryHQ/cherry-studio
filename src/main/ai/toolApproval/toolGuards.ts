@@ -107,7 +107,7 @@ export interface ToolGuardDecision {
 }
 
 /** A Bash call that runs inside the connection's verified sandbox. */
-export function runsInSandbox(ctx: ToolGuardContext): boolean {
+export function runsInSandbox(ctx: Pick<ToolGuardContext, 'toolName' | 'input' | 'sandboxed'>): boolean {
   const escape = ctx.input?.dangerouslyDisableSandbox
   // Anything but an absent or literal `false` flag counts as an escape, so a malformed one still asks.
   return ctx.toolName === 'Bash' && ctx.sandboxed === true && (escape === undefined || escape === false)

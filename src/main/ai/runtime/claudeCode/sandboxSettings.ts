@@ -38,6 +38,25 @@ export async function assertSandboxSettingsUnchanged(options: Pick<Options, 'cwd
   }
 }
 
+const NETWORK_DENIAL = /deny network-outbound (\S+?)(?::\d+)? \(/g
+
+/**
+ * Guidance appended to a sandboxed Bash result that reports a network denial, steering the model
+ * to the approved escape. Returns `undefined` when the output reports no network denial.
+ */
+export function sandboxEscapeGuidance(output: string): string | undefined {
+  const hosts = [...new Set(Array.from(output.matchAll(NETWORK_DENIAL), (match) => match[1]))]
+  if (hosts.length === 0) return undefined
+  const target = hosts.length === 1 ? 'this host' : 'these hosts'
+  return (
+    `The sandbox blocked network access to ${hosts.join(', ')}. ` +
+    `If the user's request needs ${target}, run the same command again with \`dangerouslyDisableSandbox: true\`; ` +
+    'Cherry Studio asks the user to approve that call, so do not ask in chat first. ' +
+    '`allowed_domains` cannot widen network access in this session, and other tools must not be used to work around the block. ' +
+    `If the request does not need ${target}, tell the user instead.`
+  )
+}
+
 function sandboxChanges(settings: Settings): string[] {
   return [
     ...(settings.sandbox === undefined ? [] : ['sandbox']),
