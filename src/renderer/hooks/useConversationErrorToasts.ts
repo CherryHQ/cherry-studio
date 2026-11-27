@@ -221,7 +221,7 @@ export function useConversationErrorToasts(scopeKey: string, actions: RecoveryAc
         success: !event.isAbort,
         error:
           !event.isAbort && (event.isError || error)
-            ? (error ?? new Error(i18n.t('error.diagnosis.stream')))
+            ? (error ?? new Error(i18n.t('error.diagnosis.unknown')))
             : undefined
       }
       attempt.message ??= { ...event.message, parts: [] }

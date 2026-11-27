@@ -1,6 +1,11 @@
 import type { SerializedError } from '@renderer/types/error'
 import { isSerializedAiSdkRetryError, isSerializedAiSdkToolCallRepairError } from '@renderer/types/error'
-import { classifyErrorCategory, type ErrorCategory, isErrorCategory } from '@shared/utils/errorCategory'
+import {
+  classifyErrorCategory,
+  type ErrorCategory,
+  extractHttpStatus,
+  isErrorCategory
+} from '@shared/utils/errorCategory'
 
 export type { ErrorCategory } from '@shared/utils/errorCategory'
 
@@ -21,6 +26,7 @@ export interface ClaudeCodeExitInfo {
 const PROVIDER_SETTINGS_CATEGORIES: ReadonlySet<ErrorCategory> = new Set<ErrorCategory>([
   'auth',
   'bad_request',
+  'tool_concurrency',
   'permission',
   'model',
   'quota',
@@ -184,7 +190,14 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   // Checked before text classification: the unknown-text fallback would reclassify this local
   // resolution failure as `bad_request` ("请求错误… If you changed model settings, reset them").
   if (getLocalModelResolutionFailure(error)) return classify('model')
-  const numStatus = getErrorHttpStatus(error)
+  const { message } = error
+  const effectiveStatus =
+    getErrorHttpStatus(error) ??
+    (!isSerializedAiSdkRetryError(error) &&
+    typeof message === 'string' &&
+    (error.streamStage === 'response-stream' || /^\s*API Error:/i.test(message))
+      ? extractHttpStatus(message)
+      : undefined)
 
   const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody : ''
   let dataText = ''
@@ -197,8 +210,8 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
 
   const category = classifyErrorCategory({
-    text: [error.message ?? '', responseBodyText, dataText].filter(Boolean).join('\n'),
-    status: numStatus,
+    text: [message ?? '', responseBodyText, dataText].filter(Boolean).join('\n'),
+    status: effectiveStatus,
     finishReason: String(errorBag.finishReason ?? '')
   })
   if (
@@ -227,7 +240,8 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   }
   if (nestedRecovery) return nestedRecovery
 
-  if (category === 'unknown' && error.streamStage === 'response-stream' && !error.i18nKey) {
+  const isClientHttpError = effectiveStatus !== undefined && effectiveStatus >= 400 && effectiveStatus < 500
+  if (category === 'unknown' && error.streamStage === 'response-stream' && !error.i18nKey && !isClientHttpError) {
     return classify('stream')
   }
 

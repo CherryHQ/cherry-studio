@@ -99,4 +99,29 @@ required service tier.`,
     expect(executionFailureSchema.safeParse(large).success).toBe(true)
     expect(new TextEncoder().encode(JSON.stringify(large)).length).toBeLessThanOrEqual(4096)
   })
+
+  it('maps a tool concurrency 400 error to non-retryable invalid_input', () => {
+    const failure = toExecutionFailure(
+      {
+        name: 'Error',
+        message: '400 due to tool use concurrency issues.',
+        stack: null
+      },
+      'appo-deepseek::deepseek-v4-flash-vision-exp'
+    )
+
+    expect(failure).toMatchObject({
+      retryable: false,
+      failure: {
+        reasonCode: 'invalid_input',
+        source: { layer: 'provider' },
+        context: {
+          statusCode: 400,
+          providerId: 'appo-deepseek',
+          modelId: 'appo-deepseek::deepseek-v4-flash-vision-exp'
+        }
+      }
+    })
+    expect(executionFailureSchema.safeParse(failure).success).toBe(true)
+  })
 })

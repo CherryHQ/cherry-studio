@@ -20,6 +20,7 @@ export function providerFailureFacts(error: unknown): FailureFacts | undefined {
       'deprecated',
       'context_length',
       'prefill_memory',
+      'tool_concurrency',
       'payload',
       'content',
       'network',
