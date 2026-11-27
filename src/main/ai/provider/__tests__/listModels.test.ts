@@ -399,6 +399,27 @@ describe('listModels — ModelRush chat-completions filtering (#20010)', () => {
     expect(models[0]).toMatchObject({ ownedBy: 'modelrush', capabilities: [] })
   })
 
+  it('imports live chat-completions rows with a null display name under their model id (REGRESSION)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'modelrush/deepseek-v4.1-flash',
+            name: null,
+            owned_by: 'modelrush',
+            api_types: ['chat-completions'],
+            gateway_status: 'live'
+          }
+        ]
+      }
+    })
+
+    const { models } = await listModels(makeModelRushProvider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['modelrush/deepseek-v4.1-flash'])
+    expect(models[0]).toMatchObject({ name: 'modelrush/deepseek-v4.1-flash', ownedBy: 'modelrush' })
+  })
+
   it('routes copied ModelRush providers through the ModelRush fetcher (REGRESSION)', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
