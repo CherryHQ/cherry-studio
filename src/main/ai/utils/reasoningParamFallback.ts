@@ -38,11 +38,11 @@ const STRUCTURED_PARAM_PATTERN = /^reasoning(?:_effort)?(?:\.[A-Za-z_]\w*|\[\d+\
 
 /** Keep model-subject diagnostics intact even when a model's name equals a field. */
 const MODEL_SUBJECT_PATTERN =
-  /\bmodel(?:\s+(?:id|name))?\s*(?::|=)?\s*["'`]?reasoning(?:_effort)?["'`]?(?=\s|[.,:;]|$)/i
+  /\bmodel(?:\s+(?:with\s+)?(?:id|name))?\s*(?:=\s*)?["'`]?reasoning(?:_effort)?["'`]?(?=\s|[.,:;]|$)/i
 
 /** Message-only rejection must identify the complete field or its effort value. */
 const MESSAGE_REJECTION_PATTERN =
-  /(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\s+(?:(?:request\s+)?(?:argument|parameter|field)(?:\s+(?:supplied|named))?\s*:?\s*)?["'`]?reasoning(?:_effort|\.effort)?["'`]?(?=\s|[.,:;]|$)|(?:^|[\s"'`])reasoning(?:_effort|\.effort)?["'`]?\s+(?:value\s+["'`][^"'`\r\n]+["'`]\s+)?(?:is\s+)?(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted|does not support)\b/i
+  /(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\s+(?:(?:request\s+)?(?:argument|parameter|field)(?:\s+(?:supplied|named))?\s*:?\s*)?["'`]?reasoning(?:_effort|\.effort)?["'`]?(?=\s|[.,:;]|$)|(?:^|[\s"'`])reasoning(?:_effort|\.effort)?["'`]?\s+(?:value\s+["'`][^"'`\r\n]+["'`]\s+)?(?:is\s+)?(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\b|(?:^|[\s"'`])reasoning(?:_effort|\.effort)?["'`]?\s+does not support\s+["'`][^"'`\r\n]+["'`]/i
 
 function isReasoningMessage(message: string): boolean {
   return !MODEL_SUBJECT_PATTERN.test(message) && MESSAGE_REJECTION_PATTERN.test(message)

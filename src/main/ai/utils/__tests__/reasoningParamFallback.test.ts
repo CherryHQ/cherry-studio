@@ -207,7 +207,8 @@ describe('withReasoningParamFallback', () => {
     'Unknown model "reasoning"',
     'Invalid reasoning_effort-v2',
     'The model "reasoning" is not supported',
-    'The model `reasoning_effort` is not supported'
+    'The model `reasoning_effort` is not supported',
+    'The selected model with ID `reasoning_effort` does not support image input'
   ])('preserves message-only model diagnostics: %s', async (message) => {
     const original = jsonResponse(400, { error: { message } })
     const baseFetch = vi.fn(async () => original)
@@ -222,6 +223,7 @@ describe('withReasoningParamFallback', () => {
 
   it.each([
     'invalid_request_error: reasoning.effort value "none" is not supported',
+    'For this model: reasoning_effort is not supported.',
     "Unsupported value: 'reasoning_effort' does not support 'none' with this model"
   ])('retries field-specific rejected effort values: %s', async (message) => {
     const ok = jsonResponse(200, {})
