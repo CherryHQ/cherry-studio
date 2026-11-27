@@ -251,6 +251,18 @@ describe('composer paste handling', () => {
     expect(getComposerPlainTextPasteOverride('', {})).toBeNull()
   })
 
+  it('respects a custom long-text threshold instead of the default', () => {
+    const belowCustom = 'x'.repeat(2000)
+    expect(getComposerPlainTextPasteOverride(belowCustom, {})).toBeNull()
+    expect(getComposerPlainTextPasteOverride(belowCustom, { longTextThreshold: 2500 })).toEqual([
+      { type: 'text', text: belowCustom }
+    ])
+    expect(getComposerPlainTextPasteOverride('x'.repeat(2600), { longTextThreshold: 2500 })).toBeNull()
+    expect(
+      getComposerPlainTextPasteOverride('x'.repeat(2000), { inlineLongText: true, longTextThreshold: 2500 })
+    ).toEqual([{ type: 'text', text: belowCustom }])
+  })
+
   it('downgrades private file tokens with path-only payloads to fallback text', () => {
     const fragment = readComposerClipboardFragment(
       JSON.stringify({
