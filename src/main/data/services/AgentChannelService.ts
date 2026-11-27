@@ -13,6 +13,7 @@ import {
 import type { DbOrTx } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
@@ -71,6 +72,9 @@ type CreateChannelInput =
     }
 
 export class AgentChannelService {
+  private readonly memoryAccessRevoked = new Emitter<string>()
+  readonly onMemoryAccessRevoked = this.memoryAccessRevoked.event
+
   private rowToEntity(row: ChannelRow): AgentChannelEntity {
     const clean = nullsToUndefined(row)
     return {
@@ -243,6 +247,7 @@ export class AgentChannelService {
     >
   ): AgentChannelEntity | null {
     const { configPatch, ...fields } = updates
+    let revokeMemory = false
     const result = application.get('DbService').withWriteTx((tx) => {
       const existing = tx.select().from(channelsTable).where(eq(channelsTable.id, id)).limit(1).all()[0]
       if (!existing) return null
@@ -280,11 +285,13 @@ export class AgentChannelService {
       if (updates.agentId !== undefined && updates.agentId !== existing.agentId) {
         tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.channelId, id)).run()
       }
+      revokeMemory = Boolean(updated && (!updated.isActive || updated.agentId !== existing.agentId))
       return updated ?? null
     })
 
     if (!result) return null
 
+    if (revokeMemory) this.memoryAccessRevoked.fire(id)
     logger.info('Channel updated', { channelId: id })
     this.notifyReadModelChange(id, 'projection')
     return this.rowToEntity(result)
@@ -294,6 +301,7 @@ export class AgentChannelService {
     const database = application.get('DbService').getDb()
     const result = database.delete(channelsTable).where(eq(channelsTable.id, id)).returning().all()
     if (result.length > 0) {
+      this.memoryAccessRevoked.fire(id)
       logger.info('Channel deleted', { channelId: id })
       this.notifyReadModelChange(id, 'membership')
     }
