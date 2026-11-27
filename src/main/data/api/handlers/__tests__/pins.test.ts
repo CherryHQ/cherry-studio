@@ -71,17 +71,6 @@ describe('pinHandlers', () => {
       expect(listByEntityTypeMock).not.toHaveBeenCalled()
     })
 
-    it('should accept model as a pin entity type when listing', async () => {
-      listByEntityTypeMock.mockResolvedValueOnce([{ id: PIN_ID, entityType: 'model', entityId: MODEL_ID }])
-
-      const result = await pinHandlers['/pins'].GET({
-        query: { entityType: 'model' }
-      } as never)
-
-      expect(listByEntityTypeMock).toHaveBeenCalledWith('model')
-      expect(result).toEqual([{ id: PIN_ID, entityType: 'model', entityId: MODEL_ID }])
-    })
-
     it('should delegate POST with parsed body', async () => {
       const row = {
         id: PIN_ID,

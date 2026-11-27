@@ -11,7 +11,7 @@ import type { loadPiSdk } from '../pi/piSdk'
 type PiSdk = Awaited<ReturnType<typeof loadPiSdk>>
 
 interface DurablePromptOptions {
-  agent: Pick<AgentEntity, 'instructions' | 'configuration' | 'modelName' | 'type'>
+  agent: Pick<AgentEntity, 'name' | 'instructions' | 'configuration' | 'modelName' | 'type'>
   cwd: string
   agentDataPath: string
   effectiveLanguage: string | null

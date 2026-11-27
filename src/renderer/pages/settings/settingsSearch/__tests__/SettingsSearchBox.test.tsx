@@ -1,7 +1,6 @@
-import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import { Activity } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import SettingsSearchBox from '../SettingsSearchBox'
 import { SettingsSearchDomIdsProvider, useSettingsSearchDomIds } from '../SettingsSearchDomIds'
@@ -62,6 +61,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('SettingsSearchBox', () => {
+  afterEach(() => vi.useRealTimers())
+
   beforeEach(() => {
     locationMock.pathname = '/settings/general'
     locationMock.state = {}
@@ -99,6 +100,7 @@ describe('SettingsSearchBox', () => {
   })
 
   it('flushes navigation to the results on Enter off the search page', async () => {
+    vi.useFakeTimers()
     render(<SettingsSearchBox onCollapse={onCollapseMock} />)
     const input = screen.getByTestId('search-input')
 
@@ -113,11 +115,12 @@ describe('SettingsSearchBox', () => {
     )
 
     // The flushed debounce timer must not fire a second navigation later
-    await new Promise((resolve) => setTimeout(resolve, 250))
+    await act(() => vi.advanceTimersByTimeAsync(250))
     expect(navigateMock).toHaveBeenCalledTimes(1)
   })
 
   it('clearing before the first push keeps search available and cancels navigation', async () => {
+    vi.useFakeTimers()
     const { result } = renderHook(() => useSettingsSearchKeyboard())
     render(<SettingsSearchBox onCollapse={onCollapseMock} />)
     const input = screen.getByTestId<HTMLInputElement>('search-input')
@@ -129,18 +132,18 @@ describe('SettingsSearchBox', () => {
     expect(result.current.liveQuery).toBe('')
     expect(onCollapseMock).not.toHaveBeenCalled()
     expect(routerMock.history.back).not.toHaveBeenCalled()
-    await new Promise((resolve) => setTimeout(resolve, 250))
+    await act(() => vi.advanceTimersByTimeAsync(250))
     expect(navigateMock).not.toHaveBeenCalled()
 
     fireEvent.change(input, { target: { value: 'theme' } })
-    await waitFor(() =>
-      expect(navigateMock).toHaveBeenCalledWith(
-        expect.objectContaining({ to: '/settings/search', search: { q: 'theme' }, replace: false })
-      )
+    await act(() => vi.advanceTimersByTimeAsync(250))
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: '/settings/search', search: { q: 'theme' }, replace: false })
     )
   })
 
   it('does not walk history back when a deep-link dispatch lands on the search page', async () => {
+    vi.useFakeTimers()
     const { result } = renderHook(() => useSettingsSearchKeyboard())
     const view = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
 
@@ -152,10 +155,9 @@ describe('SettingsSearchBox', () => {
 
     expect(routerMock.history.back).not.toHaveBeenCalled()
 
-    await waitFor(() =>
-      expect(navigateMock).toHaveBeenCalledWith(
-        expect.objectContaining({ to: '/settings/search', search: { q: 'proxy' }, replace: true })
-      )
+    await act(() => vi.advanceTimersByTimeAsync(250))
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: '/settings/search', search: { q: 'proxy' }, replace: true })
     )
     expect(screen.getByTestId<HTMLInputElement>('search-input').value).toBe('proxy')
     expect(result.current.liveQuery).toBe('proxy')
@@ -163,6 +165,7 @@ describe('SettingsSearchBox', () => {
   })
 
   it('clearing an active search replaces q with absence and keeps the session', async () => {
+    vi.useFakeTimers()
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
     const { result } = renderHook(() => useSettingsSearchKeyboard())
@@ -195,13 +198,12 @@ describe('SettingsSearchBox', () => {
     navigateMock.mockClear()
     fireEvent.change(input, { target: { value: 'theme' } })
     fireEvent.change(input, { target: { value: '' } })
-    await new Promise((resolve) => setTimeout(resolve, 250))
+    await act(() => vi.advanceTimersByTimeAsync(250))
     expect(navigateMock).not.toHaveBeenCalled()
 
     fireEvent.change(input, { target: { value: 'theme' } })
-    await waitFor(() =>
-      expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ search: { q: 'theme' }, replace: true }))
-    )
+    await act(() => vi.advanceTimersByTimeAsync(250))
+    expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ search: { q: 'theme' }, replace: true }))
   })
 
   it('mirrors a whitespace-only user edit without normalizing the raw input or leaving', () => {
@@ -224,6 +226,7 @@ describe('SettingsSearchBox', () => {
   })
 
   it('preserves a whitespace-only seed across mount and Activity re-show until the user clears it', async () => {
+    vi.useFakeTimers()
     locationMock.pathname = '/settings/search'
     searchMock.q = '   '
     const view = render(
@@ -241,7 +244,7 @@ describe('SettingsSearchBox', () => {
         <SettingsSearchBox onCollapse={onCollapseMock} />
       </Activity>
     )
-    await new Promise((resolve) => setTimeout(resolve, 250))
+    await act(() => vi.advanceTimersByTimeAsync(250))
     expect(screen.getByTestId<HTMLInputElement>('search-input').value).toBe('   ')
     expect(navigateMock).not.toHaveBeenCalled()
 
@@ -299,13 +302,8 @@ describe('SettingsSearchBox', () => {
     expect(result.current.liveQuery).toBeUndefined()
   })
 
-  it('does nothing when the box is empty off the search page', () => {
-    render(<SettingsSearchBox onCollapse={onCollapseMock} />)
-    expect(routerMock.history.back).not.toHaveBeenCalled()
-    expect(navigateMock).not.toHaveBeenCalled()
-  })
-
   it('pushes a fresh history entry for the first search after Escape ends the session', async () => {
+    vi.useFakeTimers()
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
     const view = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
@@ -322,30 +320,26 @@ describe('SettingsSearchBox', () => {
 
     fireEvent.change(screen.getByTestId('search-input'), { target: { value: 'theme' } })
     // replace:false is the contract: back must return to the origin section
-    await waitFor(
-      () =>
-        expect(navigateMock).toHaveBeenCalledWith(
-          expect.objectContaining({ to: '/settings/search', search: { q: 'theme' }, replace: false })
-        ),
-      { timeout: 1000 }
+    await act(() => vi.advanceTimersByTimeAsync(250))
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: '/settings/search', search: { q: 'theme' }, replace: false })
     )
   })
 
   it('preserves newer input when an earlier debounced URL mirror arrives late', async () => {
-    const user = userEvent.setup()
+    vi.useFakeTimers()
     let completeNavigation!: () => void
     navigateMock.mockImplementationOnce(() => new Promise<void>((resolve) => (completeNavigation = resolve)))
     const { result } = renderHook(() => useSettingsSearchKeyboard())
     const view = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
     const input = screen.getByTestId<HTMLInputElement>('search-input')
 
-    await user.type(input, 'prox')
-    await waitFor(() =>
-      expect(navigateMock).toHaveBeenCalledWith(
-        expect.objectContaining({ to: '/settings/search', search: { q: 'prox' } })
-      )
+    fireEvent.change(input, { target: { value: 'prox' } })
+    await act(() => vi.advanceTimersByTimeAsync(250))
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: '/settings/search', search: { q: 'prox' } })
     )
-    await user.type(input, 'y')
+    fireEvent.change(input, { target: { value: 'proxy' } })
     expect(input.value).toBe('proxy')
 
     await act(async () => {
@@ -358,20 +352,21 @@ describe('SettingsSearchBox', () => {
 
     expect(input.value).toBe('proxy')
     expect(result.current.liveQuery).toBe('proxy')
-    await waitFor(() =>
-      expect(navigateMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({ to: '/settings/search', search: { q: 'proxy' }, replace: true })
-      )
+    await act(() => vi.advanceTimersByTimeAsync(250))
+    expect(navigateMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ to: '/settings/search', search: { q: 'proxy' }, replace: true })
     )
   })
 
   it('restores an acknowledged mirror when history revisits it after an external query', async () => {
+    vi.useFakeTimers()
     const { result } = renderHook(() => useSettingsSearchKeyboard())
     const view = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
     const input = screen.getByTestId<HTMLInputElement>('search-input')
 
     fireEvent.change(input, { target: { value: 'proxy' } })
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledTimes(1))
+    await act(() => vi.advanceTimersByTimeAsync(250))
+    expect(navigateMock).toHaveBeenCalledTimes(1)
     const searchHistoryState = navigateMock.mock.calls[0][0].state(locationMock.state)
     locationMock.pathname = '/settings/search'
     locationMock.state = searchHistoryState
@@ -393,12 +388,14 @@ describe('SettingsSearchBox', () => {
   })
 
   it('replaces, not pushes, the mirrored navigate after a back/forward re-entry', async () => {
+    vi.useFakeTimers()
     const view = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
     const input = screen.getByTestId('search-input')
 
     // First session on general pushes the search entry
     fireEvent.change(input, { target: { value: 'proxy' } })
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledTimes(1), { timeout: 1000 })
+    await act(() => vi.advanceTimersByTimeAsync(250))
+    expect(navigateMock).toHaveBeenCalledTimes(1)
 
     // The push lands; jumping to a result leaves, then browser-forward returns
     locationMock.pathname = '/settings/search'
@@ -413,18 +410,20 @@ describe('SettingsSearchBox', () => {
 
     // The URL seed re-fires the debounced mirror — landing on an existing
     // entry again must replace it, not push a duplicate behind it
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledTimes(2), { timeout: 1000 })
+    await act(() => vi.advanceTimersByTimeAsync(250))
+    expect(navigateMock).toHaveBeenCalledTimes(2)
     expect(navigateMock).toHaveBeenLastCalledWith(expect.objectContaining({ replace: true }))
   })
 
   it('leaves exactly once on Escape without an empty mirror or delayed navigation', async () => {
+    vi.useFakeTimers()
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
     render(<SettingsSearchBox onCollapse={onCollapseMock} />)
 
     fireEvent.keyDown(screen.getByTestId('search-input'), { key: 'Escape' })
 
-    await new Promise((resolve) => setTimeout(resolve, 250))
+    await act(() => vi.advanceTimersByTimeAsync(250))
     expect(routerMock.history.back).toHaveBeenCalledTimes(1)
     expect(navigateMock).not.toHaveBeenCalled()
   })

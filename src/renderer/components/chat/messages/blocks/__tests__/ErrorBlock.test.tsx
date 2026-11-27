@@ -9,7 +9,15 @@ import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import type { SerializedError } from '@renderer/types/error'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
+import { createLocalError } from '@shared/utils/localError'
 
+import {
+  createClaudeCodeProcessDiagnostics,
+  createClaudeCodeProcessExitError,
+  recordClaudeCodeProcessExit
+} from '../../../../../../main/ai/runtime/claudeCode/processExitDiagnostics'
+// Exercise the desktop serializer before rendering the Work error card.
+import { serializeError } from '../../../../../../main/ai/utils/serializeError'
 import { useMessageErrorActions } from '../../hooks/useMessageErrorActions'
 import type { MessageListActions, MessageListItem } from '../../types'
 
@@ -107,6 +115,18 @@ const message: MessageListItem = {
   }
 }
 
+function makeClaudeCodeExitError(
+  code: number | null,
+  signal: NodeJS.Signals | null = null,
+  stderrTail = ''
+): SerializedError {
+  const diagnostics = createClaudeCodeProcessDiagnostics('diagnostic-ref')
+  recordClaudeCodeProcessExit(diagnostics, code, signal, stderrTail)
+  return JSON.parse(
+    JSON.stringify(serializeError(createClaudeCodeProcessExitError(new Error('original'), diagnostics)))
+  )
+}
+
 describe('ErrorBlock', () => {
   beforeEach(() => {
     mocks.actions = {}
@@ -119,6 +139,21 @@ describe('ErrorBlock', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
     vi.clearAllMocks()
   })
+
+  it.each(['[SQLITE_BUSY] database is locked', 'operation timed out'])(
+    'shows the serialized local initialization cause without network guidance (%s)',
+    (cause) => {
+      const failure = createLocalError(`Pi Durable initialize: native-error — ${cause}`)
+      failure.name = 'PiDurableInitializationError'
+      const error = JSON.parse(JSON.stringify({ ...serializeError(failure), streamStage: 'response-stream' }))
+      render(<ErrorBlock partId="part-1" error={error} message={{ ...message, status: 'error' }} />)
+
+      expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+      expect(screen.getByText(error.message)).toBeInTheDocument()
+      expect(screen.queryByText('error.notice.network.title')).not.toBeInTheDocument()
+      expect(screen.queryByText('error.notice.stream.title')).not.toBeInTheDocument()
+    }
+  )
 
   it.each([false, true])('gates model requests on privacy and a user click (data collection: %s)', async (enabled) => {
     const user = userEvent.setup()
@@ -587,19 +622,37 @@ required service tier.`
     expect(screen.queryByText('error.notice.rate_limit.title')).toBeNull()
   })
 
-  // From main #25160: a status-less request-buffer limit is a payload failure, not an unknown one.
-  it('shows size guidance for a status-less request buffer error', () => {
-    const providerMessage = '413 Failed to buffer the request body: length limit exceeded'
+  // A status-less request-size limit is a payload failure, not an unknown one.
+  it.each(['Request payload is too large', '413 Failed to buffer the request body: length limit exceeded'])(
+    'shows size guidance for a status-less request size error: %s',
+    (providerMessage) => {
+      render(
+        <ErrorBlock
+          partId="message-1-part-0"
+          error={{ name: 'Error', message: providerMessage, stack: null }}
+          message={message}
+        />
+      )
+      expect(screen.getByText('error.notice.payload.title')).toBeInTheDocument()
+      expect(screen.getByText('error.notice.payload.info')).toBeInTheDocument()
+      expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
+      expect(screen.queryByText(providerMessage)).toBeNull()
+    }
+  )
+
+  it('keeps response body size failures eligible for diagnosis without request-size guidance', () => {
+    mocks.actions = { diagnoseMessageError: vi.fn() }
     render(
       <ErrorBlock
         partId="message-1-part-0"
-        error={{ name: 'Error', message: providerMessage, stack: null }}
+        error={{ name: 'Error', message: 'Response body payload is too large', stack: null }}
         message={message}
       />
     )
-    expect(screen.getByText('error.notice.payload.title')).toBeInTheDocument()
-    expect(screen.getByText('error.notice.payload.info')).toBeInTheDocument()
-    expect(screen.queryByText('error.diagnosis.unknown')).toBeNull()
+
+    expect(screen.getByText('error.diagnosis.unknown')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeInTheDocument()
+    expect(screen.queryByText('error.notice.payload.title')).toBeNull()
   })
 
   it('shows a useful status when a proxy returns an HTML 413 response', () => {
@@ -621,33 +674,62 @@ required service tier.`
     expect(screen.queryByText(/<html>/)).not.toBeInTheDocument()
   })
 
-  it('shows only the safe Claude Code exit status and diagnostic reference', () => {
+  it.each([
+    { code: 134, signal: null, status: 'code 134' },
+    { code: null, signal: 'SIGABRT', status: 'signal SIGABRT' }
+  ] as const)('attributes an unresolved Claude Code exit in the heading ($status)', ({ code, signal, status }) => {
+    const diagnoseMessageError = vi.fn()
+    mocks.actions = { diagnoseMessageError }
+    mocks.translations = new Map(Object.entries(enUS))
+    const sentinel = 'PRIVATE_UNRECOGNIZED_STDERR_24938'
+    const error = makeClaudeCodeExitError(code, signal, `opaque debris ${sentinel}`)
+
+    const { container } = render(<ErrorBlock partId="part-1" error={error} message={message} />)
+
+    expect(
+      screen.getByText(
+        `Claude Code ${signal ? 'stopped' : 'exited'} unexpectedly (${status}). Diagnostic reference: diagnostic-ref`
+      )
+    ).toBeVisible()
+    expect(screen.queryByText(enUS['error.diagnosis.unknown'])).not.toBeInTheDocument()
+    expect(screen.getAllByText(/Diagnostic reference: diagnostic-ref/)).toHaveLength(1)
+    expect(JSON.stringify(error)).not.toContain(sentinel)
+    expect(container).not.toHaveTextContent(sentinel)
+    expect(screen.queryByText(error.message!)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).not.toBeInTheDocument()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
+  it('keeps the auth heading, exit description and provider settings recovery for a recognised Claude Code exit', async () => {
+    const user = userEvent.setup()
     const diagnoseMessageError = vi.fn()
     const navigateErrorTarget = vi.fn()
     mocks.actions = { diagnoseMessageError, navigateErrorTarget }
+    mocks.translations = new Map(Object.entries(enUS))
 
     render(
-      <ErrorBlock
-        partId="message-1-part-0"
-        error={{
-          name: 'ClaudeCodeProcessExitError',
-          message: 'Claude Code process exited with code 1',
-          stack: null,
-          claudeCodeExitCategory: 'auth',
-          diagnosticReference: 'diagnostic-ref',
-          processExitCode: 1
-        }}
-        message={message}
-      />
+      <ErrorBlock partId="part-1" error={makeClaudeCodeExitError(1, null, 'Authentication failed')} message={message} />
     )
 
-    expect(screen.getByText('error.notice.auth.title')).toBeInTheDocument()
-    expect(screen.getByText('error.claude_code_exit.code')).toBeInTheDocument()
-    expect(screen.queryByText(/stderr|api_key|sk-ant/i)).toBeNull()
+    expect(screen.getByText(enUS['error.notice.auth.title'])).toBeVisible()
+    expect(
+      screen.getByText('Claude Code exited unexpectedly (code 1). Diagnostic reference: diagnostic-ref')
+    ).toBeVisible()
     expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
-
-    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+  })
+
+  it('keeps the generic heading for a legacy unknown Claude Code exit without a reference', () => {
+    const error = makeClaudeCodeExitError(134)
+    delete error.diagnosticReference
+
+    render(<ErrorBlock partId="part-1" error={error} message={message} />)
+
+    expect(screen.getByText('error.diagnosis.unknown')).toBeVisible()
+    expect(screen.getByText('Claude Code process exited with code 134')).toBeVisible()
+    expect(screen.queryByText(/Diagnostic reference:/)).not.toBeInTheDocument()
   })
 
   it('does not treat an unknown exit category as a Claude Code diagnostic', async () => {
@@ -861,6 +943,35 @@ required service tier.`
     await user.click(screen.getByRole('button', { name: GO_TO_SETTINGS_LABEL }))
     expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
     expect(screen.queryByRole('button', { name: AI_DIAGNOSIS_LABEL })).toBeNull()
+  })
+
+  // #25526: a Claude Code `API Error: 400 {json}` rejection is a localized bad request in the card;
+  // the upstream reason travels with the error into Details.
+  it('localizes a Claude Code JSON 400 error and keeps the upstream reason for Details', async () => {
+    const openErrorDetail = vi.fn()
+    mocks.actions = { openErrorDetail }
+    mocks.translations = new Map(Object.entries(enUS))
+    const upstreamReason = 'Illegal API invocation from an unapproved channel'
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeResultError',
+          message: `API Error: 400 {"code":"11-128","message":"${upstreamReason}","type":"error","error":{"code":"11-128","type":"invalid_request_error","message":"${upstreamReason}"}}`,
+          stack: null,
+          statusCode: 400
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(enUS['error.notice.bad_request.title'], { exact: true })).toBeInTheDocument()
+    expect(screen.queryByText(new RegExp(upstreamReason))).not.toBeInTheDocument()
+    await userEvent.click(screen.getByText(enUS['common.detail'], { exact: true }))
+    expect(openErrorDetail).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.objectContaining({ message: expect.stringContaining(upstreamReason) }) })
+    )
   })
 
   it('requires another click to diagnose in a changed app language', async () => {

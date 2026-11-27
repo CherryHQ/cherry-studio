@@ -26,7 +26,7 @@ it('hands the stored error part and the failed execution model to onError', asyn
     messages: [{ id: 'reply', role: 'assistant', parts: [{ type: 'data-error', data: stored }] }]
   }
   const onError = vi.fn()
-  const hook = renderHook(() => useStreamCommands('stored-error', undefined, onError))
+  const hook = renderHook(() => useStreamCommands('stored-error', onError))
   await act(async () => ipc.attachments[0].resolve(view))
   await waitFor(() => expect(onError).toHaveBeenCalledTimes(1))
   const [error, cause, executionId] = onError.mock.calls[0]

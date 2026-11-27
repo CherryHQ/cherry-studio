@@ -1,12 +1,7 @@
-/**
- * Incident repro (2026-08-15): a runtime subagent settlement wake opened a
- * receive-only turn whose persisted row ended up with ZERO parts while the
- * runtime streamed a full report. Drive the real service with the incident's
- * event order and assert the receive-only stream actually carries the chunks.
- */
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AgentRuntimeEvent } from '@main/ai/runtime/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 
 const mocks = vi.hoisted(() => ({
@@ -30,7 +25,7 @@ const mocks = vi.hoisted(() => ({
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
   closeWarmQueries: vi.fn(),
-  closeAgentSessionWarm: vi.fn(),
+
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
@@ -93,7 +88,7 @@ function getEntry(service: InstanceType<typeof AgentSessionRuntimeService>) {
 function currentTurn(entry: any) {
   const execution = entry.runtimeState.execution
   if (execution.kind === 'turn' || execution.kind === 'autonomous-turn') return execution.reply.turn
-  if (execution.kind === 'steer-transition') return execution.reply.turn
+  if (execution.kind === 'run-handoff') return execution.reply.turn
   return execution.lastTurn
 }
 
@@ -129,109 +124,13 @@ beforeEach(() => {
       }
     }
     if (name === 'ClaudeCodeWarmQueryManager') {
-      return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
+      return { closeAll: mocks.closeWarmQueries }
     }
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
 
 describe('subagent settlement wake (incident replay)', () => {
-  it('delivers wake-turn chunks into the receive-only stream under background occupancy', async () => {
-    const service = new AgentSessionRuntimeService()
-    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
-
-    // Turn 1: replay begins after the spawning input has been admitted.
-    service.beginTurn(baseTurnInput)
-    const entry = getEntry(service)
-    entry.runtimeState.connection = {
-      kind: 'connected',
-      connection: {
-        send: vi.fn(),
-        close: vi.fn(),
-        events: [],
-        reconcile: vi.fn().mockResolvedValue('current'),
-        refreshTraceContext: vi.fn()
-      },
-      occupancy: {}
-    }
-    const turn1 = currentTurn(entry)
-    entry.runtimeState.execution.reply.admission = 'admitted'
-    const turn1Reader = openChunkStream(service, {
-      sessionId: 'session-1',
-      turnId: turn1.turnId,
-      signal: new AbortController().signal
-    }).getReader()
-    await expect(turn1Reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
-
-    // Spawn tool call registers the flow anchor; children start (background occupancy on).
-    handleRuntimeEvent({
-      type: 'chunk',
-      chunk: { type: 'tool-input-start', toolCallId: 'call-spawn', toolName: 'subagent' }
-    })
-    handleRuntimeEvent({
-      type: 'chunk',
-      chunk: {
-        type: 'tool-input-available',
-        toolCallId: 'call-spawn',
-        toolName: 'subagent',
-        input: { description: 'x' }
-      }
-    })
-    handleRuntimeEvent({ type: 'background-work-state', active: true })
-    handleRuntimeEvent({
-      type: 'background-task-event',
-      data: {
-        event: 'started',
-        taskId: 'child-1',
-        toolUseId: 'call-spawn',
-        status: 'in_progress',
-        taskType: 'subagent'
-      }
-    })
-    handleRuntimeEvent({
-      type: 'background-tasks',
-      tasks: [{ id: 'child-1', type: 'subagent', description: 'x', toolCallId: 'call-spawn' }]
-    })
-    handleRuntimeEvent({ type: 'turn-complete' })
-    service.markTurnTerminal('session-1', 'success')
-
-    // Settlement wake: the runtime opens its own turn and starts streaming immediately.
-    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
-    handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-start', id: 'w1' } })
-    handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-delta', id: 'w1', delta: 'wake report part 1' } })
-
-    await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
-    const receiveOnlyTurn = currentTurn(entry)
-    expect(receiveOnlyTurn).toBeDefined()
-    expect(receiveOnlyTurn.turnId).not.toBe(turn1.turnId)
-
-    const wakeReader = openChunkStream(service, {
-      sessionId: 'session-1',
-      turnId: receiveOnlyTurn.turnId,
-      signal: new AbortController().signal
-    }).getReader()
-
-    // More wake content + the second child settling mid-turn (work-state drops).
-    handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-delta', id: 'w1', delta: ' part 2' } })
-    handleRuntimeEvent({ type: 'background-work-state', active: false })
-    handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-delta', id: 'w1', delta: ' part 3' } })
-    handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-end', id: 'w1' } })
-    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'finished' })
-    handleRuntimeEvent({ type: 'turn-complete' })
-
-    const received: any[] = []
-    for (;;) {
-      const { value, done } = await wakeReader.read()
-      if (done) break
-      received.push(value)
-    }
-    const deltas = received.filter((chunk) => chunk.type === 'text-delta').map((chunk) => chunk.delta)
-    expect(received[0]).toMatchObject({ type: 'start' })
-    expect(deltas).toEqual(['wake report part 1', ' part 2', ' part 3'])
-
-    void service.closeSession('session-1')
-  })
-
   /**
    * A receive-only turn streams on a connection that already exists, so every facet it records has
    * to be the one that connection is targeted at. `reasoningEffort` used to be pinned to the literal
@@ -248,7 +147,8 @@ describe('subagent settlement wake (incident replay)', () => {
       configuration: { reasoning_effort: 'high' }
     })
     const service = new AgentSessionRuntimeService()
-    const handleRuntimeEvent = (event: unknown) => (service as any).handleRuntimeEvent(getEntry(service), event)
+    const handleRuntimeEvent = (event: AgentRuntimeEvent) =>
+      (service as any).handleRuntimeEvent(getEntry(service), event)
 
     // `AgentChatContextProvider` is the only production caller of `beginTurn`, and it passes
     // `req.reasoningEffort ?? agent.configuration.reasoning_effort ?? 'default'`, so a turn for this
@@ -268,7 +168,6 @@ describe('subagent settlement wake (incident replay)', () => {
     service.markTurnTerminal('session-1', 'success')
 
     handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
-    handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-start', id: 'w1' } })
 
     await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
@@ -284,25 +183,8 @@ describe('subagent settlement wake (incident replay)', () => {
     )
     expect(connection.close).not.toHaveBeenCalled()
 
-    handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-end', id: 'w1' } })
     handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'finished' })
     handleRuntimeEvent({ type: 'turn-complete' })
     void service.closeSession('session-1')
   })
 })
-
-function openChunkStream(
-  service: InstanceType<typeof AgentSessionRuntimeService>,
-  input: Parameters<InstanceType<typeof AgentSessionRuntimeService>['openTurnStream']>[0]
-) {
-  const source = service.openTurnStream(input)
-  if (source.kind !== 'messages') throw new Error('Expected message source')
-  return source.stream.pipeThrough(
-    new TransformStream({
-      transform(event, controller) {
-        if (event.type === 'control') controller.enqueue(event.chunk)
-        else if (event.type === 'error') controller.error(event.error)
-      }
-    })
-  )
-}

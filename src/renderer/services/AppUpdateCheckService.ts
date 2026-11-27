@@ -121,6 +121,11 @@ class AppUpdateCheckService {
     this.latestInfo = info
   }
 
+  /** Main stopped authorizing the downloaded release, so a later click checks again. */
+  noteDownloadRevoked(): void {
+    if (this.phase === 'downloaded') this.phase = 'idle'
+  }
+
   markUpdateDownloading(info: UpdateInfo): void {
     this.phase = 'downloading'
     this.latestInfo = info

@@ -1,8 +1,8 @@
 import { asc, desc, sql } from 'drizzle-orm'
-import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { check, foreignKey, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
-import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
+import type { CherryMessagePart, MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentSessionTable } from './agentSession'
@@ -18,18 +18,8 @@ export const agentSessionMessageTable = sqliteTable(
       .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
     role: text().notNull(),
     parentId: text(),
-    // `data` stores MessageData (`{ parts }`); Drizzle handles
-    // JSON.stringify/parse automatically via `{ mode: 'json' }`.
-    data: text({ mode: 'json' })
-      .$type<
-        MessageData & {
-          runtimeAnchor?: unknown
-          nativeSessionId?: string
-          deliveryReplyAnchor?: string
-          locallyHandled?: boolean
-        }
-      >()
-      .notNull(),
+    // Message-level metadata only; the ordered body lives in `agent_session_message_part`.
+    data: text({ mode: 'json' }).$type<AgentSessionMessageStoredData>().notNull(),
     searchableText: text().notNull().default(''),
     status: text().notNull(),
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
@@ -41,6 +31,7 @@ export const agentSessionMessageTable = sqliteTable(
     // On an input: the reply Main opened for it. Queued inputs are saved before their replies,
     // so row ancestry cannot say which reply answers which input. No FK, like deliveryTurnRef.
     replyId: text(),
+    pos: integer(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),
@@ -68,6 +59,12 @@ export const agentSessionMessageTable = sqliteTable(
     index('agent_session_message_created_at_id_idx').on(desc(t.createdAt), asc(t.id)),
     // Backs findPendingAssistantMessageIds (boot reconcile); avoids a full SCAN. Plain, not
     // partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
+    index('agent_session_message_reply_idx')
+      .on(t.sessionId, t.replyId)
+      .where(sql`${t.replyId} IS NOT NULL`),
+    index('agent_session_message_pending_reply_idx')
+      .on(t.sessionId)
+      .where(sql`${t.role} = 'assistant' AND ${t.status} = 'pending'`),
     index('agent_session_message_status_idx').on(t.status),
     // Backs the model_id FK's ON DELETE SET NULL — same rationale as message_model_id_idx.
     index('agent_session_message_model_id_idx').on(t.modelId),
@@ -91,18 +88,70 @@ export const agentSessionMessageTable = sqliteTable(
   ]
 )
 
+export type AgentSessionMessageStoredData = Omit<MessageData, 'parts'> & {
+  runtimeAnchor?: unknown
+  nativeSessionId?: string
+  deliveryReplyAnchor?: string
+  nativePlaced?: true
+  locallyHandled?: boolean
+}
+
 export type AgentSessionMessageRow = typeof agentSessionMessageTable.$inferSelect
 export type InsertAgentSessionMessageRow = typeof agentSessionMessageTable.$inferInsert
+
+/** One ordered body part of an agent-session message. */
+export const agentSessionMessagePartTable = sqliteTable(
+  'agent_session_message_part',
+  {
+    id: uuidPrimaryKeyOrdered(),
+    messageId: text()
+      .notNull()
+      .references(() => agentSessionMessageTable.id, { onDelete: 'cascade' }),
+    sessionId: text()
+      .notNull()
+      .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
+    seq: integer().notNull(),
+    type: text().notNull(),
+    payload: text({ mode: 'json' }).$type<CherryMessagePart>().notNull(),
+    pos: integer(),
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    uniqueIndex('agent_session_message_part_message_seq_uniq').on(t.messageId, t.seq),
+    index('agent_session_message_part_session_idx').on(t.sessionId),
+    uniqueIndex('agent_session_message_part_pos_uniq').on(t.sessionId, t.pos)
+  ]
+)
+
+export type AgentSessionMessagePartRow = typeof agentSessionMessagePartTable.$inferSelect
+export type InsertAgentSessionMessagePartRow = typeof agentSessionMessagePartTable.$inferInsert
+
+export const agentSessionToolOutputTable = sqliteTable(
+  'agent_session_tool_output',
+  {
+    messageId: text()
+      .notNull()
+      .references(() => agentSessionMessageTable.id, { onDelete: 'cascade' }),
+    toolCallId: text().notNull(),
+    sessionId: text()
+      .notNull()
+      .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
+    output: text({ mode: 'json' }).$type<unknown>().notNull(),
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    primaryKey({ columns: [t.messageId, t.toolCallId] }),
+    index('agent_session_tool_output_session_idx').on(t.sessionId)
+  ]
+)
+
+export type AgentSessionToolOutputRow = typeof agentSessionToolOutputTable.$inferSelect
+export type InsertAgentSessionToolOutputRow = typeof agentSessionToolOutputTable.$inferInsert
 
 export const AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME = 'agent_session_message_ai'
 export const AGENT_SESSION_MESSAGE_INSERT_TRIGGER_SQL = `CREATE TRIGGER ${AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME} AFTER INSERT ON agent_session_message BEGIN
   UPDATE agent_session_message SET
-    fts_rowid = (SELECT COALESCE(MAX(fts_rowid), 0) + 1 FROM agent_session_message),
-    searchable_text = COALESCE((
-      SELECT group_concat(json_extract(value, '$.text'), char(10))
-      FROM json_each(json_extract(NEW.data, '$.parts'))
-      WHERE json_extract(value, '$.type') = 'text'
-    ), '')
+    fts_rowid = (SELECT COALESCE(MAX(fts_rowid), 0) + 1 FROM agent_session_message)
   WHERE id = NEW.id;
   INSERT INTO agent_session_message_fts(rowid, searchable_text)
   SELECT fts_rowid, searchable_text FROM agent_session_message WHERE id = NEW.id;
@@ -114,8 +163,9 @@ END`
  * Drizzle does not manage virtual tables or triggers, so these are executed through DbService
  * custom SQL after migrations. The FTS index is keyed on the stable `fts_rowid` column (NOT the
  * implicit rowid, which a table rebuild or VACUUM would reshuffle — see schemas/message.ts). The
- * triggers assign `fts_rowid`, keep `searchable_text` in sync with text-bearing message parts, and
- * mirror it into the FTS index.
+ * triggers assign `fts_rowid` and mirror `searchable_text` into the FTS index. Part writers own
+ * `searchable_text` (see `replaceAgentSessionMessagePartsTx`), since the body lives in
+ * `agent_session_message_part` rather than in a JSON column a trigger could read.
  *
  * Only `text` parts are indexed — NOT `reasoning`. Reasoning parts hold the model's hidden
  * chain-of-thought, which the session UI does not render; indexing it would leak that hidden
@@ -144,15 +194,10 @@ export const AGENT_SESSION_MESSAGE_FTS_STATEMENTS: string[] = [
     VALUES ('delete', OLD.fts_rowid, OLD.searchable_text);
   END`,
 
-  `CREATE TRIGGER agent_session_message_au AFTER UPDATE OF data ON agent_session_message BEGIN
+  `CREATE TRIGGER agent_session_message_au AFTER UPDATE OF searchable_text ON agent_session_message
+    WHEN OLD.searchable_text IS NOT NEW.searchable_text BEGIN
     INSERT INTO agent_session_message_fts(agent_session_message_fts, rowid, searchable_text)
     VALUES ('delete', OLD.fts_rowid, OLD.searchable_text);
-    UPDATE agent_session_message SET searchable_text = COALESCE((
-      SELECT group_concat(json_extract(value, '$.text'), char(10))
-      FROM json_each(json_extract(NEW.data, '$.parts'))
-      WHERE json_extract(value, '$.type') = 'text'
-    ), '') WHERE id = NEW.id;
-    INSERT INTO agent_session_message_fts(rowid, searchable_text)
-    SELECT fts_rowid, searchable_text FROM agent_session_message WHERE id = NEW.id;
+    INSERT INTO agent_session_message_fts(rowid, searchable_text) VALUES (NEW.fts_rowid, NEW.searchable_text);
   END`
 ]

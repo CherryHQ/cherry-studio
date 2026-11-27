@@ -94,6 +94,8 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
       const subject = getDoctorSubject(input.message)
       const faultKey = messageFaultKey(input.message, input.partId, input.error)
       const modelId = model?.id
+      // A segment row records the fault against its durable owner message.
+      const recordId = input.message.sourceMessageId ?? input.message.id
       const errorContext = rememberMessageFault(faultKey, () =>
         contextFromUnknown(input.error ?? message, {
           source: errorSource,
@@ -102,7 +104,7 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
           ...(occurredAt ? { occurredAt } : {}),
           ...(model?.provider ? { providerId: model.provider } : {}),
           ...(modelId ? { modelId } : {}),
-          recordId: input.message.id,
+          recordId,
           params: { partId: input.partId, topicId: input.message.topicId }
         })
       )
@@ -111,7 +113,7 @@ export function useMessageErrorActions(options: MessageErrorActionOptions): Mess
           error: input.error,
           errorContext,
           subject,
-          incident: { topicId: input.message.topicId, messageId: input.message.id, errorId: errorContext.id },
+          incident: { topicId: input.message.topicId, messageId: recordId, errorId: errorContext.id },
           diagnosisContext: { providerId: model?.provider, modelId: model?.id },
           localizedErrorMessage: input.localizedErrorMessage,
           diagnosticReport
