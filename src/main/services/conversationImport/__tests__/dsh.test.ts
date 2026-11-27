@@ -38,6 +38,53 @@ describe('DSH session archives', () => {
     return { path: file }
   }
 
+  it('reads the complete parentless child once across legacy and nested seed boundaries', async () => {
+    const texts = ['Grandparent prompt', 'Parent prompt', 'Child prompt']
+    for (const version of [0, 3, 4]) {
+      const header = {
+        type: 'session',
+        version,
+        id: 'child',
+        cwd: root,
+        createdAt: 50,
+        ...(version === 0 && { seedLength: 3 })
+      }
+      const rows: unknown[] = [header]
+      for (const [index, text] of texts.entries()) {
+        const seq = index * 2
+        const data =
+          version === 0 ? { content: text } : { id: 'legacy-message:child:' + seq, content: [{ type: 'text', text }] }
+        rows.push({ ...event('user/message', data, 100 + seq), seq })
+        if (index < 2)
+          rows.push({ ...event('session/end-seed', version === 0 ? {} : { inherited: true }, 100 + seq), seq: seq + 1 })
+      }
+      const file = path.join(dir, version === 0 ? 'session.jsonl.zstd' : `session.v${version}.jsonl.zstd`)
+      await writeFile(file, zstdCompressSync(rows.map((row) => JSON.stringify(row)).join('\n') + '\n'))
+      const session = await dshAdapter.read({ path: file }, signal)
+      expect(session.messages.map((m) => m.data.parts)).toEqual(texts.map((text) => [{ type: 'text', text }]))
+    }
+    const refs = await discover()
+    expect(refs).toHaveLength(1)
+    const merged = await dshAdapter.read(refs[0], signal)
+    expect(merged.diagnostics.filter((d) => d.severity === 'error')).toEqual([])
+    expect(merged.messages.map((m) => m.data.parts)).toEqual(texts.map((text) => [{ type: 'text', text }]))
+  })
+
+  it('keeps an automatic goal round as context beside a direct prompt with the same text', async () => {
+    const content = [{ type: 'text', text: 'Continue the goal' }]
+    const direct = event('user/message', { id: 'direct', content, source: { kind: 'user' } })
+    const automatic = event('user/message', {
+      id: 'round',
+      content,
+      source: { kind: 'goal', goalId: 'g', revision: 1, round: 1 }
+    })
+    const session = await dshAdapter.read(await save(4, direct, automatic), signal)
+    expect(session.messages.map((m) => [m.role, m.data.parts])).toEqual([
+      ['user', content],
+      ['system', content]
+    ])
+  })
+
   it('matches flat v0 messages with migrated IDs and preserves failed tool output', async () => {
     const step = { turn: 1, step: 1 }
     const prompt = { content: 'Read the note', source: { kind: 'user' } }

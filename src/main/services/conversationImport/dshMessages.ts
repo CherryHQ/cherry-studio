@@ -359,7 +359,7 @@ export async function readDshSession(file: string, signal: AbortSignal): Promise
       } else flushStreams()
       message('assistant', msg, fallbackId, data.interrupted === true ? 'paused' : 'success')
     } else if (kind === 'user/message') {
-      message('user', data, fallbackId)
+      message(fields(data.source).kind === 'goal' ? 'system' : 'user', data, fallbackId)
     } else if (kind === 'tool/call') {
       call(string(data.callId), string(data.name), data.arguments)
     } else if (kind === 'tool/result') {
