@@ -1,3 +1,4 @@
+import UPNG from '@pdf-lib/upng'
 import { fileTypeFromBuffer } from 'file-type'
 
 /** Target square dimension for normalized entity images (avatar / logo). */
@@ -51,11 +52,73 @@ export async function clampImageForModel(
   maxEdge: number = MODEL_IMAGE_MAX_EDGE
 ): Promise<Uint8Array | null> {
   const sharp = (await import('sharp')).default
-  const image = sharp(bytes, { failOn: 'none', animated: true })
-  const { width, height } = await image.metadata()
+  const probe = sharp(bytes, { failOn: 'none' })
+  const { width, height } = await probe.metadata()
   if (!width || !height) throw new Error('could not read image dimensions')
   if (width <= maxEdge && height <= maxEdge) return null
-  return image.resize(maxEdge, maxEdge, { fit: 'inside', withoutEnlargement: true }).toBuffer()
+  if (isApng(bytes)) return clampApng(bytes, width, height, maxEdge)
+  return sharp(bytes, { failOn: 'none', animated: true })
+    .rotate()
+    .resize(maxEdge, maxEdge, { fit: 'inside', withoutEnlargement: true })
+    .toBuffer()
+}
+
+function isApng(bytes: Uint8Array): boolean {
+  if (bytes.length < 8 || bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47) return false
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  let offset = 8
+  while (offset + 12 <= bytes.length) {
+    const length = view.getUint32(offset)
+    const type = String.fromCharCode(
+      view.getUint8(offset + 4),
+      view.getUint8(offset + 5),
+      view.getUint8(offset + 6),
+      view.getUint8(offset + 7)
+    )
+    if (type === 'acTL') return true
+    if (type === 'IDAT') return false
+    offset += length + 12
+  }
+  return false
+}
+
+async function clampApng(bytes: Uint8Array, width: number, height: number, maxEdge: number): Promise<Uint8Array> {
+  const sharp = (await import('sharp')).default
+  const source = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+  const decoded = UPNG.decode(source)
+  const frames = UPNG.toRGBA8(decoded)
+  const scale = maxEdge / Math.max(width, height)
+  const resizedWidth = Math.max(1, Math.round(width * scale))
+  const resizedHeight = Math.max(1, Math.round(height * scale))
+  const resized = await Promise.all(
+    frames.map(async (frame) => {
+      const output = await sharp(Buffer.from(frame), { raw: { width, height, channels: 4 } })
+        .resize(resizedWidth, resizedHeight)
+        .raw()
+        .toBuffer()
+      return output.buffer.slice(output.byteOffset, output.byteOffset + output.byteLength)
+    })
+  )
+  const encode: (
+    imgs: ArrayBuffer[],
+    w: number,
+    h: number,
+    cnum: number,
+    dels?: number[],
+    tabs?: { loop?: number }
+  ) => ArrayBuffer = UPNG.encode
+  return Buffer.from(
+    encode(
+      resized,
+      resizedWidth,
+      resizedHeight,
+      0,
+      decoded.frames.map((frame) => frame.delay),
+      {
+        loop: decoded.tabs.acTL?.num_plays ?? 0
+      }
+    )
+  )
 }
 
 /**

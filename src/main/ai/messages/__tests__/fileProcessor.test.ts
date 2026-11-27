@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import UPNG from '@pdf-lib/upng'
 import sharp from 'sharp'
 import type * as SharpModule from 'sharp'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -205,6 +206,44 @@ describe('attachment image padding', () => {
 
     const output = Buffer.from(result!.url.split(',')[1], 'base64')
     expect(await sharp(output).metadata()).toMatchObject({ format: 'png', width: 2000, height: 15 })
+  })
+
+  it('retains compliant animated WebP bytes unchanged', async () => {
+    const raw = Buffer.concat([
+      Buffer.alloc(1000 * 1000 * 4, 80),
+      Buffer.alloc(1000 * 1000 * 4, 160),
+      Buffer.alloc(1000 * 1000 * 4, 240)
+    ])
+    const bytes = await sharp(raw, { raw: { width: 1000, height: 3000, channels: 4, pageHeight: 1000 } })
+      .webp({ delay: [100, 100, 100] })
+      .toBuffer()
+    const part = filePart({ url: `data:image/webp;base64,${bytes.toString('base64')}`, mediaType: 'image/webp' })
+
+    expect(await materializeNativeFilePart(part)).toEqual(part)
+  })
+
+  it('preserves APNG frames while downscaling an oversized attachment', async () => {
+    const width = 3000
+    const height = 1000
+    const frame = (red: number) => {
+      const rgba = new Uint8Array(width * height * 4)
+      for (let index = 0; index < rgba.length; index += 4) {
+        rgba[index] = red
+        rgba[index + 3] = 255
+      }
+      return rgba.buffer
+    }
+    const bytes = Buffer.from(UPNG.encode([frame(40), frame(200)], width, height, 0, [100, 200]))
+    const part = partFor(bytes)
+
+    const result = await materializeNativeFilePart(part)
+
+    const output = Buffer.from(result!.url.split(',')[1], 'base64')
+    const decoded = UPNG.decode(output.buffer.slice(output.byteOffset, output.byteOffset + output.byteLength))
+    expect(decoded.width).toBe(2000)
+    expect(decoded.height).toBe(667)
+    expect(decoded.frames.map((entry) => entry.delay)).toEqual([100, 200])
+    expect(UPNG.toRGBA8(decoded)).toHaveLength(2)
   })
 
   it('pads a percent-encoded image', async () => {

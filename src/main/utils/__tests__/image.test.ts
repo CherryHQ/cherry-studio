@@ -1,3 +1,4 @@
+import UPNG from '@pdf-lib/upng'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
@@ -56,6 +57,52 @@ describe('clampImageForModel', () => {
 
   it('returns null for an image that already fits, so callers can skip re-encoding', async () => {
     await expect(clampImageForModel(new Uint8Array(PNG_1X1))).resolves.toBeNull()
+  })
+
+  it('returns null for an animated WebP whose frames already fit', async () => {
+    const raw = Buffer.concat([
+      Buffer.alloc(1000 * 1000 * 4, 80),
+      Buffer.alloc(1000 * 1000 * 4, 160),
+      Buffer.alloc(1000 * 1000 * 4, 240)
+    ])
+    const bytes = await sharp(raw, { raw: { width: 1000, height: 3000, channels: 4, pageHeight: 1000 } })
+      .webp({ delay: [100, 100, 100] })
+      .toBuffer()
+
+    await expect(clampImageForModel(bytes)).resolves.toBeNull()
+  })
+
+  it('applies EXIF orientation before resizing a JPEG', async () => {
+    const bytes = await sharp({ create: { width: 4000, height: 1000, channels: 3, background: '#ff0000' } })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer()
+
+    const out = await clampImageForModel(bytes)
+
+    expect(await sharp(out!).metadata()).toMatchObject({ format: 'jpeg', width: 500, height: 2000 })
+  })
+
+  it('preserves APNG frames and delays while resizing', async () => {
+    const width = 3000
+    const height = 1000
+    const frame = (red: number) => {
+      const rgba = new Uint8Array(width * height * 4)
+      for (let index = 0; index < rgba.length; index += 4) {
+        rgba[index] = red
+        rgba[index + 3] = 255
+      }
+      return rgba.buffer
+    }
+    const bytes = Buffer.from(UPNG.encode([frame(40), frame(200)], width, height, 0, [100, 200]))
+
+    const out = await clampImageForModel(bytes)
+
+    const decoded = UPNG.decode(out!.buffer.slice(out!.byteOffset, out!.byteOffset + out!.byteLength) as ArrayBuffer)
+    expect(decoded.width).toBe(2000)
+    expect(decoded.height).toBe(667)
+    expect(decoded.frames.map((entry) => entry.delay)).toEqual([100, 200])
+    expect(UPNG.toRGBA8(decoded)).toHaveLength(2)
   })
 
   it('throws on undecodable input', async () => {
