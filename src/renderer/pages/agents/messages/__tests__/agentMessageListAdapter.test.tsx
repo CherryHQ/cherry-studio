@@ -609,7 +609,10 @@ describe('useAgentMessageListProviderValue', () => {
       metadata: { provenance: { source: 'codex', sourceOrder: 1 } }
     })
     const preamble = imported('context', 'system', '[Historical project instructions]\nAGENTS.md')
-    const setup = imported('setup', 'assistant', 'Starting session')
+    const setup: CherryUIMessage = {
+      ...imported('setup', 'user', 'Generated setup'),
+      metadata: { provenance: { source: 'claude-code', sourceOrder: 1, isSetup: true } }
+    }
     const user = imported('user', 'user', 'Explain this project')
     const answer = imported('answer', 'assistant', 'Project explanation')
     const laterContext = imported('later-context', 'system', 'Later context')

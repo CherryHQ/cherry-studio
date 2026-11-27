@@ -105,6 +105,8 @@ describe('local history import dialog', () => {
     const user = userEvent.setup()
     render(<LocalHistoryImportDialog open source="claude-code" resolve={() => {}} />)
     await chooseAgent(user)
+    expect(screen.getByTitle('Original task')).toHaveTextContent('Original task')
+    expect(screen.getByRole('checkbox', { name: /Original task/ })).toHaveAccessibleName(/\/source\/task\.jsonl/)
     await user.click(screen.getByRole('checkbox', { name: /Original task/ }))
     await user.click(screen.getByRole('button', { name: enUS['history_import.confirm'] }))
     await screen.findByText(enUS['history_import.results.imported'])

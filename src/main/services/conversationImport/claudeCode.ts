@@ -344,6 +344,7 @@ export const claudeCodeAdapter: HistorySourceAdapter = {
           source: 'claude-code',
           originalMessageId: record.uuid!,
           sourceOrder: order,
+          isSetup: role === 'user' && userTask(record) === 'generated' ? true : undefined,
           originalTimestamp: record.timestamp,
           inferredTimestamp
         },
