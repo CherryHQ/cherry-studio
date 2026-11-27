@@ -125,7 +125,10 @@ const SettingsPage: FC = () => {
                         aria-label={item.badgeKey ? t(item.titleKey) : undefined}
                         suffix={
                           item.badgeKey ? (
-                            <Tooltip content={item.badgeTooltipKey ? t(item.badgeTooltipKey) : undefined} asChild>
+                            <Tooltip
+                              content={item.badgeTooltipKey ? t(item.badgeTooltipKey) : undefined}
+                              delay={item.route === '/settings/local-agents' ? 800 : undefined}
+                              asChild>
                               <Badge
                                 variant="secondary"
                                 className="px-1.5 py-0 font-normal text-xs text-muted-foreground">

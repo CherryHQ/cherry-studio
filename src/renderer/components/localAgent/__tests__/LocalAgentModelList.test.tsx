@@ -64,9 +64,15 @@ describe('local agent model search', () => {
     render(
       <TestModelList
         models={[
-          { id: 'openai/native', name: 'Native model', source: 'native', group: 'OpenAI' },
+          {
+            id: 'openai/native',
+            name: 'Native model',
+            description: 'Official model description',
+            source: 'native',
+            group: 'OpenAI'
+          },
           { id: 'anthropic/native', name: 'Other native model', source: 'native' },
-          { id: 'gateway', name: 'Gateway model', source: 'gateway', group: 'OpenAI' }
+          { id: 'gateway', name: 'Gateway model', description: 'Gateway details', source: 'gateway', group: 'OpenAI' }
         ]}
         sourceRestrictions={{ native: 'Default switching unavailable' }}
         followCliLabel="默认模型"
@@ -83,6 +89,10 @@ describe('local agent model search', () => {
     expect(screen.getByRole('button', { name: 'Other native model' })).toBeDisabled()
     const gateway = screen.getByRole('button', { name: 'Gateway model' })
     expect(gateway).toBeEnabled()
+    await user.hover(gateway)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    fireEvent.pointerMove(screen.getByRole('button', { name: 'Native model' }))
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(/^Default switching unavailable$/)
 
     await user.click(screen.getByRole('button', { name: '官方订阅' }))
     expect(screen.queryByRole('button', { name: 'Native model' })).not.toBeInTheDocument()

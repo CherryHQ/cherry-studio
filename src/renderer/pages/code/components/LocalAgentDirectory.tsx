@@ -455,11 +455,11 @@ export function LocalAgentDirectory({
                           <span className="min-w-0 truncate text-sm leading-[1.35] text-foreground">{e.name}</span>
                         </span>
                         {unavailable ? (
-                          <span
-                            className="ml-1 max-w-[45%] shrink-0 truncate text-xs font-normal text-foreground-tertiary"
-                            title={status}>
-                            {status}
-                          </span>
+                          <Tooltip content={status} asChild>
+                            <span className="ml-1 max-w-[45%] shrink-0 truncate text-xs font-normal text-foreground-tertiary">
+                              {status}
+                            </span>
+                          </Tooltip>
                         ) : (
                           enabled &&
                           !hasMenu && (
@@ -1000,6 +1000,9 @@ export function LocalAgentDetails({
   }
   const feedbackMessage = result.message
   const classifiedError = feedbackMessage ? classifyLocalAgentError(feedbackMessage) : undefined
+  const executablePath = initial.executableOverride ?? detectedPath ?? preset?.executable ?? ''
+  const pathCharacters = Array.from(executablePath)
+  const pathMiddle = Math.ceil(pathCharacters.length / 2)
   const needsAuthentication = !result.ok && classifiedError?.kind === 'authentication'
   const feedback = feedbackMessage && (
     <div
@@ -1109,22 +1112,9 @@ export function LocalAgentDetails({
         </div>
         <ScrollArea
           className="min-h-0 flex-1"
+          contentProps={{ className: 'flex min-h-full flex-col' }}
           viewportProps={{ ref: setScrollElement, className: modelSettingsDetailClasses.scrollViewport }}>
-          <div className={modelSettingsDetailClasses.sectionStack}>
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border-subtle bg-muted/30 px-3.5 py-2 text-xs text-muted-foreground">
-              <div className="flex min-w-0 items-center gap-2">
-                <Info className="lucide-custom size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                <span className="min-w-0">{t('local_agents.beta_banner')}</span>
-              </div>
-              <a
-                href={LOCAL_AGENTS_FEEDBACK_ISSUE_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex shrink-0 items-center gap-1 font-normal text-link underline-offset-2 hover:underline focus-visible:underline">
-                {t('local_agents.beta_banner_link')}
-                <ExternalLink className="lucide-custom size-3" aria-hidden />
-              </a>
-            </div>
+          <div className={cn(modelSettingsDetailClasses.sectionStack, 'flex-1')}>
             <div className="flex flex-wrap items-center gap-2">
               {(sdk || initial.executableOverride || detectedPath || preset?.executable) && (
                 <InputGroup
@@ -1142,16 +1132,23 @@ export function LocalAgentDetails({
                   {sdk ? (
                     <span className="min-w-0 flex-1 truncate px-2.5 font-mono text-xs">@cursor/sdk</span>
                   ) : (
-                    <Button
-                      variant="ghost"
-                      disabled={busy}
-                      onClick={openEditor}
-                      aria-label={t('local_agents.installation_location')}
-                      className="h-full min-w-0 flex-1 justify-start rounded-lg px-2.5 text-left font-normal hover:bg-transparent">
-                      <span dir="rtl" className="min-w-0 truncate text-left font-mono text-xs text-foreground">
-                        <bdi dir="ltr">{initial.executableOverride ?? detectedPath ?? preset?.executable}</bdi>
-                      </span>
-                    </Button>
+                    <Tooltip content={executablePath} asChild>
+                      <Button
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={openEditor}
+                        aria-label={t('local_agents.installation_location')}
+                        className="h-full min-w-0 flex-1 justify-start rounded-lg px-2.5 text-left font-normal hover:bg-transparent">
+                        <span dir="ltr" className="flex min-w-0 font-mono text-xs text-foreground">
+                          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-pre">
+                            {pathCharacters.slice(0, pathMiddle).join('')}
+                          </span>
+                          <span dir="rtl" className="min-w-0 overflow-hidden whitespace-pre">
+                            <bdi dir="ltr">{pathCharacters.slice(pathMiddle).join('')}</bdi>
+                          </span>
+                        </span>
+                      </Button>
+                    </Tooltip>
                   )}
                   <InputGroupAddon align="inline-end" className="shrink-0 gap-1 py-0 pr-1">
                     <span
@@ -1320,6 +1317,20 @@ export function LocalAgentDetails({
                 />
               )
             )}
+            <footer className="mt-auto flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-border-subtle bg-muted/30 px-3.5 py-2 text-xs text-muted-foreground">
+              <div className="flex min-w-0 items-center gap-2">
+                <Info className="lucide-custom size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="min-w-0">{t('local_agents.beta_banner')}</span>
+              </div>
+              <a
+                href={LOCAL_AGENTS_FEEDBACK_ISSUE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex shrink-0 items-center gap-1 font-normal text-link underline-offset-2 hover:underline focus-visible:underline">
+                {t('local_agents.beta_banner_link')}
+                <ExternalLink className="lucide-custom size-3" aria-hidden />
+              </a>
+            </footer>
           </div>
         </ScrollArea>
       </div>

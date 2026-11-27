@@ -230,7 +230,7 @@ export function LocalAgentModelList({
             const checked = value === model?.id
             return (
               <div className={cn(styles.virtualModelRow, row.last && styles.virtualModelRowLast)}>
-                <Tooltip content={details} fullWidthTrigger>
+                <Tooltip content={restriction} fullWidthTrigger>
                   <Button
                     variant="ghost"
                     className={cn(
@@ -243,15 +243,11 @@ export function LocalAgentModelList({
                     disabled={disabled || !!restriction}
                     onClick={() => void onSelect(model?.id)}>
                     <LocalAgentModelAvatar model={model} presetId={presetId} size={26} className={styles.rowAvatar} />
-                    <span
-                      className={cn(styles.rowLabel, 'min-w-0 flex-1 truncate text-left')}
-                      title={model?.description ? undefined : label}>
-                      {label}
-                    </span>
+                    <span className={cn(styles.rowLabel, 'min-w-0 flex-1 truncate text-left')}>{label}</span>
                     {rowTags.length > 0 && (
                       <div className="flex shrink-0 items-center gap-0.5 [&_svg]:size-3!">
                         {rowTags.map((tag) => (
-                          <ModelTag key={tag} tag={tag} size={12} showLabel={false} showTooltip />
+                          <ModelTag key={tag} tag={tag} size={12} showLabel={false} />
                         ))}
                       </div>
                     )}

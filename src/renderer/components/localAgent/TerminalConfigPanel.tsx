@@ -96,9 +96,9 @@ export const TerminalConfigPanel: FC<TerminalConfigPanelProps> = ({
                         onSelectDirectory?.(path)
                         setHistoryOpen(false)
                       }}>
-                      <span className="min-w-0 flex-1 truncate text-left" title={path}>
-                        {path}
-                      </span>
+                      <Tooltip content={path} asChild>
+                        <span className="min-w-0 flex-1 truncate text-left">{path}</span>
+                      </Tooltip>
                     </Button>
                     <Tooltip content={t('code.directory_history.remove')}>
                       <Button

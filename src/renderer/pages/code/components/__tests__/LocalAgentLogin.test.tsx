@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -605,7 +605,7 @@ describe('external authentication', () => {
     fireEvent(window, new Event('focus'))
 
     await userEvent.click(await screen.findByRole('button', { name: '已登录' }))
-    expect(screen.getByText('current@example.test')).toBeVisible()
+    expect(within(screen.getByRole('menu')).getByText('current@example.test')).toBeVisible()
   })
 
   it('ignores a late status response for a different program', async () => {

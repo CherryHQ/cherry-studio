@@ -32,7 +32,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
   Input,
-  Label
+  Label,
+  Tooltip
 } from '@cherrystudio/ui'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -491,30 +492,31 @@ export function LocalAgentLogin({
     <>
       {signedIn ? (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 shrink-0 gap-1.5 rounded-lg border-border-subtle text-xs shadow-none"
-              title={accountLabel}
-              disabled={disabled || busy}>
-              <CheckCircle2 className="size-3.5 text-muted-foreground" />
-              {t('local_agents.signed_in')}
-              <ChevronDown className="size-3.5 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
+          <Tooltip content={accountLabel} asChild>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 gap-1.5 rounded-lg border-border-subtle text-xs shadow-none"
+                disabled={disabled || busy}>
+                <CheckCircle2 className="size-3.5 text-muted-foreground" />
+                {t('local_agents.signed_in')}
+                <ChevronDown className="size-3.5 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+          </Tooltip>
           <DropdownMenuContent align="end">
             {(accountLabel || identity?.workspace?.name) && (
               <DropdownMenuLabel className="max-w-72">
                 {accountLabel && (
-                  <div className="truncate" title={accountLabel}>
-                    {accountLabel}
-                  </div>
+                  <Tooltip content={accountLabel} asChild>
+                    <div className="truncate">{accountLabel}</div>
+                  </Tooltip>
                 )}
                 {identity?.workspace?.name && (
-                  <div className="truncate text-xs text-muted-foreground" title={identity.workspace.name}>
-                    {identity.workspace.name}
-                  </div>
+                  <Tooltip content={identity.workspace.name} asChild>
+                    <div className="truncate text-xs text-muted-foreground">{identity.workspace.name}</div>
+                  </Tooltip>
                 )}
               </DropdownMenuLabel>
             )}
