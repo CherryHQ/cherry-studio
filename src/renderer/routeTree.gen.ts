@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AppAgentsRouteImport } from './routes/app/agents'
+import { Route as AppApiGatewayRouteImport } from './routes/app/api-gateway'
 import { Route as AppBrowserRouteImport } from './routes/app/browser'
 import { Route as AppChatRouteImport } from './routes/app/chat'
 import { Route as AppCodeRouteImport } from './routes/app/code'
@@ -88,6 +89,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const AppAgentsRoute = AppAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppApiGatewayRoute = AppApiGatewayRouteImport.update({
+  id: '/api-gateway',
+  path: '/api-gateway',
   getParentRoute: () => AppRoute,
 } as any)
 const AppBrowserRoute = AppBrowserRouteImport.update({
@@ -410,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
+  '/app/api-gateway': typeof AppApiGatewayRoute
   '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
@@ -476,6 +483,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/app': typeof AppRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
+  '/app/api-gateway': typeof AppApiGatewayRoute
   '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
@@ -541,6 +549,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
+  '/app/api-gateway': typeof AppApiGatewayRoute
   '/app/browser': typeof AppBrowserRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
@@ -610,6 +619,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/settings'
     | '/app/agents'
+    | '/app/api-gateway'
     | '/app/browser'
     | '/app/chat'
     | '/app/code'
@@ -676,6 +686,7 @@ export interface FileRouteTypes {
   to:
     | '/app'
     | '/app/agents'
+    | '/app/api-gateway'
     | '/app/browser'
     | '/app/chat'
     | '/app/code'
@@ -740,6 +751,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/settings'
     | '/app/agents'
+    | '/app/api-gateway'
     | '/app/browser'
     | '/app/chat'
     | '/app/code'
@@ -830,6 +842,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/app/agents'
       preLoaderRoute: typeof AppAgentsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/api-gateway': {
+      id: '/app/api-gateway'
+      path: '/api-gateway'
+      fullPath: '/app/api-gateway'
+      preLoaderRoute: typeof AppApiGatewayRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/browser': {
@@ -1271,6 +1290,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRoute
+  AppApiGatewayRoute: typeof AppApiGatewayRoute
   AppBrowserRoute: typeof AppBrowserRoute
   AppChatRoute: typeof AppChatRoute
   AppCodeRoute: typeof AppCodeRoute
@@ -1291,6 +1311,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRoute,
+  AppApiGatewayRoute: AppApiGatewayRoute,
   AppBrowserRoute: AppBrowserRoute,
   AppChatRoute: AppChatRoute,
   AppCodeRoute: AppCodeRoute,

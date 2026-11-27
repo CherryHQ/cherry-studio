@@ -103,7 +103,8 @@ const SIDEBAR_APP_DEFINITIONS = [
   {
     id: 'notes',
     routePrefix: '/app/notes'
-  }
+  },
+  { id: 'api_gateway', routePrefix: '/app/api-gateway' }
 ] as const satisfies readonly SidebarAppDefinition[]
 
 export type SidebarAppId = (typeof SIDEBAR_APP_DEFINITIONS)[number]['id']

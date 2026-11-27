@@ -92,7 +92,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
     apply: async ({ desired, actual }) => {
       if (!desired) await this.deactivate()
       else if (!actual) await this.activate()
-      else {
+      else if (!this.isRunning()) {
+        await this.deactivate()
+        await this.activate()
+      } else {
         await this.lanMutex.runExclusive(async () => {
           const host = this.listeningHost()
           if (host === '127.0.0.1') application.get('RemoteAccessService').closeIngress()
@@ -194,6 +197,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       .updateDirectEndpoint(remoteReady ? { port: endpoint.port, ipv6: endpoint.hosts.includes('::') } : undefined)
     try {
       const cache = application.get('CacheService')
+      cache.setShared('feature.api_gateway.endpoint', host && endpoint ? { host, port: endpoint.port } : null)
       cache.setShared('feature.api_gateway.running', running)
       cache.setShared('feature.api_gateway.lan_running', remoteReady)
     } catch (error) {
@@ -203,7 +207,11 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   private listeningHost(): string {
     const config = this.getCurrentConfig()
-    return config.enabled && config.host === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1'
+    return config.enabled && (config.host === '0.0.0.0' || this.isLanHttpEnabled()) ? '0.0.0.0' : '127.0.0.1'
+  }
+
+  private isLanHttpEnabled(): boolean {
+    return application.get('PreferenceService').get('feature.api_gateway.lan_http_enabled') === true
   }
 
   /**
@@ -308,7 +316,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     })
     this.reconciler.request()
     await this.reconciler.flush()
-    const target = enabled ? '0.0.0.0' : '127.0.0.1'
+    const target = this.listeningHost()
     if (
       (enabled && !this.getCurrentConfig().enabled) ||
       (this.isActivated ? this.apiGateway?.getHost() !== target : enabled)
@@ -324,6 +332,44 @@ export class ApiGatewayService extends BaseService implements Activatable {
       }
       throw error
     }
+    this.publishRunningState(this.isRunning())
+  }
+
+  async setLanHttpEnabled(enabled: boolean): Promise<void> {
+    const preferences = application.get('PreferenceService')
+    await this.lanMutex.runExclusive(async () => {
+      if (enabled) {
+        if (!this.getCurrentConfig().enabled || !this.isRunning()) {
+          throw new Error('API Gateway is not running')
+        }
+        await this.ensureValidApiKey()
+        if (!this.getCurrentConfig().enabled) throw new Error('API Gateway was stopped')
+      }
+      await preferences.set('feature.api_gateway.lan_http_enabled', enabled)
+    })
+    this.reconciler.request()
+    await this.reconciler.flush()
+    if (this.isLanHttpEnabled() !== enabled) return
+    if (this.getCurrentConfig().enabled && (!this.isRunning() || this.apiGateway?.getHost() !== this.listeningHost())) {
+      const error = this.failureError('Failed to change network access')
+      if (enabled) {
+        await this.lanMutex.runExclusive(async () => {
+          await preferences.set('feature.api_gateway.lan_http_enabled', false)
+        })
+        this.reconciler.request()
+        await this.reconciler.flush()
+      }
+      throw error
+    }
+  }
+
+  async getLanHttpAddresses(): Promise<string[]> {
+    const metadata = await getInterfaceMetadata()
+    if (!this.isLanHttpEnabled() || !this.apiGateway?.isRunning() || this.apiGateway.getHost() !== '0.0.0.0') return []
+    const port = this.apiGateway.getPort()
+    return getRemoteAddressOptions(networkInterfaces(), metadata, this.apiGateway.getHosts().includes('::')).map(
+      ({ address }) => gatewayClientOrigin(address, port)
+    )
   }
 
   private async closeRemoteAccess(): Promise<void> {
