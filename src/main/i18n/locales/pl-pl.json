@@ -44,6 +44,7 @@
   "agent.config_tool.value.none": "Brak",
   "agent.config_tool.value.uploaded_image": "Przesłany obraz",
   "agent.import.missing_file": "Brak załącznika w eksporcie: {{name}}",
+  "agent.import.skipped_file": "[{{name}}] (file not imported in chat-area v1)",
   "agent.session.claude.runtime_unavailable": "Agent Claude nie jest gotowy. Poczekaj na zakończenie pobierania lub spróbuj ponownie.",
   "agent.session.fork.execution_not_inherited": "Wykonywanie nie zostało odziedziczone przez to odgałęzienie sesji.",
   "agent.session.new": "Nowe zadanie",

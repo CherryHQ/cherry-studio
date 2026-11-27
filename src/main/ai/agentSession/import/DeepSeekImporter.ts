@@ -30,7 +30,9 @@ export class DeepSeekImporter implements ConversationImporter {
         const messages: ImportMessageNode[] = []
         for (const message of source.messages) {
           context.signal.throwIfAborted()
-          const content = await deepseekContent(message, archive.read, context.files, context.saveFile)
+          const content = await deepseekContent(message, archive.read, context.files, context.saveFile, {
+            attachments: context.attachments
+          })
           messages.push({
             sourceId: String(message.id),
             parentSourceId: message.parent_id === null ? null : String(message.parent_id),

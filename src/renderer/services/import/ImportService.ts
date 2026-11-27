@@ -166,6 +166,71 @@ class ImportService {
   }
 
   /**
+   * Import a DeepSeek export ZIP into the chat area. The native ZIP picker
+   * and parsing run in the main process (reusing the agent import pipeline);
+   * persistence reuses the regular topic-tree import path, preserving native
+   * thinking parts.
+   */
+  async importDeepseekChatArchive(onProgress?: ImportProgressCallback): Promise<ImportResponse> {
+    try {
+      logger.info('Starting DeepSeek chat import...')
+      onProgress?.(5)
+
+      const conversations = await ipcApi.request('ai.agent.import.parse_for_chat', {})
+      if (!conversations.length) {
+        // User cancelled the file picker
+        return { success: false, topicsCount: 0, messagesCount: 0, error: 'No file selected' }
+      }
+      onProgress?.(10)
+
+      const result: ImportResult = {
+        conversations: conversations.map((conversation) => ({
+          name: conversation.name,
+          activeSourceId: conversation.activeSourceId ?? undefined,
+          messages: conversation.messages.map((message) => ({
+            sourceId: message.sourceId,
+            ...(message.parentSourceId ? { parentSourceId: message.parentSourceId } : {}),
+            role: message.role,
+            parts: message.parts as ImportMessageNode['parts'],
+            ...(message.model ? { model: message.model } : {})
+          }))
+        }))
+      }
+
+      const dto: CreateAssistantDto = { name: 'DeepSeek Import', emoji: '🐋' }
+      const assistant = await dataApiService.post('/assistants', { body: dto })
+      onProgress?.(20)
+
+      const createdTopicIds: string[] = []
+      try {
+        const messagesCount = await this.persistImport(result, assistant, onProgress, createdTopicIds)
+        onProgress?.(100)
+
+        logger.info(`DeepSeek chat import completed: ${result.conversations.length} topics, ${messagesCount} messages`)
+
+        return {
+          success: true,
+          assistant,
+          topicsCount: result.conversations.length,
+          messagesCount
+        }
+      } catch (persistError) {
+        await this.rollbackCreatedAssistant(assistant.id, createdTopicIds, persistError)
+        throw persistError
+      }
+    } catch (error) {
+      logger.error('DeepSeek chat import failed:', error as Error)
+      return {
+        success: false,
+        topicsCount: 0,
+        messagesCount: 0,
+        error:
+          error instanceof Error ? error.message : i18n.t('import.error.unknown', { defaultValue: 'Unknown error' })
+      }
+    }
+  }
+
+  /**
    * A failure after the assistant row exists must not leave it behind. Only
    * data this import created is removed: the created topics are hard-deleted by
    * id first, then the assistant itself — a bulk `deleteTopics: true` would

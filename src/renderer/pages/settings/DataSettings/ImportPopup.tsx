@@ -14,7 +14,7 @@ interface PopupResult {
   success?: boolean
 }
 
-type ImportSource = 'chatgpt' | 'claude'
+type ImportSource = 'chatgpt' | 'claude' | 'deepseek'
 
 interface OwnProps {
   source: ImportSource
@@ -54,6 +54,22 @@ const IMPORT_CONFIG = {
       title: 'import.claude.title',
       unknownError: 'import.claude.error.unknown'
     }
+  },
+  deepseek: {
+    loggerName: 'DeepSeek',
+    translations: {
+      button: 'import.deepseek.button',
+      description: 'import.deepseek.description',
+      helpStep1: 'import.deepseek.help.step1',
+      helpStep2: 'import.deepseek.help.step2',
+      helpStep3: 'import.deepseek.help.step3',
+      helpTitle: 'import.deepseek.help.title',
+      importing: 'import.deepseek.importing',
+      selecting: 'import.deepseek.selecting',
+      success: 'import.deepseek.success',
+      title: 'import.deepseek.title',
+      unknownError: 'import.deepseek.error.unknown'
+    }
   }
 } as const
 
@@ -67,6 +83,35 @@ const PopupContainer: React.FC<Props> = ({ open, resolve, source }) => {
   const translations = config.translations
 
   const onOk = async () => {
+    if (source === 'deepseek') {
+      // ZIP picking + parsing happen in the main process
+      setImporting(true)
+      setImportProgress(0)
+      try {
+        const result = await importService.importDeepseekChatArchive(setImportProgress)
+        if (result.success) {
+          await invalidate(['/assistants', '/topics'])
+          toast.success(
+            t(translations.success, {
+              topics: result.topicsCount,
+              messages: result.messagesCount
+            })
+          )
+          resolve({})
+        } else {
+          toast.error(result.error || t(translations.unknownError))
+        }
+      } catch (error) {
+        logger.error('DeepSeek import failed:', error as Error)
+        toast.error(t(translations.unknownError))
+        resolve({})
+      } finally {
+        setImporting(false)
+        setImportProgress(0)
+      }
+      return
+    }
+
     setSelecting(true)
     try {
       // Select conversation JSON file

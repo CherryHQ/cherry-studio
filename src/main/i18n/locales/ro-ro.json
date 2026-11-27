@@ -44,6 +44,7 @@
   "agent.config_tool.value.none": "Nimic",
   "agent.config_tool.value.uploaded_image": "Imagine încărcată",
   "agent.import.missing_file": "Atașament indisponibil în export: {{name}}",
+  "agent.import.skipped_file": "[{{name}}] (file not imported in chat-area v1)",
   "agent.session.claude.runtime_unavailable": "Claude Agent nu este încă pregătit. Așteptați finalizarea descărcării sau încercați din nou.",
   "agent.session.fork.execution_not_inherited": "Execuția nu a fost preluată în această ramificare a sesiunii.",
   "agent.session.new": "Sarcină nouă",

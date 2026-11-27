@@ -16,6 +16,7 @@ import { createBuiltinAssistantSession } from '@main/ai/agents/createBuiltinAssi
 import { createBuiltinSkillSession } from '@main/ai/agents/createBuiltinSkillSession'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { childTimelines } from '@main/ai/agentSession/childTimelines'
+import { parseDeepseekArchiveForChat } from '@main/ai/agentSession/import/deepseekChatParse'
 import { readToolResult } from '@main/ai/messages/toolResultRead'
 import { generateProfileStarters } from '@main/ai/profileStarters'
 import { AgentSessionForkError } from '@main/ai/runtime/fork'
@@ -130,7 +131,14 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.import.status': async () => application.get('AgentImportService').status(),
   'ai.agent.import.start': async ({ id }) => application.get('AgentImportService').start(id),
   'ai.agent.import.cancel': async ({ id }) => application.get('AgentImportService').cancel(id),
-
+  'ai.agent.import.parse_for_chat': async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'DeepSeek', extensions: ['zip'] }]
+    })
+    if (result.canceled || !result.filePaths[0]) return []
+    return parseDeepseekArchiveForChat(result.filePaths[0])
+  },
   'ai.projection.attach': ({ target, subscriptionId }, { senderId }) => {
     const sender = senderWebContents(senderId)
     if (!sender || senderId === null) throw new Error('Projection subscription requires a window')
