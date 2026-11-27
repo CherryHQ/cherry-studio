@@ -61,9 +61,8 @@ export class AgentGlobalSkillService {
    *
    * Without an agent, every installed skill is returned for the global
    * settings catalog and `isEnabled` is false. With `query.agentId`, globally
-   * disabled skills are excluded from the Agent capability catalog. Globally
-   * enabled skills are enabled for every Agent by default until that Agent has
-   * an explicit `agent_skill` override.
+   * disabled skills are excluded. The Agent's override takes precedence over
+   * inheritance, which requires active status.
    */
   list(query: ListSkillsQuery = {}): InstalledSkill[] {
     const conditions: SQL[] = []
@@ -97,7 +96,7 @@ export class AgentGlobalSkillService {
     const enabledMap = this.loadEnabledMap(query.agentId)
     return skills.map((s) => ({
       ...s,
-      isEnabled: enabledMap.get(s.id) ?? s.isGlobalEnabled
+      isEnabled: enabledMap.get(s.id) ?? s.activationState === 'active'
     }))
   }
 
@@ -128,7 +127,7 @@ export class AgentGlobalSkillService {
   updateGlobalEnabled(id: string, isGlobalEnabled: boolean): InstalledSkill | null {
     const [updated] = this.db
       .update(agentGlobalSkillTable)
-      .set({ isEnabled: isGlobalEnabled })
+      .set({ isEnabled: isGlobalEnabled, activationState: 'active' })
       .where(eq(agentGlobalSkillTable.id, id))
       .returning()
       .all()
@@ -198,11 +197,21 @@ export class AgentGlobalSkillService {
     return rows
   }
 
-  upsertJoin(agentId: string, skillId: string, isEnabled: boolean): void {
-    this.upsertJoinTx(application.get('DbService').getDb(), agentId, skillId, isEnabled)
+  upsertJoin(agentId: string, skillId: string, isEnabled: boolean): boolean {
+    return application.get('DbService').withWriteTx((tx) => this.upsertJoinTx(tx, agentId, skillId, isEnabled))
   }
 
-  upsertJoinTx(tx: DbOrTx, agentId: string, skillId: string, isEnabled: boolean): void {
+  /** Returns whether the requested binding is allowed. Pending skills retain existing opt-ins. */
+  upsertJoinTx(tx: DbOrTx, agentId: string, skillId: string, isEnabled: boolean): boolean {
+    if (isEnabled && this.getByIdTx(tx, skillId)?.activationState === 'pending') {
+      const binding = tx
+        .select({ isEnabled: agentSkillTable.isEnabled })
+        .from(agentSkillTable)
+        .where(and(eq(agentSkillTable.agentId, agentId), eq(agentSkillTable.skillId, skillId)))
+        .get()
+      return binding?.isEnabled === true
+    }
+
     tx.insert(agentSkillTable)
       .values({ agentId, skillId, isEnabled })
       .onConflictDoUpdate({
@@ -210,6 +219,7 @@ export class AgentGlobalSkillService {
         set: { isEnabled }
       })
       .run()
+    return true
   }
 
   applyCreateSelectionTx(
@@ -363,6 +373,7 @@ export class AgentGlobalSkillService {
       sourceTags: row.tags,
       contentHash: row.contentHash,
       isGlobalEnabled: row.isEnabled,
+      activationState: row.activationState,
       mirrorEnabled: row.mirrorEnabled,
       isEnabled: false,
       createdAt: timestampToISO(row.createdAt),

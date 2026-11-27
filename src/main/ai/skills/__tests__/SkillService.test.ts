@@ -28,7 +28,7 @@ import type * as ProcessRunnerModule from '@main/utils/processRunner'
 import { CommandOutputLimitError } from '@main/utils/processRunner'
 import * as remoteFetch from '@main/utils/remoteFetch'
 import type * as ShellEnvModule from '@main/utils/shellEnv'
-import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
+import { InstalledSkillSchema, SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
 
@@ -131,15 +131,31 @@ describe('SkillService', () => {
     vi.mocked(skillArchive.resolveSkillDirectory).mockReset()
   })
 
-  async function seedAgent() {
+  async function seedAgent(id = AGENT_ID) {
     await dbh.db.insert(agentTable).values({
-      id: AGENT_ID,
+      id,
       type: 'claude-code',
       name: 'Test Agent',
       instructions: 'You are a helpful assistant.',
       model: null,
       orderKey: 'a0'
     })
+  }
+
+  function seedPendingSkill() {
+    dbh.db
+      .insert(agentGlobalSkillTable)
+      .values({
+        id: 'adopted-skill',
+        name: 'Adopted Skill',
+        folderName: 'adopted-skill',
+        source: 'local',
+        sourceUrl: null,
+        contentHash: 'adopted',
+        isEnabled: true,
+        activationState: 'pending'
+      })
+      .run()
   }
 
   async function seedSkills() {
@@ -778,6 +794,7 @@ describe('SkillService', () => {
         name: 'local-skill',
         folderName: 'local-skill',
         source: 'local',
+        sourceUrl: 'file:///import/local-skill',
         contentHash: 'abc123',
         isEnabled: true
       })
@@ -785,6 +802,49 @@ describe('SkillService', () => {
       await expect(skillService.list({ agentId: AGENT_ID })).resolves.toMatchObject([
         { id: SKILL_ID_1, isEnabled: true }
       ])
+    })
+
+    it('requires confirmation for pending inheritance and preserves recorded overrides', async () => {
+      const skillService = new SkillService()
+      await seedAgent()
+      await seedAgent('enabled-agent')
+      await seedAgent('disabled-agent')
+      await seedSkills()
+      seedPendingSkill()
+      dbh.db
+        .insert(agentSkillTable)
+        .values([
+          { agentId: 'enabled-agent', skillId: 'adopted-skill', isEnabled: true },
+          { agentId: 'disabled-agent', skillId: 'adopted-skill', isEnabled: false }
+        ])
+        .run()
+      const bindings = dbh.db.select().from(agentSkillTable).all()
+      const agentIds = [AGENT_ID, 'enabled-agent', 'disabled-agent']
+      const adoptedFor = async (agentId: string) =>
+        (await skillService.list({ agentId })).find((skill) => skill.id === 'adopted-skill')?.isEnabled
+      const patchGlobal = (isGlobalEnabled: boolean) =>
+        dataSkillHandlers['/skills/:skillId'].PATCH({
+          params: { skillId: 'adopted-skill' },
+          body: { isGlobalEnabled }
+        })
+
+      expect(await Promise.all(agentIds.map(adoptedFor))).toEqual([false, true, false])
+      const unbound = await skillService.list({ agentId: AGENT_ID })
+      expect(unbound).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: SKILL_ID_1, isEnabled: true }),
+          expect.objectContaining({ id: SKILL_ID_BUILTIN, isEnabled: true })
+        ])
+      )
+      expect(InstalledSkillSchema.parse(unbound.find((skill) => skill.id === 'adopted-skill')).activationState).toBe(
+        'pending'
+      )
+
+      await expect(patchGlobal(true)).resolves.toMatchObject({ activationState: 'active', isGlobalEnabled: true })
+      expect(await Promise.all(agentIds.map(adoptedFor))).toEqual([true, true, false])
+      await patchGlobal(false)
+      expect(await Promise.all(agentIds.map(adoptedFor))).toEqual([undefined, undefined, undefined])
+      expect(dbh.db.select().from(agentSkillTable).all()).toEqual(bindings)
     })
 
     it('hides a globally disabled local skill and preserves its per-agent opt-out when re-enabled', async () => {
@@ -1264,6 +1324,16 @@ describe('SkillService', () => {
       expect(result).toMatchObject({ id: SKILL_ID_1, isEnabled: true })
       const [row] = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))
       expect(row?.isEnabled).toBe(true)
+    })
+
+    it('does not create an enabling binding for an unconfirmed skill', async () => {
+      await seedAgent()
+      seedPendingSkill()
+
+      const result = skillService.toggle({ agentId: AGENT_ID, skillId: 'adopted-skill', isEnabled: true })
+
+      expect(result?.isEnabled).toBe(false)
+      expect(agentGlobalSkillService.listJoinByAgent(AGENT_ID)).toEqual([])
     })
 
     it('updates existing agent_skill row when toggling off', async () => {
@@ -2893,6 +2963,22 @@ describe('SkillService', () => {
       ])
     })
 
+    it('activates a pending legacy skill when explicitly reimported from the library', async () => {
+      await seedAgent()
+      seedPendingSkill()
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('adopted-skill'))
+      const library = await writeLibrarySkill('adopted-skill')
+
+      await expect(skillService.installFromDirectory({ directoryPath: library })).resolves.toMatchObject({
+        id: 'adopted-skill',
+        activationState: 'active',
+        isGlobalEnabled: true
+      })
+      await expect(skillService.list({ agentId: AGENT_ID })).resolves.toMatchObject([
+        { id: 'adopted-skill', isEnabled: true }
+      ])
+    })
+
     it('rejects in-place reimport when only the folded catalog folder name matches', async () => {
       const library = await writeLibrarySkill('.cafe\u0301')
       const folderName = path.basename(await fs.promises.realpath(library))
@@ -3413,7 +3499,13 @@ describe('SkillService', () => {
 
       await expect(skillService.list({ agentId: AGENT_ID })).resolves.toEqual([])
       const [adopted] = await skillService.list()
-      expect(adopted).toMatchObject({ source: 'local', name: 'New Skill', version: '3.0.0', isGlobalEnabled: false })
+      expect(adopted).toMatchObject({
+        source: 'local',
+        name: 'New Skill',
+        version: '3.0.0',
+        isGlobalEnabled: false,
+        activationState: 'pending'
+      })
 
       agentGlobalSkillService.updateGlobalEnabled(adopted.id, true)
       await skillService.reconcileSkills()
@@ -3422,6 +3514,37 @@ describe('SkillService', () => {
       ])
       await expect(fs.promises.access(path.join(authored, 'SKILL.md'))).resolves.toBeUndefined()
       expect((await fs.promises.lstat(path.join(mirrorRoot, 'new-skill'))).isSymbolicLink()).toBe(!isWin)
+    })
+
+    it('preserves pending and confirmed states through repeated library reconciliation and metadata refresh', async () => {
+      await seedAgent()
+      seedPendingSkill()
+      const descriptor = (description: string) => `---\nname: adopted-skill\ndescription: ${description}\n---\n# Skill`
+      const library = await writeLibrarySkill('adopted-skill', descriptor('Legacy description'))
+      const parser = await vi.importActual<typeof MarkdownParserModule>('@main/utils/markdownParser')
+      const list = () => skillService.list({ agentId: AGENT_ID })
+      vi.mocked(parseSkillMetadata).mockImplementation(parser.parseSkillMetadata)
+      try {
+        await skillService.reconcileSkills()
+        await skillService.reconcileSkills()
+        await expect(list()).resolves.toMatchObject([
+          { id: 'adopted-skill', description: 'Legacy description', isEnabled: false, activationState: 'pending' }
+        ])
+
+        agentGlobalSkillService.updateGlobalEnabled('adopted-skill', true)
+        await fs.promises.writeFile(path.join(library, 'SKILL.md'), descriptor('Updated description'))
+        await skillService.reconcileSkills()
+        await expect(list()).resolves.toMatchObject([
+          { id: 'adopted-skill', description: 'Updated description', isEnabled: true, activationState: 'active' }
+        ])
+        await fs.promises.writeFile(path.join(library, 'SKILL.md'), descriptor('Scoped refresh'))
+        await skillService.reconcileSkill('adopted-skill')
+        await expect(list()).resolves.toMatchObject([
+          { id: 'adopted-skill', description: 'Scoped refresh', isEnabled: true, activationState: 'active' }
+        ])
+      } finally {
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
     })
 
     it('treats different local directories as different install origins', async () => {

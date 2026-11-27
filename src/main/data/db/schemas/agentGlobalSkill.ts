@@ -21,6 +21,9 @@ export const agentGlobalSkillTable = sqliteTable(
       .default(sql`'[]'`),
     contentHash: text().notNull(),
     isEnabled: integer({ mode: 'boolean' }).notNull().default(false),
+    activationState: text({ enum: ['pending', 'active'] })
+      .notNull()
+      .default('active'),
     mirrorEnabled: integer({ mode: 'boolean' }).notNull().default(true),
     ...createUpdateTimestamps
   },

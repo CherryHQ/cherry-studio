@@ -84,7 +84,7 @@ export function SkillsSettings() {
   const filterResource = useCallback(
     (resource: ResourceItem) =>
       resource.type === 'skill' &&
-      (!enabledOnly || resource.raw.isGlobalEnabled) &&
+      (!enabledOnly || (resource.raw.isGlobalEnabled && resource.raw.activationState === 'active')) &&
       (scope === 'all' || resource.raw.scope === scope),
     [enabledOnly, scope]
   )

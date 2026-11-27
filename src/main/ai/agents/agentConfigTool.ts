@@ -146,10 +146,15 @@ function resolvePermissionMode(mode: AgentPermissionMode, agentType: AgentType):
   return mode
 }
 
-function listSkillCatalog(): CatalogItem[] {
+function listSkillCatalog(current: readonly string[]): CatalogItem[] {
   return agentGlobalSkillService
     .listAll()
-    .filter((skill) => skill.source !== 'builtin' && skill.isGlobalEnabled)
+    .filter(
+      (skill) =>
+        skill.source !== 'builtin' &&
+        skill.isGlobalEnabled &&
+        (skill.activationState === 'active' || current.includes(skill.id))
+    )
     .map(({ id, name }) => ({ id, name }))
 }
 
@@ -204,7 +209,7 @@ function applySettingsInput(
   if (input.permissionMode !== undefined) patch.permissionMode = resolvePermissionMode(input.permissionMode, agentType)
   if (input.skillIds !== undefined) {
     requireCapability(caps.skills, 'skillIds', agentType)
-    assertKnownIds('skill', input.skillIds, listSkillCatalog())
+    assertKnownIds('skill', input.skillIds, listSkillCatalog(base.skillIds))
     const builtinSkillIds = new Set(
       agentGlobalSkillService
         .listAll()

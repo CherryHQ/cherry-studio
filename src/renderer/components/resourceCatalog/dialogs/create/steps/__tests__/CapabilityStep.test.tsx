@@ -23,11 +23,7 @@ const { importSkillDialogState, installedSkillsState, marketplaceDialogState, sy
       }
     },
     installedSkillsState: {
-      skills: [
-        { id: 'skill-a', name: 'Alpha Skill', source: 'system', isGlobalEnabled: true },
-        { id: 'skill-b', name: 'Beta Skill', source: 'local', isGlobalEnabled: true },
-        { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin', isGlobalEnabled: true }
-      ] as InstalledSkill[]
+      skills: [] as InstalledSkill[]
     },
     systemSkillDialogState: {
       current: null as null | {
@@ -105,9 +101,16 @@ function CapabilityStepHarness() {
 describe('CapabilityStep', () => {
   beforeEach(() => {
     installedSkillsState.skills = [
-      { id: 'skill-a', name: 'Alpha Skill', source: 'system', isGlobalEnabled: true },
-      { id: 'skill-b', name: 'Beta Skill', source: 'local', isGlobalEnabled: true },
-      { id: 'skill-builtin', name: 'Builtin Skill', source: 'builtin', isGlobalEnabled: true }
+      { id: 'skill-a', name: 'Alpha Skill', source: 'system', isGlobalEnabled: true, activationState: 'active' },
+      { id: 'skill-b', name: 'Beta Skill', source: 'local', isGlobalEnabled: true, activationState: 'active' },
+      {
+        id: 'skill-builtin',
+        name: 'Builtin Skill',
+        source: 'builtin',
+        isGlobalEnabled: true,
+        activationState: 'active'
+      },
+      { id: 'skill-pending', name: 'Pending Skill', source: 'local', isGlobalEnabled: true, activationState: 'pending' }
     ] as InstalledSkill[]
     importSkillDialogState.current = null
     marketplaceDialogState.current = null
@@ -132,7 +135,13 @@ describe('CapabilityStep', () => {
     await user.click(beta())
     installedSkillsState.skills = [
       ...initialSkills,
-      { id: 'new-skill', name: 'New Skill', source: 'local', isGlobalEnabled: true } as InstalledSkill
+      {
+        id: 'new-skill',
+        name: 'New Skill',
+        source: 'local',
+        isGlobalEnabled: true,
+        activationState: 'active'
+      } as InstalledSkill
     ]
     rerender(<CapabilityStepHarness />)
     expect(alpha()).not.toBeChecked()
@@ -143,11 +152,13 @@ describe('CapabilityStep', () => {
     expect(screen.getByTestId('disabled-skills')).toHaveTextContent(/^skill-b$/)
   })
 
-  it('keeps builtin skills checked and locked when clearing every optional skill', async () => {
+  it('keeps pending skills unavailable and builtins locked during bulk selection', async () => {
     const user = userEvent.setup()
     render(<CapabilityStepHarness />)
 
     const builtinCheckbox = screen.getByRole('switch', { name: 'Builtin Skill' })
+    expect(screen.queryByRole('switch', { name: 'Pending Skill' })).toBeNull()
+    expect(screen.getByText('settings.skills.pendingActivationDescription')).toBeVisible()
     expect(builtinCheckbox).toBeChecked()
     expect(builtinCheckbox).toBeDisabled()
 

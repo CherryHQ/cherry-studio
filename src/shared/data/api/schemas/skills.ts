@@ -4,6 +4,8 @@
 
 import * as z from 'zod'
 
+export const SkillActivationStateSchema = z.enum(['pending', 'active'])
+
 export const InstalledSkillSchema = z.strictObject({
   id: z.string(),
   name: z.string(),
@@ -17,8 +19,10 @@ export const InstalledSkillSchema = z.strictObject({
   /** Skill metadata tags from SKILL.md. */
   sourceTags: z.array(z.string()),
   contentHash: z.string(),
-  /** Whether the installed skill is available to any agent. */
+  /** Whether the global switch allows Agent use. */
   isGlobalEnabled: z.boolean(),
+  /** Whether Agents can inherit the skill without an explicit override. */
+  activationState: SkillActivationStateSchema,
   /** Effective per-agent state. False when no agentId is requested. */
   isEnabled: z.boolean(),
   /** Whether the skill is projected into ~/.agents/skills for external agents. */

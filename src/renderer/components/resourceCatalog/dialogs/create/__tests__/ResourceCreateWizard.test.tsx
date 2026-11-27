@@ -74,6 +74,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
         name: 'Builtin skill',
         source: 'builtin',
         isGlobalEnabled: true,
+        activationState: 'active',
         isEnabled: agentId === 'agent-1'
       },
       {
@@ -81,9 +82,25 @@ vi.mock('@renderer/hooks/useSkills', () => ({
         name: 'Review skill',
         source: 'local',
         isGlobalEnabled: true,
+        activationState: 'active',
         isEnabled: agentId === 'agent-1'
       },
-      { id: 'skill-unused', name: 'Unused skill', source: 'local', isGlobalEnabled: true, isEnabled: false }
+      {
+        id: 'skill-unused',
+        name: 'Unused skill',
+        source: 'local',
+        isGlobalEnabled: true,
+        activationState: 'active',
+        isEnabled: false
+      },
+      {
+        id: 'skill-pending',
+        name: 'Pending skill',
+        source: 'local',
+        isGlobalEnabled: true,
+        activationState: 'pending',
+        isEnabled: false
+      }
     ]
   }),
   useReconcileSkillsOnOpen: vi.fn()
@@ -1745,7 +1762,7 @@ describe('ResourceCreateWizard result page', () => {
     await user.click(screen.getByRole('button', { name: CREATE }))
   }
 
-  it('submits a manual skill opt-out and reports the created Agent’s effective skills', async () => {
+  it('previews only active inherited skills after opt-outs and submits the opt-out', async () => {
     const user = userEvent.setup()
     const request = vi.mocked(window.api.ipcApi.request)
     const onSubmit = vi.fn().mockResolvedValue('agent-1')
