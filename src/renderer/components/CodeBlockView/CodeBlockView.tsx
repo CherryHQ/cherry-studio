@@ -42,7 +42,12 @@ import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { cn } from '@renderer/utils/style'
 
-import { MAX_COLLAPSED_CODE_HEIGHT, SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
+import {
+  MAX_COLLAPSED_CODE_HEIGHT,
+  SPECIAL_VIEW_COMPONENTS,
+  SPECIAL_VIEWS,
+  type SpecialViewDefinition
+} from './constants'
 import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
 import { useCodeBlockWrapLines } from './wrapLinesContext'
@@ -126,14 +131,23 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const canEdit = codeEditor.enabled && editable && !isStreaming
   const hasSpecialView = SPECIAL_VIEWS.includes(language)
-  const specialViewDefinition = hasSpecialView
+  const specialViewDefinition: SpecialViewDefinition | undefined = hasSpecialView
     ? SPECIAL_VIEW_COMPONENTS[language as keyof typeof SPECIAL_VIEW_COMPONENTS]
     : undefined
+  const defaultViewMode: ViewMode = specialViewDefinition?.defaultViewMode ?? 'special'
 
-  const [viewState, setViewState] = useState({
-    mode: 'special' as ViewMode,
-    previousMode: 'special' as ViewMode
-  })
+  const [viewState, setViewState] = useState<{ language: string; mode: ViewMode; previousMode: ViewMode }>(() => ({
+    language,
+    mode: defaultViewMode,
+    previousMode: defaultViewMode
+  }))
+  if (viewState.language !== language) {
+    setViewState({
+      language,
+      mode: defaultViewMode,
+      previousMode: defaultViewMode
+    })
+  }
   const viewMode = useMemo<ViewMode>(() => {
     if (viewState.mode === 'edit' && !canEdit) return 'source'
     if (!hasSpecialView && viewState.mode !== 'edit') {
@@ -144,6 +158,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
   const setViewMode = useCallback((newMode: ViewMode) => {
     setViewState((current) => ({
+      ...current,
       mode: newMode,
       // 当新模式不是 'split' 时才更新
       previousMode: newMode !== 'split' ? newMode : current.previousMode
@@ -156,7 +171,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       if (current.mode === 'split') {
         return { ...current, mode: current.previousMode }
       }
-      return { mode: 'split', previousMode: current.mode }
+      return { ...current, mode: 'split', previousMode: current.mode }
     })
   }, [])
 

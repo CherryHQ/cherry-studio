@@ -1423,6 +1423,8 @@
   "code_block.expand": "Rozbalit",
   "code_block.more": "Více",
   "code_block.preview.invalid_json": "Neplatná konfigurace JSON",
+  "code_block.preview.plantuml_remote_notice": "Vykreslení diagramů PlantUML odešle zdrojový kód diagramu na {{host}}.",
+  "code_block.preview.plantuml_remote_render": "Vykreslit přes PlantUML",
   "code_block.run": "Spustit",
   "code_block.split.label": "Rozdělené zobrazení",
   "code_block.split.restore": "Obnovit rozdělené zobrazení",

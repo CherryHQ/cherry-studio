@@ -1421,6 +1421,8 @@
   "code_block.expand": "展开",
   "code_block.more": "更多",
   "code_block.preview.invalid_json": "配置 JSON 格式错误",
+  "code_block.preview.plantuml_remote_notice": "渲染 PlantUML 图表会将图表源代码发送至 {{host}}。",
+  "code_block.preview.plantuml_remote_render": "使用 PlantUML 渲染",
   "code_block.run": "运行代码",
   "code_block.split.label": "分割视图",
   "code_block.split.restore": "取消分割视图",

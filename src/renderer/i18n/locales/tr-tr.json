@@ -1421,6 +1421,8 @@
   "code_block.expand": "Genişlet",
   "code_block.more": "Daha Fazla",
   "code_block.preview.invalid_json": "Geçersiz JSON yapılandırması",
+  "code_block.preview.plantuml_remote_notice": "PlantUML diyagramlarını işlemek diyagram kaynağını {{host}} adresine gönderir.",
+  "code_block.preview.plantuml_remote_render": "PlantUML ile işle",
   "code_block.run": "Çalıştır",
   "code_block.split.label": "Bölünmüş Görünüm",
   "code_block.split.restore": "Bölünmüş Görünümü Geri Yükle",
