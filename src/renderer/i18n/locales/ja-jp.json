@@ -5388,7 +5388,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "復元用バックアップの空き容量が不足しています。新しい変更は保存されていません。",
   "settings.memory.clear": "グローバルメモリを消去",
-  "settings.memory.clear_confirm": "ローカルのメモリファイルをすべて消去しますか？",
+  "settings.memory.clear_confirm": "消去するのは Cherry Studio が管理するグローバル共有メモリのみです。復元用のバックアップには元の内容が残る場合があります。",
   "settings.memory.clear_success": "消去しました",
   "settings.memory.failed": "操作を完了できませんでした。未完了の項目を確認して再試行してください。",
   "settings.memory.global": "グローバルメモリ",

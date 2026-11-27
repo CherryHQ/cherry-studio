@@ -5388,7 +5388,7 @@
   "settings.mcp.url": "URL",
   "settings.memory.backup_full": "Não há espaço suficiente para uma cópia de recuperação. Não foram guardadas novas alterações.",
   "settings.memory.clear": "Limpar memória global",
-  "settings.memory.clear_confirm": "Limpar todos os ficheiros de memória locais?",
+  "settings.memory.clear_confirm": "Apenas será limpa a memória partilhada global gerida pelo Cherry Studio. As cópias de segurança para recuperação podem manter o conteúdo original.",
   "settings.memory.clear_success": "Limpeza concluída",
   "settings.memory.failed": "Não foi possível concluir a operação. Verifique os itens restantes e tente novamente.",
   "settings.memory.global": "Memória global",
