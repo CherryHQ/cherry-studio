@@ -59,7 +59,7 @@ import { enrichLocalAgentModels } from '../localAgentModelMetadata'
 import { LocalAgentSessionRestoreError } from '../LocalAgentSessionRestoreError'
 import { LocalConnection } from '../LocalConnection'
 import { stopLocalAgentProcess } from '../stdioProcess'
-import type { AgentRuntimeInput, AgentRuntimeUserInput } from '../types'
+import type { AgentRuntimeInput, AgentRuntimeReconcileResult, AgentRuntimeUserInput } from '../types'
 import { acpContent } from './acpContent'
 import { acpError } from './acpError'
 import { acpModelSelection, prepareAcpChatLaunch, resolveConfiguredAcpModel } from './acpLaunch'
@@ -177,6 +177,8 @@ export class AcpConnection extends LocalConnection {
   private readonly toolInputs = new Map<string, LocalAcpTool>()
   private hasContextUsageReading = false
   private gatewayContextWindow?: number
+  private resumeTokenPublished = false
+  private launchConfigSignature: string | undefined
 
   get threadInput(): AgentRuntimeInput | undefined {
     const steer = this.session?.acp.steer
@@ -263,6 +265,13 @@ export class AcpConnection extends LocalConnection {
     return this.localSessionInfo.resume !== true
   }
 
+  override async reconcile(target: { headless?: boolean } = {}): Promise<AgentRuntimeReconcileResult> {
+    const base = await super.reconcile(target)
+    if (base !== 'current') return base
+    const signature = acpPreset(this.config.presetId)?.chatConfigSignature?.(this.config)
+    return signature === this.launchConfigSignature ? 'current' : 'rebuild'
+  }
+
   async start(cwd: string, resume?: string, launchBypass = false): Promise<this> {
     try {
       return await this.startConnection(cwd, resume, launchBypass)
@@ -272,6 +281,7 @@ export class AcpConnection extends LocalConnection {
   }
   private async startConnection(cwd: string, resume: string | undefined, launchBypass: boolean): Promise<this> {
     this.launchBypass = !this.headless && launchBypass && !!getAcpLaunchBypassArgs(this.config)
+    this.launchConfigSignature = acpPreset(this.config.presetId)?.chatConfigSignature?.(this.config)
     const { launch, gateway, mode, contextWindow } = await prepareAcpChatLaunch(
       this.config,
       this.sessionId,
@@ -351,10 +361,8 @@ export class AcpConnection extends LocalConnection {
       throw new LocalAgentSessionRestoreError(
         'This agent cannot restore the previous conversation; create a new session'
       )
-    const session =
-      resume && agent.restore
-        ? await agent.restore({ cwd, sessionId: resume, mcpServers }, configure)
-        : await agent.create({ cwd, mcpServers }, configure)
+    if (resume && agent.restore) await agent.restore({ cwd, sessionId: resume, mcpServers }, configure)
+    else await agent.create({ cwd, mcpServers }, configure)
     if (this.launchBypass && selectedPermissionMode(this.localSessionInfo.mode) === 'plan') {
       const nativePlan = getAcpNativePlanModes(this.localSessionInfo.mode)
       if (!nativePlan) throw new Error('Could not exit Plan for the launch permission')
@@ -363,7 +371,8 @@ export class AcpConnection extends LocalConnection {
         throw new Error('The agent did not exit Plan for the launch permission')
     }
     this.localSessionInfo.protocolInfo.verified.push('session')
-    this.publishResumeToken(session.thread.id)
+    // Fresh ACP sessions with 0 turns may not be persisted on disk yet; defer resume-token until a turn runs.
+    if (resume) this.publishSessionResumeToken()
     this.publishSessionInfo()
     return this
   }
@@ -1018,6 +1027,12 @@ export class AcpConnection extends LocalConnection {
     })
     this.publishSessionInfo()
   }
+  private publishSessionResumeToken() {
+    const id = this.session?.thread.id
+    if (!id || this.resumeTokenPublished) return
+    this.resumeTokenPublished = true
+    this.publishResumeToken(id)
+  }
   private publishSessionInfo() {
     if (!this.localSessionInfo.protocolInfo?.verified.includes('session')) return
     // oxlint-disable-next-line no-restricted-globals -- The queued event owns its session snapshot.
@@ -1040,6 +1055,7 @@ export class AcpConnection extends LocalConnection {
     nativeTurn: (event) => {
       if (event.state === 'started') {
         if (this.headless || this.active || this.closed || !this.attachLocalContext(event.sessionId)) return false
+        this.publishSessionResumeToken()
         this.planPart = undefined
         this.planId = undefined
         this.events.push({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'native-turn' } })
@@ -1228,6 +1244,7 @@ export class AcpConnection extends LocalConnection {
     this.planId = undefined
     try {
       if (!this.session) throw new Error('ACP session is not connected')
+      this.publishSessionResumeToken()
       const model = this.localSessionInfo.activeModel?.id ?? null
       const { stopReason, usage, context } = await this.session.acp.runPrompt({
         inputId: runtimeId<'input'>(input.message.id),

@@ -75,6 +75,7 @@ import { requireLaunchRuntime, type PrepareCliCommand } from '@main/ai/runtime/c
 import type { DispatchDecision } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { LocalAgentConfiguration, LocalAgentSelection } from '@shared/ai/localAgent'
 import { NativeQuestionReplySchema } from '@shared/ai/nativeInteraction'
+import { CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
 type RequestDecision = <T>(
@@ -125,6 +126,7 @@ type DesktopAcpPreset = {
     gateway?: { dispose(): Promise<void> }
     mode: LocalAgentSelection & { application: 'reconnect' }
   }>
+  chatConfigSignature?(config: LocalAgentConfiguration): string | undefined
 } & CliModelBinding
 
 const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAcpPreset>([
@@ -259,6 +261,12 @@ const presets: ReadonlyMap<string, DesktopAcpPreset> = new Map<string, DesktopAc
           application.get('CacheService').getPersist('local_agent.session_overrides')[sessionId]?.mode,
           (defaultProfile) =>
             application.get('DeepSeekHarnessService').prepareAgent(defaultProfile ? sessionId : undefined)
+        ),
+      chatConfigSignature: () =>
+        JSON.stringify(
+          application.getExisting?.('PreferenceService')?.get?.('feature.code_cli.configs')?.[
+            CodeCli.DEEPSEEK_HARNESS
+          ] ?? null
         )
     }
   ],

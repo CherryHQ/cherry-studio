@@ -673,6 +673,16 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     )
     this.registerDisposable(
+      application.get('PreferenceService').subscribeChange('feature.code_cli.configs', () => {
+        for (const entry of this.entries.values()) {
+          if (entry.agentType !== 'local') continue
+          void this.reconcileEntryConnection(entry).catch((error) =>
+            logger.warn('Code CLI config preference reconcile failed', { error })
+          )
+        }
+      })
+    )
+    this.registerDisposable(
       agentSessionMessageService.onBranchSelected(({ sessionId, head }) => this.selectBranchStream(sessionId, head))
     )
     this.registerDisposable(toolApprovalRegistry.onAborted((aborted) => this.retireAbortedApprovalCard(aborted)))

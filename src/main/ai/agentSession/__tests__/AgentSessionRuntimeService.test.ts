@@ -37,6 +37,7 @@ import {
   type AcpHostPermissionMode,
   type LocalAgentSelection
 } from '@shared/ai/localAgent'
+import { CodeCli } from '@shared/types/codeCli'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeUserInput } from '../../runtime/types'
 import type * as ForkResourcesModule from '../fork/resources'
@@ -5518,6 +5519,213 @@ describe('AgentSessionRuntimeService', () => {
     expect(updatedDsh.info?.mode?.currentValue).toBe('read-only')
     expect(opened).toEqual(['workspace-write', 'read-only'])
     await service.closeSession('session-dsh')
+  })
+
+  it('rebuilds a pre-connected empty ACP session on model switch without resuming an unpersisted thread, then resumes after a turn', async () => {
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent-qwen', type: 'local', name: 'Qwen', instructions: '', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'qwen-workspace', name: 'Workspace', path: '/workspace', type: 'user', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({
+        id: 'session-qwen',
+        agentId: 'agent-qwen',
+        workspaceId: 'qwen-workspace',
+        name: 'Conversation',
+        orderKey: 'a0'
+      })
+      .run()
+
+    const makeAgent = (model: string) => ({
+      id: 'agent-qwen',
+      type: 'local' as const,
+      model,
+      configuration: { localRuntime: { presetId: 'qwen', enabled: true, args: [], env: {} } }
+    })
+    let currentAgent = makeAgent('local:qwen::model-a')
+    mocks.getAgent.mockImplementation(() => currentAgent)
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-qwen',
+      agentId: 'agent-qwen',
+      workspace: { path: '/workspace' }
+    })
+
+    const persistedThreads = new Set<string>()
+    const connects: Array<{ modelId: string; resumeToken?: string }> = []
+    const sentOnThread: string[] = []
+    let nextThread = 0
+
+    runtimeDriverRegistry.register({
+      type: 'local',
+      async connect(input: AgentRuntimeConnectInput) {
+        connects.push({ modelId: input.modelId, resumeToken: input.resumeToken })
+        if (input.resumeToken && !persistedThreads.has(input.resumeToken)) {
+          throw new Error(`Resource not found: session:${input.resumeToken}`)
+        }
+        const threadId = input.resumeToken ?? `thread-${++nextThread}`
+        const events = createAsyncQueue<AgentRuntimeEvent>()
+        if (input.resumeToken) events.push({ type: 'resume-token', token: threadId })
+        return {
+          ...events,
+          reconcile: async (target) => (target.modelId === input.modelId ? 'current' : 'rebuild'),
+          send: async () => {
+            persistedThreads.add(threadId)
+            sentOnThread.push(threadId)
+            events.push({ type: 'resume-token', token: threadId })
+            events.push({ type: 'turn-complete' })
+          },
+          close: async () => {
+            events.end()
+          }
+        }
+      },
+      validateSession: vi.fn()
+    })
+
+    const service = new AgentSessionRuntimeService()
+    await service.setLocalSessionInteractive('window', 'session-qwen', true)
+    expect(connects).toEqual([{ modelId: 'local:qwen::model-a', resumeToken: undefined }])
+
+    // Switch model before any turn: rebuild must not pass an unpersisted empty threadId.
+    currentAgent = makeAgent('local:qwen::model-b')
+    await (service as any).handleAgentUpdated('agent-qwen', { model: 'local:qwen::model-b' }, currentAgent)
+    await vi.waitFor(() =>
+      expect(connects).toEqual([
+        { modelId: 'local:qwen::model-a', resumeToken: undefined },
+        { modelId: 'local:qwen::model-b', resumeToken: undefined }
+      ])
+    )
+
+    // Subsequent turn reuses the rebuilt live connection and completes cleanly.
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      sessionId: 'session-qwen',
+      topicId: 'agent-session:session-qwen',
+      agentId: 'agent-qwen',
+      agentType: 'local',
+      modelId: 'local:qwen::model-b',
+      userMessage: userMessage('user-1')
+    })
+    const reader = openChunkStream(service, {
+      sessionId: 'session-qwen',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    }).getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await expect(reader.read()).resolves.toMatchObject({ done: true })
+    await handle.listeners
+      .find((item) => item.id === 'agent-runtime:session-qwen')!
+      .onDone?.({
+        status: 'success',
+        isTopicDone: true
+      })
+    expect(sentOnThread).toEqual(['thread-2'])
+
+    // Switch model after a completed turn: rebuild resumes the persisted native threadId.
+    currentAgent = makeAgent('local:qwen::model-c')
+    await (service as any).handleAgentUpdated('agent-qwen', { model: 'local:qwen::model-c' }, currentAgent)
+    await vi.waitFor(() =>
+      expect(connects).toEqual([
+        { modelId: 'local:qwen::model-a', resumeToken: undefined },
+        { modelId: 'local:qwen::model-b', resumeToken: undefined },
+        { modelId: 'local:qwen::model-c', resumeToken: 'thread-2' }
+      ])
+    )
+
+    await service.closeSession('session-qwen')
+  })
+
+  it('eagerly reconciles and rebuilds an idle pre-connected local DSH session when feature.code_cli.configs changes', async () => {
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'agent-dsh', type: 'local', name: 'DeepSeek', instructions: '', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ id: 'dsh-workspace', name: 'Workspace', path: '/workspace', type: 'user', orderKey: 'a0' })
+      .run()
+    dbh.db
+      .insert(agentSessionTable)
+      .values({
+        id: 'session-dsh',
+        agentId: 'agent-dsh',
+        workspaceId: 'dsh-workspace',
+        name: 'Conversation',
+        orderKey: 'a0'
+      })
+      .run()
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-dsh',
+      type: 'local',
+      model: 'local:deepseek-harness::default',
+      configuration: {
+        localRuntime: { presetId: 'deepseek-harness', enabled: true, args: [], env: {} }
+      }
+    })
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-dsh',
+      agentId: 'agent-dsh',
+      workspace: { path: '/workspace' }
+    })
+
+    const readDshConfig = () =>
+      JSON.stringify(
+        defaultServiceInstances.PreferenceService.get('feature.code_cli.configs')?.[CodeCli.DEEPSEEK_HARNESS] ?? null
+      )
+
+    const connects: Array<{ gatewayModel?: string }> = []
+    let closedCount = 0
+
+    const service = new AgentSessionRuntimeService()
+    await (service as any).onInit()
+
+    runtimeDriverRegistry.register({
+      type: 'local',
+      async connect() {
+        const launchSignature = readDshConfig()
+        const gatewayModel =
+          defaultServiceInstances.PreferenceService.get('feature.code_cli.configs')?.[CodeCli.DEEPSEEK_HARNESS]
+            ?.gatewayModel
+        connects.push({ gatewayModel })
+        const events = createAsyncQueue<AgentRuntimeEvent>(() => {
+          closedCount += 1
+        })
+        return {
+          ...events,
+          send: vi.fn(),
+          reconcile: async () => (readDshConfig() === launchSignature ? 'current' : 'rebuild')
+        }
+      },
+      validateSession: vi.fn()
+    })
+
+    try {
+      await defaultServiceInstances.PreferenceService.set('feature.code_cli.configs', {
+        [CodeCli.DEEPSEEK_HARNESS]: { current: 'cherry:api-gateway', gatewayModel: 'openai:gpt-4o' }
+      } as any)
+
+      await service.setLocalSessionInteractive('window', 'session-dsh', true)
+      expect(connects).toEqual([{ gatewayModel: 'openai:gpt-4o' }])
+
+      await defaultServiceInstances.PreferenceService.set('feature.code_cli.configs', {
+        [CodeCli.DEEPSEEK_HARNESS]: { current: 'cherry:api-gateway', gatewayModel: 'openai:gpt-4.1' }
+      } as any)
+
+      await vi.waitFor(() => {
+        expect(closedCount).toBe(1)
+        expect(connects).toEqual([{ gatewayModel: 'openai:gpt-4o' }, { gatewayModel: 'openai:gpt-4.1' }])
+      })
+    } finally {
+      await service.closeSession('session-dsh')
+      await service._doStop()
+      await defaultServiceInstances.PreferenceService.set('feature.code_cli.configs', {})
+    }
   })
 
   describe('on-demand session command catalog', () => {

@@ -4,10 +4,12 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { MockApplicationUtils } from '@test-mocks/main/application'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { BaseService } from '@main/core/lifecycle'
@@ -19,6 +21,7 @@ import {
   LocalAgentModelCatalogSchema,
   LocalPermissionOptionsSchema
 } from '@shared/ai/localAgent'
+import { CodeCli } from '@shared/types/codeCli'
 
 import { LocalAgentAuthService } from '../../../services/LocalAgentAuthService'
 import { AcpConnection } from '../acp/AcpConnection'
@@ -1415,6 +1418,27 @@ describe('local protocol processes', () => {
     }
   )
 
+  it('defers ACP resume-token until a turn runs on a new session, but publishes immediately on restore', async () => {
+    const fresh = create('acp')
+    await fresh.connection.start(cwd)
+    expect(fresh.events.some((event) => event.type === 'local-session-info')).toBe(true)
+    expect(fresh.events.filter((event) => event.type === 'resume-token')).toEqual([])
+
+    await fresh.connection.send(input)
+    await vi.waitFor(() => expect(fresh.events.filter((event) => event.type === 'turn-complete')).toHaveLength(1))
+    expect(fresh.events.filter((event) => event.type === 'resume-token')).toEqual([
+      { type: 'resume-token', token: 'native-session' }
+    ])
+    await fresh.closeAndDrain()
+
+    const restored = create('acp')
+    await restored.connection.start(cwd, 'native-session')
+    expect(restored.events.filter((event) => event.type === 'resume-token')).toEqual([
+      { type: 'resume-token', token: 'native-session' }
+    ])
+    await restored.closeAndDrain()
+  })
+
   it.each(['approved-write', 'approved-write-changed', 'approved-write-repeated'])(
     'reuses only a single identical approved write (%s)',
     async (scenario) => {
@@ -2403,6 +2427,67 @@ describe('local protocol processes', () => {
     })
     await connection.close()
     await drained
+  })
+
+  it('rebuilds deepseek-harness ACP connections when feature.code_cli.configs changes, leaving other ACP presets current', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.code_cli.configs', {
+      [CodeCli.DEEPSEEK_HARNESS]: {
+        current: 'cherry:api-gateway',
+        gatewayModel: 'openai:gpt-4o'
+      }
+    } as any)
+
+    const dshConfig: LocalAgentConfiguration = {
+      presetId: 'deepseek-harness',
+      enabled: true,
+      executableOverride: process.execPath,
+      args: [fixture, 'acp', 'normal'],
+      env: {
+        FIXTURE_LOG: path.join(cwd, 'wire-dsh.jsonl'),
+        DSH_HOME: cwd,
+        DSH_PERMISSION_MODE: 'workspace-write'
+      }
+    }
+    const otherConfig: LocalAgentConfiguration = {
+      presetId: 'qwen',
+      enabled: true,
+      executableOverride: process.execPath,
+      args: [fixture, 'acp', 'normal'],
+      env: {
+        FIXTURE_LOG: path.join(cwd, 'wire-other.jsonl')
+      }
+    }
+
+    const getAgentSpy = vi.spyOn(agentService, 'getAgent').mockImplementation((id: string) => {
+      if (id === 'dsh-agent') return { id, configuration: { localRuntime: dshConfig } } as any
+      if (id === 'other-agent') return { id, configuration: { localRuntime: otherConfig } } as any
+      return undefined
+    })
+
+    try {
+      const dsh = new AcpConnection('dsh-session', 'dsh-agent', dshConfig)
+      const other = new AcpConnection('other-session', 'other-agent', otherConfig)
+      connections.push(dsh, other)
+
+      await dsh.start(cwd)
+      await other.start(cwd)
+
+      expect(await dsh.reconcile()).toBe('current')
+      expect(await other.reconcile()).toBe('current')
+
+      MockMainPreferenceServiceUtils.setPreferenceValue('feature.code_cli.configs', {
+        [CodeCli.DEEPSEEK_HARNESS]: {
+          current: 'cherry:api-gateway',
+          gatewayModel: 'openai:gpt-4.1'
+        }
+      } as any)
+
+      expect(await dsh.reconcile()).toBe('rebuild')
+      expect(await other.reconcile()).toBe('current')
+    } finally {
+      getAgentSpy.mockRestore()
+      MockMainPreferenceServiceUtils.resetMocks()
+    }
   })
 
   it.each([
