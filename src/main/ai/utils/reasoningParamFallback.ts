@@ -36,9 +36,17 @@ const REASONING_BODY_KEYS = ['reasoning_effort', 'reasoning'] as const
 /** Structured error fields naming the rejected parameter (OpenAI-style envelopes). */
 const STRUCTURED_PARAM_PATTERN = /^reasoning(?:_effort)?(?:\.[A-Za-z_]\w*|\[\d+\])*$/
 
-/** Message-only rejection must bind the verb to a complete field, not a model id containing it. */
+/** Keep model-subject diagnostics intact even when a model's name equals a field. */
+const MODEL_SUBJECT_PATTERN =
+  /\bmodel(?:\s+(?:id|name))?\s*(?::|=)?\s*["'`]?reasoning(?:_effort)?["'`]?(?=\s|[.,:;]|$)/i
+
+/** Message-only rejection must identify the complete field or its effort value. */
 const MESSAGE_REJECTION_PATTERN =
-  /(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\s+(?:(?:request\s+)?(?:argument|parameter|field)(?:\s+(?:supplied|named))?\s*:?\s*)?["'`]?reasoning(?:_effort)?["'`]?(?=\s|[.,:;]|$)|(?:^|[\s"'`])reasoning(?:_effort)?["'`]?\s+(?:is\s+)?(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\b/i
+  /(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted)\s+(?:(?:request\s+)?(?:argument|parameter|field)(?:\s+(?:supplied|named))?\s*:?\s*)?["'`]?reasoning(?:_effort|\.effort)?["'`]?(?=\s|[.,:;]|$)|(?:^|[\s"'`])reasoning(?:_effort|\.effort)?["'`]?\s+(?:value\s+["'`][^"'`\r\n]+["'`]\s+)?(?:is\s+)?(?:unrecognized|unknown|invalid|unsupported|unexpected|not supported|not permitted|does not support)\b/i
+
+function isReasoningMessage(message: string): boolean {
+  return !MODEL_SUBJECT_PATTERN.test(message) && MESSAGE_REJECTION_PATTERN.test(message)
+}
 
 /**
  * Classifies a 400 body as rejecting a reasoning parameter. Structured
@@ -64,11 +72,11 @@ function isReasoningRejection(errorText: string): boolean {
     if (typeof param === 'string') return STRUCTURED_PARAM_PATTERN.test(param)
     const message = (detail as Record<string, unknown>).message
     if (typeof message === 'string') {
-      return MESSAGE_REJECTION_PATTERN.test(message)
+      return isReasoningMessage(message)
     }
   }
 
-  return MESSAGE_REJECTION_PATTERN.test(errorText)
+  return isReasoningMessage(errorText)
 }
 
 /**
