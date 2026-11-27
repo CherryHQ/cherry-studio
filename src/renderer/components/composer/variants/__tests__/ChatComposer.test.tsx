@@ -3385,6 +3385,60 @@ describe('ChatComposer', () => {
     ])
   })
 
+  it('preserves an unsent message edit when switching topics', async () => {
+    const drafts = new Map<string, unknown>()
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+      drafts.set(key, value)
+    })
+    vi.mocked(cacheService.delete).mockImplementation((key: string) => drafts.delete(key))
+    mocks.getDraft.mockImplementation((surfaceProps?: ComposerSurfaceProps) => ({
+      text: surfaceProps?.text ?? '',
+      tokens: []
+    }))
+    const topicTwo = { ...topic, id: 'topic-2' }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [{ type: 'text', text: 'old prompt' }] as any[]
+    const renderComposer = (currentTopic: typeof topic) => (
+      <MessageEditingProvider>
+        <StartEditingButton message={message as any} parts={parts} />
+        <ChatComposer topic={currentTopic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+    const view = render(renderComposer(topic))
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    act(() => {
+      mocks.surfaceProps?.onTextChange('edited prompt')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('edited prompt'))
+
+    view.rerender(renderComposer(topicTwo))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(drafts.get('chat.message_edit_draft.message-1')).toMatchObject({ text: 'edited prompt' })
+
+    view.rerender(renderComposer(topic))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.text).toBe('edited prompt')
+
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(drafts.has('chat.message_edit_draft.message-1')).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    expect(mocks.surfaceProps?.text).toBe('old prompt')
+  })
+
   it('routes new topic shortcuts through the explicit parent action', () => {
     const onNewTopic = vi.fn()
     render(<ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} />)

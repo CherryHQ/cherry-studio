@@ -136,6 +136,8 @@ export type UseCacheSchema = {
   'chat.web_search.searching': boolean
   // Per-topic composer draft. Renderer memory only; app restart discards it.
   'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
+  // Unsubmitted historical-message edit draft, keyed by message. Renderer memory only.
+  'chat.message_edit_draft.${messageId}': CacheValueTypes.CacheMessageEditDraft
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
@@ -237,6 +239,12 @@ export const DefaultUseCache: UseCacheSchema = {
     knowledgeBaseIds: [],
     mentionedModelIds: [],
     modelMultiSelectMode: false
+  },
+  'chat.message_edit_draft.${messageId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: []
   },
   'chat.scroll_anchor.${topicId}': null,
   'ui.window.chat.sidebar.width': 275,

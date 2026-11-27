@@ -94,6 +94,11 @@ import {
 } from './chat/chatComposerControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import {
+  deleteMessageEditDraftCache,
+  readMessageEditDraftCache,
+  writeMessageEditDraftCache
+} from './chat/messageEditDraftCache'
+import {
   createEditableMessageDraft,
   getEditableKnowledgeBases,
   replaceEditedMessageParts
@@ -439,7 +444,6 @@ const ChatComposerInner = ({
   const chatWrite = useChatWrite()
   const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
   const editingMessageForCurrentTopic = topicId && editingMessage?.message.topicId === topicId ? editingMessage : null
-  const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
   // Assistant edits expose the reasoning above the main text. Signed reasoning
   // is saved with a replay marker so the main-process pipeline can send the
   // corrected text as a plain `<think>` block. A message with several reasoning
@@ -455,9 +459,15 @@ const ChatComposerInner = ({
     return { index, text: part.text ?? '' }
   }, [editingMessageForCurrentTopic])
   const [reasoningDraft, setReasoningDraft] = useState('')
+  const reasoningDraftRef = useLatest(reasoningDraft)
   useEffect(() => {
-    setReasoningDraft(editingReasoning?.text ?? '')
-  }, [editingMessageForCurrentTopic?.editingSessionId, editingReasoning?.index, editingReasoning?.text])
+    if (!editingMessageForCurrentTopic) {
+      setReasoningDraft('')
+      return
+    }
+    const cachedReasoning = readMessageEditDraftCache(editingMessageForCurrentTopic.message.id)?.reasoningText
+    setReasoningDraft(cachedReasoning ?? editingReasoning?.text ?? '')
+  }, [editingMessageForCurrentTopic, editingReasoning?.index, editingReasoning?.text])
   const { isPending, status: streamStatus, lastCompletedAt } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
@@ -960,7 +970,7 @@ const ChatComposerInner = ({
       skipDraftCacheWriteForHistoryPreviewRef.current = false
       return
     }
-    if (editingMessage) return
+    if (editingMessageForCurrentTopic) return
     syncKnowledgeBaseIds()
     const draft = actionsRef.current.getDraft()
     writeChatDraftCache(draftCacheScopeKey, {
@@ -974,7 +984,7 @@ const ChatComposerInner = ({
     actionsRef,
     draftCacheScopeKey,
     draftTokenRevision,
-    editingMessage,
+    editingMessageForCurrentTopic,
     files,
     isInputHistoryActive,
     isKnowledgeBaseDraftHydrated,
@@ -988,8 +998,22 @@ const ChatComposerInner = ({
 
   const persistFinalDraft = useEffectEvent(() => {
     if (isInputHistoryActive) return
+    const activeEdit = editingMessageForCurrentTopicRef.current
+    if (activeEdit) {
+      const editDraft = surfaceGetDraftRef.current()
+      writeMessageEditDraftCache(activeEdit.message.id, {
+        text: editDraft.text,
+        tokens: editDraft.tokens,
+        files: filesRef.current,
+        knowledgeBaseIds: editDraft.tokens
+          .filter((token) => token.kind === 'knowledge')
+          .map((token) => token.id.slice('knowledge:'.length)),
+        ...(editingReasoning ? { reasoningText: reasoningDraftRef.current } : {})
+      })
+    }
+
     const savedDraft = savedDraftBeforeEditingRef.current
-    if (editingMessage && !savedDraft) return
+    if (activeEdit && !savedDraft) return
     const draft = savedDraft ? { text: savedDraft.text, tokens: savedDraft.draftTokens } : surfaceGetDraftRef.current()
     writeChatDraftCache(draftCacheScopeKey, {
       text: draft.text,
@@ -1038,9 +1062,10 @@ const ChatComposerInner = ({
   ])
 
   const handleCancelEditing = useCallback(() => {
+    if (editingMessageForCurrentTopic) deleteMessageEditDraftCache(editingMessageForCurrentTopic.message.id)
     restoreSavedDraft()
     cancelEditing()
-  }, [cancelEditing, restoreSavedDraft])
+  }, [cancelEditing, editingMessageForCurrentTopic, restoreSavedDraft])
   const editingMessageId = editingMessageForCurrentTopic?.message.id
   const handleLocateEditingMessage = useCallback(() => {
     if (!editingMessageId) return
@@ -1049,7 +1074,10 @@ const ChatComposerInner = ({
 
   const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
     releaseFollowupEditRef.current()
-    const editableDraft = createEditableMessageDraft(nextEditingMessage.parts, nextEditingMessage.message.id)
+    const cachedDraft = readMessageEditDraftCache(nextEditingMessage.message.id)
+    const editableDraft = cachedDraft
+      ? { text: cachedDraft.text, draftTokens: cachedDraft.tokens, files: cachedDraft.files }
+      : createEditableMessageDraft(nextEditingMessage.parts, nextEditingMessage.message.id)
     const originalFilePartsByTokenId = new Map<string, ComposerFilePart>()
     const originalFileParts = nextEditingMessage.parts.filter(
       (part): part is ComposerFilePart => part.type === 'file' && !!part.url
@@ -1105,12 +1133,6 @@ const ChatComposerInner = ({
     mentionedModelsRef,
     selectedKnowledgeBasesRef
   ])
-
-  useEffect(() => {
-    if (!staleEditingMessage) return
-    restoreSavedDraft()
-    stopEditing()
-  }, [restoreSavedDraft, staleEditingMessage, stopEditing])
 
   const placeholderText = t('chat.input.placeholder')
 
@@ -1674,6 +1696,7 @@ const ChatComposerInner = ({
         }
         if (reasoningChanged) toast.success(t('message.reasoning.saved'))
         if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
+          deleteMessageEditDraftCache(editingMessageForCurrentTopic.message.id)
           restoreSavedDraft()
           stopEditing()
         }
@@ -1716,12 +1739,6 @@ const ChatComposerInner = ({
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
       if (directSendInFlightRef.current) return
-
-      if (staleEditingMessage) {
-        restoreSavedDraft()
-        stopEditing()
-        return
-      }
 
       if (editingMessageForCurrentTopic) {
         if (quotaBlocksSend && editingMessageForCurrentTopic.message.role !== 'assistant') return
@@ -1793,9 +1810,6 @@ const ChatComposerInner = ({
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,
-      staleEditingMessage,
-      stopEditing,
-      restoreSavedDraft,
       t
     ]
   )
