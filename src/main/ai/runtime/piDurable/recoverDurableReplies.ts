@@ -13,8 +13,54 @@ import { toExecutionFailure } from '@shared/ai/executionFailure'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { PiMessageMetadata } from '../pi/PiMessageMetadata'
+import { readDurableRequest } from './durableRequest'
 
 const logger = loggerService.withContext('recoverDurableReplies')
+
+export async function recoverDurableFollowups(isWritable: (sessionId: string) => boolean): Promise<void> {
+  const staged = messages.stagedFollowups()
+  if (!staged.length) return
+  const { BACKGROUND_CONTEXT } = await import('@earendil-works/chord/context')
+  for (const [backendId, group] of Map.groupBy(staged, (row) => row.backendId)) {
+    if (!backendId) {
+      for (const { sessionId, messageId } of group)
+        if (isWritable(sessionId)) messages.markUserMessageUnsent(sessionId, messageId)
+      continue
+    }
+    try {
+      const storage = await openDurableStorage(contexts.backend(backendId), 'ro')
+      try {
+        for (const rows of Map.groupBy(group, (row) => row.contextId).values()) {
+          const { sessionId, contextId, threadId } = rows[0]
+          if (!contextId || !threadId || !isWritable(sessionId)) continue
+          const thread = Number(threadId) as ConversationId
+          if (!(await matchesDurableContext(storage, thread, contextId, BACKGROUND_CONTEXT))) continue
+          const placed: { id: string; entry: number }[] = []
+          for (const { messageId } of rows) {
+            const record = await storage.submissionByRequest(thread, messageId, BACKGROUND_CONTEXT)
+            if (!isWritable(sessionId)) break
+            if (!record || (record.status === 'unanswered' && record.entry === undefined))
+              messages.markUserMessageUnsent(sessionId, messageId, contextId)
+            else if (
+              (record.status === 'placed' || record.status === 'done' || record.status === 'unanswered') &&
+              record.entry !== undefined
+            )
+              placed.push({ id: messageId, entry: record.entry })
+          }
+          if (!placed.length || !isWritable(sessionId)) continue
+          const modelId = (await readDurableRequest(storage, threadId))?.modelId
+          if (isWritable(sessionId))
+            for (const { id } of placed.sort((a, b) => a.entry - b.entry))
+              messages.saveInputTimelinePosition(sessionId, id, contextId, 0, { modelId })
+        }
+      } finally {
+        await storage.close(BACKGROUND_CONTEXT)
+      }
+    } catch (error) {
+      logger.warn('Could not recover saved follow-ups from their original Durable store', { backendId, error })
+    }
+  }
+}
 
 export async function recoverDurableReplies(
   onTerminal: (event: AgentSessionTurnTerminalEvent) => void,

@@ -320,10 +320,14 @@ test.describe('Pi Durable turn authority in Electron', () => {
       await chat.send('QUEUED_QUESTION')
       const queuedPanel = chat.view.getByRole('button', { name: 'Queued (1)', exact: true })
       await expect(queuedPanel).toBeVisible()
-      await expect(chat.message('QUEUED_QUESTION')).toBeVisible()
+      await queuedPanel.click()
+      await expect(chat.view.getByText('QUEUED_QUESTION', { exact: true })).toBeVisible()
+      await expect(chat.message('QUEUED_QUESTION')).toHaveCount(0)
+      await capture(page, testInfo, 'queued-waiting')
       first.complete('FIRST_ANSWER')
       const queued = await route.next('QUEUED_QUESTION')
       await expect(queuedPanel).toBeHidden()
+      await expect(chat.message('QUEUED_QUESTION')).toHaveCount(1)
       queued.complete('QUEUED_ANSWER')
 
       await expect(chat.message('QUEUED_ANSWER')).toBeVisible()
@@ -469,11 +473,8 @@ test.describe('Pi Durable turn authority in Electron', () => {
       held.sendText('CRASH_PARTIAL ')
       await expect(chat.message('CRASH_PARTIAL')).toBeVisible()
       await chat.send('CRASH_QUEUED')
-      await expect
-        .poll(async () => (await rows(first.page, session.sessionId)).some((row) => row.text.includes('CRASH_QUEUED')))
-        .toBe(true)
-      // Main saves the user row, then submits it; give the native submission time to commit.
-      await first.page.waitForTimeout(2_000)
+      await expect(chat.view.getByRole('button', { name: 'Queued (1)', exact: true })).toBeVisible()
+      await expect(chat.message('CRASH_QUEUED')).toHaveCount(0)
 
       await test.step('Crash the owned Electron application', async () => {
         const child = first.app.process()
@@ -500,8 +501,11 @@ test.describe('Pi Durable turn authority in Electron', () => {
       running = second.app
       const reopened = await openSession(second.page, session)
       const resumed = await route.next('CRASH_QUESTION')
+      await expect(reopened.view.getByRole('button', { name: 'Queued (1)', exact: true })).toBeVisible()
+      await expect(reopened.message('CRASH_QUEUED')).toHaveCount(0)
       resumed.complete('CRASH_ANSWER')
       const queued = await route.next('CRASH_QUEUED')
+      await expect(reopened.message('CRASH_QUEUED')).toHaveCount(1)
       queued.complete('CRASH_QUEUED_ANSWER')
 
       await expect(reopened.message('CRASH_QUEUED_ANSWER')).toBeVisible()

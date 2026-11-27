@@ -51,6 +51,61 @@ describe('message-owned native input bindings', () => {
     }
   }
 
+  it('keeps a saved follow-up off the branch until placement and publishes it only once', () => {
+    const id = uuid()
+    messages.saveMessage({
+      sessionId,
+      stageFollowup: true,
+      message: { id, role: 'user', data: { parts: [{ type: 'text', text: 'waiting question' }] } }
+    })
+    expect(messages.getSessionMessage(sessionId, id).data.parts).toEqual([{ type: 'text', text: 'waiting question' }])
+    expect(messages.captureHead(sessionId)).toBe(messageId)
+    expect(messages.branchTip(sessionId, messageId)).toBe(messageId)
+    expect(messages.listSessionMessages(sessionId, { messageId: id }).items.map((item) => item.id)).toEqual([messageId])
+
+    prepareNativeSubmission(sessionId, id, contextId, 'follow-up')
+    const pos = messages.saveInputTimelinePosition(sessionId, id, contextId, 0, {})
+    expect(pos).toBeGreaterThan(0)
+    const reply = messages.replyTo(sessionId, id)
+    expect(reply?.status).toBe('pending')
+    expect(messages.captureHead(sessionId)).toBe(reply?.id)
+    expect(messages.saveInputTimelinePosition(sessionId, id, contextId, 0, {})).toBeUndefined()
+    expect(messages.listSessionMessages(sessionId).items.map((item) => item.id)).toEqual([reply?.id, id, messageId])
+  })
+
+  it('publishes an unplaced withdrawal as an unsent message without assigning a placement', () => {
+    const id = uuid()
+    messages.saveMessage({
+      sessionId,
+      stageFollowup: true,
+      message: { id, role: 'user', data: { parts: [{ type: 'text', text: 'withdrawn question' }] } }
+    })
+    prepareNativeSubmission(sessionId, id, contextId, 'follow-up')
+    messages.markUserMessageUnsent(sessionId, id, contextId)
+    expect(messages.listSessionMessages(sessionId).items[0]).toMatchObject({ id, status: 'paused', pos: null })
+    expect(messages.saveInputTimelinePosition(sessionId, id, contextId)).toBeUndefined()
+  })
+
+  it('holds legacy inputs still found in the native inbox and attaches them in placement order', () => {
+    const ids = [uuid(), uuid()]
+    for (const id of ids) {
+      messages.saveMessage({ sessionId, message: { id, role: 'user', data: { parts: [] } } })
+      prepareNativeSubmission(sessionId, id, contextId, 'follow-up', { text: id, parts: [] })
+    }
+    const later = messages.saveMessage({
+      sessionId,
+      message: { role: 'assistant', data: { parts: [{ type: 'text', text: 'current answer' }] } }
+    })
+
+    messages.stageRestoredFollowups(sessionId, contextId, ids.toReversed())
+    expect(messages.listSessionMessages(sessionId).items.map((item) => item.id)).toEqual([later.id, messageId])
+    for (const id of ids.toReversed()) messages.saveInputTimelinePosition(sessionId, id, contextId, 0, {})
+    const first = messages.replyTo(sessionId, ids[1])!
+    const second = messages.replyTo(sessionId, ids[0])!
+    expect(messages.branchTip(sessionId, first.id, undefined, contextId)).toBe(second.id)
+    expect(messages.captureHead(sessionId)).toBe(second.id)
+  })
+
   it('keeps the original input immutable without exposing its private binding to message clients', () => {
     prepareNativeSubmission(sessionId, messageId, contextId, 'reject')
     expect(messages.getSessionMessage(sessionId, messageId)).not.toHaveProperty('inputContextId')

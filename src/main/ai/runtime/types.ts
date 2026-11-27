@@ -211,7 +211,7 @@ export type AgentRuntimeEvent =
   | { type: 'steer-boundary'; inputIds: readonly string[] }
   /** A queued input starts a distinct native execution after the preceding answer. */
   | { type: 'run-started'; inputIds: readonly string[] }
-  | { type: 'followup-queue'; queue: AgentSessionFollowup[] }
+  | { type: 'followup-queue'; queue: AgentSessionFollowup[]; restored?: true }
   | { type: 'input-submission'; contextId: string; result: SubmitResult }
   | { type: 'input-state'; contextId: string; input: ProductInputState }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }

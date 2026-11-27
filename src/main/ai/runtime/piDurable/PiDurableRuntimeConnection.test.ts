@@ -3245,6 +3245,55 @@ describe('desktop Pi Durable connection', () => {
     expect(script.calls).toHaveLength(0)
   })
 
+  it.each(['placed', 'answered'])('recovers a %s follow-up when Main missed its placement', async (state) => {
+    const first = gate()
+    const second = gate()
+    script = respondingModel((call) => {
+      const last = JSON.stringify(call.messages.findLast((entry) => entry.role === 'user'))
+      return last.includes('second')
+        ? second.wait(assistantReply('second answer'))
+        : first.wait(assistantReply('first answer'))
+    })
+    const { connection, events, handle } = await connect()
+    await connection.send({ message: message('first') })
+    await first.reached
+    const { sessionId } = input
+    const queued = messages.saveMessage({
+      sessionId,
+      stageFollowup: true,
+      message: { role: 'user', data: { parts: [{ type: 'text', text: 'second' }] } }
+    })
+    connection.followUp({ message: queued, systemReminder: true })
+    await expect.poll(() => handle.durable.followups().map(({ inputId }) => inputId)).toEqual([queued.id])
+    const { recoverDurableFollowups, recoverDurableReplies } = await import('./recoverDurableReplies')
+    await recoverDurableFollowups(() => true)
+    expect(messages.listSessionMessages(sessionId).items.some(({ id }) => id === queued.id)).toBe(false)
+
+    first.open()
+    await second.reached
+    if (state === 'placed') {
+      await recoverDurableFollowups(() => true)
+      expect(messages.replyTo(sessionId, queued.id)?.status).toBe('pending')
+    }
+    second.open()
+    await done(events)
+    await connection.close()
+    await recoverDurableFollowups(() => true)
+    await recoverDurableReplies(() => {})
+    const reply = messages.replyTo(sessionId, queued.id)!
+    expect(reply.status).toBe('success')
+    expect(messages.getSessionMessage(sessionId, reply.id).data.parts).toContainEqual(
+      expect.objectContaining({ type: 'text', text: 'second answer' })
+    )
+    await recoverDurableFollowups(() => true)
+    expect(
+      messages
+        .listSessionMessages(sessionId)
+        .items.filter(({ role }) => role === 'assistant')
+        .map(({ id }) => id)
+    ).toEqual([reply.id])
+  })
+
   it('leaves an ambiguous legacy sibling pending on native reply recovery', async () => {
     const { connection, events } = await connect()
     const question = message('Answer my first request')

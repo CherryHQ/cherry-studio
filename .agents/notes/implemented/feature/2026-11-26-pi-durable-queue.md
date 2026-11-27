@@ -12,6 +12,8 @@ Busy Pi Durable sessions persist follow-ups in the native inbox. Users need to s
 
 The Work composer submits follow-ups immediately and shows the ordered native inbox in its queue panel. Inbox changes and restored roots publish the current waiting items. Placement and withdrawal remove items from the panel. Queue and Steer use their existing send controls.
 
+The desktop saves the complete input before native submission. The input stays off the conversation branch while it waits. Native placement adds it to the branch and reserves its reply in one transaction. A confirmed withdrawal or an interrupted submission that never reached Durable appears as an unsent message.
+
 Edit and reorder use a native transaction with stale-input checks. The amended text and its product text part follow the same submission through placement. The desktop applies the text part by the original message ID during live projection and recovery. Embedded reference prompts move onto separate lines after the edited body. Attachments and other message parts stay attached. A drag uses the order captured when it started. Withdrawal aborts one native submission, and startup can restore its unsent status by the saved request ID. The [Pi Durable turn contract](../architecture/2026-11-18-pi-durable-turn-authority.md) governs reply ownership and recovery.
 
 ## Alternatives considered
@@ -29,3 +31,4 @@ Pi Durable follow-ups remain editable and reorderable until placement. Pending o
 - AC3 — `NativeQueuedFollowups.test.tsx` checks a queue change during a drag and a successful retry. `followups.test.ts` checks stale edits and reorder requests. Electron dragged the second input above the first, observed the new provider request order, and verified that a late edit was rejected.
 - AC4 — `PiDurableRuntimeConnection.test.ts` recovers the unsent message when only the native withdrawal committed before reopen. `followups.test.ts` checks single-submission withdrawal. Electron withdrew one pending input, kept the active request open, and verified that the withdrawn text never reached the provider.
 - AC5 — `useAgentChatRuntimeState.test.tsx` checks Queue and Steer at stream admission. `AgentComposer.test.tsx`, `QueuedFollowupsDock.test.tsx`, and `useFollowupQueue.test.ts` cover the existing composer queue controls.
+- Regression — `AgentSessionSubmission.test.ts` covers delayed branch publication, duplicate placement, and unsent recovery. `piDurableTurnAuthority.test.ts` checks that an input is absent from the conversation while it waits and appears once when Durable takes it.

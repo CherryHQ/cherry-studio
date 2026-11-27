@@ -175,7 +175,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     if (opened.status !== 'confirmed') throw new Error(opened.error.message)
     this.handle = opened.value
     this.context = contexts.bindContext(this.context.id, this.handle.thread.id)
-    this.publishFollowups(this.handle.durable.followups())
+    this.publishFollowups(this.handle.durable.followups(), true)
     await saveDurableRequest(this.runtime, this.handle.thread.id, this.input)
     await this.handle.durable.configure(root.agent)
     this.providerSessionId = await this.handle.durable.providerSessionId()
@@ -316,11 +316,12 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
-  private publishFollowups(queue: readonly DurableFollowup[]): void {
+  private publishFollowups(queue: readonly DurableFollowup[], restored?: true): void {
     if (queue === this.publishedFollowups || (!queue.length && !this.publishedFollowups?.length)) return
     this.publishedFollowups = queue
     this.events.push({
       type: 'followup-queue',
+      ...(restored && { restored }),
       queue: queue.flatMap(({ inputId, revision }) => {
         if (messages.inputBinding(this.input.sessionId, inputId)?.contextId !== this.context?.id) return []
         const message = messages.getSessionMessage(this.input.sessionId, inputId)

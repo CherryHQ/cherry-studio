@@ -296,6 +296,9 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    dock until the turn ends. Pi Durable submits
    it with its `follow-up` busy policy and persists it at once, so the queue survives a crash.
    Its dock reflects the native waiting order and offers editing, reordering and withdrawal while queued.
+   Main saves the complete product input before native submission and keeps it off the conversation
+   branch until placement. Placement publishes the input and reserves its reply in the same transaction.
+   Startup reconciles interrupted submissions against their original native request IDs.
    When Durable places the input into a distinct execution, the driver emits `run-started` after the
    preceding answer; the host gives the input its own Run. Main holds that handoff while the previous
    reply has no open stream or another Run handoff is pending. The preceding reply settles as answered

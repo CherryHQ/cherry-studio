@@ -83,7 +83,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { prepareAgentConfigApproval } from '../agents/agentConfigTool'
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
-import { recoverDurableReplies } from '../runtime/piDurable/recoverDurableReplies'
+import { recoverDurableFollowups, recoverDurableReplies } from '../runtime/piDurable/recoverDurableReplies'
 import { normalizePromptSuggestion } from '../runtime/promptSuggestion'
 import { registerRuntimeDrivers } from '../runtime/registerDrivers'
 import { runtimeDriverRegistry } from '../runtime/registry'
@@ -579,6 +579,13 @@ export class AgentSessionRuntimeService extends BaseService {
   private async recoverNativeWork(): Promise<void> {
     if (this.isShuttingDown || this.isWriteQuiesced) return
     for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) await driver.recoverSessions?.()
+    await recoverDurableFollowups(
+      (sessionId) =>
+        !this.isShuttingDown &&
+        !this.isWriteQuiesced &&
+        !this.blockedRecovery.has(sessionId) &&
+        !this.isSessionBusy(sessionId)
+    )
     await this.recoverPendingReplies()
     for (const driver of runtimeDriverRegistry.getAgentSessionDrivers()) {
       if (this.isShuttingDown) return
@@ -1127,6 +1134,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const input = inputs[0]
     if (!source || !input) return undefined
     const turn = createSessionRun({
+      runId: agentSessionMessageService.replyTo(entry.sessionId, input.message.id)?.id,
       taskIds: inputs.map(({ message }) => message.id),
       userMessage: input.message,
       parentId: input.message.id,
@@ -1573,6 +1581,10 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     entry.stopping = stopping
     // Stop withdraws queued follow-ups; input arriving after Stop waits for the native confirmation.
+    if (entry.agentType === 'pi-durable')
+      for (const { message } of entry.runtimeState.queue)
+        if (agentSessionMessageService.isStagedFollowup(entry.sessionId, message.id))
+          agentSessionMessageService.markUserMessageUnsent(entry.sessionId, message.id)
     this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
     this.applyRuntimeStateEvent(entry, { type: 'connection-occupancy', occupancy: 'stopping', active: true })
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -2563,6 +2575,14 @@ export class AgentSessionRuntimeService extends BaseService {
     pending: PendingNativeInput,
     reason?: string
   ): void {
+    if (
+      entry.agentType === 'pi-durable' &&
+      pending.contextId &&
+      reason &&
+      reason !== 'not-found' &&
+      agentSessionMessageService.isStagedFollowup(entry.sessionId, inputId)
+    )
+      return
     entry.pendingInputs?.delete(inputId)
     if (pending.contextId) {
       releaseNativeInputBinding(entry.sessionId, pending.contextId, inputId)
@@ -2822,6 +2842,12 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       }
       case 'followup-queue':
+        if (event.restored && connection?.contextId)
+          agentSessionMessageService.stageRestoredFollowups(
+            entry.sessionId,
+            connection.contextId,
+            event.queue.map(({ id }) => id)
+          )
         for (const { id, revision, parts } of event.queue) {
           const pending = revision > 0 ? entry.pendingInputs?.get(id) : undefined
           if (pending && pending.generation === entry.connectionGeneration) {
@@ -2831,15 +2857,26 @@ export class AgentSessionRuntimeService extends BaseService {
         application.get('CacheService').setShared(AGENT_SESSION_FOLLOWUPS_CACHE_KEY(entry.topicId), event.queue)
         break
       case 'input-state':
-        if (event.input.facts.includes('locally-handled'))
+        if (event.input.facts.includes('locally-handled')) {
           markLocalInput(entry.sessionId, event.contextId, event.input.inputId)
+          if (entry.agentType === 'pi-durable')
+            agentSessionMessageService.publishStagedFollowup(entry.sessionId, event.input.inputId)
+        }
         if (event.input.facts.includes('placed')) {
           const timeline = this.timelineFor(entry)
+          const current = this.currentTurn(entry)
           const pos = agentSessionMessageService.saveInputTimelinePosition(
             entry.sessionId,
             event.input.inputId,
             event.contextId,
-            timeline.lastPos
+            timeline.lastPos,
+            entry.agentType === 'pi-durable'
+              ? {
+                  modelId: current?.modelId ?? entry.modelId,
+                  messageSnapshot:
+                    entry.pendingInputs?.get(event.input.inputId)?.input.messageSnapshot ?? entry.messageSnapshot
+                }
+              : undefined
           )
           if (pos !== undefined) timeline.lastPos = pos
         }
@@ -3882,6 +3919,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (entry.runtimeState.execution.kind !== 'idle') return
     const pending = entry.runtimeState.queue[0]
     if (!pending) return
+    if (entry.agentType === 'pi-durable')
+      agentSessionMessageService.publishStagedFollowup(entry.sessionId, pending.message.id)
     const liveAgent = agentService.getAgent(entry.agentId)
     const sessionOverride = pending.headless ? null : this.readSessionModelOverride(entry.sessionId)
     const effectiveModel = sessionOverride ?? liveAgent?.model ?? null
