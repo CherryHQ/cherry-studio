@@ -58,6 +58,15 @@ Support keeps `settingSources: []` to exclude user and workspace settings. The a
 
 With the sandbox active, a Bash command that needs the network (`gh`, `lark-cli`, `curl`) fails in the sandbox, and the tool result names the denied host. To proceed, the model must request an explicit escape with `dangerouslyDisableSandbox: true`. A base guard requires per-call approval for such requests in interactive turns outside Full Access. The reason tells the user that the command will run outside the sandbox with network access.
 
+A network denial alone does not reliably lead the model to the escape. In the first AC8 run (DeepSeek-V4-Pro, CLI 2.1.311), the model retried with the CLI's `allowed_domains` parameter, which works only in auto mode and which the strict allowlist rejects with a message that points away from the escape. It then switched to MCP web tools. The Claude Code adapter therefore adds guidance to every sandboxed Bash result that reports a network denial. It uses the `additionalContext` of a PostToolUse hook for a zero exit code and of a PostToolUseFailure hook for a non-zero one, which is how the CLI reports them. The guidance names the denied hosts and tells the model four things:
+
+- If a host is needed for the user's request, rerun the same command with `dangerouslyDisableSandbox: true`. Cherry shows the approval card, so the model does not ask in chat first.
+- `allowed_domains` cannot widen network access in this session.
+- Do not switch to other tools to work around the block.
+- If the host is not needed, tell the user instead of escaping.
+
+The CLI rejects an `allowed_domains` call before any hook runs, so the guidance must arrive with the first denial.
+
 `support-bash` continues to deny Bash and PowerShell on headless turns or when no approval responder is available, in every permission mode. In interactive turns it skips per-call approval only for Bash calls covered by the effective sandbox. Without a sandbox, including on Linux and Windows, the existing per-call shell approval applies outside Full Access. Full Access skips interactive shell and escape approvals via `skipInteractiveEffect`. `builtin-destructive` and the JSON command policy stay unchanged.
 
 The network restriction applies to sandboxed Bash. Other tools, including Cherry's MCP web search and fetch, retain their own access and approval policies.
@@ -82,6 +91,8 @@ Probe evidence (SDK 0.3.311, native CLI 2.1.311, macOS 26, scripted mock model):
 - `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` for built-in sessions, proposed as an independent first layer in [#25513](https://github.com/CherryHQ/cherry-studio/pull/25513) and closed. The variables it hides carry little: every Cherry-managed model route puts only the internal gateway credential in the CLI environment, which is held in memory, bound to the session and served on `127.0.0.1`, and the external CLI login route puts none. Upstream provider keys live in Cherry's database, which unsandboxed Bash can read anyway. The scrub also removes `CLAUDE_CONFIG_DIR`, which `npx skills` uses to choose its global install directory, so the Assistant's skill installs would land in the user's own `~/.claude`. It strips credential-looking variables from the user's login shell, and on Linux it moves Bash into a separate PID namespace. If a sandboxed Agent later needs these variables hidden, `sandbox.credentials.envVars` deny can remove exactly them.
 - Sandbox the Assistant now: it is general-purpose (`npx skills`, package installs, web pages), so the base's empty allowlist breaks it until its overlay adds a preset list.
 - Linux and Windows: bubblewrap/socat, or an elevated `claude sandbox install`, are not zero-setup for a desktop user. They keep their current shell approval behavior.
+- Rerun a denied command outside the sandbox from the harness after asking the user, as Codex does under its on-failure approval policy and Gemini CLI does with its sandbox expansion dialog: the Claude Code CLI owns the tool loop, so Cherry cannot rerun a call.
+- Grant a single host while keeping the command sandboxed, as Zed, VS Code (`requestAllowNetwork`) and the CLI's `allowed_domains` do: the CLI offers this only in auto mode and only without the strict allowlist that Full Access depends on.
 - Wrap the whole Claude Code process in a VM or `sandbox-runtime` (as Claude Cowork does): this would also cover hooks and MCP, but it is a much larger change with its own packaging cost.
 
 ## Acceptance criteria
@@ -97,10 +108,11 @@ Probe evidence (SDK 0.3.311, native CLI 2.1.311, macOS 26, scripted mock model):
 - AC9 — An overlay that tries to turn off strict mode, make leaving approval-free, enable Apple Events, Unix sockets, or nested user namespaces, or make the `$HOME` root or a shell startup file writable produces a merged policy that keeps the base values. (verification: unit, owner: sandbox policy implementer)
 - AC10 — Domains and writable paths added by an overlay appear in the Claude Code sandbox options alongside the base values, and a domain denied by either side stays denied. (verification: unit, owner: sandbox policy implementer)
 - AC11 — On macOS with the sandbox enabled for Support, a startup failure or an effective configuration that cannot be verified to enforce the resolved policy produces a visible turn error before any shell command executes, including in Full Access and on reused connections. With the sandbox rollout off, Support keeps the existing per-call shell approval outside Full Access. (verification: unit + macOS native test + Electron, owner: Claude Code runtime implementer)
+- AC12 — On macOS, when a sandboxed Support Bash command is denied network access, with a zero or a non-zero exit code, the tool result the model receives names the denied host and tells it to rerun with `dangerouslyDisableSandbox: true` rather than use `allowed_domains` or another tool. Results without a network denial, escape calls, and sessions without a sandbox get no guidance. (verification: unit + macOS native test, owner: Claude Code runtime implementer)
 
 ## Risks
 
-- Model behavior: the model may retry a denied command unchanged. Cursor reported this failure mode and fixed it by changing tool results and tool descriptions. AC8 must pass with a real model before the sandbox ships. If it fails, keep the sandbox off rather than add retry machinery.
+- Model behavior: the model may retry a denied command unchanged. Cursor reported this failure mode and fixed it by changing tool results and tool descriptions; VS Code and Codex likewise tell the model at failure time how to escalate. The first AC8 run failed this way, and the failure-time guidance addresses it. AC8 must pass with a real model before the sandbox ships. If it fails, keep the sandbox off rather than add retry machinery.
 - Sandboxed Bash retains read access to files such as `~/.ssh` and can copy them into the workspace. Bash network access requires an escape. Other tools and model requests are outside this network boundary. Read denial is out of scope.
 - In an interactive turn with an available responder, Full Access allows escapes without a card. The headless and no-responder denials and the fail-closed sandbox startup behavior still apply.
 - A merge bug would widen a sandbox without any visible sign. AC9 and AC10 test the merge function directly. Later overlays add their own cases there.
