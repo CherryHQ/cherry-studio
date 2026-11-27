@@ -66,6 +66,11 @@ const exportToObsidian: ExportMessagesToObsidian = async (title, messages) => {
 
 const canDeleteMessage = (message: MessageListItem): boolean => message.role !== 'assistant'
 
+const legacySetupHeaders = new Map([
+  ['claude-code', /^\[Historical local command(?: output)?\]\r?\n/],
+  ['codex', /^\[Historical (?:project instructions|environment|plugin context|app context)\]\r?\n/]
+])
+
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
 export function scrollAgentMessageListToEnd(topicId: string): void {
@@ -254,11 +259,18 @@ export function useAgentMessageListProviderValue({
       ({ role, metadata }) => role === 'user' && metadata?.provenance && !metadata.provenance.isSetup
     )
     if (firstImportedTask <= 0) return messages
-    return messages.filter(({ role, metadata }, index) => {
-      const provenance = metadata?.provenance
-      return index >= firstImportedTask || !provenance || (role !== 'system' && !provenance.isSetup)
+    return messages.filter((message, index) => {
+      const provenance = message.metadata?.provenance
+      if (index >= firstImportedTask || !provenance) return true
+      if (provenance.isSetup) return false
+      if (message.role !== 'system') return true
+      // Older imports stored formatted setup text without a provenance marker.
+      const header = legacySetupHeaders.get(provenance.source)
+      if (!header) return true
+      const parts = messagePartsAt(partsByMessageId, message.id) ?? message.parts
+      return !parts?.length || !parts.every((part) => part.type === 'text' && header.test(part.text))
     })
-  }, [hasOlder, messages])
+  }, [hasOlder, messages, partsByMessageId])
   const timeline = useAgentTimeline(visibleMessages, displayPartsByMessageId, projectionTarget)
   const sourceIds = useMemo(
     () => new Map(timeline.rows.map((row) => [row.id, row.sourceMessageId ?? row.id])),

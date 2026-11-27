@@ -608,7 +608,7 @@ describe('useAgentMessageListProviderValue', () => {
       parts: [{ type: 'text', text }],
       metadata: { provenance: { source: 'claude-code', sourceOrder: 1 } }
     })
-    const preamble = imported('context', 'system', '[Historical project instructions]\nAGENTS.md')
+    const preamble = imported('context', 'system', '[Historical local command]\n\n/model')
     const setup: CherryUIMessage = {
       ...imported('setup', 'user', 'Generated setup'),
       metadata: { provenance: { source: 'claude-code', sourceOrder: 1, isSetup: true } }
@@ -661,8 +661,16 @@ describe('useAgentMessageListProviderValue', () => {
     const followUp: CherryUIMessage = { id: 'follow-up', role: 'user', parts: [{ type: 'text', text: 'Continue' }] }
     rerender({ hasOlder: false, history: [setup, answer, followUp] })
     expect(result.current.state.messages.map((message) => message.id)).toEqual(['setup', 'answer', 'follow-up'])
-    rerender({ hasOlder: false, history: [setup, answer, user, followUp] })
-    expect(result.current.state.messages.map((message) => message.id)).toEqual(['answer', 'user', 'follow-up'])
+    const toolResult = imported('tool-result', 'system', '[Historical tool result: Read]\n\nfile contents')
+    const note = imported('note', 'system', 'Earlier session activity')
+    rerender({ hasOlder: false, history: [setup, toolResult, note, answer, user, followUp] })
+    expect(result.current.state.messages.map((message) => message.id)).toEqual([
+      'tool-result',
+      'note',
+      'answer',
+      'user',
+      'follow-up'
+    ])
   })
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', async () => {

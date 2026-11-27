@@ -356,6 +356,7 @@ async function readCodexSession(
       provenance: {
         source: 'codex',
         originalMessageId: id,
+        isSetup: item.type === 'message' && role === 'system' ? true : undefined,
         sourceOrder: line - 1,
         originalTimestamp: row.timestamp,
         inferredTimestamp

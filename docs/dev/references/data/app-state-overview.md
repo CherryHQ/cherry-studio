@@ -87,7 +87,7 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `migration_v2_status` | `migrationStatus.ts` (read-only) | historical conversion status  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
 | `agent-runtime-migration:<sessionId>` | `retiredAgentRuntimeMigration` | `{ sessionId: string, resumeToken: string }` | Pending DSH-to-Pi session-history migration. Retained for retry on failure; removed atomically after the imported Pi history and checkpoints are committed. |
 | `conversation-import:session:<sessionId>` | `importedSessionHistory` | `{ version: 1, metadata: { source, originalSessionId }, initialization?: { nativeSessionId, status, messageCount } }` | Required import identity and retry state; never disposable. |
-| `conversation-import:message:<sessionId>:<messageId>` | `importedSessionHistory` | `{ source, sourceOrder, isSetup?: true }` | Backup-retained message provenance. The optional flag identifies generated setup in a user-role record so the transcript can find the first imported user task. Database reads use the existing primary key. |
+| `conversation-import:message:<sessionId>:<messageId>` | `importedSessionHistory` | `{ source, sourceOrder, isSetup?: true }` | Backup-retained message provenance. The optional flag identifies source-generated setup, including user-role setup. The transcript keeps historical tool activity visible. Database reads use the existing primary key. |
 
 ## Related Source Code
 
