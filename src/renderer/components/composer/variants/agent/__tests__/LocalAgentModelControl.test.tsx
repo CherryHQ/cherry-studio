@@ -213,13 +213,41 @@ describe('local agent model persistence', () => {
       rerender(
         <LocalAgentModelControl
           {...props}
-          info={{ ...info, activeModel: { id: '["cherry-studio-codemate-gateway","test:first"]', name: 'test:first' } }}
+          info={{
+            ...info,
+            models: [
+              ...info.models,
+              { id: '["cherry-studio-codemate-gateway","test:first"]', name: first.name },
+              { id: '["cherry-studio-codemate-gateway","test:second"]', name: second.name },
+              { id: '["deepseek-official","deepseek-flash"]', name: 'DeepSeek-V4.1-Flash' }
+            ],
+            activeModel: { id: '["cherry-studio-codemate-gateway","test:first"]', name: 'test:first' }
+          }}
         />
       )
       expect(trigger).toHaveTextContent(first.name)
       await user.click(trigger)
+      expect(screen.getByRole('option', { name: 'DeepSeek-V4.1-Flash' })).toBeInTheDocument()
       expect(screen.getByRole('option', { name: first.name })).toHaveAttribute('aria-selected', 'true')
-      expect(screen.getByRole('option', { name: second.name })).toHaveAttribute('aria-disabled', 'true')
+      const [secondOption] = screen.getAllByRole('option', { name: second.name })
+      expect(screen.getAllByRole('option', { name: second.name })).toHaveLength(1)
+      expect(secondOption).not.toHaveAttribute('aria-disabled', 'true')
+      await user.click(secondOption)
+      expect(ipcApi.request).toHaveBeenCalledWith('deepseek_harness.select_gateway_model', {
+        uniqueModelId: second.id
+      })
+      expect(ipcApi.request).not.toHaveBeenCalledWith('ai.local_agents.select_session_model', expect.anything())
+      await waitFor(() => expect(screen.queryByRole('option', { name: second.name })).not.toBeInTheDocument())
+      rerender(
+        <LocalAgentModelControl
+          {...props}
+          info={{
+            ...info,
+            activeModel: { id: '["cherry-studio-codemate-gateway","test:second"]', name: 'test:second' }
+          }}
+        />
+      )
+      expect(trigger).toHaveTextContent(second.name)
     } finally {
       mockPreferenceState.set(key, previous)
       catalog.models = []

@@ -59,9 +59,7 @@ export function useLocalAgentModelSelection(
       ? dshModelAddress(activeNativeModelId, DEEPSEEK_HARNESS_GATEWAY_ROUTE)
       : undefined
   const sourceRestrictions: LocalAgentModelSourceRestrictions | undefined = supportsGateway
-    ? dshSessionAddress
-      ? { gateway: t('local_agents.session_model.current_only') }
-      : undefined
+    ? undefined
     : {
         native: storage?.type === 'agent' || native ? undefined : t('local_agents.global_model_unavailable'),
         gateway: t('local_agents.model_sources.gateway_not_integrated')
@@ -96,10 +94,8 @@ export function useLocalAgentModelSelection(
   const options: LocalAgentModelOption[] = [
     ...nativeModels
       .filter((model) => !isCursor || resolveCursorModelId(model.id) !== CURSOR_AUTO_MODEL_ID)
-      .filter(
-        (model) =>
-          !gatewayModelId || (model.id !== nativeModel && (!dshSessionAddress || model.id !== activeNativeModelId))
-      )
+      .filter((model) => !managedDeepSeekHarness || !dshModelAddress(model.id, DEEPSEEK_HARNESS_GATEWAY_ROUTE))
+      .filter((model) => !gatewayModelId || model.id !== nativeModel)
       .map((model) => {
         const tags: ModelDisplayTag[] = model.registryModel ? getModelDisplayCapabilityTags(model.registryModel) : []
         if (/free/i.test(`${model.id} ${model.name}`)) tags.push('free')
@@ -142,7 +138,6 @@ export function useLocalAgentModelSelection(
   const select = async (agent: AgentEntity, id?: string) => {
     const model = gatewayModels.find((model) => `${GATEWAY_MODEL_PREFIX}${model.id}` === id)
     if (managedDeepSeekHarness && model) {
-      if (dshSessionAddress) return
       await ipcApi.request('deepseek_harness.select_gateway_model', { uniqueModelId: model.id })
       return config?.nativeModel ? updateNativeModel(agent.id) : agent
     }

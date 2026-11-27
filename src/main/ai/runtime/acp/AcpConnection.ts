@@ -347,8 +347,9 @@ export class AcpConnection extends LocalConnection {
     const mcpServers = this.buildBrowserMcpServers(response.agentCapabilities?.mcpCapabilities?.http === true)
     const configure = async (session: AcpThreadHandle<true>) => {
       const selection = acpModelSelection(this.config, launch)
-      if (!selection.model || (resume && !this.config.sourceModelId && session.acp.model.activeModel?.id)) return
-      const model = this.config.sourceModelId
+      const boundGateway = !!this.config.sourceModelId || !!this.gatewayLease
+      if (!selection.model || (resume && !boundGateway && session.acp.model.activeModel?.id)) return
+      const model = boundGateway
         ? resolveConfiguredAcpModel(
             this.config.presetId,
             selection.model,

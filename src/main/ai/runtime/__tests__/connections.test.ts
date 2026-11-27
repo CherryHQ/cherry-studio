@@ -2490,6 +2490,35 @@ describe('local protocol processes', () => {
     }
   })
 
+  it('applies a launch-bound gateway model when resuming an ACP session without sourceModelId', async () => {
+    const patchPath = path.join(cwd, 'gateway.patch.yml')
+    await writeFile(patchPath, '[]')
+    const dispose = vi.fn(async () => {})
+    const prepareAgent = vi.fn(async () => ({
+      nativeModel: 'legacy-model',
+      gateway: { patchPath, env: { CHERRY_DSH_GATEWAY_API_KEY: 'test-key' }, dispose }
+    }))
+    MockApplicationUtils.setService('DeepSeekHarnessService', { prepareAgent })
+
+    const resumed = new AcpConnection('dsh-resume-session', 'dsh-agent', {
+      presetId: 'deepseek-harness',
+      enabled: true,
+      executableOverride: process.execPath,
+      args: [fixture, 'acp', 'legacy-models'],
+      env: { FIXTURE_LOG: path.join(cwd, 'wire.jsonl') }
+    })
+    connections.push(resumed)
+
+    await resumed.start(cwd, 'native-session')
+    const wire = await readWire()
+    expect(wire.filter((message) => message.method === 'session/set_model').map((m) => m.params.modelId)).toEqual([
+      'legacy-model'
+    ])
+
+    await resumed.close()
+    expect(dispose).toHaveBeenCalledTimes(1)
+  })
+
   it.each([
     ['openai-compatible', true],
     ['anthropic', false]
