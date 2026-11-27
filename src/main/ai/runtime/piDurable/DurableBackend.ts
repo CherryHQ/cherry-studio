@@ -212,7 +212,8 @@ export class DurableBackend {
     if (previous?.input === input) return previous
     const desktop = await prepareDurableDesktop(input, (event) => this.roots.get(context.id)?.sink?.event(event), {
       contextId: context.id,
-      namespace: randomUUID()
+      namespace: randomUUID(),
+      isRoot: (id) => this.roots.get(context.id)?.context.nativeThreadId === String(id)
     })
     try {
       const bindModel = (model: Model, provider = providerService.getByProviderId(model.providerId)) => {

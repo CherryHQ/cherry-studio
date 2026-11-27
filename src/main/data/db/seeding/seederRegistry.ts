@@ -21,6 +21,7 @@ import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
 import { RetiredAgentRuntimeSeeder } from './seeders/RetiredAgentRuntimeSeeder'
 import { ScheduledTasksShortcutSeeder } from './seeders/scheduledTasksShortcutSeeder'
 import { SelectionActionItemsUpgradeSeeder } from './seeders/selectionActionItemsUpgradeSeeder'
+import { SharedMemoryRolloutSeeder } from './seeders/SharedMemoryRolloutSeeder'
 import { SidebarShortcutMigrationSeeder } from './seeders/sidebarShortcutMigrationSeeder'
 import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
 import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceUpgradeSeeder'
@@ -35,6 +36,7 @@ import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceU
  * No changes to DbService needed.
  */
 export const seeders: ISeeder[] = [
+  new SharedMemoryRolloutSeeder(),
   new RetiredAgentRuntimeSeeder(),
   new AgentSessionContextSeeder(),
   new AgentSessionMessageTreeSeeder(),

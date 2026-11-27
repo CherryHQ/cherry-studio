@@ -3,6 +3,7 @@ import type { AgentChange } from '@earendil-works/pi-durable'
 import { application } from '@application'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { agentMemoryReference } from '@main/ai/memory/memoryPrompt'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
@@ -15,6 +16,7 @@ import { buildPiMcpToolName, isPiToolDisabled } from '../pi/piMcpExtension'
 import { loadPiSdk } from '../pi/piSdk'
 import { buildPiLoginPathPrefix, mergePiShellExecutionEnv, resolvePiShellPath } from '../pi/piShell'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
+import { createDurableEnvironment, runDurableFileMutation } from './durableEnvironment'
 import { createDurableMcp } from './durableMcp'
 import { buildDurablePrompt } from './durablePrompt'
 import { withDurableShellTimeout } from './durableShellTimeout'
@@ -22,7 +24,7 @@ import { withDurableShellTimeout } from './durableShellTimeout'
 export async function prepareDurableDesktop(
   input: AgentRuntimeConnectInput,
   emit: (event: AgentRuntimeEvent) => void,
-  root?: { contextId: string; namespace: string }
+  root?: { contextId: string; namespace: string; isRoot(id: number): boolean }
 ) {
   const namespace = root?.namespace
   const discovery = await capturePiConnectionSnapshot(
@@ -59,7 +61,6 @@ export async function prepareDurableDesktop(
   const [
     native,
     tools,
-    { NodeExecutionEnv },
     { createCodemodeExtension },
     { createToolSearchExtension },
     { CodemodeSandbox },
@@ -69,7 +70,6 @@ export async function prepareDurableDesktop(
   ] = await Promise.all([
     import('@earendil-works/pi-durable'),
     import('@earendil-works/pi-durable/tools'),
-    import('@earendil-works/pi-durable/env/node'),
     import('@earendil-works/pi-durable/codemode'),
     import('@earendil-works/pi-durable/tool-search'),
     import('@earendil-works/pi-codemode'),
@@ -106,6 +106,8 @@ export async function prepareDurableDesktop(
     const isDisabled = (name: string) => isPiToolDisabled(disabled, name, mcp.metadata.get(name))
     const registry = native.createRegistry()
     const coding = tools.createCodingTools({ images: await images.createNodePhotonImages() })
+    const edit = tools.createEditTool()
+    const write = tools.createWriteTool()
     const bash = tools.createBashTool({
       commandPrefix: buildPiLoginPathPrefix(getPathFromEnvironment(env))
     })
@@ -113,7 +115,15 @@ export async function prepareDurableDesktop(
       native.defineExtension({
         ...coding,
         tools: [
-          ...(coding.tools ?? []).filter((tool) => tool.name !== 'bash'),
+          ...(coding.tools ?? []).filter((tool) => !['bash', 'edit', 'write'].includes(tool.name)),
+          {
+            ...edit,
+            execute: (...args: Parameters<typeof edit.execute>) => runDurableFileMutation(() => edit.execute(...args))
+          },
+          {
+            ...write,
+            execute: (...args: Parameters<typeof write.execute>) => runDurableFileMutation(() => write.execute(...args))
+          },
           withDurableShellTimeout(bash),
           ...(process.platform === 'win32' ? [withDurableShellTimeout(tools.createPowerShellTool())] : [])
         ]
@@ -122,14 +132,41 @@ export async function prepareDurableDesktop(
     registry.install(createCodemodeExtension({ sandbox: new CodemodeSandbox(), models: false }))
     registry.install(createToolSearchExtension())
     registry.install(mcp.extension)
-    registry.install(native.defineExtension({ name: 'cherry.desktop', sections: prompt.sections }))
+    registry.install(
+      native.defineExtension({
+        name: 'cherry.desktop',
+        hooks: [
+          native.hook(native.GenerationTask, {
+            async beforeRequest(request, api, context) {
+              if (!root?.isRoot(api.conversationId)) return undefined
+              const memory = await agentMemoryReference(
+                input.sessionId,
+                () =>
+                  application.get('AgentSessionRuntimeService').getInteractionState(input.sessionId, root?.contextId),
+                context.abortSignal
+              )
+              const [first, ...rest] = request.messages
+              if (first?.role === 'system')
+                return { messages: [{ ...first, sections: { ...first.sections, cherry_memory: memory } }, ...rest] }
+              return {
+                messages: [
+                  { role: 'system', content: '', sections: { cherry_memory: memory }, timestamp: Date.now() },
+                  ...request.messages
+                ]
+              }
+            }
+          })
+        ],
+        sections: prompt.sections
+      })
+    )
     if (namespace) {
       for (const extension of registry.snapshot().installed()) {
         registry.uninstall(extension)
         registry.install(native.defineExtension({ ...extension, name: `${namespace}/${extension.name}` }))
       }
     }
-    const environment = new NodeExecutionEnv({
+    const environment = await createDurableEnvironment({
       cwd,
       shellPath: resolvePiShellPath(),
       // Per-call PATH overrides the SDK's inherited environment. Merge the complete PATH here.

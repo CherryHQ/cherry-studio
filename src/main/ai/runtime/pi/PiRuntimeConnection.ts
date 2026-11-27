@@ -27,6 +27,7 @@ import {
 } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
 import { logAiFailure } from '@main/ai/errorReporting'
+import { openRuntimeMemoryGuard } from '@main/ai/memory/memoryRuntime'
 import { buildAgentMcpServers, warmAgentMcpToolCatalogs } from '@main/ai/runtime/agentMcpServers'
 import { prepareAgentSessionWorkspaceDirectory } from '@main/ai/runtime/agentSessionWorkspace'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
@@ -119,6 +120,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   >()
   private failure?: unknown
   private connectionSignature?: string
+  private memoryGuard?: ReturnType<typeof openRuntimeMemoryGuard>
   private permissionMode: AgentPermissionMode = 'default'
   private disabledTools = new Set<string>()
   private reconcileChain: Promise<unknown> = Promise.resolve()
@@ -134,6 +136,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   constructor(private readonly input: AgentRuntimeConnectInput) {}
 
   async start(): Promise<this | UnavailableNativeContext> {
+    this.memoryGuard = openRuntimeMemoryGuard(this.input.sessionId, () => {
+      void this.close().catch((error) => logger.error('Failed to stop invalidated memory runtime', { error }))
+    })
+    try {
+      await this.memoryGuard.check()
+    } catch (error) {
+      this.memoryGuard.dispose()
+      throw error
+    }
     const discovery = await capturePiConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
@@ -190,7 +201,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       getPermissionMode: () => this.permissionMode,
       builtinRole: agent.configuration?.builtin_role,
       isDisabled: (toolName: string) => this.isToolDisabled(toolName),
-      additionalReadOnlyRoots: [...additionalSkillPaths, application.getPath('feature.agents.outputs')],
+      additionalReadOnlyRoots: [
+        ...additionalSkillPaths,
+        application.getPath('feature.agents.outputs'),
+        application.getPath('feature.memory.data')
+      ],
       // Approval follows the mounted server set; disabledTools still blocks at fire-time.
       autoApprovedTools: new Set(
         mountedPolicies
@@ -347,7 +362,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         ...(loginPathPrefix ? { shellCommandPrefix: loginPathPrefix } : {})
       },
       extensionFactories: [
-        createPiIdentityExtension(agentDataPath),
+        createPiIdentityExtension(agentDataPath, this.input.sessionId, this.context.id),
         pi.createCodemodeExtension({ models: false }),
         pi.createToolSearchExtension(),
         createPiMcpExtension(pi, mcpServers, application.getPath('feature.agents.pi.root', 'mcp.log'))
@@ -464,11 +479,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private async submit(input: AgentRuntimeCommand, text: string, whenBusy: 'reject' | 'steer'): Promise<void> {
+    await this.memoryGuard?.check()
     const draft = prepareNativeSubmission(this.input.sessionId, input.message.id, this.context!.id, whenBusy, {
       text,
       parts: input.message.data.parts
     })
     this.input.onInputPrepared?.(input.message.id, this.context!.id)
+    await this.memoryGuard?.check()
     const result = await this.handle!.input.submit(draft)
     this.eventQueue.push({ type: 'input-submission', contextId: this.context!.id, result })
     applyNativeSubmissionResult(this.input.sessionId, this.context!.id, result)
@@ -713,6 +730,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     })
     const draft = prepareNativeSubmission(sessionId, messageId, contextId, 'steer')
     await projection.refresh()
+    await this.memoryGuard?.check()
     const result = await handle.input.submit(draft)
     applyNativeSubmissionResult(sessionId, contextId, result)
     await projection.refresh()
@@ -918,6 +936,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   close(): Promise<void> {
+    this.memoryGuard?.dispose()
     this.closing = true
     return (this.closePromise ??= this.finishClose().catch((error) => {
       this.closePromise = undefined

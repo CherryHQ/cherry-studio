@@ -86,11 +86,16 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
   cleanups.push(() => test.close())
   const workspaceId = randomUUID()
   const sessionId = randomUUID()
+  const agentId = randomUUID()
+  dbh.db
+    .insert(agentTable)
+    .values({ id: agentId, type: 'claude-code', name: 'Fixture', instructions: '', orderKey: 'a1' })
+    .run()
   dbh.db
     .insert(agentWorkspaceTable)
     .values({ id: workspaceId, name: 'Native test', type: 'user', path: test.options.cwd, orderKey: 'a0' })
     .run()
-  dbh.db.insert(agentSessionTable).values({ id: sessionId, workspaceId, name: 'Root', orderKey: 'a0' }).run()
+  dbh.db.insert(agentSessionTable).values({ id: sessionId, agentId, workspaceId, name: 'Root', orderKey: 'a0' }).run()
   ports.build.mockResolvedValue({
     key: sessionId,
     options: {
@@ -138,7 +143,7 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
   ) => {
     connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId,
-      agentId: randomUUID(),
+      agentId,
       modelId: 'native-test::claude-sonnet-4-6',
       nativeSessionId,
       branchHead,
@@ -171,7 +176,7 @@ async function desktop(options: Parameters<typeof fixture>[0] = {}) {
     expect(events.filter((event) => event.type === 'error')).toEqual([])
     return find()!
   }
-  return { ...test, sessionId, input, connect, events, wait, nativeInputs }
+  return { ...test, sessionId, agentId, input, connect, events, wait, nativeInputs }
 }
 
 it('continues product history and keeps SDK background notifications in one Main reply', async () => {
@@ -532,6 +537,9 @@ it('adopts a real warm process with its captured credential receipt', async () =
   const child = test.children[0]
   const receipt = { attribution: 'explicit', id: 'serving-key', masked: 'test-***' }
   ports.consume.mockResolvedValue({
+    checkMemory: vi.fn().mockResolvedValue(undefined),
+    takeOwnership: vi.fn(),
+    close: () => warm.close(),
     warmQuery: warm,
     processDiagnostics: {
       reference: 'warm-process',
@@ -1508,12 +1516,8 @@ it.each([
       modelId,
       settings: { permissionMode: from }
     })
-    const test = await desktop({ permissionMode, allowDangerouslySkipPermissions, tools: ['Bash'] })
-    const agentId = randomUUID()
-    dbh.db
-      .insert(agentTable)
-      .values({ id: agentId, type: 'claude-code', name: 'Agent', instructions: '', orderKey: 'a0' })
-      .run()
+    const test = await desktop({ permissionMode, allowDangerouslySkipPermissions, tools: ['Write'] })
+    const { agentId } = test
     const agent = agentService.getAgent(agentId)!
     const snapshot = await createClaudeAgentToolPolicySnapshot({
       ...agent,
@@ -1541,8 +1545,8 @@ it.each([
     first.reply.block({
       type: 'tool_use',
       id: 'toolu_marker',
-      name: 'Bash',
-      input: { command: `node -e "require('fs').writeFileSync('marker.txt', 'x')"`, description: 'Write marker' }
+      name: 'Write',
+      input: { file_path: path.join(test.options.cwd, 'marker.txt'), content: 'x' }
     })
     first.reply.finish('tool_use')
     const second = await test.request()

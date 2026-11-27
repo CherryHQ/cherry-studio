@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
@@ -136,6 +137,10 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
   const dbh = setupTestDatabase()
   beforeEach(() => {
     BaseService.resetInstances()
+    dbh.db
+      .insert(agentTable)
+      .values({ id: 'wire-agent', type: 'claude-code', name: 'Wire', instructions: '', orderKey: 'a0' })
+      .run()
     mocks.internal = true
     mocks.sessionId = 'agent-session'
     mocks.manager = new AiStreamManager()
@@ -147,7 +152,13 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
       .run()
     dbh.db
       .insert(agentSessionTable)
-      .values({ id: 'agent-session', name: 'Session', workspaceId: 'agent-workspace', orderKey: 'a0' })
+      .values({
+        id: 'agent-session',
+        agentId: 'wire-agent',
+        name: 'Session',
+        workspaceId: 'agent-workspace',
+        orderKey: 'a0'
+      })
       .run()
     prepareClaudeBranch('agent-session', '/workspace/.claude')
     const getPath = vi.mocked(application.getPath).getMockImplementation()!
@@ -371,7 +382,13 @@ describe('internal Anthropic agent through the production gateway and SDK', () =
 
       dbh.db
         .insert(agentSessionTable)
-        .values({ id: 'other-session', name: 'Other', workspaceId: 'agent-workspace', orderKey: 'a1' })
+        .values({
+          id: 'other-session',
+          agentId: 'wire-agent',
+          name: 'Other',
+          workspaceId: 'agent-workspace',
+          orderKey: 'a1'
+        })
         .run()
       prepareClaudeBranch('other-session', '/workspace/.claude')
       mocks.sessionId = 'other-session'

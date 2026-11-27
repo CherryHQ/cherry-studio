@@ -6,6 +6,7 @@ import { application } from '@application'
 import { agentSessionMessageService as messages } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
+import { openRuntimeMemoryGuard } from '@main/ai/memory/memoryRuntime'
 import { claudeBranchQueryIdentity, prepareClaudeBranch } from '@main/ai/runtime/claudeCode/claudeContext'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { buildAgentSessionTopicId } from '@shared/ai/agentSessionTopic'
@@ -25,6 +26,7 @@ const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 
 type WarmQueryEntry = {
+  memoryGuard: ReturnType<typeof openRuntimeMemoryGuard>
   signature: string
   promise: Promise<WarmQuery | undefined>
   closePromise?: Promise<void>
@@ -61,6 +63,9 @@ export interface WarmQueryRequest {
 }
 
 export interface ConsumedWarmQuery {
+  checkMemory(): Promise<void>
+  takeOwnership(): void
+  close(): Promise<void>
   warmQuery: WarmQuery
   usageCapture?: AgentSessionUsageCapture
   processDiagnostics: ClaudeCodeProcessDiagnostics
@@ -168,7 +173,9 @@ export function createClaudeCodeWarmQuerySignature(
 @DependsOn(['ClaudeCodeProcessManager'])
 export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly entries = new Map<string, WarmQueryEntry>()
+  private readonly consuming = new Map<string, Set<WarmQueryEntry>>()
   private readonly preparingSessions = new Map<string, Set<Promise<void>>>()
+  private readonly prewarming = new Map<string, Promise<void>>()
   private readonly closingQueries = new Map<string, Set<Promise<void>>>()
   private readonly failedClosures = new Map<string, Set<WarmQueryEntry>>()
 
@@ -186,9 +193,13 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   }
 
   private async prepareAgentSession(sessionId: string): Promise<void> {
+    let guard: ReturnType<typeof openRuntimeMemoryGuard> | undefined
     try {
+      guard = openRuntimeMemoryGuard(sessionId, () => {})
+      await guard.check()
       const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
+      await guard.check()
       if (!warmRequest) return
       const storedResume = messages.getLastRuntimeResumeToken(sessionId) ?? undefined
       const context = prepareClaudeBranch(
@@ -202,9 +213,13 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
         ...warmRequest.options,
         ...claudeBranchQueryIdentity(context, storedResume)
       }
-      await this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
+      const traced = await this.withTraceEnv(sessionId, warmRequest)
+      await guard.check()
+      await this.prewarm(traced)
     } catch (error) {
       logger.warn('Failed to prewarm agent session', { sessionId, error })
+    } finally {
+      guard?.dispose()
     }
   }
 
@@ -235,46 +250,60 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   }
 
   async prewarm(request: WarmQueryRequest): Promise<void> {
-    // Delayed loading: the agent SDK stays out of the boot path and loads on first prewarm. The
-    // single await sits before any `entries` access, so the body below still runs without gaps.
-    const { startup } = await import('@anthropic-ai/claude-agent-sdk')
-    const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
-    const signature = createClaudeCodeWarmQuerySignature(
-      warmOptions,
-      request.credentialsFingerprint,
-      request.knowledgeBaseIds,
-      request.notificationContext,
-      request.connectionRebuildSignature
-    )
-    const existing = this.entries.get(request.key)
-
-    if (existing?.signature === signature) {
-      this.refreshIdleTimer(request.key, existing)
-      return
-    }
-
-    if (existing) {
-      this.closeDetached(request.key, existing)
-    }
-
-    const processDiagnostics = createClaudeCodeProcessDiagnostics()
-    const promise = startup({
-      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
-      initializeTimeoutMs: request.initializeTimeoutMs
-    }).catch((error) => {
-      if (this.entries.get(request.key)?.promise === promise) {
-        this.entries.delete(request.key)
-      }
-      logger.warn('Claude warm query startup failed', { key: request.key, error })
-      return undefined
+    let entry: WarmQueryEntry | undefined
+    const guard = openRuntimeMemoryGuard(request.key, () => {
+      if (entry) this.closeDetached(request.key, entry)
     })
-
-    const entry: WarmQueryEntry = { signature, promise, usageCapture: request.usageCapture, processDiagnostics }
-    this.entries.set(request.key, entry)
-    this.refreshIdleTimer(request.key, entry)
+    const previous = this.prewarming.get(request.key)
+    const finished = Promise.withResolvers<void>()
+    this.prewarming.set(request.key, finished.promise)
+    try {
+      await previous
+      await guard.check()
+      const { startup } = await import('@anthropic-ai/claude-agent-sdk')
+      await guard.check()
+      if (this.failedClosures.has(request.key)) throw new Error('Warm query closure requires retry')
+      await Promise.all([...(this.closingQueries.get(request.key) ?? [])])
+      await guard.check()
+      const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
+      const signature = createClaudeCodeWarmQuerySignature(
+        warmOptions,
+        request.credentialsFingerprint,
+        request.knowledgeBaseIds,
+        request.notificationContext,
+        request.connectionRebuildSignature
+      )
+      const existing = this.entries.get(request.key)
+      if (existing?.signature === signature) {
+        await existing.memoryGuard.check()
+        guard.assertActive()
+        this.refreshIdleTimer(request.key, existing)
+        return
+      }
+      if (existing) await this.closeEntry(request.key, existing)
+      await guard.check()
+      const processDiagnostics = createClaudeCodeProcessDiagnostics()
+      const promise = startup({
+        options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
+        initializeTimeoutMs: request.initializeTimeoutMs
+      }).catch((error) => {
+        logger.warn('Claude warm query startup failed', { key: request.key, error })
+        this.closeDetached(request.key, entry!)
+        return undefined
+      })
+      entry = { signature, promise, memoryGuard: guard, usageCapture: request.usageCapture, processDiagnostics }
+      this.entries.set(request.key, entry)
+      this.refreshIdleTimer(request.key, entry)
+    } finally {
+      if (!entry) guard.dispose()
+      finished.resolve()
+      if (this.prewarming.get(request.key) === finished.promise) this.prewarming.delete(request.key)
+    }
   }
 
   async consume(request: WarmQueryRequest): Promise<ConsumedWarmQuery | undefined> {
+    if (this.failedClosures.has(request.key)) throw new Error('Warm query closure requires retry')
+    await Promise.all([...(this.closingQueries.get(request.key) ?? [])])
     const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
@@ -290,23 +319,49 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
 
     if (entry.signature !== signature) {
-      this.closeDetached(request.key, entry)
+      await this.closeEntry(request.key, entry)
       return undefined
     }
 
-    const warmQuery = await entry.promise
-    if (!warmQuery) return undefined
-    return { warmQuery, usageCapture: entry.usageCapture, processDiagnostics: entry.processDiagnostics }
+    const consuming = this.consuming.get(request.key) ?? new Set<WarmQueryEntry>()
+    consuming.add(entry)
+    this.consuming.set(request.key, consuming)
+    try {
+      await entry.memoryGuard.check()
+      const warmQuery = await entry.promise
+      await entry.memoryGuard.check()
+      if (!warmQuery) {
+        await this.closeEntry(request.key, entry)
+        return undefined
+      }
+      return {
+        warmQuery,
+        usageCapture: entry.usageCapture,
+        processDiagnostics: entry.processDiagnostics,
+        checkMemory: () => entry.memoryGuard.check(),
+        takeOwnership: () => {
+          entry.memoryGuard.assertActive()
+          entry.memoryGuard.dispose()
+          this.releaseConsuming(request.key, entry)
+        },
+        close: () => this.closeEntry(request.key, entry)
+      }
+    } catch (error) {
+      this.closeDetached(request.key, entry)
+      throw error
+    }
   }
 
   async close(key: string): Promise<void> {
     while (this.preparingSessions.has(key)) {
       await Promise.allSettled([...this.preparingSessions.get(key)!])
     }
+    while (this.prewarming.has(key)) await this.prewarming.get(key)
     const entry = this.entries.get(key)
     this.entries.delete(key)
     const retries = [...(this.failedClosures.get(key) ?? [])]
-    const closures = retries.map((failed) => this.closeEntry(key, failed))
+    const pending = [...(this.consuming.get(key) ?? [])]
+    const closures = [...new Set([...retries, ...pending])].map((failed) => this.closeEntry(key, failed))
     if (entry) closures.push(this.closeEntry(key, entry))
     closures.push(...(this.closingQueries.get(key) ?? []))
     await Promise.all(closures)
@@ -315,7 +370,9 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   closeAll(): Promise<void> {
     const keys = new Set([
       ...this.entries.keys(),
+      ...this.consuming.keys(),
       ...this.preparingSessions.keys(),
+      ...this.prewarming.keys(),
       ...this.closingQueries.keys(),
       ...this.failedClosures.keys()
     ])
@@ -346,14 +403,25 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     )
   }
 
+  private releaseConsuming(key: string, entry: WarmQueryEntry): void {
+    const consuming = this.consuming.get(key)
+    consuming?.delete(entry)
+    if (consuming?.size === 0) this.consuming.delete(key)
+  }
+
   private closeEntry(key: string, entry: WarmQueryEntry): Promise<void> {
     if (entry.closePromise) return entry.closePromise
+    entry.memoryGuard.dispose()
+    if (this.entries.get(key) === entry) this.entries.delete(key)
+    this.releaseConsuming(key, entry)
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
     const closures = this.closingQueries.get(key) ?? new Set<Promise<void>>()
     this.closingQueries.set(key, closures)
     const closing = entry.promise
       .then(async (warmQuery) => {
         await warmQuery?.[Symbol.asyncDispose]()
+        if (warmQuery && !entry.processDiagnostics.exited) throw new Error('Prewarmed process has no exit barrier')
+        await entry.processDiagnostics.exited
         const failed = this.failedClosures.get(key)
         failed?.delete(entry)
         if (failed?.size === 0) this.failedClosures.delete(key)

@@ -178,6 +178,11 @@ also require their own lifecycle and product decisions.
 
 ## System prompt ownership
 
+Live scoped-memory entries are delivered by the runtime hooks described in
+[Agent Prompt Layers](./agent-prompt-layers.md). They are separate from the
+connection's stable prompt and legacy identity files. Entry loading does not
+grant controlled file-write capability.
+
 `src/main/ai/agents/prompt/buildAgentPrompt.ts` assembles the shared Agent prompt. Each runtime supplies the Agent, workspace, agent-data path, and references to tools the session can call, then maps `{ base, append }` into its SDK.
 
 The common materializer owns Cherry policy content, semantic authority, and the ordering of blocks carried through its `append` result:

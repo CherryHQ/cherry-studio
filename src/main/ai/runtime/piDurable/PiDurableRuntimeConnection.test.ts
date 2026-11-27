@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
-import { realpath } from 'node:fs/promises'
+import { existsSync, linkSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { realpath, rename } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import {
@@ -58,6 +59,7 @@ import { readForkResources } from '@main/ai/agentSession/fork/resources'
 import { lookupNativeInput, prepareNativeSubmission } from '@main/ai/agentSession/nativeSubmission'
 import { readSessionHistory } from '@main/ai/agentSession/sessionHistory'
 import { ThreadMessageProjection } from '@main/ai/agentSession/ThreadMessageProjection'
+import { MemoryService } from '@main/ai/memory/MemoryService'
 import { getPiTraceContext, observabilitySinks } from '@main/ai/observability'
 import type { StartRuntimeTurnInput } from '@main/ai/streamManager/AiStreamManager'
 import { pipeMessageStream } from '@main/ai/streamManager/pipeMessageStream'
@@ -143,6 +145,12 @@ vi.mock('@application', async () => {
   }
   return mockApplicationFactory(overrides)
 })
+vi.mock('@main/ai/memory/memoryRuntime', () => ({
+  openRuntimeMemoryGuard: () => ({ check: async () => {}, assertActive: () => {}, dispose: () => {} })
+}))
+vi.mock('@main/ai/memory/memoryPrompt', () => ({
+  agentMemoryReference: async (sessionId: string) => `MEMORY_ENTRY_${sessionId}`
+}))
 vi.mock('../pi/piConnectionSignature', () => ({
   capturePiConnectionSnapshot: mocks.capture,
   PiInvalidConnectionSnapshotError: class extends Error {}
@@ -261,6 +269,29 @@ describe('desktop Pi Durable connection', () => {
     for (const connection of connections.splice(0)) await connection.close()
     vi.restoreAllMocks()
   })
+  it('sends the first message in a fresh Durable conversation after shared memory is cleared', async () => {
+    const runtime = await import('@main/ai/memory/memoryRuntime')
+    const actual = await vi.importActual<typeof runtime>('@main/ai/memory/memoryRuntime')
+    vi.spyOn(runtime, 'openRuntimeMemoryGuard').mockImplementation(actual.openRuntimeMemoryGuard)
+    const memory = new MemoryService()
+    MockApplicationUtils.setService('MemoryService', memory)
+    const editor = memory.open({ scope: { kind: 'shared' }, assertAuthorized: () => undefined })
+    onTestFinished(async () => {
+      editor.dispose()
+      await memory._doStop()
+      MockApplicationUtils.resetServices()
+    })
+    writeFileSync(application.getPath('feature.memory.data', 'MEMORY.md'), 'Forgotten fact')
+    const clear = await editor.clear((await editor.previewClear()).token, async () => () => undefined)
+    expect(clear.files).toContainEqual(expect.objectContaining({ path: 'MEMORY.md', outcome: 'applied' }))
+
+    const first = message('Hello')
+    const { connection, events } = await connect()
+    await connection.send({ message: first })
+    await done(events, 10_000)
+    expect(text(events)).toBe('Hello world')
+  })
+
   it.each([10, 90])('honors Stop while the task context reading is pending (%i%% used)', async (used) => {
     snapshot.model.contextWindow = 100
     snapshot.compactionPercent = 60
@@ -321,6 +352,130 @@ describe('desktop Pi Durable connection', () => {
       .poll(() => nativeInputs.some((state) => state.inputId === user.id && state.outcome === 'aborted'))
       .toBe(true)
     await expect.poll(() => events.some((event) => event.type === 'stop-confirmed')).toBe(true)
+  })
+
+  it('denies native tools access to memory, aliased memory and recovery files even in full access', async () => {
+    const shared = application.getPath('feature.memory.data')
+    const alias = join(directory, 'shortcut')
+    symlinkSync(shared, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    const backup = application.getPath('feature.memory.backups', 'original.md')
+    const privateRoot = application.getPath('feature.agents.data', input.agentId)
+    mkdirSync(privateRoot, { recursive: true })
+    writeFileSync(backup, 'RECOVERY_SECRET')
+    writeFileSync(join(shared, 'MEMORY.md'), 'old')
+    const privateFile = join(privateRoot, 'MEMORY.md')
+    writeFileSync(privateFile, 'private original')
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('backup', 'read', { path: pathToFileURL(backup).href }),
+          toolCallPart('alias', 'edit', {
+            path: join(alias, 'MEMORY.md'),
+            edits: [{ oldText: 'old', newText: 'new' }]
+          }),
+          toolCallPart('private', 'write', { path: privateFile, content: 'unguarded' })
+        ],
+        'toolUse'
+      ),
+      assistantReply('done')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('Use the file tools') })
+    await done(events)
+    const results = script.calls.at(-1)!.messages.filter((item) => item.role === 'toolResult')
+    expect(results).toHaveLength(3)
+    expect(results.every((result) => result.isError)).toBe(true)
+    expect(JSON.stringify(results)).not.toContain('RECOVERY_SECRET')
+    expect(readFileSync(join(shared, 'MEMORY.md'), 'utf8')).toBe('old')
+    expect(readFileSync(privateFile, 'utf8')).toBe('private original')
+  })
+
+  it.each([false, true])(
+    'checks the opened identity for native read, write and edit of a hard link (backup=%s)',
+    async (managed) => {
+      const target = managed
+        ? application.getPath('feature.memory.backups', 'original.md')
+        : join(directory, 'plain.md')
+      const alias = join(directory, 'link.md')
+      writeFileSync(target, 'first')
+      linkSync(target, alias)
+      setScript([
+        assistantReply([toolCallPart('read-link', 'read', { path: alias })], 'toolUse'),
+        assistantReply([toolCallPart('write-link', 'write', { path: alias, content: 'second' })], 'toolUse'),
+        assistantReply(
+          [toolCallPart('edit-link', 'edit', { path: alias, edits: [{ oldText: 'second', newText: 'third' }] })],
+          'toolUse'
+        ),
+        assistantReply('done')
+      ])
+      const { connection, events } = await connect()
+      await connection.send({ message: message('Use the file tools') })
+      await done(events, 10_000)
+      const results = script.calls.at(-1)!.messages.filter((item) => item.role === 'toolResult')
+      expect(results.map((result) => result.isError)).toEqual([managed, managed, managed])
+      expect(JSON.stringify(results[0].content).includes('first')).toBe(!managed)
+      expect(readFileSync(target, 'utf8')).toBe(managed ? 'first' : 'third')
+    }
+  )
+
+  it('retains each successful edit through parallel hard-link aliases', async () => {
+    const target = join(directory, 'parallel.md')
+    const alias = join(directory, 'alias.md')
+    writeFileSync(target, 'one two')
+    linkSync(target, alias)
+    setScript([
+      assistantReply(
+        [
+          toolCallPart('first', 'edit', { path: target, edits: [{ oldText: 'one', newText: 'ONE' }] }),
+          toolCallPart('second', 'edit', { path: alias, edits: [{ oldText: 'two', newText: 'TWO' }] })
+        ],
+        'toolUse'
+      ),
+      assistantReply('done')
+    ])
+    const { connection, events } = await connect()
+    await connection.send({ message: message('Edit both paths') })
+    await done(events)
+    const results = script.calls.at(-1)!.messages.filter((item) => item.role === 'toolResult')
+    expect(results).toHaveLength(2)
+    const content = readFileSync(target, 'utf8')
+    const succeeded = results.filter((result) => !result.isError)
+    expect(succeeded.length).toBeGreaterThan(0)
+    for (const result of succeeded) expect(content).toContain(result.toolCallId === 'first' ? 'ONE' : 'TWO')
+  })
+
+  it('does not recreate a moved file on edit writeback', async () => {
+    const { createDurableEnvironment, runDurableFileMutation } = await import('./durableEnvironment')
+    const env = await createDurableEnvironment({ cwd: directory })
+    const file = join(directory, 'before.md')
+    const moved = join(directory, 'after.md')
+    writeFileSync(file, 'original')
+    await expect(
+      runDurableFileMutation(async () => {
+        expect((await env.readTextFile(file, BACKGROUND_CONTEXT)).ok).toBe(true)
+        await rename(file, moved)
+        await env.writeFile(file, 'edited', BACKGROUND_CONTEXT)
+      })
+    ).rejects.toThrow()
+    expect(existsSync(file)).toBe(false)
+    expect(readFileSync(moved, 'utf8')).toBe('original')
+  })
+
+  it('writes through the handle that was checked when the directory entry is replaced', async () => {
+    const { NodeExecutionEnv } = await import('@earendil-works/pi-durable/env/node')
+    const target = join(directory, 'selected.md')
+    const checked = join(directory, 'checked.md')
+    writeFileSync(target, 'original')
+    const env = new NodeExecutionEnv({
+      cwd: directory,
+      authorizeOpenedFile: async () => {
+        await rename(target, checked)
+        writeFileSync(target, 'replacement')
+      }
+    })
+    expect((await env.writeFile(target, 'approved', BACKGROUND_CONTEXT)).ok).toBe(true)
+    expect(readFileSync(checked, 'utf8')).toBe('approved')
+    expect(readFileSync(target, 'utf8')).toBe('replacement')
   })
 
   it('continues unbound history on separate native branches and retains it after reopening', async () => {
@@ -446,6 +601,7 @@ describe('desktop Pi Durable connection', () => {
     await current.connection.send({ message: message('Identify your model') })
     await done(current.events)
 
+    expect(script.calls[0].systemPrompt).toContain(`MEMORY_ENTRY_${input.sessionId}`)
     expect(script.calls[0].systemPrompt).toContain('My model is Captured model.')
     expect(script.calls[0].systemPrompt).not.toContain('My model is Agent default.')
   })
@@ -1758,6 +1914,10 @@ describe('desktop Pi Durable connection', () => {
       }
       const terminals = events.filter((event) => event.type === 'compaction-complete' || event.type === 'turn-complete')
       expect(terminals.map((event) => event.type)).toEqual(['compaction-complete', 'turn-complete'])
+      events.length = 0
+      await connection.send({ message: message('Continue after compaction') })
+      await done(events)
+      expect(script.calls.at(-1)?.systemPrompt).toContain(`MEMORY_ENTRY_${input.sessionId}`)
       expect(events.filter((event) => event.type === 'error')).toEqual([])
     }
   )

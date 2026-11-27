@@ -29,6 +29,7 @@ import {
   nativeOutcomeTerminal
 } from '@main/ai/agentSession/nativeSubmission'
 import { ThreadProjection } from '@main/ai/agentSession/ThreadProjection'
+import { openRuntimeMemoryGuard } from '@main/ai/memory/memoryRuntime'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { t } from '@main/i18n'
@@ -91,6 +92,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
   private context?: ReturnType<typeof prepareDurableBranch>
   private desktop?: DurableRoot['desktop']
   private access?: { owner: DurableBackend; root: DurableRoot; release(flush: () => Promise<void>): Promise<void> }
+  private memoryGuard?: ReturnType<typeof openRuntimeMemoryGuard>
   private closing = false
   private closePromise?: Promise<void>
   private active = false
@@ -146,7 +148,17 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     this.access = access
   }
 
+  assertMemoryActive(): void {
+    if (!this.memoryGuard) throw new Error('Durable memory context is unavailable')
+    this.memoryGuard.assertActive()
+  }
+
   async start(recoverChildren: readonly string[] = []): Promise<this | UnavailableNativeContext> {
+    let started = false
+    this.memoryGuard = openRuntimeMemoryGuard(this.input.sessionId, () => {
+      if (started) this.fail(new Error('Memory runtime context expired'))
+    })
+    await this.memoryGuard.check()
     const { owner, root } = this.access!
     this.desktop = root.desktop
     this.context = root.context
@@ -189,6 +201,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
     for (const child of recoverChildren)
       if (!(await this.observeChild(child))) throw new Error('Durable child archive is unavailable')
     await this.childResources()
+    this.memoryGuard.assertActive()
+    started = true
     this.events.push({ type: 'resume-token', token: this.handle.thread.id })
     return this
   }
@@ -200,6 +214,7 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   async send(input: AgentRuntimeCommand): Promise<void> {
     if (!this.handle || !this.context || this.closing) throw new Error('Durable runtime is unavailable')
+    this.memoryGuard?.assertActive()
     const text = buildAgentUserContent(input.message)
     const manual = !input.systemReminder && isCompactCommand(text)
     if (manual && this.sending) throw new Error('Durable cannot compact while native work is running')
@@ -919,6 +934,8 @@ export class PiDurableRuntimeConnection implements AgentRuntimeConnection {
 
   close(): Promise<void> {
     this.closing = true
+    this.memoryGuard?.dispose()
+    this.memoryGuard = undefined
     return (this.closePromise ??= this.finishClose().catch((error) => {
       this.closePromise = undefined
       throw error
