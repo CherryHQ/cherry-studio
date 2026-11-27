@@ -168,6 +168,7 @@ export function ImagePreviewViewport({
 
   const handleWheel = React.useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
+      if (event.ctrlKey) event.stopPropagation()
       event.preventDefault()
       const nextZoom = transform.zoom * Math.exp(-event.deltaY * 0.002)
       zoomAt(nextZoom, event.clientX, event.clientY)

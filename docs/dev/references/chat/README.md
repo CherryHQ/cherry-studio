@@ -11,6 +11,7 @@ sources:
   - scripts/data-classify/data/target-key-definitions.json
   - src/shared/data/preference/preferenceSchemas.ts
   - src/shared/data/types/contextSettings.ts
+  - src/shared/utils/contextSettings.ts
   - src/shared/data/types/assistant.ts
   - src/shared/data/types/model.ts
   - src/main/ai/constants.ts
@@ -51,6 +52,39 @@ The repository previously carried target-architecture documents for a generic
 adapter layer and root package barrel. Those APIs did not land; the current
 reference set documents implemented behavior only.
 
+## Conversation list sorting
+
+The Chat and Agent conversation list menus expose separate Group by and Sort by
+controls. Each domain saves its sorting choice across the sidebar and right
+panel: Last updated, Date created, Name, or Manually. Automatic sorts support
+ascending and descending directions. Grouping controls section placement; the
+selected sort applies within each group, and pinned rows retain pin order.
+
+Last updated uses conversation activity (`lastActivityAt`), so renaming or
+reordering a conversation does not move it. Automatic sorting disables row
+reordering. Manually enables supported group-local drops and preserves custom
+order across activity changes and switches to other sorting modes. Collection
+queries apply the selected order before cursor pagination.
+
+Name sorting follows the application language using ICU/CLDR collation. It
+compares numeric runs naturally (`2` before `10`), ignores case, distinguishes
+accents and punctuation, and uses ascending id order for equivalent names in
+both directions. Simplified Chinese uses pinyin; Traditional Chinese uses stroke
+order. Japanese kanji are not automatically converted to readings. Mixed-script
+titles use the selected locale's collation rules. Changing application language
+starts a new localized page chain.
+
+The main process sorts matching name/id metadata with the shared comparator
+before hydrating the current page. This keeps database pagination and display
+groups consistent without a native SQLite ICU extension. Name pagination reads
+all matching name/id pairs per request; other modes retain SQL keyset pagination.
+
+On first upgrade, missing sorting settings are inferred separately from active
+Chat and ordinary Agent rows. A stored manual order that differs from creation
+time descending selects Manually; otherwise the default is Last updated descending.
+Equal creation timestamps do not imply a custom order. Existing sorting settings
+are preserved, and initialization never rewrites conversation order keys.
+
 ## Agent mode controls
 
 The Agent composer exposes Plan as an independent Quick Panel toggle on harnesses
@@ -71,20 +105,20 @@ turn completes successfully. `agent.input.suggestions.enabled` defaults to
 `true` and can be disabled in the input settings. Ordinary chat, message
 editing and reopening history do not generate suggestions.
 
-Tab fills the suggestion as literal editable text without sending; Escape
+Tab or the forward arrow (Right in LTR, Left in RTL) fills literal editable text without sending; Escape
 cancels it for that reply. Existing drafts, attachments and queued follow-ups
 suppress it. Quick-panel handling, prompt-variable navigation, Shift+Tab and
 IME composition keep their existing behavior. Unaccepted suggestions are not
 saved in drafts or session history, and stale results are ignored after a
 session/model change or new turn.
 
-Prediction uses the current model through a cancellable one-shot text request,
-with tools disabled and reasoning turned off when supported, or set to the lowest
-supported effort otherwise. It uses no retries or fallback models and a
-10-second transport timeout. Only text from the last four messages is sent,
-at most 1,000 characters per message. Prediction starts on the next event-loop
-turn without a fixed debounce delay. Failures or unusable predictions leave
-the input unchanged; each eligible reply adds at most one request.
+Claude Code uses its native suggestion option and events, preserving the runtime's
+suppression rules. Pi and Pi Durable predict from their effective native context,
+including compaction, through a detached request that aborts tool calls using the active model
+and the Claude Code suggestion instruction. No prediction is written to history or
+submitted as an Agent turn. See [Agent Session Runtime](../ai/agent-session-runtime.md#next-prompt-suggestions)
+for ownership and cancellation. Other runtimes retain the four-message text-only
+fallback. Failures or unusable predictions leave the input unchanged.
 
 ## Ordinary persisted chat context
 
@@ -111,6 +145,15 @@ Per-assistant `contextSettings` overrides globals field by field in
 assistant `null` overrides a finite global limit. `thresholdPercent` is clamped
 at merge time. `max_messages` is independent of the master toggle: it bounds how
 much history is sent, not what happens on overflow.
+
+The window and the `maxMessages` merge live in `src/shared/utils/contextSettings.ts`
+so Home chat can show the same cut: `pages/home/messages/contextWindowBoundary.ts`
+windows the loaded active path after the latest clear-context marker plus the next
+user row, and the list draws a divider above the first message that request still
+carries, or after the history when only the new message fits. Home shows the
+prediction once the assistant settings are known and the topic is idle. If the
+cut starts at the first loaded user row, Home checks the preceding row for a
+context reset. A cut inside an unloaded page becomes visible when that page loads.
 An assistant-level `compress.modelId` of `null` inherits the global selection instead of forcing the current request model.
 
 ### Budget with a declared window
@@ -195,7 +238,8 @@ reduction still applies before summarization.
 
 The shared matcher in `packages/aiCore/src/contextOverflow.ts` recognizes provider-message patterns such as
 `context_length_exceeded`, `too many tokens`, `maximum context length`,
-`context window`, `prompt is too long`, and `input is too long`. Both overflow recovery and
+`context window`, `prompt is too long`, `input is too long`, and llama.cpp's
+`exceeds the available context size`. Both overflow recovery and
 `src/shared/utils/errorCategory.ts` use it; recovery also requires an AI SDK HTTP 400 error and excludes
 authentication, quota, and rate-limit failures.
 The error toast offers one action for that category: `trimContext`, wired in

@@ -12,7 +12,7 @@ import { getCase, parseTaskSelection, selectCases } from './cases'
 import { getSensitiveConfigValues } from './config'
 import { getRunPaths } from './paths'
 import { createRedactor } from './redaction'
-import { beginCase, completeE2eCase, readRun, updatePhase, writeRun } from './state'
+import { beginCase, completeE2eCase, readRun, recordSelection, updatePhase, writeRun } from './state'
 
 function caseId(test: TestCase): string {
   const id = test.annotations.find(({ type }) => type === 'regression-case')?.description
@@ -38,6 +38,10 @@ export default class RegressionReporter implements Reporter {
     let run = readRun(this.paths.runState)
     if (!this.started) {
       this.started = true
+      // TOOL-20261117-01: record the ids this execution really collected, per phase, at the moment
+      // execution starts. Judging a `--grep` rerun against a separate `--list` taken before/after
+      // the run can miss a selection that only differs while the run is in flight.
+      const recordedAt = new Date().toISOString()
       for (const phase of this.phases) {
         const expected = selectCases(parseTaskSelection(run.metadata.task)).filter(
           (testCase) => testCase.phase === phase
@@ -46,7 +50,17 @@ export default class RegressionReporter implements Reporter {
           this.errors.push(`Registered cases for phase ${phase} do not match the selected task`)
         }
         run = updatePhase(run, phase, 'running')
+        run = recordSelection(
+          run,
+          phase,
+          this.ids.filter((id) => getCase(id).phase === phase),
+          recordedAt
+        )
       }
+      // Persist the selection before any case-level early return: the first collected case can be
+      // not applicable (outside the selected task or platform), and that path would otherwise drop
+      // the record for the whole execution.
+      writeRun(this.paths.runState, run)
     }
     const id = caseId(test)
     // Cases outside the run platform are recorded as not applicable at initialize time.

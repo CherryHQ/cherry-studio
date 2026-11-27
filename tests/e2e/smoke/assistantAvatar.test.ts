@@ -1,12 +1,6 @@
 import { rm, writeFile } from 'node:fs/promises'
 
-import {
-  _electron as electron,
-  type ElectronApplication,
-  type Locator,
-  type Page,
-  type TestInfo
-} from '@playwright/test'
+import { type ElectronApplication, type Locator, type Page, type TestInfo } from '@playwright/test'
 import sharp from 'sharp'
 
 import type { Assistant } from '../../../src/shared/data/types/assistant'
@@ -14,7 +8,7 @@ import type { Message } from '../../../src/shared/data/types/message'
 import { createUniqueModelId } from '../../../src/shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '../../../src/shared/utils/constants'
 import { type MockChatServer, startMockChatServer } from '../../helpers/http/mockChatServer'
-import { expect, test as base } from './fixtures/electron.fixture'
+import { expect, launchSmokeElectron, test as base } from './fixtures/electron.fixture'
 import { stickyWindow } from './utils/stickySmoke'
 
 type AvatarRuntime = { app?: ElectronApplication; pageErrors: string[]; consoleErrors: string[] }
@@ -22,7 +16,7 @@ type AvatarRuntime = { app?: ElectronApplication; pageErrors: string[]; consoleE
 async function launchProfile(profile: string, runtime: AvatarRuntime) {
   const env = { ...process.env, NODE_ENV: 'development', CS_DEV_PROFILE_ROOT: profile }
   Reflect.deleteProperty(env, 'ELECTRON_RENDERER_URL')
-  const app = await electron.launch({ args: ['.'], env, timeout: 60_000 })
+  const app = await launchSmokeElectron({ args: ['.'], env, timeout: 60_000 })
   runtime.app = app
   const watch = (page: Page) => {
     page.on('pageerror', (error) => runtime.pageErrors.push(error.stack ?? error.message))
@@ -265,9 +259,7 @@ test('persists an uploaded assistant avatar and freezes past message avatars aft
   await expect(picker).toBeVisible()
   await screenshot(page, testInfo, 'avatar-editor')
   await picker.click()
-  await expect(page.getByRole('button', { name: 'Image Upload', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Emoji Picker', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Reset avatar', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Upload image', exact: true })).toBeVisible()
   const fixture = testInfo.outputPath('avatar.png')
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
     <rect width="128" height="128" fill="#ff2d9b" />
@@ -276,14 +268,18 @@ test('persists an uploaded assistant avatar and freezes past message avatars aft
   </svg>`
   await sharp(Buffer.from(svg)).png().toFile(fixture)
   await testInfo.attach('avatar-fixture', { path: fixture, contentType: 'image/png' })
-  const input = page.locator('input[type="file"]').first()
+  const input = dialog.locator('input[type="file"]')
   await expect
     .poll(async () => (await input.getAttribute('accept'))?.split(',').map((type) => type.trim()))
     .toEqual(expect.arrayContaining(['image/png', 'image/jpeg', 'image/gif', 'image/webp']))
-  await expect(input).toHaveAttribute('aria-label', 'Image Upload')
+  await expect(input).toHaveAttribute('aria-label', 'Upload image')
   await input.setInputFiles(fixture)
+  await page
+    .getByRole('dialog', { name: 'Crop avatar', exact: true })
+    .getByRole('button', { name: 'Confirm', exact: true })
+    .click()
   await expectDecodedImage(picker.locator('img'))
-  await expect(page.getByRole('button', { name: 'Reset avatar', exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Remove image', exact: true })).toBeHidden()
   const uploaded = await readAssistant(page, assistant.name)
   expect(uploaded.avatarFileId).toMatch(/^[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}$/i)
   expect(uploaded.avatarSrc).toMatch(/^file:\/\/\/.+/)
@@ -320,11 +316,11 @@ test('persists an uploaded assistant avatar and freezes past message avatars aft
 
   const resetDialog = await openEditor(page, assistant.name)
   await resetDialog.getByRole('button', { name: 'Choose avatar', exact: true }).first().click()
-  await page.getByRole('button', { name: 'Reset avatar', exact: true }).click()
+  await page.getByRole('button', { name: 'Remove image', exact: true }).click()
   await expect.poll(async () => (await readAssistant(page, assistant.name)).avatarFileId).toBeUndefined()
-  await expect(page.getByRole('button', { name: 'Reset avatar', exact: true })).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Remove image', exact: true })).toBeHidden()
   expect((await readAssistant(page, assistant.name)).emoji).toBe('🦊')
-  await page.keyboard.press('Escape')
+  await resetDialog.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(resetDialog).toBeHidden()
   await expectEmoji(leadingSlot(page, assistant.name), '🦊')
   await expectDecodedImage(messageAvatar(page, 'avatar turn').locator('img'))

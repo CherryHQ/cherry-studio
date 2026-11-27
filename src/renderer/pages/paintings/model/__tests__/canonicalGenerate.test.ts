@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ModelListSchema } from '@cherrystudio/provider-registry'
+import { ModelListSchema, ProviderModelListSchema } from '@cherrystudio/provider-registry'
+import en from '@renderer/i18n/locales/en-us.json'
+import i18n from '@renderer/i18n/resolver'
 import type { FileMetadata } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file'
 
 import modelCatalog from '../../../../../../packages/provider-registry/data/models.json'
+import providerModelCatalog from '../../../../../../packages/provider-registry/data/provider-models.json'
 import { isOptionsConfigItem } from '../../form/baseConfigItem'
 import { imageGenerationToFields } from '../../form/imageGenerationToFields'
+import { checkProviderEnabled } from '../../utils/checkProviderEnabled'
 import { canonicalGenerate } from '../canonicalGenerate'
 import type { GenerateInput } from '../types/generateInput'
 import type { PaintingData } from '../types/paintingData'
@@ -61,6 +65,18 @@ function makeInput(params: Record<string, unknown>, overrides: Partial<PaintingD
 describe('canonicalGenerate', () => {
   beforeEach(() => {
     generatePaintingMock.mockClear()
+  })
+
+  it('rejects a DMXAPI preset before provider checking', async () => {
+    const input = makeInput({}, { model: 'doubao-seedream-5-5' })
+    input.provider = { ...input.provider, id: 'user-provider', presetProviderId: 'dmxapi' }
+    vi.mocked(checkProviderEnabled).mockClear()
+    await expect(canonicalGenerate(input)).rejects.toMatchObject({
+      code: 'REMOTE_ERROR',
+      message: i18n.t('paintings.seedream.dmxapi_unsupported')
+    })
+    expect(checkProviderEnabled).not.toHaveBeenCalled()
+    expect(generatePaintingMock).not.toHaveBeenCalled()
   })
 
   it.each(['1536x864', '864x1536', '1536x960', '3840x2160', '2160x3840'])(
@@ -287,5 +303,282 @@ describe('canonicalGenerate', () => {
       }
     )
     expect(lastGenerateCall().paramValues).toEqual({ complexity: 'low' })
+  })
+})
+
+describe('Seedream 5.5 request contract', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
+  })
+  const target = { model: 'doubao-seedream-5-5' }
+  it('projects the effective mode pairing to canonical size only', async () => {
+    await canonicalGenerate(
+      makeInput({ imageResolution: 'custom', customSize_width: '1024', customSize_height: '1024' }, target),
+      {
+        support: {
+          modes: {
+            generate: {
+              supports: {
+                imageResolution: { type: 'enum', options: ['1K', '1.5K', '2K'] },
+                customSize: { type: 'size', pairedEnumKey: 'imageResolution', minSide: 240, maxSide: 8601 }
+              }
+            }
+          }
+        },
+        mode: 'generate'
+      }
+    )
+    expect(lastGenerateCall().paramValues).toEqual({
+      size: '1024x1024',
+      outputFormat: 'jpeg',
+      background: 'auto',
+      addWatermark: true
+    })
+  })
+  it('actually transmits target defaults and preserves explicit false', async () => {
+    await canonicalGenerate(makeInput({}, target))
+    expect(lastGenerateCall().paramValues).toEqual({
+      imageResolution: '1K',
+      outputFormat: 'jpeg',
+      background: 'auto',
+      addWatermark: true
+    })
+    await canonicalGenerate(makeInput({ addWatermark: false }, target))
+    expect(lastGenerateCall().paramValues.addWatermark).toBe(false)
+  })
+  it.each([
+    [{ size: '2150x2160' }, 'paintings.seedream.invalid_size'],
+    [{ background: 'transparent', outputFormat: 'jpeg' }, 'paintings.seedream.transparent_png'],
+    [{ background: 'transparent', outputFormat: 'webp' }, 'paintings.seedream.transparent_png']
+  ])('rejects invalid parameters before provider, file or generation IPC: %j', async (params, key) => {
+    const binaryImage = vi.fn()
+    Object.assign(window, { api: { file: { binaryImage } } })
+    await expect(
+      canonicalGenerate(
+        makeInput(params, { ...target, inputFiles: [{ id: 'ref', ext: 'png' }] as unknown as FileEntry[] })
+      )
+    ).rejects.toMatchObject({ code: 'REMOTE_ERROR', message: en[key as keyof typeof en] ?? 'missing translation' })
+    expect(checkProviderEnabled).not.toHaveBeenCalled()
+    expect(binaryImage).not.toHaveBeenCalled()
+    expect(generatePaintingMock).not.toHaveBeenCalled()
+  })
+  it('leaves Lite and other models outside the target defaults and validation', async () => {
+    await canonicalGenerate(makeInput({ size: '512x512', maxImages: 3 }, { model: 'doubao-seedream-5-0-lite' }))
+    expect(lastGenerateCall().paramValues).toEqual({ size: '512x512', maxImages: 3 })
+  })
+})
+
+it('uses the same effective mode fallback as the parameter schema for custom pairing', async () => {
+  await canonicalGenerate(makeInput({ imageResolution: 'custom', customSize_width: 1024, customSize_height: 1024 }), {
+    mode: 'generate',
+    support: {
+      modes: {
+        edit: {
+          supports: {
+            imageResolution: { type: 'enum', options: ['1K'] },
+            customSize: { type: 'size', pairedEnumKey: 'imageResolution', minSide: 240, maxSide: 8601 }
+          }
+        }
+      }
+    }
+  })
+  expect(lastGenerateCall().paramValues).toEqual({ size: '1024x1024' })
+})
+
+describe('DashScope newly registered image models (A2)', () => {
+  const dashscopeOverrides = ProviderModelListSchema.parse(providerModelCatalog).overrides.filter(
+    (row) => row.providerId === 'dashscope'
+  )
+
+  beforeEach(() => {
+    generatePaintingMock.mockClear()
+  })
+
+  it.each([
+    {
+      apiModelId: 'qwen-image-max',
+      mode: 'generate' as const,
+      sizeControl: 'input' as const,
+      size: '1664x928',
+      numImages: 1,
+      seed: 42
+    },
+    {
+      apiModelId: 'qwen-image-plus',
+      mode: 'generate' as const,
+      sizeControl: 'input' as const,
+      size: '1472x1140',
+      numImages: 1,
+      seed: 13
+    },
+    {
+      apiModelId: 'qwen-image-2.0',
+      mode: 'generate' as const,
+      sizeControl: 'sizeChips' as const,
+      size: '2688x1536',
+      numImages: 3,
+      seed: 7
+    },
+    {
+      apiModelId: 'qwen-image-2.0-pro',
+      mode: 'generate' as const,
+      sizeControl: 'sizeChips' as const,
+      size: '2048x2048',
+      numImages: 6,
+      seed: 9
+    },
+    {
+      apiModelId: 'qwen-image-2.1-pro',
+      mode: 'edit' as const,
+      sizeControl: 'sizeChips' as const,
+      size: '2688x1536',
+      numImages: 4,
+      seed: 11
+    },
+    {
+      apiModelId: 'qwen-image-2.1-turbo',
+      mode: 'generate' as const,
+      sizeControl: 'sizeChips' as const,
+      size: 'auto',
+      numImages: 2,
+      seed: 17
+    },
+    {
+      apiModelId: 'qwen-image-edit-max',
+      mode: 'edit' as const,
+      sizeControl: 'sizeChips' as const,
+      size: '2048x2048',
+      numImages: 5,
+      seed: 23
+    },
+    {
+      apiModelId: 'qwen-image-edit-plus',
+      mode: 'edit' as const,
+      sizeControl: 'sizeChips' as const,
+      size: '1536x2688',
+      numImages: 2,
+      seed: 31
+    },
+    {
+      apiModelId: 'z-image-turbo',
+      mode: 'generate' as const,
+      sizeControl: 'input' as const,
+      size: '2048x2048',
+      numImages: 1,
+      seed: 123
+    }
+  ])(
+    '$apiModelId ($mode) exposes size/numImages/seed controls and submits chosen values',
+    async ({ apiModelId, mode, sizeControl, size, numImages, seed }) => {
+      const support = dashscopeOverrides.find((row) => row.apiModelId === apiModelId)?.imageGeneration
+      expect(support).toBeDefined()
+
+      const fields = imageGenerationToFields(support, { mode })
+      expect(fields.map((field) => field.key)).toEqual(expect.arrayContaining(['size', 'numImages', 'seed']))
+
+      const sizeField = fields.find((field) => field.key === 'size')
+      expect(sizeField?.type).toBe(sizeControl)
+      if (sizeControl === 'sizeChips') {
+        if (!sizeField || !isOptionsConfigItem(sizeField) || !Array.isArray(sizeField.options)) {
+          throw new Error(`Expected sizeChips options for ${apiModelId}`)
+        }
+        expect(sizeField.options).toContainEqual(expect.objectContaining({ value: size }))
+      }
+
+      const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
+      ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+      const inputFiles = mode === 'edit' ? ([{ id: 'ref-1', ext: 'png' }] as unknown as FileEntry[]) : []
+
+      await canonicalGenerate(
+        makeInput({ size, numImages: String(numImages), seed: String(seed) }, { model: apiModelId, inputFiles }),
+        {
+          support,
+          mode
+        }
+      )
+
+      expect(lastGenerateCall().paramValues).toMatchObject({ size, numImages, seed })
+    }
+  )
+
+  it('omits unset size on z-image-turbo instead of substituting an unverified default', async () => {
+    const support = dashscopeOverrides.find((row) => row.apiModelId === 'z-image-turbo')?.imageGeneration
+    expect(support).toBeDefined()
+
+    const fields = imageGenerationToFields(support, { mode: 'generate' })
+    const sizeField = fields.find((field) => field.key === 'size')
+    expect(sizeField?.type).toBe('input')
+    expect(sizeField?.initialValue).toBeUndefined()
+
+    await canonicalGenerate(makeInput({}, { model: 'z-image-turbo' }), { mode: 'generate', support })
+
+    expect(lastGenerateCall().paramValues).toEqual({})
+  })
+
+  it('enforces the 10-image edit limit on qwen-image-2.1-pro', async () => {
+    const support = dashscopeOverrides.find((row) => row.apiModelId === 'qwen-image-2.1-pro')?.imageGeneration
+    const inputFiles = Array.from({ length: 11 }, (_, index) => ({
+      id: `ref-${index + 1}`,
+      ext: 'png'
+    })) as unknown as FileEntry[]
+
+    await expect(
+      canonicalGenerate(makeInput({}, { model: 'qwen-image-2.1-pro', inputFiles }), {
+        mode: 'edit',
+        support
+      })
+    ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'INPUT_IMAGE_LIMIT_EXCEEDED' })
+  })
+
+  it.each(['1536×1024', '1536*1024', '1536X1024', ' 1536 × 1024 '])(
+    'normalizes z-image-turbo free-form size %j to canonical 1536x1024',
+    async (size) => {
+      const support = dashscopeOverrides.find((row) => row.apiModelId === 'z-image-turbo')?.imageGeneration
+      await canonicalGenerate(makeInput({ size }, { model: 'z-image-turbo' }), { mode: 'generate', support })
+      expect(lastGenerateCall().paramValues.size).toBe('1536x1024')
+    }
+  )
+
+  it.each([
+    ['dashscope', 'qwen-image-2.0'],
+    ['dashscope', 'qwen-image-2.0-pro'],
+    ['qwencloud', 'qwen-image-2.0'],
+    ['qwencloud', 'qwen-image-2.0-pro']
+  ])('enforces the 3-image edit limit for %s %s', async (providerId, apiModelId) => {
+    const overrides = ProviderModelListSchema.parse(providerModelCatalog).overrides
+    const support = overrides.find(
+      (row) => row.providerId === providerId && row.apiModelId === apiModelId
+    )?.imageGeneration
+    expect(support?.modes.edit?.maxInputImages).toBe(3)
+
+    const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
+    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+
+    const threeFiles = Array.from({ length: 3 }, (_, index) => ({
+      id: `ref-${index + 1}`,
+      ext: 'png'
+    })) as unknown as FileEntry[]
+    await canonicalGenerate(makeInput({}, { providerId, model: apiModelId, inputFiles: threeFiles }), {
+      mode: 'edit',
+      support
+    })
+    expect(binaryImage).toHaveBeenCalledTimes(3)
+    expect(lastGenerateCall().inputImages).toHaveLength(3)
+
+    binaryImage.mockClear()
+    generatePaintingMock.mockClear()
+    const fourFiles = Array.from({ length: 4 }, (_, index) => ({
+      id: `ref-${index + 1}`,
+      ext: 'png'
+    })) as unknown as FileEntry[]
+    await expect(
+      canonicalGenerate(makeInput({}, { providerId, model: apiModelId, inputFiles: fourFiles }), {
+        mode: 'edit',
+        support
+      })
+    ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'INPUT_IMAGE_LIMIT_EXCEEDED' })
+    expect(binaryImage).not.toHaveBeenCalled()
+    expect(generatePaintingMock).not.toHaveBeenCalled()
   })
 })

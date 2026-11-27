@@ -117,7 +117,7 @@ describe('AgentConversationPickerDialog', () => {
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-kind', 'agent')
   })
 
-  it('creates an agent and selects it on wizard submit', async () => {
+  it('creates an agent on submit and selects it only from the result action', async () => {
     mocks.createAgent.mockResolvedValue({ id: 'agent-new' })
     const onSelect = vi.fn()
 
@@ -126,6 +126,9 @@ describe('AgentConversationPickerDialog', () => {
     fireEvent.click(screen.getByText('create-new'))
     fireEvent.click(screen.getByText('submit-create'))
 
+    await waitFor(() => expect(mocks.createAgent).toHaveBeenCalledTimes(1))
+    expect(onSelect).not.toHaveBeenCalled()
+    mocks.createDialogProps.onStartConversation('agent-new')
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ type: 'agent', agentId: 'agent-new' }))
   })
 

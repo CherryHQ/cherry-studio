@@ -20,7 +20,7 @@ vi.mock('../../providers', () => ({
 
 // Mock AI SDK - keep ToolLoopAgent real, mock wrapLanguageModel
 vi.mock('ai', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal<Record<string, unknown>>()
   return {
     ...actual,
     wrapLanguageModel: vi.fn((config: any) => ({

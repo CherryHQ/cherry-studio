@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import { ProviderModelListSchema } from '@cherrystudio/provider-registry'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 
 import { createDashScopeProvider } from '../../dashscope/dashscopeProvider'
@@ -329,5 +332,240 @@ describe('DashScope poll resume (restart-safe response family)', () => {
     } finally {
       fetchSpy.mockRestore()
     }
+  })
+})
+
+describe('DashScope newly registered and dated image models', () => {
+  const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host })
+  const syncEndpoint = '/api/v1/services/aigc/multimodal-generation/generation'
+  const syncDescriptor = (id: string, mode: ImageGenerationMode, endpoint = syncEndpoint) => ({
+    id,
+    endpoint,
+    isSync: true,
+    mode
+  })
+
+  it('routes dated qwen-image-max-2025-12-30 with size and seed via multimodal-generation', async () => {
+    const req = await captureImageRequest(transport, {
+      ...base,
+      modelId: 'qwen-image-max-2025-12-30',
+      prompt: 'a mountain sunrise',
+      size: '1664x928',
+      seed: 42,
+      modelDescriptor: syncDescriptor('qwen-image-max-2025-12-30', 'generate'),
+      providerParams: { promptExtend: true, addWatermark: false }
+    })
+
+    expect(req.url).toBe(`${host}${syncEndpoint}`)
+    expect(req.body).toEqual({
+      model: 'qwen-image-max-2025-12-30',
+      input: { messages: [{ role: 'user', content: [{ text: 'a mountain sunrise' }] }] },
+      parameters: { size: '1664*928', seed: 42, prompt_extend: true, watermark: false }
+    })
+  })
+
+  it('routes dated qwen-image-plus-2026-01-09 on multimodal-generation with size and seed', async () => {
+    const req = await captureImageRequest(transport, {
+      ...base,
+      modelId: 'qwen-image-plus-2026-01-09',
+      prompt: 'a lantern street',
+      size: '1472x1140',
+      seed: 19,
+      modelDescriptor: syncDescriptor('qwen-image-plus-2026-01-09', 'generate'),
+      providerParams: { promptExtend: true, addWatermark: false }
+    })
+
+    expect(req.url).toBe(`${host}${syncEndpoint}`)
+    expect(req.body).toEqual({
+      model: 'qwen-image-plus-2026-01-09',
+      input: { messages: [{ role: 'user', content: [{ text: 'a lantern street' }] }] },
+      parameters: { size: '1472*1140', seed: 19, prompt_extend: true, watermark: false }
+    })
+  })
+
+  it('routes dated qwen-image-2.0-pro-2026-03-03 with 2688x1536, n=3, and seed=7', async () => {
+    const req = await captureImageRequest(transport, {
+      ...base,
+      modelId: 'qwen-image-2.0-pro-2026-03-03',
+      prompt: 'a glass greenhouse',
+      n: 3,
+      size: '2688x1536',
+      seed: 7,
+      modelDescriptor: syncDescriptor('qwen-image-2.0-pro-2026-03-03', 'generate'),
+      providerParams: { negativePrompt: 'blurry', promptExtend: true, addWatermark: false }
+    })
+
+    expect(req.url).toBe(`${host}${syncEndpoint}`)
+    expect(req.body).toEqual({
+      model: 'qwen-image-2.0-pro-2026-03-03',
+      input: { messages: [{ role: 'user', content: [{ text: 'a glass greenhouse' }] }] },
+      parameters: {
+        size: '2688*1536',
+        n: 3,
+        seed: 7,
+        negative_prompt: 'blurry',
+        prompt_extend: true,
+        watermark: false
+      }
+    })
+  })
+
+  it('routes qwen-image-2.1-pro edit with reference images, n=2, seed=11, and no explicit size', async () => {
+    const req = await captureImageRequest(transport, {
+      ...base,
+      modelId: 'qwen-image-2.1-pro',
+      prompt: 'add warm rim light',
+      n: 2,
+      seed: 11,
+      files: file([1, 2]),
+      modelDescriptor: syncDescriptor('qwen-image-2.1-pro', 'edit'),
+      providerParams: { promptExtend: true, addWatermark: false }
+    })
+
+    expect(req.url).toBe(`${host}${syncEndpoint}`)
+    expect(req.body).toEqual({
+      model: 'qwen-image-2.1-pro',
+      input: {
+        messages: [
+          {
+            role: 'user',
+            content: [{ text: 'add warm rim light' }, { image: 'data:image/png;base64,AQI=' }]
+          }
+        ]
+      },
+      parameters: { n: 2, seed: 11, prompt_extend: true, watermark: false }
+    })
+  })
+
+  it.each(['qwen-image-edit-max-2026-01-16', 'qwen-image-edit-plus-2025-12-15'])(
+    'routes dated edit model %s with input image, size=2048x2048, n=4, and seed=99',
+    async (modelId) => {
+      const req = await captureImageRequest(transport, {
+        ...base,
+        modelId,
+        prompt: 'replace sky with dusk',
+        n: 4,
+        size: '2048x2048',
+        seed: 99,
+        files: file([4, 5]),
+        modelDescriptor: syncDescriptor(modelId, 'edit'),
+        providerParams: { promptExtend: true, addWatermark: false }
+      })
+
+      expect(req.url).toBe(`${host}${syncEndpoint}`)
+      expect(req.body).toEqual({
+        model: modelId,
+        input: {
+          messages: [
+            {
+              role: 'user',
+              content: [{ text: 'replace sky with dusk' }, { image: 'data:image/png;base64,BAU=' }]
+            }
+          ]
+        },
+        parameters: { size: '2048*2048', n: 4, seed: 99, prompt_extend: true, watermark: false }
+      })
+    }
+  )
+
+  it('routes z-image-turbo with 1024x1536, seed=123, and prompt_extend=false', async () => {
+    const req = await captureImageRequest(transport, {
+      ...base,
+      modelId: 'z-image-turbo',
+      prompt: 'editorial portrait',
+      n: 1,
+      size: '1024x1536',
+      seed: 123,
+      modelDescriptor: syncDescriptor('z-image-turbo', 'generate'),
+      providerParams: { promptExtend: false }
+    })
+
+    expect(req.url).toBe(`${host}${syncEndpoint}`)
+    expect(req.body).toEqual({
+      model: 'z-image-turbo',
+      input: { messages: [{ role: 'user', content: [{ text: 'editorial portrait' }] }] },
+      parameters: { size: '1024*1536', seed: 123, prompt_extend: false }
+    })
+  })
+
+  it('normalizes U+00D7 dimension separator (1536×1024) on z-image-turbo to 1536*1024', async () => {
+    const req = await captureImageRequest(transport, {
+      ...base,
+      modelId: 'z-image-turbo',
+      prompt: 'landscape scene',
+      n: 1,
+      size: '1536×1024' as ImageGenerationSubmitInput['size'],
+      modelDescriptor: syncDescriptor('z-image-turbo', 'generate'),
+      providerParams: {}
+    })
+
+    expect(req.body).toMatchObject({
+      model: 'z-image-turbo',
+      parameters: { size: '1536*1024' }
+    })
+  })
+
+  it('routes catalog-declared qwen-image-plus via multimodal-generation, preserves legacy text2image endpoint fallback, and rejects override-less submits without modelDescriptor', async () => {
+    const catalog = ProviderModelListSchema.parse(
+      JSON.parse(
+        readFileSync(
+          new URL('../../../../../../../packages/provider-registry/data/provider-models.json', import.meta.url),
+          'utf8'
+        )
+      )
+    )
+    const catalogTransport = catalog.overrides.find(
+      (row) => row.providerId === 'dashscope' && row.modelId === 'qwen-image-plus'
+    )?.imageGeneration?.modes.generate?.vendorTransport
+    expect(catalogTransport).toEqual({ endpoint: syncEndpoint, isSync: true })
+
+    const sharedInput = {
+      ...base,
+      modelId: 'qwen-image-plus',
+      prompt: 'a lantern street',
+      size: '1664x928',
+      seed: 19,
+      providerParams: { negativePrompt: 'blurry', promptExtend: true, addWatermark: false }
+    } satisfies ImageGenerationSubmitInput
+
+    const catalogReq = await captureImageRequest(transport, {
+      ...sharedInput,
+      modelDescriptor: {
+        id: 'qwen-image-plus',
+        endpoint: catalogTransport!.endpoint,
+        isSync: catalogTransport!.isSync,
+        mode: 'generate'
+      }
+    })
+    expect(catalogReq.url).toBe(`${host}${syncEndpoint}`)
+    expect(catalogReq.headers.get('X-DashScope-Async')).toBeNull()
+    expect(catalogReq.body).toEqual({
+      model: 'qwen-image-plus',
+      input: { messages: [{ role: 'user', content: [{ text: 'a lantern street' }] }] },
+      parameters: { size: '1664*928', seed: 19, negative_prompt: 'blurry', prompt_extend: true, watermark: false }
+    })
+
+    const legacyEndpoint = '/api/v1/services/aigc/text2image/image-synthesis'
+    const legacyReq = await captureImageRequest(transport, {
+      ...sharedInput,
+      modelDescriptor: { id: 'qwen-image-plus', endpoint: legacyEndpoint, isSync: false, mode: 'generate' }
+    })
+    expect(legacyReq.url).toBe(`${host}${legacyEndpoint}`)
+    expect(legacyReq.headers.get('X-DashScope-Async')).toBe('enable')
+    expect(legacyReq.body).toEqual({
+      model: 'qwen-image-plus',
+      input: { prompt: 'a lantern street', negative_prompt: 'blurry' },
+      parameters: { size: '1664*928', seed: 19, prompt_extend: true, watermark: false }
+    })
+
+    await expect(
+      transport.submit({
+        ...base,
+        modelId: 'qwen-image-plus',
+        prompt: 'a lantern street',
+        modelDescriptor: undefined,
+        providerParams: {}
+      })
+    ).rejects.toThrow('Missing modelDescriptor for DashScope model: qwen-image-plus')
   })
 })

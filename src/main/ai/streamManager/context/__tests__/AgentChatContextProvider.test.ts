@@ -6,6 +6,7 @@ import type { StreamListener } from '../../types'
 import type { MainDispatchRequest } from '../dispatch'
 
 const mocks = vi.hoisted(() => ({
+  broadcast: vi.fn(),
   getSession: vi.fn(),
   ensureTraceIdTx: vi.fn(),
   getAgent: vi.fn(),
@@ -155,6 +156,7 @@ describe('AgentChatContextProvider', () => {
     mocks.captureHead.mockReturnValue('branch-head')
     mocks.branchTip.mockImplementation((_sessionId, messageId) => messageId)
     mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'WindowManager') return { broadcast: mocks.broadcast }
       if (name === 'AgentSessionRuntimeService') {
         return {
           prepareBranch: async () => {},
@@ -244,6 +246,12 @@ describe('AgentChatContextProvider', () => {
       expect.objectContaining({ id: 'session-1', workspace: { path: '/tmp' } }),
       { headless: false }
     )
+    expect(mocks.broadcast.mock.calls.flatMap(([, effects]) => effects)).toContainEqual({
+      endpoint: '/agent-sessions/:sessionId/messages',
+      kind: 'membership',
+      routeParams: { sessionId: 'session-1' },
+      entityIds: prepared.reservedMessages!.map(({ id }) => id)
+    })
     expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(provider.isPersistentConversation).toBe(true)
@@ -395,6 +403,19 @@ describe('AgentChatContextProvider', () => {
         reasoningEffort: 'default',
         serviceTier: 'standard'
       }
+    )
+  })
+
+  // Without it, a busy Enter in a Pi Durable session would steer the running turn.
+  it('forwards the follow-up intent when busy dispatch enqueues a message', async () => {
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await provider.prepareDispatch(makeSubscriber(), openReq({ followUp: true }))
+
+    expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
+      'session-1',
+      expect.anything(),
+      expect.objectContaining({ followUp: true })
     )
   })
 

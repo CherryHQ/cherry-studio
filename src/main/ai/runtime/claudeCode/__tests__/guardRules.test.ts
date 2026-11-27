@@ -69,6 +69,16 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     expect(validateToolGuardRules(CLAUDE_TOOL_GUARD_RULES)).toEqual([])
   })
 
+  it.each(['Edit', 'MultiEdit', 'NotebookEdit', 'Write'])(
+    'denies %s in Plan Only before approval',
+    async (toolName) => {
+      expect(await evaluate(makeCtx({ permissionMode: 'plan', toolName }))).toMatchObject({
+        effect: 'deny',
+        ruleId: 'file-write-plan'
+      })
+    }
+  )
+
   describe('disabled-tool', () => {
     it.each(['default', 'acceptEdits', 'bypassPermissions'] as const)(
       'denies a disabled tool under %s',
@@ -138,13 +148,19 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
             input: { command: 'rm -rf /tmp/data' }
           })
         )
-        expect(decision?.ruleId).toBe('builtin-destructive')
+        expect(decision).toMatchObject({
+          effect: 'deny',
+          reason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+        })
       }
     })
 
     it('denies permanent-deletion MCP tools for protected built-in agents', async () => {
       const decision = await evaluate(makeCtx({ builtinRole: 'support', toolName: 'mcp__files__delete_file' }))
-      expect(decision?.ruleId).toBe('builtin-destructive')
+      expect(decision).toMatchObject({
+        effect: 'deny',
+        reason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+      })
     })
 
     it('does not gate ordinary agents', async () => {
@@ -158,7 +174,10 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
           input: { command: 'rm -rf build' }
         })
       )
-      expect(decision?.ruleId).toBe('builtin-destructive')
+      expect(decision).toMatchObject({
+        effect: 'deny',
+        reason: expect.stringContaining('mcp__assistant-files__move_to_trash')
+      })
     })
   })
 
@@ -328,6 +347,11 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       expect(decision?.effect).toBe('ask')
     })
 
+    it('asks when the submission runs through the PowerShell tool', async () => {
+      const decision = await evaluate(makeCtx({ builtinRole: 'assistant', toolName: 'PowerShell', input: feedback }))
+      expect(decision).toMatchObject({ effect: 'ask', ruleId: 'assistant-feedback' })
+    })
+
     it('is lifted by bypassPermissions (net behavior matches the pierced ask it replaces)', async () => {
       await expect(
         evaluate(
@@ -367,6 +391,20 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         effect: 'ask',
         ruleId: 'support-bash'
       })
+    })
+
+    it('asks for PowerShell tool calls too', async () => {
+      const decision = await evaluate(
+        makeCtx({ ...supportCtx, toolName: 'PowerShell', input: { command: 'Get-ChildItem' } })
+      )
+      expect(decision).toMatchObject({ effect: 'ask', ruleId: 'support-bash' })
+    })
+
+    it('denies headless PowerShell use', async () => {
+      const decision = await evaluate(
+        makeCtx({ ...supportCtx, toolName: 'PowerShell', input: { command: 'Get-ChildItem' }, interaction: HEADLESS })
+      )
+      expect(decision).toMatchObject({ effect: 'deny', ruleId: 'support-bash' })
     })
 
     it('is lifted by bypassPermissions', async () => {

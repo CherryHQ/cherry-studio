@@ -3,6 +3,10 @@ import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import chardet from 'chardet'
+import iconv from 'iconv-lite'
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { decodeTextWithAutoEncoding as decodeTextBuffer } from '@main/utils/textEncoding'
@@ -25,9 +29,6 @@ import {
 // SoT lives in `@shared/utils/file` (filename topic); callers migrate to the
 // shared path opportunistically.
 export { sanitizeFilename, validateFileName } from '@shared/utils/file'
-import chardet from 'chardet'
-import iconv from 'iconv-lite'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('Utils:File')
 

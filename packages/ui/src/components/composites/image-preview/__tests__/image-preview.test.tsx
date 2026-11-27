@@ -10,6 +10,7 @@ import {
   type ImagePreviewItem,
   type ImagePreviewTransform,
   ImagePreviewTrigger,
+  ImagePreviewViewport,
   useImagePreviewTransform
 } from '../index'
 
@@ -148,6 +149,34 @@ describe('useImagePreviewTransform', () => {
   it('validates transform bounds at hook entry', () => {
     expect(() => renderHook(() => useImagePreviewTransform({ maxZoom: 1, minZoom: 2 }))).toThrow('minZoom <= maxZoom')
     expect(() => renderHook(() => useImagePreviewTransform({ zoomStep: 0 }))).toThrow('zoomStep > 0')
+  })
+})
+
+describe('ImagePreviewViewport', () => {
+  it('owns Ctrl-wheel image zoom while plain wheel still bubbles to the window', () => {
+    function Preview() {
+      const controls = useImagePreviewTransform()
+      return (
+        <>
+          <ImagePreviewViewport item={ITEMS[0]} transformControls={controls} />
+          <output aria-label="Image zoom">{controls.transform.zoom}</output>
+        </>
+      )
+    }
+    const windowWheel = vi.fn()
+    window.addEventListener('wheel', windowWheel, { capture: false })
+    try {
+      render(<Preview />)
+      const viewport = screen.getByTestId('image-preview-viewport')
+      fireEvent.wheel(viewport, { ctrlKey: true, deltaY: -100 })
+      expect(Number(screen.getByLabelText('Image zoom').textContent)).toBeGreaterThan(1)
+      expect(windowWheel).not.toHaveBeenCalled()
+
+      fireEvent.wheel(viewport, { deltaY: -100 })
+      expect(windowWheel).toHaveBeenCalledOnce()
+    } finally {
+      window.removeEventListener('wheel', windowWheel, { capture: false })
+    }
   })
 })
 

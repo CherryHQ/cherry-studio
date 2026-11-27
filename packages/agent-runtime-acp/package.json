@@ -13,12 +13,12 @@
   },
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "pnpm --workspace-root exec tsrs --noEmit -p packages/agent-runtime-acp/tsconfig.json"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "2.4.0",
     "@cherrystudio/agent-runtime": "workspace:*",
-    "zod": "4.4.3"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@types/node": "^24.10.4",

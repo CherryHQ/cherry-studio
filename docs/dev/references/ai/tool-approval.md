@@ -12,6 +12,17 @@ sources:
   - src/main/ai/runtime/claudeCode/ToolApprovalRegistry.ts
   - src/main/ai/runtime/claudeCode/hooks.ts
   - src/main/ai/toolApproval/ToolApprovalRegistry.ts
+  - src/main/ai/toolApproval/builtinToolPolicyRegistry.ts
+  - src/main/ai/toolApproval/commandPolicy/index.ts
+  - src/main/ai/toolApproval/commandPolicy/checkCommand.ts
+  - src/main/ai/toolApproval/commandPolicy/policyEvaluator.ts
+  - src/main/ai/toolApproval/commandPolicy/commandParser.ts
+  - src/main/ai/toolApproval/commandPolicy/commandSemantics.ts
+  - src/main/ai/toolApproval/commandPolicy/policySchema.ts
+  - src/main/ai/toolApproval/commandPolicy/command-policy.json
+  - src/main/ai/toolApproval/commandPolicy/builtinDestructiveDetector.ts
+  - src/main/ai/runtime/pi/piApprovalFacts.ts
+  - packages/agent-behavior/src/orchestration/gate.ts
   - src/main/ai/toolApproval/builtinToolPolicy.ts
   - src/main/ai/mcp/createMcpBridgeServer.ts
   - src/main/ai/mcp/McpRuntimeService.ts
@@ -44,7 +55,32 @@ persists, and resumes the stream.
 A card whose request is gone is never left answerable. When a connection or
 stream ends with an approval still pending, `ToolApprovalRegistry.onAborted`
 retires the persisted card to `output-error`, so the composer stops offering a
-question nothing can receive.
+question nothing can receive. When Pi Durable resumes an interactive turn on startup,
+a still-pending tool approval or Ask User Question registers a fresh interaction.
+Turns recorded without a desktop responder keep their headless behavior.
+
+Claude Code Plan Only omits built-in file mutation tools from the model's tool list.
+Switching into or out of Plan Only refreshes that list for the next turn. A switch
+into Plan Only during a turn also blocks file mutation calls immediately.
+
+MCP skill loading and file reads follow each Skill’s server-owned reading permission
+through ordinary tool approval. Unconfigured entries ask each time; Full Access skips
+prompts, and explicit disablement remains effective. Reading a skill adds no session
+activation or additional approval rules for later tools; see [MCP Skills Client](./mcp-skills-client.md).
+
+The composer identifies the requesting Agent or subagent. Child requests carry the
+spawning tool-call ID in provider metadata; the card uses that identity to show the
+matching task name and background status, with a link to the task in Agent sessions.
+Shell commands are shown in full in a scrollable, copyable preview. The optional
+rejection reason expands on demand. Opening task details or expanding the reason
+with Enter never submits an approval decision.
+
+The composer identifies the requesting Agent or subagent. Child requests carry the
+spawning tool-call ID in provider metadata; the card uses that identity to show the
+matching task name and background status, with a link to the task in Agent sessions.
+Shell commands are shown in full in a scrollable, copyable preview. The optional
+rejection reason expands on demand. Opening task details or expanding the reason
+with Enter never submits an approval decision.
 
 ## End-to-end flow
 
@@ -99,6 +135,66 @@ ID, including its real approval ID. Later native results may omit approval metad
 the projection reapplies the decision before publishing and persisting, and restores
 it from persisted parts after reconnecting. A host refusal remains `output-denied`;
 a permitted call can still finish with a genuine execution error.
+
+## Shell command policy
+
+Claude Code, Pi and Pi Durable evaluate the complete shell invocation before execution.
+In `auto`, ordinary commands run without a first-use Shell grant. A matching risk rule or
+incomplete analysis asks for that invocation only. A saved tool grant cannot bypass these asks.
+An applicable `deny` blocks every mode, including Full Access, and exposes no approval action.
+The built-in Assistant, Support and Doctor retain their destructive-operation denial; role
+scope is independent of a rule's effect. Children use their root's mode and protected role.
+
+Runtimes reach the policy only through the `commandPolicy` barrel's `checkCommand`. It takes
+the command, its dialect (from the tool name), cwd, built-in role and the root's permission
+mode, and returns `deny`, `ask` (only in `auto`) or `allow`, the localized policy reason, card
+evidence and a `context` fingerprint. A runtime compares the fingerprint after a grant instead
+of re-deriving the policy inputs. The built-in Assistant's feedback-submission guard also uses
+the barrel's `resolveInvocationCommands`, which returns every command an invocation runs
+(wrapped, substituted and nested-shell commands included) and whether any part stayed
+unresolved; it makes no policy decision of its own. The parser, semantic adapters, JSON document and the
+built-in role's destructive-operation detector are private to the directory; lint rejects
+deep imports. Decisions are cached per command, dialect and role, because one call is
+checked by a hook, a permission callback and again after approval.
+
+The bundled [`command-policy.json`](../../../../src/main/ai/toolApproval/commandPolicy/command-policy.json)
+is validated atomically. Unknown versions, fields, roles, detectors, invalid selectors,
+duplicate IDs and missing mandatory denial block shell execution. There is no cloud fetch,
+user override or live reload. Command selectors match one executable node: executable choices
+are OR, an ordered subcommand path and option groups are AND. `allOf`, `anyOf` and `noneOf`
+operate on recognized options, never substrings or other commands' flags.
+
+The parser loads matching Bash and PowerShell WebAssembly grammars from
+`feature.agents.command_parser_assets`. The main build emits the runtime and both grammars
+under `out/main/assets/command-parsers`; desktop packages include them for offline use.
+Each invocation disposes its syntax tree and parser. Syntax becomes executable nodes, literal
+and dynamic arguments, control context, pipeline identities, redirections, heredoc data and
+source ranges. Literal shell code is parsed in its nested dialect; Node/Python code triggers
+an inline-code rule. Git adapters consume option values before matching destructive forms.
+Ambiguous path/branch checkout, unsupported forms and parser limits require approval. An
+option of unknown arity before a package manager's subcommand requires approval only when a
+later word is a subcommand some rule selects. PowerShell script blocks and assignments are
+analyzed as the commands they contain; `Invoke-Expression` text is parsed like `eval`, and
+.NET method calls stay opaque. `find -exec` and `fd --exec` argv are analyzed as commands, and
+an interpreter reading a process substitution (`bash <(curl …)`) requires approval. A parser
+asset failure blocks shell execution; an analysis failure on one input requires approval.
+
+Analysis is bounded to 65,536 characters per source, 10,000 nodes, 128 structural levels,
+8 nested interpreter levels and 64 nested sources, with a 200 ms parse budget. Valid complete
+nodes before an input truncation can still establish a denial. Across all analyzed nodes,
+`deny` wins over `ask`, and no constituent command starts before the final decision.
+
+The approval carries the full effective input, cwd, localized reasons and command evidence.
+Opening evidence with Enter does not grant consent. A grant permits this invocation only;
+mode, role, policy or input changes while waiting invalidate it. With a live background
+responder, child approvals remain answerable after the parent finishes. Without a responder,
+asks block rather than running or waiting indefinitely. Codemode itself remains automatic;
+its nested tools pass the same gate.
+
+This is a usability guard, not operating-system isolation or proof of safety. Unmatched
+programs, script files, aliases, Git hooks and ambient configuration can still have arbitrary
+side effects. Shell filesystem access is not contained by this policy. SQLite protection,
+disabled tools, install and role-specific guards can independently tighten the outcome.
 
 ## Persistent decisions
 
@@ -228,7 +324,10 @@ Each new model tool call that reaches the per-call decision branch of
 `canUseTool` gets a fresh `approvalId`
 (`src/main/ai/runtime/claudeCode/settingsBuilder.ts:513`, `src/main/ai/runtime/claudeCode/settingsBuilder.ts:599`).
 Dispatch consumes that approval entry once, without memoising by tool name or
-arguments (`src/main/ai/toolApproval/ToolApprovalRegistry.ts:88`). SDK permission
+arguments (`src/main/ai/toolApproval/ToolApprovalRegistry.ts:88`). Pi and Pi
+Durable likewise give every approval registration a fresh ID
+(`src/main/ai/runtime/pi/piBehaviorHost.ts`), because a native call reference
+repeats across Durable stores, including a new store in the same session. SDK permission
 suggestions (`permission_suggestions` / `permissionSuggestions`) are unused.
 The MCP portion of the pre-approved tool list contains built-in tool policies
 only; user-defined MCP tools are excluded (`src/main/ai/runtime/claudeCode/settingsBuilder.ts:507`,

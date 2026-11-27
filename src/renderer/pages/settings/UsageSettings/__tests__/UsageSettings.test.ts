@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest'
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 import type { AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecords'
 
-import { buildChartSeries, getTimelinePoints, selectCostTotal, toPeriodKey } from '../usageAnalytics'
+import {
+  buildChartSeries,
+  getTimelinePoints,
+  rangeFromPeriodKey,
+  selectCostTotal,
+  toPeriodKey,
+  toUsageEntryGroupFilter
+} from '../usageAnalytics'
 
 function bucket(date: string, totalTokens: number, overrides: Partial<AiUsageRecordTimelineBucket> = {}) {
   return {
@@ -210,5 +217,54 @@ describe('buildChartSeries', () => {
     expect(series.map((item) => item.total)).toEqual([30, 10])
     expect(series[1]).toMatchObject({ key: 'other', values: [7, 0, 3] })
     expect(series[1].identity).toBeUndefined()
+  })
+})
+
+describe('rangeFromPeriodKey', () => {
+  it('clips daily, weekly, and monthly period ranges to the active window bounds', () => {
+    const bounds = {
+      from: new Date(2026, 2, 10, 0, 0, 0, 0).getTime(),
+      to: new Date(2026, 2, 20, 23, 59, 59, 999).getTime()
+    }
+
+    expect(rangeFromPeriodKey('2026-03-12', 'daily', bounds)).toEqual({
+      from: new Date(2026, 2, 12, 0, 0, 0, 0).getTime(),
+      to: new Date(2026, 2, 12, 23, 59, 59, 999).getTime()
+    })
+    expect(rangeFromPeriodKey('2026-03-16', 'weekly', bounds)).toEqual({
+      from: new Date(2026, 2, 16, 0, 0, 0, 0).getTime(),
+      to: bounds.to
+    })
+    expect(rangeFromPeriodKey('2026-03-01', 'monthly', bounds)).toEqual(bounds)
+    expect(rangeFromPeriodKey('total', 'total', bounds)).toEqual(bounds)
+  })
+})
+
+describe('toUsageEntryGroupFilter', () => {
+  it('maps each groupBy dimension identity to its list query filter', () => {
+    expect(toUsageEntryGroupFilter('provider', { providerId: 'openai', modelId: 'gpt-4' })).toEqual({
+      providerId: 'openai'
+    })
+    expect(toUsageEntryGroupFilter('model', { providerId: 'openai', modelId: 'gpt-4' })).toEqual({
+      providerId: 'openai',
+      modelId: 'gpt-4'
+    })
+    expect(toUsageEntryGroupFilter('source', { sourceType: 'assistant', sourceId: 'a1' })).toEqual({
+      sourceType: 'assistant',
+      sourceId: 'a1'
+    })
+    expect(
+      toUsageEntryGroupFilter('apiKey', {
+        providerId: 'openai',
+        apiKeyId: 'k1',
+        apiKeyAttribution: 'explicit',
+        authMethod: null
+      })
+    ).toEqual({
+      providerId: 'openai',
+      apiKeyId: 'k1',
+      apiKeyAttribution: 'explicit',
+      authMethod: null
+    })
   })
 })

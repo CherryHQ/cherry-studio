@@ -2,7 +2,7 @@ import type { JsonValue, ThreadId } from '@cherrystudio/agent-runtime'
 
 import type { Effect, Step, TxOp } from '../core/decisions'
 import type { ConversationFacts } from '../core/facts'
-import type { ApprovalOutcome, CallInputs, HostSettingsSnapshot } from '../core/hostFacts'
+import type { CallInputs, HostSettingsSnapshot } from '../core/hostFacts'
 import { subagentViews } from '../core/subagents/subagentLedger'
 import type { BoundPorts, MessageResult, RetractResult, StartResult, TransactResult } from '../ports/harness'
 import type { HostPorts, Settings } from '../ports/host'
@@ -93,31 +93,17 @@ const settingsSnapshot = (settings: Settings, thread: ThreadId): HostSettingsSna
   offloadThreshold: settings.offloadThreshold()
 })
 
-/** L6: the outcomes the host persisted for the thread's calls and for its children's, which show a child waiting. */
-async function outcomesFor(host: HostPorts, facts: ConversationFacts): Promise<ApprovalOutcome[]> {
-  const threads = [facts.thread, ...facts.children.keys()]
-  const lists = await Promise.all(threads.map((thread) => host.approvals.outcomes(thread, [])))
-  return lists.flat()
-}
-
 /** Design §7.1 point 1: the host facts one decision needs, gathered before its commit. */
-export async function gatherInputs(
+export function gatherInputs(
   context: Context,
   thread: ThreadId,
   extra: Pick<CallInputs, 'models' | 'verdict' | 'args'> = {}
-): Promise<CallInputs> {
-  const facts = await context.ports.ledger.read(thread)
-  return {
-    now: context.ports.clock.now(),
-    settings: settingsSnapshot(context.host.settings, thread),
-    approvals: await outcomesFor(context.host, facts),
-    ...extra
-  }
+): CallInputs {
+  return { now: context.ports.clock.now(), settings: settingsSnapshot(context.host.settings, thread), ...extra }
 }
 
 /** P7: the thread's background children as the host shows them, from fresh facts. */
 export async function emitViews(context: Context, thread: ThreadId): Promise<void> {
   const facts = await context.ports.ledger.read(thread)
-  const views = subagentViews(facts, await outcomesFor(context.host, facts))
-  context.host.observation.emit({ type: 'subagents', thread, views })
+  context.host.observation.emit({ type: 'subagents', thread, views: subagentViews(facts) })
 }

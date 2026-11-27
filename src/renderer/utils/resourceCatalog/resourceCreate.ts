@@ -1,24 +1,10 @@
 import type { AssistantCatalogPreset } from '@renderer/types/assistantCatalog'
-import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { createUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 const DEFAULT_AGENT_CREATE_TYPE = 'claude-code' as const
-
-/** Map the shared create-wizard values to the Assistant DataApi contract. */
-export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAssistantDto {
-  return {
-    name: values.name,
-    emoji: values.avatar,
-    modelId: values.modelId,
-    description: values.description,
-    prompt: values.prompt,
-    knowledgeBaseIds: values.knowledgeBaseIds
-  }
-}
 
 /** Map a bundled assistant-catalog preset to an Agent create command (default runtime: claude-code). */
 export function toCreateAgentCommandFromCatalogPreset(
@@ -76,27 +62,4 @@ export function resolveCatalogPresetModelId(
     if (!isModelIdSelectable || isModelIdSelectable(modelId)) return modelId
   }
   return null
-}
-
-/** Map the shared create-wizard values to the Agent creation command. */
-export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAgentCommand {
-  const caps = AGENT_RUNTIME_CAPABILITIES[values.agentType]
-  const permissionMode = caps.permissionModes.some((mode) => mode === values.permissionMode)
-    ? values.permissionMode
-    : caps.createDefaults.permissionMode
-  return {
-    type: values.agentType,
-    ...(values.avatarImage ? { avatarImage: values.avatarImage } : {}),
-    name: values.name,
-    model: values.modelId,
-    ...(caps.modelTiers ? { planModel: values.modelId, smallModel: values.modelId } : {}),
-    description: values.description,
-    instructions: values.prompt,
-    ...(caps.knowledgeBases ? { knowledgeBaseIds: values.knowledgeBaseIds } : {}),
-    ...(caps.skills ? { skillIds: values.skillIds } : {}),
-    configuration: {
-      avatar: values.avatar,
-      permission_mode: permissionMode
-    }
-  }
 }

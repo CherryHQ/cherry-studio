@@ -17,6 +17,7 @@ const {
   mockGetModels,
   mockEstimateAnthropicRequestTokens,
   mockIsInternalRequest,
+  mockAcquireInternalRequestBudget,
   mockGetCredentialScope,
   scopedCredentials,
   mockPreferenceGet,
@@ -30,6 +31,7 @@ const {
     if (tokens.some((value) => value === 'internal-agent-key' || value === 'Bearer internal-agent-key')) return true
     return tokens.some((value) => scopedCredentials.has(value?.replace(/^Bearer /, '') ?? ''))
   }),
+  mockAcquireInternalRequestBudget: vi.fn<(headers: Headers, signal: AbortSignal) => Promise<() => void>>(),
   mockGetCredentialScope: vi.fn((headers: Headers) =>
     scopedCredentials.get(
       headers.get('x-api-key') ??
@@ -40,7 +42,7 @@ const {
   ),
   scopedCredentials: new Map<string, { path: string; model: string }>(),
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
-  mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
+  mockProcessMessage: vi.fn<(config: unknown, release?: () => void) => Promise<Response>>(
     async () =>
       new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
   ),
@@ -52,7 +54,13 @@ vi.mock('@application', async () => {
   const { MockMainPreferenceServiceExport } = await import('@test-mocks/main/PreferenceService')
   const overrides = {
     PreferenceService: { ...MockMainPreferenceServiceExport.preferenceService, get: mockPreferenceGet },
-    ApiGatewayService: { isInternalRequest: mockIsInternalRequest, getCredentialScope: mockGetCredentialScope }
+    ApiGatewayService: {
+      isInternalRequest: mockIsInternalRequest,
+      getAgentSessionId: (headers: Headers) =>
+        headers.get('x-api-key') === 'internal-agent-key' ? headers.get('x-cherry-agent-session-id') : undefined,
+      acquireInternalRequestBudget: mockAcquireInternalRequestBudget,
+      getCredentialScope: mockGetCredentialScope
+    }
   }
   return mockApplicationFactory(overrides)
 })
@@ -239,6 +247,76 @@ describe('API gateway routes (integration)', () => {
   })
 
   describe('Anthropic token counting', () => {
+    const path = '/v1/messages/count_tokens'
+    const input = { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hello' }] }
+    const sessionHeaders = { ...AUTH, 'x-api-key': 'internal-agent-key', 'x-cherry-agent-session-id': 'session' }
+
+    it('waits for Agent admission while public token counting can proceed', async () => {
+      const admission = Promise.withResolvers<() => void>()
+      const release = vi.fn()
+      mockAcquireInternalRequestBudget.mockReturnValueOnce(admission.promise)
+
+      const queued = post(internalApp, path, input, sessionHeaders)
+      try {
+        await vi.waitFor(() => expect(mockAcquireInternalRequestBudget).toHaveBeenCalledOnce())
+        expect(mockEstimateAnthropicRequestTokens).not.toHaveBeenCalled()
+        const publicHeaders = { ...AUTH, 'x-cherry-agent-session-id': 'session' }
+        await expect(post(app, path, input, publicHeaders).then(read)).resolves.toEqual({
+          status: 200,
+          body: { input_tokens: 42 }
+        })
+        expect(mockAcquireInternalRequestBudget).toHaveBeenCalledOnce()
+      } finally {
+        admission.resolve(release)
+        await queued
+      }
+
+      await expect(queued.then(read)).resolves.toEqual({ status: 200, body: { input_tokens: 42 } })
+      expect(release).toHaveBeenCalledOnce()
+    })
+
+    it('returns Agent budget when token estimation fails', async () => {
+      const release = vi.fn()
+      mockAcquireInternalRequestBudget.mockResolvedValueOnce(release)
+      mockEstimateAnthropicRequestTokens.mockRejectedValueOnce(
+        Object.assign(new Error('Invalid input'), { statusCode: 400 })
+      )
+
+      const { status, body } = await read(await post(internalApp, path, input, sessionHeaders))
+      expect(status).toBe(400)
+      expect(body).toMatchObject({ type: 'error', error: { type: 'invalid_request_error' } })
+      expect(release).toHaveBeenCalledOnce()
+    })
+
+    it('cancels a waiting Agent request before estimation', async () => {
+      const controller = new AbortController()
+      mockAcquireInternalRequestBudget.mockImplementationOnce(
+        (_headers, signal) =>
+          new Promise((_resolve, reject) => {
+            signal.throwIfAborted()
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+
+      const queued = internalApp.handle(
+        new Request(`http://localhost${path}`, {
+          method: 'POST',
+          headers: sessionHeaders,
+          body: JSON.stringify(input),
+          signal: controller.signal
+        })
+      )
+      try {
+        await vi.waitFor(() => expect(mockAcquireInternalRequestBudget).toHaveBeenCalledOnce())
+      } finally {
+        controller.abort()
+        await queued
+      }
+
+      expect((await queued).status).toBe(504)
+      expect(mockEstimateAnthropicRequestTokens).not.toHaveBeenCalled()
+    })
+
     it('resolves Cherry Cloud models as an internal request', async () => {
       const response = await post(
         internalApp,
@@ -362,9 +440,9 @@ describe('API gateway routes (integration)', () => {
         expect(status).toBe(200)
         if (path === '/v1/messages') {
           expect(body).toEqual({ ok: true })
-          expect(mockProcessMessage).toHaveBeenCalledWith(
-            expect.objectContaining({ params: { model: 'anthropic:claude', messages } })
-          )
+          expect(mockProcessMessage.mock.lastCall?.[0]).toMatchObject({
+            params: { model: 'anthropic:claude', messages }
+          })
         } else {
           expect(body).toEqual({ input_tokens: 42 })
           expect(mockEstimateAnthropicRequestTokens).toHaveBeenCalledWith(
@@ -493,7 +571,7 @@ describe('API gateway routes (integration)', () => {
         )
       )
 
-      expect(mockProcessMessage).toHaveBeenLastCalledWith(expect.objectContaining({ fastMode: false }))
+      expect(mockProcessMessage.mock.lastCall?.[0]).toMatchObject({ fastMode: false })
     })
 
     it('accepts Fast only from an internal consumer', async () => {
@@ -510,7 +588,25 @@ describe('API gateway routes (integration)', () => {
         )
       )
 
-      expect(mockProcessMessage).toHaveBeenLastCalledWith(expect.objectContaining({ fastMode: true }))
+      expect(mockProcessMessage.mock.lastCall?.[0]).toMatchObject({ fastMode: true })
+    })
+
+    it('queues internal Agent messages while a public request can proceed', async () => {
+      const admission = Promise.withResolvers<() => void>()
+      const enteredQueue = Promise.withResolvers<void>()
+      mockAcquireInternalRequestBudget.mockImplementationOnce(() => {
+        enteredQueue.resolve()
+        return admission.promise
+      })
+      const input = { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] }
+      const headers = { ...AUTH, 'x-cherry-agent-session-id': 'session' }
+      const queued = post(internalApp, '/v1/messages', input, { ...headers, 'x-api-key': 'internal-agent-key' })
+      await enteredQueue.promise
+      expect((await post(app, '/v1/messages', input, headers)).status).toBe(200)
+      const release = () => {}
+      admission.resolve(release)
+      expect((await queued).status).toBe(200)
+      expect(mockProcessMessage.mock.lastCall?.[1]).toBe(release)
     })
 
     it('GET /v1/models returns the model list', async () => {

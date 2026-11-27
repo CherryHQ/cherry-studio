@@ -1,13 +1,4 @@
 export {
-  type AgentDiffResult,
-  type AgentFormState,
-  type AgentSaveIntent,
-  applyAgentFormPatch,
-  buildInitialAgentFormState,
-  diffAgentSaveIntent,
-  diffAgentUpdate
-} from './agentForm'
-export {
   type AssistantDiffResult,
   type AssistantFormState,
   type AssistantSaveIntent,
@@ -16,6 +7,17 @@ export {
   initialAssistantFormState
 } from './assistantForm'
 export {
+  type AutoConfigCatalogs,
+  type AutoConfigDraft,
+  type AutoConfigKind,
+  buildAutoConfigInput,
+  getFeaturedMcpName,
+  parseAutoConfigDraft,
+  readAutoConfigProgress,
+  RESOURCE_AUTO_CONFIG_SYSTEM_PROMPT,
+  toFeaturedMcpId
+} from './autoConfigure'
+export {
   type AssistantConfigMcpMode,
   MCP_MODE_OPTIONS,
   RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT,
@@ -23,8 +25,6 @@ export {
   RESOURCE_TYPE_ORDER
 } from './constants'
 export {
-  buildCreateAgentCommand,
-  buildCreateAssistantDto,
   isUniqueModelIdSelectable,
   resolveCatalogPresetModelId,
   toCreateAgentCommandFromCatalogPreset,

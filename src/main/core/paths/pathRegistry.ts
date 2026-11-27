@@ -148,6 +148,7 @@ export function buildPathRegistry() {
 
     // Isolated preload for site `<webview>` guests. Local mini apps keep their capability bridge.
     'feature.webview.preload_file': path.join(app.getAppPath(), 'out/preload/webview.js'),
+    'feature.mcp.app_preload_file': path.join(app.getAppPath(), 'out/preload/mcpAppGuest.js'),
 
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
@@ -243,6 +244,7 @@ export function buildPathRegistry() {
     'feature.ovms.ovocr': path.join(CHERRY_HOME, 'ovms', 'ovocr'),
 
     // Agents
+    'feature.agents.command_parser_assets': path.join(app.getAppPath(), 'out', 'main', 'assets', 'command-parsers'),
     'feature.code_cli.skills.builtin': path.join(appRootResources, 'code-cli-skills'), // conditional Code Mate skill templates (read-only)
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
     'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
@@ -441,6 +443,7 @@ type NoEnsureEntry = PathKey | `${TopNamespace}.`
  * Type-checked — typos or stale keys fail at compile time.
  */
 const NO_ENSURE = [
+  'feature.agents.command_parser_assets',
   'feature.agents.pi.sessions',
   'feature.agents.durable.stores',
   // Namespace prefixes
@@ -467,6 +470,7 @@ const NO_ENSURE = [
   'feature.pdfjs.cmaps',
   'feature.pdfjs.standard_fonts',
   'feature.webview.preload_file',
+  'feature.mcp.app_preload_file',
   'feature.code_cli.skills.builtin',
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',

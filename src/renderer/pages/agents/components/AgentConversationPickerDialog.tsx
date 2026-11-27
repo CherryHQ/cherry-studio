@@ -15,12 +15,9 @@ import { useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogP
 import { findAgentByName } from '@renderer/services/findAgentByName'
 import type { AssistantCatalogPreset } from '@renderer/types/assistantCatalog'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
-import {
-  buildCreateAgentCommand,
-  resolveCatalogPresetModelId,
-  toCreateAgentCommandFromCatalogPreset
-} from '@renderer/utils/resourceCatalog'
+import { resolveCatalogPresetModelId, toCreateAgentCommandFromCatalogPreset } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import { buildCreateAgentCommand } from '@shared/ai/agentCreateCommand'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -115,9 +112,9 @@ export function AgentConversationPickerDialog({
       }
 
       setCreateDialogOpen(false)
-      await onSelect({ type: 'agent', agentId: created.id })
+      return created.id
     },
-    [createAgent, onSelect]
+    [createAgent]
   )
 
   const filterOptions: { value: AgentPickerTab | null; label: string }[] = [
@@ -208,6 +205,7 @@ export function AgentConversationPickerDialog({
         isSubmitting={isCreatingAgent}
         onOpenChange={setCreateDialogOpen}
         onSubmit={handleSubmitCreate}
+        onStartConversation={(agentId) => void onSelect({ type: 'agent', agentId })}
       />
     </>
   )
