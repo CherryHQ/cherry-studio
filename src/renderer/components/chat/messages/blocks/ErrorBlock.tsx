@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next'
 import type { ReactNode } from 'react'
 import React, { useCallback, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -17,7 +18,8 @@ import {
   getClaudeCodeExitCategory,
   getClaudeCodeExitInfo,
   getLocalModelResolutionFailure,
-  isClaudeCodeNotLoggedIn
+  isClaudeCodeNotLoggedIn,
+  isUnattributedClaudeCodeExit
 } from '@renderer/utils/errorClassifier'
 import { isLikelyInLanguage } from '@renderer/utils/errorLanguage'
 
@@ -61,6 +63,15 @@ interface Props {
 
 const ErrorBlock: React.FC<Props> = ({ partId, error, message }) => {
   return <MessageErrorInfo partId={partId} error={error} message={message} />
+}
+
+function getClaudeCodeExitMessage(error: Props['error'], t: TFunction): string | undefined {
+  const exit = getClaudeCodeExitInfo(error)
+  if (!exit) return undefined
+  const { reference, exitCode, exitSignal } = exit
+  if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
+  if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
+  return t('error.claude_code_exit.start', { reference })
 }
 
 /** Built-in providers show their localized label; a custom one shows the name the user gave it. */
@@ -122,7 +133,8 @@ const MessageErrorInfo: React.FC<{
   const errorProviderId = typeof errorBag?.providerId === 'string' ? errorBag.providerId : undefined
   const errorI18nKey = errorBag?.i18nKey
   const claudeCodeExitCategory = getClaudeCodeExitCategory(error)
-  const claudeCodeExit = getClaudeCodeExitInfo(error)
+  const claudeCodeExitMessage = getClaudeCodeExitMessage(error, t)
+  const unattributedClaudeCodeExit = isUnattributedClaudeCodeExit(error)
   const claudeCodeLogin = isClaudeCodeNotLoggedIn(error)
   const appOwnedErrorKey = typeof errorI18nKey === 'string' ? `error.${errorI18nKey}` : ''
   const hasAppOwnedI18nKey = appOwnedErrorKey !== '' && i18n.exists(appOwnedErrorKey)
@@ -144,7 +156,11 @@ const MessageErrorInfo: React.FC<{
       ? t('error.notice.claude_code_login.title')
       : hasAppOwnedI18nKey && !errorProviderId
         ? t(appOwnedErrorKey)
-        : t(localModelFailure ? NOTICE_KEYS.model.title : NOTICE_KEYS[category].title)
+        : localModelFailure
+          ? t(NOTICE_KEYS.model.title)
+          : unattributedClaudeCodeExit && claudeCodeExitMessage
+            ? claudeCodeExitMessage
+            : t(NOTICE_KEYS[category].title)
 
   const diagnosisFault = [
     message.id,
@@ -186,12 +202,9 @@ const MessageErrorInfo: React.FC<{
 
   const info = ((): ReactNode => {
     if (cherryCloudQuotaRejection) return cloudPresentation.text
-    if (claudeCodeExit) {
-      const { reference, exitCode, exitSignal } = claudeCodeExit
-      if (exitCode !== undefined) return t('error.claude_code_exit.code', { code: exitCode, reference })
-      if (exitSignal !== undefined) return t('error.claude_code_exit.signal', { signal: exitSignal, reference })
-      return t('error.claude_code_exit.start', { reference })
-    }
+    // An unattributed exit already names its status and reference in the title.
+    if (unattributedClaudeCodeExit) return undefined
+    if (claudeCodeExitMessage) return claudeCodeExitMessage
     if (claudeCodeLogin) return t('error.notice.claude_code_login.info')
     if (hasAppOwnedI18nKey) {
       if (errorProviderId) return <ProviderLinkedErrorText i18nKey={appOwnedErrorKey} providerId={errorProviderId} />

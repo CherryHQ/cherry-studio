@@ -114,4 +114,12 @@ describe('CodeCliSidebar', () => {
     expect(onToggleSidebar).toHaveBeenCalledWith(tools[0])
     expect(onSelectTool).not.toHaveBeenCalled()
   })
+  it.each([
+    { detectionStatus: 'loading' as const },
+    { detectionStatus: 'error' as const },
+    { applicationStatus: 'unknown' as const }
+  ])('does not label uncertain detection as not installed: %j', (uncertain) => {
+    renderSidebar({ [CodeCli.CLAUDE_CODE]: { installed: false, source: 'none', canUpgrade: false, ...uncertain } })
+    expect(screen.getByRole('button', { name: /Claude Code/ })).not.toHaveTextContent('code.not_installed')
+  })
 })

@@ -1,6 +1,15 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+export async function showConversationSidebar(chatView: Locator): Promise<Locator> {
+  const topics = chatView.locator('[data-ui~="chat.topic-list"]:visible').first()
+  const showSidebar = chatView.getByRole('button', { name: 'Show Sidebar', exact: true }).first()
+  await expect(topics.or(showSidebar).first()).toBeVisible({ timeout: 20_000 })
+  if (!(await topics.isVisible())) await showSidebar.click()
+  await expect(topics).toBeVisible({ timeout: 20_000 })
+  return topics
+}
+
 export async function openConversationListOptions(view: Locator): Promise<void> {
   const options = view.getByRole('button', { name: 'List options', exact: true })
   const showSidebar = view.getByRole('button', { name: 'Show Sidebar', exact: true })
@@ -24,19 +33,44 @@ export async function selectConversationListOption(
   )
 }
 
+/** Polls until no dialog is mounted; returns false when the budget runs out. */
+async function waitForDialogsGone(page: Page, timeout: number): Promise<boolean> {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    if ((await page.getByRole('dialog').count()) === 0) return true
+    await page.waitForTimeout(100)
+  }
+  return (await page.getByRole('dialog').count()) === 0
+}
+
 export async function dismissTransientDialogs(page: Page): Promise<void> {
   // Escape also closes popovers; repeated presses let nested dialogs finish their exit animations.
   await page.keyboard.press('Escape')
-  await expect
-    .poll(
-      async () => {
-        const count = await page.getByRole('dialog').count()
-        if (count > 0) await page.keyboard.press('Escape')
-        return count
-      },
-      { timeout: 10_000 }
-    )
-    .toBe(0)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    // A dialog that is merely animating out still counts as mounted, so wait for the count to
+    // drop before deciding another attempt is needed.
+    if (await waitForDialogsGone(page, 1_500)) return
+    // Some dialogs (channel config, key setup) have no Escape handler — only their own close
+    // button removes them, and one left open used to fail every later test on the same page.
+    const close = page
+      .getByRole('dialog')
+      .getByRole('button', { name: /^(关闭|Close)$/ })
+      .first()
+    if (await close.isVisible().catch(() => false)) {
+      await close.click({ timeout: 2_000 }).catch(() => undefined)
+    } else {
+      await page.keyboard.press('Escape')
+    }
+  }
+  // Keep the original 10s budget: 3 attempts plus this tail, so a slow exit never fails a test.
+  if (await waitForDialogsGone(page, 5_000)) return
+  const leftover = page.getByRole('dialog')
+  const count = await leftover.count()
+  const names = await leftover.evaluateAll((nodes) =>
+    nodes.map((node) => (node.getAttribute('aria-label') || node.textContent || '').trim().slice(0, 40))
+  )
+  // Fail with the offending dialog named: an anonymous "expected 0, received 1" hides the leak.
+  throw new Error(`dialogs survived dismissal: ${count} still open (${names.join(' | ')})`)
 }
 
 export async function dismissOnboarding(page: Page): Promise<void> {

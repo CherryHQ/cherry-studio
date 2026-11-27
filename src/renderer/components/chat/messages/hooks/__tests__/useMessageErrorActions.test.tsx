@@ -148,6 +148,30 @@ describe('useMessageErrorActions', () => {
     )
   })
 
+  it('records a segment row failure against its durable owner message', async () => {
+    const message = {
+      id: 'message-1:segment-2',
+      sourceMessageId: 'message-1',
+      role: 'assistant',
+      topicId: 'agent-session:session-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'error'
+    } satisfies MessageListItem
+    const error = { message: 'runtime failed', name: 'AgentRuntimeError', stack: '' }
+    const { result } = renderHook(() =>
+      useMessageErrorActions({ errorSource: 'agent', getDoctorSubject: () => undefined })
+    )
+
+    await result.current.openErrorDetail?.({ message, partId: 'part-1', error })
+
+    expect(mocks.showErrorDetailPopup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        incident: expect.objectContaining({ messageId: 'message-1' }),
+        errorContext: expect.objectContaining({ recordId: 'message-1' })
+      })
+    )
+  })
+
   it('gives a new failure of the same message its own snapshot', async () => {
     const message = {
       id: 'message-1',
